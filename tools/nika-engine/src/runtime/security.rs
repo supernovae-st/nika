@@ -136,25 +136,29 @@ const BLOCKLIST: &[&str] = &[
     "runas ",
 ];
 
-/// Additional blocklist patterns that only apply in shell mode.
+/// Shell-mode patterns that are ALWAYS blocked (structural commands).
 ///
-/// These patterns are dangerous only when executed via `sh -c` (shell mode).
-/// In shell-free mode (shlex), they are harmless literal strings.
+/// These patterns are dangerous regardless of origin — a workflow author
+/// should never need alias/function definitions inside an exec command.
 const SHELL_MODE_BLOCKLIST: &[&str] = &[
-    // Command substitution — executes arbitrary commands inside $()
-    "$(",
-    // Backtick command substitution — legacy form of $()
-    // NOTE: backtick uses quote-aware matching (contains_unquoted) to allow
-    // backticks inside quoted strings like `echo "file\`name.txt"`
-    "`",
-    // Bash process substitution — executes commands via /dev/fd
-    "<(",
-    // Here-string — feeds arbitrary input to interpreters
-    "<<<",
     // Shell alias/function definitions — can redefine blocked commands
     "alias ",
     "function ",
     "declare -f",
+];
+
+/// Shell metacharacter patterns that are only dangerous when INJECTED via data.
+///
+/// When the dev writes `$()` in their YAML template, it's intentional.
+/// When `$()` appears because runtime data (via `{{with.xxx}}`) contains it,
+/// it's a potential injection attack. These patterns are checked by
+/// `check_shell_data_injection()` which compares raw template vs resolved command.
+const SHELL_INJECTION_PATTERNS: &[&str] = &[
+    // Command substitution — executes arbitrary commands inside $()
+    "$(", // Backtick command substitution — legacy form of $()
+    "`", // Bash process substitution — executes commands via /dev/fd
+    "<(", // Here-string — feeds arbitrary input to interpreters
+    "<<<",
 ];
 
 /// Check whether `haystack` contains `needle` outside of quoted regions.
@@ -263,6 +267,63 @@ pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
             return Err(NikaError::BlockedCommand {
                 command: cmd.to_string(),
                 reason: format!("Shell-mode blocklisted pattern: {}", pattern),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Check for shell metacharacter injection via template data.
+///
+/// Compares the raw YAML template against the resolved command to detect
+/// shell metacharacters (`$()`, backticks, `<(`, `<<<`) that were INJECTED
+/// by runtime data — not written by the workflow author.
+///
+/// If a pattern exists in both raw template and resolved command, it's
+/// intentional (dev wrote it). If it appears ONLY in the resolved command,
+/// it came from task output data and is a potential injection.
+///
+/// # Errors
+///
+/// Returns `BlockedCommand` if an injected shell metacharacter is detected.
+pub fn check_shell_data_injection(raw_template: &str, resolved_cmd: &str) -> Result<(), NikaError> {
+    let resolved_normalized = normalize_for_blocklist(resolved_cmd);
+    let resolved_lower = resolved_normalized.to_lowercase();
+    let raw_normalized = normalize_for_blocklist(raw_template);
+    let raw_lower = raw_normalized.to_lowercase();
+
+    for pattern in SHELL_INJECTION_PATTERNS {
+        let in_resolved = if *pattern == "`" {
+            contains_unquoted(&resolved_lower, pattern)
+        } else {
+            resolved_lower.contains(pattern)
+        };
+
+        if !in_resolved {
+            continue;
+        }
+
+        // Pattern is in resolved command — check if it was already in the raw template
+        let in_raw = if *pattern == "`" {
+            contains_unquoted(&raw_lower, pattern)
+        } else {
+            raw_lower.contains(pattern)
+        };
+
+        if !in_raw {
+            // Pattern was INJECTED via data — block it
+            tracing::warn!(
+                resolved = %crate::util::redact_secrets(resolved_cmd),
+                pattern = %pattern,
+                "NIKA-053: Blocked injected shell metacharacter from template data"
+            );
+            return Err(NikaError::BlockedCommand {
+                command: resolved_cmd.to_string(),
+                reason: format!(
+                    "Shell metacharacter '{}' injected via template data — \
+                     use |shell transform to escape dynamic values",
+                    pattern
+                ),
             });
         }
     }
@@ -1525,23 +1586,13 @@ mod tests {
     }
 
     // =========================================================================
-    // Regression: Bug 16 — shell-mode blocklist blocks $() and backticks
+    // Shell-mode structural blocklist (alias, function, declare -f)
     // =========================================================================
 
     #[test]
-    fn test_shell_mode_blocklist_blocks_command_substitution() {
-        let result = check_shell_mode_blocklist("echo $(rm -rf /)");
-        assert!(result.is_err(), "$() should be blocked in shell mode");
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("NIKA-053"));
-    }
-
-    #[test]
-    fn test_shell_mode_blocklist_blocks_backtick() {
-        let result = check_shell_mode_blocklist("echo `whoami`");
-        assert!(result.is_err(), "backtick should be blocked in shell mode");
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("NIKA-053"));
+    fn test_shell_mode_blocklist_blocks_alias() {
+        let result = check_shell_mode_blocklist("alias rm='echo safe'");
+        assert!(result.is_err(), "alias should be blocked in shell mode");
     }
 
     #[test]
@@ -1554,82 +1605,87 @@ mod tests {
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
+    #[test]
+    fn test_shell_mode_blocklist_allows_dollar_paren_in_template() {
+        // $() is now allowed in static templates — checked via injection detection
+        let result = check_shell_mode_blocklist("echo $(date +%Y-%m-%d)");
+        assert!(
+            result.is_ok(),
+            "$() in template is intentional: {:?}",
+            result.err()
+        );
+    }
+
     // =========================================================================
-    // BUG-6: Quote-aware backtick detection
+    // Shell injection detection ($() / backtick from data vs template)
     // =========================================================================
 
     #[test]
-    fn test_backtick_inside_double_quotes_is_allowed() {
-        // Backtick inside double quotes is a literal character, not command substitution
-        let result = check_shell_mode_blocklist(r#"echo "file`name.txt""#);
-        assert!(
-            result.is_ok(),
-            "Backtick inside double quotes should be allowed: {:?}",
-            result.err()
-        );
+    fn test_injection_allows_dollar_paren_in_raw_template() {
+        // Dev wrote $() in YAML — intentional, should be allowed
+        let raw = "echo $(date +%Y-%m-%d)";
+        let resolved = "echo $(date +%Y-%m-%d)";
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
     }
 
     #[test]
-    fn test_backtick_inside_single_quotes_is_allowed() {
-        // Backtick inside single quotes is always literal
-        let result = check_shell_mode_blocklist("echo 'it`s fine'");
-        assert!(
-            result.is_ok(),
-            "Backtick inside single quotes should be allowed: {:?}",
-            result.err()
-        );
+    fn test_injection_blocks_dollar_paren_from_data() {
+        // $() appears in resolved but NOT in raw template → injected
+        let raw = "echo {{with.cmd}}";
+        let resolved = "echo $(rm -rf /)";
+        let result = check_shell_data_injection(raw, resolved);
+        assert!(result.is_err(), "$() injected via data should be blocked");
     }
 
     #[test]
-    fn test_unquoted_backtick_substitution_is_blocked() {
-        // Unquoted backtick is command substitution — must be blocked
-        let result = check_shell_mode_blocklist("echo `rm -rf /`");
+    fn test_injection_blocks_backtick_from_data() {
+        let raw = "echo {{with.output}}";
+        let resolved = "echo `whoami`";
+        let result = check_shell_data_injection(raw, resolved);
         assert!(
             result.is_err(),
-            "Unquoted backtick substitution should be blocked"
-        );
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("NIKA-053"));
-    }
-
-    #[test]
-    fn test_backtick_after_closing_quote_is_blocked() {
-        // Backtick outside the quoted region should still be blocked
-        let result = check_shell_mode_blocklist(r#"echo "safe" `whoami`"#);
-        assert!(
-            result.is_err(),
-            "Backtick after closing quote should be blocked"
+            "backtick injected via data should be blocked"
         );
     }
 
     #[test]
-    fn test_backtick_before_opening_quote_is_blocked() {
-        let result = check_shell_mode_blocklist(r#"`whoami` "safe""#);
-        assert!(
-            result.is_err(),
-            "Backtick before opening quote should be blocked"
-        );
+    fn test_injection_allows_backtick_in_raw_template() {
+        let raw = "echo `date`";
+        let resolved = "echo `date`";
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
     }
 
     #[test]
-    fn test_multiple_backticks_inside_quotes_allowed() {
-        let result = check_shell_mode_blocklist(r#"echo "a`b`c`d""#);
-        assert!(
-            result.is_ok(),
-            "Multiple backticks inside double quotes should be allowed: {:?}",
-            result.err()
-        );
+    fn test_injection_allows_safe_resolved_command() {
+        let raw = "echo {{with.name}}";
+        let resolved = "echo Alice";
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
     }
 
     #[test]
-    fn test_escaped_quote_does_not_close_double_quotes() {
-        // The \" inside double quotes is an escape — the backtick is still inside quotes
-        let result = check_shell_mode_blocklist(r#"echo "he said \"it`s\" fine""#);
-        assert!(
-            result.is_ok(),
-            "Backtick inside double quotes with escaped quotes should be allowed: {:?}",
-            result.err()
-        );
+    fn test_injection_blocks_process_substitution_from_data() {
+        let raw = "cat {{with.file}}";
+        let resolved = "cat <(echo hacked)";
+        assert!(check_shell_data_injection(raw, resolved).is_err());
+    }
+
+    // =========================================================================
+    // BUG-6: Quote-aware backtick detection (now in injection check)
+    // =========================================================================
+
+    #[test]
+    fn test_backtick_inside_double_quotes_not_injected() {
+        // Backtick inside double quotes in resolved, but also in raw template
+        let raw = r#"echo "file`name.txt""#;
+        let resolved = r#"echo "file`name.txt""#;
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
+    }
+
+    #[test]
+    fn test_backtick_inside_single_quotes_not_injected() {
+        let raw = "echo 'it`s fine'";
+        let resolved = "echo 'it`s fine'";
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
     }
 
     #[test]
@@ -1645,33 +1701,39 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_exec_command_with_shell_blocks_substitution() {
-        // Shell mode: $() should be blocked
+    fn test_validate_exec_command_with_shell_allows_dollar_paren() {
+        // $() is no longer blocked by validate_exec_command_with_shell —
+        // it's now checked by check_shell_data_injection (raw vs resolved comparison).
+        // But "rm -rf /" inside the $() is still caught by the general blocklist.
         let result = validate_exec_command_with_shell("echo $(rm -rf /)", true);
-        assert!(result.is_err(), "$() should be blocked in shell mode");
-
-        // Non-shell mode: $() is harmless (shlex treats it as literal)
-        let result = validate_exec_command_with_shell("echo $(rm -rf /)", false);
-        // Still blocked by the regular blocklist due to "rm -rf /"
         assert!(
             result.is_err(),
-            "Should still block 'rm -rf /' in non-shell mode: {:?}",
-            result.as_ref().ok()
+            "'rm -rf /' inside $() still blocked by general blocklist"
+        );
+
+        // $() with safe content should pass
+        let result = validate_exec_command_with_shell("echo $(date +%Y)", true);
+        assert!(
+            result.is_ok(),
+            "$() with safe content should pass: {:?}",
+            result.err()
         );
     }
 
     #[test]
-    fn test_validate_exec_command_with_shell_blocks_backtick_only_in_shell() {
-        // Shell mode: backtick should be blocked
+    fn test_validate_exec_command_with_shell_allows_backtick() {
+        // Backtick is no longer blocked by validate_exec_command_with_shell —
+        // it's now checked by check_shell_data_injection (raw vs resolved).
         let result = validate_exec_command_with_shell("echo `whoami`", true);
-        assert!(result.is_err(), "backtick should be blocked in shell mode");
-
-        // Non-shell mode: backtick is harmless
-        let result = validate_exec_command_with_shell("echo `whoami`", false);
         assert!(
             result.is_ok(),
-            "backtick should be allowed in non-shell mode"
+            "backtick should pass structural check: {:?}",
+            result.err()
         );
+
+        // Non-shell mode: backtick is also harmless
+        let result = validate_exec_command_with_shell("echo `whoami`", false);
+        assert!(result.is_ok(), "backtick allowed in non-shell mode");
     }
 
     #[test]
@@ -1803,43 +1865,39 @@ mod tests {
     }
 
     // =========================================================================
-    // Shell blocklist: pre-resolution vs post-resolution
+    // Shell injection: pre-resolution vs post-resolution
     // =========================================================================
 
     #[test]
-    fn test_shell_blocklist_on_raw_template_allows_data_with_dollar_paren() {
-        // Raw template has no $( — safe
-        let raw_template = "echo 'Special: {{with.cmd}}'";
-        assert!(
-            check_shell_mode_blocklist(raw_template).is_ok(),
-            "Template without $() should pass shell blocklist"
-        );
-
-        // But a resolved command with $( from data would have been blocked before the fix
+    fn test_injection_data_with_dollar_paren_is_blocked() {
+        // Raw template has no $( — but resolved does → injected
+        let raw = "echo 'Special: {{with.cmd}}'";
         let resolved = "echo 'Special: echo Today is $(date +%Y-%m-%d)'";
         assert!(
-            check_shell_mode_blocklist(resolved).is_err(),
-            "Resolved command with $() is still dangerous if checked directly"
+            check_shell_data_injection(raw, resolved).is_err(),
+            "$() injected via data should be blocked"
         );
     }
 
     #[test]
-    fn test_shell_blocklist_blocks_literal_dollar_paren_in_template() {
-        // User WROTE $() in their YAML — this should always be blocked
-        let raw_template = "echo $(date +%Y-%m-%d)";
+    fn test_injection_allows_literal_dollar_paren_in_template() {
+        // User WROTE $() in their YAML — intentional, should be allowed
+        let raw = "echo $(date +%Y-%m-%d)";
+        let resolved = "echo $(date +%Y-%m-%d)";
         assert!(
-            check_shell_mode_blocklist(raw_template).is_err(),
-            "Literal $() in template should be blocked"
+            check_shell_data_injection(raw, resolved).is_ok(),
+            "Literal $() in template is dev intent — should be allowed"
         );
     }
 
     #[test]
-    fn test_shell_blocklist_allows_template_placeholders() {
-        // Template placeholders like {{with.x}} don't contain $( or backticks
-        let raw_template = "echo '{{with.output}}' | grep pattern";
+    fn test_injection_allows_template_placeholders_with_safe_data() {
+        // Template placeholders with safe resolved data
+        let raw = "echo '{{with.output}}' | grep pattern";
+        let resolved = "echo 'hello world' | grep pattern";
         assert!(
-            check_shell_mode_blocklist(raw_template).is_ok(),
-            "Template with {{with.x}} should pass shell blocklist"
+            check_shell_data_injection(raw, resolved).is_ok(),
+            "Safe data should pass injection check"
         );
     }
 

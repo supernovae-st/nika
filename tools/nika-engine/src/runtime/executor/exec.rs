@@ -58,12 +58,11 @@ impl TaskExecutor {
             }
         }
 
-        // SHELL MODE: check raw template (pre-resolution) for shell metacharacters ($(), backticks).
-        // This prevents false positives when task output data contains shell metacharacters
-        // that were safely injected via {{with.alias | shell}} templates. The user's YAML
-        // template is what we audit for dangerous patterns, not the resolved data.
+        // SHELL INJECTION CHECK: detect $(), backticks, <( that were INJECTED via
+        // template data (not written by the dev in the YAML). Compares raw template
+        // vs resolved command — patterns present in both are intentional.
         if is_shell {
-            crate::runtime::security::check_shell_mode_blocklist(&params.command)?;
+            crate::runtime::security::check_shell_data_injection(&params.command, &resolved_cmd)?;
         }
 
         // POLICY CHECK: exec verb
