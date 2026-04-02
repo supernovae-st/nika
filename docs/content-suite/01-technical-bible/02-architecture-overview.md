@@ -172,7 +172,7 @@ MCP client implementation (9K lines) using rmcp 0.16:
 - **McpClientPool**: Connection pool with lazy initialization, per-server deduplication via `DashMap + OnceCell`, and event logging.
 - **McpValidator**: Tool schema validation with `CachedSchema` and `ErrorEnhancer` for "did you mean?" suggestions.
 - **McpConfigInline**: Inline server configuration (command + args + env + cwd).
-- **NikaMcpConfig**: Reads `~/.nika/mcp.json` for global MCP server definitions.
+- **NikaMcpConfig**: Reads `~/.mcp.json` for global MCP server definitions.
 - Timeout constants: connect 20s, call 60s, reconnect 30s.
 
 ### nika-media (CAS Store)

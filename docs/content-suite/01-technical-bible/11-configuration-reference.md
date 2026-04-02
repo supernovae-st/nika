@@ -8,8 +8,8 @@ Nika uses multiple configuration files at different scopes:
 |------|-------|---------|
 | `~/.config/nika/config.toml` | Global | API keys, defaults |
 | `.nika/config.toml` | Project | Project-specific settings |
-| `.nika/mcp.json` | Project | MCP server definitions |
-| `~/.nika/mcp.json` | Global | Global MCP server definitions |
+| `.mcp.json` | Project | MCP server definitions |
+| `~/.mcp.json` | Global | Global MCP server definitions |
 | `.nika/course-progress.json` | Project | Course progress tracking |
 
 ---
@@ -163,7 +163,7 @@ mcp:
       NEO4J_URI: bolt://localhost:7687
 ```
 
-### Project-Level (.nika/mcp.json)
+### Project-Level (.mcp.json)
 
 ```json
 {
@@ -187,7 +187,7 @@ mcp:
 }
 ```
 
-### Global MCP Config (~/.nika/mcp.json)
+### Global MCP Config (~/.mcp.json)
 
 Same format as project-level. Project-level overrides global for the same server name.
 

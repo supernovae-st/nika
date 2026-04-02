@@ -222,8 +222,9 @@ impl Job {
   }
 
   /// Download an artifact by name (sync, returns bytes).
-  fn download_artifact(&self, py: Python<'_>, name: String) -> PyResult<Vec<u8>> {
+  fn download_artifact(&self, py: Python<'_>, name: &str) -> PyResult<Vec<u8>> {
     let inner = Arc::clone(&self.inner);
+    let name = name.to_string();
     py.allow_threads(|| {
       let artifacts = runtime().block_on(inner.artifacts()).map_err(sdk_err)?;
       let artifact = artifacts
@@ -380,7 +381,7 @@ impl Client {
   fn submit(
     &self,
     py: Python<'_>,
-    workflow: String,
+    workflow: &str,
     inputs: Option<&Bound<'_, PyDict>>,
     resume_from: Option<String>,
   ) -> PyResult<Job> {
@@ -399,6 +400,7 @@ impl Client {
     }
 
     let inner = self.inner.clone();
+    let workflow = workflow.to_string();
     let job = py.allow_threads(|| runtime().block_on(inner.submit(&workflow, opts)).map_err(sdk_err))?;
     Ok(Job {
       inner: Arc::new(job),
@@ -410,7 +412,7 @@ impl Client {
   fn run_sync(
     &self,
     py: Python<'_>,
-    workflow: String,
+    workflow: &str,
     inputs: Option<&Bound<'_, PyDict>>,
   ) -> PyResult<JobResult> {
     let job = self.submit(py, workflow, inputs, None)?;
