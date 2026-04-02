@@ -107,10 +107,8 @@ fn default_enabled() -> bool {
 pub enum McpSource {
     /// Global config (~/.nika/mcp.yaml)
     Global,
-    /// Project config (.nika/mcp.yaml)
+    /// Project config (.mcp.json or .nika/mcp.yaml)
     Project,
-    /// Workflow config (inline in .nika.yaml)
-    Workflow,
 }
 
 impl std::fmt::Display for McpSource {
@@ -118,7 +116,6 @@ impl std::fmt::Display for McpSource {
         match self {
             McpSource::Global => write!(f, "global"),
             McpSource::Project => write!(f, "project"),
-            McpSource::Workflow => write!(f, "workflow"),
         }
     }
 }
@@ -440,7 +437,6 @@ mod tests {
     fn test_mcp_source_display() {
         assert_eq!(McpSource::Global.to_string(), "global");
         assert_eq!(McpSource::Project.to_string(), "project");
-        assert_eq!(McpSource::Workflow.to_string(), "workflow");
     }
 
     #[test]

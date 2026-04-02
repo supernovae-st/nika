@@ -118,10 +118,8 @@ pub enum NikaMcpSource {
     /// Global configuration (~/.nika/mcp.yaml).
     #[default]
     Global,
-    /// Project configuration (.nika/mcp.yaml).
+    /// Project configuration (.mcp.json or .nika/mcp.yaml).
     Project,
-    /// Workflow-level configuration (inline in workflow.nika.yaml).
-    Workflow,
 }
 
 impl NikaMcpServer {
@@ -470,7 +468,6 @@ pub fn list_nika_mcp_servers() -> Result<Vec<String>, McpError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use tempfile::TempDir;
 
     fn create_test_config(content: &str) -> (TempDir, NikaMcpConfigManager) {
@@ -593,7 +590,6 @@ servers:
     }
 
     #[test]
-    #[serial]
     fn test_load_servers_by_name() {
         let yaml = r#"
 version: 1
@@ -609,11 +605,7 @@ servers:
     enabled: true
 "#;
 
-        let (temp, manager) = create_test_config(yaml);
-
-        // Override the global path temporarily
-        let config_path = temp.path().join("mcp.yaml");
-        std::env::set_var("SPN_MCP_CONFIG_PATH", config_path.to_str().unwrap());
+        let (_temp, manager) = create_test_config(yaml);
 
         // Test loading specific servers
         let config = manager.load_global().unwrap();
