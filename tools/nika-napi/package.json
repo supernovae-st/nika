@@ -1,5 +1,5 @@
 {
-  "name": "@nika/sdk",
+  "name": "@supernovae-st/nika-sdk",
   "version": "0.58.1",
   "description": "Node.js SDK for the Nika workflow engine",
   "main": "index.js",
