@@ -130,6 +130,7 @@ impl Transport for RemoteTransport {
         let event_stream = async_stream::stream! {
             let mut buffer = String::new();
             let mut byte_stream = std::pin::pin!(byte_stream);
+            const MAX_BUFFER: usize = 1024 * 1024; // 1 MiB
 
             while let Some(chunk_result) = byte_stream.next().await {
                 let chunk = match chunk_result {
@@ -150,10 +151,18 @@ impl Transport for RemoteTransport {
 
                 buffer.push_str(text);
 
-                // Process complete SSE frames (delimited by \n\n)
-                while let Some(pos) = buffer.find("\n\n") {
-                    let frame_text = buffer[..pos + 2].to_string();
-                    buffer = buffer[pos + 2..].to_string();
+                // Guard against unbounded buffer growth from malformed streams
+                if buffer.len() > MAX_BUFFER {
+                    yield Err(SdkError::EventParse(
+                        format!("SSE buffer exceeded {} bytes", MAX_BUFFER),
+                    ));
+                    return;
+                }
+
+                // Process complete SSE frames (delimited by \n\n or \r\n\r\n)
+                while let Some((pos, delim_len)) = find_frame_boundary(&buffer) {
+                    let frame_text = buffer[..pos + delim_len].to_string();
+                    buffer = buffer[pos + delim_len..].to_string();
 
                     let frames = sse::parse_sse_block(&frame_text);
                     for frame in frames {
@@ -224,6 +233,23 @@ impl Transport for RemoteTransport {
             Err(e) => Err(map_reqwest_error(e)),
         }
     }
+}
+
+/// Find the next SSE frame boundary in the buffer.
+///
+/// Returns `(position, delimiter_length)` for either `\n\n` (2) or `\r\n\r\n` (4).
+fn find_frame_boundary(buf: &str) -> Option<(usize, usize)> {
+    // Check \r\n\r\n first (longer delimiter, so it won't be partially matched by \n\n)
+    if let Some(pos) = buf.find("\r\n\r\n") {
+        // Only prefer CRLF if it comes before or at the same position as LF
+        if let Some(lf_pos) = buf.find("\n\n") {
+            if lf_pos <= pos {
+                return Some((lf_pos, 2));
+            }
+        }
+        return Some((pos, 4));
+    }
+    buf.find("\n\n").map(|pos| (pos, 2))
 }
 
 /// Map reqwest errors to SdkError with appropriate variants.
@@ -315,5 +341,35 @@ mod tests {
         assert!(validate_path_segment("job-abc-123", "test").is_ok());
         assert!(validate_path_segment("report.md", "test").is_ok());
         assert!(validate_path_segment("abc123", "test").is_ok());
+    }
+
+    #[test]
+    fn frame_boundary_lf() {
+        let buf = "event: started\ndata: {}\n\nrest";
+        let (pos, len) = find_frame_boundary(buf).unwrap();
+        assert_eq!(len, 2);
+        assert_eq!(&buf[..pos], "event: started\ndata: {}");
+    }
+
+    #[test]
+    fn frame_boundary_crlf() {
+        let buf = "event: started\r\ndata: {}\r\n\r\nrest";
+        let (pos, len) = find_frame_boundary(buf).unwrap();
+        assert_eq!(len, 4);
+        assert_eq!(&buf[pos + len..], "rest");
+    }
+
+    #[test]
+    fn frame_boundary_lf_before_crlf() {
+        // When LF boundary comes first, prefer it
+        let buf = "data: a\n\ndata: b\r\n\r\n";
+        let (pos, len) = find_frame_boundary(buf).unwrap();
+        assert_eq!(len, 2);
+        assert_eq!(&buf[..pos], "data: a");
+    }
+
+    #[test]
+    fn frame_boundary_none() {
+        assert!(find_frame_boundary("no boundary here\n").is_none());
     }
 }

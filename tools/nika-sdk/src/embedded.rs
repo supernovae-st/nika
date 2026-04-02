@@ -14,17 +14,21 @@ use tokio::sync::Mutex;
 
 use crate::error::SdkError;
 use crate::transport::Transport;
-use crate::types::{ArtifactInfo, Event, EventStream, JobInfo, RunRequest};
+use crate::types::{ArtifactInfo, Event, EventStream, JobInfo, JobStatus, RunRequest};
 
 /// State for a running or completed embedded job.
 struct JobState {
-    status: String,
+    status: JobStatus,
     workflow: String,
     output: Option<String>,
     cancel_token: tokio_util::sync::CancellationToken,
     /// Broadcast sender for engine events — subscribers get real task events.
     event_tx: Option<tokio::sync::broadcast::Sender<Event>>,
 }
+
+/// Maximum number of jobs retained in the embedded job map.
+/// Once exceeded, completed/failed/cancelled jobs are reaped (oldest first).
+const MAX_JOBS: usize = 1024;
 
 pub(crate) struct EmbeddedTransport {
     jobs: Arc<Mutex<std::collections::HashMap<String, JobState>>>,
@@ -35,6 +39,24 @@ impl EmbeddedTransport {
         Ok(Self {
             jobs: Arc::new(Mutex::new(std::collections::HashMap::new())),
         })
+    }
+}
+
+/// Reap terminal jobs when the map exceeds `MAX_JOBS`.
+fn reap_completed_jobs(jobs: &mut std::collections::HashMap<String, JobState>) {
+    if jobs.len() <= MAX_JOBS {
+        return;
+    }
+    let terminal: Vec<String> = jobs
+        .iter()
+        .filter(|(_, s)| matches!(s.status, JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled))
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in terminal {
+        jobs.remove(&id);
+        if jobs.len() <= MAX_JOBS / 2 {
+            break; // reap down to half capacity
+        }
     }
 }
 
@@ -90,13 +112,14 @@ impl Transport for EmbeddedTransport {
         // Create SDK event broadcast channel
         let (sdk_event_tx, _) = tokio::sync::broadcast::channel::<Event>(256);
 
-        // Track the job
+        // Track the job (reap old terminal jobs if needed)
         {
             let mut jobs = self.jobs.lock().await;
+            reap_completed_jobs(&mut jobs);
             jobs.insert(
                 job_id.clone(),
                 JobState {
-                    status: "running".into(),
+                    status: JobStatus::Running,
                     workflow: req.workflow.clone(),
                     output: None,
                     cancel_token,
@@ -169,14 +192,14 @@ impl Transport for EmbeddedTransport {
                 Ok(Ok(output)) => {
                     let mut jobs = jobs.lock().await;
                     if let Some(state) = jobs.get_mut(&jid) {
-                        state.status = "completed".into();
+                        state.status = JobStatus::Completed;
                         state.output = Some(output);
                     }
                 }
                 Ok(Err(e)) => {
                     let mut jobs = jobs.lock().await;
                     if let Some(state) = jobs.get_mut(&jid) {
-                        state.status = "failed".into();
+                        state.status = JobStatus::Failed;
                         state.output = Some(e.to_string());
                     }
                 }
@@ -184,7 +207,7 @@ impl Transport for EmbeddedTransport {
                     // Panic or cancellation in the spawned task
                     let mut jobs = jobs.lock().await;
                     if let Some(state) = jobs.get_mut(&jid) {
-                        state.status = "failed".into();
+                        state.status = JobStatus::Failed;
                         state.output = Some(format!("internal error: {join_err}"));
                     }
                 }
@@ -218,11 +241,11 @@ impl Transport for EmbeddedTransport {
             .get_mut(job_id)
             .ok_or_else(|| SdkError::NotFound(job_id.into()))?;
         state.cancel_token.cancel(); // signal the Runner to stop
-        state.status = "cancelled".into();
+        state.status = JobStatus::Cancelled;
 
         Ok(JobInfo {
             job_id: job_id.into(),
-            status: "cancelled".into(),
+            status: JobStatus::Cancelled,
             workflow: state.workflow.clone(),
             created_at: String::new(),
             started_at: None,
@@ -274,16 +297,16 @@ impl Transport for EmbeddedTransport {
                 let terminal_event = {
                     let jobs = jobs.lock().await;
                     if let Some(state) = jobs.get(&jid) {
-                        match state.status.as_str() {
-                            "completed" => Some(Ok(Event::Completed {
+                        match state.status {
+                            JobStatus::Completed => Some(Ok(Event::Completed {
                                 job_id: jid.clone(),
                                 output: state.output.clone(),
                             })),
-                            "failed" => Some(Ok(Event::Failed {
+                            JobStatus::Failed => Some(Ok(Event::Failed {
                                 job_id: jid.clone(),
                                 error: state.output.clone(),
                             })),
-                            "cancelled" => Some(Ok(Event::Cancelled {
+                            JobStatus::Cancelled => Some(Ok(Event::Cancelled {
                                 job_id: jid.clone(),
                             })),
                             _ => None,

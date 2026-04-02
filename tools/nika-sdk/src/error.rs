@@ -42,6 +42,9 @@ pub enum SdkError {
     #[error("authentication failed")]
     Unauthorized,
 
+    #[error("job cancelled")]
+    Cancelled,
+
     #[error("event stream closed unexpectedly")]
     StreamClosed,
 
@@ -85,6 +88,12 @@ mod tests {
     fn error_display_not_found() {
         let err = SdkError::NotFound("job-abc".into());
         assert_eq!(err.to_string(), "job not found: job-abc");
+    }
+
+    #[test]
+    fn error_display_cancelled() {
+        let err = SdkError::Cancelled;
+        assert_eq!(err.to_string(), "job cancelled");
     }
 
     #[test]

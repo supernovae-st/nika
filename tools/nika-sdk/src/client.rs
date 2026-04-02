@@ -156,10 +156,7 @@ impl Job {
                     });
                 }
                 Event::Cancelled { .. } => {
-                    return Err(SdkError::Engine {
-                        message: "job cancelled".into(),
-                        code: None,
-                    });
+                    return Err(SdkError::Cancelled);
                 }
                 _ => continue,
             }

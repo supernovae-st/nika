@@ -205,6 +205,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_crlf_line_endings() {
+        let block = "event: started\r\ndata: {\"type\":\"started\",\"job_id\":\"j1\"}\r\n\r\n";
+        let frames = parse_sse_block(block);
+        assert_eq!(frames.len(), 1);
+        if let SseFrame::Event { event_type, data } = &frames[0] {
+            assert_eq!(event_type, "started");
+            // Verify data is clean JSON (no \r remnants)
+            let event = parse_event(data).unwrap();
+            assert!(matches!(event, Event::Started { .. }));
+        } else {
+            panic!("expected Event frame");
+        }
+    }
+
+    #[test]
     fn all_event_types_deserialize() {
         let events = vec![
             r#"{"type":"started","job_id":"j"}"#,

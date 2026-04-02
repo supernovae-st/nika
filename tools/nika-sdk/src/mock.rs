@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 
 use crate::error::SdkError;
 use crate::transport::Transport;
-use crate::types::{ArtifactInfo, Event, EventStream, JobInfo, RunRequest};
+use crate::types::{ArtifactInfo, Event, EventStream, JobInfo, JobStatus, RunRequest};
 
 /// Canned behavior for the mock.
 #[derive(Clone)]
@@ -22,7 +22,7 @@ pub(crate) struct MockTransport {
     pub job_id: String,
     pub events: Arc<Vec<Event>>,
     pub artifacts: Arc<Vec<ArtifactInfo>>,
-    pub status: Arc<Mutex<String>>,
+    pub status: Arc<Mutex<JobStatus>>,
     pub output: Arc<Mutex<Option<String>>>,
     pub fail_submit: bool,
 }
@@ -57,7 +57,7 @@ impl Default for MockTransport {
                 content_type: "text/markdown".into(),
                 checksum: Some("abc123".into()),
             }]),
-            status: Arc::new(Mutex::new("completed".into())),
+            status: Arc::new(Mutex::new(JobStatus::Completed)),
             output: Arc::new(Mutex::new(Some("mock output".into()))),
             fail_submit: false,
         }
@@ -95,10 +95,10 @@ impl Transport for MockTransport {
         if job_id != self.job_id {
             return Err(SdkError::NotFound(job_id.into()));
         }
-        *self.status.lock().await = "cancelled".into();
+        *self.status.lock().await = JobStatus::Cancelled;
         Ok(JobInfo {
             job_id: job_id.into(),
-            status: "cancelled".into(),
+            status: JobStatus::Cancelled,
             workflow: "test.nika.yaml".into(),
             created_at: "2026-04-02T12:00:00Z".into(),
             started_at: None,
@@ -148,7 +148,7 @@ impl Transport for MockTransport {
 mod tests {
     use super::*;
     use crate::client::{Client, Job};
-    use crate::types::RunOptions;
+    use crate::types::{JobStatus, RunOptions};
     use futures_util::StreamExt;
 
     fn mock_client() -> Client {
@@ -195,7 +195,7 @@ mod tests {
         let client = mock_client();
         let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
         let info = job.status().await.unwrap();
-        assert_eq!(info.status, "completed");
+        assert_eq!(info.status, JobStatus::Completed);
         assert_eq!(info.workflow, "test.nika.yaml");
     }
 
@@ -204,7 +204,7 @@ mod tests {
         let client = mock_client();
         let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
         let info = job.cancel().await.unwrap();
-        assert_eq!(info.status, "cancelled");
+        assert_eq!(info.status, JobStatus::Cancelled);
     }
 
     #[tokio::test]
@@ -270,7 +270,7 @@ mod tests {
         let client = mock_client_with(transport);
         let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
         let result = job.wait().await;
-        assert!(matches!(result, Err(SdkError::Engine { .. })));
+        assert!(matches!(result, Err(SdkError::Cancelled)));
     }
 
     #[tokio::test]

@@ -186,7 +186,7 @@ impl From<nika_sdk::JobInfo> for JobInfo {
   fn from(info: nika_sdk::JobInfo) -> Self {
     Self {
       job_id: info.job_id,
-      status: info.status,
+      status: info.status.to_string(),
       workflow: info.workflow,
       created_at: info.created_at,
       started_at: info.started_at,
