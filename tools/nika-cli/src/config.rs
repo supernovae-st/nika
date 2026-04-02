@@ -193,6 +193,43 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                         if let Some(ref m) = config.provider.model {
                             println!("    model         {}", m.cyan());
                         }
+                        // Show API key status for LLM providers
+                        {
+                            use nika_engine::core::{ProviderCategory, KNOWN_PROVIDERS};
+                            let mut keys_line = String::from("    keys          ");
+                            for p in KNOWN_PROVIDERS
+                                .iter()
+                                .filter(|p| p.category == ProviderCategory::Llm)
+                            {
+                                let has_key = std::env::var(p.env_var)
+                                    .map(|v| !v.is_empty())
+                                    .unwrap_or(false);
+                                if has_key {
+                                    keys_line.push_str(&format!(
+                                        "{} {}  ",
+                                        StatusIcon::Ok,
+                                        p.id
+                                    ));
+                                }
+                            }
+                            let configured: usize = KNOWN_PROVIDERS
+                                .iter()
+                                .filter(|p| p.category == ProviderCategory::Llm)
+                                .filter(|p| {
+                                    std::env::var(p.env_var)
+                                        .map(|v| !v.is_empty())
+                                        .unwrap_or(false)
+                                })
+                                .count();
+                            if configured > 0 {
+                                println!("{}", keys_line.trim_end());
+                            } else {
+                                println!(
+                                    "    keys          {} none configured",
+                                    StatusIcon::Warn
+                                );
+                            }
+                        }
 
                         // [tools]
                         println!();
