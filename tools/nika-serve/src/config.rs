@@ -1,6 +1,6 @@
-//! Server configuration loaded from nika.toml [serve] section + environment variables.
+//! Server configuration loaded from nika.toml `[serve]` section + environment variables.
 //!
-//! Merge order: env vars > nika.toml [serve] > hardcoded defaults.
+//! Merge order: env vars > nika.toml `[serve]` > hardcoded defaults.
 //! `auth_token` is ALWAYS from env (secrets never in nika.toml).
 //! ERRATA-13: `from_env()` returns `Result`, never panics.
 
@@ -159,9 +159,9 @@ pub struct ServeConfig {
 }
 
 impl ServeConfig {
-    /// Build configuration from nika.toml [serve] section + environment variables.
+    /// Build configuration from nika.toml `[serve]` section + environment variables.
     ///
-    /// Merge: env vars > nika.toml [serve] > hardcoded defaults.
+    /// Merge: env vars > nika.toml `[serve]` > hardcoded defaults.
     /// Required: `NIKA_SERVE_TOKEN` (always from env — secrets never in nika.toml)
     /// Optional: `NIKA_SERVE_BIND`, `NIKA_SERVE_WORKFLOWS`, `NIKA_SERVE_MAX_CONCURRENT`,
     ///           `NIKA_SERVE_TIMEOUT`, `NIKA_SERVE_DB`

@@ -15,7 +15,7 @@ const MAX_REQUEST_ID_LEN: usize = 128;
 
 /// Middleware that propagates or generates an `x-request-id` header.
 ///
-/// Client-provided IDs are truncated to [`MAX_REQUEST_ID_LEN`] bytes
+/// Client-provided IDs are truncated to `MAX_REQUEST_ID_LEN` bytes
 /// to prevent log poisoning via oversized headers.
 pub async fn request_id_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
     // Extract existing request ID or generate a new one
