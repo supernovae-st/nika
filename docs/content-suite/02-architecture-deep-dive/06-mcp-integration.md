@@ -179,7 +179,7 @@ MCP servers can be configured from multiple sources, in priority order:
 2. **Project config** -- `.mcp.json` or `.nika/mcp.yaml`
 3. **Global config** -- `~/.nika/mcp.yaml`
 
-The `nika_config.rs` module (`NikaMcpConfigManager`) handles config discovery, merging, and validation across these sources.
+The `McpConfigResolver` in `mcp_config.rs` handles config discovery and merging across these sources.
 
 ## Retry Logic
 
