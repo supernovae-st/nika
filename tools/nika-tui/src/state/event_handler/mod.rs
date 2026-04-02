@@ -477,6 +477,7 @@ impl TuiState {
             | EventKind::FetchRetry { .. }
             | EventKind::FetchExhausted { .. }
             | EventKind::TaskRetry { .. }
+            | EventKind::ProviderAutoRetried { .. }
             | EventKind::PolicyBlocked { .. }
             | EventKind::BootPhaseCompleted { .. }
             | EventKind::NativeModelLoaded { .. }

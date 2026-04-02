@@ -728,6 +728,22 @@ pub enum EventKind {
         error: Option<String>,
     },
 
+    /// Provider-level auto-retry for transient HTTP errors (500, 502, 503, 429, timeout).
+    ///
+    /// Built-in 4-attempt safety net in the infer executor, independent of task-level
+    /// `retry:` config. Emitted on each retry for observability and cost tracking.
+    ProviderAutoRetried {
+        task_id: Arc<str>,
+        /// Current attempt number (1-based, attempt 1 = first retry)
+        attempt: u32,
+        /// Max provider retry attempts (currently 4)
+        max_attempts: u32,
+        /// Backoff delay before this attempt in ms
+        delay_ms: u64,
+        /// Error that triggered the retry
+        error: String,
+    },
+
     // ═══════════════════════════════════════════
     // ROUTING EVENTS
     // ═══════════════════════════════════════════
@@ -1090,6 +1106,7 @@ impl EventKind {
             | Self::FetchRetry { task_id, .. }
             | Self::FetchExhausted { task_id, .. }
             | Self::TaskRetry { task_id, .. }
+            | Self::ProviderAutoRetried { task_id, .. }
             | Self::FallbackTriggered { task_id, .. }
             | Self::PolicyBlocked { task_id, .. }
             | Self::BudgetOk { task_id, .. }

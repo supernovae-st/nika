@@ -284,7 +284,8 @@ impl RunStats {
 
             EventKind::FetchRetry { .. }
             | EventKind::FetchExhausted { .. }
-            | EventKind::TaskRetry { .. } => {
+            | EventKind::TaskRetry { .. }
+            | EventKind::ProviderAutoRetried { .. } => {
                 self.retries += 1;
             }
 
@@ -1155,6 +1156,24 @@ impl CliRenderer {
                     max_attempts,
                     backoff_ms,
                     err_msg,
+                );
+            }
+
+            EventKind::ProviderAutoRetried {
+                task_id,
+                attempt,
+                max_attempts,
+                delay_ms,
+                error,
+            } => {
+                println!(
+                    "  {} {} provider retry {}/{} (backoff {}ms): {}",
+                    self.ts(),
+                    task_id,
+                    attempt,
+                    max_attempts,
+                    delay_ms,
+                    error,
                 );
             }
 
