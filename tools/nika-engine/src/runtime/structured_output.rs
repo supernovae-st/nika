@@ -139,6 +139,11 @@ pub struct StructuredOutputEngine {
     provider_name: Option<String>,
     /// Model name for telemetry (e.g., "claude-3-haiku-20240307")
     model_name: Option<String>,
+    /// Repair model name for L4 telemetry (e.g., "claude-haiku-4-5").
+    ///
+    /// When set, L4 ProviderCalled/ProviderResponded events use this name
+    /// instead of `model_name`, giving accurate telemetry for repair calls.
+    repair_model_name: Option<String>,
     /// Task-level max_tokens to propagate to L3/L4 retry callbacks.
     ///
     /// When set, the engine passes this to the `InferCallback` so retries
@@ -159,6 +164,7 @@ impl StructuredOutputEngine {
             original_prompt: None,
             provider_name: None,
             model_name: None,
+            repair_model_name: None,
             max_tokens: None,
         }
     }
@@ -216,6 +222,16 @@ impl StructuredOutputEngine {
     /// instead of falling back to the provider default (8192).
     pub fn with_max_tokens(mut self, max_tokens: Option<u32>) -> Self {
         self.max_tokens = max_tokens;
+        self
+    }
+
+    /// Set the repair model name for accurate L4 telemetry.
+    ///
+    /// When set, Layer 4 ProviderCalled/ProviderResponded events report this
+    /// model name instead of the main task model. This ensures cost tracking
+    /// correctly attributes repair calls to the cheaper repair model.
+    pub fn with_repair_model_name(mut self, name: String) -> Self {
+        self.repair_model_name = Some(name);
         self
     }
 
@@ -771,6 +787,14 @@ impl StructuredOutputEngine {
             "Layer 4: calling repair LLM"
         );
 
+        // Use repair_model_name for L4 telemetry when available
+        let l4_model_name = self
+            .repair_model_name
+            .as_deref()
+            .or(self.model_name.as_deref())
+            .unwrap_or("unknown")
+            .to_string();
+
         // EMIT: ProviderCalled before the LLM repair call
         self.log.emit(EventKind::ProviderCalled {
             task_id: Arc::clone(task_id),
@@ -778,10 +802,7 @@ impl StructuredOutputEngine {
                 .provider_name
                 .clone()
                 .unwrap_or_else(|| "unknown".to_string()),
-            model: self
-                .model_name
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string()),
+            model: l4_model_name.clone(),
             prompt_len,
             endpoint_url: None,
         });
