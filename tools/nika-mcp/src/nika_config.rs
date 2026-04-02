@@ -1140,6 +1140,64 @@ servers:
     }
 
     #[test]
+    fn test_mcp_json_missing_command_fails() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        // Server missing required "command" field
+        let mcp_json = r#"{"mcpServers": {"bad": {"args": ["-y", "@pkg"]}}}"#;
+        std::fs::write(project_root.join(".mcp.json"), mcp_json).unwrap();
+
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(&global_path, "version: 1\nservers: {}\n").unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let result = manager.load_mcp_json();
+        assert!(result.is_err(), "missing command should fail deserialization");
+    }
+
+    #[test]
+    fn test_mcp_json_overrides_same_server_from_global() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        // Global has neo4j with "old-cmd"
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(
+            &global_path,
+            "version: 1\nservers:\n  neo4j:\n    command: old-cmd\n    enabled: true\n",
+        ).unwrap();
+
+        // .mcp.json has neo4j with "new-cmd" — should override
+        let mcp_json = r#"{"mcpServers": {"neo4j": {"command": "new-cmd"}}}"#;
+        std::fs::write(project_root.join(".mcp.json"), mcp_json).unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let merged = manager.load_merged().unwrap();
+        let neo4j = merged.servers.get("neo4j").unwrap();
+        assert_eq!(neo4j.command, "new-cmd", ".mcp.json must override global");
+    }
+
+    #[test]
+    fn test_mcp_json_unknown_fields_ignored() {
+        // Future .mcp.json versions may have extra fields — serde should ignore them
+        let mcp_json = r#"{
+            "mcpServers": {"neo4j": {"command": "cmd"}},
+            "futureField": "data",
+            "anotherExtension": {}
+        }"#;
+        let config: McpJsonConfig = serde_json::from_str(mcp_json).unwrap();
+        assert_eq!(config.mcp_servers.len(), 1);
+        assert_eq!(config.mcp_servers.get("neo4j").unwrap().command, "cmd");
+    }
+
+    #[test]
     fn test_disabled_server_secrets_not_loaded() {
         // Verify that disabled servers (and their secrets) are not loaded
         let yaml = r#"
