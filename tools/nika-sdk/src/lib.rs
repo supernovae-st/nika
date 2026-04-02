@@ -39,4 +39,4 @@ mod mock;
 // Public API
 pub use client::{Artifact, Client, Job};
 pub use error::SdkError;
-pub use types::{ArtifactInfo, Event, EventStream, JobInfo, JobResult, RunOptions};
+pub use types::{ArtifactInfo, Event, EventStream, JobInfo, JobResult, JobStatus, RunOptions};

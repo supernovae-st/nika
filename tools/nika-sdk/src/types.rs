@@ -86,6 +86,41 @@ pub type EventStream =
     Pin<Box<dyn Stream<Item = Result<Event, SdkError>> + Send>>;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// JOB STATUS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Status of a workflow job.
+///
+/// Catches protocol drift at deserialization time — unknown statuses
+/// from future server versions deserialize to `Unknown` rather than
+/// failing outright.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobStatus {
+    Queued,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    /// Forward-compat: unknown status strings from newer servers.
+    #[serde(other)]
+    Unknown,
+}
+
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Queued => write!(f, "queued"),
+            Self::Running => write!(f, "running"),
+            Self::Completed => write!(f, "completed"),
+            Self::Failed => write!(f, "failed"),
+            Self::Cancelled => write!(f, "cancelled"),
+            Self::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // JOB INFO
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -93,7 +128,7 @@ pub type EventStream =
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct JobInfo {
     pub job_id: String,
-    pub status: String,
+    pub status: JobStatus,
     pub workflow: String,
     pub created_at: String,
     pub started_at: Option<String>,
@@ -280,8 +315,37 @@ mod tests {
         }"#;
         let info: JobInfo = serde_json::from_str(json).unwrap();
         assert_eq!(info.job_id, "abc");
-        assert_eq!(info.status, "running");
+        assert_eq!(info.status, JobStatus::Running);
         assert!(info.completed_at.is_none());
+    }
+
+    #[test]
+    fn job_status_all_variants_roundtrip() {
+        for (s, expected) in [
+            ("\"queued\"", JobStatus::Queued),
+            ("\"running\"", JobStatus::Running),
+            ("\"completed\"", JobStatus::Completed),
+            ("\"failed\"", JobStatus::Failed),
+            ("\"cancelled\"", JobStatus::Cancelled),
+        ] {
+            let status: JobStatus = serde_json::from_str(s).unwrap();
+            assert_eq!(status, expected);
+            let back = serde_json::to_string(&status).unwrap();
+            assert_eq!(back, s);
+        }
+    }
+
+    #[test]
+    fn job_status_unknown_forward_compat() {
+        let status: JobStatus = serde_json::from_str("\"paused\"").unwrap();
+        assert_eq!(status, JobStatus::Unknown);
+    }
+
+    #[test]
+    fn job_status_display() {
+        assert_eq!(JobStatus::Running.to_string(), "running");
+        assert_eq!(JobStatus::Cancelled.to_string(), "cancelled");
+        assert_eq!(JobStatus::Unknown.to_string(), "unknown");
     }
 
     #[test]
