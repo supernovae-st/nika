@@ -383,6 +383,16 @@ impl RigAgentLoop {
             ))));
         }
 
+        // nika:fetch — HTTP requests for agents (requires policy enforcer for SSRF protection)
+        if should_add_core("fetch") {
+            if let Some(ref enforcer) = policy_enforcer {
+                use super::builtin::FetchTool;
+                tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                    FetchTool::new(Arc::clone(enforcer), event_log.clone()),
+                ))));
+            }
+        }
+
         // Introspection tools — available in "debug" scope or when explicitly requested
         let add_introspection = scope == "debug" && !has_explicit_filter;
         let should_add_introspect = |name: &str| -> bool {

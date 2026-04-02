@@ -30,7 +30,9 @@
 mod assert;
 mod complete;
 mod cost;
+mod data_tools;
 mod emit;
+mod fetch_tool;
 mod file_adapter;
 mod introspect_dag;
 mod introspect_orchestrate;
@@ -52,6 +54,8 @@ pub use complete::{
     CompleteTool, COMPLETION_MARKER,
 };
 pub use cost::CostTool;
+pub use data_tools::{JsonMergeTool, JsonQueryTool, SetDiffTool, ZipTool};
+pub use fetch_tool::FetchTool;
 pub use emit::EmitTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use introspect_dag::DagInfoTool;
