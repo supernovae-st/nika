@@ -23,17 +23,42 @@ use nika_engine::store::RunContext;
 // PROVIDER AUTO-DETECTION
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Auto-detect provider from environment variables (priority order).
+/// Auto-detect provider from environment variables and vault (priority order).
 ///
-/// Uses the canonical provider catalog from `nika_core::catalogs::providers`
-/// instead of hardcoding env var mappings.
+/// Checks env vars first (fast), then NikaVault for keys stored via `nika provider set`.
 pub fn detect_provider() -> Option<String> {
     use nika_engine::core::providers::{providers_by_category, ProviderCategory};
+
+    // Check env vars first (fast path)
     for provider in providers_by_category(ProviderCategory::Llm) {
         if provider.has_env_key() {
             return Some(provider.id.to_string());
         }
     }
+
+    // Check NikaVault (keys stored via `nika provider set`)
+    let nika_home = std::env::var("NIKA_HOME")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
+    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    use secrecy::ExposeSecret;
+    let vault_providers = [
+        "anthropic", "openai", "xai", "gemini", "mistral", "groq", "deepseek",
+    ];
+    for provider in &vault_providers {
+        if let Ok(Some(secret)) = vault.get(provider) {
+            if !secret.expose_secret().is_empty() {
+                // Set env var so downstream RigProvider can find it
+                let env_var = nika_engine::core::provider_to_env_var(provider)
+                    .unwrap_or("UNKNOWN_API_KEY");
+                // SAFETY: single-threaded CLI startup, no concurrent readers
+                unsafe { std::env::set_var(env_var, secret.expose_secret()) };
+                return Some(provider.to_string());
+            }
+        }
+    }
+
     None
 }
 

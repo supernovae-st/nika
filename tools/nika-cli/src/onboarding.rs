@@ -22,7 +22,12 @@ const ONBOARDING_PROVIDERS: &[(&str, &str)] = &[
 pub fn has_any_provider_key() -> bool {
     use nika_engine::core::{ProviderCategory, KNOWN_PROVIDERS};
 
-    // Check env vars first (fast path)
+    // Check file flag first (most reliable — no daemon, no vault crypto)
+    if onboarding_done_flag_exists() {
+        return true;
+    }
+
+    // Check env vars (fast path)
     let has_env = KNOWN_PROVIDERS
         .iter()
         .filter(|p| p.category == ProviderCategory::Llm)
@@ -36,10 +41,8 @@ pub fn has_any_provider_key() -> bool {
     }
 
     // Check NikaVault (keys stored via `nika provider set`)
-    let nika_home = std::env::var("NIKA_HOME")
-        .ok()
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
+    // If vault fails (machine-id issue, permissions), don't trigger wizard.
+    let nika_home = nika_home_dir();
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
     let vault_providers = [
         "anthropic",
@@ -52,12 +55,31 @@ pub fn has_any_provider_key() -> bool {
     ];
     use secrecy::ExposeSecret;
     vault_providers.iter().any(|p| {
-        vault
-            .get(p)
-            .ok()
-            .flatten()
-            .is_some_and(|k| !k.expose_secret().is_empty())
+        matches!(vault.get(p), Ok(Some(k)) if !k.expose_secret().is_empty())
     })
+}
+
+/// Resolve ~/.nika home directory.
+fn nika_home_dir() -> std::path::PathBuf {
+    std::env::var("NIKA_HOME")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"))
+}
+
+/// Check if the `.onboarding_done` flag file exists.
+fn onboarding_done_flag_exists() -> bool {
+    nika_home_dir().join(".onboarding_done").exists()
+}
+
+/// Write the `.onboarding_done` flag file — the most reliable signal that
+/// a provider was configured at some point (no daemon, no vault crypto needed).
+pub fn mark_onboarding_done() {
+    let flag = nika_home_dir().join(".onboarding_done");
+    if let Some(parent) = flag.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&flag, "1");
 }
 
 /// In-process flag set by `--no-interactive` (avoids unsafe set_var).
@@ -167,16 +189,16 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
     }
 
     // Store key in NikaVault (encrypted file-based storage)
-    let nika_home = std::env::var("NIKA_HOME")
-        .ok()
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+    let nika_home = nika_home_dir();
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
     vault
         .set(&provider, &api_key)
         .map_err(|e| NikaError::ConfigError {
             reason: format!("Failed to store key in vault: {e}"),
         })?;
+
+    // Mark onboarding as done — prevents the wizard from looping
+    mark_onboarding_done();
 
     use nika_engine::core::provider_to_env_var;
     let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
@@ -243,5 +265,24 @@ mod tests {
     #[test]
     fn onboarding_providers_starts_with_anthropic() {
         assert_eq!(ONBOARDING_PROVIDERS[0].0, "anthropic");
+    }
+
+    #[test]
+    fn skip_onboarding_respects_atomic_flag() {
+        NO_ONBOARDING.store(false, std::sync::atomic::Ordering::Relaxed);
+        set_no_onboarding();
+        assert!(skip_onboarding());
+        NO_ONBOARDING.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    #[test]
+    fn mark_onboarding_done_creates_flag() {
+        let tmp = tempfile::tempdir().unwrap();
+        // SAFETY: test isolation — no concurrent readers of NIKA_HOME
+        unsafe { std::env::set_var("NIKA_HOME", tmp.path()) };
+        mark_onboarding_done();
+        assert!(tmp.path().join(".onboarding_done").exists());
+        assert!(onboarding_done_flag_exists());
+        unsafe { std::env::remove_var("NIKA_HOME") };
     }
 }
