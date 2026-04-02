@@ -69,6 +69,7 @@ impl BuiltinTool for DagInfoTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
         Box::pin(async move {
             let mut total_task_count: Option<usize> = None;
+            let mut for_each_expansion: usize = 0;
             let mut scheduled: FxHashSet<String> = FxHashSet::default();
             let mut started: FxHashSet<String> = FxHashSet::default();
             let mut completed: FxHashSet<String> = FxHashSet::default();
@@ -79,6 +80,10 @@ impl BuiltinTool for DagInfoTool {
                     match &event.kind {
                         EventKind::WorkflowStarted { task_count, .. } => {
                             total_task_count = Some(*task_count);
+                        }
+                        EventKind::ForEachStarted { item_count, .. } => {
+                            // Each for_each replaces 1 YAML definition with N iterations
+                            for_each_expansion += item_count.saturating_sub(1);
                         }
                         EventKind::TaskScheduled { task_id, .. } => {
                             scheduled.insert(task_id.to_string());
@@ -107,8 +112,11 @@ impl BuiltinTool for DagInfoTool {
                 .collect();
 
             // Use total from WorkflowStarted (all DAG tasks) if available,
-            // otherwise fall back to observed tasks count
-            let task_count = total_task_count.unwrap_or(observed_tasks.len());
+            // otherwise fall back to observed tasks count.
+            // Adjust for for_each expansion: each for_each replaces 1 YAML
+            // task definition with N runtime iterations.
+            let task_count =
+                total_task_count.unwrap_or(observed_tasks.len()) + for_each_expansion;
 
             // Pending = total tasks minus completed and failed
             let pending = task_count.saturating_sub(completed.len() + failed.len());
@@ -204,5 +212,135 @@ mod tests {
         assert_eq!(v["completed"], 1);
         assert_eq!(v["failed"], 1);
         assert_eq!(v["pending"], 1); // publish never started
+    }
+
+    #[tokio::test]
+    async fn test_dag_info_for_each_expansion() {
+        let log = EventLog::new();
+
+        // 3 YAML tasks: generate_items, process (for_each), check_dag
+        log.emit(EventKind::WorkflowStarted {
+            task_count: 3,
+            generation_id: "test".into(),
+            workflow_hash: "abc".into(),
+            nika_version: "0.61.0".into(),
+        });
+
+        // generate_items completes
+        log.emit(EventKind::TaskScheduled {
+            task_id: Arc::from("generate_items"),
+            dependencies: vec![],
+        });
+        log.emit(EventKind::TaskStarted {
+            task_id: Arc::from("generate_items"),
+            verb: Arc::from("exec"),
+            inputs: Arc::new(serde_json::json!({})),
+        });
+        log.emit(EventKind::TaskCompleted {
+            task_id: Arc::from("generate_items"),
+            output: Arc::new(serde_json::json!(["a","b","c","d","e"])),
+            duration_ms: 10,
+        });
+
+        // for_each "process" expands to 5 iterations
+        log.emit(EventKind::ForEachStarted {
+            task_id: Arc::from("process"),
+            item_count: 5,
+            concurrency: 2,
+            fail_fast: true,
+        });
+
+        // 3 iterations completed, 1 failed, 1 still pending
+        for i in 0..3 {
+            log.emit(EventKind::TaskStarted {
+                task_id: Arc::from(format!("process[{i}]")),
+                verb: Arc::from("infer"),
+                inputs: Arc::new(serde_json::json!({})),
+            });
+            log.emit(EventKind::TaskCompleted {
+                task_id: Arc::from(format!("process[{i}]")),
+                output: Arc::new(serde_json::json!("ok")),
+                duration_ms: 100,
+            });
+        }
+        log.emit(EventKind::TaskStarted {
+            task_id: Arc::from("process[3]"),
+            verb: Arc::from("infer"),
+            inputs: Arc::new(serde_json::json!({})),
+        });
+        log.emit(EventKind::TaskFailed {
+            task_id: Arc::from("process[3]"),
+            error: "rate limit".into(),
+            duration_ms: 50,
+            error_code: None,
+        });
+
+        let tool = DagInfoTool::new(log);
+        let result = tool.call("{}".into()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        // 3 YAML tasks + (5-1) for_each expansion = 7 total
+        assert_eq!(v["task_count"], 7);
+        // generate_items + process[0..2] = 4 completed
+        assert_eq!(v["completed"], 4);
+        // process[3] failed
+        assert_eq!(v["failed"], 1);
+        // process[4] + check_dag still pending = 2
+        assert_eq!(v["pending"], 2);
+    }
+
+    #[tokio::test]
+    async fn test_dag_info_multiple_for_each() {
+        let log = EventLog::new();
+
+        // 4 YAML tasks: setup, fetch_all (for_each 3), process_all (for_each 2), report
+        log.emit(EventKind::WorkflowStarted {
+            task_count: 4,
+            generation_id: "test".into(),
+            workflow_hash: "abc".into(),
+            nika_version: "0.61.0".into(),
+        });
+
+        // Two for_each expansions
+        log.emit(EventKind::ForEachStarted {
+            task_id: Arc::from("fetch_all"),
+            item_count: 3,
+            concurrency: 3,
+            fail_fast: false,
+        });
+        log.emit(EventKind::ForEachStarted {
+            task_id: Arc::from("process_all"),
+            item_count: 2,
+            concurrency: 1,
+            fail_fast: true,
+        });
+
+        // setup completed
+        log.emit(EventKind::TaskCompleted {
+            task_id: Arc::from("setup"),
+            output: Arc::new(serde_json::json!("ok")),
+            duration_ms: 5,
+        });
+
+        // All 3 fetch iterations completed
+        for i in 0..3 {
+            log.emit(EventKind::TaskCompleted {
+                task_id: Arc::from(format!("fetch_all[{i}]")),
+                output: Arc::new(serde_json::json!("ok")),
+                duration_ms: 100,
+            });
+        }
+
+        let tool = DagInfoTool::new(log);
+        let result = tool.call("{}".into()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        // 4 YAML + (3-1) + (2-1) = 7 total
+        assert_eq!(v["task_count"], 7);
+        // setup + fetch_all[0..2] = 4 completed
+        assert_eq!(v["completed"], 4);
+        assert_eq!(v["failed"], 0);
+        // process_all[0], process_all[1], report = 3 pending
+        assert_eq!(v["pending"], 3);
     }
 }
