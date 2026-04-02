@@ -2863,7 +2863,30 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     }
     let schemas_elapsed = t.elapsed();
 
-    // Phase 7: Provider API keys (BUG 6 / NIKA-032)
+    // Phase 7: Security hints (shell escape warnings)
+    let t = Instant::now();
+    let mut security_hints: Vec<String> = Vec::new();
+    {
+        let binding_re = regex::Regex::new(r"\{\{(with\.[^}]+|inputs\.[^}]+)\}\}").unwrap();
+        for task in &workflow.tasks {
+            if let TaskAction::Exec { exec } = &task.action {
+                if exec.shell == Some(true) {
+                    for cap in binding_re.captures_iter(&exec.command) {
+                        let inner = &cap[1];
+                        if !inner.contains("| shell") {
+                            security_hints.push(format!(
+                                "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
+                                task.id, inner
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let security_elapsed = t.elapsed();
+
+    // Phase 8: Provider API keys (BUG 6 / NIKA-032)
     let t = Instant::now();
     let mut provider_warnings: Vec<String> = Vec::new();
     {
@@ -2966,7 +2989,28 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
             hints: vec![],
         });
 
-        // Phase 7: Provider API keys
+        // Phase 7: Security
+        if security_hints.is_empty() {
+            print_phase(&PhaseResult {
+                name: "security",
+                passed: true,
+                detail: "no issues".to_string(),
+                duration_ms: security_elapsed.as_millis() as u64,
+                errors: vec![],
+                hints: vec![],
+            });
+        } else {
+            print_phase(&PhaseResult {
+                name: "security",
+                passed: true, // warnings, not errors
+                detail: format!("{} hint(s)", security_hints.len()),
+                duration_ms: security_elapsed.as_millis() as u64,
+                errors: vec![],
+                hints: security_hints,
+            });
+        }
+
+        // Phase 8: Provider API keys
         if provider_warnings.is_empty() {
             print_phase(&PhaseResult {
                 name: "providers",
@@ -3207,7 +3251,30 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     }
     let schemas_elapsed = t.elapsed();
 
-    // Phase 7: Provider API keys
+    // Phase 7: Security hints (shell escape warnings)
+    let t = Instant::now();
+    let mut strict_security_hints: Vec<String> = Vec::new();
+    {
+        let binding_re = regex::Regex::new(r"\{\{(with\.[^}]+|inputs\.[^}]+)\}\}").unwrap();
+        for task in &workflow.tasks {
+            if let TaskAction::Exec { exec } = &task.action {
+                if exec.shell == Some(true) {
+                    for cap in binding_re.captures_iter(&exec.command) {
+                        let inner = &cap[1];
+                        if !inner.contains("| shell") {
+                            strict_security_hints.push(format!(
+                                "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
+                                task.id, inner
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let strict_security_elapsed = t.elapsed();
+
+    // Phase 8: Provider API keys
     let t = Instant::now();
     let mut provider_warnings: Vec<String> = Vec::new();
     {
@@ -3466,7 +3533,28 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
         hints: vec![],
     });
 
-    // Phase 7: Provider API keys
+    // Phase 7: Security
+    if strict_security_hints.is_empty() {
+        print_phase(&PhaseResult {
+            name: "security",
+            passed: true,
+            detail: "no issues".to_string(),
+            duration_ms: strict_security_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+    } else {
+        print_phase(&PhaseResult {
+            name: "security",
+            passed: true, // warnings, not errors
+            detail: format!("{} hint(s)", strict_security_hints.len()),
+            duration_ms: strict_security_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: strict_security_hints,
+        });
+    }
+
+    // Phase 8: Provider API keys
     if provider_warnings.is_empty() {
         print_phase(&PhaseResult {
             name: "providers",
