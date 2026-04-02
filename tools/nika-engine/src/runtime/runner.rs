@@ -2618,7 +2618,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         let fail_fast = fe.map(|f| f.fail_fast).or(task.fail_fast).unwrap_or(true);
 
                         // Guard against unbounded for_each arrays that could OOM
-                        const MAX_FOR_EACH_ITEMS: usize = 10_000;
+                        const MAX_FOR_EACH_ITEMS: usize = 50_000;
                         if items.len() > MAX_FOR_EACH_ITEMS {
                             let err_msg = format!(
                                 "for_each has {} items, exceeding limit of {} — \
