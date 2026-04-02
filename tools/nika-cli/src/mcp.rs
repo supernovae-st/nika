@@ -8,7 +8,7 @@ use nika_engine::{McpClient, McpConfig};
 
 /// MCP server management actions
 ///
-/// Manage MCP servers at global (~/.nika/mcp.yaml), project (.nika/mcp.yaml),
+/// Manage MCP servers at project (.mcp.json), global (~/.nika/mcp.yaml),
 /// or workflow levels. Supports 100 aliases for common MCP servers.
 #[derive(Subcommand)]
 pub enum McpAction {
@@ -24,7 +24,7 @@ pub enum McpAction {
         #[arg(long)]
         global: bool,
 
-        /// Add to project config (.nika/mcp.yaml) - default
+        /// Add to project config (.mcp.json) - default
         #[arg(long)]
         project: bool,
 
@@ -50,7 +50,7 @@ pub enum McpAction {
         #[arg(long)]
         global: bool,
 
-        /// Remove from project config (.nika/mcp.yaml) - default
+        /// Remove from project config (.mcp.json) - default
         #[arg(long)]
         project: bool,
 
@@ -69,7 +69,7 @@ pub enum McpAction {
         #[arg(long)]
         global: bool,
 
-        /// Show only project config (.nika/mcp.yaml)
+        /// Show only project config (.mcp.json)
         #[arg(long)]
         project: bool,
 

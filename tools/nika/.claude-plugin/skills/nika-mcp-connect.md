@@ -1,6 +1,6 @@
 ---
 name: nika-mcp-connect
-description: Set up and test MCP server connections for Nika workflows. Configure .nika/mcp.yaml, add servers by alias, test connectivity, and troubleshoot connection issues.
+description: Set up and test MCP server connections for Nika workflows. Configure .mcp.json (preferred) or .nika/mcp.yaml, add servers by alias, test connectivity, and troubleshoot connection issues.
 user-invocable: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 argument-hint: "[add <server> | test <server> | list | configure | novanet]"
@@ -15,11 +15,14 @@ argument-hint: "[add <server> | test <server> | list | configure | novanet]"
 ### Step 1: Assess Current MCP State
 
 ```bash
+# Check project .mcp.json (Claude Code convention — preferred)
+cat .mcp.json 2>/dev/null || echo "No .mcp.json at project root"
+
 # Check global MCP config
 cat ~/.nika/mcp.yaml 2>/dev/null || echo "No global config at ~/.nika/mcp.yaml"
 
-# Check project MCP config
-cat .nika/mcp.yaml 2>/dev/null || echo "No project config at .nika/mcp.yaml"
+# Check legacy project MCP config
+cat .nika/mcp.yaml 2>/dev/null || echo "No legacy project config at .nika/mcp.yaml"
 
 # List configured servers via CLI
 nika mcp list 2>/dev/null || echo "nika mcp list failed"
@@ -72,24 +75,27 @@ nika mcp list -w file.yaml # Workflow-specific
 
 Guide through creating or editing MCP config:
 
-```yaml
-# .nika/mcp.yaml (project-level)
-servers:
-  novanet:
-    command: cargo
-    args: ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"]
-    env:
-      NEO4J_URI: "bolt://localhost:7687"
-      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
-    enabled: true
-    description: "NovaNet knowledge graph MCP server"
-
-  perplexity:
-    command: npx
-    args: ["-y", "perplexity-mcp"]
-    env:
-      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
-    enabled: true
+```json
+// .mcp.json (project-level — Claude Code convention, preferred)
+{
+  "mcpServers": {
+    "novanet": {
+      "command": "cargo",
+      "args": ["run", "--manifest-path", "../novanet/tools/novanet-mcp/Cargo.toml"],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_PASSWORD": "${NEO4J_PASSWORD}"
+      }
+    },
+    "perplexity": {
+      "command": "npx",
+      "args": ["-y", "perplexity-mcp"],
+      "env": {
+        "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+      }
+    }
+  }
+}
 ```
 
 #### `novanet` — NovaNet-specific setup
@@ -205,6 +211,6 @@ Claude Code can directly call Nika tools (check, run, validate) via MCP.
 
 - ALWAYS test connectivity after adding a server
 - NEVER hardcode API keys in config files (use `${VAR}` syntax)
-- PREFER project-level config (.nika/mcp.yaml) over global
+- PREFER .mcp.json at project root (Claude Code convention) over .nika/mcp.yaml
 - VERIFY the server supports stdio transport
 - USE aliases when available (cleaner than full package names)
