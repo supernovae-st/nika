@@ -5759,6 +5759,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-sdk"
+version = "0.58.1"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "nika-engine",
+ "nika-event",
+ "pretty_assertions",
+ "reqwest 0.13.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "uuid 1.23.0",
+]
+
+[[package]]
 name = "nika-serve"
 version = "0.58.1"
 dependencies = [
