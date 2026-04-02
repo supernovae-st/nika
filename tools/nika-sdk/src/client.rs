@@ -38,10 +38,7 @@ pub struct Client {
 impl Client {
     /// Create a client connected to a remote `nika serve` instance.
     #[cfg(feature = "remote")]
-    pub fn remote(
-        url: impl Into<String>,
-        token: impl Into<String>,
-    ) -> Result<Self, SdkError> {
+    pub fn remote(url: impl Into<String>, token: impl Into<String>) -> Result<Self, SdkError> {
         let transport = crate::remote::RemoteTransport::new(url, token)?;
         Ok(Self {
             transport: Arc::new(transport),
@@ -61,11 +58,7 @@ impl Client {
     ///
     /// Returns a `Job` handle for tracking progress, streaming events,
     /// and retrieving results.
-    pub async fn submit(
-        &self,
-        workflow: &str,
-        options: RunOptions,
-    ) -> Result<Job, SdkError> {
+    pub async fn submit(&self, workflow: &str, options: RunOptions) -> Result<Job, SdkError> {
         let req = RunRequest {
             workflow: workflow.to_string(),
             inputs: options.inputs,

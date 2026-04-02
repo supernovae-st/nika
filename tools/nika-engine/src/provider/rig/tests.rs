@@ -1608,9 +1608,7 @@ async fn test_raw_openai_compat_infer_http_error() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(429).set_body_string("rate limited"),
-        )
+        .respond_with(ResponseTemplate::new(429).set_body_string("rate limited"))
         .mount(&server)
         .await;
 
@@ -1728,9 +1726,7 @@ async fn test_openai_compat_infer_with_tools_raw_http() {
 
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(&vllm_tool_response),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(&vllm_tool_response))
         .mount(&server)
         .await;
 
@@ -1751,8 +1747,7 @@ async fn test_openai_compat_infer_with_tools_raw_http() {
         },
         "required": ["name", "age"]
     });
-    let submit_tool =
-        crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
+    let submit_tool = crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
     let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
 
     let result = provider
@@ -1760,8 +1755,7 @@ async fn test_openai_compat_infer_with_tools_raw_http() {
         .await;
 
     assert!(result.is_ok(), "Failed: {:?}", result.err());
-    let json: serde_json::Value =
-        serde_json::from_str(&result.unwrap()).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
     assert_eq!(json["name"], "Rust");
     assert_eq!(json["age"], 30);
 }
@@ -1797,9 +1791,7 @@ async fn test_openai_compat_infer_with_tools_content_fallback() {
 
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(&vllm_no_tools_response),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(&vllm_no_tools_response))
         .mount(&server)
         .await;
 
@@ -1817,8 +1809,7 @@ async fn test_openai_compat_infer_with_tools_content_fallback() {
         "properties": { "name": { "type": "string" } },
         "required": ["name"]
     });
-    let submit_tool =
-        crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
+    let submit_tool = crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
     let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
 
     let result = provider
@@ -1827,7 +1818,6 @@ async fn test_openai_compat_infer_with_tools_content_fallback() {
 
     // Falls back to content field when tool_calls is empty
     assert!(result.is_ok(), "Failed: {:?}", result.err());
-    let json: serde_json::Value =
-        serde_json::from_str(&result.unwrap()).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
     assert_eq!(json["name"], "Python");
 }

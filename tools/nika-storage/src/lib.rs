@@ -612,8 +612,8 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
 
     // V1: jobs + job_history
     if version < 1 {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS jobs (
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
             name TEXT,
             workflow TEXT NOT NULL,
@@ -639,14 +639,14 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
 
         CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state);
         CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);",
-    )
-    .map_err(|e| StorageError::Other(format!("create tables: {e}")))?;
+        )
+        .map_err(|e| StorageError::Other(format!("create tables: {e}")))?;
     }
 
     // V2: job_artifacts
     if version < 2 {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS job_artifacts (
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS job_artifacts (
             job_id TEXT NOT NULL REFERENCES jobs(id),
             name TEXT NOT NULL,
             path TEXT NOT NULL,
@@ -658,14 +658,14 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_id ON job_artifacts(job_id);",
-    )
-    .map_err(|e| StorageError::Other(format!("create job_artifacts table: {e}")))?;
+        )
+        .map_err(|e| StorageError::Other(format!("create job_artifacts table: {e}")))?;
     }
 
     // V3: checkpoints
     if version < 3 {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS checkpoints (
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS checkpoints (
             job_id TEXT NOT NULL,
             task_id TEXT NOT NULL,
             output TEXT NOT NULL,
@@ -674,8 +674,8 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_checkpoints_job_id ON checkpoints(job_id);",
-    )
-    .map_err(|e| StorageError::Other(format!("create checkpoints table: {e}")))?;
+        )
+        .map_err(|e| StorageError::Other(format!("create checkpoints table: {e}")))?;
     }
 
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
@@ -939,10 +939,7 @@ fn do_load_checkpoints(conn: &Connection, job_id: &str) -> StorageResult<Vec<Che
 }
 
 fn do_delete_checkpoints(conn: &Connection, job_id: &str) -> StorageResult<()> {
-    conn.execute(
-        "DELETE FROM checkpoints WHERE job_id = ?1",
-        params![job_id],
-    )?;
+    conn.execute("DELETE FROM checkpoints WHERE job_id = ?1", params![job_id])?;
     Ok(())
 }
 

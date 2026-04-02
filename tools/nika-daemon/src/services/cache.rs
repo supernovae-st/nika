@@ -144,7 +144,8 @@ impl CacheService {
         let entry = match self.inner.cache.get(key) {
             Some(guard) => guard.clone(),
             None => {
-                self.inner.misses
+                self.inner
+                    .misses
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return None;
             }
@@ -154,19 +155,24 @@ impl CacheService {
         if entry.created_at.elapsed() > entry.ttl {
             // Expired — remove and count as miss
             self.inner.cache.remove(key);
-            self.inner.evictions
+            self.inner
+                .evictions
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            self.inner.misses
+            self.inner
+                .misses
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             trace!(key, "cache expired");
             return None;
         }
 
         // Increment hit count (non-blocking)
-        self.inner.cache
+        self.inner
+            .cache
             .entry(key.to_string())
             .and_modify(|e| e.hits += 1);
-        self.inner.hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.inner
+            .hits
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         debug!(key, "cache hit");
         Some(entry)
     }
@@ -215,18 +221,27 @@ impl CacheService {
     /// Get cache statistics.
     pub fn stats(&self) -> CacheStats {
         let total_tokens_saved: u64 = self
-            .inner.cache
+            .inner
+            .cache
             .iter()
             .map(|e| (e.tokens_in + e.tokens_out) * e.hits)
             .sum();
 
-        let total_cost_saved: f64 = self.inner.cache.iter().map(|e| e.cost * e.hits as f64).sum();
+        let total_cost_saved: f64 = self
+            .inner
+            .cache
+            .iter()
+            .map(|e| e.cost * e.hits as f64)
+            .sum();
 
         CacheStats {
             entries: self.inner.cache.len(),
             hits: self.inner.hits.load(std::sync::atomic::Ordering::Relaxed),
             misses: self.inner.misses.load(std::sync::atomic::Ordering::Relaxed),
-            evictions: self.inner.evictions.load(std::sync::atomic::Ordering::Relaxed),
+            evictions: self
+                .inner
+                .evictions
+                .load(std::sync::atomic::Ordering::Relaxed),
             total_tokens_saved,
             total_cost_saved,
         }
@@ -237,11 +252,13 @@ impl CacheService {
     /// Returns the number of evicted entries.
     pub fn cleanup_expired(&self) -> usize {
         let before = self.inner.cache.len();
-        self.inner.cache
+        self.inner
+            .cache
             .retain(|_, entry| entry.created_at.elapsed() <= entry.ttl);
         let evicted = before - self.inner.cache.len();
         if evicted > 0 {
-            self.inner.evictions
+            self.inner
+                .evictions
                 .fetch_add(evicted as u64, std::sync::atomic::Ordering::Relaxed);
             debug!(evicted, "expired entries cleaned up");
         }
@@ -251,14 +268,16 @@ impl CacheService {
     /// Evict the oldest entry by creation time.
     fn evict_oldest(&self) {
         let oldest_key = self
-            .inner.cache
+            .inner
+            .cache
             .iter()
             .min_by_key(|e| e.created_at)
             .map(|e| e.key.clone());
 
         if let Some(key) = oldest_key {
             self.inner.cache.remove(&key);
-            self.inner.evictions
+            self.inner
+                .evictions
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             trace!(key, "evicted oldest entry");
         }

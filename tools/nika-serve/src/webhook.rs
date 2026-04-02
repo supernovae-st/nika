@@ -50,7 +50,11 @@ impl WebhookConfig {
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
-        Some(Self { url, secret, client })
+        Some(Self {
+            url,
+            secret,
+            client,
+        })
     }
 
     /// Async version that resolves DNS and validates the resolved IP.
@@ -62,8 +66,7 @@ impl WebhookConfig {
         }
 
         // Skip DNS resolution for IP literals (already validated by SSRF checks)
-        if host.parse::<std::net::Ipv4Addr>().is_ok()
-            || host.parse::<std::net::Ipv6Addr>().is_ok()
+        if host.parse::<std::net::Ipv4Addr>().is_ok() || host.parse::<std::net::Ipv6Addr>().is_ok()
         {
             return;
         }
@@ -160,7 +163,12 @@ pub fn sign_v2(secret: &str, body: &[u8], timestamp: u64) -> String {
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key length");
     mac.update(&signed_payload);
-    let hex: String = mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect();
+    let hex: String = mac
+        .finalize()
+        .into_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     format!("t={timestamp},v1={hex}")
 }
 

@@ -44,14 +44,20 @@ pub fn detect_provider() -> Option<String> {
     let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
     use secrecy::ExposeSecret;
     let vault_providers = [
-        "anthropic", "openai", "xai", "gemini", "mistral", "groq", "deepseek",
+        "anthropic",
+        "openai",
+        "xai",
+        "gemini",
+        "mistral",
+        "groq",
+        "deepseek",
     ];
     for provider in &vault_providers {
         if let Ok(Some(secret)) = vault.get(provider) {
             if !secret.expose_secret().is_empty() {
                 // Set env var so downstream RigProvider can find it
-                let env_var = nika_engine::core::provider_to_env_var(provider)
-                    .unwrap_or("UNKNOWN_API_KEY");
+                let env_var =
+                    nika_engine::core::provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
                 // SAFETY: single-threaded CLI startup, no concurrent readers
                 unsafe { std::env::set_var(env_var, secret.expose_secret()) };
                 return Some(provider.to_string());
@@ -230,11 +236,7 @@ fn print_verb_footer(
             parts.push(extra.to_string());
         }
 
-        eprintln!(
-            "  {} {}",
-            "└─".dimmed(),
-            parts.join(" · ").dimmed()
-        );
+        eprintln!("  {} {}", "└─".dimmed(), parts.join(" · ").dimmed());
         eprintln!();
     }
 }

@@ -55,14 +55,8 @@ impl RemoteTransport {
 
 /// Validate a path segment is safe for URL interpolation (no traversal).
 fn validate_path_segment(value: &str, label: &str) -> Result<(), SdkError> {
-    if value.is_empty()
-        || value.contains('/')
-        || value.contains('\\')
-        || value.contains("..")
-    {
-        return Err(SdkError::InvalidUrl(format!(
-            "unsafe {label}: {value:?}"
-        )));
+    if value.is_empty() || value.contains('/') || value.contains('\\') || value.contains("..") {
+        return Err(SdkError::InvalidUrl(format!("unsafe {label}: {value:?}")));
     }
     Ok(())
 }
@@ -71,7 +65,13 @@ fn validate_path_segment(value: &str, label: &str) -> Result<(), SdkError> {
 impl Transport for RemoteTransport {
     async fn submit(&self, req: &RunRequest) -> Result<String, SdkError> {
         let url = format!("{}/v1/run", self.base_url);
-        let resp = self.client.post(&url).json(req).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(req)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
 
         let status = resp.status();
         if status.is_success() {
@@ -85,7 +85,12 @@ impl Transport for RemoteTransport {
     async fn status(&self, job_id: &str) -> Result<JobInfo, SdkError> {
         validate_path_segment(job_id, "job_id")?;
         let url = format!("{}/v1/status/{job_id}", self.base_url);
-        let resp = self.client.get(&url).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
 
         let status = resp.status();
         if status.is_success() {
@@ -98,7 +103,12 @@ impl Transport for RemoteTransport {
     async fn cancel(&self, job_id: &str) -> Result<JobInfo, SdkError> {
         validate_path_segment(job_id, "job_id")?;
         let url = format!("{}/v1/cancel/{job_id}", self.base_url);
-        let resp = self.client.post(&url).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .client
+            .post(&url)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
 
         let status = resp.status();
         if status.is_success() {
@@ -200,7 +210,12 @@ impl Transport for RemoteTransport {
     async fn list_artifacts(&self, job_id: &str) -> Result<Vec<ArtifactInfo>, SdkError> {
         validate_path_segment(job_id, "job_id")?;
         let url = format!("{}/v1/jobs/{job_id}/artifacts", self.base_url);
-        let resp = self.client.get(&url).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
 
         let status = resp.status();
         if status.is_success() {
@@ -215,7 +230,12 @@ impl Transport for RemoteTransport {
         validate_path_segment(job_id, "job_id")?;
         validate_path_segment(name, "artifact name")?;
         let url = format!("{}/v1/jobs/{job_id}/artifacts/{name}", self.base_url);
-        let resp = self.client.get(&url).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
 
         let status = resp.status();
         if status.is_success() {

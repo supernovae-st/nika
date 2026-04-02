@@ -298,11 +298,10 @@ fn load_mcp_json(path: &Path) -> Result<McpConfig, McpConfigError> {
         source: e,
     })?;
 
-    let json: McpJsonFile =
-        serde_json::from_str(&content).map_err(|e| McpConfigError::Parse {
-            path: path.to_path_buf(),
-            message: e.to_string(),
-        })?;
+    let json: McpJsonFile = serde_json::from_str(&content).map_err(|e| McpConfigError::Parse {
+        path: path.to_path_buf(),
+        message: e.to_string(),
+    })?;
 
     let mut servers = HashMap::new();
     for (name, s) in json.mcp_servers {
@@ -340,9 +339,8 @@ fn save_mcp_json(config: &McpConfig, path: &Path) -> Result<(), McpConfigError> 
     }
 
     let json = McpJsonFile { mcp_servers };
-    let content = serde_json::to_string_pretty(&json).map_err(|e| {
-        McpConfigError::Serialize(e.to_string())
-    })?;
+    let content = serde_json::to_string_pretty(&json)
+        .map_err(|e| McpConfigError::Serialize(e.to_string()))?;
 
     std::fs::write(path, format!("{content}\n")).map_err(|e| McpConfigError::Io {
         path: path.to_path_buf(),
@@ -431,12 +429,8 @@ impl McpConfigResolver {
                     .and_then(|c| c.servers.get(name))
                     .or_else(|| self.global.as_ref().and_then(|c| c.servers.get(name)))
             }
-            McpResolveSource::Project => {
-                self.project.as_ref().and_then(|c| c.servers.get(name))
-            }
-            McpResolveSource::Global => {
-                self.global.as_ref().and_then(|c| c.servers.get(name))
-            }
+            McpResolveSource::Project => self.project.as_ref().and_then(|c| c.servers.get(name)),
+            McpResolveSource::Global => self.global.as_ref().and_then(|c| c.servers.get(name)),
         }
     }
 
@@ -770,7 +764,9 @@ mod tests {
         assert_eq!(neo4j.command, "project-cmd");
 
         // Config source: perplexity only in global
-        let pplx = resolver.resolve("perplexity", McpResolveSource::Config).unwrap();
+        let pplx = resolver
+            .resolve("perplexity", McpResolveSource::Config)
+            .unwrap();
         assert_eq!(pplx.command, "pplx-cmd");
     }
 
@@ -781,9 +777,13 @@ mod tests {
         let resolver = McpConfigResolver::with_configs(Some(project), Some(global));
 
         // Project scope: neo4j found
-        assert!(resolver.resolve("neo4j", McpResolveSource::Project).is_some());
+        assert!(resolver
+            .resolve("neo4j", McpResolveSource::Project)
+            .is_some());
         // Project scope: perplexity NOT found (it's global only)
-        assert!(resolver.resolve("perplexity", McpResolveSource::Project).is_none());
+        assert!(resolver
+            .resolve("perplexity", McpResolveSource::Project)
+            .is_none());
     }
 
     #[test]
@@ -793,15 +793,21 @@ mod tests {
         let resolver = McpConfigResolver::with_configs(Some(project), Some(global));
 
         // Global scope: perplexity found
-        assert!(resolver.resolve("perplexity", McpResolveSource::Global).is_some());
+        assert!(resolver
+            .resolve("perplexity", McpResolveSource::Global)
+            .is_some());
         // Global scope: neo4j NOT found (it's project only)
-        assert!(resolver.resolve("neo4j", McpResolveSource::Global).is_none());
+        assert!(resolver
+            .resolve("neo4j", McpResolveSource::Global)
+            .is_none());
     }
 
     #[test]
     fn test_resolver_not_found() {
         let resolver = McpConfigResolver::with_configs(None, None);
-        assert!(resolver.resolve("neo4j", McpResolveSource::Config).is_none());
+        assert!(resolver
+            .resolve("neo4j", McpResolveSource::Config)
+            .is_none());
         assert!(!resolver.has_configs());
     }
 }

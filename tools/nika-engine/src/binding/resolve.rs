@@ -3033,16 +3033,13 @@ mod tests {
 
         let mut spec = WithSpec::default();
         // SSH_AUTH_SOCK — process/system internal
-        let mut entry_ssh =
-            WithEntry::simple(BindingPath::parse("$env.SSH_AUTH_SOCK").unwrap());
-        entry_ssh.transform =
-            Some(TransformExpr::parse("default(\"blocked\")").unwrap());
+        let mut entry_ssh = WithEntry::simple(BindingPath::parse("$env.SSH_AUTH_SOCK").unwrap());
+        entry_ssh.transform = Some(TransformExpr::parse("default(\"blocked\")").unwrap());
         spec.insert("ssh".to_string(), entry_ssh);
         // NIKA_VAULT_PASSPHRASE — nika internal
         let mut entry_vault =
             WithEntry::simple(BindingPath::parse("$env.NIKA_VAULT_PASSPHRASE").unwrap());
-        entry_vault.transform =
-            Some(TransformExpr::parse("default(\"blocked\")").unwrap());
+        entry_vault.transform = Some(TransformExpr::parse("default(\"blocked\")").unwrap());
         spec.insert("vault".to_string(), entry_vault);
 
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
@@ -3063,10 +3060,8 @@ mod tests {
         std::env::set_var("LD_PRELOAD", "/tmp/evil.so");
 
         let mut spec = WithSpec::default();
-        let mut entry =
-            WithEntry::simple(BindingPath::parse("$env.LD_PRELOAD").unwrap());
-        entry.transform =
-            Some(TransformExpr::parse("default(\"safe\")").unwrap());
+        let mut entry = WithEntry::simple(BindingPath::parse("$env.LD_PRELOAD").unwrap());
+        entry.transform = Some(TransformExpr::parse("default(\"safe\")").unwrap());
         spec.insert("ld".to_string(), entry);
 
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();

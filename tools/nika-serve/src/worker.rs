@@ -442,7 +442,10 @@ pub(crate) async fn run_subprocess(
 /// Derive MIME content-type from artifact name and format.
 fn mime_from_name(name: &str, format: &str) -> String {
     // Try extension first
-    if let Some(ext) = std::path::Path::new(name).extension().and_then(|e| e.to_str()) {
+    if let Some(ext) = std::path::Path::new(name)
+        .extension()
+        .and_then(|e| e.to_str())
+    {
         let mime = match ext {
             "json" => "application/json",
             "yaml" | "yml" => "application/yaml",

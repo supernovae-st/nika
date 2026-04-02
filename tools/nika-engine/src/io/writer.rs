@@ -272,7 +272,10 @@ impl ArtifactWriter {
                 reason: format!("Atomic write failed: {}", e),
             })?;
 
-        let checksum = format!("blake3:{}", blake3::hash(request.content.as_bytes()).to_hex());
+        let checksum = format!(
+            "blake3:{}",
+            blake3::hash(request.content.as_bytes()).to_hex()
+        );
 
         Ok(WriteResult {
             path: final_path,

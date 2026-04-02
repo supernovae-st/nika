@@ -54,9 +54,9 @@ pub fn has_any_provider_key() -> bool {
         "deepseek",
     ];
     use secrecy::ExposeSecret;
-    vault_providers.iter().any(|p| {
-        matches!(vault.get(p), Ok(Some(k)) if !k.expose_secret().is_empty())
-    })
+    vault_providers
+        .iter()
+        .any(|p| matches!(vault.get(p), Ok(Some(k)) if !k.expose_secret().is_empty()))
 }
 
 /// Resolve ~/.nika home directory.

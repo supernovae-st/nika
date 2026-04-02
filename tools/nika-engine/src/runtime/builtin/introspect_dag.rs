@@ -115,8 +115,7 @@ impl BuiltinTool for DagInfoTool {
             // otherwise fall back to observed tasks count.
             // Adjust for for_each expansion: each for_each replaces 1 YAML
             // task definition with N runtime iterations.
-            let task_count =
-                total_task_count.unwrap_or(observed_tasks.len()) + for_each_expansion;
+            let task_count = total_task_count.unwrap_or(observed_tasks.len()) + for_each_expansion;
 
             // Pending = total tasks minus completed and failed
             let pending = task_count.saturating_sub(completed.len() + failed.len());
@@ -238,7 +237,7 @@ mod tests {
         });
         log.emit(EventKind::TaskCompleted {
             task_id: Arc::from("generate_items"),
-            output: Arc::new(serde_json::json!(["a","b","c","d","e"])),
+            output: Arc::new(serde_json::json!(["a", "b", "c", "d", "e"])),
             duration_ms: 10,
         });
 

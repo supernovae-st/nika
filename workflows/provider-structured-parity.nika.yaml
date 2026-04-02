@@ -369,66 +369,66 @@ tasks:
     with:
       # name (string)
       name_anthropic: $anthropic_test.name
-      name_openai:    $openai_test.name
-      name_gemini:    $gemini_test.name
-      name_groq:      $groq_test.name
-      name_mistral:   $mistral_test.name
-      name_deepseek:  $deepseek_test.name
-      name_xai:       $xai_test.name
+      name_openai: $openai_test.name
+      name_gemini: $gemini_test.name
+      name_groq: $groq_test.name
+      name_mistral: $mistral_test.name
+      name_deepseek: $deepseek_test.name
+      name_xai: $xai_test.name
 
       # location.city (nested string)
       city_anthropic: $anthropic_test.location.city
-      city_openai:    $openai_test.location.city
-      city_gemini:    $gemini_test.location.city
-      city_groq:      $groq_test.location.city
-      city_mistral:   $mistral_test.location.city
-      city_deepseek:  $deepseek_test.location.city
-      city_xai:       $xai_test.location.city
+      city_openai: $openai_test.location.city
+      city_gemini: $gemini_test.location.city
+      city_groq: $groq_test.location.city
+      city_mistral: $mistral_test.location.city
+      city_deepseek: $deepseek_test.location.city
+      city_xai: $xai_test.location.city
 
       # years_experience (number)
       exp_anthropic: $anthropic_test.years_experience
-      exp_openai:    $openai_test.years_experience
-      exp_gemini:    $gemini_test.years_experience
-      exp_groq:      $groq_test.years_experience
-      exp_mistral:   $mistral_test.years_experience
-      exp_deepseek:  $deepseek_test.years_experience
-      exp_xai:       $xai_test.years_experience
+      exp_openai: $openai_test.years_experience
+      exp_gemini: $gemini_test.years_experience
+      exp_groq: $groq_test.years_experience
+      exp_mistral: $mistral_test.years_experience
+      exp_deepseek: $deepseek_test.years_experience
+      exp_xai: $xai_test.years_experience
 
       # remote (boolean)
       remote_anthropic: $anthropic_test.remote
-      remote_openai:    $openai_test.remote
-      remote_gemini:    $gemini_test.remote
-      remote_groq:      $groq_test.remote
-      remote_mistral:   $mistral_test.remote
-      remote_deepseek:  $deepseek_test.remote
-      remote_xai:       $xai_test.remote
+      remote_openai: $openai_test.remote
+      remote_gemini: $gemini_test.remote
+      remote_groq: $groq_test.remote
+      remote_mistral: $mistral_test.remote
+      remote_deepseek: $deepseek_test.remote
+      remote_xai: $xai_test.remote
 
       # status (enum)
       status_anthropic: $anthropic_test.status
-      status_openai:    $openai_test.status
-      status_gemini:    $gemini_test.status
-      status_groq:      $groq_test.status
-      status_mistral:   $mistral_test.status
-      status_deepseek:  $deepseek_test.status
-      status_xai:       $xai_test.status
+      status_openai: $openai_test.status
+      status_gemini: $gemini_test.status
+      status_groq: $groq_test.status
+      status_mistral: $mistral_test.status
+      status_deepseek: $deepseek_test.status
+      status_xai: $xai_test.status
 
       # skills[0].name — first array item field
       skill0_anthropic: $anthropic_test.skills[0].name
-      skill0_openai:    $openai_test.skills[0].name
-      skill0_gemini:    $gemini_test.skills[0].name
-      skill0_groq:      $groq_test.skills[0].name
-      skill0_mistral:   $mistral_test.skills[0].name
-      skill0_deepseek:  $deepseek_test.skills[0].name
-      skill0_xai:       $xai_test.skills[0].name
+      skill0_openai: $openai_test.skills[0].name
+      skill0_gemini: $gemini_test.skills[0].name
+      skill0_groq: $groq_test.skills[0].name
+      skill0_mistral: $mistral_test.skills[0].name
+      skill0_deepseek: $deepseek_test.skills[0].name
+      skill0_xai: $xai_test.skills[0].name
 
       # skills[0].level — first skill enum value
       level0_anthropic: $anthropic_test.skills[0].level
-      level0_openai:    $openai_test.skills[0].level
-      level0_gemini:    $gemini_test.skills[0].level
-      level0_groq:      $groq_test.skills[0].level
-      level0_mistral:   $mistral_test.skills[0].level
-      level0_deepseek:  $deepseek_test.skills[0].level
-      level0_xai:       $xai_test.skills[0].level
+      level0_openai: $openai_test.skills[0].level
+      level0_gemini: $gemini_test.skills[0].level
+      level0_groq: $groq_test.skills[0].level
+      level0_mistral: $mistral_test.skills[0].level
+      level0_deepseek: $deepseek_test.skills[0].level
+      level0_xai: $xai_test.skills[0].level
     exec:
       shell: true
       command: |
@@ -514,12 +514,12 @@ tasks:
       - xai_test
     with:
       skills_anthropic: $anthropic_test.skills
-      skills_openai:    $openai_test.skills
-      skills_gemini:    $gemini_test.skills
-      skills_groq:      $groq_test.skills
-      skills_mistral:   $mistral_test.skills
-      skills_deepseek:  $deepseek_test.skills
-      skills_xai:       $xai_test.skills
+      skills_openai: $openai_test.skills
+      skills_gemini: $gemini_test.skills
+      skills_groq: $groq_test.skills
+      skills_mistral: $mistral_test.skills
+      skills_deepseek: $deepseek_test.skills
+      skills_xai: $xai_test.skills
     exec:
       shell: true
       command: |
@@ -544,12 +544,12 @@ tasks:
     depends_on: [extract_fields, skills_count]
     with:
       anthropic: $anthropic_test
-      openai:    $openai_test
-      gemini:    $gemini_test
-      groq:      $groq_test
-      mistral:   $mistral_test
-      deepseek:  $deepseek_test
-      xai:       $xai_test
+      openai: $openai_test
+      gemini: $gemini_test
+      groq: $groq_test
+      mistral: $mistral_test
+      deepseek: $deepseek_test
+      xai: $xai_test
     provider: anthropic
     model: claude-haiku-4-5
     infer:
@@ -654,11 +654,11 @@ tasks:
     description: "Print final parity report to stdout"
     depends_on: [verify]
     with:
-      results:    $verify.provider_results
-      parity:     $verify.overall_parity
+      results: $verify.provider_results
+      parity: $verify.overall_parity
       pass_count: $verify.pass_count
       fail_count: $verify.fail_count
-      summary:    $verify.summary
+      summary: $verify.summary
     exec:
       shell: true
       command: |

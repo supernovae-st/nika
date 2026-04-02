@@ -167,7 +167,10 @@ mod tests {
     #[tokio::test]
     async fn submit_returns_job() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         assert_eq!(job.job_id(), "mock-job-001");
     }
 
@@ -193,7 +196,10 @@ mod tests {
     #[tokio::test]
     async fn job_status() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let info = job.status().await.unwrap();
         assert_eq!(info.status, JobStatus::Completed);
         assert_eq!(info.workflow, "test.nika.yaml");
@@ -202,7 +208,10 @@ mod tests {
     #[tokio::test]
     async fn job_cancel() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let info = job.cancel().await.unwrap();
         assert_eq!(info.status, JobStatus::Cancelled);
     }
@@ -210,7 +219,10 @@ mod tests {
     #[tokio::test]
     async fn job_events_stream() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let mut stream = job.events().await.unwrap();
 
         let mut events = Vec::new();
@@ -228,7 +240,10 @@ mod tests {
     #[tokio::test]
     async fn job_wait_returns_result() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let result = job.wait().await.unwrap();
         assert_eq!(result.job_id, "mock-job-001");
         assert_eq!(result.output.as_deref(), Some("mock output"));
@@ -249,7 +264,10 @@ mod tests {
             ..Default::default()
         };
         let client = mock_client_with(transport);
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let result = job.wait().await;
         assert!(matches!(result, Err(SdkError::Engine { .. })));
     }
@@ -268,7 +286,10 @@ mod tests {
             ..Default::default()
         };
         let client = mock_client_with(transport);
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let result = job.wait().await;
         assert!(matches!(result, Err(SdkError::Cancelled)));
     }
@@ -276,7 +297,10 @@ mod tests {
     #[tokio::test]
     async fn job_artifacts() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let artifacts = job.artifacts().await.unwrap();
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts[0].name(), "report.md");
@@ -287,7 +311,10 @@ mod tests {
     #[tokio::test]
     async fn artifact_download() {
         let client = mock_client();
-        let job = client.submit("test.nika.yaml", RunOptions::new()).await.unwrap();
+        let job = client
+            .submit("test.nika.yaml", RunOptions::new())
+            .await
+            .unwrap();
         let artifacts = job.artifacts().await.unwrap();
         let data = artifacts[0].download().await.unwrap();
         assert_eq!(data.as_ref(), b"mock file content");

@@ -49,7 +49,12 @@ fn reap_completed_jobs(jobs: &mut std::collections::HashMap<String, JobState>) {
     }
     let terminal: Vec<String> = jobs
         .iter()
-        .filter(|(_, s)| matches!(s.status, JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled))
+        .filter(|(_, s)| {
+            matches!(
+                s.status,
+                JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled
+            )
+        })
         .map(|(id, _)| id.clone())
         .collect();
     for id in terminal {
@@ -144,29 +149,37 @@ impl Transport for EmbeddedTransport {
                                     verb: verb.to_string(),
                                 })
                             }
-                            nika_event::EventKind::TaskCompleted { task_id, duration_ms, .. } => {
-                                Some(Event::TaskComplete {
-                                    job_id: fwd_jid.clone(),
-                                    task_id: task_id.to_string(),
-                                    duration_ms: *duration_ms,
-                                })
-                            }
-                            nika_event::EventKind::TaskFailed { task_id, error, duration_ms, .. } => {
-                                Some(Event::TaskFailed {
-                                    job_id: fwd_jid.clone(),
-                                    task_id: task_id.to_string(),
-                                    error: error.clone(),
-                                    duration_ms: *duration_ms,
-                                })
-                            }
-                            nika_event::EventKind::ArtifactWritten { task_id, path, size, .. } => {
-                                Some(Event::ArtifactWritten {
-                                    job_id: fwd_jid.clone(),
-                                    task_id: task_id.to_string(),
-                                    path: path.clone(),
-                                    size: *size,
-                                })
-                            }
+                            nika_event::EventKind::TaskCompleted {
+                                task_id,
+                                duration_ms,
+                                ..
+                            } => Some(Event::TaskComplete {
+                                job_id: fwd_jid.clone(),
+                                task_id: task_id.to_string(),
+                                duration_ms: *duration_ms,
+                            }),
+                            nika_event::EventKind::TaskFailed {
+                                task_id,
+                                error,
+                                duration_ms,
+                                ..
+                            } => Some(Event::TaskFailed {
+                                job_id: fwd_jid.clone(),
+                                task_id: task_id.to_string(),
+                                error: error.clone(),
+                                duration_ms: *duration_ms,
+                            }),
+                            nika_event::EventKind::ArtifactWritten {
+                                task_id,
+                                path,
+                                size,
+                                ..
+                            } => Some(Event::ArtifactWritten {
+                                job_id: fwd_jid.clone(),
+                                task_id: task_id.to_string(),
+                                path: path.clone(),
+                                size: *size,
+                            }),
                             _ => None,
                         };
                         if let Some(ev) = sdk_event {
@@ -182,9 +195,7 @@ impl Transport for EmbeddedTransport {
         // Run in background task — capture JoinHandle to detect panics
         let jobs = Arc::clone(&self.jobs);
         let jid = job_id.clone();
-        let handle = tokio::spawn(async move {
-            runner.run().await
-        });
+        let handle = tokio::spawn(async move { runner.run().await });
 
         // Monitor the handle in a separate task
         tokio::spawn(async move {

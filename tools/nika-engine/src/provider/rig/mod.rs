@@ -224,10 +224,7 @@ impl RigProvider {
     ///
     /// Avoids `unsafe { std::env::set_var() }` — constructs the rig-core client
     /// directly with the provided key instead of reading from the environment.
-    pub fn from_name_with_key(
-        name: &str,
-        api_key: &str,
-    ) -> Result<Self, crate::error::NikaError> {
+    pub fn from_name_with_key(name: &str, api_key: &str) -> Result<Self, crate::error::NikaError> {
         let provider = crate::core::find_provider(name).ok_or(ProviderError::NotConfigured {
             provider: name.to_string(),
         })?;
@@ -724,23 +721,18 @@ impl RigProvider {
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
                 let messages = vec![serde_json::json!({"role": "user", "content": prompt})];
-                let (content, prompt_tokens, completion_tokens) =
-                    Self::raw_openai_compat_infer(
-                        http_client,
-                        raw_base_url,
-                        raw_api_key,
-                        model_id,
-                        messages,
-                        effective_max_tokens,
-                        None,
-                        compat_timeout,
-                    )
-                    .await?;
-                tracing::debug!(
-                    prompt_tokens,
-                    completion_tokens,
-                    "OpenAiCompat infer usage"
-                );
+                let (content, prompt_tokens, completion_tokens) = Self::raw_openai_compat_infer(
+                    http_client,
+                    raw_base_url,
+                    raw_api_key,
+                    model_id,
+                    messages,
+                    effective_max_tokens,
+                    None,
+                    compat_timeout,
+                )
+                .await?;
+                tracing::debug!(prompt_tokens, completion_tokens, "OpenAiCompat infer usage");
                 Ok(content)
             }
             #[cfg(feature = "native-inference")]
@@ -1116,16 +1108,11 @@ impl RigProvider {
 
                     let mut messages = Vec::new();
                     if let Some(sys) = system {
-                        messages
-                            .push(serde_json::json!({"role": "system", "content": sys}));
+                        messages.push(serde_json::json!({"role": "system", "content": sys}));
                     }
-                    messages
-                        .push(serde_json::json!({"role": "user", "content": prompt}));
+                    messages.push(serde_json::json!({"role": "user", "content": prompt}));
 
-                    let url = format!(
-                        "{}/chat/completions",
-                        raw_base_url.trim_end_matches('/')
-                    );
+                    let url = format!("{}/chat/completions", raw_base_url.trim_end_matches('/'));
                     let body = serde_json::json!({
                         "model": model_id,
                         "messages": messages,
@@ -1154,9 +1141,7 @@ impl RigProvider {
 
                     let status = resp.status();
                     let body_text = resp.text().await.map_err(|e| {
-                        RigInferError::PromptError(format!(
-                            "failed to read response body: {e}"
-                        ))
+                        RigInferError::PromptError(format!("failed to read response body: {e}"))
                     })?;
 
                     if !status.is_success() {
@@ -1172,9 +1157,7 @@ impl RigProvider {
 
                     let json: serde_json::Value =
                         serde_json::from_str(&body_text).map_err(|e| {
-                            RigInferError::PromptError(format!(
-                                "invalid JSON response: {e}"
-                            ))
+                            RigInferError::PromptError(format!("invalid JSON response: {e}"))
                         })?;
 
                     // Primary: extract tool call arguments
@@ -1195,8 +1178,7 @@ impl RigProvider {
                             .map(|s| s.to_string())
                             .ok_or_else(|| {
                                 RigInferError::PromptError(
-                                    "no tool_calls or content in response"
-                                        .into(),
+                                    "no tool_calls or content in response".into(),
                                 )
                             })
                     }
@@ -1307,18 +1289,17 @@ impl RigProvider {
                     messages.push(serde_json::json!({"role": "system", "content": system}));
                 }
                 messages.push(serde_json::json!({"role": "user", "content": user_prompt}));
-                let (content, prompt_tokens, completion_tokens) =
-                    Self::raw_openai_compat_infer(
-                        http_client,
-                        raw_base_url,
-                        raw_api_key,
-                        model_id,
-                        messages,
-                        max_tokens as u64,
-                        effective_temperature,
-                        compat_timeout,
-                    )
-                    .await?;
+                let (content, prompt_tokens, completion_tokens) = Self::raw_openai_compat_infer(
+                    http_client,
+                    raw_base_url,
+                    raw_api_key,
+                    model_id,
+                    messages,
+                    max_tokens as u64,
+                    effective_temperature,
+                    compat_timeout,
+                )
+                .await?;
                 tracing::debug!(
                     prompt_tokens,
                     completion_tokens,

@@ -186,10 +186,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                         // [provider]
                         println!();
                         println!("  {}", "[provider]".bold());
-                        println!(
-                            "    default       {}",
-                            config.provider.default.cyan()
-                        );
+                        println!("    default       {}", config.provider.default.cyan());
                         if let Some(ref m) = config.provider.model {
                             println!("    model         {}", m.cyan());
                         }
@@ -205,11 +202,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                                     .map(|v| !v.is_empty())
                                     .unwrap_or(false);
                                 if has_key {
-                                    keys_line.push_str(&format!(
-                                        "{} {}  ",
-                                        StatusIcon::Ok,
-                                        p.id
-                                    ));
+                                    keys_line.push_str(&format!("{} {}  ", StatusIcon::Ok, p.id));
                                 }
                             }
                             let configured: usize = KNOWN_PROVIDERS
@@ -224,10 +217,7 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                             if configured > 0 {
                                 println!("{}", keys_line.trim_end());
                             } else {
-                                println!(
-                                    "    keys          {} none configured",
-                                    StatusIcon::Warn
-                                );
+                                println!("    keys          {} none configured", StatusIcon::Warn);
                             }
                         }
 
@@ -266,7 +256,6 @@ pub fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), Ni
                                 println!("    max_tokens    {}", max);
                             }
                         }
-
                     }
                     Err(_) => {
                         // Fallback: raw TOML

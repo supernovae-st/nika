@@ -108,10 +108,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let metrics_handle = metrics::install_recorder();
 
     // Per-token rate limiter (configurable via env/nika.toml)
-    let limiter = rate_limit::new_rate_limiter_with(
-        config.rate_per_second as u32,
-        config.rate_burst,
-    );
+    let limiter =
+        rate_limit::new_rate_limiter_with(config.rate_per_second as u32, config.rate_burst);
 
     // Build router with middleware
     // SSE route is separate — long-lived streams must NOT have the 30s TimeoutLayer (C1).
@@ -393,14 +391,23 @@ fn print_startup_banner(config: &ServeConfig) {
     eprintln!();
     eprintln!("  \u{1f98b} Nika Serve v{version}");
     eprintln!();
-    eprintln!("  \u{251c}\u{2500}\u{2500} Listening    http://{}", config.bind);
+    eprintln!(
+        "  \u{251c}\u{2500}\u{2500} Listening    http://{}",
+        config.bind
+    );
     eprintln!(
         "  \u{251c}\u{2500}\u{2500} Workflows    {wf_dir} ({workflow_count} file{})",
         if workflow_count == 1 { "" } else { "s" }
     );
     eprintln!("  \u{251c}\u{2500}\u{2500} Executor     {executor}");
-    eprintln!("  \u{251c}\u{2500}\u{2500} Max jobs     {} concurrent", config.max_concurrent);
-    eprintln!("  \u{251c}\u{2500}\u{2500} Timeout      {}s per job", config.job_timeout_secs);
+    eprintln!(
+        "  \u{251c}\u{2500}\u{2500} Max jobs     {} concurrent",
+        config.max_concurrent
+    );
+    eprintln!(
+        "  \u{251c}\u{2500}\u{2500} Timeout      {}s per job",
+        config.job_timeout_secs
+    );
     eprintln!("  \u{251c}\u{2500}\u{2500} Auth         Bearer token ({token_len} chars)");
     eprintln!("  \u{2514}\u{2500}\u{2500} Providers    {providers_str}");
     eprintln!();

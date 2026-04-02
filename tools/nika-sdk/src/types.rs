@@ -82,8 +82,7 @@ impl Event {
 }
 
 /// A boxed async stream of events.
-pub type EventStream =
-    Pin<Box<dyn Stream<Item = Result<Event, SdkError>> + Send>>;
+pub type EventStream = Pin<Box<dyn Stream<Item = Result<Event, SdkError>> + Send>>;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // JOB STATUS

@@ -153,11 +153,7 @@ fn run_interactive_init(
             "plan",
             "Show plan, ask before running (recommended)",
         )
-        .item(
-            "deny".to_string(),
-            "deny",
-            "Block all exec/fetch (safest)",
-        )
+        .item("deny".to_string(), "deny", "Block all exec/fetch (safest)")
         .item(
             "accept-edits".to_string(),
             "accept-edits",
@@ -274,10 +270,7 @@ default = "anthropic"
     // Create .mcp.json (Claude Code convention — empty by default)
     let mcp_json_path = root.join(".mcp.json");
     if !mcp_json_path.exists() {
-        fs::write(
-            &mcp_json_path,
-            "{\n  \"mcpServers\": {}\n}\n",
-        )?;
+        fs::write(&mcp_json_path, "{\n  \"mcpServers\": {}\n}\n")?;
     }
 
     // Create AGENTS.md

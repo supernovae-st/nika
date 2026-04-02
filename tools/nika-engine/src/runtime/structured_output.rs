@@ -297,12 +297,11 @@ impl StructuredOutputEngine {
                         // SECURITY: reject path traversal before reading
                         Self::validate_schema_file_path(path)?;
                         let resolved = self.resolve_file_path(path);
-                        let content =
-                            tokio::fs::read_to_string(&resolved)
-                                .await
-                                .map_err(|e| NikaError::SchemaFailed {
-                                    details: format!("Failed to read example '{}': {}", path, e),
-                                })?;
+                        let content = tokio::fs::read_to_string(&resolved).await.map_err(|e| {
+                            NikaError::SchemaFailed {
+                                details: format!("Failed to read example '{}': {}", path, e),
+                            }
+                        })?;
                         let parsed: Value = serde_json::from_str(&content).map_err(|e| {
                             NikaError::SchemaFailed {
                                 details: format!("Invalid JSON in example '{}': {}", path, e),
@@ -326,11 +325,11 @@ impl StructuredOutputEngine {
                         // SECURITY: reject path traversal (same check as from_example)
                         Self::validate_schema_file_path(path)?;
                         let resolved = self.resolve_file_path(path);
-                        let content = tokio::fs::read_to_string(&resolved)
-                            .await
-                            .map_err(|e| NikaError::SchemaFailed {
+                        let content = tokio::fs::read_to_string(&resolved).await.map_err(|e| {
+                            NikaError::SchemaFailed {
                                 details: format!("Failed to read schema '{}': {}", path, e),
-                            })?;
+                            }
+                        })?;
                         serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
                             details: format!("Invalid JSON in schema '{}': {}", path, e),
                         })?
@@ -1336,8 +1335,8 @@ Hope this helps!"#;
 
         // Spec uses relative path "schemas/test.json"
         let spec = StructuredOutputSpec::with_file_schema("schemas/test.json");
-        let mut engine = StructuredOutputEngine::new(spec, log)
-            .with_workflow_dir(dir.path().to_path_buf());
+        let mut engine =
+            StructuredOutputEngine::new(spec, log).with_workflow_dir(dir.path().to_path_buf());
 
         let schema = engine.load_schema().await.unwrap();
         assert_eq!(schema["type"], "object");

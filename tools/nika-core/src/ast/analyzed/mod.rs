@@ -68,8 +68,7 @@ pub use task::{
 };
 pub use workflow::{
     AnalyzedContextFile, AnalyzedIncludeSpec, AnalyzedMcpServer, AnalyzedWorkflow, McpFromSource,
-    McpTransport,
-    SchemaVersion,
+    McpTransport, SchemaVersion,
 };
 
 #[cfg(test)]

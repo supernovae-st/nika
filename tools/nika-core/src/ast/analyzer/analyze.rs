@@ -1353,10 +1353,7 @@ fn analyze_mcp_server(
             AnalyzeError::new(
                 AnalyzeErrorKind::MissingField,
                 error_span,
-                format!(
-                    "MCP server '{}' missing 'command:' or 'from:' field",
-                    name
-                ),
+                format!("MCP server '{}' missing 'command:' or 'from:' field", name),
             )
             .with_suggestion("add command: for inline or from: config to resolve from .mcp.json"),
         );
@@ -2903,7 +2900,11 @@ mod tests {
         raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 45)));
 
         let result = analyze(raw);
-        assert!(result.is_ok(), "from: config should be accepted: {:?}", result.errors);
+        assert!(
+            result.is_ok(),
+            "from: config should be accepted: {:?}",
+            result.errors
+        );
         let wf = result.value.unwrap();
         let server = wf.mcp_servers.get("neo4j").unwrap();
         assert_eq!(server.from, Some(McpFromSource::Config));
@@ -2936,7 +2937,10 @@ mod tests {
         let mut mcp_config = RawMcpConfig::new();
         mcp_config.servers.insert(
             Spanned::new("neo4j".to_string(), make_span(10, 15)),
-            Spanned::new(RawMcpServer::with_from("@supernovae/pkg"), make_span(20, 40)),
+            Spanned::new(
+                RawMcpServer::with_from("@supernovae/pkg"),
+                make_span(20, 40),
+            ),
         );
         raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 45)));
 

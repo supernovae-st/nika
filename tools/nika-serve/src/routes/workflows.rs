@@ -95,9 +95,9 @@ pub async fn run_workflow(
     // Validate inputs: must be object, keys alphanumeric+underscore, bounded size
     if let Some(inputs) = &req.inputs {
         // M5: Reject non-object inputs (arrays, strings, etc.)
-        let obj = inputs.as_object().ok_or_else(|| {
-            ServeError::InvalidWorkflow("inputs must be a JSON object".into())
-        })?;
+        let obj = inputs
+            .as_object()
+            .ok_or_else(|| ServeError::InvalidWorkflow("inputs must be a JSON object".into()))?;
         for key in obj.keys() {
             if key.is_empty()
                 || key.len() > 128 // M6: key length limit
@@ -263,9 +263,11 @@ pub struct ListWorkflowsResponse {
 pub async fn list_workflows(
     State(state): State<AppState>,
 ) -> Result<Json<ListWorkflowsResponse>, ServeError> {
-    let base = state.config.workflows_dir.canonicalize().map_err(|e| {
-        ServeError::Config(format!("workflows_dir canonicalize: {e}"))
-    })?;
+    let base = state
+        .config
+        .workflows_dir
+        .canonicalize()
+        .map_err(|e| ServeError::Config(format!("workflows_dir canonicalize: {e}")))?;
 
     let mut workflows = Vec::new();
     collect_workflows(&base, &base, &mut workflows).await?;
@@ -281,17 +283,20 @@ async fn collect_workflows(
     dir: &std::path::Path,
     out: &mut Vec<WorkflowInfo>,
 ) -> Result<(), ServeError> {
-    let mut entries = tokio::fs::read_dir(dir).await.map_err(|e| {
-        ServeError::Internal(Box::new(e))
-    })?;
+    let mut entries = tokio::fs::read_dir(dir)
+        .await
+        .map_err(|e| ServeError::Internal(Box::new(e)))?;
 
-    while let Some(entry) = entries.next_entry().await.map_err(|e| {
-        ServeError::Internal(Box::new(e))
-    })? {
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| ServeError::Internal(Box::new(e)))?
+    {
         let path = entry.path();
-        let ft = entry.file_type().await.map_err(|e| {
-            ServeError::Internal(Box::new(e))
-        })?;
+        let ft = entry
+            .file_type()
+            .await
+            .map_err(|e| ServeError::Internal(Box::new(e)))?;
 
         if ft.is_dir() {
             let name = entry.file_name();
@@ -309,9 +314,9 @@ async fn collect_workflows(
                     .to_string_lossy()
                     .to_string();
 
-                let metadata = tokio::fs::metadata(&path).await.map_err(|e| {
-                    ServeError::Internal(Box::new(e))
-                })?;
+                let metadata = tokio::fs::metadata(&path)
+                    .await
+                    .map_err(|e| ServeError::Internal(Box::new(e)))?;
 
                 out.push(WorkflowInfo {
                     name: relative,
@@ -438,10 +443,16 @@ mod tests {
     #[tokio::test]
     async fn list_workflows_finds_nika_yaml() {
         let dir = tempfile::TempDir::new().unwrap();
-        std::fs::write(dir.path().join("hello.nika.yaml"), "schema: nika/workflow@0.12")
-            .unwrap();
-        std::fs::write(dir.path().join("test.nika.yaml"), "schema: nika/workflow@0.12")
-            .unwrap();
+        std::fs::write(
+            dir.path().join("hello.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("test.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
         std::fs::write(dir.path().join("not-a-workflow.yaml"), "data: 1").unwrap();
         std::fs::create_dir_all(dir.path().join("sub")).unwrap();
         std::fs::write(

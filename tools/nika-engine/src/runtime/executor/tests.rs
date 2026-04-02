@@ -2593,10 +2593,7 @@ fn test_is_retryable_500() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 500 Internal Server Error".to_string(),
     };
-    assert!(
-        Runner::is_retryable(&err),
-        "500 should be retryable"
-    );
+    assert!(Runner::is_retryable(&err), "500 should be retryable");
 }
 
 #[test]
@@ -2604,10 +2601,7 @@ fn test_is_retryable_502() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 502 Bad Gateway".to_string(),
     };
-    assert!(
-        Runner::is_retryable(&err),
-        "502 should be retryable"
-    );
+    assert!(Runner::is_retryable(&err), "502 should be retryable");
 }
 
 #[test]
@@ -2615,10 +2609,7 @@ fn test_is_retryable_503() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 503 Service Unavailable".to_string(),
     };
-    assert!(
-        Runner::is_retryable(&err),
-        "503 should be retryable"
-    );
+    assert!(Runner::is_retryable(&err), "503 should be retryable");
 }
 
 #[test]
@@ -2626,10 +2617,7 @@ fn test_is_retryable_429() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 429 Too Many Requests".to_string(),
     };
-    assert!(
-        Runner::is_retryable(&err),
-        "429 should be retryable"
-    );
+    assert!(Runner::is_retryable(&err), "429 should be retryable");
 }
 
 #[test]
@@ -2637,10 +2625,7 @@ fn test_is_retryable_timeout() {
     let err = NikaError::ProviderApiError {
         message: "request timed out after 30s".to_string(),
     };
-    assert!(
-        Runner::is_retryable(&err),
-        "timeout should be retryable"
-    );
+    assert!(Runner::is_retryable(&err), "timeout should be retryable");
 }
 
 #[test]
@@ -2659,10 +2644,7 @@ fn test_is_not_retryable_401() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 401 Unauthorized".to_string(),
     };
-    assert!(
-        !Runner::is_retryable(&err),
-        "401 should NOT be retryable"
-    );
+    assert!(!Runner::is_retryable(&err), "401 should NOT be retryable");
 }
 
 #[test]
@@ -2670,10 +2652,7 @@ fn test_is_not_retryable_403() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 403 Forbidden".to_string(),
     };
-    assert!(
-        !Runner::is_retryable(&err),
-        "403 should NOT be retryable"
-    );
+    assert!(!Runner::is_retryable(&err), "403 should NOT be retryable");
 }
 
 #[test]

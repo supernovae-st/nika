@@ -122,7 +122,9 @@ mod tests {
         let frames = parse_sse_block(block);
         assert_eq!(frames.len(), 3);
         assert!(matches!(&frames[0], SseFrame::Comment(c) if c == "ping"));
-        assert!(matches!(&frames[1], SseFrame::Event { event_type, .. } if event_type == "started"));
+        assert!(
+            matches!(&frames[1], SseFrame::Event { event_type, .. } if event_type == "started")
+        );
         assert!(matches!(&frames[2], SseFrame::Comment(c) if c == "ping"));
     }
 

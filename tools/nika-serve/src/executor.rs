@@ -272,13 +272,13 @@ fn spawn_event_forwarder(
             match rx.recv().await {
                 Ok(event) => {
                     let serve_event = match &event.kind {
-                        nika_event::EventKind::TaskStarted {
-                            task_id, verb, ..
-                        } => Some(crate::events::ServeEvent::TaskStart {
-                            job_id: job_id.clone(),
-                            task_id: task_id.to_string(),
-                            verb: verb.to_string(),
-                        }),
+                        nika_event::EventKind::TaskStarted { task_id, verb, .. } => {
+                            Some(crate::events::ServeEvent::TaskStart {
+                                job_id: job_id.clone(),
+                                task_id: task_id.to_string(),
+                                verb: verb.to_string(),
+                            })
+                        }
                         nika_event::EventKind::TaskCompleted {
                             task_id,
                             output,
@@ -287,9 +287,7 @@ fn spawn_event_forwarder(
                             // Save checkpoint for resume
                             if let Some(ref storage) = storage {
                                 if let Ok(json) = serde_json::to_string(output.as_ref()) {
-                                    let _ = storage
-                                        .save_checkpoint(&job_id, task_id, &json)
-                                        .await;
+                                    let _ = storage.save_checkpoint(&job_id, task_id, &json).await;
                                 }
                             }
                             Some(crate::events::ServeEvent::TaskComplete {

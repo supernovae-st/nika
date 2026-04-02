@@ -454,7 +454,7 @@ pub(crate) fn lower_mcp_servers_with_resolver(
     servers: IndexMap<String, AnalyzedMcpServer>,
     resolver: Option<&crate::core::McpConfigResolver>,
 ) -> Option<FxHashMap<String, McpConfigInline>> {
-    use crate::core::{McpResolveSource};
+    use crate::core::McpResolveSource;
     use nika_core::ast::analyzed::McpFromSource;
 
     if servers.is_empty() {
@@ -493,8 +493,11 @@ pub(crate) fn lower_mcp_servers_with_resolver(
             };
 
             // Deep merge: base from config, workflow fields override
-            let mut env: FxHashMap<String, String> =
-                base.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            let mut env: FxHashMap<String, String> = base
+                .env
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
             // Workflow env overrides base env
             for (k, v) in &server.env {
                 env.insert(k.clone(), v.clone());
