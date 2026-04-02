@@ -22,6 +22,7 @@ nika-sdk = { workspace = true, default-features = true }
 
 # PyO3
 pyo3 = { version = "0.24", features = ["abi3-py39"] }
+pythonize = "0.24"
 
 # Async runtime
 tokio = { workspace = true, features = ["rt-multi-thread"] }

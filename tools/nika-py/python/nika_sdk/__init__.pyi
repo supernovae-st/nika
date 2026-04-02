@@ -16,11 +16,15 @@ class JobInfo:
     completed_at: Optional[str]
     exit_code: Optional[int]
     output: Optional[str]
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 class JobResult:
     """Final result of a completed job."""
     job_id: str
     output: Optional[str]
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 class ArtifactInfo:
     """Artifact metadata."""
@@ -29,6 +33,9 @@ class ArtifactInfo:
     format: Optional[str]
     content_type: str
     checksum: Optional[str]
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+
 
 class EventStream(Iterator[dict[str, object]]):
     """Blocking iterator over job events — use with `for event in stream`."""
