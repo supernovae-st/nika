@@ -281,9 +281,7 @@ pub fn spawn_worker(
             }
         }
 
-        // Cleanup event bus channel
-        event_bus.remove(&id).await;
-
+        // Event bus cleanup handled by WorkerGuard::drop (single cleanup site)
         guard.completed = true;
     });
 

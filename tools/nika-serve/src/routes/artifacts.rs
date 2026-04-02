@@ -76,8 +76,16 @@ pub async fn download_artifact(
         .find(|a| a.name == name)
         .ok_or(ServeError::NotFound)?;
 
-    // Verify file exists on disk
+    // Verify file exists on disk and is within allowed directory
     let path = std::path::Path::new(&artifact.path);
+    if let Ok(canonical) = tokio::fs::canonicalize(path).await {
+        let allowed_base = tokio::fs::canonicalize(&state.config.workflows_dir)
+            .await
+            .map_err(|_| ServeError::NotFound)?;
+        if !canonical.starts_with(&allowed_base) {
+            return Err(ServeError::PathTraversal);
+        }
+    }
     let metadata = tokio::fs::metadata(path)
         .await
         .map_err(|_| ServeError::NotFound)?;
