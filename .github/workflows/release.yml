@@ -925,6 +925,14 @@ jobs:
       - name: Install napi-rs CLI
         run: npm install -g @napi-rs/cli@3
 
+      - name: Sync version from release tag
+        working-directory: tools/nika-napi
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          VERSION="${TAG#v}"
+          npm version "$VERSION" --no-git-tag-version
+
       - name: Prepare and publish
         working-directory: tools/nika-napi
         env:
