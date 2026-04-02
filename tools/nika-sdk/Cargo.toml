@@ -1,0 +1,47 @@
+[package]
+name = "nika-sdk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Rust SDK for the Nika workflow engine — remote (HTTP) and embedded transports"
+
+[features]
+default = ["remote"]
+remote = ["dep:reqwest"]
+embedded = ["dep:nika-engine", "dep:nika-event", "dep:uuid"]
+
+[dependencies]
+# Core
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Async
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+
+# Data
+bytes = { workspace = true }
+
+# Remote transport (feature-gated)
+reqwest = { workspace = true, optional = true, features = ["json", "stream"] }
+
+# Embedded transport (feature-gated)
+nika-engine = { workspace = true, optional = true }
+nika-event = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

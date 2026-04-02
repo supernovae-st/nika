@@ -15,6 +15,7 @@ members = [
     "nika-serve",
     "nika-lsp-core",
     "nika-lsp",
+    "nika-sdk",
 ]
 
 [workspace.package]
@@ -39,6 +40,7 @@ nika-daemon = { path = "nika-daemon", version = "0.58.0" }
 nika-storage = { path = "nika-storage", version = "0.58.0" }
 nika-serve = { path = "nika-serve", version = "0.58.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.58.0" }
+nika-sdk = { path = "nika-sdk", version = "0.58.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
