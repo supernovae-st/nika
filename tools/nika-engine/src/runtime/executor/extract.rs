@@ -267,6 +267,53 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
         }
     }
 
+    // Favicon (link[rel~=icon])
+    let favicon_sel = scraper::Selector::parse("link[rel~=icon], link[rel=\"shortcut icon\"]")
+        .expect("static CSS selector");
+    if let Some(el) = document.select(&favicon_sel).next() {
+        if let Some(href) = el.value().attr("href") {
+            meta.insert("favicon".into(), href.into());
+        }
+    }
+
+    // Author (meta name="author")
+    let author_sel = scraper::Selector::parse("meta[name=author]").expect("static CSS selector");
+    if let Some(el) = document.select(&author_sel).next() {
+        if let Some(content) = el.value().attr("content") {
+            meta.insert("author".into(), content.into());
+        }
+    }
+
+    // Robots (meta name="robots")
+    let robots_sel = scraper::Selector::parse("meta[name=robots]").expect("static CSS selector");
+    if let Some(el) = document.select(&robots_sel).next() {
+        if let Some(content) = el.value().attr("content") {
+            meta.insert("robots".into(), content.into());
+        }
+    }
+
+    // RSS/Atom feeds (link[type="application/rss+xml"] or link[type="application/atom+xml"])
+    let feed_sel = scraper::Selector::parse(
+        "link[type=\"application/rss+xml\"], link[type=\"application/atom+xml\"]",
+    )
+    .expect("static CSS selector");
+    let feeds: Vec<serde_json::Value> = document
+        .select(&feed_sel)
+        .filter_map(|el| {
+            let href = el.value().attr("href")?;
+            let title = el.value().attr("title").unwrap_or_default();
+            let feed_type = el.value().attr("type").unwrap_or_default();
+            Some(serde_json::json!({
+                "url": href,
+                "title": title,
+                "type": feed_type,
+            }))
+        })
+        .collect();
+    if !feeds.is_empty() {
+        meta.insert("feeds".into(), feeds.into());
+    }
+
     serde_json::to_string(&meta).map_err(|e| NikaError::ExtractError {
         reason: format!("JSON serialize: {e}"),
     })
@@ -455,6 +502,31 @@ mod tests {
         assert_eq!(parsed["og"]["image"], "https://example.com/img.png");
         assert_eq!(parsed["twitter"]["card"], "summary");
         assert_eq!(parsed["canonical"], "https://example.com/page");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_extracts_favicon_author_robots_feeds() {
+        let html = r#"<html><head>
+            <title>My Page</title>
+            <link rel="icon" href="/favicon.ico">
+            <meta name="author" content="Alice">
+            <meta name="robots" content="index, follow">
+            <link rel="alternate" type="application/rss+xml" title="RSS" href="/feed.xml">
+            <link rel="alternate" type="application/atom+xml" title="Atom" href="/atom.xml">
+        </head><body></body></html>"#;
+        let result = apply_extract(html, Some(ExtractMode::Metadata), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["title"], "My Page");
+        assert_eq!(parsed["favicon"], "/favicon.ico");
+        assert_eq!(parsed["author"], "Alice");
+        assert_eq!(parsed["robots"], "index, follow");
+        let feeds = parsed["feeds"].as_array().unwrap();
+        assert_eq!(feeds.len(), 2);
+        assert_eq!(feeds[0]["url"], "/feed.xml");
+        assert_eq!(feeds[0]["title"], "RSS");
+        assert_eq!(feeds[1]["url"], "/atom.xml");
+        assert_eq!(feeds[1]["type"], "application/atom+xml");
     }
 
     #[cfg(feature = "fetch-article")]
