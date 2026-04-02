@@ -3,11 +3,13 @@
 //! Wraps `nika-sdk` remote transport only — no embedded mode.
 //! Async Rust methods map to JavaScript Promises automatically.
 
+use std::future::Future;
 use std::sync::Arc;
 
 use futures_util::StreamExt;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use tokio::sync::Mutex;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR MAPPING
@@ -256,6 +258,38 @@ impl Artifact {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// EVENT STREAM (AsyncGenerator for `for await...of`)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Async iterator over job events — use with `for await (const event of stream)`.
+#[napi(async_iterator)]
+pub struct EventStream {
+  receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<std::result::Result<NikaEvent, String>>>>,
+}
+
+#[napi]
+impl AsyncGenerator for EventStream {
+  type Yield = NikaEvent;
+  type Next = ();
+  type Return = ();
+
+  fn next(
+    &mut self,
+    _value: Option<Self::Next>,
+  ) -> impl Future<Output = Result<Option<Self::Yield>>> + Send + 'static {
+    let rx = self.receiver.clone();
+    async move {
+      let mut guard = rx.lock().await;
+      match guard.recv().await {
+        Some(Ok(event)) => Ok(Some(event)),
+        Some(Err(e)) => Err(napi::Error::from_reason(e)),
+        None => Ok(None), // stream ended
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // JOB
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -304,9 +338,46 @@ impl Job {
     Ok(artifacts.into_iter().map(|a| Artifact { inner: a }).collect())
   }
 
-  /// Collect all events into an array (non-streaming).
+  /// Stream events as an async iterator.
   ///
-  /// For streaming, use `Client.streamEvents(jobId)` instead.
+  /// ```js
+  /// for await (const event of job.events()) {
+  ///   console.log(event.type, event.taskId);
+  /// }
+  /// ```
+  #[napi]
+  pub async fn events(&self) -> Result<EventStream> {
+    let mut stream = self.inner.events().await.map_err(sdk_err)?;
+    let (tx, rx) = tokio::sync::mpsc::channel(64);
+
+    // Spawn a task to forward SDK events to the mpsc channel
+    tokio::spawn(async move {
+      while let Some(event) = stream.next().await {
+        let mapped = match event {
+          Ok(e) => {
+            let terminal = e.is_terminal();
+            let result = Ok(NikaEvent::from(e));
+            if tx.send(result).await.is_err() {
+              break; // JS side dropped the iterator
+            }
+            if terminal {
+              break;
+            }
+            continue;
+          }
+          Err(e) => Err(e.to_string()),
+        };
+        let _ = tx.send(mapped).await;
+        break;
+      }
+    });
+
+    Ok(EventStream {
+      receiver: Arc::new(Mutex::new(rx)),
+    })
+  }
+
+  /// Collect all events into an array (non-streaming).
   #[napi]
   pub async fn collect_events(&self) -> Result<Vec<NikaEvent>> {
     let mut stream = self.inner.events().await.map_err(sdk_err)?;
@@ -330,7 +401,7 @@ impl Job {
 /// Nika SDK client — connects to a remote `nika serve` instance.
 ///
 /// ```js
-/// const { Client } = require('@nika/sdk');
+/// const { Client } = require('@supernovae-st/nika-sdk');
 ///
 /// const client = new Client('http://localhost:3000', process.env.NIKA_TOKEN);
 /// const job = await client.submit('pipeline.nika.yaml', { inputs: { topic: 'AI' } });
