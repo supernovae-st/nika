@@ -9,7 +9,7 @@ Nika uses multiple configuration files at different scopes:
 | `~/.config/nika/config.toml` | Global | API keys, defaults |
 | `.nika/config.toml` | Project | Project-specific settings |
 | `.mcp.json` | Project | MCP server definitions |
-| `~/.mcp.json` | Global | Global MCP server definitions |
+| `~/.nika/mcp.yaml` | Global | Global MCP server definitions |
 | `.nika/course-progress.json` | Project | Course progress tracking |
 
 ---
@@ -187,7 +187,7 @@ mcp:
 }
 ```
 
-### Global MCP Config (~/.mcp.json)
+### Global MCP Config (~/.nika/mcp.yaml)
 
 Same format as project-level. Project-level overrides global for the same server name.
 
