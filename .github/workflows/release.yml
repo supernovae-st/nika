@@ -590,7 +590,7 @@ jobs:
 
       - name: Update Homebrew formula
         if: env.HAS_HOMEBREW_TOKEN == 'true'
-        uses: mislav/bump-homebrew-formula-action@v3
+        uses: mislav/bump-homebrew-formula-action@v4
         with:
           formula-name: nika
           homebrew-tap: supernovae-st/homebrew-tap
@@ -621,7 +621,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -714,7 +714,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
@@ -876,7 +876,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
@@ -894,7 +894,7 @@ jobs:
         run: napi build --release --target ${{ matrix.target }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdk-npm-${{ matrix.target }}
           path: tools/nika-napi/*.node
@@ -912,13 +912,13 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Download all SDK artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: sdk-npm-*
           path: tools/nika-napi
@@ -976,7 +976,7 @@ jobs:
           working-directory: tools/nika-py
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdk-pypi-${{ matrix.os }}-${{ matrix.target }}
           path: tools/nika-py/dist
@@ -989,7 +989,7 @@ jobs:
 
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: sdk-pypi-*
           path: dist
@@ -1252,7 +1252,7 @@ jobs:
 
       - name: "Telegram: single release notification"
         if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v1.0.0
+        uses: appleboy/telegram-action@v1.0.1
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -1280,7 +1280,7 @@ jobs:
 
       - name: "Message 4: One-liner"
         if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v1.0.0
+        uses: appleboy/telegram-action@v1.0.1
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
