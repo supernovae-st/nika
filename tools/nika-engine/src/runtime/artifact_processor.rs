@@ -731,8 +731,17 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
                     })
                 }
                 Err(_) => {
-                    // If not valid JSON, just use as-is
-                    Ok(output.to_string())
+                    // Not valid JSON — validate as YAML before accepting
+                    match serde_yaml::from_str::<serde_json::Value>(output) {
+                        Ok(_) => Ok(output.to_string()),
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                "Artifact format: yaml content is neither valid JSON nor YAML, writing as-is"
+                            );
+                            Ok(output.to_string())
+                        }
+                    }
                 }
             }
         }
