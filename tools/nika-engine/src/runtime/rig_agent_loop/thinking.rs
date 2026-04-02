@@ -149,13 +149,18 @@ impl RigAgentLoop {
 
         let id = llm_g.id.clone().unwrap_or_else(|| "llm".to_string());
 
-        // Determine provider: use agent's provider or default
+        // Determine provider: use agent's provider (always set by executor).
+        // Fallback "anthropic" is a last-resort — in practice params.provider
+        // is always resolved from the workflow/task/nika.toml chain.
         let provider_name = self
             .params
             .provider
             .as_ref()
             .map(|p| p.to_string())
-            .unwrap_or_else(|| "anthropic".to_string());
+            .unwrap_or_else(|| {
+                tracing::debug!(task_id = %self.task_id, "LLM guardrail: no provider in params, defaulting to anthropic");
+                "anthropic".to_string()
+            });
 
         let provider = match RigProvider::from_name(&provider_name) {
             Ok(p) => p,

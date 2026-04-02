@@ -47,6 +47,8 @@ impl WebhookConfig {
 
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -98,6 +100,8 @@ impl WebhookConfig {
                 if let Some(first) = addrs.first() {
                     if let Ok(pinned) = reqwest::Client::builder()
                         .redirect(reqwest::redirect::Policy::none())
+                        .connect_timeout(std::time::Duration::from_secs(10))
+                        .timeout(std::time::Duration::from_secs(30))
                         .resolve(&host, *first)
                         .build()
                     {

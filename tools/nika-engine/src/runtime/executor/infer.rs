@@ -808,7 +808,10 @@ impl TaskExecutor {
         for attempt in 0..MAX_PROVIDER_ATTEMPTS {
             if attempt > 0 {
                 let delay_ms = BACKOFF_DELAYS_MS[attempt - 1];
-                let error_str = last_error.as_ref().unwrap().to_string();
+                let error_str = last_error
+                    .as_ref()
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "unknown error".to_string());
                 warn!(
                     task_id = %task_id,
                     attempt = attempt + 1,

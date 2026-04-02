@@ -1207,14 +1207,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // LLM calls. Example: retry: { max_attempts: 3 } + structured:
                 // { max_retries: 2 } = up to 9 LLM calls per task.
                 let delay_ms = task_retry.map_or(1000u64, |r| r.delay_ms);
-                let backoff = task_retry.map_or(1.0f64, |r| r.backoff.unwrap_or(1.0));
+                let backoff = task_retry
+                    .map_or(1.0f64, |r| r.backoff.unwrap_or(1.0))
+                    .clamp(1.0, 10.0); // Prevent runaway backoff
                 let mut last_err: Option<NikaError> = None;
                 let mut final_result = None;
+
+                // Max retry delay: 5 minutes (prevents infinite sleep on extreme values)
+                const MAX_RETRY_DELAY_MS: u64 = 300_000;
 
                 for attempt in 1..=max_attempts {
                     if attempt > 1 {
                         let exp = (attempt - 2).min(30) as i32;
-                        let delay = (delay_ms as f64 * backoff.powi(exp)) as u64;
+                        let delay = ((delay_ms as f64 * backoff.powi(exp)) as u64)
+                            .min(MAX_RETRY_DELAY_MS);
                         tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                         event_log.emit(EventKind::TaskRetry {
                             task_id: Arc::clone(&task_id),

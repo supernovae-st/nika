@@ -299,7 +299,14 @@ fn spawn_event_forwarder(
                             // Save checkpoint for resume
                             if let Some(ref storage) = storage {
                                 if let Ok(json) = serde_json::to_string(output.as_ref()) {
-                                    let _ = storage.save_checkpoint(&job_id, task_id, &json).await;
+                                    if let Err(e) = storage.save_checkpoint(&job_id, task_id, &json).await {
+                                        tracing::warn!(
+                                            job_id = %job_id,
+                                            task_id = %task_id,
+                                            error = %e,
+                                            "checkpoint save failed — resume may re-run this task"
+                                        );
+                                    }
                                 }
                             }
                             Some(crate::events::ServeEvent::TaskComplete {
