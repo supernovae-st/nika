@@ -381,7 +381,9 @@ mod tests {
     async fn json_merge_deep_merge_objects() {
         let tool = JsonMergeTool;
         let result = tool
-            .call(r#"{"items": [{"a": 1, "nested": {"x": 1}}, {"b": 2, "nested": {"y": 2}}]}"#.into())
+            .call(
+                r#"{"items": [{"a": 1, "nested": {"x": 1}}, {"b": 2, "nested": {"y": 2}}]}"#.into(),
+            )
             .await
             .unwrap();
         let parsed: Value = serde_json::from_str(&result).unwrap();
@@ -473,9 +475,7 @@ mod tests {
             ]
         });
         let result = tool
-            .call(
-                serde_json::json!({"data": data, "query": "$..url"}).to_string(),
-            )
+            .call(serde_json::json!({"data": data, "query": "$..url"}).to_string())
             .await
             .unwrap();
         let parsed: Value = serde_json::from_str(&result).unwrap();
@@ -487,9 +487,7 @@ mod tests {
         let tool = JsonQueryTool;
         let data = json!({"items": ["a", "b", "c"]});
         let result = tool
-            .call(
-                serde_json::json!({"data": data, "query": "$.items[1]"}).to_string(),
-            )
+            .call(serde_json::json!({"data": data, "query": "$.items[1]"}).to_string())
             .await
             .unwrap();
         let parsed: Value = serde_json::from_str(&result).unwrap();

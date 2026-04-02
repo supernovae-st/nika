@@ -274,11 +274,17 @@ fn check_config_file() -> DiagnosticCheck {
     match fs::read_to_string(&config_path) {
         Ok(content) => match toml::from_str::<toml::Value>(&content) {
             Ok(_) => {
-                let label = config_path.file_name().unwrap_or_default().to_string_lossy();
+                let label = config_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy();
                 DiagnosticCheck::pass("Config", format!("{label} is valid TOML"))
             }
             Err(e) => {
-                let label = config_path.file_name().unwrap_or_default().to_string_lossy();
+                let label = config_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy();
                 DiagnosticCheck::fail(
                     "Config",
                     format!("{label} has syntax errors: {e}"),

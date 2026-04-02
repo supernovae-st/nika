@@ -127,13 +127,12 @@ impl BuiltinTool for FetchTool {
             }
 
             // Build request
-            let method = params
-                .method
-                .parse::<reqwest::Method>()
-                .map_err(|_| NikaError::BuiltinToolError {
+            let method = params.method.parse::<reqwest::Method>().map_err(|_| {
+                NikaError::BuiltinToolError {
                     tool: "nika:fetch".into(),
                     reason: format!("Invalid HTTP method: {}", params.method),
-                })?;
+                }
+            })?;
 
             let timeout_secs = params.timeout.unwrap_or(30).min(120);
             let mut req = self
@@ -253,10 +252,7 @@ mod tests {
     fn setup() -> FetchTool {
         let policy = PolicyConfig::default();
         let enforcer = PolicyEnforcer::new(policy);
-        FetchTool::new(
-            Arc::new(RwLock::new(enforcer)),
-            EventLog::new(),
-        )
+        FetchTool::new(Arc::new(RwLock::new(enforcer)), EventLog::new())
     }
 
     #[tokio::test]
@@ -299,6 +295,9 @@ mod tests {
     fn fetch_tool_schema_has_url() {
         let tool = setup();
         let schema = tool.parameters_schema();
-        assert!(schema["required"].as_array().unwrap().contains(&serde_json::json!("url")));
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("url")));
     }
 }

@@ -22,12 +22,10 @@ pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_js
             };
             let params = &entry[entry.find('>').unwrap_or(0)..];
             // Check rel="alternate"
-            let is_alternate = params
-                .split(';')
-                .any(|p| {
-                    let p = p.trim().to_lowercase();
-                    p == "rel=\"alternate\"" || p == "rel=alternate"
-                });
+            let is_alternate = params.split(';').any(|p| {
+                let p = p.trim().to_lowercase();
+                p == "rel=\"alternate\"" || p == "rel=alternate"
+            });
             if !is_alternate {
                 continue;
             }
@@ -36,12 +34,7 @@ pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_js
                 let p = p.trim();
                 let lower = p.to_lowercase();
                 if lower.starts_with("hreflang=") {
-                    Some(
-                        p[9..]
-                            .trim_matches('"')
-                            .trim_matches('\'')
-                            .to_string(),
-                    )
+                    Some(p[9..].trim_matches('"').trim_matches('\'').to_string())
                 } else {
                     None
                 }
@@ -756,8 +749,7 @@ mod tests {
     #[test]
     fn links_no_base_keeps_raw_href() {
         let html = r#"<html><body><a href="/path">Link</a></body></html>"#;
-        let result =
-            apply_extract_with_base(html, Some(ExtractMode::Links), None, None).unwrap();
+        let result = apply_extract_with_base(html, Some(ExtractMode::Links), None, None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let links = parsed["links"].as_array().unwrap();
         assert_eq!(links[0]["url"], "/path");
@@ -838,13 +830,8 @@ mod tests {
             <title>No Base</title>
             <link rel="alternate" hreflang="fr" href="/fr/page">
         </head><body></body></html>"#;
-        let result = apply_extract_with_base(
-            html,
-            Some(ExtractMode::Metadata),
-            None,
-            None,
-        )
-        .unwrap();
+        let result =
+            apply_extract_with_base(html, Some(ExtractMode::Metadata), None, None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let hreflang = parsed["hreflang"].as_array().unwrap();
         assert_eq!(hreflang[0]["href"], "/fr/page");

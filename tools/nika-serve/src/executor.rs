@@ -299,7 +299,9 @@ fn spawn_event_forwarder(
                             // Save checkpoint for resume
                             if let Some(ref storage) = storage {
                                 if let Ok(json) = serde_json::to_string(output.as_ref()) {
-                                    if let Err(e) = storage.save_checkpoint(&job_id, task_id, &json).await {
+                                    if let Err(e) =
+                                        storage.save_checkpoint(&job_id, task_id, &json).await
+                                    {
                                         tracing::warn!(
                                             job_id = %job_id,
                                             task_id = %task_id,
@@ -452,7 +454,10 @@ mod tests {
     #[test]
     fn strip_ansi_removes_color_codes() {
         assert_eq!(strip_ansi_escapes("\x1b[31mred\x1b[0m"), "red");
-        assert_eq!(strip_ansi_escapes("\x1b[1;32mbold green\x1b[0m"), "bold green");
+        assert_eq!(
+            strip_ansi_escapes("\x1b[1;32mbold green\x1b[0m"),
+            "bold green"
+        );
         assert_eq!(strip_ansi_escapes("no escapes here"), "no escapes here");
         assert_eq!(strip_ansi_escapes(""), "");
         assert_eq!(

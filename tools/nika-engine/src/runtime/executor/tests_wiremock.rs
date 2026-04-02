@@ -424,7 +424,9 @@ async fn wiremock_fetch_extract_metadata_hreflang() {
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(parsed["title"], "Page");
-    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    let hreflang = parsed["hreflang"]
+        .as_array()
+        .expect("hreflang should be array");
     assert_eq!(hreflang.len(), 3);
     assert_eq!(hreflang[0]["lang"], "en");
     assert_eq!(hreflang[0]["href"], "https://example.com/en/page");
@@ -459,7 +461,9 @@ async fn wiremock_fetch_extract_metadata_hreflang_resolves_relative_urls() {
         .await
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
-    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    let hreflang = parsed["hreflang"]
+        .as_array()
+        .expect("hreflang should be array");
     assert_eq!(hreflang.len(), 4);
     // Relative URLs must be resolved against the server base URL
     let en_href = hreflang[0]["href"].as_str().unwrap();
@@ -540,7 +544,9 @@ async fn wiremock_fetch_extract_metadata_hreflang_from_link_header() {
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(parsed["title"], "Link Header Test");
-    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    let hreflang = parsed["hreflang"]
+        .as_array()
+        .expect("hreflang should be array");
     assert_eq!(hreflang.len(), 2);
     assert_eq!(hreflang[0]["lang"], "en");
     assert_eq!(hreflang[0]["href"], "https://example.com/en/");
@@ -579,12 +585,20 @@ async fn wiremock_fetch_extract_metadata_hreflang_merges_html_and_link_header() 
         .await
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
-    let hreflang = parsed["hreflang"].as_array().expect("hreflang should be array");
+    let hreflang = parsed["hreflang"]
+        .as_array()
+        .expect("hreflang should be array");
     // Should have both: en from HTML + de from Link header
     assert_eq!(hreflang.len(), 2);
-    let langs: Vec<&str> = hreflang.iter().map(|h| h["lang"].as_str().unwrap()).collect();
+    let langs: Vec<&str> = hreflang
+        .iter()
+        .map(|h| h["lang"].as_str().unwrap())
+        .collect();
     assert!(langs.contains(&"en"), "Missing 'en' from HTML: {langs:?}");
-    assert!(langs.contains(&"de"), "Missing 'de' from Link header: {langs:?}");
+    assert!(
+        langs.contains(&"de"),
+        "Missing 'de' from Link header: {langs:?}"
+    );
 }
 
 #[tokio::test]

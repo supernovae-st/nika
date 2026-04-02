@@ -1219,8 +1219,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 for attempt in 1..=max_attempts {
                     if attempt > 1 {
                         let exp = (attempt - 2).min(30) as i32;
-                        let delay = ((delay_ms as f64 * backoff.powi(exp)) as u64)
-                            .min(MAX_RETRY_DELAY_MS);
+                        let delay =
+                            ((delay_ms as f64 * backoff.powi(exp)) as u64).min(MAX_RETRY_DELAY_MS);
                         tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                         event_log.emit(EventKind::TaskRetry {
                             task_id: Arc::clone(&task_id),

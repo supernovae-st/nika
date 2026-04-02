@@ -616,13 +616,12 @@ impl TaskExecutor {
                                 }
                                 None => None,
                             };
-                            let extract_result =
-                                super::extract::apply_extract_with_base(
-                                    &body,
-                                    fetch.extract,
-                                    resolved_selector.as_deref(),
-                                    Some(&final_url),
-                                );
+                            let extract_result = super::extract::apply_extract_with_base(
+                                &body,
+                                fetch.extract,
+                                resolved_selector.as_deref(),
+                                Some(&final_url),
+                            );
                             if let Some(mode) = fetch.extract {
                                 let output_len =
                                     extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
@@ -947,9 +946,11 @@ fn merge_link_hreflang(
     let mut parsed: serde_json::Value = serde_json::from_str(&result_str).unwrap_or_default();
     let link_hreflang = super::extract::parse_link_header_hreflang(link_headers);
     if !link_hreflang.is_empty() {
-        let hreflang = parsed
-            .as_object_mut()
-            .and_then(|obj| obj.entry("hreflang").or_insert(serde_json::json!([])).as_array_mut());
+        let hreflang = parsed.as_object_mut().and_then(|obj| {
+            obj.entry("hreflang")
+                .or_insert(serde_json::json!([]))
+                .as_array_mut()
+        });
         if let Some(arr) = hreflang {
             arr.extend(link_hreflang);
         }
@@ -970,9 +971,7 @@ fn merge_link_hreflang_value(
     let link_hreflang = super::extract::parse_link_header_hreflang(link_headers);
     if !link_hreflang.is_empty() {
         if let Some(obj) = extracted.as_object_mut() {
-            let arr = obj
-                .entry("hreflang")
-                .or_insert(serde_json::json!([]));
+            let arr = obj.entry("hreflang").or_insert(serde_json::json!([]));
             if let Some(vec) = arr.as_array_mut() {
                 vec.extend(link_hreflang);
             }

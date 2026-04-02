@@ -55,8 +55,8 @@ pub use complete::{
 };
 pub use cost::CostTool;
 pub use data_tools::{JsonMergeTool, JsonQueryTool, SetDiffTool, ZipTool};
-pub use fetch_tool::FetchTool;
 pub use emit::EmitTool;
+pub use fetch_tool::FetchTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use introspect_dag::DagInfoTool;
 pub use introspect_orchestrate::OrchestrateTool;
