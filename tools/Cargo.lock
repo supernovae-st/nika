@@ -5770,6 +5770,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "nika-engine",
+ "nika-event",
  "nika-storage",
  "nix 0.31.2",
  "reqwest 0.13.2",
