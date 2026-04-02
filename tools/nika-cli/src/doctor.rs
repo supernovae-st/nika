@@ -706,7 +706,7 @@ async fn check_mcp_connectivity() -> Vec<DiagnosticCheck> {
                 format!("{count} workflow(s) use MCP (invoke: with mcp: config)"),
             ));
 
-            // Step 3: Check MCP config — .mcp.json (preferred) or [mcp] in nika.toml
+            // Step 3: Check MCP config — .mcp.json (preferred) or .nika/mcp.yaml (legacy)
             {
                 let current = std::env::current_dir().unwrap_or_default();
                 let project = crate::config::find_project_root_from(&current).unwrap_or(
@@ -717,33 +717,24 @@ async fn check_mcp_connectivity() -> Vec<DiagnosticCheck> {
                 );
 
                 let mcp_json_path = project.root.join(".mcp.json");
+                let legacy_yaml = project.root.join(".nika").join("mcp.yaml");
+
                 if mcp_json_path.exists() {
                     checks.push(DiagnosticCheck::pass(
                         "MCP",
                         "MCP configuration found in .mcp.json",
                     ));
+                } else if legacy_yaml.exists() {
+                    checks.push(DiagnosticCheck::pass(
+                        "MCP",
+                        "MCP configuration found in .nika/mcp.yaml (consider migrating to .mcp.json)",
+                    ));
                 } else {
-                    // Fallback: check [mcp] section in nika.toml
-                    let config_path = project.root.join("nika.toml");
-                    let has_mcp_toml = config_path
-                        .exists()
-                        .then(|| fs::read_to_string(&config_path).ok())
-                        .flatten()
-                        .map(|c| c.contains("[mcp]") || c.contains("mcp."))
-                        .unwrap_or(false);
-
-                    if has_mcp_toml {
-                        checks.push(DiagnosticCheck::pass(
-                            "MCP",
-                            "MCP configuration found in nika.toml",
-                        ));
-                    } else {
-                        checks.push(DiagnosticCheck::warn(
-                            "MCP",
-                            "Workflows use MCP but no .mcp.json or [mcp] in nika.toml",
-                            "Create .mcp.json at project root (Claude Code convention)",
-                        ));
-                    }
+                    checks.push(DiagnosticCheck::warn(
+                        "MCP",
+                        "Workflows use MCP but no .mcp.json found",
+                        "Create .mcp.json at project root (Claude Code convention)",
+                    ));
                 }
             }
         }
