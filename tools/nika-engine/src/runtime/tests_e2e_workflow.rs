@@ -1519,3 +1519,47 @@ tasks:
         "working_dir=none should inherit process cwd"
     );
 }
+
+/// Test 26: working_dir mode correctly propagates through runner to executor
+#[tokio::test]
+async fn tool_context_respects_working_dir() {
+    let project_dir = tempfile::tempdir().expect("tempdir");
+    let workflow_dir = project_dir.path().join("workflows");
+    std::fs::create_dir_all(&workflow_dir).unwrap();
+
+    // Create a script in the project root that writes its cwd
+    let script = project_dir.path().join("check.sh");
+    std::fs::write(&script, "#!/bin/sh\npwd").unwrap();
+
+    // Verify the Runner.with_working_dir_mode propagates to the executor
+    // by running an exec task that reports its cwd
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: check_cwd
+    exec:
+      command: "pwd"
+      shell: true
+"#;
+
+    // Mode "project" should use project root
+    let workflow = parse_analyzed(yaml).expect("YAML should parse");
+    let mut runner = Runner::new(workflow)
+        .unwrap()
+        .quiet()
+        .with_base_path(workflow_dir.clone())
+        .with_project_root(project_dir.path().to_path_buf())
+        .with_working_dir_mode("project".to_string());
+    runner.run().await.expect("Workflow should succeed");
+
+    let result = runner.datastore().get("check_cwd").unwrap();
+    assert!(result.is_success());
+    let output = result.output_str().to_string();
+    let expected = project_dir.path().canonicalize().unwrap();
+    let actual = std::path::Path::new(output.trim()).canonicalize().unwrap();
+    assert_eq!(
+        actual, expected,
+        "working_dir mode should propagate from Runner to TaskExecutor"
+    );
+}

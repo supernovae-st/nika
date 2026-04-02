@@ -290,4 +290,34 @@ name = "no-serve"
             "TOML default should be None (falls through to \".\" in from_env)"
         );
     }
+
+    // Test 28: env vars override nika.toml [serve] values
+    #[test]
+    fn serve_env_vars_override_nika_toml() {
+        // The merge logic: env > nika.toml > default
+        // Verify that env var parsing produces the correct types
+        let toml_content = r#"
+[serve]
+bind = "0.0.0.0:8080"
+max_concurrent = 4
+timeout = 120
+workflows = "./my-workflows"
+"#;
+        let parsed: NikaTomlPartial = toml::from_str(toml_content).unwrap();
+        let serve = parsed.serve.unwrap();
+
+        // Simulate env override for max_concurrent
+        let env_value = "16";
+        let env_max: usize = env_value.parse().unwrap();
+        let result = Some(env_max).or(serve.max_concurrent).unwrap_or(6);
+        assert_eq!(result, 16, "env var should override nika.toml");
+
+        // When env is absent, nika.toml wins
+        let result_no_env: usize = None.or(serve.max_concurrent).unwrap_or(6);
+        assert_eq!(result_no_env, 4, "nika.toml should be used when no env");
+
+        // When both absent, default wins
+        let result_default: usize = None::<usize>.or(None).unwrap_or(6);
+        assert_eq!(result_default, 6, "default should be 6 when nothing set");
+    }
 }

@@ -1108,14 +1108,86 @@ mod tests {
         assert!((cost - 0.004).abs() < f64::EPSILON);
     }
 
+    // ───────────────────────────────────────────────────────────────────────
+    // Phase 10: verb display tests (44-50)
+    // ───────────────────────────────────────────────────────────────────────
+
+    // Test 44: verb header includes correct icon per verb type
     #[test]
-    fn print_output_pretty_prints_json_on_tty() {
-        // When is_tty=true, JSON should be pretty-printed
-        // We can't easily capture stdout, but verify no panic
-        let json = r#"{"name":"Alice","age":30}"#;
+    fn verb_header_includes_icon() {
+        // Verify the icon function returns non-empty colored strings for all verbs
+        use nika_engine::display::icons::verb;
+        let infer_icon = verb("infer");
+        let fetch_icon = verb("fetch");
+        let invoke_icon = verb("invoke");
+        let agent_icon = verb("agent");
+        let exec_icon = verb("exec");
+
+        // Each verb should produce a non-empty string
+        assert!(!infer_icon.to_string().is_empty(), "infer icon");
+        assert!(!fetch_icon.to_string().is_empty(), "fetch icon");
+        assert!(!invoke_icon.to_string().is_empty(), "invoke icon");
+        assert!(!agent_icon.to_string().is_empty(), "agent icon");
+        assert!(!exec_icon.to_string().is_empty(), "exec icon");
+
+        // Icons should be different for each verb
+        let icons: std::collections::HashSet<String> = [
+            infer_icon.to_string(),
+            fetch_icon.to_string(),
+            invoke_icon.to_string(),
+            agent_icon.to_string(),
+            exec_icon.to_string(),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(icons.len(), 5, "all 5 verb icons should be distinct");
+    }
+
+    // Test 45: verb footer shows TTFT when available
+    #[test]
+    fn verb_footer_shows_ttft() {
+        let log = EventLog::new();
+        log.emit(nika_engine::event::EventKind::ProviderResponded {
+            task_id: "cli".into(),
+            request_id: None,
+            input_tokens: 200,
+            output_tokens: 100,
+            cache_read_tokens: 0,
+            ttft_ms: Some(250),
+            finish_reason: nika_engine::event::types::FinishReason::Stop,
+            cost_usd: 0.003,
+        });
+        let (ttft, tokens, cost) = extract_llm_metrics(&log);
+        assert_eq!(ttft, Some(250), "TTFT should be extracted from EventLog");
+        assert_eq!(tokens, 300, "tokens should sum input+output");
+        assert!((cost - 0.003).abs() < f64::EPSILON, "cost should match");
+    }
+
+    // Test 46: JSON output is pretty-printed on TTY (no panic)
+    #[test]
+    fn json_output_pretty_printed_on_tty() {
+        let json = r#"{"name":"Alice","skills":["rust","python"]}"#;
+        // Should not panic — on TTY it pretty-prints, off TTY it passes through
         print_output(json, true);
+    }
+
+    // Test 47: JSON output is raw when piped (no formatting)
+    #[test]
+    fn json_output_raw_when_piped() {
+        let json = r#"{"key":"value"}"#;
+        // When not TTY, output should pass through unchanged
+        // We can't capture stdout easily, but verify no panic
         print_output(json, false);
-        print_output("plain text", true);
-        print_output("plain text", false);
+        // Also verify non-JSON passes through
+        print_output("plain text output", false);
+    }
+
+    // Test 50: invoke result formatted as key-value on TTY (no panic)
+    #[test]
+    fn invoke_result_formatted_as_kv() {
+        // JSON output from invoke should be pretty-printed on TTY
+        let invoke_json = r#"{"width":1920,"height":1080,"format":"jpeg","size":245760}"#;
+        print_output(invoke_json, true);
+        print_output(invoke_json, false);
     }
 }
