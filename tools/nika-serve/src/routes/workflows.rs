@@ -29,6 +29,10 @@ pub struct RunRequest {
 
     /// Optional workflow inputs (key-value pairs passed as `--input`).
     pub inputs: Option<Value>,
+
+    /// Resume from a previous job's checkpoints. Tasks that completed in
+    /// the source job are skipped, using their cached outputs.
+    pub resume_from: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -131,7 +135,13 @@ pub async fn run_workflow(
     info!(job_id = %job_id, workflow = %req.workflow, "job created");
 
     // Spawn worker + track handle (ERRATA-9)
-    let wh = worker::spawn_worker(&state, job_id.clone(), req.workflow, req.inputs);
+    let wh = worker::spawn_worker(
+        &state,
+        job_id.clone(),
+        req.workflow,
+        req.inputs,
+        req.resume_from,
+    );
     state.workers.lock().await.insert(job_id.clone(), wh);
 
     Ok(Json(RunResponse {
