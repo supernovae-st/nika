@@ -40,6 +40,7 @@ fn sdk_err(e: nika_sdk::SdkError) -> PyErr {
       PyTimeoutError::new_err(format!("request timeout after {d:?}"))
     }
     nika_sdk::SdkError::Unauthorized => PyConnectionError::new_err("authentication failed"),
+    nika_sdk::SdkError::Cancelled => NikaError::new_err("job cancelled"),
     nika_sdk::SdkError::NotFound(msg) => NikaError::new_err(format!("not found: {msg}")),
     nika_sdk::SdkError::QueueFull => NikaError::new_err("server queue full"),
     nika_sdk::SdkError::StreamClosed => NikaError::new_err("event stream closed unexpectedly"),
@@ -66,8 +67,8 @@ pyo3::create_exception!(nika_sdk, NikaError, pyo3::exceptions::PyException);
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Status information for a job.
-#[pyclass(frozen)]
-#[derive(Clone)]
+#[pyclass(frozen, eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JobInfo {
   #[pyo3(get)]
   pub job_id: String,
@@ -91,7 +92,7 @@ impl From<nika_sdk::JobInfo> for JobInfo {
   fn from(info: nika_sdk::JobInfo) -> Self {
     Self {
       job_id: info.job_id,
-      status: info.status,
+      status: info.status.to_string(),
       workflow: info.workflow,
       created_at: info.created_at,
       started_at: info.started_at,
@@ -110,8 +111,8 @@ impl JobInfo {
 }
 
 /// Final result of a completed job.
-#[pyclass(frozen)]
-#[derive(Clone)]
+#[pyclass(frozen, eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JobResult {
   #[pyo3(get)]
   pub job_id: String,
@@ -130,8 +131,8 @@ impl JobResult {
 }
 
 /// Artifact metadata.
-#[pyclass(frozen)]
-#[derive(Clone)]
+#[pyclass(frozen, eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArtifactInfo {
   #[pyo3(get)]
   pub name: String,
@@ -403,12 +404,8 @@ impl Client {
   ) -> PyResult<Job> {
     let mut opts = nika_sdk::RunOptions::new();
     if let Some(inputs_dict) = inputs {
-      let json_str = py
-        .import("json")?
-        .call_method1("dumps", (inputs_dict,))?
-        .extract::<String>()?;
       let value: serde_json::Value =
-        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        pythonize::depythonize(inputs_dict).map_err(|e| PyValueError::new_err(e.to_string()))?;
       opts = opts.with_inputs(value);
     }
     if let Some(resume) = resume_from {
@@ -670,6 +667,52 @@ mod tests {
       output: Some("done".into()),
     };
     assert!(result.__repr__().contains("abc"));
+  }
+
+  #[test]
+  fn job_info_eq() {
+    let a = JobInfo {
+      job_id: "j1".into(),
+      status: "running".into(),
+      workflow: "test.nika.yaml".into(),
+      created_at: String::new(),
+      started_at: None,
+      completed_at: None,
+      exit_code: None,
+      output: None,
+    };
+    let b = a.clone();
+    assert_eq!(a, b);
+  }
+
+  #[test]
+  fn job_result_eq() {
+    let a = JobResult {
+      job_id: "j1".into(),
+      output: Some("done".into()),
+    };
+    let b = a.clone();
+    assert_eq!(a, b);
+    assert_ne!(
+      a,
+      JobResult {
+        job_id: "j2".into(),
+        output: None,
+      }
+    );
+  }
+
+  #[test]
+  fn artifact_info_eq() {
+    let a = ArtifactInfo {
+      name: "report.md".into(),
+      size: 4096,
+      format: Some("markdown".into()),
+      content_type: "text/markdown".into(),
+      checksum: None,
+    };
+    let b = a.clone();
+    assert_eq!(a, b);
   }
 
   #[test]

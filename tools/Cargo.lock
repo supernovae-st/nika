@@ -5889,6 +5889,7 @@ dependencies = [
  "futures-util",
  "nika-sdk",
  "pyo3",
+ "pythonize",
  "serde",
  "serde_json",
  "tokio",
@@ -7329,6 +7330,16 @@ dependencies = [
  "pyo3-build-config",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "pythonize"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5bcac0d0b71821f0d69e42654f1e15e5c94b85196446c4de9588951a2117e7b"
+dependencies = [
+ "pyo3",
+ "serde",
 ]
 
 [[package]]
