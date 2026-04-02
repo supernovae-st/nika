@@ -3148,7 +3148,56 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 });
 
                 // Store aggregated result under parent ID
-                self.datastore.insert(parent_id, aggregated_result);
+                self.datastore
+                    .insert(Arc::clone(&parent_id), aggregated_result);
+
+                // BUG-018: Process artifacts for the parent task with aggregated output.
+                // Per-iteration artifact writes (line ~1371) overwrite the same file each time,
+                // so for static paths only the last iteration's output survived. Here we write
+                // the full aggregated array, which overwrites the incorrect per-iteration file.
+                if let Some(parent_task) =
+                    self.workflow.tasks.iter().find(|t| *t.name == *parent_id)
+                {
+                    if let Some(ref artifact_spec) = parent_task.artifact {
+                        // Retrieve the aggregated result we just stored
+                        if let Some(agg_result) = self.datastore.get(&parent_id) {
+                            if agg_result.is_usable() {
+                                let output_content = agg_result.output_str().into_owned();
+                                let bindings = ResolvedBindings::from_with_spec(
+                                    Some(&parent_task.with_spec),
+                                    &self.datastore,
+                                )
+                                .unwrap_or_default();
+                                let artifact_result = process_task_artifacts(
+                                    &parent_id,
+                                    &output_content,
+                                    artifact_spec,
+                                    workflow_artifacts.as_ref(),
+                                    &artifact_base_path,
+                                    Some(&self.event_log),
+                                    &bindings,
+                                    &self.datastore,
+                                    agg_result.media.as_slice(),
+                                )
+                                .await;
+                                if artifact_result.written > 0 {
+                                    debug!(
+                                        task_id = %parent_id,
+                                        artifacts_written = artifact_result.written,
+                                        "for_each aggregated artifacts written"
+                                    );
+                                }
+                                for err in &artifact_result.errors {
+                                    tracing::error!(
+                                        task_id = %parent_id,
+                                        error = %err,
+                                        "for_each aggregated artifact write failed"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
