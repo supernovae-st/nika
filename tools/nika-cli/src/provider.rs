@@ -23,6 +23,12 @@ pub enum ProviderAction {
         /// API key — prefer interactive mode (omit this to enter with hidden input)
         #[arg(hide = true)]
         key: Option<String>,
+        /// Read API key from stdin (for automation: echo $KEY | nika provider set openai --stdin)
+        #[arg(long)]
+        stdin: bool,
+        /// Read API key from a named environment variable (e.g. --key-env OPENAI_API_KEY)
+        #[arg(long)]
+        key_env: Option<String>,
         /// Skip connection test after storing
         #[arg(long)]
         no_test: bool,
@@ -393,6 +399,8 @@ pub async fn handle_provider_command(
         ProviderAction::Set {
             provider,
             key,
+            stdin,
+            key_env,
             no_test,
         } => {
             let is_tty = std::io::stdin().is_terminal();
@@ -442,32 +450,53 @@ pub async fn handle_provider_command(
                     })
                 }
             };
-            let api_key = match key {
-                Some(k) => {
-                    eprintln!(
-                        "  {} API key passed as argument — visible in process list (ps aux)",
-                        StatusIcon::Warn
-                    );
-                    eprintln!(
-                        "{}",
-                        hint("Prefer: nika provider set (interactive, masked input)")
-                    );
-                    k
-                }
-                None if is_tty => cliclack::password(format!("Paste your {provider} API key:"))
-                    .mask('•')
-                    .interact()
-                    .map_err(|e| {
-                        NikaError::IoError(std::io::Error::new(
-                            std::io::ErrorKind::Interrupted,
-                            format!("Cancelled: {e}"),
-                        ))
-                    })?,
-                None => {
+            let api_key = if stdin {
+                // --stdin: read key from piped input (safe for automation)
+                use std::io::Read;
+                let mut buf = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut buf)
+                    .map_err(NikaError::IoError)?;
+                let trimmed = buf.trim().to_string();
+                if trimmed.is_empty() {
                     return Err(NikaError::ValidationError {
-                        reason: "API key required. Usage: nika provider set <provider> <key>"
-                            .into(),
-                    })
+                        reason: "No key received on stdin".into(),
+                    });
+                }
+                trimmed
+            } else if let Some(env_name) = key_env {
+                // --key-env: read from a named env var (safe for CI/Docker)
+                std::env::var(&env_name).map_err(|_| NikaError::ValidationError {
+                    reason: format!("Environment variable '{}' not set", env_name),
+                })?
+            } else {
+                match key {
+                    Some(k) => {
+                        eprintln!(
+                            "  {} API key passed as argument — visible in process list (ps aux)",
+                            StatusIcon::Warn
+                        );
+                        eprintln!(
+                            "{}",
+                            hint("Prefer: nika provider set (interactive, masked input)")
+                        );
+                        k
+                    }
+                    None if is_tty => cliclack::password(format!("Paste your {provider} API key:"))
+                        .mask('•')
+                        .interact()
+                        .map_err(|e| {
+                            NikaError::IoError(std::io::Error::new(
+                                std::io::ErrorKind::Interrupted,
+                                format!("Cancelled: {e}"),
+                            ))
+                        })?,
+                    None => {
+                        return Err(NikaError::ValidationError {
+                            reason: "API key required. Use --stdin, --key-env, or interactive mode"
+                                .into(),
+                        })
+                    }
                 }
             };
             if let Some(detected) = detect_provider_from_key(&api_key) {
