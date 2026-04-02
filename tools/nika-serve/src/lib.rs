@@ -111,8 +111,11 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Install Prometheus metrics recorder
     let metrics_handle = metrics::install_recorder();
 
-    // Per-token rate limiter (10 req/s, burst 30)
-    let limiter = rate_limit::new_rate_limiter();
+    // Per-token rate limiter (configurable via env/nika.toml)
+    let limiter = rate_limit::new_rate_limiter_with(
+        config.rate_per_second as u32,
+        config.rate_burst,
+    );
 
     // Build router with middleware
     // SSE route is separate — long-lived streams must NOT have the 30s TimeoutLayer (C1).
@@ -133,7 +136,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             axum::http::StatusCode::GATEWAY_TIMEOUT,
             std::time::Duration::from_secs(30),
         ))
-        .layer(middleware::from_fn(request_id::request_id_middleware));
+        .layer(middleware::from_fn(request_id::request_id_middleware))
+        .layer(middleware::from_fn(crate::metrics::http_metrics_middleware));
 
     // SSE router: auth → rate-limit, NO TimeoutLayer (C1)
     let sse_routes = routes::build_sse_router(state.clone())
@@ -145,7 +149,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             state.clone(),
             auth::require_auth,
         ))
-        .layer(middleware::from_fn(request_id::request_id_middleware));
+        .layer(middleware::from_fn(request_id::request_id_middleware))
+        .layer(middleware::from_fn(crate::metrics::http_metrics_middleware));
 
     let mut app = api_routes.merge(sse_routes);
 
@@ -178,14 +183,14 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
 
     info!(bind = %config.bind, max_concurrent = config.max_concurrent, "nika serve starting");
 
-    // Spawn background job GC (every hour, delete terminal jobs > 7 days)
+    // Spawn background job GC (configurable interval + retention)
     let gc_storage = state.storage.clone();
+    let gc_interval = std::time::Duration::from_secs(config.gc_interval_secs);
+    let gc_retention = config.gc_retention_secs;
     tokio::spawn(async move {
-        const GC_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3600);
-        const MAX_AGE_SECS: u64 = 7 * 24 * 3600; // 7 days
         loop {
-            tokio::time::sleep(GC_INTERVAL).await;
-            match gc_storage.delete_old_jobs(MAX_AGE_SECS).await {
+            tokio::time::sleep(gc_interval).await;
+            match gc_storage.delete_old_jobs(gc_retention).await {
                 Ok(0) => {}
                 Ok(n) => info!(count = n, "job GC: deleted old jobs"),
                 Err(e) => tracing::warn!(error = %e, "job GC failed"),
@@ -366,9 +371,13 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
-            auth_token: "test-token-1234567".into(), // >=16 chars
+            auth_token: "test-token-1234567890abcdef1234567".into(), // >=32 chars
             cors_origin: None,
             executor_mode: config::ExecutorMode::Embedded,
+            rate_per_second: 10,
+            rate_burst: 30,
+            gc_retention_secs: 7 * 24 * 3600,
+            gc_interval_secs: 3600,
         };
 
         let state = AppState {
@@ -463,7 +472,7 @@ mod tests {
             .method("POST")
             .uri("/v1/run")
             .header("content-type", "application/json")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::from(r#"{"workflow":"../../etc/passwd"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -474,7 +483,7 @@ mod tests {
     async fn nonexistent_job_404() {
         let (app, _state) = test_app().await;
         let req = Request::get("/v1/status/nope")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -489,7 +498,7 @@ mod tests {
             .method("POST")
             .uri("/v1/run")
             .header("content-type", "application/json")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::from(r#"{"workflow":"nonexistent.nika.yaml"}"#))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -504,7 +513,7 @@ mod tests {
         let req = Request::builder()
             .method("POST")
             .uri("/v1/cancel/nonexistent")
-            .header("authorization", "Bearer test-token-1234567")
+            .header("authorization", "Bearer test-token-1234567890abcdef1234567")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();

@@ -23,13 +23,19 @@ use governor::{Quota, RateLimiter};
 pub type KeyedRateLimiter = RateLimiter<String, DashMapStateStore<String>, DefaultClock>;
 
 /// Default: 10 requests per second, burst of 30.
-const RATE_PER_SECOND: u32 = 10;
-const BURST_SIZE: u32 = 30;
+const DEFAULT_RATE_PER_SECOND: u32 = 10;
+const DEFAULT_BURST_SIZE: u32 = 30;
 
-/// Create a new per-token rate limiter.
+/// Create a new per-token rate limiter with default settings.
 pub fn new_rate_limiter() -> Arc<KeyedRateLimiter> {
-    let quota = Quota::per_second(NonZeroU32::new(RATE_PER_SECOND).unwrap())
-        .allow_burst(NonZeroU32::new(BURST_SIZE).unwrap());
+    new_rate_limiter_with(DEFAULT_RATE_PER_SECOND, DEFAULT_BURST_SIZE)
+}
+
+/// Create a new per-token rate limiter with custom rate and burst.
+pub fn new_rate_limiter_with(rate_per_second: u32, burst: u32) -> Arc<KeyedRateLimiter> {
+    let rps = NonZeroU32::new(rate_per_second.max(1)).unwrap();
+    let burst_cap = NonZeroU32::new(burst.max(1)).unwrap();
+    let quota = Quota::per_second(rps).allow_burst(burst_cap);
     Arc::new(RateLimiter::dashmap(quota))
 }
 
@@ -104,8 +110,8 @@ mod tests {
         let limiter = new_rate_limiter();
         let key = "test-token".to_string();
 
-        // Should allow BURST_SIZE requests immediately
-        for i in 0..BURST_SIZE {
+        // Should allow DEFAULT_BURST_SIZE requests immediately
+        for i in 0..DEFAULT_BURST_SIZE {
             assert!(
                 limiter.check_key(&key).is_ok(),
                 "request {i} should be allowed within burst"
@@ -124,7 +130,7 @@ mod tests {
         let limiter = new_rate_limiter();
 
         // Exhaust quota for token A
-        for _ in 0..BURST_SIZE {
+        for _ in 0..DEFAULT_BURST_SIZE {
             limiter.check_key(&"token-a".to_string()).unwrap();
         }
 
