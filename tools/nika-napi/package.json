@@ -1,0 +1,36 @@
+{
+  "name": "@nika/sdk",
+  "version": "0.58.1",
+  "description": "Node.js SDK for the Nika workflow engine",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/supernovae-st/nika"
+  },
+  "keywords": [
+    "nika",
+    "workflow",
+    "ai",
+    "llm",
+    "yaml"
+  ],
+  "engines": {
+    "node": ">= 18"
+  },
+  "napi": {
+    "binaryName": "nika-sdk",
+    "targets": [
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ]
+}
