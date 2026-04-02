@@ -176,8 +176,8 @@ When the executor encounters an unqualified tool name (e.g., `invoke: novanet_qu
 MCP servers can be configured from multiple sources, in priority order:
 
 1. **Workflow YAML** -- `mcp:` block in the workflow file
-2. **Project config** -- `.nika/mcp.json` or `.nika/mcp.yaml`
-3. **Global config** -- `~/.config/nika/mcp.json`
+2. **Project config** -- `.mcp.json` or `.nika/mcp.yaml`
+3. **Global config** -- `~/.nika/mcp.yaml`
 
 The `nika_config.rs` module (`NikaMcpConfigManager`) handles config discovery, merging, and validation across these sources.
 
