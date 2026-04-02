@@ -24,7 +24,7 @@ pub enum McpAction {
         #[arg(long)]
         global: bool,
 
-        /// Add to project config (.mcp.json) - default
+        /// Add to project config (.nika/mcp.yaml) - default
         #[arg(long)]
         project: bool,
 
@@ -50,7 +50,7 @@ pub enum McpAction {
         #[arg(long)]
         global: bool,
 
-        /// Remove from project config (.mcp.json) - default
+        /// Remove from project config (.nika/mcp.yaml) - default
         #[arg(long)]
         project: bool,
 
@@ -69,7 +69,7 @@ pub enum McpAction {
         #[arg(long)]
         global: bool,
 
-        /// Show only project config (.mcp.json)
+        /// Show only project config (.nika/mcp.yaml)
         #[arg(long)]
         project: bool,
 

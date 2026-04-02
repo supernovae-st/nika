@@ -1030,6 +1030,27 @@ servers:
     }
 
     #[test]
+    fn test_mcp_json_malformed_returns_parse_error() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        // Write malformed JSON
+        std::fs::write(project_root.join(".mcp.json"), "{ not valid json }").unwrap();
+
+        let global_path = temp.path().join("global_mcp.yaml");
+        std::fs::write(&global_path, "version: 1\nservers: {}\n").unwrap();
+
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
+        manager.project_root = Some(project_root);
+
+        let result = manager.load_mcp_json();
+        assert!(result.is_err(), "malformed .mcp.json should return error");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains(".mcp.json"), "error should mention .mcp.json");
+    }
+
+    #[test]
     fn test_mcp_json_preferred_over_legacy_yaml() {
         let temp = TempDir::new().unwrap();
         let project_root = temp.path().join("project");
