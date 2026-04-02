@@ -64,7 +64,7 @@ ls -la .nika/ 2>/dev/null || echo ".nika/ directory not found"
 find . -name '*.nika.yaml' -maxdepth 5 2>/dev/null | head -20
 
 # Check for config
-cat .nika/config.toml 2>/dev/null || echo "No project config"
+cat nika.toml 2>/dev/null || echo "No project config (nika.toml not found)"
 
 # Check for course installation
 ls .nika/course-progress.toml 2>/dev/null || echo "No course installed"
