@@ -1346,7 +1346,7 @@ fn analyze_mcp_server(
         );
     }
 
-    // Stdio servers WITHOUT from: require a non-empty command field
+    // NIKA-111: Stdio servers WITHOUT from: require a non-empty command field
     if transport == McpTransport::Stdio && !has_from && !has_command {
         let error_span = raw.command.as_ref().map(|s| s.span).unwrap_or(span);
         ctx.add_error(
@@ -2890,6 +2890,63 @@ mod tests {
         assert!(result.is_err(), "Should fail but got: {:?}", result.value);
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::MissingField);
+    }
+
+    #[test]
+    fn test_analyze_mcp_from_config_accepted() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+        let mut mcp_config = RawMcpConfig::new();
+        mcp_config.servers.insert(
+            Spanned::new("neo4j".to_string(), make_span(10, 15)),
+            Spanned::new(RawMcpServer::with_from("config"), make_span(20, 40)),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 45)));
+
+        let result = analyze(raw);
+        assert!(result.is_ok(), "from: config should be accepted: {:?}", result.errors);
+        let wf = result.value.unwrap();
+        let server = wf.mcp_servers.get("neo4j").unwrap();
+        assert_eq!(server.from, Some(McpFromSource::Config));
+    }
+
+    #[test]
+    fn test_analyze_mcp_from_and_command_conflict() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+        let mut mcp_config = RawMcpConfig::new();
+        let mut server = RawMcpServer::with_from("config");
+        server.command = Some(Spanned::new("npx".to_string(), make_span(30, 33)));
+        mcp_config.servers.insert(
+            Spanned::new("neo4j".to_string(), make_span(10, 15)),
+            Spanned::new(server, make_span(20, 40)),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 45)));
+
+        let result = analyze(raw);
+        assert!(result.is_err(), "from: + command: should conflict");
+        assert!(
+            result.errors[0].message.contains("both"),
+            "error should mention both: {}",
+            result.errors[0].message
+        );
+    }
+
+    #[test]
+    fn test_analyze_mcp_unknown_from_source() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+        let mut mcp_config = RawMcpConfig::new();
+        mcp_config.servers.insert(
+            Spanned::new("neo4j".to_string(), make_span(10, 15)),
+            Spanned::new(RawMcpServer::with_from("@supernovae/pkg"), make_span(20, 40)),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 45)));
+
+        let result = analyze(raw);
+        assert!(result.is_err(), "unknown from: should error");
+        assert!(
+            result.errors[0].message.contains("Unknown MCP source"),
+            "error should mention unknown source: {}",
+            result.errors[0].message
+        );
     }
 
     #[test]

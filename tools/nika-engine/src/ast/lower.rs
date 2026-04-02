@@ -477,12 +477,18 @@ pub(crate) fn lower_mcp_servers_with_resolver(
             };
 
             let Some(resolver) = resolver else {
-                tracing::warn!(server = %name, "from: used but no config resolver available");
+                tracing::warn!(server = %name, "from: used but no config resolver available — skipping");
                 continue;
             };
 
+            // NIKA-108: server not found in config
             let Some(base) = resolver.resolve(&name, resolve_source) else {
-                tracing::error!(server = %name, source = ?from_source, "MCP server not found in config");
+                tracing::error!(
+                    server = %name,
+                    source = ?from_source,
+                    "NIKA-108: MCP server '{}' not found in config. Add it to .mcp.json or use command: for inline.",
+                    name
+                );
                 continue;
             };
 

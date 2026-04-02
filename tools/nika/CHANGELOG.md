@@ -25,6 +25,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ```
 
 ### Added
+- **MCP `from:` resolution** — Workflows can reference MCP servers by name via `from: config` instead of redeclaring them inline. Resolves from `.mcp.json` (project) > `.nika/mcp.yaml` (legacy) > `~/.nika/mcp.yaml` (global). Supports field-level override (env, args, cwd). New error codes: NIKA-108 (not found), NIKA-109 (unknown source), NIKA-110 (from+command conflict), NIKA-111 (missing both).
 - **`nika.toml` project config** — Versioned project configuration at root. Walk-up discovery (nika.toml > .nika/ fallback > defaults). 3-layer merge: CLI flags > env vars > nika.toml > ~/.nika/config.toml > defaults.
 - **`nika init` interactive wizard** — cliclack prompts for project name + permission mode. `--yes` flag for non-interactive/CI use.
 - **`nika clean` umbrella command** — Removes traces, cache, and media orphans in one command. `--dry-run` preview, `--all` includes serve.db + sessions.
