@@ -52,7 +52,9 @@ impl PermissionMode {
         match self {
             PermissionMode::Deny => false,
             PermissionMode::Plan => false, // Always ask
-            PermissionMode::AcceptEdits => matches!(operation, ToolOperation::Edit),
+            PermissionMode::AcceptEdits => {
+                matches!(operation, ToolOperation::Edit | ToolOperation::Write)
+            }
             PermissionMode::YoloMode => true,
         }
     }
@@ -492,7 +494,7 @@ mod tests {
         assert!(!PermissionMode::Deny.allows(ToolOperation::Read));
         assert!(!PermissionMode::Plan.allows(ToolOperation::Edit));
         assert!(PermissionMode::AcceptEdits.allows(ToolOperation::Edit));
-        assert!(!PermissionMode::AcceptEdits.allows(ToolOperation::Write));
+        assert!(PermissionMode::AcceptEdits.allows(ToolOperation::Write));
         assert!(PermissionMode::YoloMode.allows(ToolOperation::Write));
     }
 
