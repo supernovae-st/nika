@@ -885,6 +885,7 @@ fn unlower_mcp_servers(
         .map(|(name, config)| {
             let server = AnalyzedMcpServer {
                 name: name.clone(),
+                from: None,
                 command: Some(config.command),
                 args: config.args,
                 env: config.env.into_iter().collect(),
@@ -1259,6 +1260,7 @@ mod tests {
             "novanet".to_string(),
             AnalyzedMcpServer {
                 name: "novanet".to_string(),
+                from: None,
                 command: Some("npx".to_string()),
                 args: vec!["-y".to_string(), "@novanet/mcp".to_string()],
                 env: IndexMap::new(),
@@ -1272,6 +1274,7 @@ mod tests {
             "sse_only".to_string(),
             AnalyzedMcpServer {
                 name: "sse_only".to_string(),
+                from: None,
                 command: None,
                 args: vec![],
                 env: IndexMap::new(),
@@ -1856,6 +1859,7 @@ mod tests {
             "test".to_string(),
             AnalyzedMcpServer {
                 name: "test".to_string(),
+                from: None,
                 command: Some("node".to_string()),
                 args: vec!["server.js".to_string()],
                 env: IndexMap::new(),
@@ -2104,6 +2108,7 @@ mod tests {
             "sse_server".to_string(),
             AnalyzedMcpServer {
                 name: "sse_server".to_string(),
+                from: None,
                 command: None,
                 args: vec![],
                 env: IndexMap::new(),
@@ -2117,6 +2122,7 @@ mod tests {
             "stdio_server".to_string(),
             AnalyzedMcpServer {
                 name: "stdio_server".to_string(),
+                from: None,
                 command: Some("npx server".to_string()),
                 args: vec!["--port".to_string(), "3000".to_string()],
                 env: IndexMap::new(),

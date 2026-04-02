@@ -177,11 +177,25 @@ impl AnalyzedWorkflow {
 // SchemaVersion is defined in ast::schema and re-exported here.
 pub use super::super::schema::SchemaVersion;
 
+/// Source for MCP server resolution via `from:` field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpFromSource {
+    /// Resolve from .mcp.json > .nika/mcp.yaml > ~/.nika/mcp.yaml
+    Config,
+    /// Resolve from project only (.mcp.json or .nika/mcp.yaml)
+    Project,
+    /// Resolve from global only (~/.nika/mcp.yaml)
+    Global,
+}
+
 /// Analyzed MCP server configuration.
 #[derive(Debug, Clone)]
 pub struct AnalyzedMcpServer {
     /// Server name
     pub name: String,
+
+    /// Reference source (None = inline, Some = resolve from config)
+    pub from: Option<McpFromSource>,
 
     /// Command to spawn (for stdio transport)
     pub command: Option<String>,
