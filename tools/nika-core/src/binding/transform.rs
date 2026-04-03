@@ -71,6 +71,10 @@ pub enum TransformOp {
     UrlHost,
     UrlPath,
     UrlWithoutQuery,
+    UrlNormalize,
+
+    // -- Slicing --
+    Slice(usize, usize),
 }
 
 /// A chain of transform operations: `sort | unique | first(3)`
@@ -647,8 +651,158 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("url_without_query", "string", value)),
             },
+            TransformOp::UrlNormalize => match value {
+                Value::Null => Err(TransformError::NullInput {
+                    op: "url_normalize",
+                }),
+                Value::String(s) => {
+                    let mut parsed =
+                        url::Url::parse(s).map_err(|_| TransformError::TypeMismatch {
+                            op: "url_normalize",
+                            expected: "valid URL",
+                            got: "invalid URL".to_string(),
+                        })?;
+
+                    // 1. Remove default ports (:80 for http, :443 for https)
+                    if (parsed.scheme() == "http" && parsed.port() == Some(80))
+                        || (parsed.scheme() == "https" && parsed.port() == Some(443))
+                    {
+                        let _ = parsed.set_port(None);
+                    }
+
+                    // 2. Strip tracking parameters, sort remaining
+                    let filtered: Vec<(String, String)> = parsed
+                        .query_pairs()
+                        .filter(|(key, _)| !is_tracking_param(key))
+                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .collect();
+
+                    if filtered.is_empty() {
+                        parsed.set_query(None);
+                    } else {
+                        let mut sorted = filtered;
+                        sorted.sort_by(|a, b| a.0.cmp(&b.0));
+                        let query = sorted
+                            .iter()
+                            .map(|(k, v)| {
+                                if v.is_empty() {
+                                    k.clone()
+                                } else {
+                                    format!("{}={}", k, v)
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join("&");
+                        parsed.set_query(Some(&query));
+                    }
+
+                    // 3. Strip fragment
+                    parsed.set_fragment(None);
+
+                    // 4. Remove trailing slash on non-root paths
+                    let path = parsed.path().to_string();
+                    if path.len() > 1 && path.ends_with('/') {
+                        parsed.set_path(&path[..path.len() - 1]);
+                    }
+
+                    Ok(Value::String(parsed.to_string()))
+                }
+                _ => Err(type_mismatch("url_normalize", "string", value)),
+            },
+
+            // ── Slicing ─────────────────────────────────────
+            TransformOp::Slice(start, end) => match value {
+                Value::Null => Err(TransformError::NullInput { op: "slice" }),
+                Value::Array(arr) => {
+                    let len = arr.len();
+                    let s = (*start).min(len);
+                    let e = (*end).min(len);
+                    Ok(Value::Array(arr[s..e].to_vec()))
+                }
+                Value::String(s) => {
+                    let chars: Vec<char> = s.chars().collect();
+                    let len = chars.len();
+                    let si = (*start).min(len);
+                    let ei = (*end).min(len);
+                    Ok(Value::String(chars[si..ei].iter().collect()))
+                }
+                _ => Err(type_mismatch("slice", "array or string", value)),
+            },
         }
     }
+}
+
+/// Known tracking / analytics parameters that don't affect page content.
+/// Sources: Firecrawl, Scrapy w3lib, Google SEO guidelines, industry standard.
+fn is_tracking_param(key: &str) -> bool {
+    let lower = key.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        // Google Analytics
+        "utm_source"
+            | "utm_medium"
+            | "utm_campaign"
+            | "utm_term"
+            | "utm_content"
+            | "utm_id"
+            // Google Ads
+            | "gclid"
+            | "gclsrc"
+            | "dclid"
+            | "gbraid"
+            | "wbraid"
+            // Facebook / Meta
+            | "fbclid"
+            | "fb_action_ids"
+            | "fb_action_types"
+            | "fb_source"
+            | "fb_ref"
+            // Microsoft / Bing
+            | "msclkid"
+            // Mailchimp
+            | "mc_cid"
+            | "mc_eid"
+            // HubSpot
+            | "hsa_cam"
+            | "hsa_grp"
+            | "hsa_mt"
+            | "hsa_src"
+            | "hsa_ad"
+            | "hsa_acc"
+            | "hsa_net"
+            | "hsa_ver"
+            | "hsa_la"
+            | "hsa_ol"
+            | "hsa_kw"
+            | "hsa_tgt"
+            // Other common trackers
+            | "_ga"
+            | "_gl"
+            | "_hsenc"
+            | "_hsmi"
+            | "mkt_tok"
+            | "igshid"
+            | "si"
+            | "s_kwcid"
+            | "ef_id"
+            // TikTok
+            | "ttclid"
+            // Twitter / X
+            | "twclid"
+            // Adobe
+            | "s_cid"
+            // Matomo / Piwik
+            | "mtm_source"
+            | "mtm_medium"
+            | "mtm_campaign"
+            | "mtm_keyword"
+            | "mtm_content"
+            | "pk_source"
+            | "pk_medium"
+            | "pk_campaign"
+            | "pk_keyword"
+            | "pk_content"
+    )
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -710,6 +864,27 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 })?;
                 Ok(TransformOp::Default(val))
             }
+            "slice" => {
+                let parts: Vec<&str> = arg.split(',').map(|s| s.trim()).collect();
+                if parts.len() != 2 {
+                    return Err(TransformParseError {
+                        input: full_input.to_string(),
+                        reason: format!(
+                            "slice() requires 2 arguments (start, end), got {}",
+                            parts.len()
+                        ),
+                    });
+                }
+                let start: usize = parts[0].parse().map_err(|_| TransformParseError {
+                    input: full_input.to_string(),
+                    reason: format!("invalid start for slice(): '{}'", parts[0]),
+                })?;
+                let end: usize = parts[1].parse().map_err(|_| TransformParseError {
+                    input: full_input.to_string(),
+                    reason: format!("invalid end for slice(): '{}'", parts[1]),
+                })?;
+                Ok(TransformOp::Slice(start, end))
+            }
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", name),
@@ -747,6 +922,7 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "url_host" => Ok(TransformOp::UrlHost),
             "url_path" => Ok(TransformOp::UrlPath),
             "url_without_query" => Ok(TransformOp::UrlWithoutQuery),
+            "url_normalize" => Ok(TransformOp::UrlNormalize),
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", trimmed),
@@ -933,6 +1109,8 @@ impl fmt::Display for TransformOp {
             TransformOp::UrlHost => write!(f, "url_host"),
             TransformOp::UrlPath => write!(f, "url_path"),
             TransformOp::UrlWithoutQuery => write!(f, "url_without_query"),
+            TransformOp::UrlNormalize => write!(f, "url_normalize"),
+            TransformOp::Slice(s, e) => write!(f, "slice({}, {})", s, e),
         }
     }
 }
@@ -1565,6 +1743,196 @@ mod tests {
         let url = json!("https://EXAMPLE.COM/Page");
         let expr = TransformExpr::parse("url_host | lower").unwrap();
         assert_eq!(expr.apply(&url).unwrap(), json!("example.com"));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // url_normalize tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn url_normalize_strips_utm() {
+        let url = json!("https://example.com/page?utm_source=google&utm_medium=cpc&id=123");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page?id=123"));
+    }
+
+    #[test]
+    fn url_normalize_removes_default_port() {
+        let url = json!("https://example.com:443/page");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page"));
+    }
+
+    #[test]
+    fn url_normalize_removes_default_port_http() {
+        let url = json!("http://example.com:80/page");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("http://example.com/page"));
+    }
+
+    #[test]
+    fn url_normalize_sorts_params() {
+        let url = json!("https://example.com/page?z=1&a=2&m=3");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page?a=2&m=3&z=1"));
+    }
+
+    #[test]
+    fn url_normalize_strips_fragment() {
+        let url = json!("https://example.com/page#section");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page"));
+    }
+
+    #[test]
+    fn url_normalize_strips_trailing_slash() {
+        let url = json!("https://example.com/page/");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page"));
+    }
+
+    #[test]
+    fn url_normalize_preserves_root_slash() {
+        let url = json!("https://example.com/");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/"));
+    }
+
+    #[test]
+    fn url_normalize_strips_all_tracking() {
+        let url = json!("https://example.com/page?fbclid=abc&gclid=def&page=2");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page?page=2"));
+    }
+
+    #[test]
+    fn url_normalize_no_query_no_change() {
+        let url = json!("https://example.com/page");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page"));
+    }
+
+    #[test]
+    fn url_normalize_all_tracking_removed() {
+        let url = json!("https://example.com/page?utm_source=a&fbclid=b");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com/page"));
+    }
+
+    #[test]
+    fn url_normalize_preserves_non_default_port() {
+        let url = json!("https://example.com:8443/page");
+        let result = TransformOp::UrlNormalize.apply(&url).unwrap();
+        assert_eq!(result, json!("https://example.com:8443/page"));
+    }
+
+    #[test]
+    fn url_normalize_chaining_with_host() {
+        let url = json!("https://WWW.Example.COM:443/page?utm_source=x#top");
+        let expr = TransformExpr::parse("url_normalize | url_host").unwrap();
+        let result = expr.apply(&url).unwrap();
+        assert_eq!(result, json!("www.example.com"));
+    }
+
+    #[test]
+    fn url_normalize_null_errors() {
+        assert!(matches!(
+            TransformOp::UrlNormalize.apply(&Value::Null).unwrap_err(),
+            TransformError::NullInput {
+                op: "url_normalize"
+            }
+        ));
+    }
+
+    #[test]
+    fn url_normalize_invalid_url_errors() {
+        let bad = json!("not a url");
+        assert!(TransformOp::UrlNormalize.apply(&bad).is_err());
+    }
+
+    #[test]
+    fn parse_url_normalize() {
+        assert_eq!(
+            TransformExpr::parse("url_normalize").unwrap().ops[0],
+            TransformOp::UrlNormalize
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // slice tests
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn slice_array_basic() {
+        let arr = json!(["a", "b", "c", "d", "e"]);
+        assert_eq!(
+            TransformOp::Slice(1, 3).apply(&arr).unwrap(),
+            json!(["b", "c"])
+        );
+    }
+
+    #[test]
+    fn slice_array_from_start() {
+        let arr = json!([1, 2, 3, 4, 5]);
+        assert_eq!(
+            TransformOp::Slice(0, 3).apply(&arr).unwrap(),
+            json!([1, 2, 3])
+        );
+    }
+
+    #[test]
+    fn slice_array_to_end() {
+        let arr = json!([1, 2, 3, 4, 5]);
+        assert_eq!(
+            TransformOp::Slice(3, 100).apply(&arr).unwrap(),
+            json!([4, 5])
+        );
+    }
+
+    #[test]
+    fn slice_array_empty_range() {
+        let arr = json!([1, 2, 3]);
+        assert_eq!(
+            TransformOp::Slice(5, 10).apply(&arr).unwrap(),
+            json!([])
+        );
+    }
+
+    #[test]
+    fn slice_string() {
+        let s = json!("Hello World");
+        assert_eq!(
+            TransformOp::Slice(0, 5).apply(&s).unwrap(),
+            json!("Hello")
+        );
+    }
+
+    #[test]
+    fn slice_null_errors() {
+        assert!(TransformOp::Slice(0, 1).apply(&Value::Null).is_err());
+    }
+
+    #[test]
+    fn parse_slice_transform() {
+        let expr = TransformExpr::parse("slice(0, 100)").unwrap();
+        assert_eq!(expr.ops[0], TransformOp::Slice(0, 100));
+    }
+
+    #[test]
+    fn slice_pipeline() {
+        let arr = json!(["x", "y", "z", "w"]);
+        let expr = TransformExpr::parse("slice(1, 3) | length").unwrap();
+        assert_eq!(expr.apply(&arr).unwrap(), json!(2));
+    }
+
+    #[test]
+    fn display_url_normalize() {
+        assert_eq!(TransformOp::UrlNormalize.to_string(), "url_normalize");
+    }
+
+    #[test]
+    fn display_slice() {
+        assert_eq!(TransformOp::Slice(0, 10).to_string(), "slice(0, 10)");
     }
 
     // ─────────────────────────────────────────────────────────────
