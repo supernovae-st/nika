@@ -311,18 +311,21 @@ mod tests {
         // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
-        // 7 core + 4 data tools + 6 sprint2 tools
+        // 7 core + 7 data tools + 6 sprint2 tools
         assert!(router.has_tool("json_merge"));
         assert!(router.has_tool("set_diff"));
         assert!(router.has_tool("zip"));
         assert!(router.has_tool("json_query"));
+        assert!(router.has_tool("map"));
+        assert!(router.has_tool("filter"));
+        assert!(router.has_tool("group_by"));
         assert!(router.has_tool("json_verify"));
         assert!(router.has_tool("yaml_validate"));
         assert!(router.has_tool("locale_lookup"));
         assert!(router.has_tool("aggregate"));
         assert!(router.has_tool("json_flatten"));
         assert!(router.has_tool("json_unflatten"));
-        assert_eq!(router.tool_names().len(), 17); // 7 core + 4 data + 6 sprint2
+        assert_eq!(router.tool_names().len(), 20); // 7 core + 7 data + 6 sprint2
     }
 
     #[test]
@@ -352,7 +355,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 22); // 7 core + 4 data + 6 sprint2 + 5 file
+        assert_eq!(router.tool_names().len(), 25); // 7 core + 7 data + 6 sprint2 + 5 file
     }
 
     #[test]
@@ -436,8 +439,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has 7 core + 4 data + 6 sprint2 tools
-        assert_eq!(router.tool_names().len(), 17);
+        // Default router has 7 core + 7 data + 6 sprint2 tools
+        assert_eq!(router.tool_names().len(), 20);
     }
 
     #[tokio::test]
