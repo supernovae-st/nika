@@ -1,0 +1,124 @@
+schema: "nika/workflow@0.12"
+workflow: test-real-providers
+description: "E2E test with REAL LLM providers — validates structured output → transform pipeline"
+
+# Default provider — overridable with --provider openai / --provider xai
+provider: anthropic
+model: claude-haiku-4-5
+
+artifacts:
+  dir: ./test-output
+
+tasks:
+  # ── Step 1: LLM generates structured data ──────
+  - id: generate
+    infer:
+      prompt: |
+        List exactly 5 programming languages. For each, give the name,
+        the year it was created, and its primary paradigm.
+      temperature: 0.0
+      max_tokens: 500
+    structured:
+      schema:
+        type: object
+        required: [languages]
+        properties:
+          languages:
+            type: array
+            minItems: 5
+            maxItems: 5
+            items:
+              type: object
+              required: [name, year, paradigm]
+              properties:
+                name: { type: string }
+                year: { type: integer, minimum: 1950 }
+                paradigm: { type: string }
+
+  # ── Step 2: Transform pipeline ─────────────────
+  - id: test_pluck
+    depends_on: [generate]
+    with:
+      names: $generate.languages | pluck("name") | sort | join(", ")
+    exec:
+      command: "echo PLUCK_OK: {{with.names}}"
+      shell: true
+
+  - id: test_sort_by
+    depends_on: [generate]
+    with:
+      oldest: $generate.languages | sort_by("year") | first | pick("name", "year") | to_json
+    exec:
+      command: "echo SORT_BY_OK: {{with.oldest}}"
+      shell: true
+
+  - id: test_group_by
+    depends_on: [generate]
+    with:
+      groups: $generate.languages | group_by("paradigm") | keys | sort | join(", ")
+    exec:
+      command: "echo GROUP_BY_OK: {{with.groups}}"
+      shell: true
+
+  - id: test_where
+    depends_on: [generate]
+    with:
+      count: $generate.languages | where("paradigm", "functional") | length
+    exec:
+      command: "echo WHERE_OK: functional_count={{with.count}}"
+      shell: true
+
+  # ── Step 3: Aggregate stats ────────────────────
+  - id: test_aggregate
+    depends_on: [generate]
+    with:
+      years: $generate.languages
+    invoke:
+      tool: nika:aggregate
+      params:
+        array: "{{with.years}}"
+        ops: ["min", "max", "avg", "count"]
+        field: "year"
+
+  - id: verify_aggregate
+    depends_on: [test_aggregate]
+    with:
+      stats: $test_aggregate
+    exec:
+      command: "echo AGGREGATE_OK: min={{with.stats.min}} max={{with.stats.max}} count={{with.stats.count}}"
+      shell: true
+
+  # ── Step 4: Flatten + base64 ───────────────────
+  - id: test_flatten
+    depends_on: [generate]
+    with:
+      first_lang: $generate.languages | first
+    invoke:
+      tool: nika:json_flatten
+      params:
+        data: "{{with.first_lang}}"
+
+  - id: test_base64
+    depends_on: [generate]
+    with:
+      names_str: $generate.languages | pluck("name") | join(",")
+      encoded: $generate.languages | pluck("name") | join(",") | base64_encode
+    exec:
+      command: "echo BASE64_OK: {{with.encoded}}"
+      shell: true
+
+  # ── Step 5: Write artifact ─────────────────────
+  - id: report
+    depends_on: [generate, test_pluck, test_sort_by, test_group_by, test_where, test_aggregate]
+    with:
+      data: $generate
+      names: $generate.languages | pluck("name") | sort | join(", ")
+      stats: $test_aggregate
+    infer:
+      prompt: |
+        Write a one-paragraph summary of these programming languages: {{with.names}}.
+        Stats: oldest year {{with.stats.min}}, newest {{with.stats.max}}.
+      max_tokens: 200
+    artifact:
+      path: provider-test-report.md
+      format: markdown

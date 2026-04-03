@@ -1,0 +1,178 @@
+schema: "nika/workflow@0.12"
+workflow: test-translation-pipeline
+description: "E2E translation pipeline — replaces Python scripts with native nika builtins"
+provider: anthropic
+model: claude-haiku-4-5
+
+artifacts:
+  dir: ./test-output
+
+inputs:
+  target_locale: "fr-FR"
+
+tasks:
+  # ── Step 1: Source JSON (simulates en-US/ui.json) ──
+  - id: source
+    exec:
+      command: |
+        echo '{
+          "nav": {
+            "home": "Home",
+            "about": "About Us",
+            "contact": "Contact"
+          },
+          "greeting": "Hello {name}, welcome to {app}!",
+          "items_count": "You have {count} items in your cart.",
+          "footer": {
+            "copyright": "Copyright 2026 <strong>SuperNovae</strong>. All rights reserved.",
+            "privacy": "Read our <a href=\"/privacy\">privacy policy</a>."
+          },
+          "empty_state": "No results found. Try a different search."
+        }'
+      shell: true
+    output:
+      format: json
+
+  # ── Step 2: Locale lookup ──────────────────────
+  - id: locale_info
+    invoke:
+      tool: nika:locale_lookup
+      params:
+        locale: "{{inputs.target_locale}}"
+        mapping:
+          en: "eng_Latn"
+          fr: "fra_Latn"
+          de: "deu_Latn"
+          es: "spa_Latn"
+          ja: "jpn_Jpan"
+
+  # ── Step 3: Flatten source for key inventory ───
+  - id: source_flat
+    depends_on: [source]
+    with:
+      src: $source
+    invoke:
+      tool: nika:json_flatten
+      params:
+        data: "{{with.src}}"
+
+  - id: key_count
+    depends_on: [source_flat]
+    with:
+      flat: $source_flat
+    invoke:
+      tool: nika:aggregate
+      params:
+        array: "{{with.flat | keys}}"
+        ops: ["count"]
+
+  # ── Step 4: Translate via LLM ──────────────────
+  - id: translate
+    depends_on: [source, locale_info]
+    with:
+      source_json: $source
+      locale: $locale_info.code
+    infer:
+      prompt: |
+        Translate this UI JSON from English to French (locale: {{with.locale}}).
+
+        CRITICAL RULES:
+        - Preserve ALL {placeholder} tokens exactly as-is
+        - Preserve ALL HTML tags exactly as-is
+        - Translate ONLY the human-readable text
+        - Return the SAME JSON structure
+
+        {{with.source_json | to_json}}
+      temperature: 0.1
+      max_tokens: 1000
+    structured:
+      schema:
+        type: object
+        required: [nav, greeting, items_count, footer, empty_state]
+        properties:
+          nav:
+            type: object
+            required: [home, about, contact]
+            properties:
+              home: { type: string }
+              about: { type: string }
+              contact: { type: string }
+          greeting: { type: string }
+          items_count: { type: string }
+          footer:
+            type: object
+            required: [copyright, privacy]
+            properties:
+              copyright: { type: string }
+              privacy: { type: string }
+          empty_state: { type: string }
+      enable_repair: true
+      max_retries: 2
+
+  # ── Step 5: Verify translation ─────────────────
+  - id: verify
+    depends_on: [source, translate]
+    with:
+      src: $source
+      trans: $translate
+    invoke:
+      tool: nika:json_verify
+      params:
+        source: "{{with.src}}"
+        translation: "{{with.trans}}"
+
+  # ── Step 6: Flatten + validate translated ──────
+  - id: validate_fields
+    depends_on: [translate]
+    with:
+      trans: $translate
+    invoke:
+      tool: nika:yaml_validate
+      params:
+        data:
+          - label: "translation"
+            content: "{{with.trans}}"
+        required_fields:
+          - "nav.home"
+          - "nav.about"
+          - "nav.contact"
+          - "greeting"
+          - "items_count"
+          - "footer.copyright"
+          - "footer.privacy"
+          - "empty_state"
+
+  # ── Step 7: Write artifacts ────────────────────
+  - id: save_translation
+    depends_on: [translate]
+    with:
+      translated: $translate | to_json
+    exec:
+      command: "echo '{{with.translated}}'"
+      shell: true
+    artifact:
+      path: "fr-FR.json"
+      format: json
+
+  - id: save_report
+    depends_on: [verify, validate_fields, key_count, locale_info]
+    with:
+      verification: $verify
+      validation: $validate_fields
+      keys: $key_count
+      locale: $locale_info
+      pass: $verify.pass
+    infer:
+      prompt: |
+        Write a brief translation QA report:
+        - Target: {{with.locale.locale}} ({{with.locale.code}})
+        - Total keys: {{with.keys.count}}
+        - Verification passed: {{with.pass}}
+        - Missing keys: {{with.verification.missing_keys | length}}
+        - Broken placeholders: {{with.verification.broken_placeholders | length}}
+        - Broken HTML: {{with.verification.broken_html | length}}
+        - Field validation: {{with.validation.valid}}/{{with.validation.total}} valid
+      max_tokens: 200
+    artifact:
+      path: "translation-report.md"
+      format: markdown

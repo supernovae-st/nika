@@ -1,0 +1,96 @@
+schema: "nika/workflow@0.12"
+workflow: test-artifacts
+description: "E2E test — transforms produce data, artifacts write to disk"
+provider: anthropic
+model: claude-haiku-4-5
+
+artifacts:
+  dir: ./test-output
+
+tasks:
+  # ── Generate structured product data ───────────
+  - id: products
+    infer:
+      prompt: |
+        List 8 fruits with their name, color, and price per kg in euros.
+      temperature: 0.0
+      max_tokens: 500
+    structured:
+      schema:
+        type: object
+        required: [fruits]
+        properties:
+          fruits:
+            type: array
+            minItems: 8
+            items:
+              type: object
+              required: [name, color, price]
+              properties:
+                name: { type: string }
+                color: { type: string }
+                price: { type: number, minimum: 0 }
+
+  # ── Transform and write JSON artifact ──────────
+  - id: sorted_by_price
+    depends_on: [products]
+    with:
+      sorted: $products.fruits | sort_by("price") | to_json
+    exec:
+      command: "echo '{{with.sorted}}'"
+      shell: true
+    artifact:
+      path: fruits-sorted.json
+      format: json
+
+  # ── Group by color + aggregate ─────────────────
+  - id: color_groups
+    depends_on: [products]
+    with:
+      grouped: $products.fruits | group_by("color") | to_json
+    exec:
+      command: "echo '{{with.grouped}}'"
+      shell: true
+    artifact:
+      path: fruits-by-color.json
+      format: json
+
+  - id: price_stats
+    depends_on: [products]
+    with:
+      data: $products.fruits
+    invoke:
+      tool: nika:aggregate
+      params:
+        array: "{{with.data}}"
+        ops: ["sum", "avg", "min", "max", "count"]
+        field: "price"
+
+  # ── Flatten for comparison ─────────────────────
+  - id: flatten_first
+    depends_on: [products]
+    with:
+      first: $products.fruits | first
+    invoke:
+      tool: nika:json_flatten
+      params:
+        data: "{{with.first}}"
+
+  # ── Markdown report artifact ───────────────────
+  - id: report
+    depends_on: [products, price_stats, color_groups]
+    with:
+      names: $products.fruits | pluck("name") | join(", ")
+      cheapest: $products.fruits | sort_by("price") | first | pick("name", "price") | to_json
+      stats: $price_stats
+      color_count: $products.fruits | group_by("color") | keys | length
+    infer:
+      prompt: |
+        Write a short market report about these fruits: {{with.names}}.
+        Price stats: avg {{with.stats.avg}}, min {{with.stats.min}}, max {{with.stats.max}}.
+        Cheapest: {{with.cheapest}}.
+        Number of distinct colors: {{with.color_count}}.
+      max_tokens: 300
+    artifact:
+      path: market-report.md
+      format: markdown

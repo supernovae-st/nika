@@ -1,0 +1,105 @@
+schema: "nika/workflow@0.12"
+workflow: test-foreach-transforms
+description: "E2E test — for_each loops with transform-prepared iteration lists"
+provider: anthropic
+model: claude-haiku-4-5
+
+artifacts:
+  dir: ./test-output
+
+tasks:
+  # ── Source data via exec (JSON) ────────────────
+  - id: data
+    exec:
+      command: |
+        echo '[
+          {"city":"Paris","country":"France","pop":2161},
+          {"city":"Berlin","country":"Germany","pop":3645},
+          {"city":"Tokyo","country":"Japan","pop":13960},
+          {"city":"London","country":"UK","pop":8982},
+          {"city":"Lyon","country":"France","pop":513},
+          {"city":"Munich","country":"Germany","pop":1472}
+        ]'
+      shell: true
+    output:
+      format: json
+
+  # ── Prepare iteration lists using transforms ────
+  - id: city_names
+    depends_on: [data]
+    with:
+      cities: $data | pluck("city") | to_json
+    exec:
+      command: "echo '{{with.cities}}'"
+      shell: true
+    output:
+      format: json
+
+  - id: france_cities
+    depends_on: [data]
+    with:
+      items: $data | where("country", "France") | to_json
+    exec:
+      command: "echo '{{with.items}}'"
+      shell: true
+    output:
+      format: json
+
+  - id: country_list
+    depends_on: [data]
+    with:
+      countries: $data | group_by("country") | keys | to_json
+    exec:
+      command: "echo '{{with.countries}}'"
+      shell: true
+    output:
+      format: json
+
+  # ── for_each over plucked city names ───────────
+  - id: greetings
+    depends_on: [city_names]
+    for_each: $city_names
+    as: city
+    concurrency: 3
+    infer:
+      prompt: "Write a one-sentence greeting for visitors arriving in {{with.city}}."
+      max_tokens: 60
+
+  # ── for_each over filtered items (France only) ─
+  - id: france_details
+    depends_on: [france_cities]
+    for_each: $france_cities
+    as: item
+    concurrency: 1
+    infer:
+      prompt: "In one sentence, what is {{with.item.city}} famous for?"
+      max_tokens: 80
+
+  # ── for_each over group_by keys ────────────────
+  - id: country_summaries
+    depends_on: [country_list]
+    for_each: $country_list
+    as: country
+    concurrency: 3
+    infer:
+      prompt: "Name one famous landmark in {{with.country}}."
+      max_tokens: 50
+
+  # ── Combine results ────────────────────────────
+  - id: final_report
+    depends_on: [greetings, france_details, country_summaries]
+    with:
+      greeting_count: $greetings | length
+      france_count: $france_details | length
+      country_count: $country_summaries | length
+      cities_sorted: $data | sort_by("pop") | reverse | pluck("city") | join(", ")
+    infer:
+      prompt: |
+        Summarize: we generated {{with.greeting_count}} greetings,
+        {{with.france_count}} French city details, and
+        {{with.country_count}} country landmarks.
+        Cities by population (desc): {{with.cities_sorted}}.
+      max_tokens: 150
+    artifact:
+      path: foreach-report.md
+      format: markdown
