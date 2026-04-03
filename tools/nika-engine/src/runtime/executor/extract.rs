@@ -349,11 +349,23 @@ fn extract_metadata_json(html: &str, base_url: Option<&str>) -> Result<String, N
         meta.insert("json_ld".into(), json_ld.into());
     }
 
+    // URL resolver — compute once, reuse for canonical/favicon/feeds/hreflang
+    let parsed_base = base_url.and_then(|u| url::Url::parse(u).ok());
+    let resolve_url = |href: &str| -> String {
+        if let Some(ref base) = parsed_base {
+            base.join(href)
+                .map(|u| u.to_string())
+                .unwrap_or_else(|_| href.to_string())
+        } else {
+            href.to_string()
+        }
+    };
+
     // Canonical
     let canon_sel = scraper::Selector::parse("link[rel=canonical]").expect("static CSS selector");
     if let Some(el) = document.select(&canon_sel).next() {
         if let Some(href) = el.value().attr("href") {
-            meta.insert("canonical".into(), href.into());
+            meta.insert("canonical".into(), resolve_url(href).into());
         }
     }
 
@@ -362,7 +374,7 @@ fn extract_metadata_json(html: &str, base_url: Option<&str>) -> Result<String, N
         .expect("static CSS selector");
     if let Some(el) = document.select(&favicon_sel).next() {
         if let Some(href) = el.value().attr("href") {
-            meta.insert("favicon".into(), href.into());
+            meta.insert("favicon".into(), resolve_url(href).into());
         }
     }
 
@@ -394,7 +406,7 @@ fn extract_metadata_json(html: &str, base_url: Option<&str>) -> Result<String, N
             let title = el.value().attr("title").unwrap_or_default();
             let feed_type = el.value().attr("type").unwrap_or_default();
             Some(serde_json::json!({
-                "url": href,
+                "url": resolve_url(href),
                 "title": title,
                 "type": feed_type,
             }))
@@ -408,22 +420,14 @@ fn extract_metadata_json(html: &str, base_url: Option<&str>) -> Result<String, N
     // HREFLANG-002: resolve relative hrefs against the fetched page URL
     let hreflang_sel =
         scraper::Selector::parse("link[rel=alternate][hreflang]").expect("static CSS selector");
-    let parsed_base = base_url.and_then(|u| url::Url::parse(u).ok());
     let hreflang: Vec<serde_json::Value> = document
         .select(&hreflang_sel)
         .filter_map(|el| {
             let lang = el.value().attr("hreflang")?;
             let href = el.value().attr("href")?;
-            let resolved = if let Some(ref base) = parsed_base {
-                base.join(href)
-                    .map(|u| u.to_string())
-                    .unwrap_or_else(|_| href.to_string())
-            } else {
-                href.to_string()
-            };
             Some(serde_json::json!({
                 "lang": lang,
-                "href": resolved,
+                "href": resolve_url(href),
             }))
         })
         .collect();
@@ -1026,6 +1030,90 @@ mod tests {
     fn parse_link_header_hreflang_empty() {
         let result = parse_link_header_hreflang(&[]);
         assert!(result.is_empty());
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_resolves_canonical_url() {
+        let html = r#"<html><head>
+            <title>Test</title>
+            <link rel="canonical" href="/canonical-page">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Metadata),
+            None,
+            Some("https://example.com/blog/article"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["canonical"], "https://example.com/canonical-page");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_resolves_favicon_url() {
+        let html = r#"<html><head>
+            <title>Test</title>
+            <link rel="icon" href="/favicon.ico">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Metadata),
+            None,
+            Some("https://example.com/deep/path"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["favicon"], "https://example.com/favicon.ico");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_resolves_feed_urls() {
+        let html = r#"<html><head>
+            <title>Test</title>
+            <link rel="alternate" type="application/rss+xml" title="RSS" href="/feed.xml">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Metadata),
+            None,
+            Some("https://example.com/blog/"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let feeds = parsed["feeds"].as_array().unwrap();
+        assert_eq!(feeds[0]["url"], "https://example.com/feed.xml");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_preserves_absolute_canonical() {
+        let html = r#"<html><head>
+            <link rel="canonical" href="https://other-domain.com/page">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::Metadata),
+            None,
+            Some("https://example.com/"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["canonical"], "https://other-domain.com/page");
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_no_base_keeps_relative_canonical() {
+        let html = r#"<html><head>
+            <link rel="canonical" href="/page">
+        </head><body></body></html>"#;
+        let result = apply_extract_with_base(html, Some(ExtractMode::Metadata), None, None)
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["canonical"], "/page");
     }
 
     #[cfg(feature = "fetch-html")]
