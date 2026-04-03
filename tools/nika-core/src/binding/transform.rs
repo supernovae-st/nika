@@ -116,6 +116,10 @@ pub enum TransformOp {
 
     // -- URL dedup --
     UniqueUrls,
+
+    // -- jq expression --
+    /// Full jq expression: `jq("[.[] | select(.score > 80)]")`
+    Jq(String),
 }
 
 /// A chain of transform operations: `sort | unique | first(3)`
@@ -1042,8 +1046,63 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("unique_urls", "array", value)),
             },
+
+            // ── jq expression ──────────────────────────────────────
+            TransformOp::Jq(expr) => {
+                let filter = compile_jq(expr).map_err(|e| TransformError::TypeMismatch {
+                    op: "jq",
+                    expected: "valid jq expression",
+                    got: e,
+                })?;
+
+                use jaq_interpret::FilterT as _;
+                let inputs = jaq_interpret::RcIter::new(core::iter::empty());
+                let jaq_val = jaq_interpret::Val::from(value.clone());
+                let mut results: Vec<Value> = Vec::new();
+                for r in filter.run((jaq_interpret::Ctx::new([], &inputs), jaq_val)) {
+                    match r {
+                        Ok(val) => results.push(Value::from(val)),
+                        Err(e) => {
+                            return Err(TransformError::TypeMismatch {
+                                op: "jq",
+                                expected: "successful evaluation",
+                                got: format!("runtime error: {e}"),
+                            });
+                        }
+                    }
+                }
+                // Single result → return directly; multiple → return array
+                match results.len() {
+                    0 => Ok(Value::Null),
+                    1 => Ok(results.into_iter().next().unwrap()),
+                    _ => Ok(Value::Array(results)),
+                }
+            },
         }
     }
+}
+
+/// Compile a jq expression using jaq-interpret + jaq-parse.
+fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
+    let (main, errs) = jaq_parse::parse(expr, jaq_parse::main());
+    if !errs.is_empty() {
+        return Err(format!(
+            "parse error: {}",
+            errs.into_iter()
+                .map(|e| format!("{e}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    let main = main.ok_or_else(|| "empty jq expression".to_string())?;
+
+    // Core context includes builtins like `.[]`, `select`, `keys`, `length`, etc.
+    let mut ctx = jaq_interpret::ParseCtx::new(Vec::new());
+    let filter = ctx.compile(main);
+    if !ctx.errs.is_empty() {
+        return Err(format!("compile error ({} issues)", ctx.errs.len()));
+    }
+    Ok(filter)
 }
 
 /// Deep merge overlay into base (RFC 7396 semantics).
@@ -1355,6 +1414,10 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 let text = strip_quotes(arg);
                 Ok(TransformOp::Contains(text.to_string()))
             }
+            "jq" => {
+                let expr = strip_quotes(arg);
+                Ok(TransformOp::Jq(expr.to_string()))
+            }
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", name),
@@ -1640,6 +1703,7 @@ impl fmt::Display for TransformOp {
             TransformOp::Contains(text) => write!(f, "contains('{}')", text),
             TransformOp::ContentHash => write!(f, "content_hash"),
             TransformOp::UniqueUrls => write!(f, "unique_urls"),
+            TransformOp::Jq(expr) => write!(f, "jq('{}')", expr),
         }
     }
 }
@@ -3728,6 +3792,88 @@ mod tests {
         let r2 = TransformOp::Regex(pattern).apply(&json!("xyz456")).unwrap();
         assert_eq!(r1, json!("123"));
         assert_eq!(r2, json!("456"));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FEAT-4: jq() transform
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn jq_identity() {
+        let data = json!({"a": 1, "b": 2});
+        let result = TransformOp::Jq(".".to_string()).apply(&data).unwrap();
+        assert_eq!(result, json!({"a": 1, "b": 2}));
+    }
+
+    #[test]
+    fn jq_field_access() {
+        let data = json!({"name": "Alice", "age": 30});
+        let result = TransformOp::Jq(".name".to_string()).apply(&data).unwrap();
+        assert_eq!(result, json!("Alice"));
+    }
+
+    #[test]
+    fn jq_array_index() {
+        let data = json!([10, 20, 30]);
+        let result = TransformOp::Jq(".[1]".to_string()).apply(&data).unwrap();
+        assert_eq!(result, json!(20));
+    }
+
+    #[test]
+    fn jq_nested_access() {
+        let data = json!({"user": {"address": {"city": "Paris"}}});
+        let result = TransformOp::Jq(".user.address.city".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!("Paris"));
+    }
+
+    #[test]
+    fn jq_object_construction() {
+        let data = json!({"first": "Alice", "last": "Smith", "age": 30});
+        let result = TransformOp::Jq("{name: .first, years: .age}".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!({"name": "Alice", "years": 30}));
+    }
+
+    #[test]
+    fn jq_arithmetic() {
+        let data = json!({"a": 10, "b": 3});
+        let result = TransformOp::Jq(".a + .b".to_string()).apply(&data).unwrap();
+        assert_eq!(result, json!(13));
+    }
+
+    #[test]
+    fn jq_map_expression() {
+        let data = json!([1, 2, 3]);
+        let result = TransformOp::Jq("[.[] + 10]".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!([11, 12, 13]));
+    }
+
+    #[test]
+    fn jq_null_input() {
+        let result = TransformOp::Jq(".".to_string()).apply(&Value::Null).unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn jq_parse_error() {
+        let result = TransformOp::Jq("[invalid!!!".to_string()).apply(&json!(1));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_jq() {
+        let expr = TransformExpr::parse("jq('.name')").unwrap();
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Jq(".name".to_string())]);
+    }
+
+    #[test]
+    fn display_jq() {
+        assert_eq!(TransformOp::Jq(".name".to_string()).to_string(), "jq('.name')");
     }
 }
 

@@ -30,6 +30,8 @@ fs2 = { workspace = true }
 secrecy = { workspace = true }
 url = { workspace = true }
 base64 = { workspace = true }
+jaq-interpret = { workspace = true }
+jaq-parse = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

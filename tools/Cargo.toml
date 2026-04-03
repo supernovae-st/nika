@@ -210,6 +210,10 @@ urlencoding = "2.1"
 flate2 = "1.1"
 tar = "0.4"
 
+# jq expressions
+jaq-interpret = "1.5"
+jaq-parse = "1.0"
+
 # Scheduler
 croner = "3"
 
