@@ -18,15 +18,10 @@ pub struct RobotsCache {
     user_agent: String,
 }
 
-/// Wrapper around Robot to make it Send + Sync.
-/// texting_robots::Robot stores the parsed rules, not the raw bytes.
+/// Wrapper around Robot.
 struct CachedRobot {
     robot: Robot,
 }
-
-// SAFETY: Robot only contains parsed rules (strings, vecs) — no interior mutability.
-unsafe impl Send for CachedRobot {}
-unsafe impl Sync for CachedRobot {}
 
 impl CachedRobot {
     fn allowed(&self, url: &str) -> bool {

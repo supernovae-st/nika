@@ -411,7 +411,7 @@ fn template_completions(
     in_transform_chain: bool,
 ) -> Vec<CompletionItem> {
     if in_transform_chain {
-        // Suggest all 29 transform filters (matching nika-core catalog).
+        // Suggest all 39 transform filters (matching nika-core catalog).
         return vec![
             // String transforms
             item_value("upper", "Convert to UPPERCASE.", "00_upper"),
@@ -431,6 +431,15 @@ fn template_completions(
             item_value("compact", "Remove null/empty values.", "16_compact"),
             item_value("keys", "Object keys as array.", "17_keys"),
             item_value("values", "Object values as array.", "18_values"),
+            // Data transforms (array/object manipulation)
+            item_value("pluck(\"field\")", "Extract field from array of objects.", "19_pluck"),
+            item_value("where(\"field\", \"value\")", "Filter array by field equality.", "19a_where"),
+            item_value("pick(\"f1\", \"f2\")", "Keep only specified object fields.", "19b_pick"),
+            item_value("omit(\"f1\", \"f2\")", "Remove specified object fields.", "19c_omit"),
+            item_value("sort_by(\"field\")", "Sort array of objects by field.", "19d_sort_by"),
+            item_value("group_by(\"field\")", "Group array into object by field.", "19e_group_by"),
+            item_value("merge", "Deep merge array of objects.", "19f_merge"),
+            item_value("regex(\"pattern\")", "Extract first regex match.", "19g_regex"),
             // Numeric transforms
             item_value("to_number", "Parse as number.", "20_to_number"),
             item_value("round", "Round to integer.", "21_round"),
@@ -446,6 +455,9 @@ fn template_completions(
             item_value("join(\", \")", "Join array with separator.", "40_join"),
             item_value("split(\",\")", "Split string by delimiter.", "41_split"),
             item_value("default(\"\")", "Default if null/empty.", "42_default"),
+            // Encoding
+            item_value("base64_encode", "Encode string to base64.", "45_base64_encode"),
+            item_value("base64_decode", "Decode base64 to string.", "46_base64_decode"),
             // System
             item_value("shell", "Shell-escape for safe interpolation.", "50_shell"),
         ];
@@ -1483,7 +1495,18 @@ tasks:
         assert!(items.iter().any(|i| i.label == "to_json"));
         assert!(items.iter().any(|i| i.label == "first"));
         assert!(items.iter().any(|i| i.label == "shell"));
-        assert_eq!(items.len(), 29, "should offer all transforms");
+        // Sprint 1 transforms
+        assert!(items.iter().any(|i| i.label.starts_with("pluck")));
+        assert!(items.iter().any(|i| i.label.starts_with("where")));
+        assert!(items.iter().any(|i| i.label.starts_with("pick")));
+        assert!(items.iter().any(|i| i.label.starts_with("omit")));
+        assert!(items.iter().any(|i| i.label.starts_with("sort_by")));
+        assert!(items.iter().any(|i| i.label.starts_with("group_by")));
+        assert!(items.iter().any(|i| i.label == "merge"));
+        assert!(items.iter().any(|i| i.label.starts_with("regex")));
+        assert!(items.iter().any(|i| i.label == "base64_encode"));
+        assert!(items.iter().any(|i| i.label == "base64_decode"));
+        assert_eq!(items.len(), 39, "should offer all transforms");
     }
 
     #[test]
