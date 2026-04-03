@@ -79,11 +79,12 @@ impl BuiltinTool for AggregateTool {
                 })
                 .collect();
 
+            let total_count = params.array.len();
             let mut result = serde_json::Map::new();
 
             for op in &params.ops {
                 let val = match op.as_str() {
-                    "count" => Value::Number(numbers.len().into()),
+                    "count" => Value::Number(total_count.into()),
                     "sum" => {
                         let sum: f64 = numbers.iter().sum();
                         to_json_number(sum)
@@ -229,5 +230,19 @@ mod tests {
         assert_eq!(result["min"], 42);
         assert_eq!(result["max"], 42);
         assert_eq!(result["count"], 1);
+    }
+
+    #[tokio::test]
+    async fn aggregate_mixed_array_count_is_total() {
+        // count should return total array length, not just numeric items
+        let tool = AggregateTool;
+        let args = json!({
+            "array": [1, "hello", 3, null, true],
+            "ops": ["count", "sum"]
+        });
+        let result: Value =
+            serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
+        assert_eq!(result["count"], 5, "count is total array length");
+        assert_eq!(result["sum"], 4, "sum only counts numeric values");
     }
 }

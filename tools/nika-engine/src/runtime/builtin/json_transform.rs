@@ -193,6 +193,12 @@ fn set_nested(map: &mut serde_json::Map<String, Value>, parts: &[&str], value: V
         .entry(key)
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
 
+    // If existing value is not an object (collision: "a": 1 then "a.b": 2),
+    // replace the scalar with an object to allow nesting.
+    if !entry.is_object() {
+        *entry = Value::Object(serde_json::Map::new());
+    }
+
     if let Value::Object(nested) = entry {
         set_nested(nested, &parts[1..], value);
     }
@@ -307,5 +313,31 @@ mod tests {
         let args = json!({"data": [1, 2, 3]});
         let result = tool.call(args.to_string()).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn unflatten_conflicting_keys_deeper_wins() {
+        // "a": 1 then "a.b": 2 — the deeper path replaces the scalar
+        let tool = JsonUnflattenTool;
+        let args = json!({
+            "data": {"a": 1, "a.b": 2}
+        });
+        let result: Value =
+            serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
+        // "a" was a scalar 1, but "a.b" forces it to become an object
+        assert_eq!(result["a"]["b"], 2);
+    }
+
+    #[tokio::test]
+    async fn flatten_preserves_arrays() {
+        // Arrays inside objects are kept as leaf values, not recursed into
+        let tool = JsonFlattenTool;
+        let args = json!({
+            "data": {"tags": ["rust", "nika"], "meta": {"version": 1}}
+        });
+        let result: Value =
+            serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
+        assert_eq!(result["tags"], json!(["rust", "nika"]), "arrays are leaf values");
+        assert_eq!(result["meta.version"], 1);
     }
 }
