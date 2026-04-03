@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.63.2 — DATA TRANSFORMS + BUILTIN TOOLS                           ║
-║  10 transforms | 6 builtins | Zero Python in workflows                     ║
+║  NIKA v0.63.3 — SKILLS + SERVE HARDENING                                  ║
+║  Skills on infer | Job isolation | Provider validation | 7 fixes           ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.63.3] — 2026-04-03
+
+### Added
+- **Auto-inject workflow skills into infer system prompts** — `skills:` now work on `infer` tasks, not just `agent`. Skill files are prepended to the system prompt automatically.
+- **`overwrite` param for `nika:write`** — `overwrite: true` replaces existing files instead of failing with NIKA-215.
+
+### Fixed
+- **Fail loud on missing skill files (NIKA-270)** — Previously silently skipped, now returns a hard error when referenced skill files don't exist.
+- **`nika check` validates skills and context file paths** — Catches missing files at validation time instead of at runtime.
+- **Per-job scratch dir for cache isolation** — `nika serve` creates `.nika/jobs/<id>/` with `NIKA_JOB_ID` + `NIKA_JOB_DIR` env vars, preventing cross-job cache collisions.
+- **`nika check` warns on unknown provider names (NIKA-033)** — Typos like `provider: antropic` now produce a warning with suggestions.
+- **Daemon persists exe path for job spawning after binary upgrade** — `~/.nika/daemon/nika-exe-path` fallback prevents stale binary references after `nika switch` or Homebrew upgrades.
 
 ## [0.63.2] — 2026-04-03
 
