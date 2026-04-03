@@ -108,7 +108,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let metrics_handle = metrics::install_recorder();
 
     // Per-token rate limiter (configurable via env/nika.toml)
-    let limiter =
+    let rl_state =
         rate_limit::new_rate_limiter_with(config.rate_per_second as u32, config.rate_burst);
 
     // Build router with middleware
@@ -118,7 +118,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Execution order: request-id → timeout → body-limit → auth → rate-limit → handler
     let api_routes = routes::build_router(state.clone())
         .layer(middleware::from_fn_with_state(
-            limiter.clone(),
+            rl_state.clone(),
             rate_limit::rate_limit_middleware,
         ))
         .layer(middleware::from_fn_with_state(
@@ -136,7 +136,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // SSE router: auth → rate-limit, NO TimeoutLayer (C1)
     let sse_routes = routes::build_sse_router(state.clone())
         .layer(middleware::from_fn_with_state(
-            limiter,
+            rl_state,
             rate_limit::rate_limit_middleware,
         ))
         .layer(middleware::from_fn_with_state(
@@ -475,14 +475,14 @@ mod tests {
             webhook_config: None,
         };
 
-        let limiter = rate_limit::new_rate_limiter();
+        let rl_state = rate_limit::new_rate_limiter();
         let app = routes::build_router(state.clone())
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth::require_auth,
             ))
             .layer(middleware::from_fn_with_state(
-                limiter,
+                rl_state,
                 rate_limit::rate_limit_middleware,
             ))
             .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
@@ -671,14 +671,14 @@ mod tests {
             webhook_config: None,
         };
 
-        let limiter = rate_limit::new_rate_limiter();
+        let rl_state = rate_limit::new_rate_limiter();
         let app = routes::build_router(state.clone())
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth::require_auth,
             ))
             .layer(middleware::from_fn_with_state(
-                limiter,
+                rl_state,
                 rate_limit::rate_limit_middleware,
             ))
             .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))

@@ -26,17 +26,27 @@ pub type KeyedRateLimiter = RateLimiter<String, DashMapStateStore<String>, Defau
 const DEFAULT_RATE_PER_SECOND: u32 = 10;
 const DEFAULT_BURST_SIZE: u32 = 30;
 
+/// State passed to the rate limit middleware (carries config + limiter).
+#[derive(Clone)]
+pub struct RateLimitState {
+    pub limiter: Arc<KeyedRateLimiter>,
+    pub rate_per_second: u32,
+}
+
 /// Create a new per-token rate limiter with default settings.
-pub fn new_rate_limiter() -> Arc<KeyedRateLimiter> {
+pub fn new_rate_limiter() -> RateLimitState {
     new_rate_limiter_with(DEFAULT_RATE_PER_SECOND, DEFAULT_BURST_SIZE)
 }
 
 /// Create a new per-token rate limiter with custom rate and burst.
-pub fn new_rate_limiter_with(rate_per_second: u32, burst: u32) -> Arc<KeyedRateLimiter> {
+pub fn new_rate_limiter_with(rate_per_second: u32, burst: u32) -> RateLimitState {
     let rps = NonZeroU32::new(rate_per_second.max(1)).unwrap();
     let burst_cap = NonZeroU32::new(burst.max(1)).unwrap();
     let quota = Quota::per_second(rps).allow_burst(burst_cap);
-    Arc::new(RateLimiter::dashmap(quota))
+    RateLimitState {
+        limiter: Arc::new(RateLimiter::dashmap(quota)),
+        rate_per_second,
+    }
 }
 
 /// Rate limiting middleware.
@@ -45,7 +55,7 @@ pub fn new_rate_limiter_with(rate_per_second: u32, burst: u32) -> Arc<KeyedRateL
 /// per-token rate limiting. Unauthenticated requests (e.g., /health)
 /// pass through without rate limiting.
 pub async fn rate_limit_middleware(
-    State(limiter): State<Arc<KeyedRateLimiter>>,
+    State(rl): State<RateLimitState>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
@@ -62,12 +72,15 @@ pub async fn rate_limit_middleware(
         return next.run(req).await;
     };
 
-    match limiter.check_key(&key) {
+    let limit_val = HeaderValue::from_str(&rl.rate_per_second.to_string())
+        .unwrap_or(HeaderValue::from_static("10"));
+
+    match rl.limiter.check_key(&key) {
         Ok(_) => {
             let mut resp = next.run(req).await;
             // Add rate limit headers
             let headers = resp.headers_mut();
-            let _ = headers.insert("x-ratelimit-limit", HeaderValue::from_static("10"));
+            let _ = headers.insert("x-ratelimit-limit", limit_val);
             // Approximate remaining (governor doesn't expose exact count easily)
             let _ = headers.insert("x-ratelimit-remaining", HeaderValue::from_static("ok"));
             resp
@@ -93,7 +106,7 @@ pub async fn rate_limit_middleware(
                 HeaderValue::from_str(&retry_after.to_string())
                     .unwrap_or(HeaderValue::from_static("1")),
             );
-            let _ = headers.insert("x-ratelimit-limit", HeaderValue::from_static("10"));
+            let _ = headers.insert("x-ratelimit-limit", limit_val);
             let _ = headers.insert("x-ratelimit-remaining", HeaderValue::from_static("0"));
 
             resp
@@ -107,34 +120,43 @@ mod tests {
 
     #[test]
     fn rate_limiter_allows_burst() {
-        let limiter = new_rate_limiter();
+        let rl = new_rate_limiter();
         let key = "test-token".to_string();
 
         // Should allow DEFAULT_BURST_SIZE requests immediately
         for i in 0..DEFAULT_BURST_SIZE {
             assert!(
-                limiter.check_key(&key).is_ok(),
+                rl.limiter.check_key(&key).is_ok(),
                 "request {i} should be allowed within burst"
             );
         }
 
         // Next request should be rate limited
         assert!(
-            limiter.check_key(&key).is_err(),
+            rl.limiter.check_key(&key).is_err(),
             "request after burst should be rate limited"
         );
     }
 
     #[test]
     fn rate_limiter_separate_keys() {
-        let limiter = new_rate_limiter();
+        let rl = new_rate_limiter();
 
         // Exhaust quota for token A
         for _ in 0..DEFAULT_BURST_SIZE {
-            limiter.check_key(&"token-a".to_string()).unwrap();
+            rl.limiter.check_key(&"token-a".to_string()).unwrap();
         }
 
         // Token B should still have full quota
-        assert!(limiter.check_key(&"token-b".to_string()).is_ok());
+        assert!(rl.limiter.check_key(&"token-b".to_string()).is_ok());
+    }
+
+    #[test]
+    fn rate_limit_state_carries_config() {
+        let rl = new_rate_limiter_with(50, 100);
+        assert_eq!(rl.rate_per_second, 50);
+
+        let rl_default = new_rate_limiter();
+        assert_eq!(rl_default.rate_per_second, DEFAULT_RATE_PER_SECOND);
     }
 }
