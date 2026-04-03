@@ -577,6 +577,7 @@ impl TaskExecutor {
                     if !response.status().is_success()
                         && !response.status().is_redirection()
                         && fetch.response != Some(nika_core::ast::extract::ResponseMode::Full)
+                        && fetch.response != Some(nika_core::ast::extract::ResponseMode::Slim)
                     {
                         let status = response.status();
                         let final_url = response.url().to_string();
@@ -591,6 +592,58 @@ impl TaskExecutor {
                     }
 
                     // Check response mode BEFORE consuming the body
+                    // IMP-028: Slim mode — metadata only (no body, no headers)
+                    if fetch.response == Some(nika_core::ast::extract::ResponseMode::Slim) {
+                        let status = response.status().as_u16();
+                        let final_url = response.url().to_string();
+                        let redirects = redirect_chain.lock().clone();
+                        let redirect_count = redirects.len();
+                        let redirects_json: Vec<serde_json::Value> = redirects
+                            .iter()
+                            .map(|(s, u)| serde_json::json!({"status": s, "url": u}))
+                            .collect();
+
+                        // If extract mode is also set, read body for extraction
+                        if fetch.extract.is_some() {
+                            let body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
+                            let resolved_selector = match &fetch.selector {
+                                Some(s) => {
+                                    Some(template_resolve(s, bindings, datastore)?.into_owned())
+                                }
+                                None => None,
+                            };
+                            let extract_result = super::extract::apply_extract_with_base(
+                                &body,
+                                fetch.extract,
+                                resolved_selector.as_deref(),
+                                Some(&final_url),
+                            );
+                            let extracted = match extract_result {
+                                Ok(s) => serde_json::from_str::<serde_json::Value>(&s)
+                                    .unwrap_or(serde_json::Value::String(s)),
+                                Err(e) => serde_json::json!({"error": e.to_string()}),
+                            };
+                            return Ok(serde_json::json!({
+                                "status": status,
+                                "url": final_url,
+                                "elapsed_ms": elapsed_ms,
+                                "redirects": redirects_json,
+                                "redirect_count": redirect_count,
+                                "extracted": extracted,
+                            })
+                            .to_string());
+                        }
+
+                        return Ok(serde_json::json!({
+                            "status": status,
+                            "url": final_url,
+                            "elapsed_ms": elapsed_ms,
+                            "redirects": redirects_json,
+                            "redirect_count": redirect_count,
+                        })
+                        .to_string());
+                    }
+
                     if fetch.response == Some(nika_core::ast::extract::ResponseMode::Full) {
                         let status = response.status().as_u16();
                         // HREFLANG-001: capture Link headers before collecting all headers

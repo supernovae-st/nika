@@ -104,17 +104,20 @@ pub enum ResponseMode {
     Full,
     /// Store raw bytes in CAS, return hash
     Binary,
+    /// Metadata only: status + url + elapsed_ms + redirects (no body/headers)
+    Slim,
 }
 
 impl ResponseMode {
     /// All valid mode names, for error messages and LSP completions.
-    pub const ALL_NAMES: &'static [&'static str] = &["full", "binary"];
+    pub const ALL_NAMES: &'static [&'static str] = &["full", "binary", "slim"];
 
     /// Parse a string into a `ResponseMode`.
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "full" => Some(Self::Full),
             "binary" => Some(Self::Binary),
+            "slim" => Some(Self::Slim),
             _ => None,
         }
     }
@@ -124,6 +127,7 @@ impl ResponseMode {
         match self {
             Self::Full => "full",
             Self::Binary => "binary",
+            Self::Slim => "slim",
         }
     }
 }
