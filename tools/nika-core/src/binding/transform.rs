@@ -3,27 +3,38 @@
 //! Pipeline transforms applied to binding values.
 //! Transforms are chained with `|` pipes: `sort | unique | first(3)`
 //!
-//! # Categories (39 transforms)
+//! # Categories (49 transforms)
 //!
 //! | Category | Ops |
 //! |----------|-----|
 //! | String | `upper`, `lower`, `trim`, `trim_start`, `trim_end` |
 //! | Collection | `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact` |
-//! | Data | `pluck(F)`, `where(F, V)`, `pick(F…)`, `omit(F…)`, `sort_by(F)`, `group_by(F)`, `merge`, `regex(P)` |
+//! | Data | `pluck(F)`, `where(F, [op], V)`, `pick(F…)`, `omit(F…)`, `sort_by(F)`, `group_by(F)`, `merge`, `merge(obj)` |
+//! | Regex | `regex(P)` |
 //! | Type conversion | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json` |
 //! | Numeric | `round(N)`, `abs`, `ceil`, `floor` |
-//! | Encoding | `base64_encode`, `base64_decode` |
-//! | Utility | `default(V)`, `type_of`, `join(S)`, `split(S)`, `shell` |
+//! | Encoding | `base64_encode`, `base64_decode` (text-only, use `nika:import` for binary) |
+//! | Predicate | `starts_with(S)`, `ends_with(S)`, `contains(S)` |
+//! | Hash | `content_hash` |
+//! | URL | `url_host`, `url_path`, `url_without_query`, `url_normalize`, `unique_urls` |
+//! | Utility | `default(V)`, `type_of`, `join(S)`, `split(S)`, `shell`, `slice(S, E)` |
 //!
 //! # Null Handling
 //!
 //! - **Propagating**: null in → null out (`length`, `keys`, `type_of`, `to_string`, `to_json`)
 //! - **Failing**: null in → NIKA-153 error (`upper`, `lower`, `sort`, etc.)
 //! - Use `default()` or `??` to handle nulls safely
+//!
+//! # Dot-Path Access
+//!
+//! Data transforms (`pluck`, `where`, `sort_by`, `group_by`) support dot-paths
+//! for nested field access: `pluck("address.city")`, `where("meta.score", "gt", 80)`
 
 use serde_json::Value;
 use smallvec::SmallVec;
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::{LazyLock, Mutex};
 
 /// A single transform operation
 #[derive(Debug, Clone, PartialEq)]
@@ -80,12 +91,15 @@ pub enum TransformOp {
 
     // -- Data (array/object manipulation) --
     Pluck(String),
-    Where(String, Value),
+    /// Filter array: `where("field", "value")` (eq) or `where("field", "op", value)`.
+    /// Operators: eq, ne, gt, lt, gte, lte, contains, starts_with, ends_with.
+    Where(String, String, Value),
     Pick(Vec<String>),
     Omit(Vec<String>),
     SortBy(String),
     GroupBy(String),
-    Merge,
+    /// Deep merge: no-arg = merge array of objects; with-arg = overlay param onto input object.
+    Merge(Option<Value>),
     Regex(String),
 
     // -- Encoding --
@@ -762,18 +776,53 @@ impl TransformOp {
                 Value::Array(arr) => {
                     let result: Vec<Value> = arr
                         .iter()
-                        .filter_map(|item| item.get(field.as_str()).cloned())
+                        .filter_map(|item| navigate_dot_path(item, field).cloned())
                         .collect();
                     Ok(Value::Array(result))
                 }
                 _ => Err(type_mismatch("pluck", "array", value)),
             },
-            TransformOp::Where(field, expected) => match value {
+            TransformOp::Where(field, op, expected) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "where" }),
                 Value::Array(arr) => {
                     let result: Vec<Value> = arr
                         .iter()
-                        .filter(|item| item.get(field.as_str()) == Some(expected))
+                        .filter(|item| {
+                            let val = navigate_dot_path(item, field);
+                            match op.as_str() {
+                                "eq" => val == Some(expected),
+                                "ne" => val != Some(expected),
+                                "gt" => val
+                                    .and_then(|v| v.as_f64())
+                                    .zip(expected.as_f64())
+                                    .is_some_and(|(a, b)| a > b),
+                                "lt" => val
+                                    .and_then(|v| v.as_f64())
+                                    .zip(expected.as_f64())
+                                    .is_some_and(|(a, b)| a < b),
+                                "gte" => val
+                                    .and_then(|v| v.as_f64())
+                                    .zip(expected.as_f64())
+                                    .is_some_and(|(a, b)| a >= b),
+                                "lte" => val
+                                    .and_then(|v| v.as_f64())
+                                    .zip(expected.as_f64())
+                                    .is_some_and(|(a, b)| a <= b),
+                                "contains" => val
+                                    .and_then(|v| v.as_str())
+                                    .zip(expected.as_str())
+                                    .is_some_and(|(a, b)| a.contains(b)),
+                                "starts_with" => val
+                                    .and_then(|v| v.as_str())
+                                    .zip(expected.as_str())
+                                    .is_some_and(|(a, b)| a.starts_with(b)),
+                                "ends_with" => val
+                                    .and_then(|v| v.as_str())
+                                    .zip(expected.as_str())
+                                    .is_some_and(|(a, b)| a.ends_with(b)),
+                                _ => false,
+                            }
+                        })
                         .cloned()
                         .collect();
                     Ok(Value::Array(result))
@@ -809,8 +858,8 @@ impl TransformOp {
                 Value::Array(arr) => {
                     let mut sorted = arr.clone();
                     sorted.sort_by(|a, b| {
-                        let va = a.get(field.as_str());
-                        let vb = b.get(field.as_str());
+                        let va = navigate_dot_path(a, field);
+                        let vb = navigate_dot_path(b, field);
                         match (va.and_then(|v| v.as_f64()), vb.and_then(|v| v.as_f64())) {
                             (Some(x), Some(y)) => {
                                 x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
@@ -834,7 +883,7 @@ impl TransformOp {
                     let mut groups: indexmap::IndexMap<String, Vec<Value>> =
                         indexmap::IndexMap::new();
                     for item in arr {
-                        let key = match item.get(field.as_str()) {
+                        let key = match navigate_dot_path(item, field) {
                             Some(Value::String(s)) => s.clone(),
                             Some(v) => v.to_string(),
                             None => "null".to_string(),
@@ -849,7 +898,8 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("group_by", "array", value)),
             },
-            TransformOp::Merge => match value {
+            TransformOp::Merge(None) => match value {
+                // No-arg form: merge array of objects left-to-right
                 Value::Null => Err(TransformError::NullInput { op: "merge" }),
                 Value::Array(arr) => {
                     let mut base = serde_json::Map::new();
@@ -866,13 +916,31 @@ impl TransformOp {
                     }
                     Ok(Value::Object(base))
                 }
-                _ => Err(type_mismatch("merge", "array", value)),
+                _ => Err(type_mismatch("merge", "array or object", value)),
+            },
+            TransformOp::Merge(Some(overlay)) => match value {
+                // Parametric form: deep merge overlay onto input object
+                Value::Null => Err(TransformError::NullInput { op: "merge" }),
+                Value::Object(base_map) => {
+                    if let Value::Object(overlay_map) = overlay {
+                        let mut result = base_map.clone();
+                        deep_merge(&mut result, overlay_map);
+                        Ok(Value::Object(result))
+                    } else {
+                        Err(TransformError::TypeMismatch {
+                            op: "merge",
+                            expected: "object as merge argument",
+                            got: value_type_name(overlay).to_string(),
+                        })
+                    }
+                }
+                _ => Err(type_mismatch("merge", "object", value)),
             },
             TransformOp::Regex(pattern) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "regex" }),
                 Value::String(s) => {
                     let re =
-                        regex::Regex::new(pattern).map_err(|e| TransformError::TypeMismatch {
+                        cached_regex(pattern).map_err(|e| TransformError::TypeMismatch {
                             op: "regex",
                             expected: "valid regex pattern",
                             got: format!("invalid regex: {}", e),
@@ -898,6 +966,8 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("base64_encode", "string", value)),
             },
+            // Note: base64_decode returns UTF-8 text only. For binary data
+            // (images, audio), use `nika:import` with CAS instead.
             TransformOp::Base64Decode => match value {
                 Value::Null => Err(TransformError::NullInput {
                     op: "base64_decode",
@@ -914,7 +984,7 @@ impl TransformOp {
                     let decoded =
                         String::from_utf8(bytes).map_err(|e| TransformError::TypeMismatch {
                             op: "base64_decode",
-                            expected: "UTF-8 encoded base64",
+                            expected: "UTF-8 text (binary data not supported — use nika:import)",
                             got: format!("not valid UTF-8: {}", e),
                         })?;
                     Ok(Value::String(decoded))
@@ -989,6 +1059,31 @@ fn deep_merge(base: &mut serde_json::Map<String, Value>, overlay: &serde_json::M
             }
         }
     }
+}
+
+/// Navigate a dot-separated path into a JSON value.
+/// e.g. `navigate_dot_path(obj, "address.city")` → `obj["address"]["city"]`
+fn navigate_dot_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+    let mut current = value;
+    for segment in path.split('.') {
+        current = current.get(segment)?;
+    }
+    Some(current)
+}
+
+/// Cache for compiled regexes (dynamic patterns from user expressions).
+static REGEX_CACHE: LazyLock<Mutex<HashMap<String, regex::Regex>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Get or compile a regex pattern, caching the result.
+fn cached_regex(pattern: &str) -> Result<regex::Regex, regex::Error> {
+    let mut cache = REGEX_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(re) = cache.get(pattern) {
+        return Ok(re.clone());
+    }
+    let re = regex::Regex::new(pattern)?;
+    cache.insert(pattern.to_string(), re.clone());
+    Ok(re)
 }
 
 /// Known tracking / analytics parameters that don't affect page content.
@@ -1149,24 +1244,60 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 Ok(TransformOp::Pluck(field.to_string()))
             }
             "where" => {
-                // where("field", "value") — split on first comma outside quotes
+                // where("field", "value") — eq (default)
+                // where("field", "op", value) — explicit operator
                 let parts = split_parametric_args(arg);
-                if parts.len() != 2 {
-                    return Err(TransformParseError {
+                match parts.len() {
+                    2 => {
+                        let field = strip_quotes(parts[0].trim()).to_string();
+                        let val_str = parts[1].trim();
+                        let val =
+                            parse_default_value(val_str).map_err(|reason| TransformParseError {
+                                input: full_input.to_string(),
+                                reason,
+                            })?;
+                        Ok(TransformOp::Where(field, "eq".to_string(), val))
+                    }
+                    3 => {
+                        let field = strip_quotes(parts[0].trim()).to_string();
+                        let op = strip_quotes(parts[1].trim()).to_string();
+                        let valid_ops = [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "lt",
+                            "gte",
+                            "lte",
+                            "contains",
+                            "starts_with",
+                            "ends_with",
+                        ];
+                        if !valid_ops.contains(&op.as_str()) {
+                            return Err(TransformParseError {
+                                input: full_input.to_string(),
+                                reason: format!(
+                                    "unknown where() operator '{}', expected one of: {}",
+                                    op,
+                                    valid_ops.join(", ")
+                                ),
+                            });
+                        }
+                        let val_str = parts[2].trim();
+                        let val =
+                            parse_default_value(val_str).map_err(|reason| TransformParseError {
+                                input: full_input.to_string(),
+                                reason,
+                            })?;
+                        Ok(TransformOp::Where(field, op, val))
+                    }
+                    _ => Err(TransformParseError {
                         input: full_input.to_string(),
                         reason: format!(
-                            "where() requires 2 arguments (field, value), got {}",
+                            "where() requires 2 or 3 arguments (field, [op], value), got {}",
                             parts.len()
                         ),
-                    });
+                    }),
                 }
-                let field = strip_quotes(parts[0].trim()).to_string();
-                let val_str = parts[1].trim();
-                let val = parse_default_value(val_str).map_err(|reason| TransformParseError {
-                    input: full_input.to_string(),
-                    reason,
-                })?;
-                Ok(TransformOp::Where(field, val))
             }
             "pick" => {
                 let fields: Vec<String> = split_parametric_args(arg)
@@ -1201,6 +1332,13 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "group_by" => {
                 let field = strip_quotes(arg);
                 Ok(TransformOp::GroupBy(field.to_string()))
+            }
+            "merge" => {
+                let val = parse_default_value(arg).map_err(|reason| TransformParseError {
+                    input: full_input.to_string(),
+                    reason,
+                })?;
+                Ok(TransformOp::Merge(Some(val)))
             }
             "regex" => {
                 let pattern = strip_quotes(arg);
@@ -1256,7 +1394,7 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "url_path" => Ok(TransformOp::UrlPath),
             "url_without_query" => Ok(TransformOp::UrlWithoutQuery),
             "url_normalize" => Ok(TransformOp::UrlNormalize),
-            "merge" => Ok(TransformOp::Merge),
+            "merge" => Ok(TransformOp::Merge(None)),
             "base64_encode" => Ok(TransformOp::Base64Encode),
             "base64_decode" => Ok(TransformOp::Base64Decode),
             "content_hash" => Ok(TransformOp::ContentHash),
@@ -1476,7 +1614,13 @@ impl fmt::Display for TransformOp {
             TransformOp::UrlNormalize => write!(f, "url_normalize"),
             TransformOp::Slice(s, e) => write!(f, "slice({}, {})", s, e),
             TransformOp::Pluck(field) => write!(f, "pluck('{}')", field),
-            TransformOp::Where(field, val) => write!(f, "where('{}', {})", field, val),
+            TransformOp::Where(field, op, val) => {
+                if op == "eq" {
+                    write!(f, "where('{}', {})", field, val)
+                } else {
+                    write!(f, "where('{}', '{}', {})", field, op, val)
+                }
+            }
             TransformOp::Pick(fields) => {
                 let quoted: Vec<String> = fields.iter().map(|f| format!("'{}'", f)).collect();
                 write!(f, "pick({})", quoted.join(", "))
@@ -1487,7 +1631,8 @@ impl fmt::Display for TransformOp {
             }
             TransformOp::SortBy(field) => write!(f, "sort_by('{}')", field),
             TransformOp::GroupBy(field) => write!(f, "group_by('{}')", field),
-            TransformOp::Merge => write!(f, "merge"),
+            TransformOp::Merge(None) => write!(f, "merge"),
+            TransformOp::Merge(Some(v)) => write!(f, "merge({})", v),
             TransformOp::Regex(pattern) => write!(f, "regex('{}')", pattern),
             TransformOp::Base64Encode => write!(f, "base64_encode"),
             TransformOp::Base64Decode => write!(f, "base64_decode"),
@@ -2768,7 +2913,7 @@ mod tests {
         let expr = TransformExpr::parse("where('status', 'active')").unwrap();
         assert_eq!(
             expr.ops.as_slice(),
-            &[TransformOp::Where("status".to_string(), json!("active"))]
+            &[TransformOp::Where("status".to_string(), "eq".to_string(), json!("active"))]
         );
     }
 
@@ -2777,7 +2922,7 @@ mod tests {
         let expr = TransformExpr::parse("where('age', 30)").unwrap();
         assert_eq!(
             expr.ops.as_slice(),
-            &[TransformOp::Where("age".to_string(), json!(30))]
+            &[TransformOp::Where("age".to_string(), "eq".to_string(), json!(30))]
         );
     }
 
@@ -2788,7 +2933,7 @@ mod tests {
             {"name": "Bob", "status": "inactive"},
             {"name": "Charlie", "status": "active"}
         ]);
-        let result = TransformOp::Where("status".to_string(), json!("active"))
+        let result = TransformOp::Where("status".to_string(), "eq".to_string(), json!("active"))
             .apply(&data)
             .unwrap();
         assert_eq!(
@@ -2803,7 +2948,7 @@ mod tests {
     #[test]
     fn apply_where_no_match() {
         let data = json!([{"a": 1}, {"a": 2}]);
-        let result = TransformOp::Where("a".to_string(), json!(99))
+        let result = TransformOp::Where("a".to_string(), "eq".to_string(), json!(99))
             .apply(&data)
             .unwrap();
         assert_eq!(result, json!([]));
@@ -2811,7 +2956,7 @@ mod tests {
 
     #[test]
     fn apply_where_null_errors() {
-        assert!(TransformOp::Where("x".to_string(), json!("y"))
+        assert!(TransformOp::Where("x".to_string(), "eq".to_string(), json!("y"))
             .apply(&Value::Null)
             .is_err());
     }
@@ -2997,7 +3142,7 @@ mod tests {
     #[test]
     fn apply_merge_basic() {
         let data = json!([{"a": 1}, {"b": 2}, {"c": 3}]);
-        let result = TransformOp::Merge.apply(&data).unwrap();
+        let result = TransformOp::Merge(None).apply(&data).unwrap();
         assert_eq!(result, json!({"a": 1, "b": 2, "c": 3}));
     }
 
@@ -3007,7 +3152,7 @@ mod tests {
             {"nested": {"x": 1}},
             {"nested": {"y": 2}}
         ]);
-        let result = TransformOp::Merge.apply(&data).unwrap();
+        let result = TransformOp::Merge(None).apply(&data).unwrap();
         assert_eq!(result["nested"]["x"], 1);
         assert_eq!(result["nested"]["y"], 2);
     }
@@ -3015,31 +3160,31 @@ mod tests {
     #[test]
     fn apply_merge_override() {
         let data = json!([{"a": 1, "b": "old"}, {"b": "new", "c": 3}]);
-        let result = TransformOp::Merge.apply(&data).unwrap();
+        let result = TransformOp::Merge(None).apply(&data).unwrap();
         assert_eq!(result, json!({"a": 1, "b": "new", "c": 3}));
     }
 
     #[test]
     fn apply_merge_empty_array() {
-        let result = TransformOp::Merge.apply(&json!([])).unwrap();
+        let result = TransformOp::Merge(None).apply(&json!([])).unwrap();
         assert_eq!(result, json!({}));
     }
 
     #[test]
     fn apply_merge_non_objects_errors() {
         let data = json!([{"a": 1}, "not an object"]);
-        assert!(TransformOp::Merge.apply(&data).is_err());
+        assert!(TransformOp::Merge(None).apply(&data).is_err());
     }
 
     #[test]
     fn apply_merge_null_errors() {
-        assert!(TransformOp::Merge.apply(&Value::Null).is_err());
+        assert!(TransformOp::Merge(None).apply(&Value::Null).is_err());
     }
 
     #[test]
     fn parse_merge() {
         let expr = TransformExpr::parse("merge").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Merge]);
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Merge(None)]);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -3230,7 +3375,7 @@ mod tests {
             "pluck('name')"
         );
         assert_eq!(
-            TransformOp::Where("status".to_string(), json!("active")).to_string(),
+            TransformOp::Where("status".to_string(), "eq".to_string(), json!("active")).to_string(),
             "where('status', \"active\")"
         );
         assert_eq!(
@@ -3249,7 +3394,7 @@ mod tests {
             TransformOp::GroupBy("locale".to_string()).to_string(),
             "group_by('locale')"
         );
-        assert_eq!(TransformOp::Merge.to_string(), "merge");
+        assert_eq!(TransformOp::Merge(None).to_string(), "merge");
         assert_eq!(
             TransformOp::Regex(r"\d+".to_string()).to_string(),
             r"regex('\d+')"
@@ -3269,7 +3414,7 @@ mod tests {
             {"name": "Bob", "active": false},
             {"name": "Charlie", "active": true}
         ]);
-        let result = TransformOp::Where("active".to_string(), json!(true))
+        let result = TransformOp::Where("active".to_string(), "eq".to_string(), json!(true))
             .apply(&data)
             .unwrap();
         assert_eq!(result.as_array().unwrap().len(), 2);
@@ -3284,18 +3429,25 @@ mod tests {
             {"id": 2, "score": 80},
             {"id": 3, "score": 90}
         ]);
-        let result = TransformOp::Where("score".to_string(), json!(90))
+        let result = TransformOp::Where("score".to_string(), "eq".to_string(), json!(90))
             .apply(&data)
             .unwrap();
         assert_eq!(result.as_array().unwrap().len(), 2);
     }
 
     #[test]
-    fn pluck_nested_field_returns_empty() {
-        // pluck only works on top-level fields — nested paths are not extracted
+    fn pluck_nested_field_with_dot_path() {
+        // pluck supports dot-paths for nested field access
+        let data = json!([{"a": {"b": 1}}, {"a": {"b": 2}}]);
+        let result = TransformOp::Pluck("a.b".to_string()).apply(&data).unwrap();
+        assert_eq!(result, json!([1, 2]));
+    }
+
+    #[test]
+    fn pluck_top_level_field() {
         let data = json!([{"a": {"b": 1}}, {"a": {"b": 2}}]);
         let result = TransformOp::Pluck("b".to_string()).apply(&data).unwrap();
-        assert_eq!(result, json!([]), "pluck on nested field returns empty");
+        assert_eq!(result, json!([]), "top-level 'b' doesn't exist");
     }
 
     #[test]
@@ -3349,7 +3501,7 @@ mod tests {
     #[test]
     fn merge_single_object() {
         let data = json!([{"a": 1, "b": 2}]);
-        let result = TransformOp::Merge.apply(&data).unwrap();
+        let result = TransformOp::Merge(None).apply(&data).unwrap();
         assert_eq!(result, json!({"a": 1, "b": 2}));
     }
 
@@ -3371,6 +3523,207 @@ mod tests {
     fn base64_decode_empty_string() {
         let result = TransformOp::Base64Decode.apply(&json!("")).unwrap();
         assert_eq!(result, json!(""));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FIX-1: merge parametric form
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn merge_parametric_basic() {
+        let base = json!({"a": 1, "b": 2});
+        let overlay = json!({"c": 3});
+        let result = TransformOp::Merge(Some(overlay)).apply(&base).unwrap();
+        assert_eq!(result, json!({"a": 1, "b": 2, "c": 3}));
+    }
+
+    #[test]
+    fn merge_parametric_override() {
+        let base = json!({"a": 1, "b": "old"});
+        let overlay = json!({"b": "new", "c": 3});
+        let result = TransformOp::Merge(Some(overlay)).apply(&base).unwrap();
+        assert_eq!(result, json!({"a": 1, "b": "new", "c": 3}));
+    }
+
+    #[test]
+    fn merge_parametric_deep() {
+        let base = json!({"nested": {"x": 1, "y": 2}});
+        let overlay = json!({"nested": {"z": 3}});
+        let result = TransformOp::Merge(Some(overlay)).apply(&base).unwrap();
+        assert_eq!(result["nested"]["x"], 1);
+        assert_eq!(result["nested"]["y"], 2);
+        assert_eq!(result["nested"]["z"], 3);
+    }
+
+    #[test]
+    fn merge_parametric_non_object_input_errors() {
+        assert!(TransformOp::Merge(Some(json!({"a": 1})))
+            .apply(&json!([1, 2]))
+            .is_err());
+    }
+
+    #[test]
+    fn parse_merge_parametric() {
+        let expr = TransformExpr::parse(r#"merge({"key": "val"})"#).unwrap();
+        match &expr.ops[0] {
+            TransformOp::Merge(Some(v)) => assert_eq!(v, &json!({"key": "val"})),
+            _ => panic!("expected Merge(Some(...))"),
+        }
+    }
+
+    #[test]
+    fn display_merge_parametric() {
+        let s = TransformOp::Merge(Some(json!({"a": 1}))).to_string();
+        assert!(s.starts_with("merge("), "should display as merge(...)");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FIX-2: where operators
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn where_gt_operator() {
+        let data = json!([
+            {"name": "A", "score": 90},
+            {"name": "B", "score": 40},
+            {"name": "C", "score": 75}
+        ]);
+        let result = TransformOp::Where("score".to_string(), "gt".to_string(), json!(70))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+        assert_eq!(result[0]["name"], "A");
+        assert_eq!(result[1]["name"], "C");
+    }
+
+    #[test]
+    fn where_lt_operator() {
+        let data = json!([{"v": 1}, {"v": 5}, {"v": 10}]);
+        let result = TransformOp::Where("v".to_string(), "lt".to_string(), json!(6))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn where_ne_operator() {
+        let data = json!([{"s": "active"}, {"s": "deleted"}, {"s": "active"}]);
+        let result = TransformOp::Where("s".to_string(), "ne".to_string(), json!("deleted"))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn where_contains_operator() {
+        let data = json!([
+            {"label": "hello world"},
+            {"label": "goodbye"},
+            {"label": "hello there"}
+        ]);
+        let result =
+            TransformOp::Where("label".to_string(), "contains".to_string(), json!("hello"))
+                .apply(&data)
+                .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn where_gte_lte_operators() {
+        let data = json!([{"v": 1}, {"v": 5}, {"v": 10}]);
+        let gte = TransformOp::Where("v".to_string(), "gte".to_string(), json!(5))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(gte.as_array().unwrap().len(), 2); // 5, 10
+
+        let lte = TransformOp::Where("v".to_string(), "lte".to_string(), json!(5))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(lte.as_array().unwrap().len(), 2); // 1, 5
+    }
+
+    #[test]
+    fn parse_where_3_args() {
+        let expr = TransformExpr::parse("where('score', 'gt', 80)").unwrap();
+        assert_eq!(
+            expr.ops.as_slice(),
+            &[TransformOp::Where(
+                "score".to_string(),
+                "gt".to_string(),
+                json!(80)
+            )]
+        );
+    }
+
+    #[test]
+    fn parse_where_invalid_operator() {
+        let result = TransformExpr::parse("where('score', 'invalid_op', 80)");
+        assert!(result.is_err());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FIX-5: dot-path support
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn where_dot_path() {
+        let data = json!([
+            {"meta": {"score": 90}},
+            {"meta": {"score": 40}},
+            {"meta": {"score": 75}}
+        ]);
+        let result =
+            TransformOp::Where("meta.score".to_string(), "gt".to_string(), json!(70))
+                .apply(&data)
+                .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn sort_by_dot_path() {
+        let data = json!([
+            {"info": {"age": 30}},
+            {"info": {"age": 20}},
+            {"info": {"age": 25}}
+        ]);
+        let result = TransformOp::SortBy("info.age".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result[0]["info"]["age"], 20);
+        assert_eq!(result[1]["info"]["age"], 25);
+        assert_eq!(result[2]["info"]["age"], 30);
+    }
+
+    #[test]
+    fn group_by_dot_path() {
+        let data = json!([
+            {"user": {"role": "admin"}, "id": 1},
+            {"user": {"role": "user"}, "id": 2},
+            {"user": {"role": "admin"}, "id": 3}
+        ]);
+        let result = TransformOp::GroupBy("user.role".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result["admin"].as_array().unwrap().len(), 2);
+        assert_eq!(result["user"].as_array().unwrap().len(), 1);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FIX-6: regex cache (functional — verify same results)
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn regex_cache_consistency() {
+        // Same pattern applied multiple times should produce consistent results
+        let pattern = r"\d+".to_string();
+        let r1 = TransformOp::Regex(pattern.clone())
+            .apply(&json!("abc123"))
+            .unwrap();
+        let r2 = TransformOp::Regex(pattern)
+            .apply(&json!("xyz456"))
+            .unwrap();
+        assert_eq!(r1, json!("123"));
+        assert_eq!(r2, json!("456"));
     }
 }
 
