@@ -11,20 +11,40 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use tokio_util::io::ReaderStream;
 
+use schemars::JsonSchema;
+use serde::Serialize;
+
 use crate::error::ServeError;
 use crate::state::AppState;
 
+#[derive(Serialize, JsonSchema)]
+pub struct ArtifactInfo {
+    pub name: String,
+    pub size: u64,
+    pub format: String,
+    pub content_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checksum: Option<String>,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct ListArtifactsResponse {
+    pub job_id: String,
+    pub count: usize,
+    pub artifacts: Vec<ArtifactInfo>,
+}
+
 pub fn list_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("List job artifacts")
-        .description(
-            "Returns a JSON array of artifacts (name, size, format, content_type, checksum).",
-        )
+    op.id("listArtifacts")
+        .summary("List job artifacts")
+        .description("Returns artifacts with name, size, format, content_type, and checksum.")
         .tag("artifacts")
 }
 
 pub fn download_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Download a single artifact")
-        .description("Streams the artifact file with correct Content-Type, Content-Length, ETag, and Cache-Control headers.")
+    op.id("downloadArtifact")
+        .summary("Download a single artifact")
+        .description("Streams the artifact file with Content-Type, Content-Length, ETag, and Cache-Control headers.")
         .tag("artifacts")
 }
 
@@ -34,7 +54,7 @@ pub fn download_docs(op: TransformOperation) -> TransformOperation {
 pub async fn list_artifacts(
     State(state): State<AppState>,
     Path(job_id): Path<String>,
-) -> Result<Json<serde_json::Value>, ServeError> {
+) -> Result<Json<ListArtifactsResponse>, ServeError> {
     // Verify job exists
     state
         .storage
@@ -44,24 +64,23 @@ pub async fn list_artifacts(
 
     let artifacts = state.storage.list_artifacts(&job_id).await?;
 
-    let items: Vec<serde_json::Value> = artifacts
+    let items: Vec<ArtifactInfo> = artifacts
         .iter()
-        .map(|a| {
-            serde_json::json!({
-                "name": a.name,
-                "size": a.size,
-                "format": a.format,
-                "content_type": a.content_type,
-                "checksum": a.checksum,
-            })
+        .map(|a| ArtifactInfo {
+            name: a.name.clone(),
+            size: a.size,
+            format: a.format.clone(),
+            content_type: a.content_type.clone(),
+            checksum: a.checksum.clone(),
         })
         .collect();
 
-    Ok(Json(serde_json::json!({
-        "job_id": job_id,
-        "count": items.len(),
-        "artifacts": items,
-    })))
+    let count = items.len();
+    Ok(Json(ListArtifactsResponse {
+        job_id,
+        count,
+        artifacts: items,
+    }))
 }
 
 /// Download a single artifact by name.

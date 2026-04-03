@@ -800,11 +800,12 @@ impl TaskExecutor {
                                 reason: format!("Invalid URL for llm_txt: {e}"),
                             })?;
                         let origin = parsed.origin().unicode_serialization();
+                        // Prefer llms-full.txt (expanded) over llms.txt (summary)
                         for path in &[
-                            "/.well-known/llm.txt",
-                            "/llm.txt",
-                            "/llms.txt",
                             "/llms-full.txt",
+                            "/.well-known/llm.txt",
+                            "/llms.txt",
+                            "/llm.txt",
                         ] {
                             let llm_url = format!("{}{}", origin, path);
                             // SSRF policy check for llm_txt sub-requests

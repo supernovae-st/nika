@@ -14,7 +14,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use tracing::info;
 
 use crate::error::ServeError;
@@ -197,7 +197,7 @@ pub async fn get_status(
 pub async fn cancel_job(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, ServeError> {
+) -> Result<Json<CancelResponse>, ServeError> {
     // Verify job exists
     let job = state
         .storage
@@ -210,11 +210,11 @@ pub async fn cancel_job(
         job.state,
         nika_storage::JobState::Pending | nika_storage::JobState::Running
     ) {
-        return Ok(Json(json!({
-            "job_id": id,
-            "status": job.state.as_str(),
-            "message": "job already finished",
-        })));
+        return Ok(Json(CancelResponse {
+            job_id: id,
+            status: job.state.as_str().to_string(),
+            message: Some("job already finished".into()),
+        }));
     }
 
     // Kill subprocess + abort the worker task (FIX-12: SIGTERM subprocess PID)
@@ -248,15 +248,26 @@ pub async fn cancel_job(
     let _ = tx.send(crate::events::ServeEvent::Cancelled { job_id: id.clone() });
     state.event_bus.remove(&id).await;
 
-    Ok(Json(json!({
-        "job_id": id,
-        "status": "cancelled",
-    })))
+    Ok(Json(CancelResponse {
+        job_id: id,
+        status: "cancelled".into(),
+        message: None,
+    }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIST WORKFLOWS
 // ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Serialize, JsonSchema)]
+pub struct CancelResponse {
+    pub job_id: String,
+    /// Job status after cancellation: `"cancelled"` or the current terminal state.
+    pub status: String,
+    /// Present when the job was already finished before cancel was called.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
 
 #[derive(Serialize, JsonSchema)]
 pub struct WorkflowInfo {
@@ -409,13 +420,23 @@ async fn collect_workflows(
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub fn run_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Submit a workflow for async execution")
-        .description("Validates the workflow file, creates a job in SQLite, and spawns a worker.")
+    op.id("submitWorkflow")
+        .summary("Submit a workflow for async execution")
+        .description(
+            "Validates the workflow file, creates a job in SQLite, and spawns a worker.\n\n\
+             ## Real-time events\n\n\
+             After submission, subscribe to SSE at `GET /v1/events/{job_id}` with the same \
+             Bearer token.\n\n\
+             Event types: `started`, `task_start`, `task_complete`, `task_failed`, \
+             `artifact_written`, `completed`, `failed`, `cancelled`.\n\n\
+             Terminal events (`completed`, `failed`, `cancelled`) close the stream.",
+        )
         .tag("jobs")
 }
 
 pub fn status_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Poll job status")
+    op.id("getJobStatus")
+        .summary("Poll job status")
         .description(
             "Returns the current state of a job (pending/running/completed/failed/cancelled).",
         )
@@ -423,25 +444,29 @@ pub fn status_docs(op: TransformOperation) -> TransformOperation {
 }
 
 pub fn cancel_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Cancel a running job")
+    op.id("cancelJob")
+        .summary("Cancel a running job")
         .description("Kills the worker subprocess and marks the job as cancelled.")
         .tag("jobs")
 }
 
 pub fn list_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("List available workflows")
+    op.id("listWorkflows")
+        .summary("List available workflows")
         .description("Recursively scans the workflows directory for .nika.yaml files.")
         .tag("workflows")
 }
 
 pub fn source_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Get workflow YAML source")
+    op.id("getWorkflowSource")
+        .summary("Get workflow YAML source")
         .description("Returns the raw YAML content of a workflow file as plain text.")
         .tag("workflows")
 }
 
 pub fn reload_docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Reload workflows from disk")
+    op.id("reloadWorkflows")
+        .summary("Reload workflows from disk")
         .description("Rescans the workflows directory and returns the refreshed list.")
         .tag("workflows")
 }

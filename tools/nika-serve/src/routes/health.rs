@@ -22,7 +22,8 @@ pub async fn health() -> Json<HealthResponse> {
 }
 
 pub fn docs(op: TransformOperation) -> TransformOperation {
-    op.summary("Health check")
+    op.id("healthCheck")
+        .summary("Health check")
         .description("Returns 200 with version info. No authentication required.")
         .tag("system")
 }

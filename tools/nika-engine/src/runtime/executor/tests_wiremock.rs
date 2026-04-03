@@ -1333,3 +1333,87 @@ async fn wiremock_fetch_response_full_with_extract_sitemap() {
     assert_eq!(extracted["urls"][0]["loc"], "https://example.com/");
     assert_eq!(extracted["urls"][1]["loc"], "https://example.com/about");
 }
+
+// ═══════════════════════════════════════════════════════════════
+// extract:llm_txt — prefer llms-full.txt over llms.txt
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn wiremock_fetch_llm_txt_prefers_full_version() {
+    let server = MockServer::start().await;
+
+    // Root must respond (fetch checks for 4xx before llm_txt logic)
+    Mock::given(method("GET"))
+        .and(path("/"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("<html></html>"))
+        .mount(&server)
+        .await;
+    // Serve BOTH llms.txt and llms-full.txt
+    Mock::given(method("GET"))
+        .and(path("/llms.txt"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("# Short summary"))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/llms-full.txt"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string("# Full content\n\nDetailed info here"),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_llm_txt_full");
+    let mut params = fetch_params(&server.uri(), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::LlmTxt);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    assert_eq!(parsed["found"], true);
+    // Should prefer llms-full.txt over llms.txt
+    assert!(
+        parsed["url"].as_str().unwrap().contains("llms-full.txt"),
+        "Should prefer llms-full.txt, got: {}",
+        parsed["url"]
+    );
+    assert!(parsed["content"]
+        .as_str()
+        .unwrap()
+        .contains("Detailed info"));
+}
+
+#[tokio::test]
+async fn wiremock_fetch_llm_txt_fallback_to_short() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("<html></html>"))
+        .mount(&server)
+        .await;
+    // Only serve llms.txt, NOT llms-full.txt
+    Mock::given(method("GET"))
+        .and(path("/llms.txt"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("# Short only"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_llm_txt_short");
+    let mut params = fetch_params(&server.uri(), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::LlmTxt);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    assert_eq!(parsed["found"], true);
+    assert!(parsed["url"].as_str().unwrap().contains("llms.txt"));
+    assert!(parsed["content"].as_str().unwrap().contains("Short only"));
+}
