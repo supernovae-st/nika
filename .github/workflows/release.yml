@@ -664,6 +664,7 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx vsce publish --no-git-tag-version -p "$VSCE_PAT"
+        continue-on-error: true
 
       - name: Warn if VS Code Marketplace PAT is missing
         if: env.HAS_VSCE_PAT != 'true'
