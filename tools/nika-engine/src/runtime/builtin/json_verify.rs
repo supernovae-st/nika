@@ -33,6 +33,9 @@ struct JsonVerifyParams {
     source: Value,
     /// Translated JSON to verify
     translation: Value,
+    /// If true, extra keys in translation also cause pass=false (default: false)
+    #[serde(default)]
+    strict: bool,
 }
 
 impl BuiltinTool for JsonVerifyTool {
@@ -54,6 +57,11 @@ impl BuiltinTool for JsonVerifyTool {
                 },
                 "translation": {
                     "description": "Translated JSON to verify against source"
+                },
+                "strict": {
+                    "type": "boolean",
+                    "description": "If true, extra keys in translation also cause pass=false (default: false)",
+                    "default": false
                 }
             },
             "additionalProperties": false
@@ -71,7 +79,7 @@ impl BuiltinTool for JsonVerifyTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
-            let result = verify(&params.source, &params.translation);
+            let result = verify(&params.source, &params.translation, params.strict);
 
             serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:json_verify".into(),
@@ -128,7 +136,8 @@ fn extract_html_tags(val: &Value) -> Vec<String> {
 }
 
 /// Compare source and translation JSON structures.
-fn verify(source: &Value, translation: &Value) -> Value {
+/// When `strict` is true, extra keys in translation also cause pass=false.
+fn verify(source: &Value, translation: &Value, strict: bool) -> Value {
     let source_flat = flatten_keys(source, "");
     let trans_flat = flatten_keys(translation, "");
 
@@ -170,8 +179,10 @@ fn verify(source: &Value, translation: &Value) -> Value {
         }
     }
 
-    let passed =
-        missing_keys.is_empty() && broken_placeholders.is_empty() && broken_html.is_empty();
+    let passed = missing_keys.is_empty()
+        && broken_placeholders.is_empty()
+        && broken_html.is_empty()
+        && (!strict || extra_keys.is_empty());
 
     serde_json::json!({
         "pass": passed,
@@ -285,6 +296,34 @@ mod tests {
             serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
         assert_eq!(result["pass"], true);
         assert_eq!(result["total_keys"], 0);
+    }
+
+    #[tokio::test]
+    async fn json_verify_extra_key_strict_mode() {
+        let tool = JsonVerifyTool;
+        let args = json!({
+            "source": {"a": "hello"},
+            "translation": {"a": "bonjour", "extra": "oops"},
+            "strict": true
+        });
+        let result: Value =
+            serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
+        // In strict mode, extra keys cause failure
+        assert_eq!(result["pass"], false);
+        assert_eq!(result["extra_keys"], json!(["extra"]));
+    }
+
+    #[tokio::test]
+    async fn json_verify_no_extra_keys_strict_passes() {
+        let tool = JsonVerifyTool;
+        let args = json!({
+            "source": {"a": "hello", "b": "world"},
+            "translation": {"a": "bonjour", "b": "monde"},
+            "strict": true
+        });
+        let result: Value =
+            serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
+        assert_eq!(result["pass"], true);
     }
 
     #[test]

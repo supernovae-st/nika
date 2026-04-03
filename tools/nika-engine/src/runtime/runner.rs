@@ -245,6 +245,11 @@ pub struct Runner {
 const MAX_CONCURRENT_TASKS: usize = 64;
 
 impl Runner {
+    /// Create a Runner without policy enforcement.
+    ///
+    /// Use `Runner::with_policy()` for production server contexts (nika-serve)
+    /// where policy constraints (allowed_hosts, max_token_spend) are required.
+    /// This constructor is suitable for CLI usage and tests.
     pub fn new(workflow: AnalyzedWorkflow) -> Result<Self, NikaError> {
         Self::with_event_log(workflow, EventLog::new())
     }

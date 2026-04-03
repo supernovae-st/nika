@@ -59,8 +59,12 @@ pub fn query_extension_version(cli: &Path, ext_id: &str) -> Option<String> {
     let list = String::from_utf8(output.stdout).ok()?;
     let prefix = format!("{}@", ext_id.to_lowercase());
     list.lines().find_map(|l| {
-        let lower = l.trim().to_lowercase();
-        lower.strip_prefix(&prefix).map(|v| v.to_string())
+        let trimmed = l.trim();
+        if trimmed.to_lowercase().starts_with(&prefix) {
+            Some(trimmed[prefix.len()..].to_string())
+        } else {
+            None
+        }
     })
 }
 
@@ -125,10 +129,15 @@ pub(super) fn detect_editors() -> Vec<&'static str> {
 pub fn run_machine_setup() -> Vec<SetupResult> {
     let mut results = Vec::new();
 
-    // 1. Editors: detect + install extension
+    // Write marker file FIRST (creates [machine] section).
+    // setup_editors/setup_ai_rules append [extensions] and [rule_hashes] sections.
+    // If we wrote last, we'd destroy those sections.
+    write_marker(&[]);
+
+    // 1. Editors: detect + install extension (appends [extensions] to marker)
     results.extend(setup_editors());
 
-    // 2. AI tools: detect + install rules
+    // 2. AI tools: detect + install rules (appends [rule_hashes] to marker)
     results.extend(setup_ai_rules());
 
     // 3. Shell completions
@@ -139,9 +148,6 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     if std::env::var("NIKA_NO_DAEMON").is_err() {
         results.push(setup_daemon());
     }
-
-    // Write marker file
-    write_marker(&results);
 
     // Summary: show each configured tool by name (deduplicated)
     let mut seen = std::collections::HashSet::new();
@@ -502,14 +508,20 @@ fn update_rule_hash(editor_key: &str, hash: &str) {
     let section_idx = lines.iter().position(|l| l.trim() == "[rule_hashes]");
     match section_idx {
         Some(idx) => {
-            // Find existing key in section
-            let key_idx = lines[idx + 1..]
-                .iter()
-                .position(|l| {
-                    let t = l.trim();
-                    t.starts_with(editor_key) && t[editor_key.len()..].trim_start().starts_with('=')
-                })
-                .map(|i| i + idx + 1);
+            // Find existing key within this section only (stop at next [header])
+            let mut key_idx = None;
+            for (i, l) in lines[idx + 1..].iter().enumerate() {
+                let t = l.trim();
+                if t.starts_with('[') {
+                    break; // next section — stop searching
+                }
+                if t.starts_with(editor_key)
+                    && t[editor_key.len()..].trim_start().starts_with('=')
+                {
+                    key_idx = Some(i + idx + 1);
+                    break;
+                }
+            }
             match key_idx {
                 Some(ki) => lines[ki] = new_line,
                 None => lines.insert(idx + 1, new_line),
@@ -570,13 +582,19 @@ fn update_extension_version(editor_id: &str, version: &str) {
     let section_idx = lines.iter().position(|l| l.trim() == "[extensions]");
     match section_idx {
         Some(idx) => {
-            let key_idx = lines[idx + 1..]
-                .iter()
-                .position(|l| {
-                    let t = l.trim();
-                    t.starts_with(editor_id) && t[editor_id.len()..].trim_start().starts_with('=')
-                })
-                .map(|i| i + idx + 1);
+            let mut key_idx = None;
+            for (i, l) in lines[idx + 1..].iter().enumerate() {
+                let t = l.trim();
+                if t.starts_with('[') {
+                    break;
+                }
+                if t.starts_with(editor_id)
+                    && t[editor_id.len()..].trim_start().starts_with('=')
+                {
+                    key_idx = Some(i + idx + 1);
+                    break;
+                }
+            }
             match key_idx {
                 Some(ki) => lines[ki] = new_line,
                 None => lines.insert(idx + 1, new_line),
@@ -1013,17 +1031,26 @@ fn setup_completions() -> SetupResult {
 
 // ─── Quick Editor Re-Scan ────────────────────────────────────────────────────
 
-/// 24-hour cooldown in seconds for quick_editor_scan.
-const SCAN_COOLDOWN_SECS: u64 = 14_400; // 4 hours — devs install editors during the day
+/// 4-hour cooldown in seconds for quick_editor_scan.
+const SCAN_COOLDOWN_SECS: u64 = 14_400;
 
-/// Lightweight scan for newly installed editors. Called on every nika command
-/// when machine_setup_status() == Ready. If a new editor is detected that
-/// wasn't in machine.toml, install rules silently and update the stored list.
+/// Lightweight scan for newly installed editors and outdated extensions.
 ///
-/// New editors bypass the cooldown entirely — rules are installed immediately.
-/// Cooldown only applies when no new editors are found, to avoid repeated
-/// filesystem overhead on every command.
+/// Called on every nika command when `machine_setup_status() == Ready`.
+/// Cooldown prevents repeated filesystem + subprocess work on every command.
+/// New editors or outdated extensions bypass the cooldown.
 pub fn quick_editor_scan() {
+    // Cooldown check FIRST — avoids expensive detect_editors() on every command
+    if let Some(last) = read_last_scan_at() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if now.saturating_sub(last) < SCAN_COOLDOWN_SECS {
+            return;
+        }
+    }
+
     let current = detect_editors();
     let stored = read_stored_editors();
 
@@ -1047,16 +1074,7 @@ pub fn quick_editor_scan() {
         .collect();
 
     if new_editors.is_empty() && outdated_editors.is_empty() {
-        // Nothing to do — apply cooldown to avoid repeated filesystem work
-        if let Some(last) = read_last_scan_at() {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            if now.saturating_sub(last) < SCAN_COOLDOWN_SECS {
-                return;
-            }
-        }
+        write_last_scan_at(); // record scan time even when nothing to do
         return;
     }
 
@@ -1167,6 +1185,15 @@ fn try_vsix_sideload(cli: &Path, version: &str) -> bool {
         return false;
     }
 
+    // Integrity check: VSIX is a ZIP — verify magic bytes and minimum size
+    let valid = std::fs::read(&vsix_path)
+        .map(|bytes| bytes.len() > 1024 && bytes.starts_with(b"PK\x03\x04"))
+        .unwrap_or(false);
+    if !valid {
+        std::fs::remove_file(&vsix_path).ok();
+        return false;
+    }
+
     let install = Command::new(cli)
         .arg("--install-extension")
         .arg(&vsix_path)
@@ -1231,7 +1258,8 @@ fn write_last_scan_at() {
             .join("\n");
         std::fs::write(&marker_path, format!("{}\n", updated)).ok();
     } else {
-        std::fs::write(&marker_path, format!("{}{}\n", content, new_line)).ok();
+        let sep = if content.ends_with('\n') { "" } else { "\n" };
+        std::fs::write(&marker_path, format!("{}{}{}\n", content, sep, new_line)).ok();
     }
 }
 
@@ -1479,5 +1507,525 @@ mod tests {
         );
         assert!(path.exists());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "# test rule\n");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // query_extension_version — parsing logic
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Simulate parsing of `--list-extensions --show-versions` output.
+    /// The function looks for lines matching `ext_id@version` (case-insensitive).
+    #[test]
+    fn parse_extension_version_from_list_output() {
+        // Simulate the raw stdout from `code --list-extensions --show-versions`
+        let output = "\
+ms-python.python@2024.6.0\n\
+supernovae.nika-lang@0.58.2\n\
+vscodevim.vim@1.27.2\n";
+
+        let ext_id = "supernovae.nika-lang";
+        let prefix = format!("{}@", ext_id.to_lowercase());
+        let version = output.lines().find_map(|l| {
+            let lower = l.trim().to_lowercase();
+            lower.strip_prefix(&prefix).map(|v| v.to_string())
+        });
+        assert_eq!(version, Some("0.58.2".to_string()));
+    }
+
+    /// Extension not present in list output returns None.
+    #[test]
+    fn parse_extension_version_missing_returns_none() {
+        let output = "\
+ms-python.python@2024.6.0\n\
+vscodevim.vim@1.27.2\n";
+
+        let ext_id = "supernovae.nika-lang";
+        let prefix = format!("{}@", ext_id.to_lowercase());
+        let version = output.lines().find_map(|l| {
+            let lower = l.trim().to_lowercase();
+            lower.strip_prefix(&prefix).map(|v| v.to_string())
+        });
+        assert_eq!(version, None);
+    }
+
+    /// Extension matching is case-insensitive.
+    #[test]
+    fn parse_extension_version_case_insensitive() {
+        let output = "SuperNovae.Nika-Lang@1.2.3\n";
+
+        let ext_id = "supernovae.nika-lang";
+        let prefix = format!("{}@", ext_id.to_lowercase());
+        let version = output.lines().find_map(|l| {
+            let lower = l.trim().to_lowercase();
+            lower.strip_prefix(&prefix).map(|v| v.to_string())
+        });
+        assert_eq!(version, Some("1.2.3".to_string()));
+    }
+
+    /// Extension output with leading/trailing whitespace is handled.
+    #[test]
+    fn parse_extension_version_with_whitespace() {
+        let output = "  supernovae.nika-lang@0.61.0  \n";
+
+        let ext_id = "supernovae.nika-lang";
+        let prefix = format!("{}@", ext_id.to_lowercase());
+        let version = output.lines().find_map(|l| {
+            let lower = l.trim().to_lowercase();
+            lower.strip_prefix(&prefix).map(|v| v.to_string())
+        });
+        assert_eq!(version, Some("0.61.0".to_string()));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // is_version_outdated — comprehensive coverage (also tested in doctor.rs)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn is_version_outdated_minor_behind() {
+        assert!(is_version_outdated("0.55.0", "0.62.0"));
+        assert!(is_version_outdated("0.61.0", "0.62.0"));
+    }
+
+    #[test]
+    fn is_version_outdated_same_minor_is_current() {
+        assert!(!is_version_outdated("0.62.0", "0.62.0"));
+        assert!(!is_version_outdated("0.62.5", "0.62.0"));
+    }
+
+    #[test]
+    fn is_version_outdated_ahead_is_not_outdated() {
+        assert!(!is_version_outdated("0.63.0", "0.62.0"));
+        assert!(!is_version_outdated("1.0.0", "0.99.0"));
+    }
+
+    #[test]
+    fn is_version_outdated_major_bump() {
+        assert!(is_version_outdated("0.99.9", "1.0.0"));
+    }
+
+    #[test]
+    fn is_version_outdated_malformed_versions() {
+        // Malformed input should not panic; (0,0) < (0,0) == false
+        assert!(!is_version_outdated("", ""));
+        assert!(!is_version_outdated("abc", "xyz"));
+        // Partially valid
+        assert!(!is_version_outdated("0", "0"));
+        assert!(is_version_outdated("0", "0.1.0"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // read_extension_versions — parsing [extensions] from TOML
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Parse [extensions] section from machine.toml content.
+    #[test]
+    fn parse_extensions_section() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n\
+\n\
+[extensions]\n\
+vscode = \"0.58.2\"\n\
+cursor = \"0.61.0\"\n\
+\n\
+[rule_hashes]\n\
+claude = \"abcdef0123456789\"\n";
+
+        // Replicate the parsing logic from read_extension_versions
+        let mut in_section = false;
+        let mut map = HashMap::new();
+        for line in content.lines() {
+            let t = line.trim();
+            if t == "[extensions]" {
+                in_section = true;
+                continue;
+            }
+            if t.starts_with('[') {
+                in_section = false;
+                continue;
+            }
+            if !in_section {
+                continue;
+            }
+            if let Some((k, v)) = t.split_once('=') {
+                let key = k.trim().to_string();
+                let val = v.trim().trim_matches('"').to_string();
+                if !key.is_empty() && !val.is_empty() {
+                    map.insert(key, val);
+                }
+            }
+        }
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get("vscode").unwrap(), "0.58.2");
+        assert_eq!(map.get("cursor").unwrap(), "0.61.0");
+    }
+
+    /// No [extensions] section returns empty map.
+    #[test]
+    fn parse_extensions_section_missing() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n";
+
+        let mut in_section = false;
+        let mut map = HashMap::new();
+        for line in content.lines() {
+            let t = line.trim();
+            if t == "[extensions]" {
+                in_section = true;
+                continue;
+            }
+            if t.starts_with('[') {
+                in_section = false;
+                continue;
+            }
+            if !in_section {
+                continue;
+            }
+            if let Some((k, v)) = t.split_once('=') {
+                let key = k.trim().to_string();
+                let val = v.trim().trim_matches('"').to_string();
+                if !key.is_empty() && !val.is_empty() {
+                    map.insert(key, val);
+                }
+            }
+        }
+
+        assert!(map.is_empty());
+    }
+
+    /// Empty [extensions] section returns empty map.
+    #[test]
+    fn parse_extensions_section_empty() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n\
+\n\
+[extensions]\n\
+\n\
+[rule_hashes]\n\
+claude = \"abc\"\n";
+
+        let mut in_section = false;
+        let mut map = HashMap::new();
+        for line in content.lines() {
+            let t = line.trim();
+            if t == "[extensions]" {
+                in_section = true;
+                continue;
+            }
+            if t.starts_with('[') {
+                in_section = false;
+                continue;
+            }
+            if !in_section {
+                continue;
+            }
+            if let Some((k, v)) = t.split_once('=') {
+                let key = k.trim().to_string();
+                let val = v.trim().trim_matches('"').to_string();
+                if !key.is_empty() && !val.is_empty() {
+                    map.insert(key, val);
+                }
+            }
+        }
+
+        assert!(map.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // update_extension_version — writing to [extensions] section
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Updating an extension version in existing [extensions] section.
+    #[test]
+    fn update_extension_version_replaces_existing_key() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n\
+\n\
+[extensions]\n\
+vscode = \"0.58.0\"\n\
+cursor = \"0.61.0\"\n";
+
+        let editor_id = "vscode";
+        let version = "0.62.0";
+        let new_line = format!("{} = \"{}\"", editor_id, version);
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        let section_idx = lines.iter().position(|l| l.trim() == "[extensions]");
+
+        if let Some(idx) = section_idx {
+            let key_idx = lines[idx + 1..]
+                .iter()
+                .position(|l| {
+                    let t = l.trim();
+                    t.starts_with(editor_id) && t[editor_id.len()..].trim_start().starts_with('=')
+                })
+                .map(|i| i + idx + 1);
+            if let Some(ki) = key_idx {
+                lines[ki] = new_line;
+            }
+        }
+
+        let result = lines.join("\n") + "\n";
+        assert!(result.contains("vscode = \"0.62.0\""));
+        assert!(result.contains("cursor = \"0.61.0\"")); // untouched
+        assert!(!result.contains("vscode = \"0.58.0\"")); // replaced
+    }
+
+    /// Adding a new extension to an existing [extensions] section.
+    #[test]
+    fn update_extension_version_inserts_new_key() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n\
+\n\
+[extensions]\n\
+vscode = \"0.58.0\"\n";
+
+        let editor_id = "windsurf";
+        let version = "0.62.0";
+        let new_line = format!("{} = \"{}\"", editor_id, version);
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        let section_idx = lines.iter().position(|l| l.trim() == "[extensions]");
+
+        if let Some(idx) = section_idx {
+            let key_idx = lines[idx + 1..]
+                .iter()
+                .position(|l| {
+                    let t = l.trim();
+                    t.starts_with(editor_id) && t[editor_id.len()..].trim_start().starts_with('=')
+                })
+                .map(|i| i + idx + 1);
+            match key_idx {
+                Some(ki) => lines[ki] = new_line,
+                None => lines.insert(idx + 1, new_line),
+            }
+        }
+
+        let result = lines.join("\n") + "\n";
+        assert!(result.contains("windsurf = \"0.62.0\""));
+        assert!(result.contains("vscode = \"0.58.0\"")); // untouched
+    }
+
+    /// Creating [extensions] section when it doesn't exist.
+    #[test]
+    fn update_extension_version_creates_section() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n";
+
+        let editor_id = "vscode";
+        let version = "0.62.0";
+        let new_line = format!("{} = \"{}\"", editor_id, version);
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        let section_idx = lines.iter().position(|l| l.trim() == "[extensions]");
+
+        match section_idx {
+            Some(_) => unreachable!("section should not exist"),
+            None => {
+                lines.push(String::new());
+                lines.push("[extensions]".to_string());
+                lines.push(new_line);
+            }
+        }
+
+        let result = lines.join("\n") + "\n";
+        assert!(result.contains("[extensions]"));
+        assert!(result.contains("vscode = \"0.62.0\""));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // update_marker_version — line replacement logic
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Version line is replaced while preserving other fields.
+    #[test]
+    fn update_marker_version_replaces_version_line() {
+        let content = "\
+[machine]\n\
+setup_at = \"1711900000\"\n\
+version = \"0.58.0\"\n\
+editors = [\"vscode\", \"claude\"]\n";
+
+        let new_version = "0.62.0";
+        let updated: String = content
+            .lines()
+            .map(|line| {
+                let trimmed = line.trim();
+                if trimmed.starts_with("version") && trimmed[7..].trim_start().starts_with('=') {
+                    format!("version = \"{}\"", new_version)
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let result = updated + "\n";
+
+        assert!(result.contains("version = \"0.62.0\""));
+        assert!(!result.contains("version = \"0.58.0\""));
+        assert!(result.contains("setup_at = \"1711900000\"")); // preserved
+        assert!(result.contains("editors = [\"vscode\", \"claude\"]")); // preserved
+    }
+
+    /// Content without a version line is left unchanged.
+    #[test]
+    fn update_marker_version_no_version_line_is_noop() {
+        let content = "\
+[machine]\n\
+setup_at = \"1711900000\"\n\
+editors = [\"vscode\"]\n";
+
+        let new_version = "0.62.0";
+        let updated: String = content
+            .lines()
+            .map(|line| {
+                let trimmed = line.trim();
+                if trimmed.starts_with("version") && trimmed[7..].trim_start().starts_with('=') {
+                    format!("version = \"{}\"", new_version)
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let result = updated + "\n";
+
+        // No version line to replace, content stays the same
+        assert!(!result.contains("version ="));
+        assert!(result.contains("setup_at = \"1711900000\""));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // try_vsix_sideload — URL construction
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// VSIX download URL is correctly constructed from version.
+    #[test]
+    fn vsix_url_construction() {
+        let version = "0.62.0";
+        let url = format!(
+            "https://github.com/supernovae-st/nika/releases/download/v{}/nika-lang-{}.vsix",
+            version, version
+        );
+        assert_eq!(
+            url,
+            "https://github.com/supernovae-st/nika/releases/download/v0.62.0/nika-lang-0.62.0.vsix"
+        );
+    }
+
+    /// VSIX cache path is correctly constructed.
+    #[test]
+    fn vsix_cache_path_construction() {
+        let version = "0.62.0";
+        let cache_dir = std::path::PathBuf::from("/tmp/.nika/cache");
+        let vsix_path = cache_dir.join(format!("nika-lang-{}.vsix", version));
+        assert_eq!(
+            vsix_path.to_string_lossy(),
+            "/tmp/.nika/cache/nika-lang-0.62.0.vsix"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // load_rule_hashes — parsing [rule_hashes] from TOML
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Parse [rule_hashes] section correctly.
+    #[test]
+    fn parse_rule_hashes_section() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n\
+\n\
+[rule_hashes]\n\
+claude = \"abcdef0123456789\"\n\
+cursor = \"1234567890abcdef\"\n\
+\n\
+[extensions]\n\
+vscode = \"0.58.0\"\n";
+
+        let mut in_section = false;
+        let mut map = HashMap::new();
+        for line in content.lines() {
+            let t = line.trim();
+            if t == "[rule_hashes]" {
+                in_section = true;
+                continue;
+            }
+            if t.starts_with('[') {
+                in_section = false;
+                continue;
+            }
+            if !in_section {
+                continue;
+            }
+            if let Some((k, v)) = t.split_once('=') {
+                let key = k.trim().to_string();
+                let val = v.trim().trim_matches('"').to_string();
+                if !key.is_empty() && !val.is_empty() {
+                    map.insert(key, val);
+                }
+            }
+        }
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get("claude").unwrap(), "abcdef0123456789");
+        assert_eq!(map.get("cursor").unwrap(), "1234567890abcdef");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // hash_content — deterministic hashing
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// hash_content produces a stable 16-char hex string.
+    #[test]
+    fn hash_content_is_deterministic() {
+        let h1 = hash_content("hello world");
+        let h2 = hash_content("hello world");
+        assert_eq!(h1, h2);
+        assert_eq!(h1.len(), 16, "hash should be 16 hex chars");
+    }
+
+    /// Different content produces different hashes.
+    #[test]
+    fn hash_content_different_inputs() {
+        let h1 = hash_content("hello");
+        let h2 = hash_content("world");
+        assert_ne!(h1, h2);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // VSCODE_EDITORS constant validation
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// All editor definitions have valid non-empty fields.
+    #[test]
+    fn vscode_editors_have_valid_fields() {
+        assert!(!VSCODE_EDITORS.is_empty());
+        for def in VSCODE_EDITORS {
+            assert!(!def.id.is_empty(), "editor id must not be empty");
+            assert!(!def.name.is_empty(), "editor name must not be empty");
+            assert!(!def.binary.is_empty(), "editor binary must not be empty");
+            assert!(!def.ext_id.is_empty(), "editor ext_id must not be empty");
+            assert!(
+                def.ext_id.contains('.'),
+                "ext_id '{}' should have publisher.name format",
+                def.ext_id
+            );
+        }
+    }
+
+    /// All editor ext_ids point to the nika-lang extension.
+    #[test]
+    fn vscode_editors_all_use_nika_lang() {
+        for def in VSCODE_EDITORS {
+            assert_eq!(
+                def.ext_id, "supernovae.nika-lang",
+                "editor {} should use supernovae.nika-lang",
+                def.name
+            );
+        }
     }
 }

@@ -183,6 +183,37 @@ impl TaskExecutor {
             return Err(NikaError::PolicyViolation { reason });
         }
 
+        // ── robots.txt compliance ──────────────────────────────────────────
+        if let Some(ref robots) = self.robots_cache {
+            if let Ok(parsed) = url::Url::parse(&url) {
+                if !robots.is_allowed(&parsed, &self.http_client).await {
+                    self.event_log.emit(EventKind::PolicyBlocked {
+                        task_id: Arc::clone(task_id),
+                        verb: "fetch".to_string(),
+                        policy_type: "robots_txt".to_string(),
+                        reason: format!("robots.txt disallows: {}", url),
+                    });
+                    tracing::info!(
+                        task_id = %task_id,
+                        url = %url,
+                        "fetch: blocked by robots.txt"
+                    );
+                    return Err(NikaError::PolicyViolation {
+                        reason: format!("robots.txt disallows: {}", url),
+                    });
+                }
+            }
+        }
+
+        // ── Per-domain rate limiting ───────────────────────────────────────
+        if let Some(ref limiter) = self.domain_rate_limiter {
+            if let Ok(parsed) = url::Url::parse(&url) {
+                if let Some(domain) = parsed.host_str() {
+                    limiter.acquire(domain).await;
+                }
+            }
+        }
+
         // EMIT: TemplateResolved (redacted to avoid leaking secrets)
         self.event_log.emit(EventKind::TemplateResolved {
             task_id: Arc::clone(task_id),

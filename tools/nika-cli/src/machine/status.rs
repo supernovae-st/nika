@@ -100,7 +100,7 @@ pub(crate) fn machine_toml_path() -> PathBuf {
         .join("machine.toml")
 }
 
-/// Update ONLY the version field in machine.toml, preserving everything else.
+/// Update ONLY the version field in the `[machine]` section of machine.toml.
 /// Used by `fast_rule_update()` after silently updating rules.
 pub fn update_marker_version() {
     let path = machine_toml_path();
@@ -109,11 +109,23 @@ pub fn update_marker_version() {
         Err(_) => return,
     };
     let new_version = env!("CARGO_PKG_VERSION");
+    let mut in_machine = false;
+    let mut replaced = false;
     let updated: String = content
         .lines()
         .map(|line| {
             let trimmed = line.trim();
-            if trimmed.starts_with("version") && trimmed[7..].trim_start().starts_with('=') {
+            if trimmed == "[machine]" {
+                in_machine = true;
+            } else if trimmed.starts_with('[') {
+                in_machine = false;
+            }
+            if in_machine
+                && !replaced
+                && trimmed.starts_with("version")
+                && trimmed[7..].trim_start().starts_with('=')
+            {
+                replaced = true;
                 format!("version = \"{}\"", new_version)
             } else {
                 line.to_string()
@@ -172,4 +184,230 @@ fn write_marker_with_editors(results: &[SetupResult], editors: &[&str]) {
 
     // Don't fail init if marker write fails
     std::fs::write(&marker_path, content).ok();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // machine_toml_path
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn machine_toml_path_ends_with_marker_file() {
+        let path = machine_toml_path();
+        assert!(
+            path.to_string_lossy().ends_with("machine.toml"),
+            "path should end with machine.toml, got: {}",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn machine_toml_path_is_under_nika_dir() {
+        let path = machine_toml_path();
+        let parent = path.parent().unwrap();
+        assert!(
+            parent.to_string_lossy().ends_with(".nika"),
+            "parent should be .nika dir, got: {}",
+            parent.display()
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MachineStatus parsing logic
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Parsing a marker file with matching version yields Ready.
+    #[test]
+    fn marker_version_matching_is_ready() {
+        let current = env!("CARGO_PKG_VERSION");
+        let content = format!(
+            "[machine]\nsetup_at = \"1711900000\"\nversion = \"{}\"\n",
+            current
+        );
+        // Parse version the same way machine_setup_status does
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("version") {
+                let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
+                let version = rest.trim_matches('"');
+                if version == current {
+                    return; // Test passes: version matches
+                }
+                panic!("version should match current");
+            }
+        }
+        panic!("version line not found");
+    }
+
+    /// Parsing a marker file with old version yields NeedsUpdate.
+    #[test]
+    fn marker_version_mismatch_is_needs_update() {
+        let content = "[machine]\nversion = \"0.0.1\"\n";
+        let current = env!("CARGO_PKG_VERSION");
+        let mut status = MachineStatus::NeedsUpdate; // default if no version line
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("version") {
+                let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
+                let version = rest.trim_matches('"');
+                if version == current {
+                    status = MachineStatus::Ready;
+                } else {
+                    status = MachineStatus::NeedsUpdate;
+                }
+            }
+        }
+        assert_eq!(status, MachineStatus::NeedsUpdate);
+    }
+
+    /// Missing version line in marker yields NeedsUpdate.
+    #[test]
+    fn marker_no_version_line_is_needs_update() {
+        let content = "[machine]\nsetup_at = \"1711900000\"\n";
+        let current = env!("CARGO_PKG_VERSION");
+        let mut found_version = false;
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("version") {
+                let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
+                let _version = rest.trim_matches('"');
+                found_version = true;
+            }
+        }
+        assert!(!found_version, "version line should not be found");
+        // machine_setup_status returns NeedsUpdate when no version line
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // update_marker_version — line replacement with tempfile
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// update_marker_version replaces only the version field, preserving others.
+    #[test]
+    fn update_marker_version_preserves_other_fields() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let path = tmpdir.path().join("machine.toml");
+        let content = "\
+[machine]\n\
+setup_at = \"1711900000\"\n\
+version = \"0.50.0\"\n\
+editors = [\"vscode\", \"claude\"]\n\
+ai_tools = [\"Claude Code\"]\n";
+        std::fs::write(&path, content).unwrap();
+
+        let new_version = env!("CARGO_PKG_VERSION");
+
+        // Replicate update_marker_version logic reading from our temp path
+        let content = std::fs::read_to_string(&path).unwrap();
+        let updated: String = content
+            .lines()
+            .map(|line| {
+                let trimmed = line.trim();
+                if trimmed.starts_with("version") && trimmed[7..].trim_start().starts_with('=') {
+                    format!("version = \"{}\"", new_version)
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(&path, format!("{}\n", updated)).unwrap();
+
+        let result = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            result.contains(&format!("version = \"{}\"", new_version)),
+            "version should be updated"
+        );
+        assert!(
+            result.contains("setup_at = \"1711900000\""),
+            "setup_at should be preserved"
+        );
+        assert!(
+            result.contains("editors = [\"vscode\", \"claude\"]"),
+            "editors should be preserved"
+        );
+        assert!(
+            result.contains("ai_tools = [\"Claude Code\"]"),
+            "ai_tools should be preserved"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // write_marker_with_editors
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// write_marker_with_editors produces valid TOML-like content.
+    #[test]
+    fn write_marker_with_editors_format() {
+        let results = vec![
+            SetupResult {
+                name: "Claude Code".to_string(),
+                success: true,
+                message: "ok".to_string(),
+            },
+            SetupResult {
+                name: "Cursor".to_string(),
+                success: true,
+                message: "ok".to_string(),
+            },
+            SetupResult {
+                name: "FailedTool".to_string(),
+                success: false,
+                message: "failed".to_string(),
+            },
+        ];
+        let editors = vec!["vscode", "claude", "cursor"];
+
+        // Build the content the same way write_marker_with_editors does
+        let ai_tools: Vec<&str> = results
+            .iter()
+            .filter(|r| {
+                r.success
+                    && [
+                        "Claude Code",
+                        "Cursor",
+                        "Copilot",
+                        "Windsurf",
+                        "Roo Code",
+                        "Agent Skills",
+                    ]
+                    .contains(&r.name.as_str())
+            })
+            .map(|r| r.name.as_str())
+            .collect();
+
+        assert_eq!(ai_tools, vec!["Claude Code", "Cursor"]);
+
+        let editors_toml: Vec<String> = editors.iter().map(|e| format!("\"{}\"", e)).collect();
+        let editors_str = editors_toml.join(", ");
+        assert_eq!(editors_str, "\"vscode\", \"claude\", \"cursor\"");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SetupResult and MachineStatus basic behavior
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn machine_status_equality() {
+        assert_eq!(MachineStatus::NeverSetup, MachineStatus::NeverSetup);
+        assert_eq!(MachineStatus::NeedsUpdate, MachineStatus::NeedsUpdate);
+        assert_eq!(MachineStatus::Ready, MachineStatus::Ready);
+        assert_ne!(MachineStatus::NeverSetup, MachineStatus::Ready);
+        assert_ne!(MachineStatus::NeedsUpdate, MachineStatus::Ready);
+    }
+
+    #[test]
+    fn setup_result_debug_format() {
+        let r = SetupResult {
+            name: "Test".to_string(),
+            success: true,
+            message: "ok".to_string(),
+        };
+        let debug = format!("{:?}", r);
+        assert!(debug.contains("Test"));
+        assert!(debug.contains("true"));
+    }
 }

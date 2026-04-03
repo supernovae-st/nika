@@ -1417,3 +1417,108 @@ async fn wiremock_fetch_llm_txt_fallback_to_short() {
     assert!(parsed["url"].as_str().unwrap().contains("llms.txt"));
     assert!(parsed["content"].as_str().unwrap().contains("Short only"));
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Robots.txt Compliance Tests
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn wiremock_fetch_blocked_by_robots_txt() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/robots.txt"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("User-agent: *\nDisallow: /admin/"),
+        )
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/admin/secret"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("secret"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, event_log) = setup();
+    let task_id: Arc<str> = Arc::from("robots_blocked");
+    let params = fetch_params(&format!("{}/admin/secret", server.uri()), "GET");
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    assert!(result.is_err(), "Should be blocked by robots.txt");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("robots.txt"),
+        "Error should mention robots.txt, got: {err}"
+    );
+
+    let events = event_log.events();
+    let blocked = events.iter().find(|e| {
+        matches!(
+            &e.kind,
+            EventKind::PolicyBlocked { policy_type, .. } if policy_type == "robots_txt"
+        )
+    });
+    assert!(
+        blocked.is_some(),
+        "Should emit PolicyBlocked event for robots.txt"
+    );
+}
+
+#[tokio::test]
+async fn wiremock_fetch_allowed_by_robots_txt() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/robots.txt"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("User-agent: *\nDisallow: /admin/"),
+        )
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/public/page"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("public content"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("robots_allowed");
+    let params = fetch_params(&format!("{}/public/page", server.uri()), "GET");
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    assert_eq!(result, "public content");
+}
+
+#[tokio::test]
+async fn wiremock_fetch_no_robots_txt_allows_all() {
+    let server = MockServer::start().await;
+
+    // No /robots.txt mock → 404
+    Mock::given(method("GET"))
+        .and(path("/anything"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("allowed"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("no_robots");
+    let params = fetch_params(&format!("{}/anything", server.uri()), "GET");
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    assert_eq!(result, "allowed");
+}

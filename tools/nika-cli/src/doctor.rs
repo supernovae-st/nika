@@ -785,7 +785,8 @@ fn check_lsp_available() -> Vec<DiagnosticCheck> {
 fn extension_source_label(binary: &str) -> &'static str {
     match binary {
         "code" => "Marketplace",
-        "cursor" | "windsurf" => "Open VSX",
+        "cursor" => "Cursor Marketplace",
+        "windsurf" => "Open VSX",
         _ => "marketplace",
     }
 }
@@ -1531,5 +1532,30 @@ mod tests {
             "Expected 4 workflows (skipping hidden dir), got: {}",
             wf_check.message
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // extension_source_label
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn extension_source_label_vscode_is_marketplace() {
+        assert_eq!(extension_source_label("code"), "Marketplace");
+    }
+
+    #[test]
+    fn extension_source_label_cursor_is_cursor_marketplace() {
+        assert_eq!(extension_source_label("cursor"), "Cursor Marketplace");
+    }
+
+    #[test]
+    fn extension_source_label_windsurf_is_open_vsx() {
+        assert_eq!(extension_source_label("windsurf"), "Open VSX");
+    }
+
+    #[test]
+    fn extension_source_label_unknown_is_lowercase_marketplace() {
+        assert_eq!(extension_source_label("zed"), "marketplace");
+        assert_eq!(extension_source_label(""), "marketplace");
     }
 }
