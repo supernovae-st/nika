@@ -337,7 +337,11 @@ mod tests {
         });
         let result: Value =
             serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
-        assert_eq!(result["tags"], json!(["rust", "nika"]), "arrays are leaf values");
+        assert_eq!(
+            result["tags"],
+            json!(["rust", "nika"]),
+            "arrays are leaf values"
+        );
         assert_eq!(result["meta.version"], 1);
     }
 }

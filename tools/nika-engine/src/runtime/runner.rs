@@ -1157,7 +1157,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         return IterationResult {
                             store_id: task_id,
                             result: TaskResult::skipped(format!(
-                                "Skipped: when '{}' → '{}'", when_expr, resolved
+                                "Skipped: when '{}' → '{}'",
+                                when_expr, resolved
                             )),
                             for_each_info,
                         };
@@ -1171,7 +1172,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     return IterationResult {
                         store_id: task_id,
                         result: TaskResult::skipped(format!(
-                            "Skipped: when resolution failed: {}", e
+                            "Skipped: when resolution failed: {}",
+                            e
                         )),
                         for_each_info,
                     };

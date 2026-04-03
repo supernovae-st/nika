@@ -468,7 +468,11 @@ mod tests {
     #[tokio::test]
     async fn test_write_json_object_via_call() {
         let (temp_dir, ctx) = setup_test().await;
-        let file_path = temp_dir.path().join("data.json").to_string_lossy().to_string();
+        let file_path = temp_dir
+            .path()
+            .join("data.json")
+            .to_string_lossy()
+            .to_string();
         let tool = WriteTool::new(ctx);
         let result = tool
             .call(json!({

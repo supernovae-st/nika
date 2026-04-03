@@ -1431,8 +1431,7 @@ async fn wiremock_fetch_blocked_by_robots_txt() {
     Mock::given(method("GET"))
         .and(path("/robots.txt"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_string("User-agent: *\nDisallow: /admin/"),
+            ResponseTemplate::new(200).set_body_string("User-agent: *\nDisallow: /admin/"),
         )
         .mount(&server)
         .await;
@@ -1478,8 +1477,7 @@ async fn wiremock_fetch_allowed_by_robots_txt() {
     Mock::given(method("GET"))
         .and(path("/robots.txt"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_string("User-agent: *\nDisallow: /admin/"),
+            ResponseTemplate::new(200).set_body_string("User-agent: *\nDisallow: /admin/"),
         )
         .mount(&server)
         .await;
@@ -1620,7 +1618,10 @@ async fn wiremock_fetch_session_disabled_no_cookies() {
         .execute(&task_id2, &action2, &bindings, &datastore, None)
         .await
         .unwrap();
-    assert_eq!(result2, "anonymous", "Should NOT send cookies when session disabled");
+    assert_eq!(
+        result2, "anonymous",
+        "Should NOT send cookies when session disabled"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1669,7 +1670,10 @@ async fn wiremock_fetch_cache_304_returns_cached() {
         .execute(&task_id2, &action2, &bindings, &datastore, None)
         .await
         .unwrap();
-    assert_eq!(result2, "original content", "Should return cached body on 304");
+    assert_eq!(
+        result2, "original content",
+        "Should return cached body on 304"
+    );
 }
 
 #[tokio::test]

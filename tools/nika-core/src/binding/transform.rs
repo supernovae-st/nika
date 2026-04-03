@@ -939,12 +939,11 @@ impl TransformOp {
             TransformOp::Regex(pattern) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "regex" }),
                 Value::String(s) => {
-                    let re =
-                        cached_regex(pattern).map_err(|e| TransformError::TypeMismatch {
-                            op: "regex",
-                            expected: "valid regex pattern",
-                            got: format!("invalid regex: {}", e),
-                        })?;
+                    let re = cached_regex(pattern).map_err(|e| TransformError::TypeMismatch {
+                        op: "regex",
+                        expected: "valid regex pattern",
+                        got: format!("invalid regex: {}", e),
+                    })?;
                     match re.find(s) {
                         Some(m) => Ok(Value::String(m.as_str().to_string())),
                         None => Ok(Value::Null),
@@ -2913,7 +2912,11 @@ mod tests {
         let expr = TransformExpr::parse("where('status', 'active')").unwrap();
         assert_eq!(
             expr.ops.as_slice(),
-            &[TransformOp::Where("status".to_string(), "eq".to_string(), json!("active"))]
+            &[TransformOp::Where(
+                "status".to_string(),
+                "eq".to_string(),
+                json!("active")
+            )]
         );
     }
 
@@ -2922,7 +2925,11 @@ mod tests {
         let expr = TransformExpr::parse("where('age', 30)").unwrap();
         assert_eq!(
             expr.ops.as_slice(),
-            &[TransformOp::Where("age".to_string(), "eq".to_string(), json!(30))]
+            &[TransformOp::Where(
+                "age".to_string(),
+                "eq".to_string(),
+                json!(30)
+            )]
         );
     }
 
@@ -2956,9 +2963,11 @@ mod tests {
 
     #[test]
     fn apply_where_null_errors() {
-        assert!(TransformOp::Where("x".to_string(), "eq".to_string(), json!("y"))
-            .apply(&Value::Null)
-            .is_err());
+        assert!(
+            TransformOp::Where("x".to_string(), "eq".to_string(), json!("y"))
+                .apply(&Value::Null)
+                .is_err()
+        );
     }
 
     #[test]
@@ -3465,9 +3474,7 @@ mod tests {
     fn group_by_missing_field() {
         // items without the field get grouped under "null"
         let data = json!([{"a": 1}, {"b": 2}]);
-        let result = TransformOp::GroupBy("a".to_string())
-            .apply(&data)
-            .unwrap();
+        let result = TransformOp::GroupBy("a".to_string()).apply(&data).unwrap();
         assert!(result.get("1").is_some());
         assert!(result.get("null").is_some());
     }
@@ -3672,10 +3679,9 @@ mod tests {
             {"meta": {"score": 40}},
             {"meta": {"score": 75}}
         ]);
-        let result =
-            TransformOp::Where("meta.score".to_string(), "gt".to_string(), json!(70))
-                .apply(&data)
-                .unwrap();
+        let result = TransformOp::Where("meta.score".to_string(), "gt".to_string(), json!(70))
+            .apply(&data)
+            .unwrap();
         assert_eq!(result.as_array().unwrap().len(), 2);
     }
 
@@ -3719,9 +3725,7 @@ mod tests {
         let r1 = TransformOp::Regex(pattern.clone())
             .apply(&json!("abc123"))
             .unwrap();
-        let r2 = TransformOp::Regex(pattern)
-            .apply(&json!("xyz456"))
-            .unwrap();
+        let r2 = TransformOp::Regex(pattern).apply(&json!("xyz456")).unwrap();
         assert_eq!(r1, json!("123"));
         assert_eq!(r2, json!("456"));
     }

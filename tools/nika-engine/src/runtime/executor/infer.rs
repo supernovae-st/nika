@@ -132,12 +132,11 @@ impl TaskExecutor {
                     path.clone()
                 };
                 Self::validate_schema_path(&resolved_path)?;
-                let content =
-                    tokio::fs::read_to_string(&resolved_path)
-                        .await
-                        .map_err(|e| NikaError::SchemaFailed {
-                            details: format!("Failed to read from_example '{}': {}", resolved_path, e),
-                        })?;
+                let content = tokio::fs::read_to_string(&resolved_path)
+                    .await
+                    .map_err(|e| NikaError::SchemaFailed {
+                        details: format!("Failed to read from_example '{}': {}", resolved_path, e),
+                    })?;
                 let value: Value =
                     serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
                         details: format!("Invalid JSON in from_example '{}': {}", resolved_path, e),
