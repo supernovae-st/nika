@@ -7,10 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.63.3 — SKILLS + SERVE HARDENING                                  ║
-║  Skills on infer | Job isolation | Provider validation | 7 fixes           ║
+║  NIKA v0.64.0 — SITE AUDIT CRAWLER                                        ║
+║  nika:enrich | map+transform | metadata_links | spider mode                ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.64.0] — 2026-04-04
+
+### Added
+- **`nika:enrich` builtin tool** — Add computed fields to array elements using selector + transform expressions. Zero LLM calls for locale detection, depth calculation, soft 404 detection. Handles null elements (PartialSuccess crawl results).
+- **`nika:map` `transform` parameter** — Apply pipe transform chains per extracted element. Example: `transform: "| url_path | split('/') | compact | length"` computes URL depth for each element.
+- **`extract: metadata_links`** — New extract mode combining metadata + links in a single HTTP request. Returns title, description, canonical, hreflang, OG tags AND internal/external link classification. Saves 1 fetch per page in link discovery workflows.
+
+### Fixed
+- **Spider mode: `extract: sitemap` returns empty on non-XML** — When sitemap.xml returns HTML 404 or non-XML content, returns `{urls:[], sitemaps:[], count:0, is_index:false}` instead of failing. Enables workflows that gracefully handle sites without sitemaps.
 
 ## [0.63.3] — 2026-04-03
 
