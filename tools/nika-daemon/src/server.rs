@@ -137,6 +137,14 @@ impl DaemonServer {
             tokio::fs::set_permissions(socket_path, perms).await?;
         }
 
+        // Persist current exe path for job spawning (VPS-01).
+        // After binary upgrade, current_exe() returns the old path. This file
+        // is read as fallback by JobService when current_exe() fails.
+        if let Ok(exe) = std::env::current_exe() {
+            let exe_path_file = crate::daemon_dir().join("nika-exe-path");
+            let _ = tokio::fs::write(&exe_path_file, exe.to_string_lossy().as_bytes()).await;
+        }
+
         info!(path = %socket_path.display(), "daemon listening");
 
         // Initialize job storage — fatal on failure so systemd Restart=always
