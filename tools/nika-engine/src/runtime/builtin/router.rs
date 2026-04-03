@@ -66,8 +66,8 @@ impl BuiltinToolRouter {
 
         // Register 9 data processing tools
         use super::data_tools::{
-            ChunkTool, FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool, SetDiffTool,
-            TokenCountTool, ZipTool,
+            ChunkTool, EnrichTool, FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool,
+            SetDiffTool, TokenCountTool, ZipTool,
         };
         tools.insert("json_merge", Arc::new(JsonMergeTool));
         tools.insert("set_diff", Arc::new(SetDiffTool));
@@ -78,6 +78,7 @@ impl BuiltinToolRouter {
         tools.insert("group_by", Arc::new(GroupByTool));
         tools.insert("chunk", Arc::new(ChunkTool));
         tools.insert("token_count", Arc::new(TokenCountTool));
+        tools.insert("enrich", Arc::new(EnrichTool));
 
         // Register 6 Sprint 2 data tools
         use super::{
@@ -314,7 +315,7 @@ mod tests {
         // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
-        // 7 core + 9 data tools + 6 sprint2 tools
+        // 7 core + 10 data tools + 6 sprint2 tools
         assert!(router.has_tool("json_merge"));
         assert!(router.has_tool("set_diff"));
         assert!(router.has_tool("zip"));
@@ -324,13 +325,14 @@ mod tests {
         assert!(router.has_tool("group_by"));
         assert!(router.has_tool("chunk"));
         assert!(router.has_tool("token_count"));
+        assert!(router.has_tool("enrich"));
         assert!(router.has_tool("json_verify"));
         assert!(router.has_tool("yaml_validate"));
         assert!(router.has_tool("locale_lookup"));
         assert!(router.has_tool("aggregate"));
         assert!(router.has_tool("json_flatten"));
         assert!(router.has_tool("json_unflatten"));
-        assert_eq!(router.tool_names().len(), 22); // 7 core + 9 data + 6 sprint2
+        assert_eq!(router.tool_names().len(), 23); // 7 core + 10 data + 6 sprint2
     }
 
     #[test]
@@ -360,7 +362,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 27); // 7 core + 9 data + 6 sprint2 + 5 file
+        assert_eq!(router.tool_names().len(), 28); // 7 core + 10 data + 6 sprint2 + 5 file
     }
 
     #[test]
@@ -444,8 +446,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has 7 core + 9 data + 6 sprint2 tools
-        assert_eq!(router.tool_names().len(), 22);
+        // Default router has 7 core + 10 data + 6 sprint2 tools
+        assert_eq!(router.tool_names().len(), 23);
     }
 
     #[tokio::test]

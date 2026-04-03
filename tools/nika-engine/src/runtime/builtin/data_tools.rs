@@ -11,6 +11,7 @@
 //! - `nika:json_query` — JSONPath query on data
 
 use super::BuiltinTool;
+use crate::binding::TransformExpr;
 use crate::error::NikaError;
 use serde::Deserialize;
 use serde_json::Value;
@@ -383,6 +384,9 @@ struct MapParams {
     array: Value,
     /// Dot-path field name to extract (e.g. "loc", "address.city")
     selector: String,
+    /// Optional transform chain to apply to each extracted value (e.g. "| url_path | split('/') | compact | length")
+    #[serde(default)]
+    transform: Option<String>,
 }
 
 /// Extract a field from a value by navigating a dot-separated path.
@@ -417,6 +421,10 @@ impl BuiltinTool for MapTool {
                 "selector": {
                     "type": "string",
                     "description": "Dot-path field to extract (e.g. 'loc', 'address.city')"
+                },
+                "transform": {
+                    "type": "string",
+                    "description": "Optional transform chain to apply to each extracted value (e.g. '| url_path | split(\\'/\\') | compact | length')"
                 }
             },
             "additionalProperties": false
@@ -442,13 +450,148 @@ impl BuiltinTool for MapTool {
                     reason: "Expected array for 'array' parameter".into(),
                 })?;
 
+            // Pre-parse transform chain once (fail fast on invalid syntax)
+            let transform = params
+                .transform
+                .as_deref()
+                .map(|chain| {
+                    TransformExpr::parse(chain).map_err(|e| NikaError::BuiltinToolError {
+                        tool: "nika:map".into(),
+                        reason: format!("Invalid transform: {e}"),
+                    })
+                })
+                .transpose()?;
+
             let result: Vec<Value> = array
                 .iter()
-                .map(|v| extract_field(v, &params.selector))
+                .map(|v| {
+                    let extracted = extract_field(v, &params.selector);
+                    if let Some(ref expr) = transform {
+                        expr.apply(&extracted).unwrap_or(Value::Null)
+                    } else {
+                        extracted
+                    }
+                })
                 .collect();
 
             serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:map".into(),
+                reason: format!("Serialization failed: {e}"),
+            })
+        })
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// nika:enrich
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct EnrichTool;
+
+#[derive(Debug, Deserialize)]
+struct EnrichParams {
+    /// Array of objects to enrich
+    array: Vec<Value>,
+    /// Map of field_name → "selector | transform_chain" expressions
+    fields: std::collections::BTreeMap<String, String>,
+}
+
+/// Parse a field expression like "extracted.title | default('') | lower" into
+/// a (dot_path, Option<TransformExpr>) pair.
+fn parse_field_expr(expr: &str) -> Result<(&str, Option<TransformExpr>), NikaError> {
+    // Split at first ` | ` to separate dot-path from transform chain
+    if let Some(pipe_pos) = expr.find(" | ") {
+        let selector = expr[..pipe_pos].trim();
+        let chain = &expr[pipe_pos..]; // includes the leading " | "
+        let transform = TransformExpr::parse(chain).map_err(|e| NikaError::BuiltinToolError {
+            tool: "nika:enrich".into(),
+            reason: format!("Invalid transform in field expression: {e}"),
+        })?;
+        Ok((selector, Some(transform)))
+    } else {
+        Ok((expr.trim(), None))
+    }
+}
+
+impl BuiltinTool for EnrichTool {
+    fn name(&self) -> &'static str {
+        "enrich"
+    }
+
+    fn description(&self) -> &'static str {
+        "Add computed fields to each element in an array using selector + transform expressions"
+    }
+
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["array", "fields"],
+            "properties": {
+                "array": {
+                    "type": "array",
+                    "description": "Array of objects to enrich"
+                },
+                "fields": {
+                    "type": "object",
+                    "description": "Map of field_name → 'selector | transform_chain' expressions",
+                    "additionalProperties": { "type": "string" }
+                }
+            },
+            "additionalProperties": false
+        })
+    }
+
+    fn call<'a>(
+        &'a self,
+        args: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+        Box::pin(async move {
+            let params: EnrichParams =
+                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika:enrich".into(),
+                    reason: format!("Invalid parameters: {e}"),
+                })?;
+
+            // Pre-parse all field expressions (fail fast on invalid syntax)
+            let parsed_fields: Vec<(&str, &str, Option<TransformExpr>)> = params
+                .fields
+                .iter()
+                .map(|(name, expr)| {
+                    let (selector, transform) = parse_field_expr(expr)?;
+                    Ok((name.as_str(), selector, transform))
+                })
+                .collect::<Result<Vec<_>, NikaError>>()?;
+
+            let result: Vec<Value> = params
+                .array
+                .into_iter()
+                .map(|elem| {
+                    // Null elements pass through (PartialSuccess crawl results)
+                    if elem.is_null() {
+                        return Value::Null;
+                    }
+                    // Non-object elements pass through
+                    let mut obj = match elem {
+                        Value::Object(map) => map,
+                        other => return other,
+                    };
+
+                    for &(name, selector, ref transform) in &parsed_fields {
+                        let extracted = extract_field(&Value::Object(obj.clone()), selector);
+                        let final_value = if let Some(ref expr) = transform {
+                            expr.apply(&extracted).unwrap_or(Value::Null)
+                        } else {
+                            extracted
+                        };
+                        obj.insert(name.to_string(), final_value);
+                    }
+
+                    Value::Object(obj)
+                })
+                .collect();
+
+            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+                tool: "nika:enrich".into(),
                 reason: format!("Serialization failed: {e}"),
             })
         })
@@ -1254,5 +1397,131 @@ mod tests {
             .call(r#"{"text": "hello world", "chunk_size": 10, "overlap": 20}"#.into())
             .await;
         assert!(result.is_err());
+    }
+
+    // ── map + transform ─────────────────────────────────────────
+    #[tokio::test]
+    async fn map_with_transform_depth() {
+        let tool = MapTool;
+        let data = json!({
+            "array": [
+                {"url": "https://example.com"},
+                {"url": "https://example.com/en/page"},
+                {"url": "https://example.com/fr/docs/api/ref"}
+            ],
+            "selector": "url",
+            "transform": "| url_path | split('/') | compact | length"
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, json!([0, 2, 4]));
+    }
+
+    #[tokio::test]
+    async fn map_with_transform_first_segment() {
+        let tool = MapTool;
+        let data = json!({
+            "array": [
+                {"url": "https://example.com/en/page"},
+                {"url": "https://example.com/fr-ca/docs"},
+                {"url": "https://example.com"}
+            ],
+            "selector": "url",
+            "transform": "| url_path | split('/') | compact | first | default('default')"
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, json!(["en", "fr-ca", "default"]));
+    }
+
+    #[tokio::test]
+    async fn map_without_transform_unchanged() {
+        // Existing behavior must remain intact when no transform is specified
+        let tool = MapTool;
+        let data = json!({
+            "array": [{"url": "/a"}, {"url": "/b"}],
+            "selector": "url"
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, json!(["/a", "/b"]));
+    }
+
+    // ── enrich ──────────────────────────────────────────────────
+    #[tokio::test]
+    async fn enrich_locale_and_depth() {
+        let tool = EnrichTool;
+        let data = json!({
+            "array": [
+                {"url": "https://example.com/en/about", "status": 200},
+                {"url": "https://example.com/fr/docs/api", "status": 200}
+            ],
+            "fields": {
+                "locale": "url | url_path | split('/') | compact | first | default('default')",
+                "depth": "url | url_path | split('/') | compact | length"
+            }
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        let arr = parsed.as_array().unwrap();
+        assert_eq!(arr[0]["locale"], "en");
+        assert_eq!(arr[0]["depth"], 2);
+        assert_eq!(arr[0]["status"], 200); // original fields preserved
+        assert_eq!(arr[1]["locale"], "fr");
+        assert_eq!(arr[1]["depth"], 3);
+    }
+
+    #[tokio::test]
+    async fn enrich_soft_404() {
+        let tool = EnrichTool;
+        let data = json!({
+            "array": [
+                {"url": "/a", "extracted": {"title": "Page Not Found - Site"}},
+                {"url": "/b", "extracted": {"title": "About Us"}}
+            ],
+            "fields": {
+                "is_soft_404": "extracted.title | default('') | lower | contains('not found')"
+            }
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        let arr = parsed.as_array().unwrap();
+        assert_eq!(arr[0]["is_soft_404"], true);
+        assert_eq!(arr[1]["is_soft_404"], false);
+    }
+
+    #[tokio::test]
+    async fn enrich_null_elements() {
+        let tool = EnrichTool;
+        let data = json!({
+            "array": [null, {"url": "https://example.com/en"}],
+            "fields": {
+                "locale": "url | url_path | split('/') | compact | first | default('default')"
+            }
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        let arr = parsed.as_array().unwrap();
+        assert!(arr[0].is_null()); // null passed through
+        assert_eq!(arr[1]["locale"], "en");
+    }
+
+    #[tokio::test]
+    async fn enrich_missing_fields() {
+        let tool = EnrichTool;
+        let data = json!({
+            "array": [
+                {"url": "/a"},
+                {"url": "/b", "extracted": {"title": "Hello"}}
+            ],
+            "fields": {
+                "title": "extracted.title | default('')"
+            }
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        let arr = parsed.as_array().unwrap();
+        assert_eq!(arr[0]["title"], ""); // missing → default('')
+        assert_eq!(arr[1]["title"], "Hello");
     }
 }

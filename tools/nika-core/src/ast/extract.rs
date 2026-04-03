@@ -33,13 +33,16 @@ pub enum ExtractMode {
     LlmTxt,
     /// XML sitemap parsing (urlset + sitemapindex) (feature: fetch-sitemap)
     Sitemap,
+    /// Combined metadata + links in one extract (feature: fetch-html)
+    #[serde(rename = "metadata_links")]
+    MetadataLinks,
 }
 
 impl ExtractMode {
     /// All valid mode names, for error messages and LSP completions.
     pub const ALL_NAMES: &'static [&'static str] = &[
         "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
-        "llm_txt", "sitemap",
+        "llm_txt", "sitemap", "metadata_links",
     ];
 
     /// Parse a string into an `ExtractMode`.
@@ -55,6 +58,7 @@ impl ExtractMode {
             "feed" => Some(Self::Feed),
             "llm_txt" => Some(Self::LlmTxt),
             "sitemap" => Some(Self::Sitemap),
+            "metadata_links" => Some(Self::MetadataLinks),
             _ => None,
         }
     }
@@ -72,6 +76,7 @@ impl ExtractMode {
             Self::Feed => "feed",
             Self::LlmTxt => "llm_txt",
             Self::Sitemap => "sitemap",
+            Self::MetadataLinks => "metadata_links",
         }
     }
 
@@ -80,7 +85,9 @@ impl ExtractMode {
         match self {
             Self::Markdown => Some("fetch-markdown"),
             Self::Article => Some("fetch-article"),
-            Self::Text | Self::Selector | Self::Metadata | Self::Links => Some("fetch-html"),
+            Self::Text | Self::Selector | Self::Metadata | Self::Links | Self::MetadataLinks => {
+                Some("fetch-html")
+            }
             Self::Feed => Some("fetch-feed"),
             Self::Sitemap => Some("fetch-sitemap"),
             Self::Jsonpath | Self::LlmTxt => None,

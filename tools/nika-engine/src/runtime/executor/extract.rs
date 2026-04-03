@@ -132,6 +132,21 @@ pub(crate) fn apply_extract_with_base(
         #[cfg(feature = "fetch-html")]
         ExtractMode::Links => extract_links_json(body, base_url),
 
+        #[cfg(feature = "fetch-html")]
+        ExtractMode::MetadataLinks => {
+            let meta_str = extract_metadata_json(body, base_url)?;
+            let links_str = extract_links_json(body, base_url)?;
+            let mut meta: serde_json::Value = serde_json::from_str(&meta_str)
+                .map_err(|e| NikaError::ExtractError { reason: format!("JSON parse: {e}") })?;
+            let links: serde_json::Value = serde_json::from_str(&links_str)
+                .map_err(|e| NikaError::ExtractError { reason: format!("JSON parse: {e}") })?;
+            if let Some(obj) = meta.as_object_mut() {
+                obj.insert("links".into(), links);
+            }
+            serde_json::to_string(&meta)
+                .map_err(|e| NikaError::ExtractError { reason: format!("JSON serialize: {e}") })
+        }
+
         #[cfg(feature = "fetch-article")]
         ExtractMode::Article => {
             let mut readability =
@@ -205,8 +220,8 @@ pub(crate) fn apply_extract_with_base(
         }
         .into()),
         #[cfg(not(feature = "fetch-html"))]
-        ExtractMode::Text | ExtractMode::Selector | ExtractMode::Metadata | ExtractMode::Links => Err(ExecutionError::ExtractFailed {
-            reason: "extract: text/selector/metadata/links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
+        ExtractMode::Text | ExtractMode::Selector | ExtractMode::Metadata | ExtractMode::Links | ExtractMode::MetadataLinks => Err(ExecutionError::ExtractFailed {
+            reason: "extract: text/selector/metadata/links/metadata_links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
         }
         .into()),
         #[cfg(not(feature = "fetch-article"))]
@@ -1232,5 +1247,58 @@ mod tests {
         // quick-xml is lenient — it may not error on broken XML, just return empty
         // The important thing is no panic
         assert!(result.is_ok() || result.is_err());
+    }
+
+    // ── metadata_links ──────────────────────────────────────────
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_links_basic() {
+        let html = r#"<html>
+        <head>
+            <title>Test Page</title>
+            <meta name="description" content="A test page">
+        </head>
+        <body>
+            <a href="https://example.com/about">About</a>
+            <a href="https://example.com/blog">Blog</a>
+            <a href="https://external.com">External</a>
+        </body>
+        </html>"#;
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::MetadataLinks),
+            None,
+            Some("https://example.com"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        // Has metadata fields
+        assert_eq!(parsed["title"], "Test Page");
+        assert_eq!(parsed["description"], "A test page");
+        // Has links
+        assert!(parsed["links"].is_object());
+        let links = &parsed["links"]["links"];
+        assert!(links.is_array());
+        assert!(links.as_array().unwrap().len() >= 2);
+    }
+
+    #[cfg(feature = "fetch-html")]
+    #[test]
+    fn metadata_links_empty() {
+        let html = "<html><head></head><body></body></html>";
+        let result = apply_extract_with_base(
+            html,
+            Some(ExtractMode::MetadataLinks),
+            None,
+            Some("https://example.com"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        // Title should be empty or missing
+        assert!(
+            parsed["title"].is_null() || parsed["title"] == "" || parsed["title"] == "null"
+        );
+        // Links should exist but be empty
+        assert!(parsed["links"].is_object());
     }
 }
