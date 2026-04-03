@@ -228,8 +228,11 @@ impl TaskExecutor {
         let is_response_full = fetch.response == Some(nika_core::ast::extract::ResponseMode::Full);
         let redirect_chain: std::sync::Arc<parking_lot::Mutex<Vec<(u16, String)>>> =
             std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
-        let needs_custom_client =
-            fetch.follow_redirects == Some(false) || !pinned_addrs.is_empty() || is_response_full;
+        let session_enabled = fetch.session == Some(true);
+        let needs_custom_client = fetch.follow_redirects == Some(false)
+            || !pinned_addrs.is_empty()
+            || is_response_full
+            || session_enabled;
         let http_client: std::borrow::Cow<'_, reqwest::Client> = if needs_custom_client {
             let mut builder = reqwest::Client::builder()
                 .timeout(crate::util::FETCH_TIMEOUT)
@@ -281,6 +284,10 @@ impl TaskExecutor {
                         }
                     }
                 }));
+            }
+            // Cookie jar for session persistence
+            if session_enabled {
+                builder = builder.cookie_provider(Arc::clone(&self.cookie_jar));
             }
             // DNS pinning: force reqwest to use our pre-validated IPs
             if let Some(ref host) = pinned_host {
@@ -344,6 +351,13 @@ impl TaskExecutor {
                 });
             }
             request = request.header(resolved_key, resolved_value.as_ref());
+        }
+
+        // ── ETag / conditional request headers ─────────────────────────────
+        if fetch.cache == Some(true) {
+            for (name, value) in self.fetch_cache.conditional_headers(&url) {
+                request = request.header(&name, &value);
+            }
         }
 
         // Handle json field - takes precedence over body
@@ -620,6 +634,18 @@ impl TaskExecutor {
                                 final_url
                             ),
                         });
+                    }
+
+                    // ── 304 Not Modified: return cached body ───────────────
+                    if status_code == 304 && fetch.cache == Some(true) {
+                        if let Some(cached) = self.fetch_cache.get(&url) {
+                            tracing::debug!(
+                                task_id = %task_id,
+                                url = %url,
+                                "fetch: 304 Not Modified, returning cached body"
+                            );
+                            return Ok(cached.body);
+                        }
                     }
 
                     // Check response mode BEFORE consuming the body
@@ -946,6 +972,25 @@ impl TaskExecutor {
                     }
 
                     let response_url = response.url().to_string();
+                    // Capture cache headers before consuming response body
+                    let cache_etag = if fetch.cache == Some(true) {
+                        response
+                            .headers()
+                            .get("etag")
+                            .and_then(|v| v.to_str().ok())
+                            .map(|s| s.to_string())
+                    } else {
+                        None
+                    };
+                    let cache_last_modified = if fetch.cache == Some(true) {
+                        response
+                            .headers()
+                            .get("last-modified")
+                            .and_then(|v| v.to_str().ok())
+                            .map(|s| s.to_string())
+                    } else {
+                        None
+                    };
                     // HREFLANG-001: capture Link headers before consuming response body
                     let link_headers: Vec<String> = response
                         .headers()
@@ -954,6 +999,16 @@ impl TaskExecutor {
                         .filter_map(|v| v.to_str().ok().map(String::from))
                         .collect();
                     let raw_body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
+                    // Store in cache if enabled
+                    if fetch.cache == Some(true) {
+                        self.fetch_cache.store(
+                            &url,
+                            raw_body.clone(),
+                            status_code,
+                            cache_etag,
+                            cache_last_modified,
+                        );
+                    }
                     // Resolve templates in selector (e.g. {{with.css_query}})
                     let resolved_selector = match &fetch.selector {
                         Some(s) => Some(template_resolve(s, bindings, datastore)?.into_owned()),

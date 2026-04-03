@@ -1524,3 +1524,185 @@ async fn wiremock_fetch_no_robots_txt_allows_all() {
 
     assert_eq!(result, "allowed");
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Cookie / Session Tests
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn wiremock_fetch_session_cookies_persist() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/login"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("logged in")
+                .append_header("Set-Cookie", "session=abc123; Path=/"),
+        )
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/profile"))
+        .and(header("Cookie", "session=abc123"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("user data"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+
+    let task_id: Arc<str> = Arc::from("login");
+    let mut login_params = fetch_params(&format!("{}/login", server.uri()), "POST");
+    login_params.session = Some(true);
+    let action = TaskAction::Fetch {
+        fetch: login_params,
+    };
+    executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    let task_id2: Arc<str> = Arc::from("profile");
+    let mut profile_params = fetch_params(&format!("{}/profile", server.uri()), "GET");
+    profile_params.session = Some(true);
+    let action2 = TaskAction::Fetch {
+        fetch: profile_params,
+    };
+    let result2 = executor
+        .execute(&task_id2, &action2, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        result2, "user data",
+        "Cookie should be sent on second request"
+    );
+}
+
+#[tokio::test]
+async fn wiremock_fetch_session_disabled_no_cookies() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/login"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("logged in")
+                .append_header("Set-Cookie", "session=abc123; Path=/"),
+        )
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/profile"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("anonymous"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+
+    let task_id: Arc<str> = Arc::from("login_nosess");
+    let login_params = fetch_params(&format!("{}/login", server.uri()), "POST");
+    let action = TaskAction::Fetch {
+        fetch: login_params,
+    };
+    executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    let task_id2: Arc<str> = Arc::from("profile_nosess");
+    let profile_params = fetch_params(&format!("{}/profile", server.uri()), "GET");
+    let action2 = TaskAction::Fetch {
+        fetch: profile_params,
+    };
+    let result2 = executor
+        .execute(&task_id2, &action2, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result2, "anonymous", "Should NOT send cookies when session disabled");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ETag / Cache Tests
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn wiremock_fetch_cache_304_returns_cached() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/data"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("original content")
+                .append_header("ETag", "\"v1\""),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/data"))
+        .and(header("If-None-Match", "\"v1\""))
+        .respond_with(ResponseTemplate::new(304))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+
+    let task_id: Arc<str> = Arc::from("cache_first");
+    let mut params = fetch_params(&format!("{}/data", server.uri()), "GET");
+    params.cache = Some(true);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "original content");
+
+    let task_id2: Arc<str> = Arc::from("cache_second");
+    let mut params2 = fetch_params(&format!("{}/data", server.uri()), "GET");
+    params2.cache = Some(true);
+    let action2 = TaskAction::Fetch { fetch: params2 };
+    let result2 = executor
+        .execute(&task_id2, &action2, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result2, "original content", "Should return cached body on 304");
+}
+
+#[tokio::test]
+async fn wiremock_fetch_cache_disabled_no_conditional_headers() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/data"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("content")
+                .append_header("ETag", "\"v1\""),
+        )
+        .expect(2)
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+
+    let task_id: Arc<str> = Arc::from("nocache_1");
+    let params = fetch_params(&format!("{}/data", server.uri()), "GET");
+    let action = TaskAction::Fetch { fetch: params };
+    executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    let task_id2: Arc<str> = Arc::from("nocache_2");
+    let params2 = fetch_params(&format!("{}/data", server.uri()), "GET");
+    let action2 = TaskAction::Fetch { fetch: params2 };
+    let result = executor
+        .execute(&task_id2, &action2, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "content");
+}
