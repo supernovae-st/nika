@@ -33,6 +33,11 @@ pub struct ReadParams {
     /// Maximum lines to read (default: 2000)
     #[serde(default)]
     pub limit: Option<usize>,
+
+    /// When true, return raw content without line numbers.
+    /// Saves ~15% tokens when feeding file content to LLM prompts.
+    #[serde(default)]
+    pub raw: Option<bool>,
 }
 
 /// Result from reading a file
@@ -121,27 +126,32 @@ impl ReadTool {
         let lines_returned = selected_lines.len();
         let truncated = offset + lines_returned < total_lines;
 
-        // Format with line numbers (cat -n style)
-        // Format: "    N\tline content"
-        let formatted = selected_lines
-            .iter()
-            .enumerate()
-            .map(|(i, line)| {
-                let line_num = offset + i + 1;
-                let truncated_line = if line.len() > Self::MAX_LINE_LENGTH {
-                    // Find a valid UTF-8 char boundary at or before MAX_LINE_LENGTH
-                    let mut end = Self::MAX_LINE_LENGTH;
-                    while end > 0 && !line.is_char_boundary(end) {
-                        end -= 1;
-                    }
-                    format!("{}...", &line[..end])
-                } else {
-                    line.to_string()
-                };
-                format!("{:>6}\t{}", line_num, truncated_line)
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+        let is_raw = params.raw.unwrap_or(false);
+
+        // Format output: raw mode returns plain text, default adds line numbers
+        let formatted = if is_raw {
+            selected_lines.join("\n")
+        } else {
+            // cat -n style: "    N\tline content"
+            selected_lines
+                .iter()
+                .enumerate()
+                .map(|(i, line)| {
+                    let line_num = offset + i + 1;
+                    let truncated_line = if line.len() > Self::MAX_LINE_LENGTH {
+                        let mut end = Self::MAX_LINE_LENGTH;
+                        while end > 0 && !line.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                        format!("{}...", &line[..end])
+                    } else {
+                        line.to_string()
+                    };
+                    format!("{:>6}\t{}", line_num, truncated_line)
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
 
         // Mark as read for edit validation
         self.ctx.mark_as_read(&path);
@@ -196,7 +206,7 @@ impl FileTool for ReadTool {
                     "maximum": 10000
                 }
             },
-            "required": ["file_path", "offset", "limit"],
+            "required": ["file_path"],
             "additionalProperties": false
         })
     }
@@ -208,12 +218,17 @@ impl FileTool for ReadTool {
                 message: format!("Invalid parameters: {}", e),
             })?;
 
+        let is_raw = params.raw.unwrap_or(false);
         let result = self.execute(params).await?;
 
-        Ok(ToolOutput::success_with_data(
-            result.content.clone(),
-            serde_json::to_value(&result).unwrap_or_default(),
-        ))
+        if is_raw {
+            Ok(ToolOutput::success(result.content))
+        } else {
+            Ok(ToolOutput::success_with_data(
+                result.content.clone(),
+                serde_json::to_value(&result).unwrap_or_default(),
+            ))
+        }
     }
 }
 
@@ -238,6 +253,7 @@ mod tests {
                 file_path,
                 offset: None,
                 limit: None,
+                raw: None,
             })
             .await
             .unwrap();
@@ -265,6 +281,7 @@ mod tests {
                 file_path,
                 offset: Some(5),
                 limit: Some(3),
+                raw: None,
             })
             .await
             .unwrap();
@@ -289,6 +306,7 @@ mod tests {
                 file_path,
                 offset: None,
                 limit: None,
+                raw: None,
             })
             .await
             .unwrap();
@@ -311,6 +329,7 @@ mod tests {
             file_path,
             offset: None,
             limit: None,
+            raw: None,
         })
         .await
         .unwrap();
@@ -333,6 +352,7 @@ mod tests {
                 file_path,
                 offset: None,
                 limit: None,
+                raw: None,
             })
             .await;
 
@@ -350,6 +370,7 @@ mod tests {
                 file_path: "/etc/passwd".to_string(),
                 offset: None,
                 limit: None,
+                raw: None,
             })
             .await;
 
@@ -373,6 +394,7 @@ mod tests {
                 file_path: "relative.txt".to_string(),
                 offset: None,
                 limit: None,
+                raw: None,
             })
             .await;
 
