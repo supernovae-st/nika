@@ -60,7 +60,9 @@ pub use complete::{
     CompleteTool, COMPLETION_MARKER,
 };
 pub use cost::CostTool;
-pub use data_tools::{JsonMergeTool, JsonQueryTool, SetDiffTool, ZipTool};
+pub use data_tools::{
+    FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool, SetDiffTool, ZipTool,
+};
 pub use emit::EmitTool;
 pub use json_transform::{JsonFlattenTool, JsonUnflattenTool};
 pub use json_verify::JsonVerifyTool;
