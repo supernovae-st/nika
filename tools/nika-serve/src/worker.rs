@@ -401,6 +401,13 @@ pub(crate) async fn run_subprocess(
             match tokio::time::timeout(timeout, child.wait()).await {
                 Ok(Ok(status)) => {
                     if status.success() {
+                        if !stderr.trim().is_empty() {
+                            tracing::warn!(
+                                workflow = %workflow,
+                                stderr = %stderr.trim(),
+                                "subprocess succeeded with stderr output"
+                            );
+                        }
                         Ok(stdout)
                     } else {
                         let code = status.code().unwrap_or(-1);
