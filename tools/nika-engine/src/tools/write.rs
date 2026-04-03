@@ -28,8 +28,28 @@ pub struct WriteParams {
     #[serde(alias = "path")]
     pub file_path: String,
 
-    /// Content to write
+    /// Content to write.
+    /// Accepts strings directly, or objects/arrays which are auto-serialized to pretty JSON.
+    #[serde(deserialize_with = "deserialize_content")]
     pub content: String,
+}
+
+/// Deserialize content from any JSON value: strings pass through,
+/// objects/arrays are pretty-printed, primitives are converted to string.
+fn deserialize_content<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::String(s) => Ok(s),
+        Value::Object(_) | Value::Array(_) => {
+            serde_json::to_string_pretty(&value).map_err(serde::de::Error::custom)
+        }
+        Value::Number(n) => Ok(n.to_string()),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Null => Ok(String::new()),
+    }
 }
 
 /// Result from writing a file
@@ -176,8 +196,7 @@ impl FileTool for WriteTool {
                     "description": "Absolute path for the new file"
                 },
                 "content": {
-                    "type": "string",
-                    "description": "Content to write to the file"
+                    "description": "Content to write. Strings written as-is; objects/arrays serialized to pretty JSON."
                 }
             },
             "required": ["file_path", "content"],
@@ -420,5 +439,48 @@ mod tests {
         let params: WriteParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.file_path, "/tmp/test.txt");
         assert_eq!(params.content, "hello");
+    }
+
+    #[test]
+    fn write_params_accepts_object_content() {
+        let json = r#"{"file_path": "/tmp/t.json", "content": {"name": "test", "count": 42}}"#;
+        let params: WriteParams = serde_json::from_str(json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&params.content).unwrap();
+        assert_eq!(parsed["name"], "test");
+        assert_eq!(parsed["count"], 42);
+    }
+
+    #[test]
+    fn write_params_accepts_array_content() {
+        let json = r#"{"file_path": "/tmp/t.json", "content": [1, 2, 3]}"#;
+        let params: WriteParams = serde_json::from_str(json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&params.content).unwrap();
+        assert!(parsed.is_array());
+    }
+
+    #[test]
+    fn write_params_accepts_null_content() {
+        let json = r#"{"file_path": "/tmp/t.txt", "content": null}"#;
+        let params: WriteParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.content, "");
+    }
+
+    #[tokio::test]
+    async fn test_write_json_object_via_call() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir.path().join("data.json").to_string_lossy().to_string();
+        let tool = WriteTool::new(ctx);
+        let result = tool
+            .call(json!({
+                "file_path": file_path,
+                "content": {"key": "value", "nested": {"a": 1}}
+            }))
+            .await
+            .unwrap();
+        assert!(!result.is_error);
+        let content = fs::read_to_string(&file_path).await.unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["key"], "value");
+        assert_eq!(parsed["nested"]["a"], 1);
     }
 }
