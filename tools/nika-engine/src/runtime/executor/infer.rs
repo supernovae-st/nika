@@ -123,18 +123,24 @@ impl TaskExecutor {
         // Fail fast if the file is missing or contains invalid JSON — continuing
         // would waste an API call that L2 validation will reject anyway.
         // SECURITY: reject paths with traversal patterns before reading.
+        // Template-resolve path first (e.g. from_example: "cache/{{inputs.locale | lower}}.json")
         let cached_example = if let Some(policy) = output_policy {
             if let Some(SchemaRef::File(ref path)) = policy.from_example {
-                Self::validate_schema_path(path)?;
+                let resolved_path = if path.contains("{{") {
+                    template_resolve(path, bindings, datastore)?.into_owned()
+                } else {
+                    path.clone()
+                };
+                Self::validate_schema_path(&resolved_path)?;
                 let content =
-                    tokio::fs::read_to_string(path)
+                    tokio::fs::read_to_string(&resolved_path)
                         .await
                         .map_err(|e| NikaError::SchemaFailed {
-                            details: format!("Failed to read from_example '{}': {}", path, e),
+                            details: format!("Failed to read from_example '{}': {}", resolved_path, e),
                         })?;
                 let value: Value =
                     serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
-                        details: format!("Invalid JSON in from_example '{}': {}", path, e),
+                        details: format!("Invalid JSON in from_example '{}': {}", resolved_path, e),
                     })?;
                 Some(value)
             } else {
