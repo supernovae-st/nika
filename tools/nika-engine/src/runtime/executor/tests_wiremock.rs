@@ -1286,3 +1286,56 @@ async fn wiremock_fetch_response_full_no_redirects() {
     let redirects = parsed["redirects"].as_array().unwrap();
     assert!(redirects.is_empty());
 }
+
+// ═══════════════════════════════════════════════════════════════
+// extract:sitemap + response:full combo
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn wiremock_fetch_response_full_with_extract_sitemap() {
+    let server = MockServer::start().await;
+    let xml = r#"<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <url><loc>https://example.com/</loc></url>
+        <url><loc>https://example.com/about</loc></url>
+    </urlset>"#;
+    Mock::given(method("GET"))
+        .and(path("/sitemap.xml"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(xml)
+                .insert_header("Content-Type", "application/xml"),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_full_sitemap");
+    let mut params = fetch_params(&format!("{}/sitemap.xml", server.uri()), "GET");
+    params.response = Some(nika_core::ast::extract::ResponseMode::Full);
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Sitemap);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    // Full response fields
+    assert_eq!(parsed["status"], 200);
+    assert!(parsed["body"].as_str().unwrap().contains("urlset"));
+    assert!(parsed["url"].as_str().unwrap().contains("/sitemap.xml"));
+    assert!(parsed["elapsed_ms"].as_u64().is_some());
+
+    // Extracted sitemap data
+    let extracted = &parsed["extracted"];
+    assert_eq!(extracted["is_index"], false);
+    assert_eq!(extracted["count"], 2);
+    assert_eq!(
+        extracted["urls"][0]["loc"],
+        "https://example.com/"
+    );
+    assert_eq!(
+        extracted["urls"][1]["loc"],
+        "https://example.com/about"
+    );
+}

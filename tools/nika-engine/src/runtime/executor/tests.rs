@@ -148,6 +148,43 @@ async fn test_exec_stdout_within_limit() {
     assert_eq!(result, "hello");
 }
 
+/// BUG-032: python3 -c and node -e in static YAML templates must be allowed.
+/// The security check should recognize interpreter -c/-e as intentional when
+/// written directly in YAML (not injected via template resolution).
+#[tokio::test]
+async fn test_exec_python3_c_allowed_in_static_yaml() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "python3 -c 'import json; print(json.dumps({\"ok\": True}))'".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: None,
+            max_stdout: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("bug032_python3_c");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+    assert!(
+        result.is_ok(),
+        "python3 -c should be allowed in static YAML, got error: {:?}",
+        result.err()
+    );
+    let output = result.unwrap();
+    assert!(
+        output.contains("ok"),
+        "Expected JSON with 'ok', got: {}",
+        output
+    );
+}
+
 #[tokio::test]
 async fn test_execute_exec_with_template_binding() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
