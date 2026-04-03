@@ -432,14 +432,42 @@ fn template_completions(
             item_value("keys", "Object keys as array.", "17_keys"),
             item_value("values", "Object values as array.", "18_values"),
             // Data transforms (array/object manipulation)
-            item_value("pluck(\"field\")", "Extract field from array of objects.", "19_pluck"),
-            item_value("where(\"field\", \"value\")", "Filter array by field equality.", "19a_where"),
-            item_value("pick(\"f1\", \"f2\")", "Keep only specified object fields.", "19b_pick"),
-            item_value("omit(\"f1\", \"f2\")", "Remove specified object fields.", "19c_omit"),
-            item_value("sort_by(\"field\")", "Sort array of objects by field.", "19d_sort_by"),
-            item_value("group_by(\"field\")", "Group array into object by field.", "19e_group_by"),
+            item_value(
+                "pluck(\"field\")",
+                "Extract field from array of objects.",
+                "19_pluck",
+            ),
+            item_value(
+                "where(\"field\", \"value\")",
+                "Filter array by field equality.",
+                "19a_where",
+            ),
+            item_value(
+                "pick(\"f1\", \"f2\")",
+                "Keep only specified object fields.",
+                "19b_pick",
+            ),
+            item_value(
+                "omit(\"f1\", \"f2\")",
+                "Remove specified object fields.",
+                "19c_omit",
+            ),
+            item_value(
+                "sort_by(\"field\")",
+                "Sort array of objects by field.",
+                "19d_sort_by",
+            ),
+            item_value(
+                "group_by(\"field\")",
+                "Group array into object by field.",
+                "19e_group_by",
+            ),
             item_value("merge", "Deep merge array of objects.", "19f_merge"),
-            item_value("regex(\"pattern\")", "Extract first regex match.", "19g_regex"),
+            item_value(
+                "regex(\"pattern\")",
+                "Extract first regex match.",
+                "19g_regex",
+            ),
             // Numeric transforms
             item_value("to_number", "Parse as number.", "20_to_number"),
             item_value("round", "Round to integer.", "21_round"),
@@ -456,8 +484,16 @@ fn template_completions(
             item_value("split(\",\")", "Split string by delimiter.", "41_split"),
             item_value("default(\"\")", "Default if null/empty.", "42_default"),
             // Encoding
-            item_value("base64_encode", "Encode string to base64.", "45_base64_encode"),
-            item_value("base64_decode", "Decode base64 to string.", "46_base64_decode"),
+            item_value(
+                "base64_encode",
+                "Encode string to base64.",
+                "45_base64_encode",
+            ),
+            item_value(
+                "base64_decode",
+                "Decode base64 to string.",
+                "46_base64_decode",
+            ),
             // System
             item_value("shell", "Shell-escape for safe interpolation.", "50_shell"),
         ];

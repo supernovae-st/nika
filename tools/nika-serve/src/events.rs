@@ -465,9 +465,13 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe("job-1").await;
 
-        bus.publish("job-1", ServeEvent::Started {
-            job_id: "job-1".into(),
-        }).await;
+        bus.publish(
+            "job-1",
+            ServeEvent::Started {
+                job_id: "job-1".into(),
+            },
+        )
+        .await;
 
         let (id, event) = rx.recv().await.unwrap();
         assert_eq!(id, 1);
@@ -479,11 +483,15 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe("job-1").await;
 
-        bus.publish("job-1", ServeEvent::TaskStart {
-            job_id: "job-1".into(),
-            task_id: "step1".into(),
-            verb: "infer".into(),
-        }).await;
+        bus.publish(
+            "job-1",
+            ServeEvent::TaskStart {
+                job_id: "job-1".into(),
+                task_id: "step1".into(),
+                verb: "infer".into(),
+            },
+        )
+        .await;
 
         let (id, event) = rx.recv().await.unwrap();
         assert_eq!(id, 1);
@@ -505,16 +513,30 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe("job-3").await;
 
-        bus.publish("job-3", ServeEvent::Started { job_id: "job-3".into() }).await;
-        bus.publish("job-3", ServeEvent::TaskStart {
-            job_id: "job-3".into(),
-            task_id: "s1".into(),
-            verb: "infer".into(),
-        }).await;
-        bus.publish("job-3", ServeEvent::Completed {
-            job_id: "job-3".into(),
-            output: None,
-        }).await;
+        bus.publish(
+            "job-3",
+            ServeEvent::Started {
+                job_id: "job-3".into(),
+            },
+        )
+        .await;
+        bus.publish(
+            "job-3",
+            ServeEvent::TaskStart {
+                job_id: "job-3".into(),
+                task_id: "s1".into(),
+                verb: "infer".into(),
+            },
+        )
+        .await;
+        bus.publish(
+            "job-3",
+            ServeEvent::Completed {
+                job_id: "job-3".into(),
+                output: None,
+            },
+        )
+        .await;
 
         let (id1, _) = rx.recv().await.unwrap();
         let (id2, _) = rx.recv().await.unwrap();
@@ -529,17 +551,22 @@ mod tests {
         let bus = EventBus::default();
 
         for i in 0..5 {
-            bus.publish("job-4", ServeEvent::TaskStart {
-                job_id: "job-4".into(),
-                task_id: format!("s{i}"),
-                verb: "infer".into(),
-            }).await;
+            bus.publish(
+                "job-4",
+                ServeEvent::TaskStart {
+                    job_id: "job-4".into(),
+                    task_id: format!("s{i}"),
+                    verb: "infer".into(),
+                },
+            )
+            .await;
         }
 
         let (_, ch) = bus.try_subscribe("job-4").await.unwrap();
         let hist = ch.history.lock().await;
 
-        let replayed: Vec<u64> = hist.iter()
+        let replayed: Vec<u64> = hist
+            .iter()
             .filter(|(id, _)| *id > 3)
             .map(|(id, _)| *id)
             .collect();
@@ -551,11 +578,15 @@ mod tests {
         let bus = EventBus::default();
 
         for i in 0..300 {
-            bus.publish("job-5", ServeEvent::TaskStart {
-                job_id: "job-5".into(),
-                task_id: format!("s{i}"),
-                verb: "infer".into(),
-            }).await;
+            bus.publish(
+                "job-5",
+                ServeEvent::TaskStart {
+                    job_id: "job-5".into(),
+                    task_id: format!("s{i}"),
+                    verb: "infer".into(),
+                },
+            )
+            .await;
         }
 
         let (_, ch) = bus.try_subscribe("job-5").await.unwrap();

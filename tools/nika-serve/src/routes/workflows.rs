@@ -244,7 +244,13 @@ pub async fn cancel_job(
         .await?;
 
     // Emit SSE event: cancelled
-    state.event_bus.publish(&id, crate::events::ServeEvent::Cancelled { job_id: id.clone() }).await;
+    state
+        .event_bus
+        .publish(
+            &id,
+            crate::events::ServeEvent::Cancelled { job_id: id.clone() },
+        )
+        .await;
     state.event_bus.remove(&id).await;
 
     Ok(Json(CancelResponse {
@@ -313,7 +319,10 @@ pub async fn list_workflows(
 
     // Apply cursor: skip everything up to and including `after`
     if let Some(ref after) = query.after {
-        if let Some(pos) = workflows.iter().position(|w| w.name.as_str() > after.as_str()) {
+        if let Some(pos) = workflows
+            .iter()
+            .position(|w| w.name.as_str() > after.as_str())
+        {
             workflows = workflows.split_off(pos);
         } else {
             workflows.clear();
@@ -706,12 +715,20 @@ mod tests {
     #[tokio::test]
     async fn list_workflows_with_limit() {
         let dir = tempfile::TempDir::new().unwrap();
-        for name in ["a.nika.yaml", "b.nika.yaml", "c.nika.yaml", "d.nika.yaml", "e.nika.yaml"] {
+        for name in [
+            "a.nika.yaml",
+            "b.nika.yaml",
+            "c.nika.yaml",
+            "d.nika.yaml",
+            "e.nika.yaml",
+        ] {
             std::fs::write(dir.path().join(name), "schema: nika/workflow@0.12").unwrap();
         }
         let base = dir.path().canonicalize().unwrap();
         let mut workflows = Vec::new();
-        collect_workflows(&base, &base, &mut workflows).await.unwrap();
+        collect_workflows(&base, &base, &mut workflows)
+            .await
+            .unwrap();
         workflows.sort_by(|a, b| a.name.cmp(&b.name));
         let has_more = workflows.len() > 2;
         workflows.truncate(2);
@@ -728,7 +745,9 @@ mod tests {
         }
         let base = dir.path().canonicalize().unwrap();
         let mut workflows = Vec::new();
-        collect_workflows(&base, &base, &mut workflows).await.unwrap();
+        collect_workflows(&base, &base, &mut workflows)
+            .await
+            .unwrap();
         workflows.sort_by(|a, b| a.name.cmp(&b.name));
         let after = "a.nika.yaml";
         if let Some(pos) = workflows.iter().position(|w| w.name.as_str() > after) {
