@@ -1046,6 +1046,7 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
             })
             .unwrap_or_default(),
         timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
+        max_stdout: raw.max_stdout.as_ref().map(|s| s.value),
         span: raw.command.span,
     }
 }
@@ -1883,6 +1884,7 @@ mod tests {
                     cwd: None,
                     env: None,
                     timeout_ms: None,
+                    max_stdout: None,
                 },
                 make_span(0, 20),
             ))),

@@ -253,6 +253,7 @@ fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
         } else {
             Some(e.env.into_iter().collect())
         },
+        max_stdout: e.max_stdout,
     }
 }
 
@@ -824,6 +825,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .unwrap_or_default(),
             // Convert seconds (runtime) back to milliseconds (analyzed)
             timeout_ms: exec.timeout.map(|s| s * 1000),
+            max_stdout: exec.max_stdout,
             span: Span::dummy(),
         }),
         TaskAction::Fetch { fetch } => AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
@@ -1099,6 +1101,7 @@ mod tests {
                 cwd: Some("/app".to_string()),
                 env,
                 timeout_ms: Some(30000),
+                max_stdout: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "build")
@@ -2549,6 +2552,7 @@ mod tests {
                 cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: Some(500),
+                max_stdout: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")
@@ -2580,6 +2584,7 @@ mod tests {
                 cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: Some(1000),
+                max_stdout: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")

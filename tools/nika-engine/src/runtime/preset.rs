@@ -235,6 +235,7 @@ mod tests {
                 cwd: None,
                 timeout: None,
                 env: None,
+                max_stdout: None,
             },
         };
         let original = format!("{action:?}");

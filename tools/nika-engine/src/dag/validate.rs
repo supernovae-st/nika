@@ -1265,6 +1265,7 @@ mod tests {
                 timeout: None,
                 cwd: Some("{{with.dir}}".to_string()),
                 env: Some(env),
+                max_stdout: None,
             },
         };
         let templates = extract_task_templates(&action);

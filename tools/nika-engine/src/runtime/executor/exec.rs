@@ -324,7 +324,32 @@ impl TaskExecutor {
             .into());
         }
 
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        // Truncate stdout if it exceeds max_stdout (default: 50 MB)
+        const DEFAULT_MAX_STDOUT: u64 = 50 * 1024 * 1024;
+        let max = params.max_stdout.unwrap_or(DEFAULT_MAX_STDOUT) as usize;
+        let stdout = if output.stdout.len() > max {
+            tracing::warn!(
+                task_id = %task_id,
+                stdout_bytes = output.stdout.len(),
+                limit_bytes = max,
+                "exec: stdout truncated ({} bytes > {} limit)",
+                output.stdout.len(),
+                max,
+            );
+            // Truncate to max bytes, then find a valid UTF-8 boundary
+            let truncated = &output.stdout[..max];
+            let s = String::from_utf8_lossy(truncated);
+            format!(
+                "{}\n... [truncated: {} bytes total, {} byte limit]",
+                s.trim_end(),
+                output.stdout.len(),
+                max,
+            )
+        } else {
+            String::from_utf8_lossy(&output.stdout).trim().to_string()
+        };
+
+        Ok(stdout)
     }
 }
 

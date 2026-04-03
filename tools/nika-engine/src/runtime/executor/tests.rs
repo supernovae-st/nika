@@ -76,6 +76,7 @@ async fn test_execute_exec_simple_command() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -84,6 +85,66 @@ async fn test_execute_exec_simple_command() {
         .execute(&task_id, &action, &bindings, &datastore, None)
         .await
         .unwrap();
+    assert_eq!(result, "hello");
+}
+
+#[tokio::test]
+async fn test_exec_stdout_truncation() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    // Generate 200 bytes of output, limit to 100
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "python3 -c \"print('A' * 200)\"".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: None,
+            max_stdout: Some(100),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_truncate");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    // Should contain truncation notice
+    assert!(
+        result.contains("[truncated:"),
+        "Expected truncation notice, got: {}",
+        &result[..result.len().min(200)]
+    );
+    // Should not contain all 200 A's
+    assert!(result.matches('A').count() < 200);
+}
+
+#[tokio::test]
+async fn test_exec_stdout_within_limit() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "echo hello".to_string(),
+            shell: None,
+            timeout: None,
+            cwd: None,
+            env: None,
+            max_stdout: Some(1000),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_within_limit");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    // Should NOT contain truncation notice
+    assert!(!result.contains("[truncated:"));
     assert_eq!(result, "hello");
 }
 
@@ -101,6 +162,7 @@ async fn test_execute_exec_with_template_binding() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -126,6 +188,7 @@ async fn test_execute_exec_command_failure() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -161,6 +224,7 @@ async fn test_execute_exec_emits_template_resolved() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -572,6 +636,7 @@ async fn test_binding_resolution_single_template() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -598,6 +663,7 @@ async fn test_binding_resolution_multiple_templates() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -622,6 +688,7 @@ async fn test_binding_resolution_no_templates() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -647,6 +714,7 @@ async fn test_binding_resolution_json_value() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -679,6 +747,7 @@ async fn test_binding_resolution_datastore_lookup() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -866,6 +935,7 @@ async fn test_error_handling_exec_timeout() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -900,6 +970,7 @@ async fn test_action_type_helper() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
     assert_eq!(action_type(&exec_action), "exec");
@@ -994,6 +1065,7 @@ async fn test_execute_exec_blocked_by_policy() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -1041,6 +1113,7 @@ async fn test_execute_exec_allowed_by_policy() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -1080,6 +1153,7 @@ async fn test_execute_exec_disabled_by_policy() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -1277,6 +1351,7 @@ async fn test_run_exec_shell_free_mode_default() {
         timeout: None,
         cwd: None,
         env: None,
+        max_stdout: None,
     };
 
     let result = executor
@@ -1308,6 +1383,7 @@ async fn test_run_exec_shell_true_mode_interprets_metacharacters() {
         timeout: None,
         cwd: None,
         env: None,
+        max_stdout: None,
     };
 
     let result = executor
@@ -1332,6 +1408,7 @@ async fn test_run_exec_shell_free_prevents_injection() {
         timeout: None,
         cwd: None,
         env: None,
+        max_stdout: None,
     };
 
     let result = executor
@@ -1355,6 +1432,7 @@ async fn test_run_exec_security_validation_blocks_dangerous_commands() {
         timeout: None,
         cwd: None,
         env: None,
+        max_stdout: None,
     };
 
     let result = executor
@@ -1739,6 +1817,7 @@ async fn test_run_exec_with_env_vars() {
             timeout: None,
             cwd: None,
             env: Some(env),
+            max_stdout: None,
         },
     };
 
@@ -1767,6 +1846,7 @@ async fn test_run_exec_with_env_template_resolution() {
             timeout: None,
             cwd: None,
             env: Some(env),
+            max_stdout: None,
         },
     };
 
@@ -1795,6 +1875,7 @@ async fn test_run_exec_with_multiple_env_vars() {
             timeout: None,
             cwd: None,
             env: Some(env),
+            max_stdout: None,
         },
     };
 
@@ -1824,6 +1905,7 @@ async fn test_run_exec_with_custom_timeout() {
             timeout: Some(10), // 10 seconds, plenty of time
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2057,6 +2139,7 @@ async fn audit_exec_timeout_fires_promptly() {
             timeout: Some(1),
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2107,6 +2190,7 @@ async fn audit_exec_json_object_binding_breaks_shlex() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2153,6 +2237,7 @@ async fn audit_exec_stderr_in_error_message() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2184,6 +2269,7 @@ async fn audit_exec_output_trimmed() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2217,6 +2303,7 @@ async fn audit_blocklist_extra_spaces_bypass() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2252,6 +2339,7 @@ async fn audit_blocklist_tab_bypass() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2314,6 +2402,7 @@ async fn audit_exec_cwd_is_wired() {
             timeout: None,
             cwd: Some(".".to_string()),
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2356,6 +2445,7 @@ async fn test_exec_cwd_resolves_templates_shell_mode() {
             timeout: None,
             cwd: Some("{{inputs.output_dir}}".to_string()),
             env: None,
+            max_stdout: None,
         },
     };
 
@@ -2390,6 +2480,7 @@ async fn test_exec_cwd_resolves_templates_shellfree_mode() {
             timeout: None,
             cwd: Some("{{with.work_dir}}".to_string()),
             env: None,
+            max_stdout: None,
         },
     };
 

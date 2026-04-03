@@ -192,6 +192,9 @@ pub struct AnalyzedExecAction {
     /// Timeout in milliseconds
     pub timeout_ms: Option<u64>,
 
+    /// Maximum stdout size in bytes before truncation. Default: 50 MB.
+    pub max_stdout: Option<u64>,
+
     /// Span of the action
     pub span: Span,
 }

@@ -104,6 +104,9 @@ pub struct RawExecAction {
 
     /// Timeout in milliseconds
     pub timeout_ms: Option<Spanned<u64>>,
+
+    /// Maximum stdout size in bytes before truncation. Default: 50 MB.
+    pub max_stdout: Option<Spanned<u64>>,
 }
 
 /// Parameters for the `fetch` verb (HTTP requests).

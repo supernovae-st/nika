@@ -780,6 +780,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
             cwd: None,
             env: None,
             timeout_ms: None,
+            max_stdout: None,
         }),
         // Full form
         Node::Mapping(m) => {
@@ -801,6 +802,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
                     None => get_u64_field(file, m, "timeout")?
                         .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
                 },
+                max_stdout: get_u64_field(file, m, "max_stdout")?,
             })
         }
         _ => Err(ParseError {

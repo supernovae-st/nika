@@ -238,6 +238,8 @@ pub struct ExecParams {
     pub cwd: Option<String>,
     /// Environment variables to pass to the command
     pub env: Option<FxHashMap<String, String>>,
+    /// Maximum stdout size in bytes before truncation. Default: 50 MB.
+    pub max_stdout: Option<u64>,
 }
 
 impl<'de> Deserialize<'de> for ExecParams {
@@ -259,6 +261,8 @@ impl<'de> Deserialize<'de> for ExecParams {
                 cwd: Option<String>,
                 #[serde(default)]
                 env: Option<FxHashMap<String, String>>,
+                #[serde(default)]
+                max_stdout: Option<u64>,
             },
         }
 
@@ -269,6 +273,7 @@ impl<'de> Deserialize<'de> for ExecParams {
                 timeout: None,
                 cwd: None,
                 env: None,
+                max_stdout: None,
             }),
             ExecParamsHelper::Full {
                 command,
@@ -276,12 +281,14 @@ impl<'de> Deserialize<'de> for ExecParams {
                 timeout,
                 cwd,
                 env,
+                max_stdout,
             } => Ok(ExecParams {
                 command,
                 shell,
                 timeout,
                 cwd,
                 env,
+                max_stdout,
             }),
         }
     }
@@ -1408,6 +1415,7 @@ agent:
                 timeout: None,
                 cwd: None,
                 env: None,
+                max_stdout: None,
             },
         };
         assert_eq!(action.verb_name(), "exec");
@@ -1623,6 +1631,7 @@ fetch:
                 timeout: None,
                 cwd: None,
                 env: None,
+                max_stdout: None,
             },
         };
         let fetch = TaskAction::Fetch {

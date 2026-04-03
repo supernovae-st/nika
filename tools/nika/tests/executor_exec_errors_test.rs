@@ -38,6 +38,7 @@ async fn run_exec(
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
     let task_id: Arc<str> = Arc::from(task_id);
@@ -323,6 +324,7 @@ async fn test_exec_template_missing_binding() {
             timeout: None,
             cwd: None,
             env: None,
+            max_stdout: None,
         },
     };
     let task_id: Arc<str> = Arc::from("template_missing");
