@@ -837,11 +837,13 @@ impl BuiltinTool for TokenCountTool {
                 })?;
 
             // Heuristic: ~4 characters per token (OpenAI's own approximation)
-            let token_count = params.text.len() / 4;
+            // Use char count, not byte length, for correct non-ASCII estimation.
+            let char_count = params.text.chars().count();
+            let token_count = char_count / 4;
 
             let result = serde_json::json!({
                 "tokens": token_count,
-                "characters": params.text.len(),
+                "characters": char_count,
                 "model": params.model,
             });
 
@@ -1229,5 +1231,28 @@ mod tests {
         let parsed: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["tokens"], 0);
         assert_eq!(parsed["characters"], 0);
+    }
+
+    #[tokio::test]
+    async fn token_count_non_ascii() {
+        let tool = TokenCountTool;
+        // "héllo" = 5 chars, 6 bytes in UTF-8 — must use char count not byte count
+        let result = tool
+            .call(r#"{"text": "héllo café résumé"}"#.into())
+            .await
+            .unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        // 17 chars (h-é-l-l-o- -c-a-f-é- -r-é-s-u-m-é), not 20 bytes
+        assert_eq!(parsed["characters"], 17);
+        assert_eq!(parsed["tokens"], 4); // 17/4 = 4
+    }
+
+    #[tokio::test]
+    async fn chunk_overlap_exceeds_size_errors() {
+        let tool = ChunkTool;
+        let result = tool
+            .call(r#"{"text": "hello world", "chunk_size": 10, "overlap": 20}"#.into())
+            .await;
+        assert!(result.is_err());
     }
 }

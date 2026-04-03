@@ -19,8 +19,7 @@ pub struct DomainRateLimiter {
 impl DomainRateLimiter {
     /// Create a new rate limiter with the given requests per second.
     ///
-    /// # Panics
-    /// Panics if `requests_per_second` is 0.
+    /// If `requests_per_second` is 0, it is clamped to 1 RPS.
     pub fn new(requests_per_second: u32) -> Self {
         let rps = NonZeroU32::new(requests_per_second).unwrap_or(NonZeroU32::MIN);
         let quota = Quota::per_second(rps);

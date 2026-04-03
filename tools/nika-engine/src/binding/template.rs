@@ -488,16 +488,17 @@ pub fn resolve_with<'a>(
                         }
                         // BUG-035: If transforms include default(), recover with null
                         // so the default() transform can fire instead of NIKA-052.
-                        let has_default = transforms
-                            .iter()
-                            .any(|t| t == "default" || t.starts_with("default("));
-                        if has_default && !transforms.is_empty() {
+                        // Use TransformExpr::has_default() for type-safe detection
+                        // (matches resolve.rs pattern at line 699).
+                        if !transforms.is_empty() {
                             let transform_str = transforms.join(" | ");
                             if let Ok(expr) = TransformExpr::parse(&transform_str) {
-                                if let Ok(transformed) = expr.apply(&Value::Null) {
-                                    result.push_str(&value_to_display(&transformed));
-                                    last_end = m.end();
-                                    continue;
+                                if expr.has_default() {
+                                    if let Ok(transformed) = expr.apply(&Value::Null) {
+                                        result.push_str(&value_to_display(&transformed));
+                                        last_end = m.end();
+                                        continue;
+                                    }
                                 }
                             }
                         }

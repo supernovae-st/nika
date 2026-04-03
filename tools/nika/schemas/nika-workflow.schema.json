@@ -675,8 +675,8 @@
         },
         "response": {
           "type": "string",
-          "enum": ["full", "binary"],
-          "description": "Response mode: full (status + headers + body JSON) or binary (CAS store)"
+          "enum": ["full", "binary", "slim"],
+          "description": "Response mode: full (status + headers + body JSON), binary (CAS store), or slim (metadata only — no body/headers)"
         },
         "extract": {
           "type": "string",
