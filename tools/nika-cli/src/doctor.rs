@@ -782,6 +782,15 @@ fn check_lsp_available() -> Vec<DiagnosticCheck> {
     checks
 }
 
+/// Infer the marketplace source from the editor binary name.
+fn extension_source_label(binary: &str) -> &'static str {
+    match binary {
+        "code" => "Marketplace",
+        "cursor" | "windsurf" => "Open VSX",
+        _ => "marketplace",
+    }
+}
+
 fn check_editor_integration() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
     let mut found_any = false;
@@ -820,9 +829,10 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                         ),
                     ));
                 } else {
+                    let source = extension_source_label(def.binary);
                     checks.push(DiagnosticCheck::pass(
                         "Extension",
-                        format!("{}: nika-lang v{ext_ver}", def.name),
+                        format!("{}: nika-lang v{ext_ver} ({source})", def.name),
                     ));
                 }
             }

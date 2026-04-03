@@ -133,8 +133,12 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     // Write marker file
     write_marker(&results);
 
-    // Summary: show each configured editor by name
-    let ok_results: Vec<&SetupResult> = results.iter().filter(|r| r.success).collect();
+    // Summary: show each configured tool by name (deduplicated)
+    let mut seen = std::collections::HashSet::new();
+    let ok_results: Vec<&SetupResult> = results
+        .iter()
+        .filter(|r| r.success && seen.insert(r.name.as_str()))
+        .collect();
     if ok_results.is_empty() {
         println!("  {} No editors detected", "\u{25cb}".dimmed());
     } else {
@@ -222,6 +226,7 @@ fn setup_editors() -> Vec<SetupResult> {
             if !is_version_outdated(ver, cli_ver) {
                 // Up to date
                 println!("  {} {} + nika-lang v{}", StatusIcon::Ok, name, ver);
+                update_extension_version(def.id, ver);
                 results.push(SetupResult {
                     name: name.to_string(),
                     success: true,
@@ -250,6 +255,7 @@ fn setup_editors() -> Vec<SetupResult> {
                         name,
                         cli_ver
                     );
+                    update_extension_version(def.id, cli_ver);
                     results.push(SetupResult {
                         name: name.to_string(),
                         success: true,
@@ -287,6 +293,7 @@ fn setup_editors() -> Vec<SetupResult> {
                     StatusIcon::Ok,
                     name
                 );
+                update_extension_version(def.id, cli_ver);
                 results.push(SetupResult {
                     name: name.to_string(),
                     success: true,
@@ -295,19 +302,33 @@ fn setup_editors() -> Vec<SetupResult> {
             }
             Ok(output) => {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                // "not found" = not available on this editor's registry (e.g. Open VSX)
-                // This is expected for Cursor/Windsurf — not a failure
+                // "not found" = not on this editor's registry (e.g. Open VSX)
+                // Try sideloading from GitHub Releases before giving up
                 if stderr.contains("not found") {
-                    println!(
-                        "\r  {} {} — extension not available on marketplace       ",
-                        "\u{25cb}".dimmed(),
-                        name
-                    );
-                    results.push(SetupResult {
-                        name: name.to_string(),
-                        success: true,
-                        message: "extension not on marketplace".into(),
-                    });
+                    if try_vsix_sideload(&cli, cli_ver) {
+                        println!(
+                            "\r  {} {} — nika-lang sideloaded from release       ",
+                            StatusIcon::Ok,
+                            name
+                        );
+                        update_extension_version(def.id, cli_ver);
+                        results.push(SetupResult {
+                            name: name.to_string(),
+                            success: true,
+                            message: "sideloaded from release".into(),
+                        });
+                    } else {
+                        println!(
+                            "\r  {} {} — extension not available on marketplace       ",
+                            "\u{25cb}".dimmed(),
+                            name
+                        );
+                        results.push(SetupResult {
+                            name: name.to_string(),
+                            success: true,
+                            message: "extension not on marketplace".into(),
+                        });
+                    }
                 } else {
                     println!(
                         "\r  {} {} — install failed          ",
@@ -491,6 +512,159 @@ fn update_rule_hash(editor_key: &str, hash: &str) {
         }
     }
     std::fs::write(&path, lines.join("\n") + "\n").ok();
+}
+
+// ─── Extension Version Tracking ─────────────────────────────────────────────
+
+/// Read stored extension versions from `[extensions]` section of machine.toml.
+pub fn read_extension_versions() -> HashMap<String, String> {
+    let content = match std::fs::read_to_string(machine_toml_path()) {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+    let mut in_section = false;
+    let mut map = HashMap::new();
+    for line in content.lines() {
+        let t = line.trim();
+        if t == "[extensions]" {
+            in_section = true;
+            continue;
+        }
+        if t.starts_with('[') {
+            in_section = false;
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+        if let Some((k, v)) = t.split_once('=') {
+            let key = k.trim().to_string();
+            let val = v.trim().trim_matches('"').to_string();
+            if !key.is_empty() && !val.is_empty() {
+                map.insert(key, val);
+            }
+        }
+    }
+    map
+}
+
+/// Update a single extension version in the `[extensions]` section of machine.toml.
+fn update_extension_version(editor_id: &str, version: &str) {
+    let path = machine_toml_path();
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let new_line = format!("{} = \"{}\"", editor_id, version);
+    let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+    let section_idx = lines.iter().position(|l| l.trim() == "[extensions]");
+    match section_idx {
+        Some(idx) => {
+            let key_idx = lines[idx + 1..]
+                .iter()
+                .position(|l| {
+                    let t = l.trim();
+                    t.starts_with(editor_id)
+                        && t[editor_id.len()..].trim_start().starts_with('=')
+                })
+                .map(|i| i + idx + 1);
+            match key_idx {
+                Some(ki) => lines[ki] = new_line,
+                None => lines.insert(idx + 1, new_line),
+            }
+        }
+        None => {
+            lines.push(String::new());
+            lines.push("[extensions]".to_string());
+            lines.push(new_line);
+        }
+    }
+    std::fs::write(&path, lines.join("\n") + "\n").ok();
+}
+
+// ─── Fast Path: Silent Rule Update ──────────────────────────────────────────
+
+/// Fast-path setup: silently update AI rules if CLI version changed.
+///
+/// Pure filesystem I/O, no subprocesses. Safe for headless commands like `nika run`.
+/// Returns true if rules were actually updated.
+pub fn fast_rule_update() -> bool {
+    use super::status::machine_setup_status;
+    use super::status::MachineStatus;
+
+    // Only act on version mismatch (< 0.5ms when version matches)
+    if machine_setup_status() != MachineStatus::NeedsUpdate {
+        return false;
+    }
+
+    // Update rules silently (no println)
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return false,
+    };
+    let hashes = load_rule_hashes();
+    let mut dummy_results = Vec::new();
+    let editors = detect_editors();
+
+    if editors.contains(&"claude") {
+        install_rule(
+            &home.join(".claude/rules/nika.md"),
+            CLAUDE_RULES_CONTENT,
+            "Claude Code",
+            "claude",
+            &hashes,
+            &mut dummy_results,
+            true, // silent
+        );
+    }
+    if editors.contains(&"cursor") {
+        install_rule(
+            &home.join(".cursor/rules/nika.mdc"),
+            CURSOR_NIKA_RULES,
+            "Cursor",
+            "cursor",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+    }
+    if editors.contains(&"copilot") {
+        install_rule(
+            &home.join(".github/copilot/nika.instructions.md"),
+            COPILOT_RULES,
+            "Copilot",
+            "copilot",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+    }
+    if editors.contains(&"windsurf") {
+        install_rule(
+            &home.join(".windsurf/rules/nika.md"),
+            WINDSURF_RULES,
+            "Windsurf",
+            "windsurf",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+    }
+    if editors.contains(&"roo") {
+        install_rule(
+            &home.join(".roo/rules/nika.md"),
+            ROO_RULES,
+            "Roo Code",
+            "roo",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+    }
+
+    // Update only the version field (preserves everything else)
+    super::status::update_marker_version();
+    true
 }
 
 fn setup_ai_rules() -> Vec<SetupResult> {
@@ -831,8 +1005,22 @@ pub fn quick_editor_scan() {
         .filter(|e| !stored.iter().any(|s| s == *e))
         .collect();
 
-    if new_editors.is_empty() {
-        // Nothing new — apply cooldown to avoid repeated filesystem work
+    // Check for outdated extensions using stored versions (no subprocess)
+    let cli_ver = env!("CARGO_PKG_VERSION");
+    let stored_ext_versions = read_extension_versions();
+    let outdated_editors: Vec<&EditorDef> = VSCODE_EDITORS
+        .iter()
+        .filter(|def| {
+            current.contains(&def.id)
+                && stored_ext_versions
+                    .get(def.id)
+                    .map(|v| is_version_outdated(v, cli_ver))
+                    .unwrap_or(false)
+        })
+        .collect();
+
+    if new_editors.is_empty() && outdated_editors.is_empty() {
+        // Nothing to do — apply cooldown to avoid repeated filesystem work
         if let Some(last) = read_last_scan_at() {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -843,6 +1031,18 @@ pub fn quick_editor_scan() {
             }
         }
         return;
+    }
+
+    // Update outdated extensions silently (subprocess only when needed)
+    for def in &outdated_editors {
+        if let Some(cli) = resolve_editor_cli(def.binary) {
+            let result = Command::new(&cli)
+                .args(["--install-extension", def.ext_id, "--force"])
+                .output();
+            if result.map(|o| o.status.success()).unwrap_or(false) {
+                update_extension_version(def.id, cli_ver);
+            }
+        }
     }
 
     // New editors found — install rules immediately (bypass cooldown)
@@ -912,6 +1112,41 @@ pub fn quick_editor_scan() {
     // Update machine.toml with new editors list + scan timestamp
     update_machine_toml_editors(&current);
     write_last_scan_at();
+}
+
+/// Download VSIX from GitHub Releases and sideload it.
+/// Fallback when marketplace install fails (e.g., Open VSX missing the extension).
+fn try_vsix_sideload(cli: &Path, version: &str) -> bool {
+    let cache_dir = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".nika")
+        .join("cache");
+    std::fs::create_dir_all(&cache_dir).ok();
+    let vsix_path = cache_dir.join(format!("nika-lang-{}.vsix", version));
+    let url = format!(
+        "https://github.com/supernovae-st/nika/releases/download/v{}/nika-lang-{}.vsix",
+        version, version
+    );
+
+    // Download via curl (available on macOS, Linux, Windows 10+)
+    let download = Command::new("curl")
+        .args(["-fsSL", "-o"])
+        .arg(&vsix_path)
+        .arg(&url)
+        .output();
+
+    if !download.map(|o| o.status.success()).unwrap_or(false) {
+        std::fs::remove_file(&vsix_path).ok();
+        return false;
+    }
+
+    let install = Command::new(cli)
+        .arg("--install-extension")
+        .arg(&vsix_path)
+        .output();
+
+    std::fs::remove_file(&vsix_path).ok();
+    install.map(|o| o.status.success()).unwrap_or(false)
 }
 
 /// Silently install or update the nika-lang extension for a VS Code-compatible editor.

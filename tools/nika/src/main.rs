@@ -1026,6 +1026,13 @@ async fn main() {
     // Returns true if setup just ran (so we skip the redundant quick scan).
     let setup_just_ran = maybe_run_auto_setup(&cli.command, quiet);
 
+    // Fast path: silently update AI rules on ANY command after version change.
+    // Pure filesystem I/O (<0.5ms when version matches), no subprocess overhead.
+    // Ensures `nika run` after `brew upgrade` gets fresh rules immediately.
+    if !setup_just_ran && !cli::machine::is_ci() {
+        cli::machine::fast_rule_update();
+    }
+
     // Quick editor scan: detect newly installed editors and install rules.
     // Only runs when machine is already set up (adds ~5ms).
     // Skip if auto-setup just ran — it already scanned all editors.

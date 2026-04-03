@@ -100,6 +100,32 @@ pub(crate) fn machine_toml_path() -> PathBuf {
         .join("machine.toml")
 }
 
+/// Update ONLY the version field in machine.toml, preserving everything else.
+/// Used by `fast_rule_update()` after silently updating rules.
+pub fn update_marker_version() {
+    let path = machine_toml_path();
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let new_version = env!("CARGO_PKG_VERSION");
+    let updated: String = content
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim();
+            if trimmed.starts_with("version")
+                && trimmed[7..].trim_start().starts_with('=')
+            {
+                format!("version = \"{}\"", new_version)
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(&path, updated + "\n").ok();
+}
+
 /// Write the machine.toml marker file after setup completes.
 pub(super) fn write_marker(results: &[SetupResult]) {
     let editors = super::install::detect_editors();
