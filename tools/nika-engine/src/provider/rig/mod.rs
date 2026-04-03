@@ -1427,12 +1427,12 @@ impl RigProvider {
                 {
                     Err(ProviderVerifyError::NetworkError {
                         provider: self.name().to_string(),
-                        details: e.to_string(),
+                        details: crate::util::redact_secrets(&e.to_string()),
                     })
                 } else {
                     Err(ProviderVerifyError::ProviderError {
                         provider: self.name().to_string(),
-                        details: e.to_string(),
+                        details: crate::util::redact_secrets(&e.to_string()),
                     })
                 }
             }
