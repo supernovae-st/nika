@@ -138,7 +138,7 @@ pub(crate) fn resolve_provider_model(
     Ok((provider, None))
 }
 
-/// Create a one-shot TaskExecutor with custom endpoint support.
+/// Create a one-shot TaskExecutor with custom endpoint + policy support.
 async fn one_shot_executor(
     provider: &str,
     model: Option<&str>,
@@ -149,12 +149,14 @@ async fn one_shot_executor(
         .ok()
         .and_then(|cfg| cfg.resolve_endpoints().ok())
         .filter(|m| !m.is_empty());
+    // Load [policy] from nika.toml (allowed_hosts, blocked_hosts, etc.)
+    let policy = nika_engine::runtime::boot::load_policy_config();
     let executor = TaskExecutor::with_policy(
         provider,
         model,
         None,
         event_log.clone(),
-        None,
+        Some(policy),
         None,
         custom_endpoints,
     )?;

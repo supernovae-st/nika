@@ -134,7 +134,14 @@ impl TaskExecutor {
         //
         // Custom redirect policy: check each hop against SSRF blocklist to prevent
         // SSRF bypass via HTTP redirect (e.g., external → 169.254.169.254).
-        let ssrf_redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        // S3: Capture allowed_hosts for the shared redirect closure so that
+        // hosts whitelisted in [policy] aren't blocked on redirect.
+        let redirect_allowed: Vec<String> = policy_config
+            .as_ref()
+            .map(|p| p.allowed_hosts.clone())
+            .unwrap_or_default();
+
+        let ssrf_redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
             use crate::runtime::policy::is_ssrf_blocked;
 
             if attempt.previous().len() >= REDIRECT_LIMIT {
@@ -143,7 +150,10 @@ impl TaskExecutor {
                 let blocked = attempt.url().host_str().and_then(|host| {
                     let h = host.to_lowercase();
                     let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
-                    if is_ssrf_blocked(h_normalized) {
+                    let explicitly_allowed = redirect_allowed
+                        .iter()
+                        .any(|a| h_normalized == a.to_lowercase());
+                    if !explicitly_allowed && is_ssrf_blocked(h_normalized) {
                         Some(h)
                     } else {
                         None

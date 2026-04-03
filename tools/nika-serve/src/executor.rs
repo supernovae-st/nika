@@ -177,7 +177,11 @@ async fn run_embedded(
 
     let (event_log, engine_event_rx) = nika_event::EventLog::new_with_broadcast();
 
-    let mut runner = nika_engine::runtime::Runner::with_event_log(analyzed, event_log)
+    // S3/E1: Load [policy] from nika.toml so allowed_hosts, blocked_hosts,
+    // and max_token_spend are enforced by the embedded executor.
+    let policy = nika_engine::runtime::boot::load_policy_config();
+
+    let mut runner = nika_engine::runtime::Runner::with_policy(analyzed, event_log, policy)
         .map_err(|e| format!("runner init error: {e}"))?
         .quiet()
         .with_base_path(base_path)

@@ -311,6 +311,69 @@ impl Runner {
         })
     }
 
+    /// Create a Runner with explicit policy configuration.
+    ///
+    /// Policy from `[policy]` in nika.toml is threaded to the TaskExecutor
+    /// so that `allowed_hosts`, `blocked_hosts`, `max_token_spend`, etc.
+    /// are enforced during workflow execution.
+    pub fn with_policy(
+        workflow: AnalyzedWorkflow,
+        event_log: EventLog,
+        policy: crate::runtime::boot::PolicyConfig,
+    ) -> Result<Self, NikaError> {
+        let workflow = if workflow.goal.is_some() {
+            crate::runtime::orchestrate::wrap_as_orchestrator(workflow)
+        } else {
+            workflow
+        };
+
+        let flow_graph = Dag::from_analyzed(&workflow).map_err(|e| NikaError::ValidationError {
+            reason: format!("DAG construction failed: {e}"),
+        })?;
+        flow_graph.detect_cycles()?;
+        let datastore = RunContext::new();
+
+        let resolver = crate::core::McpConfigResolver::from_environment();
+        let mcp_configs =
+            lower_mcp_servers_with_resolver(workflow.mcp_servers.clone(), Some(&resolver));
+        let provider = workflow
+            .provider
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or_else(|| detect_first_configured_provider());
+
+        let mut executor = TaskExecutor::with_policy(
+            provider,
+            workflow.model.as_deref(),
+            mcp_configs,
+            event_log.clone(),
+            Some(policy),
+            None,
+            None,
+        )?;
+
+        executor.wire_introspection_tools(Arc::new(datastore.clone()));
+
+        let generation_id = format!("gen-{}", uuid::Uuid::new_v4());
+
+        Ok(Self {
+            workflow,
+            flow_graph,
+            datastore,
+            executor,
+            event_log,
+            generation_id,
+            quiet: false,
+            cancel_token: CancellationToken::new(),
+            paused: Arc::new(AtomicBool::new(false)),
+            resume_notify: Arc::new(Notify::new()),
+            resolved_assets: ResolvedAssets::default(),
+            trace_config: TraceConfig::default(),
+            cli_renderer: None,
+            global_task_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS)),
+        })
+    }
+
     /// Enable quiet mode to suppress console output (for TUI mode)
     ///
     /// When quiet is true, Runner will not print to stdout/stderr.

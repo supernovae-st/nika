@@ -335,6 +335,32 @@ impl Default for PolicyConfig {
     }
 }
 
+/// Load just the `PolicyConfig` from `nika.toml` (sync, best-effort).
+///
+/// Walks up from CWD to find `nika.toml`, parses the `[policy]` section.
+/// Falls back to `PolicyConfig::default()` if file not found or parse fails.
+/// Used by CLI one-shot verbs that don't run the full boot sequence.
+pub fn load_policy_config() -> PolicyConfig {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let mut dir = cwd.as_path();
+    loop {
+        let candidate = dir.join("nika.toml");
+        if candidate.exists() {
+            if let Ok(content) = std::fs::read_to_string(&candidate) {
+                if let Ok(config) = toml::from_str::<BootstrapConfig>(&content) {
+                    return config.policy;
+                }
+            }
+            break;
+        }
+        match dir.parent() {
+            Some(parent) => dir = parent,
+            None => break,
+        }
+    }
+    PolicyConfig::default()
+}
+
 /// Boot sequence runner
 pub struct BootSequence {
     start_dir: PathBuf,
