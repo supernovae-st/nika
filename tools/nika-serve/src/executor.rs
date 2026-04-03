@@ -362,20 +362,40 @@ fn spawn_event_forwarder(
 /// and child processes may emit ANSI SGR codes. API responses must be clean text.
 fn strip_ansi_escapes(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars();
+    let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\x1b' {
-            // Consume CSI sequence: ESC [ ... (letter)
-            if let Some(next) = chars.next() {
-                if next == '[' {
-                    // Skip until we hit a letter (the terminator)
+            match chars.peek() {
+                Some('[') => {
+                    // CSI sequence: ESC [ ... (letter)
+                    chars.next(); // consume '['
                     for ch in chars.by_ref() {
                         if ch.is_ascii_alphabetic() {
                             break;
                         }
                     }
                 }
-                // OSC or other sequences: ESC ] ... BEL/ST — skip
+                Some(']') => {
+                    // OSC sequence: ESC ] ... (BEL | ST)
+                    // Terminated by BEL (\x07) or ST (ESC \)
+                    chars.next(); // consume ']'
+                    for ch in chars.by_ref() {
+                        if ch == '\x07' {
+                            break; // BEL terminator
+                        }
+                        if ch == '\x1b' {
+                            // ST = ESC + backslash
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    // Other ESC sequences (single-char): skip next char
+                    chars.next();
+                }
             }
         } else {
             out.push(c);
@@ -449,6 +469,20 @@ mod tests {
         };
 
         assert_eq!(ctx.child_pid.load(std::sync::atomic::Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn strip_ansi_handles_osc_sequences() {
+        // OSC hyperlink: ESC ] 8 ;; URL BEL text ESC ] 8 ;; BEL
+        let input = "before\x1b]8;;https://example.com\x07link text\x1b]8;;\x07after";
+        assert_eq!(strip_ansi_escapes(input), "beforelink textafter");
+    }
+
+    #[test]
+    fn strip_ansi_handles_osc_with_st_terminator() {
+        // OSC terminated by ST (ESC \) instead of BEL
+        let input = "pre\x1b]0;window title\x1b\\post";
+        assert_eq!(strip_ansi_escapes(input), "prepost");
     }
 
     #[test]
