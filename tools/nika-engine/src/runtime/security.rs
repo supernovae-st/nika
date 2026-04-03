@@ -489,6 +489,101 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
     Ok(())
 }
 
+/// Interpreter patterns that are safe when written by the developer in YAML,
+/// but dangerous when injected via template data.
+///
+/// These are checked with the raw-vs-resolved pattern: if the pattern appears
+/// in the raw YAML template, it's developer intent and allowed. If it only
+/// appears after template resolution, it was injected and is blocked.
+const INTENT_PATTERNS: &[&str] = &[
+    // Python/interpreter -c (safe when developer writes it)
+    "python -c",
+    "python2 -c",
+    "python3 -c",
+    // Other interpreter inline execution
+    "perl -e",
+    "ruby -e",
+    "node -e",
+];
+
+/// Check blocklist with optional developer intent awareness (BUG-032).
+///
+/// When `raw_template` is provided, interpreter patterns (`python3 -c`, `node -e`, etc.)
+/// that appear in the raw YAML template are treated as developer intent and allowed.
+/// Destructive patterns (`rm -rf /`, `sudo`, etc.) are ALWAYS blocked.
+///
+/// When `raw_template` is `None`, behaves identically to `check_blocklist` (all blocked).
+pub fn check_blocklist_with_intent(cmd: &str, raw_template: Option<&str>) -> Result<(), NikaError> {
+    const SCAN_LIMIT: usize = 4096;
+    let scan_input = if cmd.len() > SCAN_LIMIT {
+        let mut end = SCAN_LIMIT;
+        while end > 0 && !cmd.is_char_boundary(end) {
+            end -= 1;
+        }
+        &cmd[..end]
+    } else {
+        cmd
+    };
+
+    let normalized = normalize_for_blocklist(scan_input);
+    let lower = normalized.to_lowercase();
+    let dequoted: String = lower
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\'' | '\\'))
+        .collect();
+    let basename_normalized = normalize_first_token_basename(&lower);
+    let basename_dequoted = normalize_first_token_basename(&dequoted);
+
+    let candidates = [&lower, &basename_normalized, &dequoted, &basename_dequoted];
+
+    for pattern in BLOCKLIST {
+        let normalized_pattern = pattern.to_lowercase();
+        let matched = candidates.iter().any(|c| c.contains(&normalized_pattern));
+        if !matched {
+            continue;
+        }
+
+        // Check if this is an intent pattern that may be developer-authored
+        let is_intent_pattern = INTENT_PATTERNS
+            .iter()
+            .any(|ip| normalized_pattern.starts_with(ip));
+
+        if is_intent_pattern {
+            if let Some(raw) = raw_template {
+                // Apply raw-vs-resolved: if pattern is in the raw template, allow it
+                let raw_normalized = normalize_for_blocklist(raw);
+                let raw_lower = raw_normalized.to_lowercase();
+                let raw_dequoted: String = raw_lower
+                    .chars()
+                    .filter(|c| !matches!(c, '"' | '\'' | '\\'))
+                    .collect();
+                let in_raw = raw_lower.contains(&normalized_pattern)
+                    || raw_dequoted.contains(&normalized_pattern);
+                if in_raw {
+                    // Developer wrote this intentionally — allow
+                    tracing::debug!(
+                        pattern = %pattern,
+                        "NIKA-053: Allowing developer-intent pattern found in raw template"
+                    );
+                    continue;
+                }
+            }
+            // No raw template or pattern not in raw → block (injected)
+        }
+
+        tracing::warn!(
+            command = %crate::util::redact_secrets(cmd),
+            pattern = %pattern,
+            "NIKA-053: Blocked dangerous command"
+        );
+        return Err(NikaError::BlockedCommand {
+            command: cmd.to_string(),
+            reason: format!("Blocklisted pattern: {}", pattern),
+        });
+    }
+    Ok(())
+}
+
 /// Normalize the first token of a command to its basename.
 ///
 /// `/usr/bin/sudo rm -rf /` → `sudo rm -rf /`
@@ -660,14 +755,20 @@ pub fn validate_exec_command(cmd: &str) -> Result<(), NikaError> {
 ///
 /// Returns `BlockedCommand` if any security check fails.
 pub fn validate_exec_command_with_shell(cmd: &str, shell_mode: bool) -> Result<(), NikaError> {
+    validate_exec_command_full(cmd, shell_mode, None)
+}
+
+/// Full security validation with optional raw template for developer intent detection.
+///
+/// When `raw_template` is provided, interpreter patterns (`python3 -c`, etc.)
+/// written by the developer in YAML are allowed through (BUG-032).
+pub fn validate_exec_command_full(
+    cmd: &str,
+    shell_mode: bool,
+    raw_template: Option<&str>,
+) -> Result<(), NikaError> {
     validate_command_string(cmd)?;
-    if shell_mode {
-        // Multi-line shell commands from YAML `|` blocks are legitimate.
-        // Instead of blanket-rejecting newlines, check each line against the blocklist.
-        // This allows `command: |\n  echo step1\n  echo step2` while still blocking
-        // `echo safe\nrm -rf /` (the dangerous line will fail the blocklist check below).
-    }
-    check_blocklist(cmd)?;
+    check_blocklist_with_intent(cmd, raw_template)?;
     if shell_mode {
         check_shell_mode_blocklist(cmd)?;
     }
@@ -2011,5 +2112,69 @@ mod tests {
         // Commands with quotes that don't hide blocklisted patterns should work
         assert!(check_blocklist(r#"echo "hello world""#).is_ok());
         assert!(check_blocklist("jq '.data' file.json").is_ok());
+    }
+
+    // =========================================================================
+    // BUG-032: Raw-vs-resolved for interpreter -c/-e patterns
+    // =========================================================================
+
+    #[test]
+    fn bug032_python3_c_allowed_when_in_raw_template() {
+        // Developer wrote "python3 -c ..." in YAML — intentional, allow it
+        let raw = "python3 -c 'import json; print(json.dumps({}))'";
+        let resolved = raw; // no template expansion
+        assert!(
+            check_blocklist_with_intent(resolved, Some(raw)).is_ok(),
+            "python3 -c in static YAML should be allowed"
+        );
+    }
+
+    #[test]
+    fn bug032_python3_c_blocked_when_injected() {
+        // Template data injected "python3 -c" — NOT in raw template
+        let raw = "echo '{{with.data}}'";
+        let resolved = "echo 'python3 -c dangerous_code'";
+        assert!(
+            check_blocklist_with_intent(resolved, Some(raw)).is_err(),
+            "python3 -c injected via data should be blocked"
+        );
+    }
+
+    #[test]
+    fn bug032_node_e_allowed_when_in_raw_template() {
+        let raw = "node -e 'console.log(JSON.stringify({ok:true}))'";
+        let resolved = raw;
+        assert!(
+            check_blocklist_with_intent(resolved, Some(raw)).is_ok(),
+            "node -e in static YAML should be allowed"
+        );
+    }
+
+    #[test]
+    fn bug032_destructive_always_blocked() {
+        // Destructive commands should NEVER be allowed, even in raw template
+        let raw = "rm -rf /";
+        let resolved = raw;
+        assert!(
+            check_blocklist_with_intent(resolved, Some(raw)).is_err(),
+            "Destructive commands must always be blocked"
+        );
+    }
+
+    #[test]
+    fn bug032_no_raw_template_blocks_everything() {
+        // When raw template is not available, all patterns are blocked (backward compat)
+        assert!(
+            check_blocklist_with_intent("python3 -c 'print(1)'", None).is_err(),
+            "Without raw template, python3 -c must be blocked"
+        );
+    }
+
+    #[test]
+    fn bug032_perl_ruby_allowed_in_raw() {
+        let raw = "perl -e 'print 1'";
+        assert!(check_blocklist_with_intent(raw, Some(raw)).is_ok());
+        let raw = "ruby -e 'puts 1'";
+        assert!(check_blocklist_with_intent(raw, Some(raw)).is_ok());
     }
 }

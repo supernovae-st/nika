@@ -34,8 +34,14 @@ impl TaskExecutor {
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 
         // SECURITY CHECK: validate resolved command for control characters and general blocklist
+        // BUG-032: pass raw template so interpreter patterns (python3 -c, node -e) written
+        // by the developer in YAML are recognized as intentional and allowed through.
         let is_shell = params.shell == Some(true);
-        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, is_shell)?;
+        crate::runtime::security::validate_exec_command_full(
+            &resolved_cmd,
+            is_shell,
+            Some(&params.command),
+        )?;
 
         // SECURITY WARNING: detect unescaped template bindings in shell: true commands.
         // Emits a warning for each {{with.*}} or {{inputs.*}} that lacks |shell transform,
