@@ -6,75 +6,93 @@ provider: mock
 tasks:
   # ── Source data ──────────────────────────────────
   - id: data
-    exec: 'echo ''[{"name":"Alice","age":30,"status":"active","locale":"fr"},{"name":"Bob","age":25,"status":"inactive","locale":"en"},{"name":"Charlie","age":35,"status":"active","locale":"fr"}]'''
+    exec:
+      command: 'echo ''[{"name":"Alice","age":30,"status":"active","locale":"fr"},{"name":"Bob","age":25,"status":"inactive","locale":"en"},{"name":"Charlie","age":35,"status":"active","locale":"fr"}]'''
+      shell: true
+    output:
+      format: json
 
   # ── pluck ────────────────────────────────────────
   - id: test_pluck
     depends_on: [data]
     with:
-      names: $data | pluck("name")
-    exec: 'echo "pluck: {{with.names}}"'
+      names: $data | pluck("name") | join(", ")
+    exec:
+      command: "echo pluck: {{with.names}}"
+      shell: true
 
   # ── where ────────────────────────────────────────
   - id: test_where
     depends_on: [data]
     with:
-      active: $data | where("status", "active")
       count: $data | where("status", "active") | length
-    exec: 'echo "where active count: {{with.count}}"'
+    exec:
+      command: "echo where_active_count: {{with.count}}"
+      shell: true
 
   # ── pick ─────────────────────────────────────────
   - id: test_pick
     depends_on: [data]
     with:
-      first: $data | first
-      picked: $data | first | pick("name", "age")
-    exec: 'echo "pick: {{with.picked}}"'
+      picked: $data | first | pick("name", "age") | to_json
+    exec:
+      command: "echo pick: {{with.picked}}"
+      shell: true
 
   # ── omit ─────────────────────────────────────────
   - id: test_omit
     depends_on: [data]
     with:
-      first: $data | first
-      safe: $data | first | omit("status")
-    exec: 'echo "omit: {{with.safe}}"'
+      safe: $data | first | omit("status") | keys | join(", ")
+    exec:
+      command: "echo omit_keys: {{with.safe}}"
+      shell: true
 
   # ── sort_by ──────────────────────────────────────
   - id: test_sort_by
     depends_on: [data]
     with:
-      sorted: $data | sort_by("age") | pluck("name")
-    exec: 'echo "sort_by age: {{with.sorted}}"'
+      sorted: $data | sort_by("age") | pluck("name") | join(", ")
+    exec:
+      command: "echo sort_by_age: {{with.sorted}}"
+      shell: true
 
   # ── group_by ─────────────────────────────────────
   - id: test_group_by
     depends_on: [data]
     with:
-      grouped: $data | group_by("locale")
-    exec: 'echo "group_by locale keys: {{with.grouped | keys}}"'
+      groups: $data | group_by("locale") | keys | sort | join(", ")
+    exec:
+      command: "echo group_by_locale: {{with.groups}}"
+      shell: true
 
   # ── merge ────────────────────────────────────────
   - id: merge_data
-    exec: 'echo ''[{"a":1,"nested":{"x":1}},{"b":2,"nested":{"y":2}}]'''
+    exec:
+      command: 'echo ''[{"a":1,"nested":{"x":1}},{"b":2,"nested":{"y":2}}]'''
+      shell: true
+    output:
+      format: json
 
   - id: test_merge
     depends_on: [merge_data]
     with:
-      merged: $merge_data | merge
-    exec: 'echo "merge: {{with.merged}}"'
+      merged: $merge_data | merge | keys | sort | join(", ")
+    exec:
+      command: "echo merge_keys: {{with.merged}}"
+      shell: true
 
   # ── regex ────────────────────────────────────────
-  - id: test_regex
-    exec: 'echo "Price: $42.50 for 3 items"'
-    with:
-      price: $test_regex | regex("\\d+\\.\\d+")
-    depends_on: []
+  - id: regex_data
+    exec: 'echo "Price is 42.50 for 3 items"'
 
-  - id: verify_regex
-    depends_on: [test_regex]
+  - id: test_regex
+    depends_on: [regex_data]
     with:
-      result: $test_regex | regex("\\d+\\.\\d+")
-    exec: 'echo "regex price: {{with.result}}"'
+      result: $regex_data | trim | regex('\d+\.\d+') | default("no_match")
+    exec:
+      command: "echo regex_price: {{with.result}}"
+      shell: true
 
   # ── base64 ───────────────────────────────────────
   - id: test_base64
@@ -85,11 +103,15 @@ tasks:
     with:
       encoded: $test_base64 | trim | base64_encode
       roundtrip: $test_base64 | trim | base64_encode | base64_decode
-    exec: 'echo "base64 encoded: {{with.encoded}}, roundtrip: {{with.roundtrip}}"'
+    exec:
+      command: "echo base64_encoded: {{with.encoded}} roundtrip: {{with.roundtrip}}"
+      shell: true
 
   # ── Pipeline combos ─────────────────────────────
   - id: test_pipeline
     depends_on: [data]
     with:
       result: $data | where("status", "active") | sort_by("age") | pluck("name") | join(", ")
-    exec: 'echo "active sorted names: {{with.result}}"'
+    exec:
+      command: "echo pipeline: {{with.result}}"
+      shell: true
