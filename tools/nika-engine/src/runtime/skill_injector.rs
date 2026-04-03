@@ -35,7 +35,7 @@ use dashmap::DashMap;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::ast::skill_def::resolve_skill_path;
 use crate::error::NikaError;
@@ -181,21 +181,14 @@ impl SkillInjector {
                     })?;
 
             // Load skill content (uses cache)
-            match self.load_skill(skill_path, base_dir).await {
-                Ok(content) => {
-                    // Add skill with header for clarity
-                    // Trim trailing whitespace from content to prevent double newlines
-                    parts.push(format!(
-                        "# Skill: {}\n\n{}",
-                        skill_name,
-                        content.as_ref().trim_end()
-                    ));
-                }
-                Err(e) => {
-                    // Log warning but continue with other skills
-                    warn!(skill = %skill_name, error = %e, "Failed to load skill, skipping");
-                }
-            }
+            let content = self.load_skill(skill_path, base_dir).await?;
+            // Add skill with header for clarity
+            // Trim trailing whitespace from content to prevent double newlines
+            parts.push(format!(
+                "# Skill: {}\n\n{}",
+                skill_name,
+                content.as_ref().trim_end()
+            ));
         }
 
         // Add base prompt at the end (if present)
@@ -494,5 +487,25 @@ mod tests {
 
         // Should only have one entry (deduplicated)
         assert_eq!(injector.cache_size(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_inject_fails_on_missing_skill_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut skills_map = HashMap::new();
+        // Path exists in map but file doesn't exist on disk
+        skills_map.insert("ghost".to_string(), "./skills/ghost.md".to_string());
+
+        let injector = SkillInjector::new();
+        let result = injector
+            .inject(Some("Base"), &["ghost"], &skills_map, temp_dir.path())
+            .await;
+
+        assert!(result.is_err(), "inject must fail when skill file is missing");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, NikaError::SkillLoadError { .. }),
+            "Expected NIKA-270 SkillLoadError, got: {err}"
+        );
     }
 }
