@@ -113,9 +113,7 @@ pub fn update_marker_version() {
         .lines()
         .map(|line| {
             let trimmed = line.trim();
-            if trimmed.starts_with("version")
-                && trimmed[7..].trim_start().starts_with('=')
-            {
+            if trimmed.starts_with("version") && trimmed[7..].trim_start().starts_with('=') {
                 format!("version = \"{}\"", new_version)
             } else {
                 line.to_string()

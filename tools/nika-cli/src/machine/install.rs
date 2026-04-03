@@ -26,8 +26,18 @@ pub struct EditorDef {
 
 /// All VS Code-family editors that support the nika-lang extension.
 pub const VSCODE_EDITORS: &[EditorDef] = &[
-    EditorDef { id: "vscode", name: "VS Code", binary: "code", ext_id: "supernovae.nika-lang" },
-    EditorDef { id: "cursor", name: "Cursor", binary: "cursor", ext_id: "supernovae.nika-lang" },
+    EditorDef {
+        id: "vscode",
+        name: "VS Code",
+        binary: "code",
+        ext_id: "supernovae.nika-lang",
+    },
+    EditorDef {
+        id: "cursor",
+        name: "Cursor",
+        binary: "cursor",
+        ext_id: "supernovae.nika-lang",
+    },
     EditorDef {
         id: "windsurf",
         name: "Windsurf",
@@ -564,8 +574,7 @@ fn update_extension_version(editor_id: &str, version: &str) {
                 .iter()
                 .position(|l| {
                     let t = l.trim();
-                    t.starts_with(editor_id)
-                        && t[editor_id.len()..].trim_start().starts_with('=')
+                    t.starts_with(editor_id) && t[editor_id.len()..].trim_start().starts_with('=')
                 })
                 .map(|i| i + idx + 1);
             match key_idx {

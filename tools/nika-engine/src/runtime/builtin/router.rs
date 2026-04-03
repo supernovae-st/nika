@@ -81,8 +81,8 @@ impl BuiltinToolRouter {
 
         // Register 5 Sprint 2 data tools
         use super::{
-            AggregateTool, JsonFlattenTool, JsonUnflattenTool, JsonVerifyTool,
-            LocaleLookupTool, YamlValidateTool,
+            AggregateTool, JsonFlattenTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool,
+            YamlValidateTool,
         };
         tools.insert("json_verify", Arc::new(JsonVerifyTool));
         tools.insert("yaml_validate", Arc::new(YamlValidateTool));

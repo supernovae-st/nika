@@ -38,7 +38,14 @@ impl FetchCache {
     }
 
     /// Store a response in the cache.
-    pub fn store(&self, url: &str, body: String, status: u16, etag: Option<String>, last_modified: Option<String>) {
+    pub fn store(
+        &self,
+        url: &str,
+        body: String,
+        status: u16,
+        etag: Option<String>,
+        last_modified: Option<String>,
+    ) {
         self.entries.insert(
             url.to_string(),
             CachedResponse {

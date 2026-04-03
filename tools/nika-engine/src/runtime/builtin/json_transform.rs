@@ -174,11 +174,9 @@ impl BuiltinTool for JsonUnflattenTool {
                 set_nested(&mut result, &parts, value.clone());
             }
 
-            serde_json::to_string(&Value::Object(result)).map_err(|e| {
-                NikaError::BuiltinToolError {
-                    tool: "nika:json_unflatten".into(),
-                    reason: format!("Serialization failed: {e}"),
-                }
+            serde_json::to_string(&Value::Object(result)).map_err(|e| NikaError::BuiltinToolError {
+                tool: "nika:json_unflatten".into(),
+                reason: format!("Serialization failed: {e}"),
             })
         })
     }
@@ -282,11 +280,14 @@ mod tests {
 
     #[tokio::test]
     async fn flatten_unflatten_roundtrip() {
-        let original = json!({"ui": {"button": {"save": "Save", "cancel": "Cancel"}}, "version": 1});
+        let original =
+            json!({"ui": {"button": {"save": "Save", "cancel": "Cancel"}}, "version": 1});
 
         let flatten_tool = JsonFlattenTool;
-        let flat_result =
-            flatten_tool.call(json!({"data": original}).to_string()).await.unwrap();
+        let flat_result = flatten_tool
+            .call(json!({"data": original}).to_string())
+            .await
+            .unwrap();
 
         let unflatten_tool = JsonUnflattenTool;
         let round_result = unflatten_tool

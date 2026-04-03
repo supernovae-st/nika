@@ -21,8 +21,9 @@ use std::sync::LazyLock;
 static PLACEHOLDER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}").expect("valid regex"));
 
-static HTML_TAG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?\s*/?>").expect("valid regex"));
+static HTML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?\s*/?>").expect("valid regex")
+});
 
 pub struct JsonVerifyTool;
 
@@ -241,7 +242,10 @@ mod tests {
         assert_eq!(result["pass"], false);
         let broken = &result["broken_placeholders"].as_array().unwrap()[0];
         assert_eq!(broken["key"], "greeting");
-        assert!(broken["missing"].as_array().unwrap().contains(&json!("{name}")));
+        assert!(broken["missing"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("{name}")));
     }
 
     #[tokio::test]

@@ -33,9 +33,7 @@ impl DomainRateLimiter {
     ///
     /// Blocks the current async task until the rate limit permits the request.
     pub async fn acquire(&self, domain: &str) {
-        self.limiter
-            .until_key_ready(&domain.to_string())
-            .await;
+        self.limiter.until_key_ready(&domain.to_string()).await;
     }
 
     /// Try to acquire a permit without waiting.

@@ -869,13 +869,12 @@ impl TransformOp {
             TransformOp::Regex(pattern) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "regex" }),
                 Value::String(s) => {
-                    let re = regex::Regex::new(pattern).map_err(|e| {
-                        TransformError::TypeMismatch {
+                    let re =
+                        regex::Regex::new(pattern).map_err(|e| TransformError::TypeMismatch {
                             op: "regex",
                             expected: "valid regex pattern",
                             got: format!("invalid regex: {}", e),
-                        }
-                    })?;
+                        })?;
                     match re.find(s) {
                         Some(m) => Ok(Value::String(m.as_str().to_string())),
                         None => Ok(Value::Null),
@@ -910,13 +909,12 @@ impl TransformOp {
                             expected: "valid base64 string",
                             got: format!("decode error: {}", e),
                         })?;
-                    let decoded = String::from_utf8(bytes).map_err(|e| {
-                        TransformError::TypeMismatch {
+                    let decoded =
+                        String::from_utf8(bytes).map_err(|e| TransformError::TypeMismatch {
                             op: "base64_decode",
                             expected: "UTF-8 encoded base64",
                             got: format!("not valid UTF-8: {}", e),
-                        }
-                    })?;
+                        })?;
                     Ok(Value::String(decoded))
                 }
                 _ => Err(type_mismatch("base64_decode", "string", value)),
@@ -924,9 +922,7 @@ impl TransformOp {
 
             // ── Predicate (returns bool) ────────────────────────
             TransformOp::StartsWith(prefix) => match value {
-                Value::Null => Err(TransformError::NullInput {
-                    op: "starts_with",
-                }),
+                Value::Null => Err(TransformError::NullInput { op: "starts_with" }),
                 Value::String(s) => Ok(Value::Bool(s.starts_with(prefix.as_str()))),
                 _ => Err(type_mismatch("starts_with", "string", value)),
             },
@@ -943,9 +939,7 @@ impl TransformOp {
 
             // ── Hashing ─────────────────────────────────────────
             TransformOp::ContentHash => match value {
-                Value::Null => Err(TransformError::NullInput {
-                    op: "content_hash",
-                }),
+                Value::Null => Err(TransformError::NullInput { op: "content_hash" }),
                 Value::String(s) => {
                     let hash = xxhash_rust::xxh3::xxh3_64(s.as_bytes());
                     Ok(Value::String(format!("{:016x}", hash)))
@@ -959,9 +953,7 @@ impl TransformOp {
 
             // ── URL dedup ───────────────────────────────────────
             TransformOp::UniqueUrls => match value {
-                Value::Null => Err(TransformError::NullInput {
-                    op: "unique_urls",
-                }),
+                Value::Null => Err(TransformError::NullInput { op: "unique_urls" }),
                 Value::Array(arr) => {
                     let mut seen = std::collections::HashSet::new();
                     let unique: Vec<Value> = arr
@@ -2749,7 +2741,9 @@ mod tests {
 
     #[test]
     fn apply_pluck_empty_array() {
-        let result = TransformOp::Pluck("x".to_string()).apply(&json!([])).unwrap();
+        let result = TransformOp::Pluck("x".to_string())
+            .apply(&json!([]))
+            .unwrap();
         assert_eq!(result, json!([]));
     }
 
@@ -2772,10 +2766,7 @@ mod tests {
         let expr = TransformExpr::parse("where('status', 'active')").unwrap();
         assert_eq!(
             expr.ops.as_slice(),
-            &[TransformOp::Where(
-                "status".to_string(),
-                json!("active")
-            )]
+            &[TransformOp::Where("status".to_string(), json!("active"))]
         );
     }
 
@@ -2818,11 +2809,9 @@ mod tests {
 
     #[test]
     fn apply_where_null_errors() {
-        assert!(
-            TransformOp::Where("x".to_string(), json!("y"))
-                .apply(&Value::Null)
-                .is_err()
-        );
+        assert!(TransformOp::Where("x".to_string(), json!("y"))
+            .apply(&Value::Null)
+            .is_err());
     }
 
     #[test]
@@ -2857,20 +2846,16 @@ mod tests {
 
     #[test]
     fn apply_pick_null_errors() {
-        assert!(
-            TransformOp::Pick(vec!["x".to_string()])
-                .apply(&Value::Null)
-                .is_err()
-        );
+        assert!(TransformOp::Pick(vec!["x".to_string()])
+            .apply(&Value::Null)
+            .is_err());
     }
 
     #[test]
     fn apply_pick_not_object_errors() {
-        assert!(
-            TransformOp::Pick(vec!["x".to_string()])
-                .apply(&json!([1, 2]))
-                .is_err()
-        );
+        assert!(TransformOp::Pick(vec!["x".to_string()])
+            .apply(&json!([1, 2]))
+            .is_err());
     }
 
     #[test]
@@ -2888,10 +2873,9 @@ mod tests {
     #[test]
     fn apply_omit_basic() {
         let data = json!({"name": "Alice", "password": "xxx", "secret": "yyy"});
-        let result =
-            TransformOp::Omit(vec!["password".to_string(), "secret".to_string()])
-                .apply(&data)
-                .unwrap();
+        let result = TransformOp::Omit(vec!["password".to_string(), "secret".to_string()])
+            .apply(&data)
+            .unwrap();
         assert_eq!(result, json!({"name": "Alice"}));
     }
 
@@ -2906,11 +2890,9 @@ mod tests {
 
     #[test]
     fn apply_omit_null_errors() {
-        assert!(
-            TransformOp::Omit(vec!["x".to_string()])
-                .apply(&Value::Null)
-                .is_err()
-        );
+        assert!(TransformOp::Omit(vec!["x".to_string()])
+            .apply(&Value::Null)
+            .is_err());
     }
 
     #[test]
@@ -2929,9 +2911,7 @@ mod tests {
             {"name": "Alice", "age": 30},
             {"name": "Charlie", "age": 20}
         ]);
-        let result = TransformOp::SortBy("age".to_string())
-            .apply(&data)
-            .unwrap();
+        let result = TransformOp::SortBy("age".to_string()).apply(&data).unwrap();
         assert_eq!(result[0]["name"], "Charlie");
         assert_eq!(result[1]["name"], "Bob");
         assert_eq!(result[2]["name"], "Alice");
@@ -3099,8 +3079,7 @@ mod tests {
 
     #[test]
     fn apply_regex_invalid_pattern() {
-        let result = TransformOp::Regex(r"[invalid".to_string())
-            .apply(&json!("test"));
+        let result = TransformOp::Regex(r"[invalid".to_string()).apply(&json!("test"));
         assert!(result.is_err());
     }
 
@@ -3197,8 +3176,7 @@ mod tests {
             {"name": "Bob", "status": "inactive"},
             {"name": "Charlie", "status": "active"}
         ]);
-        let expr =
-            TransformExpr::parse("where('status', 'active') | pluck('name')").unwrap();
+        let expr = TransformExpr::parse("where('status', 'active') | pluck('name')").unwrap();
         let result = expr.apply(&data).unwrap();
         assert_eq!(result, json!(["Alice", "Charlie"]));
     }

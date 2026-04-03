@@ -111,18 +111,18 @@ impl BuiltinTool for AggregateTool {
                     other => {
                         return Err(NikaError::BuiltinToolError {
                             tool: "nika:aggregate".into(),
-                            reason: format!("Unknown operation: {other}. Use sum, avg, min, max, count."),
+                            reason: format!(
+                                "Unknown operation: {other}. Use sum, avg, min, max, count."
+                            ),
                         });
                     }
                 };
                 result.insert(op.clone(), val);
             }
 
-            serde_json::to_string(&Value::Object(result)).map_err(|e| {
-                NikaError::BuiltinToolError {
-                    tool: "nika:aggregate".into(),
-                    reason: format!("Serialization failed: {e}"),
-                }
+            serde_json::to_string(&Value::Object(result)).map_err(|e| NikaError::BuiltinToolError {
+                tool: "nika:aggregate".into(),
+                reason: format!("Serialization failed: {e}"),
             })
         })
     }

@@ -1689,8 +1689,16 @@ tasks:
         "result",
     )
     .await;
-    assert!(output.contains("Alice"), "pluck should extract names: {}", output);
-    assert!(output.contains("Bob"), "pluck should extract Bob: {}", output);
+    assert!(
+        output.contains("Alice"),
+        "pluck should extract names: {}",
+        output
+    );
+    assert!(
+        output.contains("Bob"),
+        "pluck should extract Bob: {}",
+        output
+    );
 }
 
 #[tokio::test]
@@ -1717,7 +1725,11 @@ tasks:
         "result",
     )
     .await;
-    assert!(output.contains("2"), "where should filter to 2 active: {}", output);
+    assert!(
+        output.contains("2"),
+        "where should filter to 2 active: {}",
+        output
+    );
 }
 
 #[tokio::test]
@@ -1746,7 +1758,11 @@ tasks:
     .await;
     assert!(output.contains("name"), "pick should keep name: {}", output);
     assert!(output.contains("age"), "pick should keep age: {}", output);
-    assert!(!output.contains("secret"), "pick should omit secret: {}", output);
+    assert!(
+        !output.contains("secret"),
+        "pick should omit secret: {}",
+        output
+    );
 }
 
 #[tokio::test]
@@ -1804,7 +1820,11 @@ tasks:
         "result",
     )
     .await;
-    assert!(output.contains("en, fr"), "group_by locale keys: {}", output);
+    assert!(
+        output.contains("en, fr"),
+        "group_by locale keys: {}",
+        output
+    );
 }
 
 #[tokio::test]
@@ -1834,7 +1854,11 @@ tasks:
     // Verify merge produced an object with keys from both inputs
     assert!(output.contains("a"), "merge should have key a: {}", output);
     assert!(output.contains("b"), "merge should have key b: {}", output);
-    assert!(output.contains("nested"), "merge should have key nested: {}", output);
+    assert!(
+        output.contains("nested"),
+        "merge should have key nested: {}",
+        output
+    );
 }
 
 #[tokio::test]
@@ -1857,7 +1881,11 @@ tasks:
         "result",
     )
     .await;
-    assert!(output.contains("Hello_Nika"), "base64 roundtrip: {}", output);
+    assert!(
+        output.contains("Hello_Nika"),
+        "base64 roundtrip: {}",
+        output
+    );
 }
 
 #[tokio::test]
@@ -1945,7 +1973,10 @@ tasks:
     .await;
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
     assert_eq!(parsed["pass"], false, "verify should fail: {}", output);
-    assert!(parsed["missing_keys"].as_array().unwrap().contains(&serde_json::json!("farewell")));
+    assert!(parsed["missing_keys"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("farewell")));
 }
 
 #[tokio::test]

@@ -434,12 +434,18 @@ impl BuiltinTool for MapTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
-            let array = params.array.as_array().ok_or_else(|| NikaError::BuiltinToolError {
-                tool: "nika:map".into(),
-                reason: "Expected array for 'array' parameter".into(),
-            })?;
+            let array = params
+                .array
+                .as_array()
+                .ok_or_else(|| NikaError::BuiltinToolError {
+                    tool: "nika:map".into(),
+                    reason: "Expected array for 'array' parameter".into(),
+                })?;
 
-            let result: Vec<Value> = array.iter().map(|v| extract_field(v, &params.selector)).collect();
+            let result: Vec<Value> = array
+                .iter()
+                .map(|v| extract_field(v, &params.selector))
+                .collect();
 
             serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:map".into(),
@@ -472,13 +478,34 @@ fn matches_predicate(element: &Value, field: &str, op: &str, compare: &Value) ->
     match op {
         "eq" => &val == compare,
         "ne" => &val != compare,
-        "gt" => val.as_f64().zip(compare.as_f64()).is_some_and(|(a, b)| a > b),
-        "lt" => val.as_f64().zip(compare.as_f64()).is_some_and(|(a, b)| a < b),
-        "gte" => val.as_f64().zip(compare.as_f64()).is_some_and(|(a, b)| a >= b),
-        "lte" => val.as_f64().zip(compare.as_f64()).is_some_and(|(a, b)| a <= b),
-        "contains" => val.as_str().zip(compare.as_str()).is_some_and(|(a, b)| a.contains(b)),
-        "starts_with" => val.as_str().zip(compare.as_str()).is_some_and(|(a, b)| a.starts_with(b)),
-        "ends_with" => val.as_str().zip(compare.as_str()).is_some_and(|(a, b)| a.ends_with(b)),
+        "gt" => val
+            .as_f64()
+            .zip(compare.as_f64())
+            .is_some_and(|(a, b)| a > b),
+        "lt" => val
+            .as_f64()
+            .zip(compare.as_f64())
+            .is_some_and(|(a, b)| a < b),
+        "gte" => val
+            .as_f64()
+            .zip(compare.as_f64())
+            .is_some_and(|(a, b)| a >= b),
+        "lte" => val
+            .as_f64()
+            .zip(compare.as_f64())
+            .is_some_and(|(a, b)| a <= b),
+        "contains" => val
+            .as_str()
+            .zip(compare.as_str())
+            .is_some_and(|(a, b)| a.contains(b)),
+        "starts_with" => val
+            .as_str()
+            .zip(compare.as_str())
+            .is_some_and(|(a, b)| a.starts_with(b)),
+        "ends_with" => val
+            .as_str()
+            .zip(compare.as_str())
+            .is_some_and(|(a, b)| a.ends_with(b)),
         _ => false,
     }
 }
@@ -528,10 +555,13 @@ impl BuiltinTool for FilterTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
-            let array = params.array.as_array().ok_or_else(|| NikaError::BuiltinToolError {
-                tool: "nika:filter".into(),
-                reason: "Expected array for 'array' parameter".into(),
-            })?;
+            let array = params
+                .array
+                .as_array()
+                .ok_or_else(|| NikaError::BuiltinToolError {
+                    tool: "nika:filter".into(),
+                    reason: "Expected array for 'array' parameter".into(),
+                })?;
 
             let result: Vec<Value> = array
                 .iter()
@@ -598,10 +628,13 @@ impl BuiltinTool for GroupByTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
-            let array = params.array.as_array().ok_or_else(|| NikaError::BuiltinToolError {
-                tool: "nika:group_by".into(),
-                reason: "Expected array for 'array' parameter".into(),
-            })?;
+            let array = params
+                .array
+                .as_array()
+                .ok_or_else(|| NikaError::BuiltinToolError {
+                    tool: "nika:group_by".into(),
+                    reason: "Expected array for 'array' parameter".into(),
+                })?;
 
             let mut groups: indexmap::IndexMap<String, Vec<Value>> = indexmap::IndexMap::new();
             for item in array {
@@ -718,17 +751,15 @@ impl BuiltinTool for ChunkTool {
             }
 
             use text_splitter::{ChunkConfig, MarkdownSplitter, TextSplitter};
-            let config = ChunkConfig::new(params.chunk_size).with_overlap(params.overlap).map_err(
-                |e| NikaError::BuiltinToolError {
+            let config = ChunkConfig::new(params.chunk_size)
+                .with_overlap(params.overlap)
+                .map_err(|e| NikaError::BuiltinToolError {
                     tool: "nika:chunk".into(),
                     reason: format!("Invalid chunk config: {e}"),
-                },
-            )?;
+                })?;
 
             let chunks: Vec<&str> = match params.mode.as_str() {
-                "markdown" => MarkdownSplitter::new(config)
-                    .chunks(&params.text)
-                    .collect(),
+                "markdown" => MarkdownSplitter::new(config).chunks(&params.text).collect(),
                 _ => TextSplitter::new(config).chunks(&params.text).collect(),
             };
 
@@ -1010,7 +1041,10 @@ mod tests {
     #[tokio::test]
     async fn map_empty_array() {
         let tool = MapTool;
-        let result = tool.call(r#"{"array": [], "selector": "x"}"#.into()).await.unwrap();
+        let result = tool
+            .call(r#"{"array": [], "selector": "x"}"#.into())
+            .await
+            .unwrap();
         assert_eq!(result, "[]");
     }
 
@@ -1086,7 +1120,10 @@ mod tests {
     #[tokio::test]
     async fn group_by_empty_array() {
         let tool = GroupByTool;
-        let result = tool.call(r#"{"array": [], "key": "x"}"#.into()).await.unwrap();
+        let result = tool
+            .call(r#"{"array": [], "key": "x"}"#.into())
+            .await
+            .unwrap();
         assert_eq!(result, "{}");
     }
 

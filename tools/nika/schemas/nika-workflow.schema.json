@@ -680,7 +680,7 @@
         },
         "extract": {
           "type": "string",
-          "enum": ["markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed", "llm_txt"],
+          "enum": ["markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed", "llm_txt", "sitemap"],
           "description": "Extraction mode for response body"
         },
         "selector": {

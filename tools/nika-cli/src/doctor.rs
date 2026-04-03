@@ -169,7 +169,6 @@ pub async fn handle_doctor_command(
     Ok(())
 }
 
-
 fn check_vault_health() -> DiagnosticCheck {
     let vault = crate::provider::get_vault();
     if !vault.exists() {
@@ -822,7 +821,10 @@ fn check_editor_integration() -> Vec<DiagnosticCheck> {
                 if is_version_outdated(&ext_ver, cli_ver) {
                     checks.push(DiagnosticCheck::warn(
                         "Extension",
-                        format!("{}: nika-lang v{ext_ver} outdated (CLI v{cli_ver})", def.name),
+                        format!(
+                            "{}: nika-lang v{ext_ver} outdated (CLI v{cli_ver})",
+                            def.name
+                        ),
                         format!(
                             "Update: {} --install-extension {} --force",
                             def.binary, def.ext_id

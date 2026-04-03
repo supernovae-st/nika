@@ -96,7 +96,12 @@ impl BuiltinTool for YamlValidateTool {
                 }
             }
 
-            let valid = total - failures.iter().map(|f| f["label"].as_str().unwrap_or("")).collect::<std::collections::HashSet<_>>().len();
+            let valid = total
+                - failures
+                    .iter()
+                    .map(|f| f["label"].as_str().unwrap_or(""))
+                    .collect::<std::collections::HashSet<_>>()
+                    .len();
 
             let result = serde_json::json!({
                 "total": total,
@@ -164,7 +169,10 @@ mod tests {
         let failures = result["failures"].as_array().unwrap();
         assert_eq!(failures.len(), 1);
         assert_eq!(failures[0]["label"], "en");
-        assert!(failures[0]["error"].as_str().unwrap().contains("locale.language"));
+        assert!(failures[0]["error"]
+            .as_str()
+            .unwrap()
+            .contains("locale.language"));
     }
 
     #[tokio::test]

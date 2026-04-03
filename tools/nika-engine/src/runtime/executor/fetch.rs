@@ -605,7 +605,8 @@ impl TaskExecutor {
 
                         // If extract mode is also set, read body for extraction
                         if fetch.extract.is_some() {
-                            let body = read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
+                            let body =
+                                read_body_with_limit(response, MAX_TEXT_RESPONSE_SIZE).await?;
                             let resolved_selector = match &fetch.selector {
                                 Some(s) => {
                                     Some(template_resolve(s, bindings, datastore)?.into_owned())
