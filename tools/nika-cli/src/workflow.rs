@@ -355,8 +355,12 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                     }
                 }
 
-                // Check each provider for its env var
+                // Check each provider: name validity + API key presence
                 for provider_name in &providers_used {
+                    // Skip template expressions (resolved at runtime)
+                    if provider_name.contains("{{") {
+                        continue;
+                    }
                     if let Some(provider) = nika_engine::core::find_provider(provider_name) {
                         if provider.requires_key && !provider.has_env_key() {
                             issues.push((
@@ -368,6 +372,16 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                                 ),
                             ));
                         }
+                    } else {
+                        // Unknown provider name (not in known list + aliases)
+                        issues.push((
+                            "warn".to_string(),
+                            "NIKA-033".to_string(),
+                            format!(
+                                "Unknown provider '{}'. Known: anthropic, openai, mistral, groq, deepseek, gemini, xai, native, mock",
+                                provider_name
+                            ),
+                        ));
                     }
                 }
             }
