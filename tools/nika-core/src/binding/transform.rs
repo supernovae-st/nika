@@ -3,14 +3,16 @@
 //! Pipeline transforms applied to binding values.
 //! Transforms are chained with `|` pipes: `sort | unique | first(3)`
 //!
-//! # Categories
+//! # Categories (39 transforms)
 //!
 //! | Category | Ops |
 //! |----------|-----|
 //! | String | `upper`, `lower`, `trim`, `trim_start`, `trim_end` |
 //! | Collection | `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact` |
+//! | Data | `pluck(F)`, `where(F, V)`, `pick(F…)`, `omit(F…)`, `sort_by(F)`, `group_by(F)`, `merge`, `regex(P)` |
 //! | Type conversion | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json` |
 //! | Numeric | `round(N)`, `abs`, `ceil`, `floor` |
+//! | Encoding | `base64_encode`, `base64_decode` |
 //! | Utility | `default(V)`, `type_of`, `join(S)`, `split(S)`, `shell` |
 //!
 //! # Null Handling
@@ -3254,6 +3256,121 @@ mod tests {
         );
         assert_eq!(TransformOp::Base64Encode.to_string(), "base64_encode");
         assert_eq!(TransformOp::Base64Decode.to_string(), "base64_decode");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Edge case tests (code review findings)
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn where_with_boolean_value() {
+        let data = json!([
+            {"name": "Alice", "active": true},
+            {"name": "Bob", "active": false},
+            {"name": "Charlie", "active": true}
+        ]);
+        let result = TransformOp::Where("active".to_string(), json!(true))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+        assert_eq!(result[0]["name"], "Alice");
+        assert_eq!(result[1]["name"], "Charlie");
+    }
+
+    #[test]
+    fn where_with_numeric_value() {
+        let data = json!([
+            {"id": 1, "score": 90},
+            {"id": 2, "score": 80},
+            {"id": 3, "score": 90}
+        ]);
+        let result = TransformOp::Where("score".to_string(), json!(90))
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result.as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn pluck_nested_field_returns_empty() {
+        // pluck only works on top-level fields — nested paths are not extracted
+        let data = json!([{"a": {"b": 1}}, {"a": {"b": 2}}]);
+        let result = TransformOp::Pluck("b".to_string()).apply(&data).unwrap();
+        assert_eq!(result, json!([]), "pluck on nested field returns empty");
+    }
+
+    #[test]
+    fn group_by_numeric_field() {
+        // group_by with numeric values converts them to string keys
+        let data = json!([{"score": 90}, {"score": 80}, {"score": 90}]);
+        let result = TransformOp::GroupBy("score".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result["90"].as_array().unwrap().len(), 2);
+        assert_eq!(result["80"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn group_by_missing_field() {
+        // items without the field get grouped under "null"
+        let data = json!([{"a": 1}, {"b": 2}]);
+        let result = TransformOp::GroupBy("a".to_string())
+            .apply(&data)
+            .unwrap();
+        assert!(result.get("1").is_some());
+        assert!(result.get("null").is_some());
+    }
+
+    #[test]
+    fn pick_preserves_order() {
+        let data = json!({"z": 3, "a": 1, "m": 2});
+        let result = TransformOp::Pick(vec!["a".to_string(), "z".to_string()])
+            .apply(&data)
+            .unwrap();
+        let keys: Vec<&String> = result.as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec!["a", "z"]);
+    }
+
+    #[test]
+    fn sort_by_stable_on_equal_values() {
+        let data = json!([
+            {"name": "Alice", "score": 90},
+            {"name": "Bob", "score": 90},
+            {"name": "Charlie", "score": 90}
+        ]);
+        let result = TransformOp::SortBy("score".to_string())
+            .apply(&data)
+            .unwrap();
+        // All scores equal — order should be preserved (stable sort)
+        assert_eq!(result[0]["name"], "Alice");
+        assert_eq!(result[1]["name"], "Bob");
+        assert_eq!(result[2]["name"], "Charlie");
+    }
+
+    #[test]
+    fn merge_single_object() {
+        let data = json!([{"a": 1, "b": 2}]);
+        let result = TransformOp::Merge.apply(&data).unwrap();
+        assert_eq!(result, json!({"a": 1, "b": 2}));
+    }
+
+    #[test]
+    fn regex_captures_first_match_only() {
+        let result = TransformOp::Regex(r"\d+".to_string())
+            .apply(&json!("item1 item2 item3"))
+            .unwrap();
+        assert_eq!(result, json!("1"), "regex returns first match only");
+    }
+
+    #[test]
+    fn base64_encode_empty_string() {
+        let result = TransformOp::Base64Encode.apply(&json!("")).unwrap();
+        assert_eq!(result, json!(""));
+    }
+
+    #[test]
+    fn base64_decode_empty_string() {
+        let result = TransformOp::Base64Decode.apply(&json!("")).unwrap();
+        assert_eq!(result, json!(""));
     }
 }
 

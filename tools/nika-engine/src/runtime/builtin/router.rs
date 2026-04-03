@@ -79,7 +79,7 @@ impl BuiltinToolRouter {
         tools.insert("chunk", Arc::new(ChunkTool));
         tools.insert("token_count", Arc::new(TokenCountTool));
 
-        // Register 5 Sprint 2 data tools
+        // Register 6 Sprint 2 data tools
         use super::{
             AggregateTool, JsonFlattenTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool,
             YamlValidateTool,
