@@ -955,6 +955,22 @@ fn resolve_with_entry_traced(
                 }
             }
         }
+        // BUG-038: Missing source with a transform chain containing default() —
+        // apply transforms on null so default() can fire (mirrors non-traced version).
+        (None, Some(expr)) if expr.has_default() => match expr.apply(&Value::Null) {
+            Ok(result) => {
+                events.push(EventKind::BindingTransformApplied {
+                    task_id: Arc::clone(task_id),
+                    alias: alias.to_string(),
+                    transform_chain: format!("{:?}", expr),
+                });
+                Some(result)
+            }
+            Err(e) => {
+                tracing::debug!(path = %path_str, error = %e, "Transform with default() failed on missing value");
+                None
+            }
+        },
         _ => raw_value,
     };
 
@@ -3832,5 +3848,51 @@ mod tests {
             Some(&json!("no-vault-fallback")),
             "When no vault configured, should fall through to default"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-038: WithEntry missing source with | default() transform
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_entry_missing_env_with_pipe_default() {
+        // $env.NONEXISTENT | default("fallback") should return "fallback"
+        let store = RunContext::new();
+
+        let entry = WithEntry {
+            source: BindingPath {
+                source: BindingSource::Env(Arc::from("__NIKA_TEST_NONEXISTENT_038__")),
+                segments: vec![],
+            },
+            binding_type: crate::binding::types::BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: Some(
+                nika_core::binding::TransformExpr::parse("default(\"fallback\")").unwrap(),
+            ),
+        };
+
+        let result = resolve_with_entry(&entry, "data", &store);
+        assert_eq!(result.unwrap(), json!("fallback"));
+    }
+
+    #[test]
+    fn with_entry_missing_env_no_default_errors() {
+        // $env.NONEXISTENT without default should error
+        let store = RunContext::new();
+
+        let entry = WithEntry {
+            source: BindingPath {
+                source: BindingSource::Env(Arc::from("__NIKA_TEST_NONEXISTENT_038__")),
+                segments: vec![],
+            },
+            binding_type: crate::binding::types::BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+
+        let result = resolve_with_entry(&entry, "data", &store);
+        assert!(result.is_err());
     }
 }
