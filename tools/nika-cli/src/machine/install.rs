@@ -513,8 +513,7 @@ fn update_rule_hash(editor_key: &str, hash: &str) {
                 if t.starts_with('[') {
                     break; // next section — stop searching
                 }
-                if t.starts_with(editor_key)
-                    && t[editor_key.len()..].trim_start().starts_with('=')
+                if t.starts_with(editor_key) && t[editor_key.len()..].trim_start().starts_with('=')
                 {
                     key_idx = Some(i + idx + 1);
                     break;
@@ -586,9 +585,7 @@ fn update_extension_version(editor_id: &str, version: &str) {
                 if t.starts_with('[') {
                     break;
                 }
-                if t.starts_with(editor_id)
-                    && t[editor_id.len()..].trim_start().starts_with('=')
-                {
+                if t.starts_with(editor_id) && t[editor_id.len()..].trim_start().starts_with('=') {
                     key_idx = Some(i + idx + 1);
                     break;
                 }
@@ -2056,9 +2053,7 @@ vscode = \"deadbeef\"\n";
                 if t.starts_with('[') {
                     break;
                 }
-                if t.starts_with(editor_id)
-                    && t[editor_id.len()..].trim_start().starts_with('=')
-                {
+                if t.starts_with(editor_id) && t[editor_id.len()..].trim_start().starts_with('=') {
                     key_idx = Some(i + idx + 1);
                     break;
                 }
@@ -2128,5 +2123,4 @@ version = \"should_not_change\"\n";
             "https://github.com/supernovae-st/nika/releases/download/v0.63.0/nika-lang-0.63.0.vsix"
         );
     }
-
 }

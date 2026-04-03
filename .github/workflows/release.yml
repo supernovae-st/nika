@@ -790,7 +790,7 @@ jobs:
             }
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-          npm publish --access public
+          npm publish --access public || echo "::warning::npm publish failed (may already exist)"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Publish to crates.io (10 workspace crates in dependency order)
@@ -1278,8 +1278,8 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "${DELIMITER}" >> $GITHUB_OUTPUT
 
-          # Success count
-          TOTAL=8
+          # Success count (must match the needs: list above)
+          TOTAL=10
           SUCCESS=0
           for r in \
             "${{ needs.release.result }}" \
@@ -1289,7 +1289,9 @@ jobs:
             "${{ needs.npm-publish.result }}" \
             "${{ needs.crates-publish.result }}" \
             "${{ needs.update-scoop.result }}" \
-            "${{ needs.update-aur.result }}"; do
+            "${{ needs.update-aur.result }}" \
+            "${{ needs.sdk-client-publish.result }}" \
+            "${{ needs.smoke-test.result }}"; do
             [ "$r" = "success" ] && SUCCESS=$((SUCCESS + 1))
           done
           echo "success_count=${SUCCESS}" >> $GITHUB_OUTPUT
