@@ -799,6 +799,24 @@ fn install_rule(
     // If file exists, check hashes before overwriting
     if path.exists() {
         if let Ok(disk_content) = std::fs::read_to_string(path) {
+            // E3/BUG-009: Respect "DO NOT OVERWRITE" sentinel as a
+            // fallback when machine.toml hashes are missing/corrupted.
+            if disk_content.contains("DO NOT OVERWRITE") {
+                if !silent {
+                    println!(
+                        "  {} {} — has DO NOT OVERWRITE sentinel, skipping",
+                        "\u{26a0}".yellow(),
+                        name
+                    );
+                    results.push(SetupResult {
+                        name: name.into(),
+                        success: true,
+                        message: "sentinel-protected, preserved".into(),
+                    });
+                }
+                return;
+            }
+
             let disk_hash = hash_content(&disk_content);
 
             // Content already matches — nothing to do
@@ -1409,6 +1427,29 @@ mod tests {
             WINDSURF_RULES.contains("trigger:"),
             "WINDSURF_RULES must have trigger: frontmatter"
         );
+    }
+
+    /// install_rule respects DO NOT OVERWRITE sentinel.
+    #[test]
+    fn install_rule_respects_sentinel() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let path = tmpdir.path().join("nika.md");
+        let custom_content = "# DO NOT OVERWRITE\n# My custom rules\n";
+        std::fs::write(&path, custom_content).unwrap();
+
+        let hashes = HashMap::new();
+        let mut results = Vec::new();
+        install_rule(
+            &path,
+            "# new content that should not be written\n",
+            "test",
+            "test",
+            &hashes,
+            &mut results,
+            false,
+        );
+        // File should NOT be overwritten
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), custom_content);
     }
 
     /// install_rule with silent=true writes to disk.
