@@ -171,10 +171,10 @@ fn write_marker_with_editors(results: &[SetupResult], editors: &[&str]) {
         .unwrap_or_default()
         .as_secs();
 
-    // Format editors as TOML array: editors = ["vscode", "claude", "cursor"]
     let editors_toml: Vec<String> = editors.iter().map(|e| format!("\"{}\"", e)).collect();
 
-    let content = format!(
+    // Build new [machine] section
+    let machine_section = format!(
         "[machine]\nsetup_at = \"{}\"\nversion = \"{}\"\neditors = [{}]\nai_tools = {:?}\n",
         secs,
         env!("CARGO_PKG_VERSION"),
@@ -182,7 +182,38 @@ fn write_marker_with_editors(results: &[SetupResult], editors: &[&str]) {
         ai_tools,
     );
 
-    // Don't fail init if marker write fails
+    // Preserve non-[machine] sections (e.g. [extensions], [rule_hashes])
+    let mut extra_sections = String::new();
+    if let Ok(existing) = std::fs::read_to_string(&marker_path) {
+        let mut in_machine = false;
+        let mut in_other = false;
+        for line in existing.lines() {
+            let trimmed = line.trim();
+            if trimmed == "[machine]" {
+                in_machine = true;
+                in_other = false;
+                continue;
+            }
+            if trimmed.starts_with('[') {
+                in_machine = false;
+                in_other = true;
+            }
+            if in_machine {
+                continue; // skip old [machine] content
+            }
+            if in_other {
+                extra_sections.push_str(line);
+                extra_sections.push('\n');
+            }
+        }
+    }
+
+    let content = if extra_sections.is_empty() {
+        machine_section
+    } else {
+        format!("{}\n{}", machine_section, extra_sections)
+    };
+
     std::fs::write(&marker_path, content).ok();
 }
 

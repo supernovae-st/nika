@@ -129,15 +129,10 @@ pub(super) fn detect_editors() -> Vec<&'static str> {
 pub fn run_machine_setup() -> Vec<SetupResult> {
     let mut results = Vec::new();
 
-    // Write marker file FIRST (creates [machine] section).
-    // setup_editors/setup_ai_rules append [extensions] and [rule_hashes] sections.
-    // If we wrote last, we'd destroy those sections.
-    write_marker(&[]);
-
-    // 1. Editors: detect + install extension (appends [extensions] to marker)
+    // 1. Editors: detect + install extension (writes [extensions] to marker)
     results.extend(setup_editors());
 
-    // 2. AI tools: detect + install rules (appends [rule_hashes] to marker)
+    // 2. AI tools: detect + install rules (writes [rule_hashes] to marker)
     results.extend(setup_ai_rules());
 
     // 3. Shell completions
@@ -148,6 +143,9 @@ pub fn run_machine_setup() -> Vec<SetupResult> {
     if std::env::var("NIKA_NO_DAEMON").is_err() {
         results.push(setup_daemon());
     }
+
+    // Write marker file (preserves [extensions] and [rule_hashes] sections)
+    write_marker(&results);
 
     // Summary: show each configured tool by name (deduplicated)
     let mut seen = std::collections::HashSet::new();
