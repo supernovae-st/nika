@@ -504,7 +504,11 @@ fn try_acquire_job_slot(
 
 /// Reject workflow paths that attempt directory traversal.
 fn validate_workflow_path(workflow: &str) -> Result<(), ServeError> {
-    if workflow.contains("..") || workflow.starts_with('/') || workflow.starts_with('\\') {
+    if workflow.contains('\0')
+        || workflow.contains("..")
+        || workflow.starts_with('/')
+        || workflow.starts_with('\\')
+    {
         return Err(ServeError::PathTraversal);
     }
     if !workflow.ends_with(".nika.yaml") {
@@ -654,6 +658,12 @@ mod tests {
         // Subdirectory paths are allowed
         assert!(validate_workflow_path("sub/valid.nika.yaml").is_ok());
         assert!(validate_workflow_path("deep/nested/flow.nika.yaml").is_ok());
+    }
+
+    #[test]
+    fn rejects_null_bytes() {
+        assert!(validate_workflow_path("evil\0.nika.yaml").is_err());
+        assert!(validate_workflow_path("sub/\0path.nika.yaml").is_err());
     }
 
     #[test]
