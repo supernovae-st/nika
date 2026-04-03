@@ -108,10 +108,12 @@ impl NikaBackend {
     ///
     /// Called by the VS Code extension to display daemon status in the status bar.
     pub async fn daemon_status(&self) -> Result<serde_json::Value> {
-        let guard = self.daemon.read().await;
+        let guard: tokio::sync::RwLockReadGuard<'_, Option<DaemonBridge>> =
+            self.daemon.read().await;
         match guard.as_ref() {
             Some(bridge) if bridge.is_connected() => {
-                let caps = bridge.capabilities().await;
+                let caps: Option<nika_core::catalogs::DaemonCapabilities> =
+                    bridge.capabilities().await;
                 Ok(serde_json::json!({
                     "connected": true,
                     "version": caps.as_ref().map(|c| c.version.as_str()),
