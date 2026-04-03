@@ -372,6 +372,66 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 }
             }
 
+            // Validate file paths: skills and context files must exist on disk
+            {
+                let base_dir = file
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new("."));
+
+                // Skills file paths
+                if let Some(ref skills) = workflow.skills {
+                    for (alias, path) in skills {
+                        // Skip pkg: URIs (resolved at runtime from registry)
+                        if path.starts_with("pkg:") {
+                            continue;
+                        }
+                        // Skip template paths (contain {{...}})
+                        if path.contains("{{") {
+                            continue;
+                        }
+                        let resolved = base_dir.join(path);
+                        if !resolved.exists() {
+                            issues.push((
+                                "error".to_string(),
+                                "NIKA-270".to_string(),
+                                format!(
+                                    "Skill '{}' file not found: {} (resolved: {})",
+                                    alias,
+                                    path,
+                                    resolved.display()
+                                ),
+                            ));
+                        }
+                    }
+                }
+
+                // Context file paths
+                if let Some(ref ctx) = workflow.context {
+                    for (alias, path) in &ctx.files {
+                        // Skip glob patterns and template paths
+                        if path.contains('*')
+                            || path.contains('?')
+                            || path.contains("{{")
+                        {
+                            continue;
+                        }
+                        let resolved = base_dir.join(path);
+                        if !resolved.exists() {
+                            issues.push((
+                                "error".to_string(),
+                                "NIKA-250".to_string(),
+                                format!(
+                                    "Context file '{}' not found: {} (resolved: {})",
+                                    alias,
+                                    path,
+                                    resolved.display()
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+
             // Check for unused tasks (not referenced in deps or with blocks)
             if suggest {
                 let mut referenced: std::collections::HashSet<&str> =
