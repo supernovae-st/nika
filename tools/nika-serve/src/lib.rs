@@ -23,6 +23,7 @@ pub mod error;
 pub mod events;
 pub mod executor;
 pub mod metrics;
+pub mod openapi;
 pub mod rate_limit;
 pub mod request_id;
 pub mod routes;

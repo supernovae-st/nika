@@ -4,32 +4,45 @@ pub mod artifacts;
 pub mod health;
 pub mod workflows;
 
-use axum::routing::{get, post};
-use axum::Router;
+use std::sync::Arc;
+
+use aide::axum::routing::{get_with, post_with};
+use aide::axum::ApiRouter;
+use aide::openapi::OpenApi;
+use axum::routing::get;
+use axum::{Extension, Router};
 
 use crate::state::AppState;
 
-/// Build the full API router with all v1 routes.
+/// Build the full API router with all v1 routes + OpenAPI spec.
 ///
 /// SSE route (`/v1/events/{id}`) is returned separately via `build_sse_router`
 /// so it can be excluded from the 30s TimeoutLayer (SSE streams are long-lived).
 pub fn build_router(state: AppState) -> Router {
-    Router::new()
-        .route("/health", get(health::health))
-        .route("/v1/run", post(workflows::run_workflow))
-        .route("/v1/status/{id}", get(workflows::get_status))
-        .route("/v1/cancel/{id}", post(workflows::cancel_job))
-        .route("/v1/workflows", get(workflows::list_workflows))
-        .route(
+    let mut api = OpenApi::default();
+
+    ApiRouter::new()
+        .api_route("/health", get_with(health::health, health::docs))
+        .api_route("/v1/run", post_with(workflows::run_workflow, workflows::run_docs))
+        .api_route("/v1/status/{id}", get_with(workflows::get_status, workflows::status_docs))
+        .api_route("/v1/cancel/{id}", post_with(workflows::cancel_job, workflows::cancel_docs))
+        .api_route("/v1/workflows", get_with(workflows::list_workflows, workflows::list_docs))
+        .api_route(
             "/v1/workflows/{name}/source",
-            get(workflows::get_workflow_source),
+            get_with(workflows::get_workflow_source, workflows::source_docs),
         )
-        .route("/v1/reload", post(workflows::reload_workflows))
-        .route("/v1/jobs/{id}/artifacts", get(artifacts::list_artifacts))
-        .route(
+        .api_route("/v1/reload", post_with(workflows::reload_workflows, workflows::reload_docs))
+        .api_route(
+            "/v1/jobs/{id}/artifacts",
+            get_with(artifacts::list_artifacts, artifacts::list_docs),
+        )
+        .api_route(
             "/v1/jobs/{id}/artifacts/{name}",
-            get(artifacts::download_artifact),
+            get_with(artifacts::download_artifact, artifacts::download_docs),
         )
+        .finish_api_with(&mut api, crate::openapi::configure)
+        .route("/v1/openapi.json", get(crate::openapi::serve))
+        .layer(Extension(Arc::new(api)))
         .with_state(state)
 }
 

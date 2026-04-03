@@ -3,6 +3,7 @@
 //! - `GET /v1/jobs/{id}/artifacts` — list artifacts for a job
 //! - `GET /v1/jobs/{id}/artifacts/{name}` — download a single artifact
 
+use aide::transform::TransformOperation;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
@@ -12,6 +13,18 @@ use tokio_util::io::ReaderStream;
 
 use crate::error::ServeError;
 use crate::state::AppState;
+
+pub fn list_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("List job artifacts")
+        .description("Returns a JSON array of artifacts (name, size, format, content_type, checksum).")
+        .tag("artifacts")
+}
+
+pub fn download_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("Download a single artifact")
+        .description("Streams the artifact file with correct Content-Type, Content-Length, ETag, and Cache-Control headers.")
+        .tag("artifacts")
+}
 
 /// List artifacts for a completed job.
 ///

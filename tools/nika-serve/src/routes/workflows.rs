@@ -7,10 +7,12 @@
 //! - `POST /v1/cancel/{id}`          -- Cancel a running job (ERRATA-3)
 //! - `GET  /v1/events/{id}`          -- SSE streaming (see `events.rs`)
 
+use aide::transform::TransformOperation;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::info;
@@ -23,7 +25,7 @@ use crate::worker;
 // REQUEST / RESPONSE TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub struct RunRequest {
     /// Workflow filename relative to the configured workflows directory.
     /// Example: `"my-pipeline.nika.yaml"`
@@ -37,13 +39,13 @@ pub struct RunRequest {
     pub resume_from: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct RunResponse {
     pub job_id: String,
     pub status: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct StatusResponse {
     pub job_id: String,
     pub status: String,
@@ -256,7 +258,7 @@ pub async fn cancel_job(
 // LIST WORKFLOWS
 // ═══════════════════════════════════════════════════════════════════════════
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct WorkflowInfo {
     /// Filename relative to workflows_dir (e.g. "translate-locale.nika.yaml")
     pub name: String,
@@ -264,7 +266,7 @@ pub struct WorkflowInfo {
     pub size: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct ListWorkflowsResponse {
     pub workflows: Vec<WorkflowInfo>,
     pub count: usize,
@@ -400,6 +402,46 @@ async fn collect_workflows(
         }
     }
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPENAPI DOCS
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn run_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("Submit a workflow for async execution")
+        .description("Validates the workflow file, creates a job in SQLite, and spawns a worker.")
+        .tag("jobs")
+}
+
+pub fn status_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("Poll job status")
+        .description("Returns the current state of a job (pending/running/completed/failed/cancelled).")
+        .tag("jobs")
+}
+
+pub fn cancel_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("Cancel a running job")
+        .description("Kills the worker subprocess and marks the job as cancelled.")
+        .tag("jobs")
+}
+
+pub fn list_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("List available workflows")
+        .description("Recursively scans the workflows directory for .nika.yaml files.")
+        .tag("workflows")
+}
+
+pub fn source_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("Get workflow YAML source")
+        .description("Returns the raw YAML content of a workflow file as plain text.")
+        .tag("workflows")
+}
+
+pub fn reload_docs(op: TransformOperation) -> TransformOperation {
+    op.summary("Reload workflows from disk")
+        .description("Rescans the workflows directory and returns the refreshed list.")
+        .tag("workflows")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

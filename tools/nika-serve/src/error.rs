@@ -28,6 +28,12 @@ pub enum ServeError {
     Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
+// aide: allow ServeError in Result<T, ServeError> returns.
+// Error responses are documented manually in per-route doc functions.
+impl aide::OperationOutput for ServeError {
+    type Inner = ();
+}
+
 impl IntoResponse for ServeError {
     fn into_response(self) -> Response {
         let (status, msg) = match &self {
