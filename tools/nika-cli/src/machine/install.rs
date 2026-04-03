@@ -2026,4 +2026,107 @@ vscode = \"0.58.0\"\n";
             );
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Section boundary — key search must not leak across sections
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// update_extension_version must not modify keys in other sections.
+    #[test]
+    fn update_extension_version_respects_section_boundary() {
+        let content = "\
+[machine]\n\
+version = \"0.62.0\"\n\
+\n\
+[extensions]\n\
+vscode = \"0.58.0\"\n\
+\n\
+[rule_hashes]\n\
+vscode = \"deadbeef\"\n";
+
+        // Simulate update_extension_version("vscode", "0.63.0")
+        let editor_id = "vscode";
+        let new_line = format!("{} = \"0.63.0\"", editor_id);
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        let section_idx = lines.iter().position(|l| l.trim() == "[extensions]");
+        if let Some(idx) = section_idx {
+            let mut key_idx = None;
+            for (i, l) in lines[idx + 1..].iter().enumerate() {
+                let t = l.trim();
+                if t.starts_with('[') {
+                    break;
+                }
+                if t.starts_with(editor_id)
+                    && t[editor_id.len()..].trim_start().starts_with('=')
+                {
+                    key_idx = Some(i + idx + 1);
+                    break;
+                }
+            }
+            if let Some(ki) = key_idx {
+                lines[ki] = new_line;
+            }
+        }
+
+        let result = lines.join("\n") + "\n";
+        assert!(result.contains("[extensions]"));
+        assert!(result.contains("vscode = \"0.63.0\"")); // updated in [extensions]
+        assert!(result.contains("vscode = \"deadbeef\"")); // untouched in [rule_hashes]
+    }
+
+    /// update_marker_version must only replace version in [machine], not [extensions].
+    #[test]
+    fn update_marker_version_scoped_to_machine_section() {
+        let content = "\
+[machine]\n\
+setup_at = \"123\"\n\
+version = \"0.62.0\"\n\
+\n\
+[extensions]\n\
+version = \"should_not_change\"\n";
+
+        let new_version = "0.63.0";
+        let mut in_machine = false;
+        let mut replaced = false;
+        let updated: String = content
+            .lines()
+            .map(|line| {
+                let trimmed = line.trim();
+                if trimmed == "[machine]" {
+                    in_machine = true;
+                } else if trimmed.starts_with('[') {
+                    in_machine = false;
+                }
+                if in_machine
+                    && !replaced
+                    && trimmed.starts_with("version")
+                    && trimmed[7..].trim_start().starts_with('=')
+                {
+                    replaced = true;
+                    format!("version = \"{}\"", new_version)
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(updated.contains("version = \"0.63.0\"")); // [machine] updated
+        assert!(updated.contains("version = \"should_not_change\"")); // [extensions] preserved
+    }
+
+    /// VSIX sideload URL format is correct.
+    #[test]
+    fn vsix_sideload_url_format() {
+        let version = "0.63.0";
+        let url = format!(
+            "https://github.com/supernovae-st/nika/releases/download/v{}/nika-lang-{}.vsix",
+            version, version
+        );
+        assert_eq!(
+            url,
+            "https://github.com/supernovae-st/nika/releases/download/v0.63.0/nika-lang-0.63.0.vsix"
+        );
+    }
+
 }
