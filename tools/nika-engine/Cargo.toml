@@ -78,6 +78,10 @@ miette = { workspace = true }
 reqwest = { workspace = true }
 url = { workspace = true }
 
+# Crawl ethics
+texting_robots = { workspace = true }
+governor = { workspace = true }
+
 # Cryptographic hashing
 sha2 = { workspace = true }
 
