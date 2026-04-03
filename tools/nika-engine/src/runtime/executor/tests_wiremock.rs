@@ -1198,3 +1198,91 @@ async fn wiremock_fetch_returns_error_on_exhausted_5xx_retries() {
         "Should have emitted at least one FetchRetry event"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Redirect Chain Tracking (CRAWL-003)
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn wiremock_fetch_response_full_redirect_chain() {
+    let server = MockServer::start().await;
+
+    // Chain: /start → 301 → /middle → 302 → /final
+    Mock::given(method("GET"))
+        .and(path("/start"))
+        .respond_with(
+            ResponseTemplate::new(301)
+                .insert_header("Location", format!("{}/middle", server.uri()).as_str()),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/middle"))
+        .respond_with(
+            ResponseTemplate::new(302)
+                .insert_header("Location", format!("{}/final", server.uri()).as_str()),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/final"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("done"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_redirect_chain");
+    let mut params = fetch_params(&format!("{}/start", server.uri()), "GET");
+    params.response = Some(nika_core::ast::extract::ResponseMode::Full);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    // Final status should be 200
+    assert_eq!(parsed["status"], 200);
+    // Body should be "done"
+    assert_eq!(parsed["body"], "done");
+    // URL should be the final URL
+    assert!(
+        parsed["url"].as_str().unwrap().ends_with("/final"),
+        "url should end with /final, got: {}",
+        parsed["url"]
+    );
+    // Redirect chain should have 2 entries
+    assert_eq!(parsed["redirect_count"], 2);
+    let redirects = parsed["redirects"].as_array().unwrap();
+    assert_eq!(redirects.len(), 2);
+    assert_eq!(redirects[0]["status"], 301);
+    assert!(redirects[0]["url"].as_str().unwrap().contains("/middle"));
+    assert_eq!(redirects[1]["status"], 302);
+    assert!(redirects[1]["url"].as_str().unwrap().contains("/final"));
+}
+
+#[tokio::test]
+async fn wiremock_fetch_response_full_no_redirects() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/direct"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("direct"))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_no_redirect");
+    let mut params = fetch_params(&format!("{}/direct", server.uri()), "GET");
+    params.response = Some(nika_core::ast::extract::ResponseMode::Full);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    assert_eq!(parsed["status"], 200);
+    assert_eq!(parsed["redirect_count"], 0);
+    let redirects = parsed["redirects"].as_array().unwrap();
+    assert!(redirects.is_empty());
+}

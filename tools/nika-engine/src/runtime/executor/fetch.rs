@@ -190,10 +190,17 @@ impl TaskExecutor {
             result: redact_for_event(&url),
         });
 
-        // Select HTTP client based on follow_redirects + DNS pinning
+        // Select HTTP client based on follow_redirects + DNS pinning + redirect tracking
         // When we have pinned DNS addresses, build a one-off client with .resolve()
         // to prevent TOCTOU rebinding. Otherwise use the shared client.
-        let needs_custom_client = fetch.follow_redirects == Some(false) || !pinned_addrs.is_empty();
+        // CRAWL-003: Also build custom client for response:full to track redirect chain.
+        let is_response_full =
+            fetch.response == Some(nika_core::ast::extract::ResponseMode::Full);
+        let redirect_chain: std::sync::Arc<parking_lot::Mutex<Vec<(u16, String)>>> =
+            std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
+        let needs_custom_client = fetch.follow_redirects == Some(false)
+            || !pinned_addrs.is_empty()
+            || is_response_full;
         let http_client: std::borrow::Cow<'_, reqwest::Client> = if needs_custom_client {
             let mut builder = reqwest::Client::builder()
                 .timeout(crate::util::FETCH_TIMEOUT)
@@ -209,15 +216,31 @@ impl TaskExecutor {
                 // Apply SSRF redirect policy to DNS-pinned clients.
                 // Without this, redirects bypass the DNS pinning (the pinned
                 // addresses only bind to the initial host, not redirect targets).
-                builder = builder.redirect(reqwest::redirect::Policy::custom(|attempt| {
+                // CRAWL-003: Also capture redirect chain for response:full.
+                let chain_capture = std::sync::Arc::clone(&redirect_chain);
+                // Pass allowed_hosts to closure so SSRF check respects policy overrides
+                let allowed: Vec<String> = self
+                    .policy_enforcer
+                    .read()
+                    .allowed_hosts()
+                    .to_vec();
+                builder = builder.redirect(reqwest::redirect::Policy::custom(move |attempt| {
                     use crate::runtime::policy::is_ssrf_blocked;
+                    // Capture redirect info for response:full
+                    chain_capture
+                        .lock()
+                        .push((attempt.status().as_u16(), attempt.url().to_string()));
                     if attempt.previous().len() >= super::REDIRECT_LIMIT {
                         attempt.stop()
                     } else {
                         let blocked = attempt.url().host_str().and_then(|host| {
                             let h = host.to_lowercase();
                             let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
-                            if is_ssrf_blocked(h_normalized) {
+                            // Skip SSRF block for explicitly allowed hosts
+                            let explicitly_allowed = allowed
+                                .iter()
+                                .any(|a: &String| h_normalized == a.to_lowercase());
+                            if !explicitly_allowed && is_ssrf_blocked(h_normalized) {
                                 Some(h)
                             } else {
                                 None
@@ -647,23 +670,41 @@ impl TaskExecutor {
                             // HREFLANG-001: merge Link header hreflang into extracted metadata
                             let extracted =
                                 merge_link_hreflang_value(extracted, fetch.extract, &link_headers);
+                            // CRAWL-003: include redirect chain
+                            let redirects = redirect_chain.lock().clone();
+                            let redirect_count = redirects.len();
+                            let redirects_json: Vec<serde_json::Value> = redirects
+                                .iter()
+                                .map(|(s, u)| serde_json::json!({"status": s, "url": u}))
+                                .collect();
                             return Ok(serde_json::json!({
                                 "status": status,
                                 "headers": headers,
                                 "body": body,
                                 "url": final_url,
                                 "elapsed_ms": elapsed_ms,
+                                "redirects": redirects_json,
+                                "redirect_count": redirect_count,
                                 "extracted": extracted,
                             })
                             .to_string());
                         }
 
+                        // CRAWL-003: include redirect chain
+                        let redirects = redirect_chain.lock().clone();
+                        let redirect_count = redirects.len();
+                        let redirects_json: Vec<serde_json::Value> = redirects
+                            .iter()
+                            .map(|(s, u)| serde_json::json!({"status": s, "url": u}))
+                            .collect();
                         return Ok(serde_json::json!({
                             "status": status,
                             "headers": headers,
                             "body": body,
                             "url": final_url,
                             "elapsed_ms": elapsed_ms,
+                            "redirects": redirects_json,
+                            "redirect_count": redirect_count,
                         })
                         .to_string());
                     }

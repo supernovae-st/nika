@@ -249,6 +249,11 @@ impl PolicyEnforcer {
         }
     }
 
+    /// Get the list of explicitly allowed hosts (overrides SSRF blocklist).
+    pub fn allowed_hosts(&self) -> &[String] {
+        &self.config.allowed_hosts
+    }
+
     /// Check if the exec verb is allowed for a command
     pub fn check_exec(&self, command: &str) -> PolicyDecision {
         // Check if exec is globally disabled
