@@ -1092,6 +1092,35 @@ mod tests {
         assert_eq!(result, "[]");
     }
 
+    #[tokio::test]
+    async fn filter_missing_field_excluded() {
+        // Elements without the filter field should be excluded (null != 200)
+        let tool = FilterTool;
+        let result = tool
+            .call(
+                r#"{"array": [{"status": 200}, {"other": "x"}, {"status": 200}], "field": "status", "op": "eq", "value": 200}"#
+                    .into(),
+            )
+            .await
+            .unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed.as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn filter_starts_with_op() {
+        let tool = FilterTool;
+        let result = tool
+            .call(
+                r#"{"array": [{"path": "/api/v1"}, {"path": "/blog"}, {"path": "/api/v2"}], "field": "path", "op": "starts_with", "value": "/api"}"#
+                    .into(),
+            )
+            .await
+            .unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed.as_array().unwrap().len(), 2);
+    }
+
     // ── group_by ────────────────────────────────────────────────
     #[tokio::test]
     async fn group_by_string_field() {
