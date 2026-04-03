@@ -47,12 +47,16 @@ impl RobotsCache {
     /// Fetches and caches robots.txt on first access per domain.
     /// Returns `true` if allowed (or if robots.txt is missing/errored).
     pub async fn is_allowed(&self, url: &url::Url, client: &reqwest::Client) -> bool {
-        let domain = url.host_str().unwrap_or_default().to_string();
+        // Use host:port as cache key so non-standard ports are handled correctly
+        let authority = match url.port() {
+            Some(port) => format!("{}:{}", url.host_str().unwrap_or_default(), port),
+            None => url.host_str().unwrap_or_default().to_string(),
+        };
 
         // Check cache first (read lock)
         {
             let cache = self.cache.read();
-            if let Some(entry) = cache.get(&domain) {
+            if let Some(entry) = cache.get(&authority) {
                 return match entry {
                     Some(robot) => robot.allowed(url.as_str()),
                     None => true, // 404 robots.txt = allow all
@@ -61,7 +65,7 @@ impl RobotsCache {
         }
 
         // Fetch and cache (write lock)
-        let robots_url = format!("{}://{}/robots.txt", url.scheme(), domain);
+        let robots_url = format!("{}://{}/robots.txt", url.scheme(), authority);
         let robot = match client
             .get(&robots_url)
             .timeout(Duration::from_secs(5))
@@ -82,20 +86,23 @@ impl RobotsCache {
             .as_ref()
             .map(|r| r.allowed(url.as_str()))
             .unwrap_or(true);
-        self.cache.write().insert(domain, robot);
+        self.cache.write().insert(authority, robot);
         allowed
     }
 
     /// Get the crawl-delay for a domain, if specified.
     pub async fn crawl_delay(&self, url: &url::Url, client: &reqwest::Client) -> Option<f64> {
-        let domain = url.host_str().unwrap_or_default().to_string();
+        let authority = match url.port() {
+            Some(port) => format!("{}:{}", url.host_str().unwrap_or_default(), port),
+            None => url.host_str().unwrap_or_default().to_string(),
+        };
 
         // Ensure robots.txt is fetched
         self.is_allowed(url, client).await;
 
         let cache = self.cache.read();
         cache
-            .get(&domain)
+            .get(&authority)
             .and_then(|entry| entry.as_ref())
             .and_then(|r| r.crawl_delay())
     }

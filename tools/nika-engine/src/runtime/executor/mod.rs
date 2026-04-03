@@ -104,6 +104,18 @@ pub struct TaskExecutor {
     custom_endpoints: Arc<crate::provider::endpoints::CustomEndpointMap>,
     /// Resolved agent presets from the workflow's `agents:` block
     resolved_agents: Arc<crate::runtime::resolver::ResolvedAgents>,
+    /// robots.txt compliance cache — shared across all fetch tasks in a workflow.
+    robots_cache: Option<Arc<crate::runtime::robots::RobotsCache>>,
+    /// Per-domain rate limiter for polite crawling.
+    domain_rate_limiter: Option<Arc<crate::runtime::rate_limit::DomainRateLimiter>>,
+    /// Shared cookie jar for session persistence (fetch tasks with session: true).
+    /// Infrastructure: not yet wired into fetch executor.
+    #[allow(dead_code)]
+    cookie_jar: Arc<reqwest_cookie_store::CookieStoreRwLock>,
+    /// HTTP response cache for ETag / If-Modified-Since conditional requests.
+    /// Infrastructure: not yet wired into fetch executor.
+    #[allow(dead_code)]
+    fetch_cache: Arc<crate::runtime::fetch_cache::FetchCache>,
 }
 
 impl TaskExecutor {
@@ -217,6 +229,18 @@ impl TaskExecutor {
         // Separate CAS handle for vision content resolution (same directory)
         let cas = Arc::new(CasStore::workspace_default(&working_dir));
 
+        // Crawl intelligence: robots.txt + per-domain rate limiting + cookies + cache
+        let robots_cache = Some(Arc::new(crate::runtime::robots::RobotsCache::new(
+            &format!("nika/{}", env!("CARGO_PKG_VERSION")),
+        )));
+        let domain_rate_limiter = Some(Arc::new(
+            crate::runtime::rate_limit::DomainRateLimiter::new(10),
+        ));
+        let cookie_jar = Arc::new(reqwest_cookie_store::CookieStoreRwLock::new(
+            cookie_store::CookieStore::default(),
+        ));
+        let fetch_cache = Arc::new(crate::runtime::fetch_cache::FetchCache::new());
+
         // Build router before struct init to avoid borrow-after-move on event_log
         let builtin_router = Arc::new(
             BuiltinToolRouter::with_all_tools(tool_ctx.clone(), media_ctx)
@@ -245,6 +269,10 @@ impl TaskExecutor {
             working_dir_mode: None,
             custom_endpoints: Arc::new(custom_endpoints.unwrap_or_default()),
             resolved_agents: Arc::new(rustc_hash::FxHashMap::default()),
+            robots_cache,
+            domain_rate_limiter,
+            cookie_jar,
+            fetch_cache,
         })
     }
 
