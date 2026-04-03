@@ -635,15 +635,18 @@ fn extract_sitemap_xml(body: &str) -> Result<String, NikaError> {
         buf.clear();
     }
 
+    // IMP-030: Consistent output keys — both types include urls + sitemaps
     let result = if is_index {
         serde_json::json!({
             "sitemaps": sitemaps,
+            "urls": [],
             "count": sitemaps.len(),
             "is_index": true,
         })
     } else {
         serde_json::json!({
             "urls": urls,
+            "sitemaps": [],
             "count": urls.len(),
             "is_index": false,
         })
