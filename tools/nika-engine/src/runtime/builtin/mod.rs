@@ -61,7 +61,8 @@ pub use complete::{
 };
 pub use cost::CostTool;
 pub use data_tools::{
-    FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool, SetDiffTool, ZipTool,
+    ChunkTool, FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool, SetDiffTool,
+    TokenCountTool, ZipTool,
 };
 pub use emit::EmitTool;
 pub use json_transform::{JsonFlattenTool, JsonUnflattenTool};

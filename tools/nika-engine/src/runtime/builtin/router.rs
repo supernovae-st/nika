@@ -64,9 +64,10 @@ impl BuiltinToolRouter {
         tools.insert("run", Arc::new(RunTool));
         tools.insert("complete", Arc::new(CompleteTool));
 
-        // Register 7 data processing tools
+        // Register 9 data processing tools
         use super::data_tools::{
-            FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool, SetDiffTool, ZipTool,
+            ChunkTool, FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool, SetDiffTool,
+            TokenCountTool, ZipTool,
         };
         tools.insert("json_merge", Arc::new(JsonMergeTool));
         tools.insert("set_diff", Arc::new(SetDiffTool));
@@ -75,6 +76,8 @@ impl BuiltinToolRouter {
         tools.insert("map", Arc::new(MapTool));
         tools.insert("filter", Arc::new(FilterTool));
         tools.insert("group_by", Arc::new(GroupByTool));
+        tools.insert("chunk", Arc::new(ChunkTool));
+        tools.insert("token_count", Arc::new(TokenCountTool));
 
         // Register 5 Sprint 2 data tools
         use super::{

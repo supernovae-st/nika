@@ -86,6 +86,9 @@ governor = { workspace = true }
 cookie_store = { workspace = true }
 reqwest_cookie_store = { workspace = true }
 
+# RAG
+text-splitter = { workspace = true }
+
 # Cryptographic hashing
 sha2 = { workspace = true }
 
