@@ -331,7 +331,16 @@ impl RigAgentLoop {
                         duration_ms: AGENT_STREAM_TOTAL_TIMEOUT.as_millis() as u64,
                     });
                 }
-                stream.next().await
+                // Per-chunk timeout: prevent indefinite hang on slow providers
+                match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+                    Ok(item) => item,
+                    Err(_) => {
+                        return Err(NikaError::Timeout {
+                            operation: "agent stream chunk".to_string(),
+                            duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                        });
+                    }
+                }
             } {
                 match chunk {
                     Ok(item) => match item {

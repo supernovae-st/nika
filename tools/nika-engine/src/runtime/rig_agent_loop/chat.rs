@@ -300,7 +300,14 @@ impl RigAgentLoop {
         // Strip <think> blocks from reasoning models (Qwen, DeepSeek-R1)
         let response = crate::runtime::executor::verbs::strip_think_tags(&raw_response);
 
-        // Update history and increment turn count
+        // Update history and increment turn count.
+        // Cap history size to prevent unbounded memory growth (max_turns * 2 messages).
+        let max_history = self.params.max_turns.unwrap_or(10) as usize * 2;
+        if self.history.len() >= max_history {
+            // Trim oldest messages, keeping system-level context at the start
+            let trim_count = self.history.len() + 2 - max_history;
+            self.history.drain(..trim_count);
+        }
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
         self.turn_count += 1;

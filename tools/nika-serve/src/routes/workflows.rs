@@ -90,6 +90,19 @@ pub async fn run_workflow(
         )));
     }
 
+    // Validate resume_from: UUID hex format, max 64 chars
+    if let Some(ref resume_id) = req.resume_from {
+        if resume_id.len() > 64
+            || !resume_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(ServeError::InvalidWorkflow(
+                "resume_from must be a valid job ID (alphanumeric/hyphens, max 64 chars)".into(),
+            ));
+        }
+    }
+
     // Validate inputs: must be object, keys alphanumeric+underscore, bounded size
     if let Some(inputs) = &req.inputs {
         // M5: Reject non-object inputs (arrays, strings, etc.)
