@@ -7,10 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.63.1 — OPENAPI + SCALAR DOCS                                     ║
-║  Security scheme | Operation IDs | Typed responses | Scalar UI             ║
+║  NIKA v0.63.2 — DATA TRANSFORMS + BUILTIN TOOLS                           ║
+║  10 transforms | 6 builtins | Zero Python in workflows                     ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.63.2] — 2026-04-03
+
+### Added
+- **10 new pipe transforms** — `pluck(field)`, `where(field, val)`, `pick(f1, f2)`, `omit(f1, f2)`, `sort_by(field)`, `group_by(field)`, `merge`, `regex(pattern)`, `base64_encode`, `base64_decode`. Eliminates LLM calls for mechanical data reshaping.
+- **`nika:json_verify` builtin** — Translation structural validator: missing keys, extra keys, broken placeholders, broken HTML tags. Replaces `verify-translation.py`.
+- **`nika:yaml_validate` builtin** — Batch YAML/JSON field presence checker with dot-path fields.
+- **`nika:locale_lookup` builtin** — BCP-47 to NLLB/ISO code mapping with language-prefix fallback.
+- **`nika:aggregate` builtin** — Array statistics: sum, avg, min, max, count. Replaces LLM calls for trivial math.
+- **`nika:json_flatten` / `nika:json_unflatten` builtins** — Flatten nested JSON to dot-notation keys and back. Full roundtrip fidelity.
+- **LSP autocomplete** — All new transforms available in VS Code / JetBrains completion (39 total).
+- **14 E2E workflow tests** — Real YAML → runner → verify for all new transforms and builtins.
+
+### Fixed
+- **`aggregate` count** — Returns total array length, not just numeric items count.
+- **`json_unflatten` collision** — Conflicting keys replace scalar with object instead of silent data loss.
+- **Startup banner** — Recursive workflow count in `nika serve` (was showing 0 for nested dirs).
+- **Token timing leak** — SHA-256 hash before `ct_eq` prevents token length side-channel.
+- **Artifact path check** — Uses `project_root` not `workflows_dir` for containment.
+- **`[policy]` config** — `allowed_hosts` from nika.toml now reaches executor (was silently dropped).
+- **SSE subscribe TOCTOU** — Single lock acquisition for channel existence + subscribe.
+- **GC handle tracking** — GC task handle stored for graceful shutdown.
+- **Null byte rejection** — `validate_workflow_path` rejects null bytes.
 
 ## [0.63.1] — 2026-04-03
 
