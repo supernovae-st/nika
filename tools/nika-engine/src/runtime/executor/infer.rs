@@ -583,10 +583,20 @@ impl TaskExecutor {
                     match example_ref {
                         crate::ast::output::SchemaRef::Inline(v) => Ok(derive_schema(v)),
                         crate::ast::output::SchemaRef::File(path) => {
-                            tokio::fs::read_to_string(path)
+                            // Template-resolve path (e.g. "cache/{{inputs.locale | lower}}.json")
+                            // Must match the resolution done in the prompt injection path (line ~129)
+                            let resolved_path = if path.contains("{{") {
+                                template_resolve(path, bindings, datastore)?.into_owned()
+                            } else {
+                                path.clone()
+                            };
+                            tokio::fs::read_to_string(&resolved_path)
                                 .await
                                 .map_err(|e| NikaError::SchemaFailed {
-                                    details: format!("Failed to read example '{}': {}", path, e),
+                                    details: format!(
+                                        "Failed to read example '{}': {}",
+                                        resolved_path, e
+                                    ),
                                 })
                                 .and_then(|content| {
                                     let example: Value =
@@ -594,7 +604,7 @@ impl TaskExecutor {
                                             NikaError::SchemaFailed {
                                                 details: format!(
                                                     "Invalid JSON in example '{}': {}",
-                                                    path, e
+                                                    resolved_path, e
                                                 ),
                                             }
                                         })?;
@@ -607,17 +617,25 @@ impl TaskExecutor {
                     match schema_ref {
                         crate::ast::output::SchemaRef::Inline(v) => Ok(v.clone()),
                         crate::ast::output::SchemaRef::File(path) => {
-                            tokio::fs::read_to_string(path)
+                            let resolved_path = if path.contains("{{") {
+                                template_resolve(path, bindings, datastore)?.into_owned()
+                            } else {
+                                path.clone()
+                            };
+                            tokio::fs::read_to_string(&resolved_path)
                                 .await
                                 .map_err(|e| NikaError::SchemaFailed {
-                                    details: format!("Failed to read schema '{}': {}", path, e),
+                                    details: format!(
+                                        "Failed to read schema '{}': {}",
+                                        resolved_path, e
+                                    ),
                                 })
                                 .and_then(|content| {
                                     serde_json::from_str(&content).map_err(|e| {
                                         NikaError::SchemaFailed {
                                             details: format!(
                                                 "Invalid JSON in schema '{}': {}",
-                                                path, e
+                                                resolved_path, e
                                             ),
                                         }
                                     })
