@@ -73,6 +73,7 @@ impl Executor {
                     inputs,
                     &ctx.child_pid,
                     &mut ctx.shutdown_rx,
+                    &ctx.job_id,
                 )
                 .await?;
                 // Subprocess mode: no artifact metadata available

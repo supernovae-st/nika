@@ -319,10 +319,17 @@ pub(crate) async fn run_subprocess(
     inputs: Option<&serde_json::Value>,
     child_pid: &Arc<AtomicU32>,
     shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
+    job_id: &str,
 ) -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| format!("failed to resolve current_exe: {e}"))?;
 
     let workflow_path = config.workflows_dir.join(workflow);
+
+    // Per-job scratch directory for cache isolation (P0-4).
+    // Concurrent workflows get separate dirs so nika:write won't race.
+    let job_dir = config.workflows_dir.join(".nika").join("jobs").join(job_id);
+    std::fs::create_dir_all(&job_dir)
+        .map_err(|e| format!("failed to create job dir {}: {e}", job_dir.display()))?;
 
     let mut cmd = Command::new(&exe);
     cmd.arg("run")
@@ -363,6 +370,10 @@ pub(crate) async fn run_subprocess(
     cmd.env_clear();
     cmd.env("PATH", &path);
     cmd.env("HOME", &home);
+    // Per-job isolation: workflows can use $env.NIKA_JOB_ID / $env.NIKA_JOB_DIR
+    // to namespace cache files and avoid races under concurrent execution.
+    cmd.env("NIKA_JOB_ID", job_id);
+    cmd.env("NIKA_JOB_DIR", &job_dir);
     for (k, v) in &nika_vars {
         cmd.env(k, v);
     }
