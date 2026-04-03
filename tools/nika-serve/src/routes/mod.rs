@@ -9,6 +9,7 @@ use std::sync::Arc;
 use aide::axum::routing::{get_with, post_with};
 use aide::axum::ApiRouter;
 use aide::openapi::OpenApi;
+use aide::scalar::Scalar;
 use axum::routing::get;
 use axum::{Extension, Router};
 
@@ -57,6 +58,13 @@ pub fn build_router(state: AppState) -> Router {
         )
         .finish_api_with(&mut api, crate::openapi::configure)
         .route("/v1/openapi.json", get(crate::openapi::serve))
+        .route(
+            "/v1/docs",
+            Scalar::new("/v1/openapi.json")
+                .with_title("Nika Serve API")
+                .axum_route()
+                .into(),
+        )
         .layer(Extension(Arc::new(api)))
         .with_state(state)
 }
