@@ -7,6 +7,7 @@
 use std::time::Duration;
 
 #[derive(thiserror::Error, Debug)]
+#[must_use]
 pub enum SdkError {
     #[error("invalid URL: {0}")]
     InvalidUrl(String),

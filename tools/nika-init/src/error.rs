@@ -1,18 +1,20 @@
 //! Error types for nika-init crate.
 
 /// Errors from the init/course/showcase subsystem.
+///
+/// Uses NIKA-500+ range to avoid collisions with nika-engine error codes.
 #[derive(Debug, thiserror::Error)]
 pub enum NikaInitError {
-    /// I/O error during file operations (NIKA-093 equivalent)
-    #[error("NIKA-093: I/O error: {0}")]
+    /// I/O error during file operations
+    #[error("[NIKA-501] I/O error: {0}")]
     IoError(#[from] std::io::Error),
 
-    /// Configuration error — TOML parse/serialize failures (NIKA-135 equivalent)
-    #[error("NIKA-135: Config error: {reason}")]
+    /// Configuration error — TOML parse/serialize failures
+    #[error("[NIKA-502] Config error: {reason}")]
     ConfigError { reason: String },
 
-    /// Validation error — e.g. "course already exists" (NIKA-004 equivalent)
-    #[error("NIKA-004: Validation error: {reason}")]
+    /// Validation error — e.g. "course already exists"
+    #[error("[NIKA-503] Validation error: {reason}")]
     ValidationError { reason: String },
 }
 
