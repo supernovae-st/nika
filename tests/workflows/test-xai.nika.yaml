@@ -1,0 +1,76 @@
+schema: "nika/workflow@0.12"
+workflow: test-xai-transforms
+description: "E2E test with xAI/Grok — structured output → transform pipeline"
+provider: xai
+model: grok-3-mini
+
+artifacts:
+  dir: ./test-output
+
+tasks:
+  - id: generate
+    infer:
+      prompt: |
+        List exactly 5 programming languages. For each, give the name,
+        the year it was created, and its primary paradigm.
+      temperature: 0.0
+      max_tokens: 500
+    structured:
+      schema:
+        type: object
+        required: [languages]
+        properties:
+          languages:
+            type: array
+            minItems: 5
+            maxItems: 5
+            items:
+              type: object
+              required: [name, year, paradigm]
+              properties:
+                name: { type: string }
+                year: { type: integer, minimum: 1950 }
+                paradigm: { type: string }
+
+  - id: test_pluck
+    depends_on: [generate]
+    with:
+      names: $generate.languages | pluck("name") | sort | join(", ")
+    exec:
+      command: "echo PLUCK: {{with.names}}"
+      shell: true
+
+  - id: test_sort_by
+    depends_on: [generate]
+    with:
+      oldest: $generate.languages | sort_by("year") | first | pick("name", "year") | to_json
+    exec:
+      command: "echo SORT_BY: {{with.oldest}}"
+      shell: true
+
+  - id: test_group_by
+    depends_on: [generate]
+    with:
+      groups: $generate.languages | group_by("paradigm") | keys | sort | join(", ")
+    exec:
+      command: "echo GROUP_BY: {{with.groups}}"
+      shell: true
+
+  - id: test_pipeline
+    depends_on: [generate]
+    with:
+      result: $generate.languages | sort_by("year") | pluck("name") | join(" → ")
+    exec:
+      command: "echo PIPELINE: {{with.result}}"
+      shell: true
+
+  - id: report
+    depends_on: [generate, test_pluck, test_sort_by, test_group_by, test_pipeline]
+    with:
+      names: $generate.languages | pluck("name") | sort | join(", ")
+    infer:
+      prompt: "One-sentence summary of these languages: {{with.names}}."
+      max_tokens: 100
+    artifact:
+      path: xai-report.md
+      format: markdown

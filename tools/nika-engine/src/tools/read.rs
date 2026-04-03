@@ -38,6 +38,14 @@ pub struct ReadParams {
     /// Saves ~15% tokens when feeding file content to LLM prompts.
     #[serde(default)]
     pub raw: Option<bool>,
+
+    /// When true, missing files return fallback instead of error.
+    #[serde(default)]
+    pub optional: Option<bool>,
+
+    /// Value to return when file is missing and optional=true (default: "").
+    #[serde(default)]
+    pub fallback: Option<String>,
 }
 
 /// Result from reading a file
@@ -97,8 +105,19 @@ impl ReadTool {
             });
         }
 
+        let is_optional = params.optional.unwrap_or(false);
+
         // Check file exists
         if !path.exists() {
+            if is_optional {
+                let fallback_val = params.fallback.clone().unwrap_or_default();
+                return Ok(ReadResult {
+                    content: fallback_val,
+                    total_lines: 0,
+                    lines_returned: 0,
+                    truncated: false,
+                });
+            }
             return Err(NikaError::ToolError {
                 code: ToolErrorCode::FileNotFound.code(),
                 message: format!("File not found: {}", params.file_path),
@@ -106,12 +125,24 @@ impl ReadTool {
         }
 
         // Read file content
-        let content = fs::read_to_string(&path)
-            .await
-            .map_err(|e| NikaError::ToolError {
-                code: ToolErrorCode::ReadFailed.code(),
-                message: format!("Failed to read file: {}", e),
-            })?;
+        let content = match fs::read_to_string(&path).await {
+            Ok(c) => c,
+            Err(_) if is_optional => {
+                let fallback_val = params.fallback.clone().unwrap_or_default();
+                return Ok(ReadResult {
+                    content: fallback_val,
+                    total_lines: 0,
+                    lines_returned: 0,
+                    truncated: false,
+                });
+            }
+            Err(e) => {
+                return Err(NikaError::ToolError {
+                    code: ToolErrorCode::ReadFailed.code(),
+                    message: format!("Failed to read file: {}", e),
+                });
+            }
+        };
 
         // Process lines
         let all_lines: Vec<&str> = content.lines().collect();
@@ -204,6 +235,18 @@ impl FileTool for ReadTool {
                     "description": "Maximum number of lines to read (default: 2000)",
                     "minimum": 1,
                     "maximum": 10000
+                },
+                "raw": {
+                    "type": "boolean",
+                    "description": "Return raw content without line numbers (default: false)"
+                },
+                "optional": {
+                    "type": "boolean",
+                    "description": "Return fallback instead of error when file is missing (default: false)"
+                },
+                "fallback": {
+                    "type": "string",
+                    "description": "Value to return when file is missing and optional=true (default: empty string)"
                 }
             },
             "required": ["file_path"],
@@ -254,6 +297,8 @@ mod tests {
                 offset: None,
                 limit: None,
                 raw: None,
+                optional: None,
+                fallback: None,
             })
             .await
             .unwrap();
@@ -282,6 +327,8 @@ mod tests {
                 offset: Some(5),
                 limit: Some(3),
                 raw: None,
+                optional: None,
+                fallback: None,
             })
             .await
             .unwrap();
@@ -307,6 +354,8 @@ mod tests {
                 offset: None,
                 limit: None,
                 raw: None,
+                optional: None,
+                fallback: None,
             })
             .await
             .unwrap();
@@ -330,6 +379,8 @@ mod tests {
             offset: None,
             limit: None,
             raw: None,
+            optional: None,
+            fallback: None,
         })
         .await
         .unwrap();
@@ -353,11 +404,88 @@ mod tests {
                 offset: None,
                 limit: None,
                 raw: None,
+                optional: None,
+                fallback: None,
             })
             .await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_read_optional_missing_file() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir
+            .path()
+            .join("missing.txt")
+            .to_string_lossy()
+            .to_string();
+
+        let tool = ReadTool::new(ctx);
+        let result = tool
+            .execute(ReadParams {
+                file_path,
+                offset: None,
+                limit: None,
+                raw: None,
+                optional: Some(true),
+                fallback: Some("default_value".to_string()),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.content, "default_value");
+        assert_eq!(result.total_lines, 0);
+        assert_eq!(result.lines_returned, 0);
+    }
+
+    #[tokio::test]
+    async fn test_read_optional_without_fallback() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir
+            .path()
+            .join("missing.txt")
+            .to_string_lossy()
+            .to_string();
+
+        let tool = ReadTool::new(ctx);
+        let result = tool
+            .execute(ReadParams {
+                file_path,
+                offset: None,
+                limit: None,
+                raw: None,
+                optional: Some(true),
+                fallback: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.content, "");
+    }
+
+    #[tokio::test]
+    async fn test_read_optional_existing_file_reads_normally() {
+        let (temp_dir, ctx) = setup_test().await;
+        let path = create_test_file(&temp_dir, "exists.txt", "real content").await;
+        let file_path = path.to_string_lossy().to_string();
+
+        let tool = ReadTool::new(ctx);
+        let result = tool
+            .execute(ReadParams {
+                file_path,
+                offset: None,
+                limit: None,
+                raw: Some(true),
+                optional: Some(true),
+                fallback: Some("fallback".to_string()),
+            })
+            .await
+            .unwrap();
+
+        assert!(result.content.contains("real content"));
+        assert_eq!(result.total_lines, 1);
     }
 
     #[tokio::test]
@@ -371,6 +499,8 @@ mod tests {
                 offset: None,
                 limit: None,
                 raw: None,
+                optional: None,
+                fallback: None,
             })
             .await;
 
@@ -395,6 +525,8 @@ mod tests {
                 offset: None,
                 limit: None,
                 raw: None,
+                optional: None,
+                fallback: None,
             })
             .await;
 

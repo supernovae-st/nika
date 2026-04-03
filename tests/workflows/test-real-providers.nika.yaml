@@ -2,9 +2,9 @@ schema: "nika/workflow@0.12"
 workflow: test-real-providers
 description: "E2E test with REAL LLM providers — validates structured output → transform pipeline"
 
-# Default provider — overridable with --provider openai / --provider xai
-provider: anthropic
-model: claude-haiku-4-5
+# Using Gemini (fast + cheap) — anthropic credits exhausted
+provider: gemini
+model: gemini-2.5-flash
 
 artifacts:
   dir: ./test-output
