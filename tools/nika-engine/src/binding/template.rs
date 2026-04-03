@@ -4631,4 +4631,37 @@ mod v028_template_tests {
         let result = resolve_with("Value: {{with.obj.missing | trim}}", &with, &ds);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn template_missing_key_default_then_upper_works() {
+        let mut with = FxHashMap::default();
+        with.insert("obj".to_string(), json!({"name": "Alice"}));
+        let ds = RunContext::new();
+
+        // default() first → "n/a", then upper → "N/A"
+        let result = resolve_with(
+            "Value: {{with.obj.missing | default(\"n/a\") | upper}}",
+            &with,
+            &ds,
+        );
+        assert_eq!(result.unwrap(), "Value: N/A");
+    }
+
+    #[test]
+    fn template_missing_key_upper_then_default_errors() {
+        let mut with = FxHashMap::default();
+        with.insert("obj".to_string(), json!({"name": "Alice"}));
+        let ds = RunContext::new();
+
+        // upper first fails on null → falls through to error (order matters)
+        let result = resolve_with(
+            "Value: {{with.obj.missing | upper | default(\"x\")}}",
+            &with,
+            &ds,
+        );
+        // The has_default check finds default() in the chain, but when applied
+        // to null, upper fails first → default never fires → the apply() returns Err
+        // → falls through to error collection. This is correct: order matters.
+        assert!(result.is_err());
+    }
 }
