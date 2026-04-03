@@ -82,6 +82,10 @@ url = { workspace = true }
 texting_robots = { workspace = true }
 governor = { workspace = true }
 
+# HTTP intelligence
+cookie_store = { workspace = true }
+reqwest_cookie_store = { workspace = true }
+
 # Cryptographic hashing
 sha2 = { workspace = true }
 

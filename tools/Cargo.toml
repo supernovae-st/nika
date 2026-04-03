@@ -195,6 +195,8 @@ psl = "2"
 texting_robots = "0.2"
 http-cache-semantics = "3.0"
 fastbloom = "0.17"
+cookie_store = "0.22"
+reqwest_cookie_store = "0.10"
 
 # RAG: text chunking
 text-splitter = { version = "0.29", features = ["markdown"] }

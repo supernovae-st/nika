@@ -44,6 +44,7 @@ pub mod output_scanner;
 pub mod partial;
 pub mod policy;
 pub mod preset;
+pub mod fetch_cache;
 pub mod rate_limit;
 pub mod robots;
 pub mod record;
