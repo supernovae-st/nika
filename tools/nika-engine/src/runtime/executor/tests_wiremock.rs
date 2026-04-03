@@ -54,6 +54,8 @@ fn fetch_params(url: &str, method_str: &str) -> FetchParams {
         response: None,
         extract: None,
         selector: None,
+        session: None,
+        cache: None,
     }
 }
 

@@ -397,6 +397,12 @@ pub struct FetchParams {
     /// CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)
     #[serde(default)]
     pub selector: Option<String>,
+    /// Enable cookie jar for session persistence
+    #[serde(default)]
+    pub session: Option<bool>,
+    /// Enable HTTP response caching
+    #[serde(default)]
+    pub cache: Option<bool>,
 }
 
 impl FetchParams {
@@ -1436,6 +1442,8 @@ agent:
                 response: None,
                 extract: None,
                 selector: None,
+                session: None,
+                cache: None,
             },
         };
         assert_eq!(action.verb_name(), "fetch");
@@ -1647,6 +1655,8 @@ fetch:
                 response: None,
                 extract: None,
                 selector: None,
+                session: None,
+                cache: None,
             },
         };
 
@@ -1686,6 +1696,8 @@ fetch:
                 response: None,
                 extract: Some(*mode),
                 selector: None,
+                session: None,
+                cache: None,
             };
             assert!(
                 params.validate().is_ok(),
@@ -1712,6 +1724,8 @@ fetch:
             response: None,
             extract: None,
             selector: Some("div.content".to_string()),
+            session: None,
+            cache: None,
         };
         let err = params.validate().unwrap_err();
         assert!(err.to_string().contains("selector"));
@@ -1732,6 +1746,8 @@ fetch:
             response: None,
             extract: Some(nika_core::ast::extract::ExtractMode::Text),
             selector: Some("p.intro".to_string()),
+            session: None,
+            cache: None,
         };
         assert!(params.validate().is_ok());
     }
@@ -1750,6 +1766,8 @@ fetch:
             response: None,
             extract: None,
             selector: None,
+            session: None,
+            cache: None,
         };
         assert!(params.validate().is_ok());
     }

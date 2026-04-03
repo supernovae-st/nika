@@ -693,6 +693,8 @@ mod tests {
                 response: Some(nika_core::ast::extract::ResponseMode::Binary),
                 extract: None,
                 selector: None,
+                session: None,
+                cache: None,
             };
             assert!(
                 params.validate().is_ok(),
@@ -715,6 +717,8 @@ mod tests {
                 response: None,
                 extract: Some(nika_core::ast::extract::ExtractMode::Selector),
                 selector: Some("div.content".to_string()),
+                session: None,
+                cache: None,
             };
             assert!(
                 params.validate().is_ok(),
@@ -737,6 +741,8 @@ mod tests {
                 response: None,
                 extract: Some(nika_core::ast::extract::ExtractMode::Article),
                 selector: None,
+                session: None,
+                cache: None,
             };
             assert!(
                 params.validate().is_ok(),
@@ -759,6 +765,8 @@ mod tests {
                 response: None,
                 extract: Some(nika_core::ast::extract::ExtractMode::Feed),
                 selector: None,
+                session: None,
+                cache: None,
             };
             assert!(params.validate().is_ok(), "extract: feed should be valid");
         }
@@ -778,6 +786,8 @@ mod tests {
                 response: None,
                 extract: Some(nika_core::ast::extract::ExtractMode::LlmTxt),
                 selector: None,
+                session: None,
+                cache: None,
             };
             assert!(
                 params.validate().is_ok(),
@@ -800,6 +810,8 @@ mod tests {
                 response: None,
                 extract: Some(nika_core::ast::extract::ExtractMode::Markdown),
                 selector: None,
+                session: None,
+                cache: None,
             };
             assert!(
                 params.validate().is_ok(),
@@ -825,6 +837,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: Some("div".to_string()),
+                session: None,
+                cache: None,
             };
             let err = params.validate().unwrap_err();
             assert!(

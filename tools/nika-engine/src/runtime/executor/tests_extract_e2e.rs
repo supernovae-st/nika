@@ -1015,6 +1015,8 @@ mod selector_without_extract {
             response: None,
             extract: None,
             selector: Some("div.content".to_string()),
+            session: None,
+            cache: None,
         };
         let err = params.validate().unwrap_err();
         assert!(err.to_string().contains("selector"), "error: {}", err);

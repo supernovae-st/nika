@@ -494,6 +494,8 @@ pub async fn handle_fetch(
         response: response_mode,
         retry: None,
         follow_redirects: None,
+        session: None,
+        cache: None,
     };
 
     let action = TaskAction::Fetch { fetch };

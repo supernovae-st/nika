@@ -260,6 +260,8 @@ mod tests {
                 follow_redirects: None,
                 timeout: None,
                 retry: None,
+                session: None,
+                cache: None,
             },
         };
         let original = format!("{action:?}");
