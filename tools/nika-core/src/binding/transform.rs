@@ -1892,19 +1892,13 @@ mod tests {
     #[test]
     fn slice_array_empty_range() {
         let arr = json!([1, 2, 3]);
-        assert_eq!(
-            TransformOp::Slice(5, 10).apply(&arr).unwrap(),
-            json!([])
-        );
+        assert_eq!(TransformOp::Slice(5, 10).apply(&arr).unwrap(), json!([]));
     }
 
     #[test]
     fn slice_string() {
         let s = json!("Hello World");
-        assert_eq!(
-            TransformOp::Slice(0, 5).apply(&s).unwrap(),
-            json!("Hello")
-        );
+        assert_eq!(TransformOp::Slice(0, 5).apply(&s).unwrap(), json!("Hello"));
     }
 
     #[test]

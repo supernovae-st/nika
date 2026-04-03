@@ -554,8 +554,7 @@ fn extract_sitemap_xml(body: &str) -> Result<String, NikaError> {
                         let mut is_alternate = false;
                         for attr in e.attributes().flatten() {
                             let key_name = attr.key.local_name();
-                            let key =
-                                std::str::from_utf8(key_name.as_ref()).unwrap_or_default();
+                            let key = std::str::from_utf8(key_name.as_ref()).unwrap_or_default();
                             let val = std::str::from_utf8(&attr.value).unwrap_or_default();
                             match key {
                                 "href" => href = Some(val.to_string()),
@@ -607,9 +606,8 @@ fn extract_sitemap_xml(body: &str) -> Result<String, NikaError> {
                             entry["priority"] = serde_json::Value::String(p.clone());
                         }
                         if !current_hreflang.is_empty() {
-                            entry["hreflang"] = serde_json::Value::Array(
-                                std::mem::take(&mut current_hreflang),
-                            );
+                            entry["hreflang"] =
+                                serde_json::Value::Array(std::mem::take(&mut current_hreflang));
                         }
                         urls.push(entry);
                         in_url = false;
@@ -1110,8 +1108,8 @@ mod tests {
         let html = r#"<html><head>
             <link rel="canonical" href="/page">
         </head><body></body></html>"#;
-        let result = apply_extract_with_base(html, Some(ExtractMode::Metadata), None, None)
-            .unwrap();
+        let result =
+            apply_extract_with_base(html, Some(ExtractMode::Metadata), None, None).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["canonical"], "/page");
     }

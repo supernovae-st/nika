@@ -194,13 +194,11 @@ impl TaskExecutor {
         // When we have pinned DNS addresses, build a one-off client with .resolve()
         // to prevent TOCTOU rebinding. Otherwise use the shared client.
         // CRAWL-003: Also build custom client for response:full to track redirect chain.
-        let is_response_full =
-            fetch.response == Some(nika_core::ast::extract::ResponseMode::Full);
+        let is_response_full = fetch.response == Some(nika_core::ast::extract::ResponseMode::Full);
         let redirect_chain: std::sync::Arc<parking_lot::Mutex<Vec<(u16, String)>>> =
             std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
-        let needs_custom_client = fetch.follow_redirects == Some(false)
-            || !pinned_addrs.is_empty()
-            || is_response_full;
+        let needs_custom_client =
+            fetch.follow_redirects == Some(false) || !pinned_addrs.is_empty() || is_response_full;
         let http_client: std::borrow::Cow<'_, reqwest::Client> = if needs_custom_client {
             let mut builder = reqwest::Client::builder()
                 .timeout(crate::util::FETCH_TIMEOUT)
@@ -219,11 +217,7 @@ impl TaskExecutor {
                 // CRAWL-003: Also capture redirect chain for response:full.
                 let chain_capture = std::sync::Arc::clone(&redirect_chain);
                 // Pass allowed_hosts to closure so SSRF check respects policy overrides
-                let allowed: Vec<String> = self
-                    .policy_enforcer
-                    .read()
-                    .allowed_hosts()
-                    .to_vec();
+                let allowed: Vec<String> = self.policy_enforcer.read().allowed_hosts().to_vec();
                 builder = builder.redirect(reqwest::redirect::Policy::custom(move |attempt| {
                     use crate::runtime::policy::is_ssrf_blocked;
                     // Capture redirect info for response:full

@@ -1330,12 +1330,6 @@ async fn wiremock_fetch_response_full_with_extract_sitemap() {
     let extracted = &parsed["extracted"];
     assert_eq!(extracted["is_index"], false);
     assert_eq!(extracted["count"], 2);
-    assert_eq!(
-        extracted["urls"][0]["loc"],
-        "https://example.com/"
-    );
-    assert_eq!(
-        extracted["urls"][1]["loc"],
-        "https://example.com/about"
-    );
+    assert_eq!(extracted["urls"][0]["loc"], "https://example.com/");
+    assert_eq!(extracted["urls"][1]["loc"], "https://example.com/about");
 }
