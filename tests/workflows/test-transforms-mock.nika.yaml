@@ -1,0 +1,95 @@
+schema: "nika/workflow@0.12"
+workflow: test-transforms-mock
+description: "E2E test for all 10 new pipe transforms (Sprint 1) — mock provider"
+provider: mock
+
+tasks:
+  # ── Source data ──────────────────────────────────
+  - id: data
+    exec: 'echo ''[{"name":"Alice","age":30,"status":"active","locale":"fr"},{"name":"Bob","age":25,"status":"inactive","locale":"en"},{"name":"Charlie","age":35,"status":"active","locale":"fr"}]'''
+
+  # ── pluck ────────────────────────────────────────
+  - id: test_pluck
+    depends_on: [data]
+    with:
+      names: $data | pluck("name")
+    exec: 'echo "pluck: {{with.names}}"'
+
+  # ── where ────────────────────────────────────────
+  - id: test_where
+    depends_on: [data]
+    with:
+      active: $data | where("status", "active")
+      count: $data | where("status", "active") | length
+    exec: 'echo "where active count: {{with.count}}"'
+
+  # ── pick ─────────────────────────────────────────
+  - id: test_pick
+    depends_on: [data]
+    with:
+      first: $data | first
+      picked: $data | first | pick("name", "age")
+    exec: 'echo "pick: {{with.picked}}"'
+
+  # ── omit ─────────────────────────────────────────
+  - id: test_omit
+    depends_on: [data]
+    with:
+      first: $data | first
+      safe: $data | first | omit("status")
+    exec: 'echo "omit: {{with.safe}}"'
+
+  # ── sort_by ──────────────────────────────────────
+  - id: test_sort_by
+    depends_on: [data]
+    with:
+      sorted: $data | sort_by("age") | pluck("name")
+    exec: 'echo "sort_by age: {{with.sorted}}"'
+
+  # ── group_by ─────────────────────────────────────
+  - id: test_group_by
+    depends_on: [data]
+    with:
+      grouped: $data | group_by("locale")
+    exec: 'echo "group_by locale keys: {{with.grouped | keys}}"'
+
+  # ── merge ────────────────────────────────────────
+  - id: merge_data
+    exec: 'echo ''[{"a":1,"nested":{"x":1}},{"b":2,"nested":{"y":2}}]'''
+
+  - id: test_merge
+    depends_on: [merge_data]
+    with:
+      merged: $merge_data | merge
+    exec: 'echo "merge: {{with.merged}}"'
+
+  # ── regex ────────────────────────────────────────
+  - id: test_regex
+    exec: 'echo "Price: $42.50 for 3 items"'
+    with:
+      price: $test_regex | regex("\\d+\\.\\d+")
+    depends_on: []
+
+  - id: verify_regex
+    depends_on: [test_regex]
+    with:
+      result: $test_regex | regex("\\d+\\.\\d+")
+    exec: 'echo "regex price: {{with.result}}"'
+
+  # ── base64 ───────────────────────────────────────
+  - id: test_base64
+    exec: 'echo "Hello Nika"'
+
+  - id: verify_base64
+    depends_on: [test_base64]
+    with:
+      encoded: $test_base64 | trim | base64_encode
+      roundtrip: $test_base64 | trim | base64_encode | base64_decode
+    exec: 'echo "base64 encoded: {{with.encoded}}, roundtrip: {{with.roundtrip}}"'
+
+  # ── Pipeline combos ─────────────────────────────
+  - id: test_pipeline
+    depends_on: [data]
+    with:
+      result: $data | where("status", "active") | sort_by("age") | pluck("name") | join(", ")
+    exec: 'echo "active sorted names: {{with.result}}"'

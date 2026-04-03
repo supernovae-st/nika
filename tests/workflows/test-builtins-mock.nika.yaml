@@ -1,0 +1,127 @@
+schema: "nika/workflow@0.12"
+workflow: test-builtins-mock
+description: "E2E test for Sprint 2 builtin tools — mock provider"
+provider: mock
+
+tasks:
+  # ── nika:json_verify ────────────────────────────
+  - id: verify_translation
+    invoke:
+      tool: nika:json_verify
+      params:
+        source:
+          greeting: "Hello {name}"
+          farewell: "Goodbye {name}"
+          ui:
+            button:
+              save: "Save"
+              cancel: "Cancel"
+        translation:
+          greeting: "Bonjour {name}"
+          farewell: "Au revoir"
+          ui:
+            button:
+              save: "Enregistrer"
+              cancel: "Annuler"
+
+  - id: check_verify
+    depends_on: [verify_translation]
+    with:
+      result: $verify_translation
+    exec: 'echo "json_verify pass: {{with.result}}"'
+
+  # ── nika:aggregate ──────────────────────────────
+  - id: aggregate_scores
+    invoke:
+      tool: nika:aggregate
+      params:
+        array: [85, 92, 78, 95, 88]
+        ops: ["sum", "avg", "min", "max", "count"]
+
+  - id: check_aggregate
+    depends_on: [aggregate_scores]
+    with:
+      stats: $aggregate_scores
+    exec: 'echo "aggregate: {{with.stats}}"'
+
+  # ── nika:json_flatten ───────────────────────────
+  - id: flatten_nested
+    invoke:
+      tool: nika:json_flatten
+      params:
+        data:
+          ui:
+            button:
+              save: "Save"
+              cancel: "Cancel"
+          version: 1
+
+  - id: check_flatten
+    depends_on: [flatten_nested]
+    with:
+      flat: $flatten_nested
+    exec: 'echo "flattened: {{with.flat}}"'
+
+  # ── nika:json_unflatten ─────────────────────────
+  - id: unflatten_back
+    depends_on: [flatten_nested]
+    with:
+      flat_data: $flatten_nested
+    invoke:
+      tool: nika:json_unflatten
+      params:
+        data: "{{with.flat_data}}"
+
+  - id: check_unflatten
+    depends_on: [unflatten_back]
+    with:
+      nested: $unflatten_back
+    exec: 'echo "unflattened: {{with.nested}}"'
+
+  # ── nika:locale_lookup ──────────────────────────
+  - id: lookup_locale
+    invoke:
+      tool: nika:locale_lookup
+      params:
+        locale: "fr-BE"
+        mapping:
+          en: "eng_Latn"
+          fr: "fra_Latn"
+          de: "deu_Latn"
+          ja: "jpn_Jpan"
+
+  - id: check_locale
+    depends_on: [lookup_locale]
+    with:
+      result: $lookup_locale
+    exec: 'echo "locale lookup: {{with.result}}"'
+
+  # ── nika:yaml_validate ──────────────────────────
+  - id: validate_data
+    invoke:
+      tool: nika:yaml_validate
+      params:
+        data:
+          - label: "en"
+            content:
+              locale:
+                key: "en"
+                language: "English"
+              text_direction: "ltr"
+          - label: "fr"
+            content:
+              locale:
+                key: "fr"
+                language: "French"
+              text_direction: "ltr"
+          - label: "broken"
+            content:
+              locale:
+                key: "xx"
+        required_fields: ["locale.key", "locale.language", "text_direction"]
+
+  - id: check_validate
+    depends_on: [validate_data]
+    with:
+      result: $validate_data
+    exec: 'echo "yaml_validate: {{with.result}}"'

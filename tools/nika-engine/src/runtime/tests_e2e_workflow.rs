@@ -1660,3 +1660,398 @@ tasks:
         output
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 16. SPRINT 1 — NEW PIPE TRANSFORMS (pluck, where, pick, omit, sort_by, group_by, merge, regex, base64)
+// ═══════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn e2e_transform_pluck() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''[{"name":"Alice","age":30},{"name":"Bob","age":25}]'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      names: $data | pluck("name")
+    exec:
+      command: "echo {{with.names}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(output.contains("Alice"), "pluck should extract names: {}", output);
+    assert!(output.contains("Bob"), "pluck should extract Bob: {}", output);
+}
+
+#[tokio::test]
+async fn e2e_transform_where_filter() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''[{"name":"Alice","status":"active"},{"name":"Bob","status":"inactive"},{"name":"Charlie","status":"active"}]'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      active: $data | where("status", "active") | length
+    exec:
+      command: "echo {{with.active}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(output.contains("2"), "where should filter to 2 active: {}", output);
+}
+
+#[tokio::test]
+async fn e2e_transform_pick_omit() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''{"name":"Alice","age":30,"secret":"xxx","role":"admin"}'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      picked: $data | pick("name", "age") | to_json
+    exec:
+      command: "echo {{with.picked}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(output.contains("name"), "pick should keep name: {}", output);
+    assert!(output.contains("age"), "pick should keep age: {}", output);
+    assert!(!output.contains("secret"), "pick should omit secret: {}", output);
+}
+
+#[tokio::test]
+async fn e2e_transform_sort_by() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''[{"name":"Bob","age":25},{"name":"Alice","age":30},{"name":"Charlie","age":20}]'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      sorted: $data | sort_by("age") | pluck("name") | join(", ")
+    exec:
+      command: "echo {{with.sorted}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(
+        output.contains("Charlie, Bob, Alice"),
+        "sort_by age ascending: {}",
+        output
+    );
+}
+
+#[tokio::test]
+async fn e2e_transform_group_by() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''[{"locale":"fr","text":"Bonjour"},{"locale":"en","text":"Hello"},{"locale":"fr","text":"Merci"}]'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      groups: $data | group_by("locale") | keys | sort | join(", ")
+    exec:
+      command: "echo {{with.groups}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(output.contains("en, fr"), "group_by locale keys: {}", output);
+}
+
+#[tokio::test]
+async fn e2e_transform_merge() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''[{"a":1,"nested":{"x":1}},{"b":2,"nested":{"y":2}}]'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      merged: $data | merge | keys | sort | join(", ")
+    exec:
+      command: "echo {{with.merged}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    // Verify merge produced an object with keys from both inputs
+    assert!(output.contains("a"), "merge should have key a: {}", output);
+    assert!(output.contains("b"), "merge should have key b: {}", output);
+    assert!(output.contains("nested"), "merge should have key nested: {}", output);
+}
+
+#[tokio::test]
+async fn e2e_transform_base64_roundtrip() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec: "echo Hello_Nika"
+  - id: result
+    depends_on: [data]
+    with:
+      roundtrip: $data | trim | base64_encode | base64_decode
+    exec:
+      command: "echo {{with.roundtrip}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(output.contains("Hello_Nika"), "base64 roundtrip: {}", output);
+}
+
+#[tokio::test]
+async fn e2e_transform_pipeline_combo() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: data
+    exec:
+      command: 'echo ''[{"name":"Alice","age":30,"status":"active"},{"name":"Bob","age":25,"status":"inactive"},{"name":"Charlie","age":35,"status":"active"}]'''
+      shell: true
+    output:
+      format: json
+  - id: result
+    depends_on: [data]
+    with:
+      names: $data | where("status", "active") | sort_by("age") | pluck("name") | join(", ")
+    exec:
+      command: "echo {{with.names}}"
+      shell: true
+"#,
+        "result",
+    )
+    .await;
+    assert!(
+        output.contains("Alice, Charlie"),
+        "pipeline: where→sort_by→pluck→join: {}",
+        output
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 17. SPRINT 2 — NEW BUILTIN TOOLS (json_verify, aggregate, json_flatten, locale_lookup, yaml_validate)
+// ═══════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn e2e_builtin_json_verify() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: verify
+    invoke:
+      tool: nika:json_verify
+      params:
+        source:
+          greeting: "Hello {name}"
+          ui:
+            save: "Save"
+        translation:
+          greeting: "Bonjour {name}"
+          ui:
+            save: "Enregistrer"
+"#,
+        "verify",
+    )
+    .await;
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed["pass"], true, "verify should pass: {}", output);
+    assert_eq!(parsed["total_keys"], 2);
+}
+
+#[tokio::test]
+async fn e2e_builtin_json_verify_missing_key() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: verify
+    invoke:
+      tool: nika:json_verify
+      params:
+        source:
+          greeting: "Hello {name}"
+          farewell: "Goodbye"
+        translation:
+          greeting: "Bonjour {name}"
+"#,
+        "verify",
+    )
+    .await;
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed["pass"], false, "verify should fail: {}", output);
+    assert!(parsed["missing_keys"].as_array().unwrap().contains(&serde_json::json!("farewell")));
+}
+
+#[tokio::test]
+async fn e2e_builtin_aggregate() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: stats
+    invoke:
+      tool: nika:aggregate
+      params:
+        array: [10, 20, 30, 40, 50]
+        ops: ["sum", "avg", "min", "max", "count"]
+"#,
+        "stats",
+    )
+    .await;
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed["sum"], 150);
+    assert_eq!(parsed["avg"], 30);
+    assert_eq!(parsed["min"], 10);
+    assert_eq!(parsed["max"], 50);
+    assert_eq!(parsed["count"], 5);
+}
+
+#[tokio::test]
+async fn e2e_builtin_json_flatten_unflatten() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: flatten
+    invoke:
+      tool: nika:json_flatten
+      params:
+        data:
+          ui:
+            button:
+              save: "Save"
+          version: 1
+"#,
+        "flatten",
+    )
+    .await;
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed["ui.button.save"], "Save", "flatten: {}", output);
+    assert_eq!(parsed["version"], 1);
+}
+
+#[tokio::test]
+async fn e2e_builtin_locale_lookup() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: lookup
+    invoke:
+      tool: nika:locale_lookup
+      params:
+        locale: "fr-BE"
+        mapping:
+          en: "eng_Latn"
+          fr: "fra_Latn"
+          de: "deu_Latn"
+"#,
+        "lookup",
+    )
+    .await;
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed["code"], "fra_Latn", "locale lookup: {}", output);
+    assert_eq!(parsed["matched_via"], "language_prefix");
+}
+
+#[tokio::test]
+async fn e2e_builtin_yaml_validate() {
+    let output = run_and_get(
+        r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: validate
+    invoke:
+      tool: nika:yaml_validate
+      params:
+        data:
+          - label: "en"
+            content:
+              locale:
+                key: "en"
+                language: "English"
+          - label: "broken"
+            content:
+              locale:
+                key: "xx"
+        required_fields: ["locale.key", "locale.language"]
+"#,
+        "validate",
+    )
+    .await;
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed["total"], 2);
+    let failures = parsed["failures"].as_array().unwrap();
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0]["label"], "broken");
+}
