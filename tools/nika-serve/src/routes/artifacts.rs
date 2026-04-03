@@ -110,10 +110,17 @@ pub async fn download_artifact(
         .find(|a| a.name == name)
         .ok_or(ServeError::NotFound)?;
 
-    // Verify file exists on disk and is within allowed directory
+    // Verify file exists on disk and is within the project root.
+    // We check against project_root (not workflows_dir) because artifacts
+    // write to [artifacts] dir which may be a sibling of workflows_dir.
     let path = std::path::Path::new(&artifact.path);
     if let Ok(canonical) = tokio::fs::canonicalize(path).await {
-        let allowed_base = tokio::fs::canonicalize(&state.config.workflows_dir)
+        let base_dir = state
+            .config
+            .project_root
+            .as_ref()
+            .unwrap_or(&state.config.workflows_dir);
+        let allowed_base = tokio::fs::canonicalize(base_dir)
             .await
             .map_err(|_| ServeError::NotFound)?;
         if !canonical.starts_with(&allowed_base) {
