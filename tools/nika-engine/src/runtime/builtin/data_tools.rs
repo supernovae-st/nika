@@ -348,7 +348,17 @@ impl BuiltinTool for JsonQueryTool {
                     }
                 })?;
 
-            serde_json::to_string(&results).map_err(|e| NikaError::BuiltinToolError {
+            // BUG-037: Convert null (no matches) to empty array for tool output.
+            // The shared jsonpath::query() returns null for no matches, which is
+            // correct for the binding system ($task.result ?? "fallback"). But for
+            // the tool, empty array is more useful and composable.
+            let output = if results.is_null() {
+                Value::Array(vec![])
+            } else {
+                results
+            };
+
+            serde_json::to_string(&output).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:json_query".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -751,6 +761,18 @@ mod tests {
         let parsed: Value = serde_json::from_str(&result).unwrap();
         // Single match returns the value directly (not wrapped in array)
         assert_eq!(parsed, json!("b"));
+    }
+
+    #[tokio::test]
+    async fn json_query_no_match_returns_empty_array() {
+        let tool = JsonQueryTool;
+        let data = json!({"items": [{"name": "a"}]});
+        let result = tool
+            .call(serde_json::json!({"data": data, "query": "$..nonexistent"}).to_string())
+            .await
+            .unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, json!([]));
     }
 
     // ── map ─────────────────────────────────────────────────────
