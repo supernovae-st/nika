@@ -486,6 +486,21 @@ pub fn resolve_with<'a>(
                         if msg.contains("exceeds maximum") || msg.contains("Empty alias path") {
                             return Err(e);
                         }
+                        // BUG-035: If transforms include default(), recover with null
+                        // so the default() transform can fire instead of NIKA-052.
+                        let has_default = transforms
+                            .iter()
+                            .any(|t| t == "default" || t.starts_with("default("));
+                        if has_default && !transforms.is_empty() {
+                            let transform_str = transforms.join(" | ");
+                            if let Ok(expr) = TransformExpr::parse(&transform_str) {
+                                if let Ok(transformed) = expr.apply(&Value::Null) {
+                                    result.push_str(&value_to_display(&transformed));
+                                    last_end = m.end();
+                                    continue;
+                                }
+                            }
+                        }
                         errors.push(path.clone());
                     }
                 }
@@ -4580,5 +4595,40 @@ mod v028_template_tests {
             result.contains("SuperNovae"),
             "Legitimate context not resolved: {result}"
         );
+    }
+
+    // ════════════════════════���══════════════════════════════════════
+    // BUG-035: Template missing key with | default()
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn template_missing_key_with_default() {
+        let mut with = FxHashMap::default();
+        with.insert("obj".to_string(), json!({"name": "Alice"}));
+        let ds = RunContext::new();
+
+        let result = resolve_with("Value: {{with.obj.missing | default(\"N/A\")}}", &with, &ds);
+        assert_eq!(result.unwrap(), "Value: N/A");
+    }
+
+    #[test]
+    fn template_missing_key_no_default_still_errors() {
+        let mut with = FxHashMap::default();
+        with.insert("obj".to_string(), json!({"name": "Alice"}));
+        let ds = RunContext::new();
+
+        let result = resolve_with("Value: {{with.obj.missing}}", &with, &ds);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn template_missing_key_with_non_default_transform_errors() {
+        let mut with = FxHashMap::default();
+        with.insert("obj".to_string(), json!({"name": "Alice"}));
+        let ds = RunContext::new();
+
+        // | trim on missing path should NOT silently succeed
+        let result = resolve_with("Value: {{with.obj.missing | trim}}", &with, &ds);
+        assert!(result.is_err());
     }
 }
