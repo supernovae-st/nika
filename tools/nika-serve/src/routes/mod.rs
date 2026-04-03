@@ -20,6 +20,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/status/{id}", get(workflows::get_status))
         .route("/v1/cancel/{id}", post(workflows::cancel_job))
         .route("/v1/workflows", get(workflows::list_workflows))
+        .route(
+            "/v1/workflows/{name}/source",
+            get(workflows::get_workflow_source),
+        )
         .route("/v1/reload", post(workflows::reload_workflows))
         .route("/v1/jobs/{id}/artifacts", get(artifacts::list_artifacts))
         .route(

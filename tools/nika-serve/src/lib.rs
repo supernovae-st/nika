@@ -616,4 +616,182 @@ mod tests {
             .expect("x-request-id header must be present");
         assert_eq!(id.to_str().unwrap(), "my-custom-id-123");
     }
+
+    // ── GET /v1/workflows/{name}/source ──────────────────────────────────
+
+    const AUTH: &str = "Bearer test-token-1234567890abcdef1234567";
+
+    /// Build a test app with a real workflows directory (tempdir).
+    async fn test_app_with_dir(
+        workflows_dir: std::path::PathBuf,
+    ) -> (axum::Router, AppState) {
+        let storage = nika_storage::Storage::open_memory().expect("open in-memory storage");
+        let (_, shutdown_rx) = tokio::sync::watch::channel(false);
+
+        let config = ServeConfig {
+            bind: "127.0.0.1:0".parse().unwrap(),
+            workflows_dir,
+            max_concurrent: 4,
+            job_timeout_secs: 60,
+            max_output_bytes: 1024,
+            db_path: std::path::PathBuf::from(":memory:"),
+            auth_token: "test-token-1234567890abcdef1234567".into(),
+            cors_origin: None,
+            executor_mode: config::ExecutorMode::Embedded,
+            rate_per_second: 100,
+            rate_burst: 100,
+            gc_retention_secs: 7 * 24 * 3600,
+            gc_interval_secs: 3600,
+            project_root: None,
+            working_dir_mode: None,
+        };
+
+        let state = AppState {
+            storage,
+            config: Arc::new(config),
+            executor: executor::Executor::Subprocess,
+            semaphore: Arc::new(Semaphore::new(4)),
+            shutdown: shutdown_rx,
+            workers: Arc::new(Mutex::new(HashMap::new())),
+            active_jobs: Arc::new(AtomicUsize::new(0)),
+            event_bus: events::EventBus::default(),
+            webhook_config: None,
+        };
+
+        let limiter = rate_limit::new_rate_limiter();
+        let app = routes::build_router(state.clone())
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth::require_auth,
+            ))
+            .layer(middleware::from_fn_with_state(
+                limiter,
+                rate_limit::rate_limit_middleware,
+            ))
+            .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
+            .layer(TimeoutLayer::with_status_code(
+                axum::http::StatusCode::GATEWAY_TIMEOUT,
+                std::time::Duration::from_secs(30),
+            ))
+            .layer(middleware::from_fn(request_id::request_id_middleware));
+
+        (app, state)
+    }
+
+    /// Helper: read response body as string.
+    async fn body_string(resp: axum::http::Response<Body>) -> String {
+        let bytes = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn source_returns_yaml_content() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: hello\n\ntasks:\n  - id: greet\n    infer: \"Say hello\"\n";
+        std::fs::write(dir.path().join("hello.nika.yaml"), yaml).unwrap();
+
+        let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
+        let req = Request::get("/v1/workflows/hello.nika.yaml/source")
+            .header("authorization", AUTH)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("content-type").unwrap(),
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(body_string(resp).await, yaml);
+    }
+
+    #[tokio::test]
+    async fn source_returns_404_for_missing_workflow() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
+
+        let req = Request::get("/v1/workflows/nope.nika.yaml/source")
+            .header("authorization", AUTH)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        // canonicalize fails → InvalidWorkflow → 400
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = body_string(resp).await;
+        assert!(body.contains("workflow not found"), "body: {body}");
+    }
+
+    #[tokio::test]
+    async fn source_rejects_traversal() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("ok.nika.yaml"), "schema: test").unwrap();
+        let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
+
+        let req = Request::get("/v1/workflows/..%2F..%2Fetc%2Fpasswd.nika.yaml/source")
+            .header("authorization", AUTH)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn source_rejects_wrong_extension() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("secrets.txt"), "top secret").unwrap();
+        let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
+
+        let req = Request::get("/v1/workflows/secrets.txt/source")
+            .header("authorization", AUTH)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = body_string(resp).await;
+        assert!(body.contains(".nika.yaml"), "body: {body}");
+    }
+
+    #[tokio::test]
+    async fn source_requires_auth() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("test.nika.yaml"), "schema: test").unwrap();
+        let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
+
+        let req = Request::get("/v1/workflows/test.nika.yaml/source")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn source_nested_subdirectory_workflow() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("pipelines/prod")).unwrap();
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: deploy\n";
+        std::fs::write(
+            dir.path().join("pipelines/prod/deploy.nika.yaml"),
+            yaml,
+        )
+        .unwrap();
+
+        let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
+        // URL-encode the slashes for the path parameter
+        let req = Request::get(
+            "/v1/workflows/pipelines%2Fprod%2Fdeploy.nika.yaml/source",
+        )
+        .header("authorization", AUTH)
+        .body(Body::empty())
+        .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_string(resp).await, yaml);
+    }
 }

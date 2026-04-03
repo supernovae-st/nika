@@ -1,12 +1,15 @@
 //! Workflow execution endpoints.
 //!
-//! - `GET  /v1/workflows`     -- List available workflows
-//! - `POST /v1/run`           -- Submit a workflow for execution
-//! - `GET  /v1/status/{id}`   -- Poll job status
-//! - `POST /v1/cancel/{id}`   -- Cancel a running job (ERRATA-3)
-//! - `GET  /v1/events/{id}`   -- SSE streaming (see `events.rs`)
+//! - `GET  /v1/workflows`            -- List available workflows
+//! - `GET  /v1/workflows/{name}/source` -- Raw YAML source
+//! - `POST /v1/run`                  -- Submit a workflow for execution
+//! - `GET  /v1/status/{id}`          -- Poll job status
+//! - `POST /v1/cancel/{id}`          -- Cancel a running job (ERRATA-3)
+//! - `GET  /v1/events/{id}`          -- SSE streaming (see `events.rs`)
 
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -288,6 +291,43 @@ pub async fn list_workflows(
     Ok(Json(ListWorkflowsResponse { workflows, count }))
 }
 
+/// `GET /v1/workflows/{name}/source` — Return raw YAML source.
+///
+/// Returns the workflow file contents as plain text.
+/// Uses the same path validation as `run_workflow` (traversal protection).
+pub async fn get_workflow_source(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Response, ServeError> {
+    validate_workflow_path(&name)?;
+
+    let full_path = state.config.workflows_dir.join(&name);
+    let canonical = full_path.canonicalize().map_err(|_| {
+        ServeError::InvalidWorkflow(format!("workflow not found: {name}"))
+    })?;
+
+    let canonical_base = state
+        .config
+        .workflows_dir
+        .canonicalize()
+        .map_err(|e| ServeError::Config(format!("workflows_dir canonicalize: {e}")))?;
+
+    if !canonical.starts_with(&canonical_base) {
+        return Err(ServeError::PathTraversal);
+    }
+
+    let content = tokio::fs::read_to_string(&canonical)
+        .await
+        .map_err(|_| ServeError::NotFound)?;
+
+    Ok((
+        StatusCode::OK,
+        [("content-type", "text/plain; charset=utf-8")],
+        content,
+    )
+        .into_response())
+}
+
 /// `POST /v1/reload` — Rescan workflows directory.
 ///
 /// After `git pull` or adding new workflow files, call this endpoint
@@ -534,6 +574,17 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].name, "visible.nika.yaml");
+    }
+
+    #[test]
+    fn source_validation_rejects_non_nika_yaml() {
+        assert!(validate_workflow_path("readme.md").is_err());
+        assert!(validate_workflow_path("config.yaml").is_err());
+        assert!(validate_workflow_path("../secret.nika.yaml").is_err());
+        assert!(validate_workflow_path("/absolute.nika.yaml").is_err());
+        // Subdirectory paths are allowed
+        assert!(validate_workflow_path("sub/valid.nika.yaml").is_ok());
+        assert!(validate_workflow_path("deep/nested/flow.nika.yaml").is_ok());
     }
 
     #[test]
