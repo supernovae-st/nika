@@ -623,9 +623,7 @@ mod tests {
     const AUTH: &str = "Bearer test-token-1234567890abcdef1234567";
 
     /// Build a test app with a real workflows directory (tempdir).
-    async fn test_app_with_dir(
-        workflows_dir: std::path::PathBuf,
-    ) -> (axum::Router, AppState) {
+    async fn test_app_with_dir(workflows_dir: std::path::PathBuf) -> (axum::Router, AppState) {
         let storage = nika_storage::Storage::open_memory().expect("open in-memory storage");
         let (_, shutdown_rx) = tokio::sync::watch::channel(false);
 
@@ -776,20 +774,14 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         std::fs::create_dir_all(dir.path().join("pipelines/prod")).unwrap();
         let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: deploy\n";
-        std::fs::write(
-            dir.path().join("pipelines/prod/deploy.nika.yaml"),
-            yaml,
-        )
-        .unwrap();
+        std::fs::write(dir.path().join("pipelines/prod/deploy.nika.yaml"), yaml).unwrap();
 
         let (app, _) = test_app_with_dir(dir.path().to_path_buf()).await;
         // URL-encode the slashes for the path parameter
-        let req = Request::get(
-            "/v1/workflows/pipelines%2Fprod%2Fdeploy.nika.yaml/source",
-        )
-        .header("authorization", AUTH)
-        .body(Body::empty())
-        .unwrap();
+        let req = Request::get("/v1/workflows/pipelines%2Fprod%2Fdeploy.nika.yaml/source")
+            .header("authorization", AUTH)
+            .body(Body::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);

@@ -304,9 +304,9 @@ pub async fn get_workflow_source(
     validate_workflow_path(&name)?;
 
     let full_path = state.config.workflows_dir.join(&name);
-    let canonical = full_path.canonicalize().map_err(|_| {
-        ServeError::InvalidWorkflow(format!("workflow not found: {name}"))
-    })?;
+    let canonical = full_path
+        .canonicalize()
+        .map_err(|_| ServeError::InvalidWorkflow(format!("workflow not found: {name}")))?;
 
     let canonical_base = state
         .config
@@ -416,7 +416,9 @@ pub fn run_docs(op: TransformOperation) -> TransformOperation {
 
 pub fn status_docs(op: TransformOperation) -> TransformOperation {
     op.summary("Poll job status")
-        .description("Returns the current state of a job (pending/running/completed/failed/cancelled).")
+        .description(
+            "Returns the current state of a job (pending/running/completed/failed/cancelled).",
+        )
         .tag("jobs")
 }
 

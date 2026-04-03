@@ -23,15 +23,30 @@ pub fn build_router(state: AppState) -> Router {
 
     ApiRouter::new()
         .api_route("/health", get_with(health::health, health::docs))
-        .api_route("/v1/run", post_with(workflows::run_workflow, workflows::run_docs))
-        .api_route("/v1/status/{id}", get_with(workflows::get_status, workflows::status_docs))
-        .api_route("/v1/cancel/{id}", post_with(workflows::cancel_job, workflows::cancel_docs))
-        .api_route("/v1/workflows", get_with(workflows::list_workflows, workflows::list_docs))
+        .api_route(
+            "/v1/run",
+            post_with(workflows::run_workflow, workflows::run_docs),
+        )
+        .api_route(
+            "/v1/status/{id}",
+            get_with(workflows::get_status, workflows::status_docs),
+        )
+        .api_route(
+            "/v1/cancel/{id}",
+            post_with(workflows::cancel_job, workflows::cancel_docs),
+        )
+        .api_route(
+            "/v1/workflows",
+            get_with(workflows::list_workflows, workflows::list_docs),
+        )
         .api_route(
             "/v1/workflows/{name}/source",
             get_with(workflows::get_workflow_source, workflows::source_docs),
         )
-        .api_route("/v1/reload", post_with(workflows::reload_workflows, workflows::reload_docs))
+        .api_route(
+            "/v1/reload",
+            post_with(workflows::reload_workflows, workflows::reload_docs),
+        )
         .api_route(
             "/v1/jobs/{id}/artifacts",
             get_with(artifacts::list_artifacts, artifacts::list_docs),

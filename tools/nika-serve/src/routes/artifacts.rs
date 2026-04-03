@@ -16,7 +16,9 @@ use crate::state::AppState;
 
 pub fn list_docs(op: TransformOperation) -> TransformOperation {
     op.summary("List job artifacts")
-        .description("Returns a JSON array of artifacts (name, size, format, content_type, checksum).")
+        .description(
+            "Returns a JSON array of artifacts (name, size, format, content_type, checksum).",
+        )
         .tag("artifacts")
 }
 
