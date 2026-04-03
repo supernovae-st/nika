@@ -240,6 +240,119 @@ async fn wiremock_fetch_response_full() {
 }
 
 #[tokio::test]
+async fn wiremock_fetch_response_full_with_extract_metadata() {
+    // ENG-015 runtime test: response:full + extract:metadata returns combined output
+    let server = MockServer::start().await;
+    let html = r#"<html><head>
+        <title>Full+Extract</title>
+        <meta name="description" content="Combined test">
+        <meta property="og:title" content="OG Combined">
+        <link rel="alternate" hreflang="en" href="/en/page">
+    </head><body><p>Hello</p></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/combo"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(html)
+                .insert_header("Content-Type", "text/html"),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_full_extract");
+    let mut params = fetch_params(&format!("{}/combo", server.uri()), "GET");
+    params.response = Some(nika_core::ast::extract::ResponseMode::Full);
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    // response:full fields
+    assert_eq!(parsed["status"], 200, "Must have status");
+    assert!(parsed["headers"].is_object(), "Must have headers");
+    assert!(
+        parsed["body"].as_str().unwrap().contains("<title>"),
+        "Must have raw HTML body"
+    );
+    assert!(
+        parsed["url"].as_str().unwrap().contains("/combo"),
+        "Must have URL"
+    );
+    assert!(parsed["elapsed_ms"].is_u64(), "Must have elapsed_ms");
+
+    // extracted metadata field
+    let extracted = &parsed["extracted"];
+    assert!(
+        extracted.is_object(),
+        "Must have extracted object, got: {extracted}"
+    );
+    assert_eq!(extracted["title"], "Full+Extract");
+    assert_eq!(extracted["description"], "Combined test");
+    assert_eq!(extracted["og"]["title"], "OG Combined");
+
+    // hreflang should be resolved (base URL is the wiremock server)
+    let hreflang = extracted["hreflang"]
+        .as_array()
+        .expect("extracted should have hreflang");
+    assert_eq!(hreflang.len(), 1);
+    assert_eq!(hreflang[0]["lang"], "en");
+    let href = hreflang[0]["href"].as_str().unwrap();
+    assert!(
+        href.starts_with("http://") && href.ends_with("/en/page"),
+        "Hreflang href should be resolved, got: {href}"
+    );
+}
+
+#[tokio::test]
+async fn wiremock_fetch_response_full_with_extract_links() {
+    // ENG-015: response:full + extract:links
+    let server = MockServer::start().await;
+    let html = r#"<html><body>
+        <a href="/about">About</a>
+        <a href="https://external.com">External</a>
+    </body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/combo-links"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(html))
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_full_links");
+    let mut params = fetch_params(&format!("{}/combo-links", server.uri()), "GET");
+    params.response = Some(nika_core::ast::extract::ResponseMode::Full);
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Links);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+    // response:full fields
+    assert_eq!(parsed["status"], 200);
+    assert!(parsed["headers"].is_object());
+    assert!(parsed["body"].as_str().unwrap().contains("About"));
+    assert!(parsed["elapsed_ms"].is_u64());
+
+    // extracted links
+    let extracted = &parsed["extracted"];
+    assert!(extracted["links"].is_array(), "Must have links array");
+    assert_eq!(extracted["count"], 2);
+    let links = extracted["links"].as_array().unwrap();
+    // /about should be resolved against the base URL
+    let about_url = links[0]["url"].as_str().unwrap();
+    assert!(
+        about_url.starts_with("http://") && about_url.ends_with("/about"),
+        "Relative link should be resolved, got: {about_url}"
+    );
+}
+
+#[tokio::test]
 async fn wiremock_fetch_response_binary_stores_in_cas() {
     let server = MockServer::start().await;
     let binary_data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG magic
@@ -599,6 +712,50 @@ async fn wiremock_fetch_extract_metadata_hreflang_merges_html_and_link_header() 
         langs.contains(&"de"),
         "Missing 'de' from Link header: {langs:?}"
     );
+}
+
+#[tokio::test]
+async fn wiremock_fetch_extract_metadata_hreflang_dedup_exact_duplicates() {
+    // Same lang + same href in both HTML and Link header → deduplicated
+    let server = MockServer::start().await;
+    let html = r#"<html><head>
+        <title>Dedup Test</title>
+        <link rel="alternate" hreflang="fr" href="https://example.com/fr/">
+    </head><body></body></html>"#;
+    Mock::given(method("GET"))
+        .and(path("/dedup-hreflang"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(html)
+                .append_header(
+                    "Link",
+                    r#"<https://example.com/fr/>; rel="alternate"; hreflang="fr""#,
+                ),
+        )
+        .mount(&server)
+        .await;
+
+    let (executor, bindings, datastore, _) = setup();
+    let task_id: Arc<str> = Arc::from("wm_dedup_hreflang");
+    let mut params = fetch_params(&format!("{}/dedup-hreflang", server.uri()), "GET");
+    params.extract = Some(nika_core::ast::extract::ExtractMode::Metadata);
+    let action = TaskAction::Fetch { fetch: params };
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let hreflang = parsed["hreflang"]
+        .as_array()
+        .expect("hreflang should be array");
+    // Exact duplicate (same lang + same href) should be deduplicated
+    assert_eq!(
+        hreflang.len(),
+        1,
+        "Duplicate hreflang should be removed, got: {hreflang:?}"
+    );
+    assert_eq!(hreflang[0]["lang"], "fr");
+    assert_eq!(hreflang[0]["href"], "https://example.com/fr/");
 }
 
 #[tokio::test]

@@ -12,8 +12,9 @@ use crate::error::NikaError;
 pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_json::Value> {
     let mut results = Vec::new();
     for value in link_values {
-        // A single Link header can have multiple comma-separated entries
-        for entry in value.split(',') {
+        // Split into entries on commas, but only outside <...> brackets.
+        // URLs inside <> can contain commas (e.g. query params).
+        for entry in split_link_entries(value) {
             let entry = entry.trim();
             // Extract URL: <...>
             let url = match (entry.find('<'), entry.find('>')) {
@@ -48,6 +49,30 @@ pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_js
         }
     }
     results
+}
+
+/// Split a Link header value into individual entries, respecting `<...>` brackets.
+/// Commas inside angle brackets are part of the URL and must not be treated as separators.
+fn split_link_entries(value: &str) -> Vec<&str> {
+    let mut entries = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (i, ch) in value.char_indices() {
+        match ch {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                entries.push(&value[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    // Last entry (or only entry if no commas outside brackets)
+    if start < value.len() {
+        entries.push(&value[start..]);
+    }
+    entries
 }
 #[cfg(not(all(
     feature = "fetch-markdown",
@@ -815,6 +840,18 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0]["lang"], "en");
         assert_eq!(result[1]["lang"], "de");
+    }
+
+    #[test]
+    fn parse_link_header_hreflang_url_with_comma() {
+        // URLs can contain commas in query params — must not split inside <...>
+        let headers = vec![
+            r#"<https://example.com/page?a=1,2&b=3>; rel="alternate"; hreflang="fr""#.to_string(),
+        ];
+        let result = parse_link_header_hreflang(&headers);
+        assert_eq!(result.len(), 1, "Should find 1 entry, got: {result:?}");
+        assert_eq!(result[0]["lang"], "fr");
+        assert_eq!(result[0]["href"], "https://example.com/page?a=1,2&b=3");
     }
 
     #[test]

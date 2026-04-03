@@ -953,6 +953,7 @@ fn merge_link_hreflang(
         });
         if let Some(arr) = hreflang {
             arr.extend(link_hreflang);
+            dedup_hreflang(arr);
         }
     }
     Ok(parsed.to_string())
@@ -974,10 +975,24 @@ fn merge_link_hreflang_value(
             let arr = obj.entry("hreflang").or_insert(serde_json::json!([]));
             if let Some(vec) = arr.as_array_mut() {
                 vec.extend(link_hreflang);
+                dedup_hreflang(vec);
             }
         }
     }
     extracted
+}
+
+/// Remove exact duplicate hreflang entries (same lang + same href).
+/// Different URLs for the same lang are kept — that's a site-side SEO error the user should see.
+fn dedup_hreflang(entries: &mut Vec<serde_json::Value>) {
+    let mut seen = std::collections::HashSet::new();
+    entries.retain(|entry| {
+        let key = (
+            entry["lang"].as_str().unwrap_or_default().to_string(),
+            entry["href"].as_str().unwrap_or_default().to_string(),
+        );
+        seen.insert(key)
+    });
 }
 
 /// Parse the `Retry-After` header from a 429 response.
