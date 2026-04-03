@@ -130,6 +130,16 @@ impl EventBus {
         self.sender(job_id).await.subscribe()
     }
 
+    /// Subscribe to an existing channel without creating one.
+    ///
+    /// Returns `Some(receiver)` if the channel exists, `None` otherwise.
+    /// Existence check + subscribe happen in a single lock acquisition
+    /// to prevent TOCTOU races (S10).
+    pub async fn try_subscribe(&self, job_id: &str) -> Option<broadcast::Receiver<ServeEvent>> {
+        let map = self.channels.lock().await;
+        map.get(job_id).map(|sender| sender.subscribe())
+    }
+
     /// Remove the channel for a job (called after job completes).
     pub async fn remove(&self, job_id: &str) {
         self.channels.lock().await.remove(job_id);
@@ -147,22 +157,25 @@ pub async fn stream_events(
     State(state): State<crate::state::AppState>,
     Path(job_id): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, crate::error::ServeError> {
-    // BUG-5: Verify job exists before creating a channel
-    let has_channel = state.event_bus.channels.lock().await.contains_key(&job_id);
-    if !has_channel {
-        let job_exists = state
-            .storage
-            .get_job(&job_id)
-            .await
-            .ok()
-            .flatten()
-            .is_some();
-        if !job_exists {
-            return Err(crate::error::ServeError::NotFound);
+    // BUG-5 + S10: Check existence + subscribe in one lock to prevent TOCTOU.
+    // If no active channel, fall back to storage check before creating one.
+    let rx = match state.event_bus.try_subscribe(&job_id).await {
+        Some(rx) => rx,
+        None => {
+            // No active channel — verify job exists before creating one
+            let job_exists = state
+                .storage
+                .get_job(&job_id)
+                .await
+                .ok()
+                .flatten()
+                .is_some();
+            if !job_exists {
+                return Err(crate::error::ServeError::NotFound);
+            }
+            state.event_bus.subscribe(&job_id).await
         }
-    }
-
-    let rx = state.event_bus.subscribe(&job_id).await;
+    };
     let storage = state.storage.clone();
     let id = job_id.clone();
 
