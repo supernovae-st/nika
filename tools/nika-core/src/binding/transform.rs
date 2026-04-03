@@ -89,6 +89,17 @@ pub enum TransformOp {
     // -- Encoding --
     Base64Encode,
     Base64Decode,
+
+    // -- Predicate (returns bool) --
+    StartsWith(String),
+    EndsWith(String),
+    Contains(String),
+
+    // -- Hashing --
+    ContentHash,
+
+    // -- URL dedup --
+    UniqueUrls,
 }
 
 /// A chain of transform operations: `sort | unique | first(3)`
@@ -910,6 +921,64 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("base64_decode", "string", value)),
             },
+
+            // ── Predicate (returns bool) ────────────────────────
+            TransformOp::StartsWith(prefix) => match value {
+                Value::Null => Err(TransformError::NullInput {
+                    op: "starts_with",
+                }),
+                Value::String(s) => Ok(Value::Bool(s.starts_with(prefix.as_str()))),
+                _ => Err(type_mismatch("starts_with", "string", value)),
+            },
+            TransformOp::EndsWith(suffix) => match value {
+                Value::Null => Err(TransformError::NullInput { op: "ends_with" }),
+                Value::String(s) => Ok(Value::Bool(s.ends_with(suffix.as_str()))),
+                _ => Err(type_mismatch("ends_with", "string", value)),
+            },
+            TransformOp::Contains(text) => match value {
+                Value::Null => Err(TransformError::NullInput { op: "contains" }),
+                Value::String(s) => Ok(Value::Bool(s.contains(text.as_str()))),
+                _ => Err(type_mismatch("contains", "string", value)),
+            },
+
+            // ── Hashing ─────────────────────────────────────────
+            TransformOp::ContentHash => match value {
+                Value::Null => Err(TransformError::NullInput {
+                    op: "content_hash",
+                }),
+                Value::String(s) => {
+                    let hash = xxhash_rust::xxh3::xxh3_64(s.as_bytes());
+                    Ok(Value::String(format!("{:016x}", hash)))
+                }
+                _ => {
+                    let json = serde_json::to_string(value).expect("Value is serializable");
+                    let hash = xxhash_rust::xxh3::xxh3_64(json.as_bytes());
+                    Ok(Value::String(format!("{:016x}", hash)))
+                }
+            },
+
+            // ── URL dedup ───────────────────────────────────────
+            TransformOp::UniqueUrls => match value {
+                Value::Null => Err(TransformError::NullInput {
+                    op: "unique_urls",
+                }),
+                Value::Array(arr) => {
+                    let mut seen = std::collections::HashSet::new();
+                    let unique: Vec<Value> = arr
+                        .iter()
+                        .filter(|v| {
+                            let key = match TransformOp::UrlNormalize.apply(v) {
+                                Ok(Value::String(normalized)) => normalized,
+                                _ => v.to_string(),
+                            };
+                            seen.insert(key)
+                        })
+                        .cloned()
+                        .collect();
+                    Ok(Value::Array(unique))
+                }
+                _ => Err(type_mismatch("unique_urls", "array", value)),
+            },
         }
     }
 }
@@ -1143,6 +1212,18 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 let pattern = strip_quotes(arg);
                 Ok(TransformOp::Regex(pattern.to_string()))
             }
+            "starts_with" => {
+                let prefix = strip_quotes(arg);
+                Ok(TransformOp::StartsWith(prefix.to_string()))
+            }
+            "ends_with" => {
+                let suffix = strip_quotes(arg);
+                Ok(TransformOp::EndsWith(suffix.to_string()))
+            }
+            "contains" => {
+                let text = strip_quotes(arg);
+                Ok(TransformOp::Contains(text.to_string()))
+            }
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", name),
@@ -1184,6 +1265,8 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "merge" => Ok(TransformOp::Merge),
             "base64_encode" => Ok(TransformOp::Base64Encode),
             "base64_decode" => Ok(TransformOp::Base64Decode),
+            "content_hash" => Ok(TransformOp::ContentHash),
+            "unique_urls" => Ok(TransformOp::UniqueUrls),
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", trimmed),
@@ -1414,6 +1497,11 @@ impl fmt::Display for TransformOp {
             TransformOp::Regex(pattern) => write!(f, "regex('{}')", pattern),
             TransformOp::Base64Encode => write!(f, "base64_encode"),
             TransformOp::Base64Decode => write!(f, "base64_decode"),
+            TransformOp::StartsWith(prefix) => write!(f, "starts_with('{}')", prefix),
+            TransformOp::EndsWith(suffix) => write!(f, "ends_with('{}')", suffix),
+            TransformOp::Contains(text) => write!(f, "contains('{}')", text),
+            TransformOp::ContentHash => write!(f, "content_hash"),
+            TransformOp::UniqueUrls => write!(f, "unique_urls"),
         }
     }
 }
@@ -3499,5 +3587,102 @@ mod proptest_tests {
     fn has_default_false_without_default() {
         let expr = TransformExpr::parse("upper | trim").unwrap();
         assert!(!expr.has_default());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // starts_with / ends_with / contains
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn starts_with_true() {
+        let expr = TransformExpr::parse("starts_with('/api')").unwrap();
+        assert_eq!(expr.apply(&json!("/api/users")).unwrap(), json!(true));
+    }
+
+    #[test]
+    fn starts_with_false() {
+        let expr = TransformExpr::parse("starts_with('/api')").unwrap();
+        assert_eq!(expr.apply(&json!("/blog/post")).unwrap(), json!(false));
+    }
+
+    #[test]
+    fn ends_with_true() {
+        let expr = TransformExpr::parse("ends_with('.html')").unwrap();
+        assert_eq!(expr.apply(&json!("page.html")).unwrap(), json!(true));
+    }
+
+    #[test]
+    fn ends_with_false() {
+        let expr = TransformExpr::parse("ends_with('.html')").unwrap();
+        assert_eq!(expr.apply(&json!("page.json")).unwrap(), json!(false));
+    }
+
+    #[test]
+    fn contains_true() {
+        let expr = TransformExpr::parse("contains('world')").unwrap();
+        assert_eq!(expr.apply(&json!("hello world")).unwrap(), json!(true));
+    }
+
+    #[test]
+    fn contains_false() {
+        let expr = TransformExpr::parse("contains('xyz')").unwrap();
+        assert_eq!(expr.apply(&json!("hello world")).unwrap(), json!(false));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // content_hash
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn content_hash_deterministic() {
+        let expr = TransformExpr::parse("content_hash").unwrap();
+        let h1 = expr.apply(&json!("hello")).unwrap();
+        let h2 = expr.apply(&json!("hello")).unwrap();
+        assert_eq!(h1, h2);
+        // Verify it's a 16-char hex string
+        assert_eq!(h1.as_str().unwrap().len(), 16);
+    }
+
+    #[test]
+    fn content_hash_different_input() {
+        let expr = TransformExpr::parse("content_hash").unwrap();
+        let h1 = expr.apply(&json!("hello")).unwrap();
+        let h2 = expr.apply(&json!("world")).unwrap();
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn content_hash_object() {
+        let expr = TransformExpr::parse("content_hash").unwrap();
+        let result = expr.apply(&json!({"a": 1})).unwrap();
+        assert_eq!(result.as_str().unwrap().len(), 16);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // unique_urls
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn unique_urls_dedup_tracking_params() {
+        let expr = TransformExpr::parse("unique_urls").unwrap();
+        let input = json!([
+            "https://example.com/page?utm_source=twitter",
+            "https://example.com/page?utm_source=facebook",
+            "https://example.com/other"
+        ]);
+        let result = expr.apply(&input).unwrap();
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr.len(), 2); // first two normalize to same URL
+    }
+
+    #[test]
+    fn unique_urls_preserves_order() {
+        let expr = TransformExpr::parse("unique_urls").unwrap();
+        let input = json!(["https://b.com", "https://a.com", "https://b.com"]);
+        let result = expr.apply(&input).unwrap();
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0], json!("https://b.com"));
+        assert_eq!(arr[1], json!("https://a.com"));
     }
 }
