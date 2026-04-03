@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.62.0 — SERVE WORKFLOW LISTING                                     ║
-║  GET /v1/workflows endpoint | 20 crates | 9,407 tests                      ║
+║  NIKA v0.63.1 — OPENAPI + SCALAR DOCS                                     ║
+║  Security scheme | Operation IDs | Typed responses | Scalar UI             ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.63.1] — 2026-04-03
+
+### Added
+- **OpenAPI 3.1** — Auto-generated spec via aide at `GET /v1/openapi.json`
+- **Scalar UI** — Interactive API explorer at `GET /v1/docs`
+- **Security scheme** — Bearer auth documented in spec
+- **Operation IDs** — All 10 endpoints have stable IDs for SDK generation
+- **Typed responses** — `CancelResponse`, `ListArtifactsResponse` replace `Json<Value>`
+- **SSE documentation** — Event types documented in `submitWorkflow` operation
+
+### Fixed
+- **LSP** — Windows CI type inference error in `daemon_status()` (E0282)
 
 ## [0.62.0] — 2026-04-02
 
