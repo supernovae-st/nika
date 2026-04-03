@@ -3103,13 +3103,13 @@ mod tests {
         use crate::ast::raw::RawRetryConfig;
 
         let mut task = make_raw_task("my_fetch");
-        task.action = Some(RawTaskAction::Fetch(Spanned::new(
+        task.action = Some(RawTaskAction::Fetch(Box::new(Spanned::new(
             RawFetchAction {
                 url: Spanned::new("https://example.com".to_string(), make_span(0, 20)),
                 ..Default::default()
             },
             make_span(0, 50),
-        )));
+        ))));
         task.retry = Some(Spanned::new(
             RawRetryConfig {
                 max_attempts: Some(Spanned::new(3, make_span(0, 1))),

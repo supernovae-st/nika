@@ -265,7 +265,7 @@ mod tests {
         let exec = RawTaskAction::Exec(Spanned::dummy(RawExecAction::default()));
         assert_eq!(exec.verb_name(), "exec");
 
-        let fetch = RawTaskAction::Fetch(Spanned::dummy(RawFetchAction::default()));
+        let fetch = RawTaskAction::Fetch(Box::new(Spanned::dummy(RawFetchAction::default())));
         assert_eq!(fetch.verb_name(), "fetch");
 
         let invoke = RawTaskAction::Invoke(Spanned::dummy(RawInvokeAction::default()));
