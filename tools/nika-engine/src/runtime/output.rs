@@ -196,6 +196,17 @@ pub async fn make_task_result(
             return TaskResult::success(json_value, duration);
         }
     }
+    // Auto-parse JSON objects/arrays when no output policy is set.
+    // Enables `$task | values` without needing `$task | parse_json | values`.
+    // Only when policy is None (no explicit format) — respect explicit Text format.
+    if policy.is_none() {
+        let trimmed = output.trim_start();
+        if trimmed.starts_with('{') || trimmed.starts_with('[') {
+            if let Ok(json_value) = serde_json::from_str::<Value>(&output) {
+                return TaskResult::success(json_value, duration);
+            }
+        }
+    }
     TaskResult::success_str(output, duration)
 }
 
