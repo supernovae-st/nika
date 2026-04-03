@@ -37,8 +37,8 @@ pub struct ExecutionContext {
     pub child_pid: Arc<AtomicU32>,
     /// Job ID for event forwarding.
     pub job_id: String,
-    /// SSE event sender for real-time task-level events (embedded executor only).
-    pub event_tx: Option<tokio::sync::broadcast::Sender<crate::events::ServeEvent>>,
+    /// SSE event bus for real-time task-level events (embedded executor only).
+    pub event_bus: Option<crate::events::EventBus>,
     /// Storage handle for checkpoint persistence during execution.
     pub storage: Option<nika_storage::Storage>,
     /// Job ID to resume from (load checkpoints from this source job).
@@ -88,7 +88,7 @@ impl Executor {
                     inputs,
                     &mut ctx.shutdown_rx,
                     &ctx.job_id,
-                    ctx.event_tx.as_ref(),
+                    ctx.event_bus.as_ref(),
                     ctx.storage.as_ref(),
                     ctx.resume_from.as_deref(),
                 )
@@ -136,7 +136,7 @@ fn extract_artifacts(runner: &nika_engine::runtime::Runner) -> Vec<ArtifactInfo>
 ///
 /// Parses the workflow YAML, creates a Runner, and executes within the
 /// current process. Supports graceful cancellation via the shutdown signal.
-/// If `event_tx` is provided, forwards task-level events to SSE clients.
+/// If `event_bus` is provided, forwards task-level events to SSE clients.
 #[allow(clippy::too_many_arguments)]
 async fn run_embedded(
     config: &ServeConfig,
@@ -144,7 +144,7 @@ async fn run_embedded(
     inputs: Option<&serde_json::Value>,
     shutdown_rx: &mut tokio::sync::watch::Receiver<bool>,
     job_id: &str,
-    event_tx: Option<&tokio::sync::broadcast::Sender<crate::events::ServeEvent>>,
+    event_bus: Option<&crate::events::EventBus>,
     storage: Option<&nika_storage::Storage>,
     resume_from: Option<&str>,
 ) -> Result<ExecutionResult, String> {
@@ -220,11 +220,11 @@ async fn run_embedded(
 
     // Spawn event forwarder task: reads engine events, sends typed SSE events,
     // and saves checkpoints for completed tasks.
-    if let Some(tx) = event_tx {
-        let tx = tx.clone();
+    if let Some(bus) = event_bus {
+        let bus = bus.clone();
         let jid = job_id.to_string();
         let storage_clone = storage.cloned();
-        spawn_event_forwarder(engine_event_rx, tx, jid, storage_clone);
+        spawn_event_forwarder(engine_event_rx, bus, jid, storage_clone);
     }
 
     let timeout_secs = config.job_timeout_secs;
@@ -279,7 +279,7 @@ async fn run_embedded(
 /// checkpoints for resume functionality.
 fn spawn_event_forwarder(
     mut rx: tokio::sync::broadcast::Receiver<nika_event::Event>,
-    tx: tokio::sync::broadcast::Sender<crate::events::ServeEvent>,
+    event_bus: crate::events::EventBus,
     job_id: String,
     storage: Option<nika_storage::Storage>,
 ) {
@@ -346,8 +346,7 @@ fn spawn_event_forwarder(
                         _ => None, // Skip non-task events
                     };
                     if let Some(ev) = serve_event {
-                        // Best-effort: ignore send failures (no subscribers)
-                        let _ = tx.send(ev);
+                        event_bus.publish(&job_id, ev).await;
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -467,7 +466,7 @@ mod tests {
             shutdown_rx: rx,
             child_pid: Arc::new(AtomicU32::new(0)),
             job_id: "test-job".into(),
-            event_tx: None,
+            event_bus: None,
             storage: None,
             resume_from: None,
         };

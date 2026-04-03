@@ -88,8 +88,8 @@ miette = { version = "7.6", features = ["fancy"] }
 # HTTP
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls", "gzip", "brotli", "deflate", "hickory-dns", "zstd", "cookies"] }
 url = "2"
-axum = { version = "0.8", features = ["json", "macros"] }
-aide = { version = "=0.16.0-alpha.3", features = ["axum", "axum-json", "scalar"] }
+axum = { version = "0.8", features = ["json", "macros", "query"] }
+aide = { version = "=0.16.0-alpha.3", features = ["axum", "axum-json", "axum-query", "scalar"] }
 tower = { version = "0.5", features = ["timeout", "limit"] }
 tower-http = { version = "0.6", features = ["trace", "limit", "cors", "timeout"] }
 subtle = "2"

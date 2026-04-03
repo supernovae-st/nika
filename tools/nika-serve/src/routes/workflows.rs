@@ -8,7 +8,7 @@
 //! - `GET  /v1/events/{id}`          -- SSE streaming (see `events.rs`)
 
 use aide::transform::TransformOperation;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -244,8 +244,7 @@ pub async fn cancel_job(
         .await?;
 
     // Emit SSE event: cancelled
-    let tx = state.event_bus.sender(&id).await;
-    let _ = tx.send(crate::events::ServeEvent::Cancelled { job_id: id.clone() });
+    state.event_bus.publish(&id, crate::events::ServeEvent::Cancelled { job_id: id.clone() }).await;
     state.event_bus.remove(&id).await;
 
     Ok(Json(CancelResponse {
@@ -277,10 +276,21 @@ pub struct WorkflowInfo {
     pub size: u64,
 }
 
+#[derive(Deserialize, JsonSchema)]
+pub struct ListQuery {
+    /// Max workflows to return. Default: all (no limit).
+    pub limit: Option<usize>,
+    /// Return workflows after this name (cursor for pagination).
+    pub after: Option<String>,
+}
+
 #[derive(Serialize, JsonSchema)]
 pub struct ListWorkflowsResponse {
     pub workflows: Vec<WorkflowInfo>,
     pub count: usize,
+    /// Whether more results exist after the last item.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_more: Option<bool>,
 }
 
 /// `GET /v1/workflows` -- List available workflows.
@@ -289,6 +299,7 @@ pub struct ListWorkflowsResponse {
 /// Returns relative paths sorted alphabetically.
 pub async fn list_workflows(
     State(state): State<AppState>,
+    Query(query): Query<ListQuery>,
 ) -> Result<Json<ListWorkflowsResponse>, ServeError> {
     let base = state
         .config
@@ -300,8 +311,30 @@ pub async fn list_workflows(
     collect_workflows(&base, &base, &mut workflows).await?;
     workflows.sort_by(|a, b| a.name.cmp(&b.name));
 
+    // Apply cursor: skip everything up to and including `after`
+    if let Some(ref after) = query.after {
+        if let Some(pos) = workflows.iter().position(|w| w.name.as_str() > after.as_str()) {
+            workflows = workflows.split_off(pos);
+        } else {
+            workflows.clear();
+        }
+    }
+
+    // Apply limit
+    let has_more = if let Some(limit) = query.limit {
+        let has_more = workflows.len() > limit;
+        workflows.truncate(limit);
+        Some(has_more)
+    } else {
+        None
+    };
+
     let count = workflows.len();
-    Ok(Json(ListWorkflowsResponse { workflows, count }))
+    Ok(Json(ListWorkflowsResponse {
+        workflows,
+        count,
+        has_more,
+    }))
 }
 
 /// `GET /v1/workflows/{name}/source` — Return raw YAML source.
@@ -361,7 +394,11 @@ pub async fn reload_workflows(
 
     let count = workflows.len();
     tracing::info!(count, "workflows reloaded");
-    Ok(Json(ListWorkflowsResponse { workflows, count }))
+    Ok(Json(ListWorkflowsResponse {
+        workflows,
+        count,
+        has_more: None,
+    }))
 }
 
 /// Recursively collect `.nika.yaml` files, skipping hidden directories.
@@ -664,6 +701,41 @@ mod tests {
     fn rejects_null_bytes() {
         assert!(validate_workflow_path("evil\0.nika.yaml").is_err());
         assert!(validate_workflow_path("sub/\0path.nika.yaml").is_err());
+    }
+
+    #[tokio::test]
+    async fn list_workflows_with_limit() {
+        let dir = tempfile::TempDir::new().unwrap();
+        for name in ["a.nika.yaml", "b.nika.yaml", "c.nika.yaml", "d.nika.yaml", "e.nika.yaml"] {
+            std::fs::write(dir.path().join(name), "schema: nika/workflow@0.12").unwrap();
+        }
+        let base = dir.path().canonicalize().unwrap();
+        let mut workflows = Vec::new();
+        collect_workflows(&base, &base, &mut workflows).await.unwrap();
+        workflows.sort_by(|a, b| a.name.cmp(&b.name));
+        let has_more = workflows.len() > 2;
+        workflows.truncate(2);
+        assert_eq!(workflows.len(), 2);
+        assert_eq!(workflows[0].name, "a.nika.yaml");
+        assert!(has_more);
+    }
+
+    #[tokio::test]
+    async fn list_workflows_with_cursor() {
+        let dir = tempfile::TempDir::new().unwrap();
+        for name in ["a.nika.yaml", "b.nika.yaml", "c.nika.yaml"] {
+            std::fs::write(dir.path().join(name), "schema: nika/workflow@0.12").unwrap();
+        }
+        let base = dir.path().canonicalize().unwrap();
+        let mut workflows = Vec::new();
+        collect_workflows(&base, &base, &mut workflows).await.unwrap();
+        workflows.sort_by(|a, b| a.name.cmp(&b.name));
+        let after = "a.nika.yaml";
+        if let Some(pos) = workflows.iter().position(|w| w.name.as_str() > after) {
+            workflows = workflows.split_off(pos);
+        }
+        assert_eq!(workflows.len(), 2);
+        assert_eq!(workflows[0].name, "b.nika.yaml");
     }
 
     #[test]

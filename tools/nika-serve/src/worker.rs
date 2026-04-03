@@ -196,8 +196,7 @@ pub fn spawn_worker(
         }
 
         // Emit SSE event: started
-        let tx = event_bus.sender(&id).await;
-        let _ = tx.send(crate::events::ServeEvent::Started { job_id: id.clone() });
+        event_bus.publish(&id, crate::events::ServeEvent::Started { job_id: id.clone() }).await;
 
         let max_output_bytes = config.max_output_bytes;
         let mut ctx = ExecutionContext {
@@ -205,7 +204,7 @@ pub fn spawn_worker(
             shutdown_rx,
             child_pid: child_pid_clone,
             job_id: id.clone(),
-            event_tx: Some(tx.clone()),
+            event_bus: Some(event_bus.clone()),
             storage: Some(storage.clone()),
             resume_from,
         };
@@ -251,10 +250,10 @@ pub fn spawn_worker(
                         info!(job_id = %id, count, "artifacts stored");
                     }
                 }
-                let _ = tx.send(crate::events::ServeEvent::Completed {
+                event_bus.publish(&id, crate::events::ServeEvent::Completed {
                     job_id: id.clone(),
                     output: Some(truncated.to_string()),
-                });
+                }).await;
                 crate::metrics::record_job_completed(
                     "completed",
                     job_start.elapsed().as_secs_f64(),
@@ -269,10 +268,10 @@ pub fn spawn_worker(
                 if let Err(e) = storage.fail_job(&id, truncated).await {
                     error!(job_id = %id, error = %e, "failed to mark job failed");
                 }
-                let _ = tx.send(crate::events::ServeEvent::Failed {
+                event_bus.publish(&id, crate::events::ServeEvent::Failed {
                     job_id: id.clone(),
                     error: Some(truncated.to_string()),
-                });
+                }).await;
                 crate::metrics::record_job_completed("failed", job_start.elapsed().as_secs_f64());
                 if let Some(ref wh) = webhook_config {
                     crate::webhook::notify(wh, &id, "failed", Some(truncated));

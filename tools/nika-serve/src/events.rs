@@ -4,12 +4,14 @@
 //! - `stream_events`: SSE endpoint handler for `/v1/events/{id}`
 //! - `ServeEvent`: typed event types pushed to subscribers
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use serde::Serialize;
@@ -18,6 +20,9 @@ use tracing::debug;
 
 /// Capacity of each per-job broadcast channel.
 const CHANNEL_CAPACITY: usize = 64;
+
+/// Max events kept in history ring buffer for reconnect replay.
+const HISTORY_CAPACITY: usize = 256;
 
 /// Typed events published by the worker and streamed to SSE clients.
 ///
@@ -107,37 +112,82 @@ impl ServeEvent {
     }
 }
 
+/// State for a single job's event channel.
+pub struct ChannelState {
+    pub sender: broadcast::Sender<(u64, ServeEvent)>,
+    pub counter: AtomicU64,
+    /// Ring buffer of last N events for reconnect replay.
+    pub history: Mutex<VecDeque<(u64, ServeEvent)>>,
+}
+
 /// Per-job broadcast event bus.
 ///
 /// Workers publish events, SSE clients subscribe.
 /// Channels are lazily created and cleaned up when the last sender drops.
 #[derive(Clone, Default)]
 pub struct EventBus {
-    pub(crate) channels: Arc<Mutex<HashMap<String, broadcast::Sender<ServeEvent>>>>,
+    pub(crate) channels: Arc<Mutex<HashMap<String, Arc<ChannelState>>>>,
 }
 
 impl EventBus {
     /// Get or create a broadcast sender for a job.
-    pub async fn sender(&self, job_id: &str) -> broadcast::Sender<ServeEvent> {
+    pub async fn sender(&self, job_id: &str) -> broadcast::Sender<(u64, ServeEvent)> {
         let mut map = self.channels.lock().await;
-        map.entry(job_id.to_string())
-            .or_insert_with(|| broadcast::channel(CHANNEL_CAPACITY).0)
-            .clone()
+        let state = map.entry(job_id.to_string()).or_insert_with(|| {
+            Arc::new(ChannelState {
+                sender: broadcast::channel(CHANNEL_CAPACITY).0,
+                counter: AtomicU64::new(0),
+                history: Mutex::new(VecDeque::with_capacity(HISTORY_CAPACITY)),
+            })
+        });
+        state.sender.clone()
+    }
+
+    /// Publish an event with an auto-incrementing ID and store in history.
+    ///
+    /// Acquires `channels` lock briefly to get/create the channel state,
+    /// then drops it before touching `history` — avoids nested async locks.
+    pub async fn publish(&self, job_id: &str, event: ServeEvent) {
+        let state = {
+            let mut map = self.channels.lock().await;
+            Arc::clone(map.entry(job_id.to_string()).or_insert_with(|| {
+                Arc::new(ChannelState {
+                    sender: broadcast::channel(CHANNEL_CAPACITY).0,
+                    counter: AtomicU64::new(0),
+                    history: Mutex::new(VecDeque::with_capacity(HISTORY_CAPACITY)),
+                })
+            }))
+            // channels lock released here
+        };
+        // Relaxed is safe: the Mutex provides happens-before ordering
+        let id = state.counter.fetch_add(1, Ordering::Relaxed) + 1;
+        {
+            let mut hist = state.history.lock().await;
+            if hist.len() >= HISTORY_CAPACITY {
+                hist.pop_front();
+            }
+            hist.push_back((id, event.clone()));
+        }
+        let _ = state.sender.send((id, event));
     }
 
     /// Subscribe to events for a job. Returns a receiver.
-    pub async fn subscribe(&self, job_id: &str) -> broadcast::Receiver<ServeEvent> {
+    pub async fn subscribe(&self, job_id: &str) -> broadcast::Receiver<(u64, ServeEvent)> {
         self.sender(job_id).await.subscribe()
     }
 
     /// Subscribe to an existing channel without creating one.
     ///
-    /// Returns `Some(receiver)` if the channel exists, `None` otherwise.
+    /// Returns `Some((receiver, channel_state))` if the channel exists, `None` otherwise.
     /// Existence check + subscribe happen in a single lock acquisition
     /// to prevent TOCTOU races (S10).
-    pub async fn try_subscribe(&self, job_id: &str) -> Option<broadcast::Receiver<ServeEvent>> {
+    pub async fn try_subscribe(
+        &self,
+        job_id: &str,
+    ) -> Option<(broadcast::Receiver<(u64, ServeEvent)>, Arc<ChannelState>)> {
         let map = self.channels.lock().await;
-        map.get(job_id).map(|sender| sender.subscribe())
+        map.get(job_id)
+            .map(|state| (state.sender.subscribe(), Arc::clone(state)))
     }
 
     /// Remove the channel for a job (called after job completes).
@@ -151,18 +201,26 @@ impl EventBus {
 /// Subscribes to the event bus for the given job ID and streams events
 /// as they occur. Includes a keep-alive ping every 15 seconds.
 ///
+/// Supports reconnection via `Last-Event-Id` header: missed events are
+/// replayed from an in-memory ring buffer (last 256 events per job).
+///
 /// Returns 404 if the job doesn't exist in storage and has no active
 /// event channel (BUG-5: prevents orphan channel creation).
 pub async fn stream_events(
     State(state): State<crate::state::AppState>,
     Path(job_id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, crate::error::ServeError> {
+    // Parse Last-Event-Id for reconnect replay
+    let last_event_id: Option<u64> = headers
+        .get("last-event-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok());
+
     // BUG-5 + S10: Check existence + subscribe in one lock to prevent TOCTOU.
-    // If no active channel, fall back to storage check before creating one.
-    let rx = match state.event_bus.try_subscribe(&job_id).await {
-        Some(rx) => rx,
+    let (rx, channel_state) = match state.event_bus.try_subscribe(&job_id).await {
+        Some((rx, state)) => (rx, Some(state)),
         None => {
-            // No active channel — verify job exists before creating one
             let job_exists = state
                 .storage
                 .get_job(&job_id)
@@ -173,51 +231,77 @@ pub async fn stream_events(
             if !job_exists {
                 return Err(crate::error::ServeError::NotFound);
             }
-            state.event_bus.subscribe(&job_id).await
+            let rx = state.event_bus.subscribe(&job_id).await;
+            (rx, None)
         }
     };
     let storage = state.storage.clone();
     let id = job_id.clone();
 
     let stream = async_stream::stream! {
-        // Check if job already has a terminal state (replay)
-        if let Ok(Some(job)) = storage.get_job(&id).await {
-            match job.state {
-                nika_storage::JobState::Completed => {
-                    let event = ServeEvent::Completed {
-                        job_id: id.clone(),
-                        output: job.output,
-                    };
-                    if let Ok(data) = serde_json::to_string(&event) {
-                        yield Ok(Event::default().event("completed").data(data));
+        // Track the highest event ID we've replayed, to avoid duplicates
+        // in the live broadcast stream that may still have these events buffered.
+        let mut skip_up_to: u64 = last_event_id.unwrap_or(0);
+
+        // Replay missed events from history if reconnecting
+        if let (Some(last_id), Some(ref ch)) = (last_event_id, &channel_state) {
+            let hist = ch.history.lock().await;
+            for (event_id, event) in hist.iter() {
+                if *event_id > last_id {
+                    if let Ok(data) = serde_json::to_string(event) {
+                        yield Ok(Event::default()
+                            .event(event.event_type())
+                            .data(data)
+                            .id(event_id.to_string()));
                     }
-                    return;
-                }
-                nika_storage::JobState::Failed => {
-                    let event = ServeEvent::Failed {
-                        job_id: id.clone(),
-                        error: job.output,
-                    };
-                    if let Ok(data) = serde_json::to_string(&event) {
-                        yield Ok(Event::default().event("failed").data(data));
-                    }
-                    return;
-                }
-                nika_storage::JobState::Cancelled => {
-                    let event = ServeEvent::Cancelled { job_id: id.clone() };
-                    if let Ok(data) = serde_json::to_string(&event) {
-                        yield Ok(Event::default().event("cancelled").data(data));
-                    }
-                    return;
-                }
-                nika_storage::JobState::Running => {
-                    // Emit a started event for running jobs
-                    let event = ServeEvent::Started { job_id: id.clone() };
-                    if let Ok(data) = serde_json::to_string(&event) {
-                        yield Ok(Event::default().event("started").data(data));
+                    skip_up_to = *event_id;
+                    if event.is_terminal() {
+                        debug!(job_id = %id, "SSE replay hit terminal event");
+                        return;
                     }
                 }
-                _ => {} // Pending — wait for events
+            }
+        }
+
+        // Check if job already has a terminal state (replay for fresh connections)
+        if last_event_id.is_none() {
+            if let Ok(Some(job)) = storage.get_job(&id).await {
+                match job.state {
+                    nika_storage::JobState::Completed => {
+                        let event = ServeEvent::Completed {
+                            job_id: id.clone(),
+                            output: job.output,
+                        };
+                        if let Ok(data) = serde_json::to_string(&event) {
+                            yield Ok(Event::default().event("completed").data(data).id("0"));
+                        }
+                        return;
+                    }
+                    nika_storage::JobState::Failed => {
+                        let event = ServeEvent::Failed {
+                            job_id: id.clone(),
+                            error: job.output,
+                        };
+                        if let Ok(data) = serde_json::to_string(&event) {
+                            yield Ok(Event::default().event("failed").data(data).id("0"));
+                        }
+                        return;
+                    }
+                    nika_storage::JobState::Cancelled => {
+                        let event = ServeEvent::Cancelled { job_id: id.clone() };
+                        if let Ok(data) = serde_json::to_string(&event) {
+                            yield Ok(Event::default().event("cancelled").data(data).id("0"));
+                        }
+                        return;
+                    }
+                    nika_storage::JobState::Running => {
+                        let event = ServeEvent::Started { job_id: id.clone() };
+                        if let Ok(data) = serde_json::to_string(&event) {
+                            yield Ok(Event::default().event("started").data(data).id("0"));
+                        }
+                    }
+                    _ => {} // Pending — wait for events
+                }
             }
         }
 
@@ -225,12 +309,20 @@ pub async fn stream_events(
         let mut rx = rx;
         loop {
             match rx.recv().await {
-                Ok(event) => {
+                Ok((event_id, event)) => {
+                    // Skip events already replayed from history
+                    if event_id <= skip_up_to {
+                        continue;
+                    }
+
                     let event_type = event.event_type();
                     let is_terminal = event.is_terminal();
 
                     if let Ok(data) = serde_json::to_string(&event) {
-                        yield Ok(Event::default().event(event_type).data(data));
+                        yield Ok(Event::default()
+                            .event(event_type)
+                            .data(data)
+                            .id(event_id.to_string()));
                     }
 
                     if is_terminal {
@@ -373,14 +465,12 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe("job-1").await;
 
-        // Publish an event
-        let tx = bus.sender("job-1").await;
-        tx.send(ServeEvent::Started {
+        bus.publish("job-1", ServeEvent::Started {
             job_id: "job-1".into(),
-        })
-        .unwrap();
+        }).await;
 
-        let event = rx.recv().await.unwrap();
+        let (id, event) = rx.recv().await.unwrap();
+        assert_eq!(id, 1);
         assert!(matches!(event, ServeEvent::Started { .. }));
     }
 
@@ -389,15 +479,14 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe("job-1").await;
 
-        let tx = bus.sender("job-1").await;
-        tx.send(ServeEvent::TaskStart {
+        bus.publish("job-1", ServeEvent::TaskStart {
             job_id: "job-1".into(),
             task_id: "step1".into(),
             verb: "infer".into(),
-        })
-        .unwrap();
+        }).await;
 
-        let event = rx.recv().await.unwrap();
+        let (id, event) = rx.recv().await.unwrap();
+        assert_eq!(id, 1);
         assert!(matches!(event, ServeEvent::TaskStart { .. }));
     }
 
@@ -409,5 +498,70 @@ mod tests {
 
         let map = bus.channels.lock().await;
         assert!(!map.contains_key("job-2"));
+    }
+
+    #[tokio::test]
+    async fn sse_events_have_incrementing_ids() {
+        let bus = EventBus::default();
+        let mut rx = bus.subscribe("job-3").await;
+
+        bus.publish("job-3", ServeEvent::Started { job_id: "job-3".into() }).await;
+        bus.publish("job-3", ServeEvent::TaskStart {
+            job_id: "job-3".into(),
+            task_id: "s1".into(),
+            verb: "infer".into(),
+        }).await;
+        bus.publish("job-3", ServeEvent::Completed {
+            job_id: "job-3".into(),
+            output: None,
+        }).await;
+
+        let (id1, _) = rx.recv().await.unwrap();
+        let (id2, _) = rx.recv().await.unwrap();
+        let (id3, _) = rx.recv().await.unwrap();
+        assert_eq!(id1, 1);
+        assert_eq!(id2, 2);
+        assert_eq!(id3, 3);
+    }
+
+    #[tokio::test]
+    async fn sse_reconnect_replays_from_last_id() {
+        let bus = EventBus::default();
+
+        for i in 0..5 {
+            bus.publish("job-4", ServeEvent::TaskStart {
+                job_id: "job-4".into(),
+                task_id: format!("s{i}"),
+                verb: "infer".into(),
+            }).await;
+        }
+
+        let (_, ch) = bus.try_subscribe("job-4").await.unwrap();
+        let hist = ch.history.lock().await;
+
+        let replayed: Vec<u64> = hist.iter()
+            .filter(|(id, _)| *id > 3)
+            .map(|(id, _)| *id)
+            .collect();
+        assert_eq!(replayed, vec![4, 5]);
+    }
+
+    #[tokio::test]
+    async fn sse_history_bounded() {
+        let bus = EventBus::default();
+
+        for i in 0..300 {
+            bus.publish("job-5", ServeEvent::TaskStart {
+                job_id: "job-5".into(),
+                task_id: format!("s{i}"),
+                verb: "infer".into(),
+            }).await;
+        }
+
+        let (_, ch) = bus.try_subscribe("job-5").await.unwrap();
+        let hist = ch.history.lock().await;
+        assert_eq!(hist.len(), HISTORY_CAPACITY);
+        assert_eq!(hist.front().unwrap().0, 45);
+        assert_eq!(hist.back().unwrap().0, 300);
     }
 }
