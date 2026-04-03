@@ -86,6 +86,29 @@ impl TaskExecutor {
             None => None,
         };
 
+        // Auto-inject workflow-level skills into infer system prompt.
+        // Skills are prepended so the LLM sees domain instructions before the task prompt.
+        // Agent tasks handle their own skill injection via the agent loop.
+        let resolved_system = if !self.skills_map.is_empty() {
+            let all_skills: Vec<&str> = self.skills_map.keys().map(|s| s.as_str()).collect();
+            let injected = self
+                .skill_injector
+                .inject(
+                    resolved_system.as_deref(),
+                    &all_skills,
+                    &self.skills_map,
+                    &self.workflow_base_dir,
+                )
+                .await?;
+            if injected.is_empty() {
+                None
+            } else {
+                Some(injected)
+            }
+        } else {
+            resolved_system
+        };
+
         // Apply response_format instruction to system prompt
         // Skip when structured: is present (it has its own schema-based prompt injection)
         let has_structured = output_policy.is_some_and(|p| p.is_structured());

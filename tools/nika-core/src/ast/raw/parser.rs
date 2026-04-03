@@ -1813,6 +1813,7 @@ fn validate_task_keys(
         "fail_fast",
         "timeout",
         "when",
+        "skills",
         // 5 verb keys
         "infer",
         "exec",
