@@ -38,7 +38,11 @@ pub enum DaemonRequest {
 
     // ── Secrets ──────────────────────────────────────────────────────────
     /// Get a secret (API key) for a provider.
-    GetSecret { provider: String },
+    /// Requires auth token (same as SetSecret) to prevent same-UID exfiltration.
+    GetSecret {
+        provider: String,
+        auth_token: Option<String>,
+    },
 
     /// Check if a secret exists for a provider.
     HasSecret { provider: String },
@@ -158,8 +162,8 @@ impl std::fmt::Debug for DaemonRequest {
             Self::DeleteSecret { provider, .. } => {
                 write!(f, "DaemonRequest::DeleteSecret {{ provider: {provider:?}, auth_token: <redacted> }}")
             }
-            Self::GetSecret { provider } => {
-                write!(f, "DaemonRequest::GetSecret {{ provider: {provider:?} }}")
+            Self::GetSecret { provider, .. } => {
+                write!(f, "DaemonRequest::GetSecret {{ provider: {provider:?}, auth_token: <redacted> }}")
             }
             Self::Ping => write!(f, "DaemonRequest::Ping"),
             Self::Status => write!(f, "DaemonRequest::Status"),

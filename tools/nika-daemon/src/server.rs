@@ -437,10 +437,15 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             }
         }
 
-        // SECURITY NOTE: GetSecret does not require auth token.
-        // Unix socket 0o600 is the access boundary (same-user only).
-        // Accepted risk for single-user dev machines.
-        DaemonRequest::GetSecret { provider } => {
+        // GetSecret requires auth token to prevent same-UID process exfiltration.
+        // Unix socket 0o600 + auth token = defense in depth.
+        DaemonRequest::GetSecret {
+            provider,
+            auth_token,
+        } => {
+            if !validate_auth_token(&auth_token, &state.auth_token) {
+                return DaemonResponse::AuthRequired;
+            }
             match state.secret_service.get_secret(&provider).await {
                 Some(value) => DaemonResponse::Secret { value: Some(value) },
                 None => DaemonResponse::Secret { value: None },

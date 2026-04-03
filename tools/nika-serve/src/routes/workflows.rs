@@ -131,9 +131,12 @@ pub async fn run_workflow(
         }
     }
 
-    // Atomic check-and-increment via CAS loop (race-free, no DB queries)
+    // Atomic check-and-increment via CAS loop (race-free, no DB queries).
+    // SlotGuard ensures the counter is decremented if any code below panics
+    // before the WorkerGuard (in the spawned task) takes over responsibility.
     let max_queued = state.config.max_concurrent * 3;
     try_acquire_job_slot(&state.active_jobs, max_queued)?;
+    let mut slot_guard = SlotGuard::new(&state.active_jobs);
     crate::metrics::record_active_jobs(
         state.active_jobs.load(std::sync::atomic::Ordering::Relaxed),
     );
@@ -141,11 +144,9 @@ pub async fn run_workflow(
     // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
     let job_id = uuid::Uuid::new_v4().simple().to_string();
 
-    // Persist job — decrement counter on failure (BUG-4)
+    // Persist job
     if let Err(e) = state.storage.create_job(&job_id, &req.workflow).await {
-        state
-            .active_jobs
-            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        // SlotGuard will decrement on drop, no manual fetch_sub needed
         return Err(e.into());
     }
 
@@ -160,6 +161,10 @@ pub async fn run_workflow(
         req.resume_from,
     );
     state.workers.lock().await.insert(job_id.clone(), wh);
+
+    // Transfer counter responsibility to WorkerGuard (inside the spawned task).
+    // Disarm the handler-scope guard so it doesn't double-decrement.
+    slot_guard.disarm();
 
     Ok(Json(RunResponse {
         job_id,
@@ -544,6 +549,38 @@ fn try_acquire_job_slot(
         ) {
             Ok(_) => return Ok(()),
             Err(_) => continue, // Another thread won the race, retry
+        }
+    }
+}
+
+/// RAII guard for the active_jobs counter.
+///
+/// Decrements on drop unless `disarm()` is called. This ensures the counter
+/// is always decremented if the handler panics between `try_acquire_job_slot`
+/// and the `WorkerGuard` taking over responsibility in the spawned task.
+struct SlotGuard<'a> {
+    counter: &'a std::sync::atomic::AtomicUsize,
+    armed: bool,
+}
+
+impl<'a> SlotGuard<'a> {
+    fn new(counter: &'a std::sync::atomic::AtomicUsize) -> Self {
+        Self {
+            counter,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for SlotGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.counter
+                .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         }
     }
 }

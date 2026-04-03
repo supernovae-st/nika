@@ -110,6 +110,8 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Per-token rate limiter (configurable via env/nika.toml)
     let rl_state =
         rate_limit::new_rate_limiter_with(config.rate_per_second as u32, config.rate_burst);
+    // Clone limiter Arc before rl_state is moved into middleware layers
+    let gc_limiter = Arc::clone(&rl_state.limiter);
 
     // Build router with middleware
     // SSE route is separate — long-lived streams must NOT have the 30s TimeoutLayer (C1).
@@ -193,6 +195,9 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
                 Ok(n) => info!(count = n, "job GC: deleted old jobs"),
                 Err(e) => tracing::warn!(error = %e, "job GC failed"),
             }
+            // Evict stale rate limiter entries for tokens that haven't been
+            // seen recently — prevents unbounded DashMap growth with rotating tokens.
+            gc_limiter.retain_recent();
         }
     });
 

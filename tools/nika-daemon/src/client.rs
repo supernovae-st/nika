@@ -76,15 +76,21 @@ impl DaemonClient {
         self.send(DaemonRequest::Status).await
     }
 
-    /// Get a secret for a provider.
+    /// Get a secret for a provider. Requires auth token.
     pub async fn get_secret(&self, provider: &str) -> DaemonResult<Option<String>> {
+        let auth_token = read_auth_token().ok();
         match self
             .send(DaemonRequest::GetSecret {
                 provider: provider.to_string(),
+                auth_token,
             })
             .await?
         {
             DaemonResponse::Secret { value } => Ok(value),
+            DaemonResponse::AuthRequired => Err(DaemonError::RemoteError {
+                code: "AUTH".into(),
+                message: "GetSecret requires auth token".into(),
+            }),
             DaemonResponse::Error { code, message } => {
                 Err(DaemonError::RemoteError { code, message })
             }
