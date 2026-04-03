@@ -40,7 +40,7 @@ src/
 │   └── security.rs      #   Command blocklist + env validation
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
 ├── binding/             # Data flow: templates, transforms, JSONPath, resolve
-├── tools/               # File tools: read, write, edit, glob, grep
+├── tools/               # File tools: read, write (overwrite param), edit, glob, grep
 ├── display/             # CLI display renderers (Renderer trait + Box<dyn Renderer>)
 │   ├── renderer.rs      #   Renderer trait, CliRenderer, RunStats, TestRenderer
 │   ├── live.rs          #   LiveRenderer (indicatif: spinners, progress, for_each sub-bars)
@@ -83,7 +83,7 @@ src/
 | 000-009 | Workflow |
 | 010-019 | Schema/validation |
 | 020-029 | DAG |
-| 030-039 | Provider |
+| 030-039 | Provider (033 = unknown provider name warning) |
 | 040-049 | Template/binding |
 | 050-059 | Path/task/security |
 | 060-069 | Output (JSON/schema validation) |
@@ -111,6 +111,13 @@ src/
 | SECRET-002 | Daemon: keyring store error |
 | SECRET-003 | Daemon: keyring delete error |
 | SECRET-004 | Daemon: unknown provider |
+
+### nika check Validation (v0.63.3)
+
+`nika check` now validates beyond syntax and DAG:
+- **Skill file paths**: verifies all `skills:` paths exist on disk
+- **Context file paths**: verifies all `context:` file paths exist on disk
+- **Provider names**: warns (NIKA-033) on unrecognized provider names
 
 ## Testing
 
@@ -158,6 +165,7 @@ assert!(parsed["skills"].as_array().unwrap().len() >= 2);
 
 Daemon auto-starts on any nika command. No keychain popups (direct keyring access removed).
 Resolution: env vars → daemon IPC → clear error. Opt-out: `NIKA_NO_DAEMON=1`.
+VPS resilience: `~/.nika/daemon/nika-exe-path` stores the binary path so the daemon survives binary upgrades.
 
 ## Conventions
 
@@ -171,6 +179,7 @@ Resolution: env vars → daemon IPC → clear error. Opt-out: `NIKA_NO_DAEMON=1`
 - **Pipe transforms:** `{{with.data | upper | trim}}` — available in all template contexts
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
+- **Skills:** Workflow-level `skills:` are auto-injected into all `infer:` task system prompts (not just agents). Agent tasks can override with per-task `skills: [x, y]`.
 
 ## Custom Endpoints (OpenAI-Compatible)
 
@@ -341,3 +350,4 @@ The `fetch:` verb supports `extract:` for HTML post-processing and `response:` f
 | Import without path validation | Use `validate_import_path()` to block traversal attacks |
 | GGUF model for native vision | GGUF is text-only — use `NativeModelKind::VisionHf` with HuggingFace model ID |
 | Skipping pre-read size check | Always check file size before reading into memory |
+| `nika:write` without `overwrite: true` on existing file | NIKA-215 (FileAlreadyExists). Pass `overwrite: true` param to replace. |
