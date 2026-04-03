@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn marker_no_version_line_is_needs_update() {
         let content = "[machine]\nsetup_at = \"1711900000\"\n";
-        let current = env!("CARGO_PKG_VERSION");
+        let _current = env!("CARGO_PKG_VERSION");
         let mut found_version = false;
         for line in content.lines() {
             let trimmed = line.trim();
@@ -373,7 +373,7 @@ ai_tools = [\"Claude Code\"]\n";
     /// write_marker_with_editors produces valid TOML-like content.
     #[test]
     fn write_marker_with_editors_format() {
-        let results = vec![
+        let results = [
             SetupResult {
                 name: "Claude Code".to_string(),
                 success: true,
@@ -390,7 +390,7 @@ ai_tools = [\"Claude Code\"]\n";
                 message: "failed".to_string(),
             },
         ];
-        let editors = vec!["vscode", "claude", "cursor"];
+        let editors = ["vscode", "claude", "cursor"];
 
         // Build the content the same way write_marker_with_editors does
         let ai_tools: Vec<&str> = results
