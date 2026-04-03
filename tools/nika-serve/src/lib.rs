@@ -180,11 +180,12 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Startup banner (visible to the user, not just tracing logs)
     print_startup_banner(&config);
 
-    // Spawn background job GC (configurable interval + retention)
+    // Spawn background job GC (configurable interval + retention).
+    // S11: Store handle so we can abort on shutdown instead of leaking the task.
     let gc_storage = state.storage.clone();
     let gc_interval = std::time::Duration::from_secs(config.gc_interval_secs);
     let gc_retention = config.gc_retention_secs;
-    tokio::spawn(async move {
+    let gc_handle = tokio::spawn(async move {
         loop {
             tokio::time::sleep(gc_interval).await;
             match gc_storage.delete_old_jobs(gc_retention).await {
@@ -233,6 +234,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         }
 
         info!("shutdown signal received, notifying workers");
+        gc_handle.abort();
         let _ = shutdown_tx.send(true);
     };
 
