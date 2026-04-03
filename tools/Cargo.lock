@@ -5692,6 +5692,7 @@ dependencies = [
  "pretty_assertions",
  "proptest",
  "qrcode",
+ "quick-xml 0.37.5",
  "regex",
  "reqwest 0.13.2",
  "rig-core",
