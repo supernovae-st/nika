@@ -345,6 +345,31 @@ fn acquire_db_lock(db_path: &std::path::Path) -> Result<DbLock, ServeError> {
     Ok(DbLock { _file: lock_file })
 }
 
+/// Count `.nika.yaml` files recursively, skipping hidden directories.
+fn count_workflow_files(dir: &std::path::Path) -> usize {
+    let mut count = 0;
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            continue;
+        };
+        // Skip hidden directories (.nika/, .git/, etc.)
+        if name_str.starts_with('.') {
+            continue;
+        }
+        let ft = entry.file_type();
+        if ft.as_ref().is_ok_and(|t| t.is_dir()) {
+            count += count_workflow_files(&entry.path());
+        } else if name_str.ends_with(".nika.yaml") || name_str.ends_with(".nika.yml") {
+            count += 1;
+        }
+    }
+    count
+}
+
 /// Print a structured startup banner to stderr.
 fn print_startup_banner(config: &ServeConfig) {
     use nika_engine::core::{provider_to_env_var, ProviderCategory, KNOWN_PROVIDERS};
@@ -354,18 +379,7 @@ fn print_startup_banner(config: &ServeConfig) {
         config::ExecutorMode::Subprocess => "subprocess",
         config::ExecutorMode::Embedded => "embedded",
     };
-    let workflow_count = std::fs::read_dir(&config.workflows_dir)
-        .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.file_name()
-                        .to_str()
-                        .is_some_and(|n| n.ends_with(".nika.yaml") || n.ends_with(".nika.yml"))
-                })
-                .count()
-        })
-        .unwrap_or(0);
+    let workflow_count = count_workflow_files(&config.workflows_dir);
     let wf_dir = config.workflows_dir.display();
     let mut configured = Vec::new();
     let mut missing = Vec::new();
@@ -786,5 +800,45 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(body_string(resp).await, yaml);
+    }
+
+    #[test]
+    fn count_workflows_recursive() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Root-level workflow
+        std::fs::write(
+            dir.path().join("root.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+        // Nested in subdirectory
+        std::fs::create_dir_all(dir.path().join("jungo")).unwrap();
+        std::fs::write(
+            dir.path().join("jungo/api.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+        // Deeply nested
+        std::fs::create_dir_all(dir.path().join("dev/test")).unwrap();
+        std::fs::write(
+            dir.path().join("dev/test/mock.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+        // Non-workflow file — must NOT be counted
+        std::fs::write(dir.path().join("readme.md"), "# hello").unwrap();
+        // Hidden dir — must NOT be counted
+        std::fs::create_dir_all(dir.path().join(".nika")).unwrap();
+        std::fs::write(
+            dir.path().join(".nika/internal.nika.yaml"),
+            "schema: nika/workflow@0.12",
+        )
+        .unwrap();
+
+        let count = count_workflow_files(dir.path());
+        assert_eq!(
+            count, 3,
+            "should find 3 workflows recursively, skipping hidden dirs"
+        );
     }
 }
