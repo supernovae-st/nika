@@ -31,13 +31,15 @@ pub enum ExtractMode {
     /// AI content discovery /.well-known/llm.txt
     #[serde(rename = "llm_txt")]
     LlmTxt,
+    /// XML sitemap parsing (urlset + sitemapindex) (feature: fetch-sitemap)
+    Sitemap,
 }
 
 impl ExtractMode {
     /// All valid mode names, for error messages and LSP completions.
     pub const ALL_NAMES: &'static [&'static str] = &[
         "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
-        "llm_txt",
+        "llm_txt", "sitemap",
     ];
 
     /// Parse a string into an `ExtractMode`.
@@ -52,6 +54,7 @@ impl ExtractMode {
             "jsonpath" => Some(Self::Jsonpath),
             "feed" => Some(Self::Feed),
             "llm_txt" => Some(Self::LlmTxt),
+            "sitemap" => Some(Self::Sitemap),
             _ => None,
         }
     }
@@ -68,6 +71,7 @@ impl ExtractMode {
             Self::Jsonpath => "jsonpath",
             Self::Feed => "feed",
             Self::LlmTxt => "llm_txt",
+            Self::Sitemap => "sitemap",
         }
     }
 
@@ -78,6 +82,7 @@ impl ExtractMode {
             Self::Article => Some("fetch-article"),
             Self::Text | Self::Selector | Self::Metadata | Self::Links => Some("fetch-html"),
             Self::Feed => Some("fetch-feed"),
+            Self::Sitemap => Some("fetch-sitemap"),
             Self::Jsonpath | Self::LlmTxt => None,
         }
     }

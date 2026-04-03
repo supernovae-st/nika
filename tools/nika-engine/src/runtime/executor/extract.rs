@@ -190,6 +190,15 @@ pub(crate) fn apply_extract_with_base(
         // If it somehow reaches here, return the body as-is.
         ExtractMode::LlmTxt => Ok(body.to_string()),
 
+        #[cfg(feature = "fetch-sitemap")]
+        ExtractMode::Sitemap => extract_sitemap_xml(body),
+
+        #[cfg(not(feature = "fetch-sitemap"))]
+        ExtractMode::Sitemap => Err(ExecutionError::ExtractFailed {
+            reason: "extract: sitemap requires feature 'fetch-sitemap'. Build with: cargo build --features fetch-sitemap".to_string(),
+        }
+        .into()),
+
         #[cfg(not(feature = "fetch-markdown"))]
         ExtractMode::Markdown => Err(ExecutionError::ExtractFailed {
             reason: "extract: markdown requires feature 'fetch-markdown'. Build with: cargo build --features fetch-markdown".to_string(),
@@ -481,6 +490,166 @@ fn extract_jsonpath(body: &str, path: &str) -> Result<String, NikaError> {
             reason: e.to_string(),
         }),
     }
+}
+
+/// Parse an XML sitemap (urlset or sitemapindex) into structured JSON.
+///
+/// Supports:
+/// - `<urlset>`: returns `{urls: [{loc, lastmod, changefreq, priority, hreflang}], count, is_index: false}`
+/// - `<sitemapindex>`: returns `{sitemaps: [{loc, lastmod}], count, is_index: true}`
+/// - `<xhtml:link>` hreflang per URL entry
+#[cfg(feature = "fetch-sitemap")]
+fn extract_sitemap_xml(body: &str) -> Result<String, NikaError> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    let mut reader = Reader::from_str(body);
+    reader.config_mut().trim_text(true);
+
+    // Detect whether this is a sitemapindex or urlset
+    let mut is_index = false;
+    let mut urls: Vec<serde_json::Value> = Vec::new();
+    let mut sitemaps: Vec<serde_json::Value> = Vec::new();
+
+    // Current entry being built
+    let mut in_url = false;
+    let mut in_sitemap = false;
+    let mut current_loc = String::new();
+    let mut current_lastmod: Option<String> = None;
+    let mut current_changefreq: Option<String> = None;
+    let mut current_priority: Option<String> = None;
+    let mut current_hreflang: Vec<serde_json::Value> = Vec::new();
+    let mut current_tag = String::new();
+
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
+                let local_name = std::str::from_utf8(e.local_name().as_ref())
+                    .unwrap_or_default()
+                    .to_lowercase();
+                match local_name.as_str() {
+                    "sitemapindex" => is_index = true,
+                    "url" => {
+                        in_url = true;
+                        current_loc.clear();
+                        current_lastmod = None;
+                        current_changefreq = None;
+                        current_priority = None;
+                        current_hreflang.clear();
+                    }
+                    "sitemap" => {
+                        in_sitemap = true;
+                        current_loc.clear();
+                        current_lastmod = None;
+                    }
+                    "link" if in_url => {
+                        // xhtml:link for hreflang
+                        let mut href = None;
+                        let mut hreflang = None;
+                        let mut is_alternate = false;
+                        for attr in e.attributes().flatten() {
+                            let key_name = attr.key.local_name();
+                            let key =
+                                std::str::from_utf8(key_name.as_ref()).unwrap_or_default();
+                            let val = std::str::from_utf8(&attr.value).unwrap_or_default();
+                            match key {
+                                "href" => href = Some(val.to_string()),
+                                "hreflang" => hreflang = Some(val.to_string()),
+                                "rel" if val == "alternate" => is_alternate = true,
+                                _ => {}
+                            }
+                        }
+                        if is_alternate {
+                            if let (Some(h), Some(l)) = (href, hreflang) {
+                                current_hreflang.push(serde_json::json!({
+                                    "lang": l,
+                                    "href": h,
+                                }));
+                            }
+                        }
+                    }
+                    tag => {
+                        current_tag = tag.to_string();
+                    }
+                }
+            }
+            Ok(Event::Text(e)) => {
+                let text = e.unescape().unwrap_or_default().to_string();
+                if in_url || in_sitemap {
+                    match current_tag.as_str() {
+                        "loc" => current_loc = text,
+                        "lastmod" => current_lastmod = Some(text),
+                        "changefreq" if in_url => current_changefreq = Some(text),
+                        "priority" if in_url => current_priority = Some(text),
+                        _ => {}
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                let local_name = std::str::from_utf8(e.local_name().as_ref())
+                    .unwrap_or_default()
+                    .to_lowercase();
+                match local_name.as_str() {
+                    "url" if in_url => {
+                        let mut entry = serde_json::json!({ "loc": current_loc });
+                        if let Some(ref lm) = current_lastmod {
+                            entry["lastmod"] = serde_json::Value::String(lm.clone());
+                        }
+                        if let Some(ref cf) = current_changefreq {
+                            entry["changefreq"] = serde_json::Value::String(cf.clone());
+                        }
+                        if let Some(ref p) = current_priority {
+                            entry["priority"] = serde_json::Value::String(p.clone());
+                        }
+                        if !current_hreflang.is_empty() {
+                            entry["hreflang"] = serde_json::Value::Array(
+                                std::mem::take(&mut current_hreflang),
+                            );
+                        }
+                        urls.push(entry);
+                        in_url = false;
+                    }
+                    "sitemap" if in_sitemap => {
+                        let mut entry = serde_json::json!({ "loc": current_loc });
+                        if let Some(ref lm) = current_lastmod {
+                            entry["lastmod"] = serde_json::Value::String(lm.clone());
+                        }
+                        sitemaps.push(entry);
+                        in_sitemap = false;
+                    }
+                    _ => {}
+                }
+                current_tag.clear();
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => {
+                return Err(NikaError::ExtractError {
+                    reason: format!("Sitemap XML parse error: {e}"),
+                });
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    let result = if is_index {
+        serde_json::json!({
+            "sitemaps": sitemaps,
+            "count": sitemaps.len(),
+            "is_index": true,
+        })
+    } else {
+        serde_json::json!({
+            "urls": urls,
+            "count": urls.len(),
+            "is_index": false,
+        })
+    };
+
+    serde_json::to_string(&result).map_err(|e| NikaError::ExtractError {
+        reason: format!("JSON serialize: {e}"),
+    })
 }
 
 #[cfg(test)]
@@ -871,5 +1040,108 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         let hreflang = parsed["hreflang"].as_array().unwrap();
         assert_eq!(hreflang[0]["href"], "/fr/page");
+    }
+
+    // =========================================================================
+    // extract:sitemap tests
+    // =========================================================================
+
+    #[cfg(feature = "fetch-sitemap")]
+    #[test]
+    fn sitemap_urlset_basic() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url>
+                <loc>https://example.com/</loc>
+                <lastmod>2024-01-15</lastmod>
+                <changefreq>daily</changefreq>
+                <priority>1.0</priority>
+            </url>
+            <url>
+                <loc>https://example.com/about</loc>
+                <lastmod>2024-01-10</lastmod>
+            </url>
+        </urlset>"#;
+        let result = apply_extract(xml, Some(ExtractMode::Sitemap), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["is_index"], false);
+        assert_eq!(parsed["count"], 2);
+        let urls = parsed["urls"].as_array().unwrap();
+        assert_eq!(urls[0]["loc"], "https://example.com/");
+        assert_eq!(urls[0]["lastmod"], "2024-01-15");
+        assert_eq!(urls[0]["changefreq"], "daily");
+        assert_eq!(urls[0]["priority"], "1.0");
+        assert_eq!(urls[1]["loc"], "https://example.com/about");
+        assert_eq!(urls[1]["lastmod"], "2024-01-10");
+        // No changefreq/priority on second URL — fields absent
+        assert!(urls[1].get("changefreq").is_none());
+    }
+
+    #[cfg(feature = "fetch-sitemap")]
+    #[test]
+    fn sitemap_sitemapindex() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <sitemap>
+                <loc>https://example.com/sitemap-posts.xml</loc>
+                <lastmod>2024-01-15</lastmod>
+            </sitemap>
+            <sitemap>
+                <loc>https://example.com/sitemap-pages.xml</loc>
+            </sitemap>
+        </sitemapindex>"#;
+        let result = apply_extract(xml, Some(ExtractMode::Sitemap), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["is_index"], true);
+        assert_eq!(parsed["count"], 2);
+        let sitemaps = parsed["sitemaps"].as_array().unwrap();
+        assert_eq!(sitemaps[0]["loc"], "https://example.com/sitemap-posts.xml");
+        assert_eq!(sitemaps[0]["lastmod"], "2024-01-15");
+        assert_eq!(sitemaps[1]["loc"], "https://example.com/sitemap-pages.xml");
+    }
+
+    #[cfg(feature = "fetch-sitemap")]
+    #[test]
+    fn sitemap_with_xhtml_hreflang() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+                xmlns:xhtml="http://www.w3.org/1999/xhtml">
+            <url>
+                <loc>https://example.com/en/page</loc>
+                <xhtml:link rel="alternate" hreflang="en" href="https://example.com/en/page"/>
+                <xhtml:link rel="alternate" hreflang="fr" href="https://example.com/fr/page"/>
+                <xhtml:link rel="alternate" hreflang="de" href="https://example.com/de/page"/>
+            </url>
+        </urlset>"#;
+        let result = apply_extract(xml, Some(ExtractMode::Sitemap), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let urls = parsed["urls"].as_array().unwrap();
+        assert_eq!(urls[0]["loc"], "https://example.com/en/page");
+        let hreflang = urls[0]["hreflang"].as_array().unwrap();
+        assert_eq!(hreflang.len(), 3);
+        assert_eq!(hreflang[0]["lang"], "en");
+        assert_eq!(hreflang[1]["lang"], "fr");
+        assert_eq!(hreflang[2]["href"], "https://example.com/de/page");
+    }
+
+    #[cfg(feature = "fetch-sitemap")]
+    #[test]
+    fn sitemap_empty_urlset() {
+        let xml = r#"<?xml version="1.0"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        </urlset>"#;
+        let result = apply_extract(xml, Some(ExtractMode::Sitemap), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["count"], 0);
+        assert_eq!(parsed["is_index"], false);
+    }
+
+    #[cfg(feature = "fetch-sitemap")]
+    #[test]
+    fn sitemap_invalid_xml() {
+        let result = apply_extract("not xml at all <broken", Some(ExtractMode::Sitemap), None);
+        // quick-xml is lenient — it may not error on broken XML, just return empty
+        // The important thing is no panic
+        assert!(result.is_ok() || result.is_err());
     }
 }

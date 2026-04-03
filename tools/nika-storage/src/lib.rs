@@ -799,7 +799,7 @@ fn do_add_history(conn: &Connection, event: &JobHistoryEvent) -> StorageResult<(
 fn do_get_history(conn: &Connection, job_id: &str) -> StorageResult<Vec<JobHistoryEvent>> {
     let mut stmt = conn.prepare_cached(
         "SELECT job_id, event, timestamp, details FROM job_history
-         WHERE job_id = ?1 ORDER BY id ASC",
+         WHERE job_id = ?1 ORDER BY id ASC LIMIT 10000",
     )?;
 
     let rows = stmt.query_map(params![job_id], |row| {

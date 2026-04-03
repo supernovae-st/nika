@@ -13,7 +13,7 @@ publish = true
 ignored = ["rig-core"]  # imported as `rig`, machete can't detect renamed crates
 
 [features]
-default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
+default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "fetch-sitemap", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
 # Only 2 features remain opt-in:
 #   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
 #   - lsp: editor-specific, not needed for engine users
@@ -39,6 +39,7 @@ fetch-html = ["nika-media/fetch-html", "dep:scraper"]
 fetch-markdown = ["nika-media/fetch-markdown", "dep:htmd"]
 fetch-article = ["nika-media/fetch-article", "dep:dom_smoothie", "dep:scraper"]
 fetch-feed = ["nika-media/fetch-feed", "dep:feed-rs"]
+fetch-sitemap = ["dep:quick-xml"]
 fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
@@ -137,6 +138,7 @@ dom_smoothie = { workspace = true, optional = true }
 feed-rs = { workspace = true, optional = true }
 scraper = { workspace = true, optional = true }
 htmd = { workspace = true, optional = true }
+quick-xml = { workspace = true, optional = true }
 
 # LSP Server (feature-gated)
 tower-lsp-server = { workspace = true, optional = true }

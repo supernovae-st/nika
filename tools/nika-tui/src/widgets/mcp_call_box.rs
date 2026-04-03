@@ -230,7 +230,7 @@ impl Widget for McpCallBox<'_> {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-            let max_params_len = (area.width - 15) as usize;
+            let max_params_len = area.width.saturating_sub(15) as usize;
             let params_display = Self::truncate(&self.data.params, max_params_len);
             buf.set_string(
                 area.x + 2,
@@ -247,7 +247,7 @@ impl Widget for McpCallBox<'_> {
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
             if let Some(ref error) = self.data.error {
-                let max_len = (area.width - 15) as usize;
+                let max_len = area.width.saturating_sub(15) as usize;
                 let error_display = Self::truncate(error, max_len);
                 buf.set_string(
                     area.x + 2,
@@ -256,7 +256,7 @@ impl Widget for McpCallBox<'_> {
                     Style::default().fg(DEFAULT_FAILED_COLOR),
                 );
             } else if let Some(ref result) = self.data.result {
-                let max_len = (area.width - 15) as usize;
+                let max_len = area.width.saturating_sub(15) as usize;
                 let result_display = Self::truncate(result, max_len);
                 buf.set_string(
                     area.x + 2,
