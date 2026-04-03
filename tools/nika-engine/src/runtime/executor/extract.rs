@@ -21,7 +21,9 @@ pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_js
                 (Some(start), Some(end)) if start < end => &entry[start + 1..end],
                 _ => continue,
             };
-            let params = &entry[entry.find('>').unwrap_or(0)..];
+            // Parameters start after the closing '>'
+            let params_start = entry.find('>').map(|i| i + 1).unwrap_or(0);
+            let params = &entry[params_start..];
             // Check rel="alternate"
             let is_alternate = params.split(';').any(|p| {
                 let p = p.trim().to_lowercase();
@@ -33,12 +35,9 @@ pub(crate) fn parse_link_header_hreflang(link_values: &[String]) -> Vec<serde_js
             // Extract hreflang="xx"
             let hreflang = params.split(';').find_map(|p| {
                 let p = p.trim();
-                let lower = p.to_lowercase();
-                if lower.starts_with("hreflang=") {
-                    Some(p[9..].trim_matches('"').trim_matches('\'').to_string())
-                } else {
-                    None
-                }
+                p.to_lowercase()
+                    .strip_prefix("hreflang=")
+                    .map(|_| p[9..].trim_matches('"').trim_matches('\'').to_string())
             });
             if let Some(lang) = hreflang {
                 results.push(serde_json::json!({
