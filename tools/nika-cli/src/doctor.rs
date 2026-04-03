@@ -8,6 +8,9 @@ use nika_engine::display::{hint, section_header, status_line, StatusIcon};
 use nika_engine::error::NikaError;
 
 use crate::config::{find_nika_dir, find_project_root_from, ProjectRootSource};
+use crate::machine::install::{
+    is_version_outdated, query_extension_version, resolve_editor_cli, VSCODE_EDITORS,
+};
 
 #[derive(Debug, Clone)]
 struct DiagnosticCheck {
@@ -76,15 +79,12 @@ pub async fn handle_doctor_command(
     let mut checks: Vec<DiagnosticCheck> = vec![];
 
     // ─── Core ──────────────────────────────────────────────────────────────
-    checks.extend(with_section(check_nika_directory(), "Core"));
-    checks.push(check_config_file().in_section("Core"));
-    checks.push(check_vault_health().in_section("Core"));
-    checks.extend(with_section(check_api_keys(), "Core"));
     checks.push(
         DiagnosticCheck::pass("Version", format!("nika {}", env!("CARGO_PKG_VERSION")))
             .in_section("Core"),
     );
-    checks.push(check_workflow_files().in_section("Core"));
+    checks.push(check_vault_health().in_section("Core"));
+    checks.extend(with_section(check_api_keys(), "Core"));
 
     // ─── Project ───────────────────────────────────────────────────────────
     {
@@ -169,136 +169,6 @@ pub async fn handle_doctor_command(
     Ok(())
 }
 
-fn check_nika_directory() -> Vec<DiagnosticCheck> {
-    let mut checks = vec![];
-
-    let cwd = match std::env::current_dir() {
-        Ok(d) => d,
-        Err(_) => {
-            checks.push(DiagnosticCheck::fail(
-                "Project",
-                "Cannot determine current directory",
-                "Check filesystem permissions",
-            ));
-            return checks;
-        }
-    };
-
-    let project = match find_project_root_from(&cwd) {
-        Ok(p) => p,
-        Err(_) => {
-            checks.push(DiagnosticCheck::fail(
-                "Project",
-                "Cannot determine project root",
-                "Check filesystem permissions",
-            ));
-            return checks;
-        }
-    };
-
-    match project.source {
-        ProjectRootSource::NikaToml => {
-            let nika_dir = project.root.join(".nika");
-            if nika_dir.exists() {
-                checks.push(DiagnosticCheck::pass(
-                    "Project",
-                    format!(".nika/ runtime directory at {}", nika_dir.display()),
-                ));
-            } else {
-                checks.push(DiagnosticCheck::warn(
-                    "Project",
-                    format!("No .nika/ runtime directory at {}", project.root.display()),
-                    "It will be created on first 'nika run'",
-                ));
-            }
-        }
-        ProjectRootSource::DotNika => {
-            checks.push(DiagnosticCheck::warn(
-                "Project",
-                format!(
-                    "Legacy project (no nika.toml, using .nika/ at {})",
-                    project.root.display()
-                ),
-                "Run 'nika init' to create nika.toml",
-            ));
-        }
-        ProjectRootSource::Fallback => {
-            checks.push(DiagnosticCheck::warn(
-                "Project",
-                "No nika.toml or .nika/ found",
-                "Run 'nika init' to initialize a Nika project",
-            ));
-        }
-    }
-
-    checks
-}
-
-fn check_config_file() -> DiagnosticCheck {
-    let cwd = match std::env::current_dir() {
-        Ok(d) => d,
-        Err(_) => {
-            return DiagnosticCheck::warn(
-                "Config",
-                "Cannot determine current directory",
-                "Run 'nika init' first",
-            )
-        }
-    };
-
-    let project = match find_project_root_from(&cwd) {
-        Ok(p) => p,
-        Err(_) => {
-            return DiagnosticCheck::warn(
-                "Config",
-                "Cannot locate project root",
-                "Run 'nika init' first",
-            )
-        }
-    };
-
-    // Determine config path based on discovery source
-    let config_path = match project.source {
-        ProjectRootSource::NikaToml => project.root.join("nika.toml"),
-        ProjectRootSource::DotNika => project.root.join(".nika").join("config.toml"),
-        ProjectRootSource::Fallback => {
-            return DiagnosticCheck::warn(
-                "Config",
-                "No nika.toml found",
-                "Run 'nika init' to create project config",
-            );
-        }
-    };
-
-    // Try to parse the config
-    match fs::read_to_string(&config_path) {
-        Ok(content) => match toml::from_str::<toml::Value>(&content) {
-            Ok(_) => {
-                let label = config_path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy();
-                DiagnosticCheck::pass("Config", format!("{label} is valid TOML"))
-            }
-            Err(e) => {
-                let label = config_path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy();
-                DiagnosticCheck::fail(
-                    "Config",
-                    format!("{label} has syntax errors: {e}"),
-                    "Run 'nika config edit' to fix",
-                )
-            }
-        },
-        Err(e) => DiagnosticCheck::fail(
-            "Config",
-            format!("Cannot read {}: {e}", config_path.display()),
-            "Check file permissions",
-        ),
-    }
-}
 
 fn check_vault_health() -> DiagnosticCheck {
     let vault = crate::provider::get_vault();
@@ -464,47 +334,7 @@ fn check_trace_directory() -> Vec<DiagnosticCheck> {
     checks
 }
 
-fn check_workflow_files() -> DiagnosticCheck {
-    // Count .nika.yaml files in current directory (shallow)
-    let count = fs::read_dir(".")
-        .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.file_name()
-                        .to_str()
-                        .is_some_and(|s| s.ends_with(".nika.yaml"))
-                })
-                .count()
-        })
-        .unwrap_or(0);
-
-    // Also check workflows/ and examples/ subdirs
-    let sub_count: usize = ["workflows", "examples", ".nika/workflows"]
-        .iter()
-        .filter_map(|dir| fs::read_dir(dir).ok())
-        .flat_map(|entries| entries.filter_map(|e| e.ok()))
-        .filter(|e| {
-            e.file_name()
-                .to_str()
-                .is_some_and(|s| s.ends_with(".nika.yaml"))
-        })
-        .count();
-
-    let total = count + sub_count;
-
-    if total == 0 {
-        DiagnosticCheck::warn(
-            "Workflows",
-            "No .nika.yaml workflow files found",
-            "Run 'nika init' or 'nika new my-workflow --template simple-infer'",
-        )
-    } else {
-        DiagnosticCheck::pass("Workflows", format!("{total} workflow files found"))
-    }
-}
-
-// ─── Project structure checks (nika.toml migration, Phase 5) ─────────────────
+// ─── Project structure checks ────────────────────────────────────────────────
 
 /// Check project structure from a given root directory.
 ///
@@ -527,10 +357,32 @@ fn check_project_structure(start: &std::path::Path) -> Vec<DiagnosticCheck> {
 
     match project.source {
         ProjectRootSource::NikaToml => {
-            checks.push(DiagnosticCheck::pass(
-                "nika.toml",
-                format!("Project root: {}", project.root.display()),
-            ));
+            // Validate nika.toml is valid TOML
+            let toml_path = project.root.join("nika.toml");
+            match fs::read_to_string(&toml_path) {
+                Ok(content) => match toml::from_str::<toml::Value>(&content) {
+                    Ok(_) => {
+                        checks.push(DiagnosticCheck::pass(
+                            "nika.toml",
+                            format!("Project root: {}", project.root.display()),
+                        ));
+                    }
+                    Err(e) => {
+                        checks.push(DiagnosticCheck::fail(
+                            "nika.toml",
+                            format!("nika.toml has syntax errors: {e}"),
+                            "Run 'nika config edit' to fix",
+                        ));
+                    }
+                },
+                Err(e) => {
+                    checks.push(DiagnosticCheck::fail(
+                        "nika.toml",
+                        format!("Cannot read nika.toml: {e}"),
+                        "Check file permissions",
+                    ));
+                }
+            }
         }
         ProjectRootSource::DotNika => {
             checks.push(DiagnosticCheck::warn(
@@ -543,7 +395,7 @@ fn check_project_structure(start: &std::path::Path) -> Vec<DiagnosticCheck> {
             ));
         }
         ProjectRootSource::Fallback => {
-            checks.push(DiagnosticCheck::fail(
+            checks.push(DiagnosticCheck::warn(
                 "nika.toml",
                 "No nika.toml or .nika/ found",
                 "Run 'nika init' to initialize a Nika project",
@@ -932,119 +784,64 @@ fn check_lsp_available() -> Vec<DiagnosticCheck> {
 
 fn check_editor_integration() -> Vec<DiagnosticCheck> {
     let mut checks = vec![];
+    let mut found_any = false;
 
-    // Detect VS Code (or common forks) -- check PATH and platform-specific locations
-    // (binary_path, short_cmd_for_suggestions, display_name)
-    let editors: Vec<(String, &str, &str)> = {
-        #[allow(unused_mut)]
-        let mut v: Vec<(String, &str, &str)> = vec![
-            ("code".to_string(), "code", "VS Code"),
-            ("cursor".to_string(), "cursor", "Cursor"),
-            ("windsurf".to_string(), "windsurf", "Windsurf"),
-        ];
-        // macOS: VS Code CLI may not be in PATH but the .app bundle exists
-        #[cfg(target_os = "macos")]
-        {
-            v.push((
-                "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code".to_string(),
-                "code",
-                "VS Code",
-            ));
-            v.push((
-                "/Applications/Cursor.app/Contents/Resources/app/bin/cursor".to_string(),
-                "cursor",
-                "Cursor",
-            ));
+    for def in VSCODE_EDITORS {
+        let Some(cli) = resolve_editor_cli(def.binary) else {
+            continue;
+        };
+
+        let Ok(output) = std::process::Command::new(&cli).arg("--version").output() else {
+            continue;
+        };
+        if !output.status.success() {
+            continue;
         }
-        v
-    };
-    let mut found_editor: Option<(String, &str, &str, String)> = None;
 
-    for (bin, short_cmd, name) in &editors {
-        if let Ok(output) = std::process::Command::new(bin).arg("--version").output() {
-            if output.status.success() {
-                let version = String::from_utf8_lossy(&output.stdout);
-                let first_line = version.lines().next().unwrap_or("unknown").to_string();
-                found_editor = Some((bin.clone(), short_cmd, name, first_line));
-                break;
+        let version = String::from_utf8_lossy(&output.stdout);
+        let first_line = version.lines().next().unwrap_or("unknown").trim();
+        checks.push(DiagnosticCheck::pass(
+            "Editor",
+            format!("{} {} detected", def.name, first_line),
+        ));
+        found_any = true;
+
+        // Check nika-lang extension for this editor
+        let cli_ver = env!("CARGO_PKG_VERSION");
+        match query_extension_version(&cli, def.ext_id) {
+            Some(ext_ver) => {
+                if is_version_outdated(&ext_ver, cli_ver) {
+                    checks.push(DiagnosticCheck::warn(
+                        "Extension",
+                        format!("{}: nika-lang v{ext_ver} outdated (CLI v{cli_ver})", def.name),
+                        format!(
+                            "Update: {} --install-extension {} --force",
+                            def.binary, def.ext_id
+                        ),
+                    ));
+                } else {
+                    checks.push(DiagnosticCheck::pass(
+                        "Extension",
+                        format!("{}: nika-lang v{ext_ver}", def.name),
+                    ));
+                }
+            }
+            None => {
+                checks.push(DiagnosticCheck::warn(
+                    "Extension",
+                    format!("{}: nika-lang not installed", def.name),
+                    format!("Install: {} --install-extension {}", def.binary, def.ext_id),
+                ));
             }
         }
     }
 
-    match found_editor {
-        Some((ref bin, short_cmd, name, version)) => {
-            checks.push(DiagnosticCheck::pass(
-                "Editor",
-                format!("{name} {version} detected"),
-            ));
-
-            // Check if nika-lang extension is installed + version
-            match std::process::Command::new(bin)
-                .args(["--list-extensions", "--show-versions"])
-                .output()
-            {
-                Ok(output) if output.status.success() => {
-                    let extensions = String::from_utf8_lossy(&output.stdout);
-                    // Format: "publisher.extension@version"
-                    let ext_version = extensions.lines().find_map(|l| {
-                        let trimmed = l.trim().to_lowercase();
-                        if trimmed.starts_with("supernovae.nika-lang@") {
-                            trimmed
-                                .strip_prefix("supernovae.nika-lang@")
-                                .map(|v| v.to_string())
-                        } else {
-                            None
-                        }
-                    });
-                    match ext_version {
-                        Some(ext_ver) => {
-                            let cli_ver = env!("CARGO_PKG_VERSION");
-                            if is_version_outdated(&ext_ver, cli_ver) {
-                                checks.push(DiagnosticCheck::warn(
-                                    "Extension",
-                                    format!(
-                                        "nika-lang extension v{ext_ver} is outdated (CLI is v{cli_ver})"
-                                    ),
-                                    format!(
-                                        "Update with: {short_cmd} --install-extension supernovae.nika-lang --force"
-                                    ),
-                                ));
-                            } else {
-                                checks.push(DiagnosticCheck::pass(
-                                    "Extension",
-                                    format!("nika-lang extension v{ext_ver}"),
-                                ));
-                            }
-                        }
-                        None => {
-                            checks.push(DiagnosticCheck::warn(
-                                "Extension",
-                                "nika-lang extension not installed",
-                                format!(
-                                    "Install with: {short_cmd} --install-extension supernovae.nika-lang"
-                                ),
-                            ));
-                        }
-                    }
-                }
-                _ => {
-                    checks.push(DiagnosticCheck::warn(
-                        "Extension",
-                        "Cannot query installed extensions",
-                        format!(
-                            "Install with: {short_cmd} --install-extension supernovae.nika-lang"
-                        ),
-                    ));
-                }
-            }
-        }
-        None => {
-            checks.push(DiagnosticCheck::warn(
-                "Editor",
-                "No supported editor detected (VS Code, Cursor, Windsurf)",
-                "Install VS Code and add 'code' to PATH for LSP integration",
-            ));
-        }
+    if !found_any {
+        checks.push(DiagnosticCheck::warn(
+            "Editor",
+            "No supported editor detected (VS Code, Cursor, Windsurf)",
+            "Install VS Code and add 'code' to PATH for LSP integration",
+        ));
     }
 
     checks
@@ -1426,21 +1223,6 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) -> Result<(), NikaError> {
     Ok(())
 }
 
-/// Returns true if extension version is significantly behind the CLI version.
-/// Compares major.minor — patch differences are OK.
-fn is_version_outdated(ext_ver: &str, cli_ver: &str) -> bool {
-    let parse = |v: &str| -> (u32, u32) {
-        let parts: Vec<&str> = v.split('.').collect();
-        let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-        let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-        (major, minor)
-    };
-    let (ext_major, ext_minor) = parse(ext_ver);
-    let (cli_major, cli_minor) = parse(cli_ver);
-    // Outdated if extension's major.minor is lower than CLI's
-    (ext_major, ext_minor) < (cli_major, cli_minor)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1539,9 +1321,9 @@ mod tests {
     }
 
     #[test]
-    fn check_nika_directory_handles_missing() {
-        // This runs in test env where nika.toml may or may not exist
-        let checks = check_nika_directory();
+    fn check_project_structure_returns_checks() {
+        let temp = tempfile::tempdir().unwrap();
+        let checks = check_project_structure(temp.path());
         assert!(
             !checks.is_empty(),
             "Should always return at least one check"

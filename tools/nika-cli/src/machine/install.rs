@@ -10,6 +10,64 @@ use nika_engine::display::StatusIcon;
 
 use super::status::{machine_toml_path, write_marker, SetupResult};
 
+// ─── Editor Definitions ─────────────────────────────────────────────────────
+
+/// Definition of a VS Code-family editor for extension management.
+pub struct EditorDef {
+    /// Slug used in machine.toml (e.g., "vscode", "cursor")
+    pub id: &'static str,
+    /// Human-readable name (e.g., "VS Code", "Cursor")
+    pub name: &'static str,
+    /// CLI binary name (e.g., "code", "cursor")
+    pub binary: &'static str,
+    /// Extension ID on marketplace
+    pub ext_id: &'static str,
+}
+
+/// All VS Code-family editors that support the nika-lang extension.
+pub const VSCODE_EDITORS: &[EditorDef] = &[
+    EditorDef { id: "vscode", name: "VS Code", binary: "code", ext_id: "supernovae.nika-lang" },
+    EditorDef { id: "cursor", name: "Cursor", binary: "cursor", ext_id: "supernovae.nika-lang" },
+    EditorDef {
+        id: "windsurf",
+        name: "Windsurf",
+        binary: "windsurf",
+        ext_id: "supernovae.nika-lang",
+    },
+];
+
+/// Query the installed version of an extension for a given editor CLI.
+/// Returns `None` if extension is not installed or CLI fails.
+pub fn query_extension_version(cli: &Path, ext_id: &str) -> Option<String> {
+    let output = Command::new(cli)
+        .args(["--list-extensions", "--show-versions"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let list = String::from_utf8(output.stdout).ok()?;
+    let prefix = format!("{}@", ext_id.to_lowercase());
+    list.lines().find_map(|l| {
+        let lower = l.trim().to_lowercase();
+        lower.strip_prefix(&prefix).map(|v| v.to_string())
+    })
+}
+
+/// Returns true if extension version is significantly behind the CLI version.
+/// Compares major.minor — patch differences are OK.
+pub fn is_version_outdated(ext_ver: &str, cli_ver: &str) -> bool {
+    let parse = |v: &str| -> (u32, u32) {
+        let parts: Vec<&str> = v.split('.').collect();
+        let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+        (major, minor)
+    };
+    let (ext_major, ext_minor) = parse(ext_ver);
+    let (cli_major, cli_minor) = parse(cli_ver);
+    (ext_major, ext_minor) < (cli_major, cli_minor)
+}
+
 // ─── Editor Detection ────────────────────────────────────────────────────────
 
 /// Detect which AI-capable editors are installed on this machine.
@@ -147,38 +205,76 @@ fn detect_env_api_keys() -> bool {
 fn setup_editors() -> Vec<SetupResult> {
     let mut results = Vec::new();
 
-    let editors: &[(&str, &str, &str)] = &[
-        ("VS Code", "code", "supernovae.nika-lang"),
-        ("Cursor", "cursor", "supernovae.nika-lang"),
-        ("Windsurf", "windsurf", "supernovae.nika-lang"),
-    ];
-
-    for (name, binary, ext_id) in editors {
-        // Resolve CLI path (PATH first, then macOS app bundle)
+    for def in VSCODE_EDITORS {
+        let (name, binary, ext_id) = (def.name, def.binary, def.ext_id);
+        // Resolve CLI path (macOS bundle first, then PATH)
         let Some(cli) = resolve_editor_cli(binary) else {
             continue;
         };
 
-        // Check if extension already installed
-        let has_ext = Command::new(&cli)
-            .args(["--list-extensions"])
-            .output()
-            .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map(|list| list.lines().any(|l| l.eq_ignore_ascii_case(ext_id)))
-            .unwrap_or(false);
+        // Check if extension already installed and current
+        let ext_version = query_extension_version(&cli, ext_id);
 
-        if has_ext {
-            println!("  {} {} + nika-lang extension", StatusIcon::Ok, name);
-            results.push(SetupResult {
-                name: name.to_string(),
-                success: true,
-                message: "already installed".into(),
-            });
+        let cli_ver = env!("CARGO_PKG_VERSION");
+
+        if let Some(ref ver) = ext_version {
+            // Extension installed — check if it needs updating
+            if !is_version_outdated(ver, cli_ver) {
+                // Up to date
+                println!("  {} {} + nika-lang v{}", StatusIcon::Ok, name, ver);
+                results.push(SetupResult {
+                    name: name.to_string(),
+                    success: true,
+                    message: format!("v{ver} up to date"),
+                });
+                continue;
+            }
+
+            // Outdated — force update
+            print!(
+                "  {} {} — updating nika-lang v{} → v{}...",
+                "\u{25c7}".cyan(),
+                name,
+                ver,
+                cli_ver
+            );
+            let install = Command::new(&cli)
+                .args(["--install-extension", ext_id, "--force"])
+                .output();
+
+            match install {
+                Ok(output) if output.status.success() => {
+                    println!(
+                        "\r  {} {} — nika-lang updated to v{}       ",
+                        StatusIcon::Ok,
+                        name,
+                        cli_ver
+                    );
+                    results.push(SetupResult {
+                        name: name.to_string(),
+                        success: true,
+                        message: "updated".into(),
+                    });
+                }
+                _ => {
+                    println!(
+                        "\r  {} {} — update failed (v{} installed)       ",
+                        "\u{26a0}".yellow(),
+                        name,
+                        ver
+                    );
+                    // Not a hard failure — extension still works, just outdated
+                    results.push(SetupResult {
+                        name: name.to_string(),
+                        success: true,
+                        message: format!("v{ver} installed, update failed"),
+                    });
+                }
+            }
             continue;
         }
 
-        // Install extension
+        // Not installed — try to install
         print!("  {} {} — installing nika-lang...", "\u{25c7}".cyan(), name);
         let install = Command::new(&cli)
             .args(["--install-extension", ext_id])
@@ -197,7 +293,35 @@ fn setup_editors() -> Vec<SetupResult> {
                     message: "installed".into(),
                 });
             }
-            _ => {
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                // "not found" = not available on this editor's registry (e.g. Open VSX)
+                // This is expected for Cursor/Windsurf — not a failure
+                if stderr.contains("not found") {
+                    println!(
+                        "\r  {} {} — extension not available on marketplace       ",
+                        "\u{25cb}".dimmed(),
+                        name
+                    );
+                    results.push(SetupResult {
+                        name: name.to_string(),
+                        success: true,
+                        message: "extension not on marketplace".into(),
+                    });
+                } else {
+                    println!(
+                        "\r  {} {} — install failed          ",
+                        "\u{2717}".red(),
+                        name
+                    );
+                    results.push(SetupResult {
+                        name: name.to_string(),
+                        success: false,
+                        message: format!("run: {} --install-extension {}", binary, ext_id),
+                    });
+                }
+            }
+            Err(_) => {
                 println!(
                     "\r  {} {} — install failed          ",
                     "\u{2717}".red(),
@@ -240,35 +364,37 @@ fn check_macos_app(name: &str) -> bool {
 
 /// Resolve the actual CLI binary path for a VS Code-family editor.
 ///
-/// Tries `which` first (covers editors with shell command installed).
-/// Falls back to the standard macOS app bundle CLI path so that
-/// `--install-extension` works even when the shell command isn't in PATH.
-fn resolve_editor_cli(binary: &str) -> Option<std::path::PathBuf> {
-    // 1. Binary already in PATH
-    if let Ok(p) = which::which(binary) {
-        return Some(p);
-    }
-
-    // 2. macOS app bundle fallback
+/// On macOS, checks the app bundle path FIRST to avoid symlink confusion
+/// (e.g. `/usr/local/bin/code` might be a symlink to Cursor, not VS Code).
+/// Falls back to `which` for non-macOS or if the bundle isn't installed.
+pub fn resolve_editor_cli(binary: &str) -> Option<std::path::PathBuf> {
+    // 1. macOS app bundle (preferred — avoids cross-editor symlink confusion)
     #[cfg(target_os = "macos")]
     {
         let (app_name, cli_rel) = match binary {
             "code" => ("Visual Studio Code", "Contents/Resources/app/bin/code"),
             "cursor" => ("Cursor", "Contents/Resources/app/bin/cursor"),
             "windsurf" => ("Windsurf", "Contents/Resources/app/bin/windsurf"),
-            _ => return None,
+            _ => ("", ""),
         };
-        let candidates = [
-            std::path::PathBuf::from(format!("/Applications/{}.app/{}", app_name, cli_rel)),
-            dirs::home_dir()
-                .unwrap_or_default()
-                .join(format!("Applications/{}.app/{}", app_name, cli_rel)),
-        ];
-        for p in &candidates {
-            if p.exists() {
-                return Some(p.clone());
+        if !app_name.is_empty() {
+            let candidates = [
+                std::path::PathBuf::from(format!("/Applications/{}.app/{}", app_name, cli_rel)),
+                dirs::home_dir()
+                    .unwrap_or_default()
+                    .join(format!("Applications/{}.app/{}", app_name, cli_rel)),
+            ];
+            for p in &candidates {
+                if p.exists() {
+                    return Some(p.clone());
+                }
             }
         }
+    }
+
+    // 2. Binary in PATH (non-macOS, or app not installed in standard location)
+    if let Ok(p) = which::which(binary) {
+        return Some(p);
     }
 
     None
@@ -744,7 +870,7 @@ pub fn quick_editor_scan() {
                     &mut results,
                     true,
                 );
-                install_vscode_extension("cursor", "Cursor", "supernovae.nika-lang");
+                install_vscode_extension("cursor", "supernovae.nika-lang");
             }
             "copilot" => install_rule(
                 &home.join(".github/copilot/nika.instructions.md"),
@@ -756,7 +882,7 @@ pub fn quick_editor_scan() {
                 true,
             ),
             "vscode" => {
-                install_vscode_extension("code", "VS Code", "supernovae.nika-lang");
+                install_vscode_extension("code", "supernovae.nika-lang");
             }
             "windsurf" => {
                 install_rule(
@@ -768,7 +894,7 @@ pub fn quick_editor_scan() {
                     &mut results,
                     true,
                 );
-                install_vscode_extension("windsurf", "Windsurf", "supernovae.nika-lang");
+                install_vscode_extension("windsurf", "supernovae.nika-lang");
             }
             "roo" => install_rule(
                 &home.join(".roo/rules/nika.md"),
@@ -788,32 +914,20 @@ pub fn quick_editor_scan() {
     write_last_scan_at();
 }
 
-/// Silently install the nika-lang extension for a VS Code-compatible editor.
+/// Silently install or update the nika-lang extension for a VS Code-compatible editor.
 /// Used by quick_editor_scan when a new editor is detected.
-fn install_vscode_extension(binary: &str, name: &str, ext_id: &str) {
+fn install_vscode_extension(binary: &str, ext_id: &str) {
     let Some(cli) = resolve_editor_cli(binary) else {
         return;
     };
 
-    let has_ext = Command::new(&cli)
-        .args(["--list-extensions"])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|list| list.lines().any(|l| l.eq_ignore_ascii_case(ext_id)))
-        .unwrap_or(false);
-
-    if has_ext {
+    if query_extension_version(&cli, ext_id).is_some() {
         return;
     }
 
     let _ = Command::new(&cli)
         .args(["--install-extension", ext_id])
         .output();
-
-    // Suppress output — quick_editor_scan runs silently in the background.
-    // Failures are non-fatal; user can run `nika setup` for a full report.
-    let _ = (name, ext_id); // suppress unused-variable lint in release builds
 }
 
 /// Read `last_scan_at` timestamp from machine.toml.
