@@ -7,7 +7,8 @@
 #                                           ├── update-homebrew
 #                                           ├── vscode-publish (Marketplace + Open VSX)
 #                                           ├── npm-publish (@supernovae-st/nika)
-#                                           └── crates-publish (10 crates in order)
+#                                           ├── crates-publish (13 crates in order)
+#                                           └── sdk-client-publish → nika-client dispatch
 #
 # Secrets required: VSCE_PAT, NPM_TOKEN, CARGO_REGISTRY_TOKEN, HOMEBREW_TAP_TOKEN
 # Optional: OVSX_PAT (Open VSX for VSCodium/Cursor)
@@ -1165,11 +1166,35 @@ jobs:
         continue-on-error: true
 
   # ─────────────────────────────────────────────────────────────────────────────
+  # SDK Client Publish (@supernovae-st/nika-client)
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Triggers nika-client release workflow via repository_dispatch.
+  # nika-client bumps its version to match, runs tests, and publishes to npm.
+  sdk-client-publish:
+    name: Publish nika-client SDK
+    needs: [release]
+    if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger nika-client release
+        env:
+          GH_TOKEN: ${{ secrets.NIKA_REPO_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          VERSION="${TAG#v}"
+          echo "Triggering @supernovae-st/nika-client@$VERSION"
+          gh api repos/supernovae-st/nika-client/dispatches \
+            -f event_type=nika-release \
+            -f "client_payload[version]=$VERSION" \
+            -f "client_payload[nika_tag]=$TAG"
+          echo "Dispatch sent — nika-client will auto-publish v$VERSION"
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # Post-publish Smoke Test
   # ─────────────────────────────────────────────────────────────────────────────
   smoke-test:
     name: Post-publish Smoke Test
-    needs: [npm-publish, crates-publish, vscode-publish]
+    needs: [npm-publish, crates-publish, vscode-publish, sdk-client-publish]
     if: ${{ !inputs.dry_run && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -1212,6 +1237,7 @@ jobs:
       - crates-publish
       - update-scoop
       - update-aur
+      - sdk-client-publish
       - smoke-test
     if: ${{ always() && !inputs.dry_run }}
     runs-on: ubuntu-latest
