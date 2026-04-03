@@ -17,7 +17,7 @@ pub enum RawTaskAction {
     Exec(Spanned<RawExecAction>),
 
     /// HTTP fetch: fetch: { url: "..." }
-    Fetch(Spanned<RawFetchAction>),
+    Fetch(Box<Spanned<RawFetchAction>>),
 
     /// MCP tool invocation: invoke: tool_name or invoke: { tool: name, params: {...} }
     Invoke(Spanned<RawInvokeAction>),
@@ -141,6 +141,12 @@ pub struct RawFetchAction {
 
     /// CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)
     pub selector: Option<Spanned<String>>,
+
+    /// Enable cookie jar for session persistence across fetch tasks
+    pub session: Option<Spanned<bool>>,
+
+    /// Enable HTTP response caching with ETag / If-Modified-Since
+    pub cache: Option<Spanned<bool>>,
 }
 
 /// Parameters for the `invoke` verb (MCP tool invocation).

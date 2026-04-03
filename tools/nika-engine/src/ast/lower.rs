@@ -272,8 +272,8 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         response: fetch.response,
         extract: fetch.extract,
         selector: fetch.selector,
-        session: None,
-        cache: None,
+        session: if fetch.session { Some(true) } else { None },
+        cache: if fetch.cache { Some(true) } else { None },
     }
 }
 
@@ -851,6 +851,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             response: fetch.response,
             extract: fetch.extract,
             selector: fetch.selector.clone(),
+            session: fetch.session.unwrap_or(false),
+            cache: fetch.cache.unwrap_or(false),
             span: Span::dummy(),
         }),
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
@@ -1143,6 +1145,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1655,6 +1659,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1692,6 +1698,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1730,6 +1738,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1772,6 +1782,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1815,6 +1827,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -2624,6 +2638,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: false,
+                cache: false,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")

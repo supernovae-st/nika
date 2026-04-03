@@ -1128,6 +1128,8 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
             }
         }),
         selector: raw.selector.as_ref().map(|s| s.value.clone()),
+        session: raw.session.as_ref().map(|s| s.value).unwrap_or(false),
+        cache: raw.cache.as_ref().map(|s| s.value).unwrap_or(false),
         span: raw.url.span,
     }
 }

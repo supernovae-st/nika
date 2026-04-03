@@ -451,7 +451,7 @@ fn parse_action(
     if let Some(node) = map.get_node("fetch") {
         let action = parse_fetch_action(file, node)?;
         let span = node_to_span(file, node);
-        return Ok(Some(RawTaskAction::Fetch(Spanned::new(action, span))));
+        return Ok(Some(RawTaskAction::Fetch(Box::new(Spanned::new(action, span)))));
     }
     // Check for invoke verb
     if let Some(node) = map.get_node("invoke") {
@@ -852,6 +852,8 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         response: get_string_field(file, m, "response")?,
         extract,
         selector,
+        session: get_bool_field(file, m, "session")?,
+        cache: get_bool_field(file, m, "cache")?,
     })
 }
 

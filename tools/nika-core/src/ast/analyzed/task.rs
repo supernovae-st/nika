@@ -236,6 +236,12 @@ pub struct AnalyzedFetchAction {
     /// CSS selector or JSONPath expression (used with extract)
     pub selector: Option<String>,
 
+    /// Enable cookie jar for session persistence
+    pub session: bool,
+
+    /// Enable HTTP response caching
+    pub cache: bool,
+
     /// Span of the action
     pub span: Span,
 }
