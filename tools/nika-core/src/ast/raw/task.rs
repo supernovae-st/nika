@@ -88,6 +88,10 @@ pub struct RawTask {
     /// Context budget in tokens — limits total binding size passed to LLM
     pub context_budget: Option<Spanned<u32>>,
 
+    /// Conditional execution: template expression evaluated as boolean.
+    /// If falsy (false, "false", "", null, 0), the task is skipped.
+    pub when: Option<Spanned<String>>,
+
     /// The span of the entire task block
     pub span: Span,
 }

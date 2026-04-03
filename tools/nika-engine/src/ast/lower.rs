@@ -155,6 +155,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         structured: task.structured,
         record: task.record,
         preset: task.preset,
+        when: task.when,
     })
 }
 
@@ -271,6 +272,8 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         response: fetch.response,
         extract: fetch.extract,
         selector: fetch.selector,
+        session: None,
+        cache: None,
     }
 }
 
@@ -693,6 +696,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             context_budget: None,
             preset: task.preset.clone(),
             routing: None,
+            when: None,
             span: Span::dummy(),
         });
     }
@@ -1002,6 +1006,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         }
     }
@@ -1065,6 +1070,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             description: None,
             span: Span::dummy(),
         });
@@ -2240,6 +2246,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: None,
+                cache: None,
             },
         };
         let result = unlower_retry(&action);

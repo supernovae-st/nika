@@ -286,6 +286,9 @@ pub struct Task {
     /// Agent preset reference from the workflow's `agents:` block
     #[serde(default)]
     pub preset: Option<String>,
+    /// Conditional execution expression (template resolved at runtime).
+    #[serde(default)]
+    pub when: Option<String>,
 }
 
 impl Task {

@@ -158,6 +158,7 @@ pub fn wrap_as_orchestrator(mut workflow: AnalyzedWorkflow) -> AnalyzedWorkflow 
         record: None,
         context_budget: None,
         routing: None,
+        when: None,
         span: Span::dummy(),
     };
 
@@ -204,6 +205,7 @@ mod tests {
             record: None,
             context_budget: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         }
     }

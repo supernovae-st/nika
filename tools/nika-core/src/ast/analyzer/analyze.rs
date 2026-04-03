@@ -845,6 +845,7 @@ fn analyze_task(
                 Some(val)
             }
         }),
+        when: None,
         span: raw.span,
     };
 

@@ -1808,6 +1808,7 @@ fn validate_task_keys(
         "concurrency",
         "fail_fast",
         "timeout",
+        "when",
         // 5 verb keys
         "infer",
         "exec",
@@ -2011,6 +2012,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
 
     // Parse context_budget: token limit for binding truncation
     let context_budget = get_u32_field(file_id, map, "context_budget")?;
+    let when = get_string_field(file_id, map, "when")?;
 
     // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
     let standalone_concurrency = if for_each.is_none() {
@@ -2047,6 +2049,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         log,
         record,
         context_budget,
+        when,
     };
 
     Ok(Spanned::new(task, span))

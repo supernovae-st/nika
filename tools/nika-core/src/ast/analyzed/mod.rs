@@ -107,6 +107,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: crate::source::Span::dummy(),
         };
     }

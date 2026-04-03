@@ -1144,6 +1144,41 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             );
         }
 
+        // Evaluate when: conditional — skip task if condition is falsy
+        if let Some(ref when_expr) = task.when {
+            use crate::binding::template_resolve;
+            match template_resolve(when_expr, &bindings, &datastore) {
+                Ok(resolved) => {
+                    if !is_truthy(&resolved) {
+                        event_log.emit(EventKind::TaskSkipped {
+                            task_id: Arc::clone(&task_id),
+                            reason: format!("when: condition evaluated to '{}'", resolved),
+                        });
+                        return IterationResult {
+                            store_id: task_id,
+                            result: TaskResult::skipped(format!(
+                                "Skipped: when '{}' → '{}'", when_expr, resolved
+                            )),
+                            for_each_info,
+                        };
+                    }
+                }
+                Err(e) => {
+                    event_log.emit(EventKind::TaskSkipped {
+                        task_id: Arc::clone(&task_id),
+                        reason: format!("when: template resolution failed: {}", e),
+                    });
+                    return IterationResult {
+                        store_id: task_id,
+                        result: TaskResult::skipped(format!(
+                            "Skipped: when resolution failed: {}", e
+                        )),
+                        for_each_info,
+                    };
+                }
+            }
+        }
+
         // Enforce context_budget if configured on this task
         if let Some(budget) = task.context_budget {
             let budget_event =
@@ -3480,6 +3515,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     }
 }
 
+/// Evaluate whether a resolved template value is "truthy" for `when:` conditions.
+fn is_truthy(value: &str) -> bool {
+    let trimmed = value.trim();
+    !matches!(trimmed, "" | "false" | "null" | "0" | "0.0")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3646,6 +3687,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -3800,6 +3842,7 @@ mod tests {
                     context_budget: None,
                     preset: None,
                     routing: None,
+                    when: None,
                     span: Span::dummy(),
                 }
             })
@@ -4514,6 +4557,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -4564,6 +4608,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -5513,6 +5558,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         }
     }
@@ -5559,6 +5605,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
         assert!(
@@ -6855,6 +6902,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -6905,6 +6953,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7165,6 +7214,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7206,6 +7256,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7466,6 +7517,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7581,6 +7633,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7687,6 +7740,7 @@ mod tests {
             context_budget: None,
             preset: Some(preset_name.to_string()),
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7874,6 +7928,7 @@ mod tests {
             context_budget: None,
             preset: Some("speed".to_string()),
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -7904,6 +7959,7 @@ mod tests {
             context_budget: None,
             preset: Some("think".to_string()),
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
@@ -8053,6 +8109,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 

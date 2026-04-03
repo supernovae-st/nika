@@ -343,6 +343,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         });
 
@@ -370,6 +371,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         });
 

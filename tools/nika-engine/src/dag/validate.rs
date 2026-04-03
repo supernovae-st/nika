@@ -402,6 +402,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             });
         }
@@ -479,6 +480,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             });
         }
@@ -1303,6 +1305,8 @@ mod tests {
                 response: None,
                 extract: None,
                 selector: None,
+                session: None,
+                cache: None,
             },
         };
         let templates = extract_task_templates(&action);

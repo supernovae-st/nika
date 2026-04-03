@@ -715,6 +715,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             });
         }
@@ -1008,6 +1009,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
             // Duplicate name — same "fetch" string but different TaskId
@@ -1035,6 +1037,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1061,6 +1064,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
         ];
@@ -1244,6 +1248,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1270,6 +1275,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
         ];
@@ -1327,6 +1333,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1353,6 +1360,7 @@ mod tests {
                 context_budget: None,
                 preset: None,
                 routing: None,
+                when: None,
                 span: Span::dummy(),
             },
         ];
@@ -1402,6 +1410,7 @@ mod tests {
             context_budget: None,
             preset: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         }
     }
@@ -1497,6 +1506,7 @@ mod tests {
                 structured: None,
                 record: None,
                 preset: None,
+                when: None,
             })],
         };
 
@@ -1569,6 +1579,7 @@ mod tests {
                     structured: None,
                     record: None,
                     preset: None,
+                    when: None,
                 }),
                 Arc::new(Task {
                     id: "b".to_string(),
@@ -1595,6 +1606,7 @@ mod tests {
                     structured: None,
                     record: None,
                     preset: None,
+                    when: None,
                 }),
             ],
         };
@@ -1667,6 +1679,7 @@ mod tests {
                     structured: None,
                     record: None,
                     preset: None,
+                    when: None,
                 }),
                 Arc::new(Task {
                     id: "b".to_string(),
@@ -1693,6 +1706,7 @@ mod tests {
                     structured: None,
                     record: None,
                     preset: None,
+                    when: None,
                 }),
             ],
         };

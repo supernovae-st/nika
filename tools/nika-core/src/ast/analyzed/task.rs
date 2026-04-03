@@ -98,6 +98,10 @@ pub struct AnalyzedTask {
     /// Task-level routing override.
     pub routing: Option<crate::ast::routing::RoutingConfig>,
 
+    /// Conditional execution expression.
+    /// Template expression evaluated at runtime. If falsy, task is skipped.
+    pub when: Option<String>,
+
     /// Span of the task
     pub span: Span,
 }
@@ -543,6 +547,7 @@ mod tests {
             record: None,
             context_budget: None,
             routing: None,
+            when: None,
             span: Span::dummy(),
         };
 
