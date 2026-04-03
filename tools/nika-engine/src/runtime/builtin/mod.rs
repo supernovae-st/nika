@@ -27,6 +27,7 @@
 //!                            └── dispatch to appropriate tool
 //! ```
 
+mod aggregate;
 mod assert;
 mod complete;
 mod cost;
@@ -38,6 +39,9 @@ mod introspect_dag;
 mod introspect_orchestrate;
 mod introspect_task;
 mod introspect_threads;
+mod json_transform;
+mod json_verify;
+mod locale_lookup;
 mod log;
 pub(crate) mod media;
 mod prompt;
@@ -47,7 +51,9 @@ mod router;
 mod run;
 mod sleep;
 mod r#trait;
+mod yaml_validate;
 
+pub use aggregate::AggregateTool;
 pub use assert::AssertTool;
 pub use complete::{
     is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse,
@@ -56,6 +62,9 @@ pub use complete::{
 pub use cost::CostTool;
 pub use data_tools::{JsonMergeTool, JsonQueryTool, SetDiffTool, ZipTool};
 pub use emit::EmitTool;
+pub use json_transform::{JsonFlattenTool, JsonUnflattenTool};
+pub use json_verify::JsonVerifyTool;
+pub use locale_lookup::LocaleLookupTool;
 pub use fetch_tool::FetchTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use introspect_dag::DagInfoTool;
@@ -70,6 +79,7 @@ pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;
 pub use run::{RunParams, RunResponse, RunTool};
 pub use sleep::SleepTool;
+pub use yaml_validate::YamlValidateTool;
 
 #[cfg(test)]
 mod tests {

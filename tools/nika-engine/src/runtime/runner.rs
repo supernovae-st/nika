@@ -169,6 +169,11 @@ fn detect_first_configured_provider() -> &'static str {
 /// - `Some(Vec<Value>)` if the value is an array or a parseable JSON array string
 /// - `None` if the value cannot be converted to an array
 fn value_to_array(value: &Value) -> Option<Vec<Value>> {
+    // BUG-034: Treat null as empty array — 0 iterations, not error.
+    if value.is_null() {
+        return Some(vec![]);
+    }
+
     // Fast path: direct array access
     if let Some(arr) = value.as_array() {
         return Some(arr.clone());
@@ -8158,5 +8163,26 @@ mod tests {
             MAX_CONCURRENT_TASKS,
             "All semaphore permits should be returned after tasks complete"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-034: value_to_array null handling
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn value_to_array_null_returns_empty() {
+        assert_eq!(value_to_array(&Value::Null), Some(vec![]));
+    }
+
+    #[test]
+    fn value_to_array_empty_array_returns_empty() {
+        assert_eq!(value_to_array(&json!([])), Some(vec![]));
+    }
+
+    #[test]
+    fn value_to_array_normal_array_unchanged() {
+        let arr = json!([1, 2, 3]);
+        let result = value_to_array(&arr).unwrap();
+        assert_eq!(result, vec![json!(1), json!(2), json!(3)]);
     }
 }

@@ -71,6 +71,18 @@ impl BuiltinToolRouter {
         tools.insert("zip", Arc::new(ZipTool));
         tools.insert("json_query", Arc::new(JsonQueryTool));
 
+        // Register 5 Sprint 2 data tools
+        use super::{
+            AggregateTool, JsonFlattenTool, JsonUnflattenTool, JsonVerifyTool,
+            LocaleLookupTool, YamlValidateTool,
+        };
+        tools.insert("json_verify", Arc::new(JsonVerifyTool));
+        tools.insert("yaml_validate", Arc::new(YamlValidateTool));
+        tools.insert("locale_lookup", Arc::new(LocaleLookupTool));
+        tools.insert("aggregate", Arc::new(AggregateTool));
+        tools.insert("json_flatten", Arc::new(JsonFlattenTool));
+        tools.insert("json_unflatten", Arc::new(JsonUnflattenTool));
+
         Self { tools }
     }
 
@@ -294,12 +306,18 @@ mod tests {
         // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
-        // 7 core + 4 data tools
+        // 7 core + 4 data tools + 6 sprint2 tools
         assert!(router.has_tool("json_merge"));
         assert!(router.has_tool("set_diff"));
         assert!(router.has_tool("zip"));
         assert!(router.has_tool("json_query"));
-        assert_eq!(router.tool_names().len(), 11); // 7 core + 4 data
+        assert!(router.has_tool("json_verify"));
+        assert!(router.has_tool("yaml_validate"));
+        assert!(router.has_tool("locale_lookup"));
+        assert!(router.has_tool("aggregate"));
+        assert!(router.has_tool("json_flatten"));
+        assert!(router.has_tool("json_unflatten"));
+        assert_eq!(router.tool_names().len(), 17); // 7 core + 4 data + 6 sprint2
     }
 
     #[test]
@@ -329,7 +347,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 16); // 7 core + 4 data + 5 file
+        assert_eq!(router.tool_names().len(), 22); // 7 core + 4 data + 6 sprint2 + 5 file
     }
 
     #[test]
@@ -413,8 +431,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has 7 core + 4 data tools
-        assert_eq!(router.tool_names().len(), 11);
+        // Default router has 7 core + 4 data + 6 sprint2 tools
+        assert_eq!(router.tool_names().len(), 17);
     }
 
     #[tokio::test]
