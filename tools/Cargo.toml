@@ -86,7 +86,7 @@ thiserror = "2.0"
 miette = { version = "7.6", features = ["fancy"] }
 
 # HTTP
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls", "gzip", "brotli", "deflate"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls", "gzip", "brotli", "deflate", "hickory-dns", "zstd", "cookies"] }
 url = "2"
 axum = { version = "0.8", features = ["json", "macros"] }
 aide = { version = "=0.16.0-alpha.3", features = ["axum", "axum-json"] }
@@ -190,6 +190,15 @@ feed-rs = "2.3"
 scraper = { version = "0.26", features = ["atomic"] }
 htmd = "0.5"
 psl = "2"
+
+# Crawl ethics & intelligence
+texting_robots = "0.2"
+http-cache-semantics = "3.0"
+fastbloom = "0.17"
+
+# RAG: text chunking
+text-splitter = { version = "0.29", features = ["markdown"] }
+tiktoken-rs = "0.9"
 
 # Environment
 dotenvy = "0.15"
