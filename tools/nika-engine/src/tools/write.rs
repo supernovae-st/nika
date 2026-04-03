@@ -32,6 +32,11 @@ pub struct WriteParams {
     /// Accepts strings directly, or objects/arrays which are auto-serialized to pretty JSON.
     #[serde(deserialize_with = "deserialize_content")]
     pub content: String,
+
+    /// When true, overwrite existing files instead of failing with NIKA-215.
+    /// Default: false (create-only for backward compat).
+    #[serde(default)]
+    pub overwrite: Option<bool>,
 }
 
 /// Deserialize content from any JSON value: strings pass through,
@@ -120,29 +125,43 @@ impl WriteTool {
                 })?;
         }
 
-        // Atomic create-if-not-exists using create_new(true).
-        // This is a single syscall — no TOCTOU window between exists check and creation.
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true) // Fails atomically if file exists
-            .open(&path)
-            .await
-            .map_err(|e| {
-                if e.kind() == std::io::ErrorKind::AlreadyExists {
-                    NikaError::ToolError {
-                        code: ToolErrorCode::FileAlreadyExists.code(),
-                        message: format!(
-                            "File already exists: {}. Use the Edit tool to modify existing files.",
-                            params.file_path
-                        ),
+        // Open file: overwrite mode uses create+truncate, default uses create_new for safety.
+        let mut file = if params.overwrite.unwrap_or(false) {
+            fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&path)
+                .await
+                .map_err(|e| NikaError::ToolError {
+                    code: ToolErrorCode::WriteFailed.code(),
+                    message: format!("Failed to open file for writing: {}", e),
+                })?
+        } else {
+            // Atomic create-if-not-exists using create_new(true).
+            // Single syscall — no TOCTOU window between exists check and creation.
+            fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .await
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::AlreadyExists {
+                        NikaError::ToolError {
+                            code: ToolErrorCode::FileAlreadyExists.code(),
+                            message: format!(
+                                "File already exists: {}. Use overwrite: true or the Edit tool.",
+                                params.file_path
+                            ),
+                        }
+                    } else {
+                        NikaError::ToolError {
+                            code: ToolErrorCode::WriteFailed.code(),
+                            message: format!("Failed to create file: {}", e),
+                        }
                     }
-                } else {
-                    NikaError::ToolError {
-                        code: ToolErrorCode::WriteFailed.code(),
-                        message: format!("Failed to create file: {}", e),
-                    }
-                }
-            })?;
+                })?
+        };
 
         file.write_all(params.content.as_bytes())
             .await
@@ -246,6 +265,7 @@ mod tests {
             .execute(WriteParams {
                 file_path: file_path.clone(),
                 content: "Hello, World!\nLine 2".to_string(),
+                overwrite: None,
             })
             .await
             .unwrap();
@@ -272,6 +292,7 @@ mod tests {
             .execute(WriteParams {
                 file_path: file_path.clone(),
                 content: "content".to_string(),
+                overwrite: None,
             })
             .await;
 
@@ -296,6 +317,7 @@ mod tests {
             .execute(WriteParams {
                 file_path,
                 content: "new content".to_string(),
+                overwrite: None,
             })
             .await;
 
@@ -321,6 +343,7 @@ mod tests {
             .execute(WriteParams {
                 file_path,
                 content: "content".to_string(),
+                overwrite: None,
             })
             .await;
 
@@ -345,6 +368,7 @@ mod tests {
             .execute(WriteParams {
                 file_path,
                 content: oversized,
+                overwrite: None,
             })
             .await;
 
@@ -366,6 +390,7 @@ mod tests {
             .execute(WriteParams {
                 file_path: "/tmp/outside.txt".to_string(),
                 content: "content".to_string(),
+                overwrite: None,
             })
             .await;
 
@@ -416,6 +441,7 @@ mod tests {
             .execute(WriteParams {
                 file_path: file_path.clone(),
                 content: "replacement".to_string(),
+                overwrite: None,
             })
             .await;
 
@@ -431,6 +457,32 @@ mod tests {
         // No temp file should be left behind
         let temp = std::path::Path::new(&file_path).with_extension("tmp.nika");
         assert!(!temp.exists(), "no temp file should remain");
+    }
+
+    #[tokio::test]
+    async fn test_write_overwrite_replaces_existing() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir
+            .path()
+            .join("cache.json")
+            .to_string_lossy()
+            .to_string();
+
+        // Create file with initial content
+        fs::write(&file_path, "old data").await.unwrap();
+
+        let tool = WriteTool::new(ctx);
+        let result = tool
+            .execute(WriteParams {
+                file_path: file_path.clone(),
+                content: "new data".to_string(),
+                overwrite: Some(true),
+            })
+            .await;
+
+        assert!(result.is_ok(), "overwrite: true should succeed on existing file");
+        let content = fs::read_to_string(&file_path).await.unwrap();
+        assert_eq!(content, "new data");
     }
 
     #[test]
