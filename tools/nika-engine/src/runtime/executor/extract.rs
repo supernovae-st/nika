@@ -640,10 +640,17 @@ fn extract_sitemap_xml(body: &str) -> Result<String, NikaError> {
                 current_tag.clear();
             }
             Ok(Event::Eof) => break,
-            Err(e) => {
-                return Err(NikaError::ExtractError {
-                    reason: format!("Sitemap XML parse error: {e}"),
-                });
+            Err(_) => {
+                // Non-XML response (e.g., HTML 404 page) — return empty sitemap
+                // instead of failing. This enables spider mode: when sitemap.xml
+                // doesn't exist, downstream tasks get empty arrays and continue.
+                tracing::debug!("extract:sitemap got non-XML content, returning empty result");
+                return Ok(serde_json::json!({
+                    "sitemaps": [],
+                    "urls": [],
+                    "count": 0,
+                    "is_index": false,
+                }).to_string());
             }
             _ => {}
         }
@@ -1242,11 +1249,25 @@ mod tests {
 
     #[cfg(feature = "fetch-sitemap")]
     #[test]
-    fn sitemap_invalid_xml() {
-        let result = apply_extract("not xml at all <broken", Some(ExtractMode::Sitemap), None);
-        // quick-xml is lenient — it may not error on broken XML, just return empty
-        // The important thing is no panic
-        assert!(result.is_ok() || result.is_err());
+    fn sitemap_invalid_xml_returns_empty() {
+        // Non-XML content (e.g., HTML 404 page) should return empty sitemap, not error.
+        // This enables spider mode: sites without sitemap.xml still work.
+        let html_404 = "<html><body><h1>404 Not Found</h1></body></html>";
+        let result = apply_extract(html_404, Some(ExtractMode::Sitemap), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["count"], 0);
+        assert_eq!(parsed["is_index"], false);
+        assert_eq!(parsed["urls"], serde_json::json!([]));
+        assert_eq!(parsed["sitemaps"], serde_json::json!([]));
+    }
+
+    #[cfg(feature = "fetch-sitemap")]
+    #[test]
+    fn sitemap_plain_text_returns_empty() {
+        // Plain text response (not XML at all)
+        let result = apply_extract("not xml at all", Some(ExtractMode::Sitemap), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["count"], 0);
     }
 
     // ── metadata_links ──────────────────────────────────────────
