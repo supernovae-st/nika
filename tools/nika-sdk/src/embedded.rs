@@ -141,6 +141,7 @@ impl Transport for EmbeddedTransport {
             loop {
                 match rx.recv().await {
                     Ok(event) => {
+                        #[allow(clippy::wildcard_enum_match_arm)]
                         let sdk_event = match &event.kind {
                             nika_event::EventKind::TaskStarted { task_id, verb, .. } => {
                                 Some(Event::TaskStart {
@@ -308,6 +309,7 @@ impl Transport for EmbeddedTransport {
                 let terminal_event = {
                     let jobs = jobs.lock().await;
                     if let Some(state) = jobs.get(&jid) {
+                        #[allow(clippy::wildcard_enum_match_arm)]
                         match state.status {
                             JobStatus::Completed => Some(Ok(Event::Completed {
                                 job_id: jid.clone(),
