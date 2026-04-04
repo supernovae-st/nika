@@ -34,6 +34,29 @@
 
 ## SESSION 1: v0.67 ARCHITECTURE (~6h)
 
+### Sprint 0: Quick fixes from v0.66 audit (30 min)
+
+Post-v0.66 audit (8 agents) found these remaining issues:
+
+1. **CRITICAL: security.rs:547** — `check_blocklist_with_intent` stores raw `cmd.to_string()`
+   in BlockedCommand error. Every OTHER error path uses `redact_secrets(cmd)`. This one doesn't.
+   Fix: `command: crate::util::redact_secrets(cmd).to_string()`
+
+2. **REGEX_CACHE unbounded** — `transform.rs` uses `HashMap` for regex cache (grows forever).
+   JQ_FILTER_CACHE uses bounded `lru::LruCache(64)`. Switch REGEX_CACHE to `lru::LruCache(128)`.
+
+3. **5 stale section comments** in data/ split (copy-paste leftover headers pointing at wrong tools):
+   - `aggregate.rs:93` says "nika:chunk" (chunk is in text.rs)
+   - `aggregate.rs:256` says "nika:inject" (inject is in io.rs)
+   - `jq.rs:87` says "nika:map" (map is in transform.rs)
+   - `jq.rs:152` says "nika:tree_data" (tree_data is in aggregate.rs)
+   - `merge.rs:279` says "nika:json_query" (json_query is in jq.rs)
+
+4. **EnrichTool unnecessary clone** — `transform.rs:208`: `extract_field(&Value::Object(obj.clone()))`
+   clones the full map to read a field. Pass by reference instead.
+
+5. **tools/nika/CLAUDE.md** — source tree diagram doesn't show the data/ split. Update.
+
 ### Sprint 1: Break engine→init dependency (30 min)
 
 The coupling is SHALLOW — 2 blocks only:
