@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.64.0 — SITE AUDIT CRAWLER                                        ║
-║  nika:enrich | map+transform | metadata_links | spider mode                ║
+║  NIKA v0.65.0 — NATIVE JQ + DASHBOARD                                     ║
+║  nika:jq | nika:tree_data | eval_jq() public API | 100% native workflows  ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.65.0] — 2026-04-04
+
+### Added
+- **`nika:jq` builtin tool** — Full jq expression evaluation via jaq-core stdlib. Supports 100+ jq functions: `group_by`, `sort_by`, `map`, `select`, `test`, `keys`, `length`, `to_entries`, `flatten`, `unique`, and more. Handles complex nested expressions (500+ chars) that break the `| jq()` transform's template parser. Pass `data` (any JSON) + `expr` (jq expression) as params.
+- **`nika:tree_data` builtin tool** — Pure Rust nested group_by for treemap/dashboard hierarchies. Groups array by primary field, optionally sub-groups by secondary field, counts items per group. Produces `[{name, children: [{name, value}]}]` ready for squarified treemap rendering. Zero LLM calls.
+- **`eval_jq()` public API** — Exposed in `nika-core::binding` for programmatic jq evaluation from Rust code.
+
+### Fixed
+- **Daemon test compilation** — Added missing `auth_token` field in 4 `GetSecret` test constructors after authentication hardening.
+- **Router tool count** — Updated from 23/28 to 25/30 after adding 2 new data tools.
 
 ## [0.64.0] — 2026-04-04
 
