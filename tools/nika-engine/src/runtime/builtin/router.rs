@@ -1,22 +1,14 @@
 //! BuiltinToolRouter for nika:* tool dispatch.
 //!
-//! Provides routing for 12 builtin tools:
+//! Provides routing for 29+ builtin tools across 5 categories:
 //!
-//! **Core tools (7):**
-//! - `nika:sleep` - Pause execution for duration
-//! - `nika:log` - Emit log event at level
-//! - `nika:emit` - Emit custom event to EventLog
-//! - `nika:assert` - Validate condition, fail if false
-//! - `nika:prompt` - HITL - request user input
-//! - `nika:run` - Execute nested workflow
-//! - `nika:complete` - Signal agent task completion
-//!
-//! **File tools (5) - requires ToolContext:**
-//! - `nika:read` - Read file with line numbers
-//! - `nika:write` - Create/overwrite file
-//! - `nika:edit` - Modify file (old_string → new_string)
-//! - `nika:glob` - Find files by pattern
-//! - `nika:grep` - Search content with regex
+//! **Core (7):** sleep, log, emit, assert, prompt, run, complete
+//! **File (5):** read, write, edit, glob, grep (requires ToolContext)
+//! **Data (13):** jq, tree_data, inject, map, filter, group_by, enrich,
+//!   json_merge, set_diff, zip, json_query, chunk, token_count
+//! **Sprint2 (6):** json_verify, yaml_validate, locale_lookup, aggregate,
+//!   json_flatten, json_unflatten
+//! **Media (N):** import, dimensions, thumbhash, dominant_color, pipeline, ...
 
 use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use super::{

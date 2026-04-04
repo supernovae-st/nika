@@ -1144,7 +1144,8 @@ fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
 }
 
 /// Deep merge overlay into base (RFC 7396 semantics).
-fn deep_merge(base: &mut serde_json::Map<String, Value>, overlay: &serde_json::Map<String, Value>) {
+/// Deep merge overlay into base (RFC 7396 semantics).
+pub fn deep_merge(base: &mut serde_json::Map<String, Value>, overlay: &serde_json::Map<String, Value>) {
     for (key, value) in overlay {
         match (base.get_mut(key), value) {
             (Some(Value::Object(base_obj)), Value::Object(overlay_obj)) => {
@@ -1159,7 +1160,7 @@ fn deep_merge(base: &mut serde_json::Map<String, Value>, overlay: &serde_json::M
 
 /// Navigate a dot-separated path into a JSON value.
 /// e.g. `navigate_dot_path(obj, "address.city")` → `obj["address"]["city"]`
-fn navigate_dot_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+pub fn navigate_dot_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
     let mut current = value;
     for segment in path.split('.') {
         current = current.get(segment)?;

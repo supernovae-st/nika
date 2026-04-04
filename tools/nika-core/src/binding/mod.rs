@@ -18,5 +18,8 @@ pub use entry::{
     parse_binding_entry, parse_with_entry, BindingEntry, BindingSpec, WithEntry,
     WithEntryParseError, WithSpec,
 };
-pub use transform::{eval_jq, TransformError, TransformExpr, TransformOp, TransformParseError};
+pub use transform::{
+    deep_merge, eval_jq, navigate_dot_path, TransformError, TransformExpr, TransformOp,
+    TransformParseError,
+};
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};
