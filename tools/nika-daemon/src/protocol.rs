@@ -483,6 +483,7 @@ mod tests {
     fn request_serialize_get_secret() {
         let req = DaemonRequest::GetSecret {
             provider: "anthropic".into(),
+            auth_token: None,
         };
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains(r#""type":"GetSecret""#));
@@ -684,6 +685,7 @@ mod tests {
             DaemonRequest::Status,
             DaemonRequest::GetSecret {
                 provider: "anthropic".into(),
+                auth_token: None,
             },
             DaemonRequest::HasSecret {
                 provider: "openai".into(),
@@ -820,6 +822,7 @@ mod tests {
     fn wire_format_encode_decode_consistency() {
         let req = DaemonRequest::GetSecret {
             provider: "anthropic".into(),
+            auth_token: None,
         };
         let buf = encode_message(&req).unwrap();
 
@@ -837,6 +840,7 @@ mod tests {
     async fn wire_format_async_roundtrip() {
         let req = DaemonRequest::GetSecret {
             provider: "mistral".into(),
+            auth_token: None,
         };
 
         // Encode
