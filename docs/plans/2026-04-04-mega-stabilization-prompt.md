@@ -255,11 +255,61 @@ Before shipping v0.66.0:
 
 ---
 
+## AGENT SWARM FINDINGS (11 agents total)
+
+### Codebase Metrics
+- **391K LOC** Rust across 17 crates
+- **10,737 tests** (nika-engine: 5,079, nika-tui: 2,295, nika-core: 1,136)
+- **5,549 unwrap()** calls (47% in nika-engine — most in tests)
+- **354 TODO/FIXME/HACK** (92% in nika-init — tech debt hotspot)
+- **237 files** > 500 lines
+- **1,921 pub exports** (nika-engine: 680, nika-tui: 411)
+- Largest files: main.rs (4,381), log.rs (4,350), error.rs (2,797)
+
+### Architecture Debt (P0)
+1. **vault.rs in nika-core** breaks "zero I/O" contract — pulls orion crypto, fs2 file locks, whoami. Move to nika-engine or dedicated nika-vault crate.
+2. **nika-engine depends on nika-init** — inverted dependency. Embeddable runtime should NOT contain project scaffolding. Anyone embedding engine gets init wizard.
+
+### Architecture Debt (P1)
+3. **engine::core module** confused with nika-core crate — rename to `infra` or `platform`
+
+### Architecture Clean
+- Zero anyhow in production code
+- Zero unwrap in nika-engine production code (only tests)
+- Feature flags well-organized
+- nika-core public API is minimal (8 modules)
+
+### Showcase Workflows (8 total, ALL valid)
+| # | Name | Status | Hero? |
+|---|------|--------|-------|
+| 01 | hello-world | OK | Yes — starter |
+| 02 | research-pipeline | OK | Yes — DAG fan-out |
+| 03 | web-scraper | OK | - |
+| 04 | structured-output | OK | Yes — killer feature |
+| 05 | multi-provider | OK | Yes — cloud diversity |
+| 06 | media-pipeline | OK | - |
+| 07 | agent-loop | OK | Yes — autonomy |
+| 08 | serve-api | OK | Yes — production |
+
+No deprecated patterns found. All use correct `schema: "nika/workflow@0.12"`.
+
+### Security Summary
+- **SSRF**: Thorough (DNS pinning, private IP blocklist, fail-closed)
+- **Path traversal**: All 5 file tools validated
+- **Secret leakage**: Regex redaction + 30 env vars stripped
+- **Fetch DoS**: 50MB text / 100MB binary limits
+- **Unicode bypass**: NFKC + zero-width stripping
+- 3 MEDIUM fixes needed (exec blocklist, shell injection, cmd leak)
+
+---
+
 ## SOCRATIC QUESTIONS TO ANSWER DURING EXECUTION
 
-1. Should `shell: true` injection be ERROR or WARNING? Error is safer but breaks existing workflows that work fine. Consider a `--strict` flag?
+1. Should `shell: true` injection be ERROR or WARNING? Error is safer but breaks existing workflows. Consider a `--strict` flag?
 2. The data_tools split — should tests stay with their tool (in each file) or in a central tests module?
 3. jaq 3.x upgrade — should we start a branch now and do it incrementally?
-4. Egghead memory system — update the design bible (1400 lines) with v0.65 learnings, or leave it for a separate sprint?
-5. The 115 showcase workflows — should broken ones be deleted or fixed?
-6. nika.md auto-overwrite (BUG-009) — is this the session to fix it permanently?
+4. Egghead memory system — update the design bible with v0.65 learnings, or leave for separate sprint?
+5. vault.rs in nika-core — move to nika-engine/src/secrets/ or create nika-vault crate?
+6. nika-engine depends on nika-init — break this dependency now or defer?
+7. 354 TODO/FIXME in nika-init — triage or nuke?
+8. nika.md auto-overwrite (BUG-009) — fix it permanently this sprint?
