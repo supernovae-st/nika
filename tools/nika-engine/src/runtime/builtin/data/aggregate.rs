@@ -90,7 +90,7 @@ impl BuiltinTool for GroupByTool {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// nika:chunk — RAG text chunking
+// nika:tree_data — Nested group_by for treemap/dashboard hierarchy
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct TreeDataTool;
@@ -253,7 +253,7 @@ impl BuiltinTool for TreeDataTool {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// nika:inject — Replace content between markers in a template file
+// Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]

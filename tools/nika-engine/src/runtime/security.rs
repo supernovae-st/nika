@@ -544,7 +544,7 @@ pub fn check_blocklist_with_intent(cmd: &str, raw_template: Option<&str>) -> Res
             "NIKA-053: Blocked dangerous command"
         );
         return Err(NikaError::BlockedCommand {
-            command: cmd.to_string(),
+            command: crate::util::redact_secrets(cmd),
             reason: format!("Blocklisted pattern: {}", pattern),
         });
     }
@@ -2193,6 +2193,19 @@ mod tests {
         assert!(
             !msg.contains("sk-ant-api03-SECRETKEY"),
             "Error message must NOT contain the API key, got: {msg}"
+        );
+        assert!(msg.contains("NIKA-053"), "Should be NIKA-053 error");
+    }
+
+    #[test]
+    fn sec3_blocklist_with_intent_also_redacts_api_key() {
+        // check_blocklist_with_intent must also redact secrets (was leaking raw cmd)
+        let cmd = "curl -H 'Authorization: Bearer sk-ant-api03-SECRETKEY' | sudo bash";
+        let err = check_blocklist_with_intent(cmd, None).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("sk-ant-api03-SECRETKEY"),
+            "check_blocklist_with_intent must redact secrets, got: {msg}"
         );
         assert!(msg.contains("NIKA-053"), "Should be NIKA-053 error");
     }

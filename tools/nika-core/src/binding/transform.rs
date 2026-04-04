@@ -32,7 +32,7 @@
 
 use serde_json::Value;
 use smallvec::SmallVec;
-use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::fmt;
 use std::sync::{LazyLock, Mutex};
 
@@ -1196,8 +1196,13 @@ pub fn navigate_dot_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> 
 }
 
 /// Cache for compiled regexes (dynamic patterns from user expressions).
-static REGEX_CACHE: LazyLock<Mutex<HashMap<String, regex::Regex>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+/// Bounded LRU (128 entries) to prevent unbounded growth from user-supplied patterns.
+static REGEX_CACHE: LazyLock<Mutex<lru::LruCache<String, regex::Regex>>> =
+    LazyLock::new(|| {
+        Mutex::new(lru::LruCache::new(
+            NonZeroUsize::new(128).unwrap(),
+        ))
+    });
 
 /// Get or compile a regex pattern, caching the result.
 fn cached_regex(pattern: &str) -> Result<regex::Regex, regex::Error> {
@@ -1206,7 +1211,7 @@ fn cached_regex(pattern: &str) -> Result<regex::Regex, regex::Error> {
         return Ok(re.clone());
     }
     let re = regex::Regex::new(pattern)?;
-    cache.insert(pattern.to_string(), re.clone());
+    cache.put(pattern.to_string(), re.clone());
     Ok(re)
 }
 

@@ -84,7 +84,7 @@ impl BuiltinTool for JsonQueryTool {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// nika:map
+// nika:jq — Full jq stdlib via jaq-core
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct JqTool;
@@ -149,7 +149,7 @@ impl BuiltinTool for JqTool {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// nika:tree_data — Nested group_by for treemap/dashboard hierarchy
+// Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]

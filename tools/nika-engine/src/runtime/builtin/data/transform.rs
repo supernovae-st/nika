@@ -29,6 +29,27 @@ pub(super) fn extract_field(value: &Value, path: &str) -> Value {
         .unwrap_or(Value::Null)
 }
 
+/// Extract a field from a Map without wrapping in Value::Object first.
+/// Avoids cloning the entire map for a simple field lookup.
+fn extract_field_from_map(obj: &serde_json::Map<String, Value>, path: &str) -> Value {
+    let mut segments = path.split('.');
+    let first = match segments.next() {
+        Some(s) => s,
+        None => return Value::Null,
+    };
+    let mut current = match obj.get(first) {
+        Some(v) => v,
+        None => return Value::Null,
+    };
+    for segment in segments {
+        current = match current.get(segment) {
+            Some(v) => v,
+            None => return Value::Null,
+        };
+    }
+    current.clone()
+}
+
 impl BuiltinTool for MapTool {
     fn name(&self) -> &'static str {
         "map"
@@ -205,7 +226,7 @@ impl BuiltinTool for EnrichTool {
                     };
 
                     for &(name, selector, ref transform) in &parsed_fields {
-                        let extracted = extract_field(&Value::Object(obj.clone()), selector);
+                        let extracted = extract_field_from_map(&obj, selector);
                         let final_value = if let Some(ref expr) = transform {
                             expr.apply(&extracted).unwrap_or(Value::Null)
                         } else {
