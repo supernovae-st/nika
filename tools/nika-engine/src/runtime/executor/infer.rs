@@ -1796,3 +1796,64 @@ impl TaskExecutor {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_validate_schema_path_rejects_traversal() {
+        assert!(TaskExecutor::validate_schema_path("../../.env").is_err());
+        assert!(TaskExecutor::validate_schema_path("../secrets/key").is_err());
+        assert!(TaskExecutor::validate_schema_path("schemas/../../../etc/passwd").is_err());
+    }
+
+    #[test]
+    fn test_validate_schema_path_allows_safe_paths() {
+        assert!(TaskExecutor::validate_schema_path("schema.json").is_ok());
+        assert!(TaskExecutor::validate_schema_path("./schemas/user.json").is_ok());
+        assert!(TaskExecutor::validate_schema_path("config/nested/deep.json").is_ok());
+    }
+
+    #[test]
+    fn test_generic_mock_json_structure() {
+        let task_id: Arc<str> = Arc::from("test-task");
+        let vision_info = serde_json::json!({ "vision": false });
+        let result = TaskExecutor::generic_mock_json(&task_id, "test prompt", &vision_info);
+
+        assert_eq!(result["mock"], true);
+        assert_eq!(result["task_id"], "test-task");
+        assert!(result["name"].is_string());
+        assert!(result["age"].is_number());
+        assert!(result["items"].is_array());
+        assert!(result["user"]["name"].is_string());
+        assert!(result["metadata"]["version"].is_number());
+    }
+
+    #[test]
+    fn test_generic_mock_json_tracks_prompt_length() {
+        let task_id: Arc<str> = Arc::from("t");
+        let vision = serde_json::json!({ "vision": false });
+        let prompt = "a".repeat(500);
+        let result = TaskExecutor::generic_mock_json(&task_id, &prompt, &vision);
+        assert_eq!(result["prompt_len"], 500);
+    }
+
+    #[test]
+    fn test_generic_mock_json_includes_vision_info() {
+        let task_id: Arc<str> = Arc::from("t");
+        let vision = serde_json::json!({ "vision": true, "image_count": 2 });
+        let result = TaskExecutor::generic_mock_json(&task_id, "prompt", &vision);
+        assert_eq!(result["vision_info"]["vision"], true);
+        assert_eq!(result["vision_info"]["image_count"], 2);
+    }
+
+    #[test]
+    fn test_estimate_tokens_approximation() {
+        // 4 chars per token is the standard heuristic
+        assert_eq!(estimate_tokens(400), 100);
+        assert_eq!(estimate_tokens(0), 0);
+        assert_eq!(estimate_tokens(3), 1); // rounds up
+    }
+}
