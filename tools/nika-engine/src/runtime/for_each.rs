@@ -243,9 +243,9 @@ fn resolve_template_with(
     let remaining: Vec<&str> = parts.collect();
     match traverse_path(&working, &remaining) {
         Ok(value) => to_items_or_fail(value, items_str),
-        Err(segment) => ForEachResolution::Failed(format!(
-            "for_each items: path traversal failed for '{{{{with.{}}}}}' at segment '{}'",
-            path, segment
+        Err(_segment) => ForEachResolution::Failed(format!(
+            "for_each items: path traversal failed for '{{{{with.{}}}}}'",
+            path
         )),
     }
 }
@@ -371,7 +371,7 @@ fn to_items_or_fail(value: &Value, items_str: &str) -> ForEachResolution {
     match super::runner::value_to_array(value) {
         Some(items) => ForEachResolution::Items(items),
         None => ForEachResolution::Failed(format!(
-            "for_each binding '{}' resolved to non-array value",
+            "for_each binding '{}' resolved to non-array value after transforms",
             items_str
         )),
     }
