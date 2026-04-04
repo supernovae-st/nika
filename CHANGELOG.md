@@ -7,10 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.66.0 — SECURITY + STABILIZATION                                  ║
-║  50 transforms | 61 tools | data_tools split | 4 security fixes            ║
+║  NIKA v0.68.2 — SDK HARDENING + MEDIA SECURITY                            ║
+║  50 transforms | 62 tools | 9 SDK fixes | 5 media security fixes          ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.68.2] — 2026-04-04
+
+### Security
+- **SEC-5: Import path confinement** — `nika:import` now validates canonical path falls within project working directory. Prevents reading arbitrary files (~/.ssh/id_rsa, ~/.aws/credentials).
+- **SEC-6: Pipeline step limit** — Pipeline execution limited to 50 steps max, preventing CPU exhaustion via unbounded step chains.
+- **SEC-7: Pipeline budget check** — Pipeline Binary output now charges media budget before returning, closing budget bypass.
+- **SEC-8: SVG zero-size guard** — `nika:svg_render` rejects zero-size viewBox and oversized dimensions (>10000) instead of dividing by zero or silently clamping.
+- **SEC-9: PDF thread limit** — `nika:pdf_extract` limited to 4 concurrent threads via semaphore, preventing thread exhaustion.
+
+### Added
+- **`nika:decode` builtin tool** — Decode base64 string to CAS blob. Bridges API responses (Gemini, fal.ai, Stability AI) returning inline base64 into the media pipeline. Returns `{ hash, mime_type, size_bytes, deduplicated }`.
+
+### Fixed
+- **CRITICAL: cancel() return type** — `POST /v1/cancel/{id}` now returns `StatusResponse` (8 fields) matching `JobInfo`. Previously returned `CancelResponse` (3 fields), causing silent field corruption in SDK deserialization.
+- **SDK: JobStatus::Pending** — Added `Pending` variant. Server returns `"pending"` on `POST /v1/run` but SDK was falling through to `Unknown`.
+- **SDK: HTTP 429/503 mapping** — Corrected inverted mapping: 429 → `RateLimited` (rate limit), 503 → `QueueFull` (server queue full). Added `SdkError::RateLimited` variant.
+- **SDK: NIKA-XXX error codes** — `Job::wait()` now parses NIKA-XXX codes from `Event::Failed` messages. `Engine` display shows `[NIKA-020]` prefix when code is present.
+- **SDK: ArtifactInfo.format** — Changed from `Option<String>` to `String` matching server wire format.
+- **SDK: Embedded transport** — `list_artifacts()` returns explicit error instead of empty Vec. Resume check moved before file parse. `cancel()` now aborts monitor task via JoinHandle.
+- **SDK: SSE buffer** — Increased from 1 MiB to 2 MiB, aligned with serve `max_output_bytes`.
+- **Python: worker threads** — Runtime uses `available_parallelism().max(4)` instead of hardcoded 2.
+- **Python: auth error** — `Unauthorized` maps to `PermissionError` (was `ConnectionError`).
+
+### Deprecated
+- **nika-napi** — Node.js native binding deprecated. Use `@supernovae-st/nika-client` (pure TypeScript, zero deps, Workers/Deno/Bun).
+
+## [0.68.1] — 2026-04-04
+
+### Added
+- **`nika run <url>`** — Run workflows directly from URLs (HTTP/HTTPS).
+- **`nika explain`** — Human-readable workflow summary with DAG visualization.
+
+## [0.68.0] — 2026-04-04
+
+### Changed
+- **nika-vault** — Extracted from nika-daemon into standalone crate.
+- **jaq 3.0** — Upgraded jaq-core/jaq-std/jaq-json to v3/v2.
+- **Engine decoupled** — `nika-engine` no longer depends on `nika-daemon`.
+
+## [0.67.0] — 2026-04-04
+
+### Changed
+- **Skills auto-injection** — Workflow-level `skills:` now injected into ALL `infer:` tasks (was agents only).
+- **Skills fail loud** — Missing skill files cause NIKA-270 error (was silently skipped).
+- **Job isolation** — `nika serve` sets `NIKA_JOB_ID` and `NIKA_JOB_DIR` env vars per job.
 
 ## [0.66.0] — 2026-04-04
 

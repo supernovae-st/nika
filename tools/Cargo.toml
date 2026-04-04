@@ -22,7 +22,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.68.1"
+version = "0.68.2"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 license = "AGPL-3.0-or-later"
@@ -31,20 +31,20 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # Internal crates
-nika-cli = { path = "nika-cli", version = "0.68.1" }
-nika-core = { path = "nika-core", version = "0.68.1" }
-nika-engine = { path = "nika-engine", version = "0.68.1", default-features = true }
-nika-init = { path = "nika-init", version = "0.68.1" }
-nika-tui = { path = "nika-tui", version = "0.68.1" }
-nika-event = { path = "nika-event", version = "0.68.1" }
-nika-mcp = { path = "nika-mcp", version = "0.68.1" }
-nika-media = { path = "nika-media", version = "0.68.1" }
-nika-daemon = { path = "nika-daemon", version = "0.68.1" }
-nika-storage = { path = "nika-storage", version = "0.68.1" }
-nika-serve = { path = "nika-serve", version = "0.68.1" }
-nika-lsp-core = { path = "nika-lsp-core", version = "0.68.1" }
-nika-sdk = { path = "nika-sdk", version = "0.68.1" }
-nika-vault = { path = "nika-vault", version = "0.68.1" }
+nika-cli = { path = "nika-cli", version = "0.68.2" }
+nika-core = { path = "nika-core", version = "0.68.2" }
+nika-engine = { path = "nika-engine", version = "0.68.2", default-features = true }
+nika-init = { path = "nika-init", version = "0.68.2" }
+nika-tui = { path = "nika-tui", version = "0.68.2" }
+nika-event = { path = "nika-event", version = "0.68.2" }
+nika-mcp = { path = "nika-mcp", version = "0.68.2" }
+nika-media = { path = "nika-media", version = "0.68.2" }
+nika-daemon = { path = "nika-daemon", version = "0.68.2" }
+nika-storage = { path = "nika-storage", version = "0.68.2" }
+nika-serve = { path = "nika-serve", version = "0.68.2" }
+nika-lsp-core = { path = "nika-lsp-core", version = "0.68.2" }
+nika-sdk = { path = "nika-sdk", version = "0.68.2" }
+nika-vault = { path = "nika-vault", version = "0.68.2" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
