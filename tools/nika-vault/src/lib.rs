@@ -273,6 +273,31 @@ struct VaultPayload {
     secrets: BTreeMap<String, VaultEntry>,
 }
 
+impl Drop for VaultPayload {
+    fn drop(&mut self) {
+        // Zeroize secret values on drop to minimize plaintext exposure in memory.
+        // BTreeMap itself can't be zeroized, but we clear the entries.
+        for entry in self.secrets.values_mut() {
+            match entry {
+                VaultEntry::Key(ref mut s) => zeroize::Zeroize::zeroize(s),
+                VaultEntry::Credential {
+                    ref mut fields,
+                    ref mut service_url,
+                    ..
+                } => {
+                    for v in fields.values_mut() {
+                        zeroize::Zeroize::zeroize(v);
+                    }
+                    if let Some(ref mut url) = service_url {
+                        zeroize::Zeroize::zeroize(url);
+                    }
+                }
+            }
+        }
+        self.secrets.clear();
+    }
+}
+
 /// Encrypted local file store for API secrets.
 pub struct NikaVault {
     vault_path: PathBuf,
@@ -516,7 +541,7 @@ impl NikaVault {
         }
         let ciphertext = std::fs::read(&self.vault_path)?;
         let key = self.derive_key()?;
-        let plaintext = aead::open(&key, &ciphertext).map_err(|e| {
+        let mut plaintext = aead::open(&key, &ciphertext).map_err(|e| {
             VaultError::Crypto(format!(
                 "decrypt failed: {e}. \
                  The vault was created with a different passphrase or machine. \
@@ -526,6 +551,8 @@ impl NikaVault {
             ))
         })?;
         let payload: VaultPayload = serde_json::from_slice(&plaintext)?;
+        // Zeroize decrypted bytes immediately after deserialization
+        zeroize::Zeroize::zeroize(&mut plaintext);
         Ok(Some(payload))
     }
 
