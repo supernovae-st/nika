@@ -1,6 +1,6 @@
 //! Header renderer — workflow info box + static DAG.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap as HashMap;
 
 use colored::Colorize;
 

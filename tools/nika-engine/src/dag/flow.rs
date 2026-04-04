@@ -32,12 +32,11 @@ use crate::util::intern;
 pub fn compute_layers<'a>(
     nodes: &[&'a str],
     edges: &[(&'a str, &'a str)],
-) -> std::collections::HashMap<&'a str, usize> {
+) -> FxHashMap<&'a str, usize> {
     // Build adjacency list and in-degree map
-    let mut in_degree: std::collections::HashMap<&'a str, usize> =
+    let mut in_degree: FxHashMap<&'a str, usize> =
         nodes.iter().map(|&n| (n, 0)).collect();
-    let mut successors: std::collections::HashMap<&'a str, Vec<&'a str>> =
-        std::collections::HashMap::new();
+    let mut successors: FxHashMap<&'a str, Vec<&'a str>> = FxHashMap::default();
 
     for &(from, to) in edges {
         if in_degree.contains_key(from) && in_degree.contains_key(to) {
@@ -47,9 +46,9 @@ pub fn compute_layers<'a>(
     }
 
     // BFS from roots (in-degree 0)
-    let mut depths: std::collections::HashMap<&'a str, usize> =
+    let mut depths: FxHashMap<&'a str, usize> =
         nodes.iter().map(|&n| (n, 0)).collect();
-    let mut queue: std::collections::VecDeque<&'a str> = in_degree
+    let mut queue: VecDeque<&'a str> = in_degree
         .iter()
         .filter(|(_, &deg)| deg == 0)
         .map(|(&n, _)| n)
@@ -63,10 +62,11 @@ pub fn compute_layers<'a>(
                 if new_depth > depths[succ] {
                     depths.insert(succ, new_depth);
                 }
-                let deg = in_degree.get_mut(succ).unwrap();
-                *deg = deg.saturating_sub(1);
-                if *deg == 0 {
-                    queue.push_back(succ);
+                if let Some(deg) = in_degree.get_mut(succ) {
+                    *deg = deg.saturating_sub(1);
+                    if *deg == 0 {
+                        queue.push_back(succ);
+                    }
                 }
             }
         }
@@ -76,7 +76,7 @@ pub fn compute_layers<'a>(
 }
 
 /// Get the number of layers from a depth map.
-pub fn layer_count(depths: &std::collections::HashMap<&str, usize>) -> usize {
+pub fn layer_count(depths: &FxHashMap<&str, usize>) -> usize {
     depths.values().max().copied().unwrap_or(0) + 1
 }
 

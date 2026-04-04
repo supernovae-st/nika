@@ -572,10 +572,10 @@ fn normalize_first_token_basename(cmd: &str) -> String {
     cmd.to_string()
 }
 
-/// Blocked environment variable names (library injection / privilege escalation).
+/// Blocked environment variable names (library injection / privilege escalation / path hijack).
 ///
 /// These variables allow injecting arbitrary shared libraries into child
-/// processes and must never be set from workflow YAML.
+/// processes or hijacking command resolution, and must never be set from workflow YAML.
 const BLOCKED_ENV_VARS: &[&str] = &[
     "LD_PRELOAD",
     "LD_LIBRARY_PATH",
@@ -584,6 +584,7 @@ const BLOCKED_ENV_VARS: &[&str] = &[
     "DYLD_FRAMEWORK_PATH",
     "LD_AUDIT",
     "LD_PROFILE",
+    "PATH",
 ];
 
 /// Validate environment variables for dangerous names.

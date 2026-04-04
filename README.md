@@ -118,7 +118,7 @@ flowchart LR
     INFER[infer]:::verb --> LLM["7 Cloud + Local"]:::target
     EXEC[exec]:::verb --> SHELL[Shell]:::target
     FETCH[fetch]:::verb --> HTTP["HTTP + 9 Extract Modes"]:::target
-    INVOKE[invoke]:::verb --> TOOLS["45+ Tools + MCP"]:::target
+    INVOKE[invoke]:::verb --> TOOLS["61 Tools + MCP"]:::target
     AGENT[agent]:::verb --> LOOP["Agentic Loop + Guardrails"]:::target
 ```
 
@@ -302,7 +302,7 @@ tasks:
   infer: "Translate to {{with.locale}}: {{with.text}}"
 ```
 
-### 45+ Builtin Tools
+### 61 Builtin Tools
 
 All accessible via `invoke: nika:*` -- no external dependencies.
 
@@ -490,7 +490,7 @@ flowchart TD
     subgraph Backends
         PROV["7 Cloud + Local + Mock"]:::backend
         MCPS["MCP Servers"]:::backend
-        BUILT["45+ Builtin Tools"]:::backend
+        BUILT["61 Builtin Tools"]:::backend
         CAS["CAS Media Store"]:::backend
     end
 
@@ -631,7 +631,7 @@ Read the [Manifesto](MANIFESTO.md) to understand why.
 
 <div align="center">
 
-**Nika v0.65.1** · Schema `nika/workflow@0.12` · Rust 1.86+ · 17 crates · 9,930+ tests
+**Nika v0.68.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 18 crates · 9,800+ tests
 
 [SuperNovae Studio](https://supernovae.studio) · [QR Code AI](https://qrcode-ai.com) · [GitHub](https://github.com/supernovae-st/nika)
 
