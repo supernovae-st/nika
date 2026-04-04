@@ -34,7 +34,7 @@ use serde_json::Value;
 use smallvec::SmallVec;
 use std::num::NonZeroUsize;
 use std::fmt;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 /// A single transform operation
 #[derive(Debug, Clone, PartialEq)]
@@ -1049,57 +1049,43 @@ impl TransformOp {
 
             // ── jq expression ──────────────────────────────────────
             TransformOp::Jq(expr) => {
-                let filter = compile_jq(expr).map_err(|e| TransformError::TypeMismatch {
+                eval_jq(expr, value).map_err(|e| TransformError::TypeMismatch {
                     op: "jq",
                     expected: "valid jq expression",
                     got: e,
-                })?;
-
-                use jaq_interpret::FilterT as _;
-                let inputs = jaq_interpret::RcIter::new(core::iter::empty());
-                let jaq_val = jaq_interpret::Val::from(value.clone());
-                let mut results: Vec<Value> = Vec::new();
-                for r in filter.run((jaq_interpret::Ctx::new([], &inputs), jaq_val)) {
-                    match r {
-                        Ok(val) => results.push(Value::from(val)),
-                        Err(e) => {
-                            return Err(TransformError::TypeMismatch {
-                                op: "jq",
-                                expected: "successful evaluation",
-                                got: format!("runtime error: {e}"),
-                            });
-                        }
-                    }
-                }
-                // Single result → return directly; multiple → return array
-                match results.len() {
-                    0 => Ok(Value::Null),
-                    1 => Ok(results.into_iter().next().unwrap()),
-                    _ => Ok(Value::Array(results)),
-                }
+                })
             }
         }
     }
 }
+
+/// Type alias for the compiled jq filter (jaq 3.x).
+type JaqFilter = jaq_core::Filter<jaq_core::data::JustLut<jaq_json::Val>>;
 
 /// Evaluate a jq expression against a JSON value.
 ///
 /// Used by `| jq()` transform AND `nika:jq` builtin tool.
 /// Returns single value for one result, array for multiple, null for empty.
 pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
-    use jaq_interpret::FilterT as _;
     let filter = compile_jq(expr)?;
-    let inputs = jaq_interpret::RcIter::new(core::iter::empty());
-    let jaq_val = jaq_interpret::Val::from(data.clone());
 
-    // jaq-core 1.5.x can panic on regex test() with null/non-string input.
+    let jaq_val: jaq_json::Val =
+        serde_json::from_value(data.clone()).map_err(|e| format!("jq input error: {e}"))?;
+
     // Wrap in catch_unwind to convert panics into clean errors.
     let run_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let ctx: jaq_core::Ctx<jaq_core::data::JustLut<jaq_json::Val>> =
+            jaq_core::Ctx::new(&filter.lut, jaq_core::Vars::new([]));
         let mut results: Vec<Value> = Vec::new();
-        for r in filter.run((jaq_interpret::Ctx::new([], &inputs), jaq_val)) {
+        for r in filter.id.run((ctx, jaq_val)) {
             match r {
-                Ok(val) => results.push(Value::from(val)),
-                Err(e) => return Err(format!("jq runtime error: {e}")),
+                Ok(val) => {
+                    let json_str = format!("{val}");
+                    let serde_val: Value = serde_json::from_str(&json_str)
+                        .unwrap_or(Value::String(json_str));
+                    results.push(serde_val);
+                }
+                Err(e) => return Err(format!("jq runtime error: {e:?}")),
             }
         }
         Ok(results)
@@ -1119,53 +1105,71 @@ pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
 }
 
 /// Global LRU cache for compiled jq filters.
-/// `jaq_interpret::Filter` is `Clone`, so we can cache and clone on hit.
+/// `Filter` is not Clone in jaq 3.x, so we wrap in Arc.
 /// 64 entries covers realistic workflow diversity (most workflows use <10 distinct expressions).
-static JQ_FILTER_CACHE: LazyLock<Mutex<lru::LruCache<String, jaq_interpret::Filter>>> =
+static JQ_FILTER_CACHE: LazyLock<Mutex<lru::LruCache<String, Arc<JaqFilter>>>> =
     LazyLock::new(|| {
         Mutex::new(lru::LruCache::new(
-            std::num::NonZeroUsize::new(64).unwrap(),
+            NonZeroUsize::new(64).unwrap(),
         ))
     });
 
-/// Compile a jq expression using jaq-interpret + jaq-parse.
+/// Compile a jq expression using jaq-core 3.x.
 /// Results are cached in a global LRU — for_each loops with the same expression
 /// compile once instead of N times.
-fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
+fn compile_jq(expr: &str) -> Result<Arc<JaqFilter>, String> {
     // Fast path: check cache
     {
         let mut cache = JQ_FILTER_CACHE.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(filter) = cache.get(expr) {
-            return Ok(filter.clone());
+            return Ok(Arc::clone(filter));
         }
     }
 
-    // Slow path: parse + compile + cache
-    let (main, errs) = jaq_parse::parse(expr, jaq_parse::main());
-    if !errs.is_empty() {
-        return Err(format!(
+    // Slow path: parse + compile
+    let defs = jaq_core::defs()
+        .chain(jaq_std::defs())
+        .chain(jaq_json::defs());
+    let funs = jaq_core::funs()
+        .chain(jaq_std::funs())
+        .chain(jaq_json::funs());
+
+    let loader = jaq_core::load::Loader::new(defs);
+    let arena = jaq_core::load::Arena::default();
+    let program = jaq_core::load::File {
+        code: expr,
+        path: (),
+    };
+
+    let modules = loader.load(&arena, program).map_err(|errs| {
+        format!(
             "parse error: {}",
             errs.into_iter()
-                .map(|e| format!("{e}"))
+                .map(|e| format!("{e:?}"))
                 .collect::<Vec<_>>()
                 .join(", ")
-        ));
-    }
-    let main = main.ok_or_else(|| "empty jq expression".to_string())?;
+        )
+    })?;
 
-    // Load full jq stdlib: length, keys, group_by, sort_by, map, select, etc.
-    let mut ctx = jaq_interpret::ParseCtx::new(Vec::new());
-    ctx.insert_natives(jaq_core::core());
-    ctx.insert_defs(jaq_std::std());
-    let filter = ctx.compile(main);
-    if !ctx.errs.is_empty() {
-        return Err(format!("compile error ({} issues)", ctx.errs.len()));
-    }
+    let filter = jaq_core::Compiler::default()
+        .with_funs(funs)
+        .compile(modules)
+        .map_err(|errs| {
+            format!(
+                "compile error: {}",
+                errs.into_iter()
+                    .map(|e| format!("{e:?}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?;
+
+    let filter = Arc::new(filter);
 
     // Store in cache
     {
         let mut cache = JQ_FILTER_CACHE.lock().unwrap_or_else(|e| e.into_inner());
-        cache.put(expr.to_string(), filter.clone());
+        cache.put(expr.to_string(), Arc::clone(&filter));
     }
 
     Ok(filter)
@@ -4025,6 +4029,14 @@ mod tests {
             TransformOp::Jq(".name".to_string()).to_string(),
             "jq('.name')"
         );
+    }
+
+    #[test]
+    fn jq_regex_on_null_no_panic() {
+        // jaq 1.5.x panicked on test("x") with null input.
+        // jaq 3.x should return an error, not panic.
+        let result = eval_jq("test(\"foo\")", &Value::Null);
+        assert!(result.is_err(), "regex test() on null should error, not panic");
     }
 }
 

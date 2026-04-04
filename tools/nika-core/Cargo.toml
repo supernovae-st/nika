@@ -26,10 +26,9 @@ chrono = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
 base64 = { workspace = true }
-jaq-interpret = { workspace = true }
-jaq-parse = { workspace = true }
 jaq-core = { workspace = true }
 jaq-std = { workspace = true }
+jaq-json = { workspace = true }
 lru = { workspace = true }
 
 [dev-dependencies]
