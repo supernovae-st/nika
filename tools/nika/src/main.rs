@@ -206,7 +206,7 @@ enum Commands {
         #[arg(short, long)]
         model: Option<String>,
 
-        /// Override workflow input: -i key=value (repeatable)
+        /// Override workflow input (repeatable): -i url=https://example.com -i lang=en
         #[arg(short = 'i', long = "input", value_name = "KEY=VALUE")]
         inputs: Vec<String>,
 
@@ -4162,11 +4162,21 @@ fn parse_input_value(s: &str) -> serde_json::Value {
 fn parse_cli_inputs(raw: &[String]) -> Result<Vec<(String, serde_json::Value)>, NikaError> {
     let mut result = Vec::new();
     for item in raw {
-        let (key, value) = item
-            .split_once('=')
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: format!("Invalid input format '{}', expected KEY=VALUE", item),
-            })?;
+        let (key, value) = item.split_once('=').ok_or_else(|| {
+            // Detect common mistake: passing a bare value without a key
+            let hint = if item.starts_with("http") {
+                format!(
+                    "Got '{item}' but -i expects KEY=VALUE format.\n\n  Example: nika run workflow.nika.yaml -i url={item}\n\n  Multiple inputs: -i url={item} -i lang=en\n  From file:       --input-file inputs.json",
+                    item = item
+                )
+            } else {
+                format!(
+                    "Got '{item}' but -i expects KEY=VALUE format.\n\n  Example: nika run workflow.nika.yaml -i name={item}\n\n  Check your workflow's `inputs:` block for the expected key names.",
+                    item = item
+                )
+            };
+            NikaError::ValidationError { reason: hint }
+        })?;
         result.push((key.to_string(), parse_input_value(value)));
     }
     Ok(result)
