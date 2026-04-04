@@ -373,6 +373,101 @@ mod tests {
         assert_eq!(opts.resume_from.as_deref(), Some("prev-job-123"));
     }
 
+    /// Cross-crate wire format test: verifies that ALL ServeEvent variants
+    /// from nika-serve deserialize correctly into sdk::Event.
+    ///
+    /// This catches drift between the two enums — if nika-serve adds a field
+    /// or changes a serde rename, this test fails.
+    #[test]
+    fn serve_event_wire_format_all_variants() {
+        // These JSON payloads match exactly what ServeEvent serialization produces
+        let wire_payloads = [
+            (
+                r#"{"type":"started","job_id":"j1"}"#,
+                Event::Started {
+                    job_id: "j1".into(),
+                },
+            ),
+            (
+                r#"{"type":"task_start","job_id":"j1","task_id":"step1","verb":"infer"}"#,
+                Event::TaskStart {
+                    job_id: "j1".into(),
+                    task_id: "step1".into(),
+                    verb: "infer".into(),
+                },
+            ),
+            (
+                r#"{"type":"task_complete","job_id":"j1","task_id":"step1","duration_ms":1500}"#,
+                Event::TaskComplete {
+                    job_id: "j1".into(),
+                    task_id: "step1".into(),
+                    duration_ms: 1500,
+                },
+            ),
+            (
+                r#"{"type":"task_failed","job_id":"j1","task_id":"step2","error":"NIKA-053 blocked","duration_ms":10}"#,
+                Event::TaskFailed {
+                    job_id: "j1".into(),
+                    task_id: "step2".into(),
+                    error: "NIKA-053 blocked".into(),
+                    duration_ms: 10,
+                },
+            ),
+            (
+                r#"{"type":"artifact_written","job_id":"j1","task_id":"report","path":"output/report.md","size":8192}"#,
+                Event::ArtifactWritten {
+                    job_id: "j1".into(),
+                    task_id: "report".into(),
+                    path: "output/report.md".into(),
+                    size: 8192,
+                },
+            ),
+            (
+                r#"{"type":"completed","job_id":"j1","output":"final result"}"#,
+                Event::Completed {
+                    job_id: "j1".into(),
+                    output: Some("final result".into()),
+                },
+            ),
+            (
+                r#"{"type":"completed","job_id":"j1","output":null}"#,
+                Event::Completed {
+                    job_id: "j1".into(),
+                    output: None,
+                },
+            ),
+            (
+                r#"{"type":"failed","job_id":"j1","error":"NIKA-020 DAG cycle"}"#,
+                Event::Failed {
+                    job_id: "j1".into(),
+                    error: Some("NIKA-020 DAG cycle".into()),
+                },
+            ),
+            (
+                r#"{"type":"failed","job_id":"j1","error":null}"#,
+                Event::Failed {
+                    job_id: "j1".into(),
+                    error: None,
+                },
+            ),
+            (
+                r#"{"type":"cancelled","job_id":"j1"}"#,
+                Event::Cancelled {
+                    job_id: "j1".into(),
+                },
+            ),
+        ];
+
+        for (i, (wire, expected)) in wire_payloads.iter().enumerate() {
+            let parsed: Event = serde_json::from_str(wire)
+                .unwrap_or_else(|e| panic!("variant {i} failed to parse: {e}\nJSON: {wire}"));
+            assert_eq!(
+                &parsed, expected,
+                "variant {i} deserialized incorrectly from wire format"
+            );
+        }
+    }
+
     #[test]
     fn run_request_serializes_without_nones() {
         let req = RunRequest {
