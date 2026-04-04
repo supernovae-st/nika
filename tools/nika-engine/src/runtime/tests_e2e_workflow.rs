@@ -184,7 +184,7 @@ tasks:
     with:
       msg: $produce
     exec:
-      command: "echo GOT_{{with.msg}}"
+      command: "echo GOT_{{with.msg | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "consume").await;
@@ -204,7 +204,7 @@ tasks:
     with:
       val: $source.nonexistent_field ?? "fallback_value"
     exec:
-      command: "echo {{with.val}}"
+      command: "echo {{with.val | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "check").await;
@@ -221,7 +221,7 @@ inputs:
 tasks:
   - id: say_hi
     exec:
-      command: "echo {{inputs.greeting}}"
+      command: "echo {{inputs.greeting | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "say_hi").await;
@@ -244,7 +244,7 @@ tasks:
       x: $a
       y: $b
     exec:
-      command: "echo {{with.x}}_{{with.y}}"
+      command: "echo {{with.x | shell}}_{{with.y | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "merge").await;
@@ -267,14 +267,14 @@ tasks:
     with:
       data: $step1
     exec:
-      command: "echo step2_{{with.data}}"
+      command: "echo step2_{{with.data | shell}}"
       shell: true
   - id: step3
     depends_on: [step2]
     with:
       data: $step2
     exec:
-      command: "echo step3_{{with.data}}"
+      command: "echo step3_{{with.data | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "step3").await;
@@ -349,7 +349,7 @@ inputs:
 tasks:
   - id: templated
     exec:
-      command: "echo name_is_{{inputs.name}}"
+      command: "echo name_is_{{inputs.name | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "templated").await;
@@ -582,7 +582,7 @@ tasks:
     with:
       val: $source | trim | upper
     exec:
-      command: "echo RESULT_{{with.val}}"
+      command: "echo RESULT_{{with.val | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "transformed").await;
@@ -611,7 +611,7 @@ tasks:
     with:
       n: $src | length
     exec:
-      command: "echo COUNT_{{with.n}}"
+      command: "echo COUNT_{{with.n | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "count").await;
@@ -636,7 +636,7 @@ tasks:
       f: $arr | first
       l: $arr | last
     exec:
-      command: "echo FIRST_{{with.f}}_LAST_{{with.l}}"
+      command: "echo FIRST_{{with.f | shell}}_LAST_{{with.l | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "pick").await;
@@ -659,7 +659,7 @@ tasks:
     with:
       j: $raw | to_json
     exec:
-      command: "echo JSON_{{with.j}}"
+      command: "echo JSON_{{with.j | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "jsonified").await;
@@ -679,7 +679,7 @@ tasks:
     with:
       val: $src.does_not_exist ?? "none_value"
     exec:
-      command: "echo DEFAULT_{{with.val}}"
+      command: "echo DEFAULT_{{with.val | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "guarded").await;
@@ -784,7 +784,7 @@ inputs:
 tasks:
   - id: unicode
     exec:
-      command: "echo Hello_{{inputs.name}}_{{inputs.emoji}}"
+      command: "echo Hello_{{inputs.name | shell}}_{{inputs.emoji | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "unicode").await;
@@ -1360,7 +1360,7 @@ tasks:
     with:
       parts: $source | trim | split(",")
     exec:
-      command: "echo {{with.parts | join(\" + \")}}"
+      command: "echo {{with.parts | join(\" + \") | shell}}"
       shell: true
 "#;
     let output = run_and_get(yaml, "transform").await;
@@ -1683,7 +1683,7 @@ tasks:
     with:
       names: $data | pluck("name")
     exec:
-      command: "echo {{with.names}}"
+      command: "echo {{with.names | shell}}"
       shell: true
 "#,
         "result",
@@ -1719,7 +1719,7 @@ tasks:
     with:
       active: $data | where("status", "active") | length
     exec:
-      command: "echo {{with.active}}"
+      command: "echo {{with.active | shell}}"
       shell: true
 "#,
         "result",
@@ -1750,7 +1750,7 @@ tasks:
     with:
       picked: $data | pick("name", "age") | to_json
     exec:
-      command: "echo {{with.picked}}"
+      command: "echo {{with.picked | shell}}"
       shell: true
 "#,
         "result",
@@ -1783,7 +1783,7 @@ tasks:
     with:
       sorted: $data | sort_by("age") | pluck("name") | join(", ")
     exec:
-      command: "echo {{with.sorted}}"
+      command: "echo {{with.sorted | shell}}"
       shell: true
 "#,
         "result",
@@ -1814,7 +1814,7 @@ tasks:
     with:
       groups: $data | group_by("locale") | keys | sort | join(", ")
     exec:
-      command: "echo {{with.groups}}"
+      command: "echo {{with.groups | shell}}"
       shell: true
 "#,
         "result",
@@ -1845,7 +1845,7 @@ tasks:
     with:
       merged: $data | merge | keys | sort | join(", ")
     exec:
-      command: "echo {{with.merged}}"
+      command: "echo {{with.merged | shell}}"
       shell: true
 "#,
         "result",
@@ -1875,7 +1875,7 @@ tasks:
     with:
       roundtrip: $data | trim | base64_encode | base64_decode
     exec:
-      command: "echo {{with.roundtrip}}"
+      command: "echo {{with.roundtrip | shell}}"
       shell: true
 "#,
         "result",
@@ -1906,7 +1906,7 @@ tasks:
     with:
       names: $data | where("status", "active") | sort_by("age") | pluck("name") | join(", ")
     exec:
-      command: "echo {{with.names}}"
+      command: "echo {{with.names | shell}}"
       shell: true
 "#,
         "result",

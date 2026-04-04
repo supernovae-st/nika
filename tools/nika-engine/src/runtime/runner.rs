@@ -6251,7 +6251,7 @@ mod tests {
             "nested_items",
             r#"[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]"#,
             "person",
-            "echo {{with.person}}",
+            "echo {{with.person | shell}}",
             None,
             true,
             true,
@@ -6287,7 +6287,7 @@ mod tests {
             "continue_on_fail",
             r#"["ok1", "FAIL", "ok2"]"#,
             "item",
-            "test '{{with.item}}' != 'FAIL' && echo {{with.item}}",
+            "test '{{with.item}}' != 'FAIL' && echo {{with.item | shell}}",
             Some(1),
             false, // fail_fast = false
             true,  // shell = true (command uses shell operators)
@@ -7080,7 +7080,7 @@ mod tests {
             // Non-failing items sleep briefly so cancellation propagates before they complete.
             // Without the sleep, items 2-5 can finish instantly after acquiring the permit
             // released by the failing item, racing the CancellationToken.
-            "if [ '{{with.item}}' = 'FAIL' ]; then exit 1; else sleep 0.05 && echo {{with.item}}; fi",
+            "if [ '{{with.item}}' = 'FAIL' ]; then exit 1; else sleep 0.05 && echo {{with.item | shell}}; fi",
             Some(2), // concurrency = 2
             true,    // fail_fast = true
             true,    // shell = true
@@ -7183,7 +7183,7 @@ mod tests {
             name: "failing_parent".to_string(),
             description: None,
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
-                command: "test '{{with.item}}' != 'FAIL' && echo {{with.item}}".to_string(),
+                command: "test '{{with.item}}' != 'FAIL' && echo {{with.item | shell}}".to_string(),
                 shell: true,
                 cwd: None,
                 env: IndexMap::new(),
@@ -7225,7 +7225,7 @@ mod tests {
             name: "passing_parent".to_string(),
             description: None,
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
-                command: "echo {{with.item}}".to_string(),
+                command: "echo {{with.item | shell}}".to_string(),
                 shell: true,
                 cwd: None,
                 env: IndexMap::new(),

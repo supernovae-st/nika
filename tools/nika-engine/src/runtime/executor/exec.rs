@@ -43,30 +43,35 @@ impl TaskExecutor {
             Some(&params.command),
         )?;
 
-        // SECURITY WARNING: detect unescaped template bindings in shell: true commands.
-        // Emits a warning for each {{with.*}} or {{inputs.*}} that lacks |shell transform,
-        // since the resolved value could contain shell metacharacters.
-        // Suppressed when the binding is inside single quotes (e.g. jq --arg x '{{inputs.url}}')
-        // because single-quoted strings are not interpreted by the shell.
+        // SEC-2: BLOCK unescaped template bindings in shell: true commands.
+        // Any {{with.*}} or {{inputs.*}} without |shell transform is a shell injection
+        // vector — the resolved value could contain metacharacters like ; && || etc.
+        // Exempted: bindings inside single quotes (shell doesn't interpret those).
         if is_shell {
             use std::sync::LazyLock;
             static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
                 regex::Regex::new(r"\{\{(with|inputs|context)\.[^}]+\}\}").expect("valid regex")
             });
+            let mut unsafe_bindings = Vec::new();
             for cap in BINDING_RE.find_iter(&params.command) {
                 let m = cap.as_str();
                 if !m.contains("| shell") && !m.contains("|shell") {
-                    // Skip warning if binding is inside single quotes
                     if is_inside_single_quotes(&params.command, cap.start()) {
                         continue;
                     }
-                    tracing::warn!(
-                        task_id = %task_id,
-                        binding = %m,
-                        "shell: true command contains unescaped template binding — \
-                         consider using {{{{...|shell}}}} to prevent injection"
-                    );
+                    unsafe_bindings.push(m.to_string());
                 }
+            }
+            if !unsafe_bindings.is_empty() {
+                return Err(NikaError::BlockedCommand {
+                    command: crate::util::redact_secrets(&params.command),
+                    reason: format!(
+                        "shell: true with unescaped binding(s): {}. \
+                         Use | shell transform (e.g. {{{{with.val | shell}}}}) \
+                         or single-quote the binding",
+                        unsafe_bindings.join(", ")
+                    ),
+                });
             }
         }
 
