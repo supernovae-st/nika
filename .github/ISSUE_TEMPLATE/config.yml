@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: mailto:security@supernovae.studio
+    about: "Do NOT report security issues publicly. Email security@supernovae.studio instead."
+  - name: Documentation
+    url: https://docs.supernovae.studio
+    about: "Check the docs before filing an issue -- your answer might already be there."

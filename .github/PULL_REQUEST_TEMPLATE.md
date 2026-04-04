@@ -1,59 +1,51 @@
-# Pull Request
-
 ## Summary
 
-<!-- Brief description of what this PR does -->
+<!-- What does this PR do and why? One paragraph is enough. -->
 
 ## Related Issue
 
-<!-- Fixes #(issue number) -->
+<!-- Link the issue: "Fixes #123" or "Relates to #456" -->
 
 ## Type of Change
 
-- [ ] 🐛 Bug fix (non-breaking change fixing an issue)
-- [ ] ✨ New feature (non-breaking change adding functionality)
-- [ ] 💥 Breaking change (fix or feature causing existing functionality to change)
-- [ ] 📚 Documentation update
-- [ ] 🔧 Refactoring (no functional changes)
-- [ ] 🧪 Test improvements
+- [ ] Bug fix (non-breaking change fixing an issue)
+- [ ] New feature (non-breaking change adding functionality)
+- [ ] Breaking change (fix or feature causing existing functionality to change)
+- [ ] Documentation update
+- [ ] Refactoring (no functional changes)
+- [ ] Test improvements
+- [ ] CI / tooling
 
-## Changes Made
+## Changes
 
-- Change 1
-- Change 2
+<!-- Bullet list of what changed. Be specific. -->
 
-## Quality Gates Checklist
+-
+-
 
-### Required (FORTRESS enforced)
+## Testing
 
-- [ ] `cargo fmt --check` passes
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] `cargo test` passes (all 2,793+ tests)
-- [ ] Version remains 0.x.x (see [Version Lock Policy](../docs/plans/2025-02-25-nika-fortress-design.md))
+<!-- How did you verify this works? -->
 
-### Code Quality
+- [ ] Added/updated unit tests
+- [ ] Ran `cargo test --workspace --lib` (all pass)
+- [ ] Tested manually with a workflow (describe below if relevant)
 
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have added tests that prove my fix/feature works
-- [ ] New and existing tests pass locally with my changes
-- [ ] My changes generate no new warnings
+## Checklist
+
+- [ ] `cargo fmt --all --check` passes
+- [ ] `cargo clippy --workspace -- -D warnings` passes
+- [ ] `cargo test --workspace --lib` passes
+- [ ] CHANGELOG.md updated (for user-facing changes)
+- [ ] Documentation updated (if behavior changed)
+- [ ] Commit messages follow `type(scope): description` convention
 - [ ] No new `unsafe` code without justification
+- [ ] Version remains 0.x.x
 
-### Documentation
+## Screenshots
 
-- [ ] I have updated the documentation accordingly
-- [ ] I have commented my code where necessary
-- [ ] CHANGELOG.md updated (if applicable)
+<!-- For TUI/UI changes, add before/after screenshots. Remove this section if not applicable. -->
 
-## Screenshots (if applicable)
+## Notes for Reviewers
 
-<!-- Add screenshots for TUI/UI changes -->
-
-## Additional Notes
-
-<!-- Any additional context for reviewers -->
-
----
-
-**⚠️ VERSION LOCK:** Nika follows the **0.x.x forever** policy. PRs bumping to 1.0.0+ will be automatically rejected by CI.
+<!-- Anything reviewers should pay special attention to? -->

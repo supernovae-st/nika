@@ -2,20 +2,20 @@
 
 ## Supported Versions
 
-| Version | Supported          | Security Audit |
-| ------- | ------------------ | -------------- |
-| 0.42.x  | :white_check_mark: | Current |
-| 0.41.x  | :white_check_mark: | - |
-| 0.40.x  | :white_check_mark: | - |
-| < 0.40  | :x:                | - |
+| Version | Supported |
+| ------- | --------- |
+| 0.63.x+ | Yes |
+| 0.55.x - 0.62.x | Security fixes only |
+| < 0.55 | No |
 
 ## Reporting a Vulnerability
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: **security@supernovae.studio**
+Instead, email: **security@supernovae.studio**
 
 Include:
+
 1. Description of the vulnerability
 2. Steps to reproduce
 3. Potential impact
@@ -32,38 +32,36 @@ Include:
 
 ## Security Measures
 
-Nika implements the following security measures:
-
 ### CI/CD Security
-- **cargo-audit**: Dependency vulnerability scanning (578 crates, 0 CVE)
-- **cargo-deny**: License and advisory checks (deny.toml configured)
-- **cargo-geiger**: Unsafe code inventory (weekly scans)
-- **CodeQL**: Semantic SAST analysis (weekly)
-- **Semgrep**: Pattern-based security scanning (weekly)
-- **CI**: 8 quality gates for all PRs (ci.yml)
+
+- **cargo-audit**: Dependency vulnerability scanning on every PR
+- **cargo-deny**: License and advisory checks (`deny.toml` configured)
+- **SAST**: CodeQL + Semgrep weekly scans
+- **CI**: Format, clippy, test, coverage, security audit on every PR
+
+### Runtime Security
+
+- **SSRF protection**: `fetch:` blocks private IP ranges by default
+- **Command blocklist**: `exec:` blocks dangerous commands (`rm -rf /`, `sudo`, fork bombs -- NIKA-053)
+- **Template injection**: `$()` and backticks blocked in shell templates
+- **Path traversal**: File tools validate against `../` attacks
+- **Secret redaction**: API keys never appear in logs, traces, or error messages
+- **NikaVault**: XChaCha20Poly1305 + Argon2i KDF for local secret storage (no OS keychain)
 
 ### Code Quality
-- **Zero unsafe blocks**: Nika contains 0 unsafe code
-- **Zero CVE**: All dependencies verified safe
-- **8,200+ tests**: Comprehensive test coverage
-- **Zero clippy warnings**: Strict linting enabled
 
-### Security Posture
-- **OWASP Top 10 (2021)**: 8/8 applicable checks passed
-- **CWE Coverage**: 6/6 applicable weaknesses mitigated
-- **SLSA Level**: 2 (signed provenance)
-- **Latest Audit**: v0.42.0 - Ongoing
+- **Zero unsafe blocks** in Nika source
+- **Zero CVE** in dependencies (cargo-audit enforced)
+- **9,000+ tests** across 17 crates
+- **Zero clippy warnings** (`-D warnings` enforced)
+- **SLSA Level 2**: Signed provenance on releases
 
 ## Version Lock Policy
 
-Nika will **NEVER** be version 1.0.0 or higher. This is by design:
-
-- Perpetual 0.x.x enables continuous evolution
-- SemVer 0.x allows breaking changes without drama
-- See: [FORTRESS Design](docs/plans/2025-02-25-nika-fortress-design.md)
+Nika will **NEVER** be version 1.0.0 or higher. Perpetual 0.x.x is by design.
 
 ## Hall of Fame
 
-We thank the following security researchers:
+We thank the following security researchers for responsibly disclosing vulnerabilities:
 
-_No reports yet - be the first!_
+_No reports yet -- be the first!_

@@ -1,153 +1,227 @@
 # Contributing to Nika
 
-Thank you for your interest in contributing to Nika! This document provides guidelines and workflows for contributing.
+Thank you for your interest in contributing to Nika! Whether you're filing a bug, proposing a feature, improving docs, or submitting code -- every contribution matters.
+
+Nika is an open-source project licensed under **AGPL-3.0-or-later**. By contributing, you agree that your contributions will be licensed under the same terms.
 
 ## Table of Contents
 
-- [Version Lock Policy](#version-lock-policy)
-- [CI Quality Gates](#ci-quality-gates)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
 - [Development Workflow](#development-workflow)
+- [Testing](#testing)
 - [Commit Convention](#commit-convention)
 - [Pull Request Process](#pull-request-process)
-- [Testing](#testing)
-- [Documentation](#documentation)
+- [Issue Guidelines](#issue-guidelines)
+- [Version Lock Policy](#version-lock-policy)
+- [Code of Conduct](#code-of-conduct)
 
-## Version Lock Policy
+## Getting Started
 
-```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  ⚓ CAPTAIN'S ORDERS: VERSION LOCK                                            ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║                                                                               ║
-║  Nika will NEVER be version 1.0.0 or higher.                                  ║
-║                                                                               ║
-║  Valid versions: 0.0.1 through 0.99.99                                        ║
-║                                                                               ║
-║  Why?                                                                         ║
-║  - Perpetual 0.x.x enables continuous evolution                               ║
-║  - SemVer 0.x allows breaking changes without drama                           ║
-║  - Follows Rust ecosystem norms (many crates stay 0.x forever)                ║
-║                                                                               ║
-║  PRs that bump the version to 1.0.0+ will be automatically rejected.          ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-```
+### Prerequisites
 
-See `.github/workflows/ci.yml` for details.
+- **Rust 1.86+** (via [rustup](https://rustup.rs/))
+- **Git 2.40+**
+- **cargo-nextest** (recommended test runner): `cargo install cargo-nextest`
 
-## CI Quality Gates
-
-Every contribution passes through 8 jobs in ci.yml:
-
-```
-check → test → test-features → coverage
-security → semver → validate → summary
-```
-
-| Job | What it checks |
-|-----|---------------|
-| `check` | cargo fmt + clippy + doc + version lock |
-| `test` | cargo nextest --lib on ubuntu + macos |
-| `test-features` | no-default-features + all-features compatibility |
-| `coverage` | cargo-llvm-cov nextest → Codecov |
-| `security` | cargo audit + cargo deny + cargo machete |
-| `semver` | Breaking change detection |
-| `validate` | nika check on all examples |
-| `summary` | PR comment with all results |
-
-### Running Locally
+### Setup
 
 ```bash
-# Quick check (minimum before push)
-cd tools/nika
-cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo nextest run --workspace --lib
+# Clone the repository
+git clone https://github.com/supernovae-st/nika.git
+cd nika
 
-# Full local check
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
+# Build from the workspace root
+cd tools/nika
+cargo build
+
+# Run tests (IMPORTANT: always use --lib to avoid macOS Keychain popups)
+cargo test --workspace --lib
+
+# Or with nextest (parallel, faster)
 cargo nextest run --workspace --lib
-cargo test --workspace --doc
-cargo audit && cargo deny check
+
+# Run the binary
+cargo run -- --help
 ```
+
+### Quick Validation (run before every push)
+
+```bash
+cd tools/nika
+cargo fmt --all --check
+cargo clippy --workspace -- -D warnings
+cargo test --workspace --lib
+```
+
+## Project Structure
+
+Nika is a **17-crate Cargo workspace** under `tools/`:
+
+```
+tools/
+├── nika/           CLI binary (entry point)
+├── nika-engine/    Execution engine (largest crate)
+├── nika-core/      AST, types, catalogs (zero I/O)
+├── nika-tui/       Terminal UI (ratatui)
+├── nika-daemon/    Background daemon (secrets, jobs, cache)
+├── nika-init/      Project scaffolding + course
+├── nika-cli/       CLI subcommands
+├── nika-event/     EventLog, TraceWriter
+├── nika-mcp/       MCP client (rmcp)
+├── nika-media/     Content-addressable store, image processing
+├── nika-serve/     HTTP API server
+├── nika-storage/   SQLite persistence
+├── nika-sdk/       Rust SDK
+├── nika-napi/      Node.js bindings (N-API)
+├── nika-py/        Python bindings
+├── nika-lsp/       Language Server binary
+└── nika-lsp-core/  LSP intelligence
+```
+
+The workspace root is `tools/nika/Cargo.toml`. All `cargo` commands run from `tools/nika`.
 
 ## Development Workflow
 
-```
-WORKTREE → DEVELOP → COMMIT → PUSH → PR → CI → MERGE
-  │           │         │        │      │    │
-  │           │         │        │      │    └─ 8 jobs pass
-  │           │         │        │      └───── CodeRabbit + review
-  │           │         │        └──────────── Feature branch
-  │           │         └───────────────────── Conventional Commits
-  │           └─────────────────────────────── cargo nextest --lib
-  └─────────────────────────────────────────── git worktree add
-```
+### 1. Pick or Create an Issue
 
-### Step 1: Create Worktree (Recommended)
+Check [existing issues](https://github.com/supernovae-st/nika/issues) first. If your idea isn't there, open one to discuss before writing code.
+
+### 2. Create a Branch
 
 ```bash
-# Create a worktree for your feature
+# Feature branches from main
+git checkout -b feat/my-feature main
+
+# Or use worktrees for isolation (recommended for larger work)
 git worktree add ../.worktrees/nika-my-feature -b feat/my-feature
-
-# Work in isolation
-cd ../.worktrees/nika-my-feature
-```
-
-### Step 2: Develop
-
-```bash
-# Run tests (--lib avoids macOS Keychain popups)
-cargo nextest run --workspace --lib
-
-# Check lints
-cargo clippy --workspace -- -D warnings
-
-# Validate before commit
-cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo nextest run --workspace --lib
-```
-
-### Step 3: Commit (Conventional)
-
-```bash
-git add .
-git commit -m "feat(tui): add new widget"
-```
-
-### Step 4: Push & PR
-
-```bash
-git push -u origin feat/my-feature
-gh pr create --title "feat(tui): add new widget" --body "..."
-```
-
-### Step 5: Wait for CI
-
-- All 8 jobs must pass (ci.yml)
-- CodeRabbit + Claude AI review automatically
-- Human review required
-
-### Step 6: Merge
-
-- Squash merge to main
-- release-plz auto-creates Release PR
-- Merge Release PR -> auto-tag v0.x.x
-
-### Step 7: Cleanup
-
-```bash
-cd /path/to/nika
-git worktree remove ../.worktrees/nika-my-feature
+cd ../.worktrees/nika-my-feature/tools/nika
 ```
 
 ### Branch Naming
 
 ```
-feat/     -> New functionality
-fix/      -> Bug fixes
-docs/     -> Documentation only
-refactor/ -> Code refactoring
-test/     -> Test improvements
-chore/    -> Tooling, CI, dependencies
+feat/     New functionality
+fix/      Bug fixes
+docs/     Documentation only
+refactor/ Code refactoring
+test/     Test improvements
+chore/    Tooling, CI, dependencies
+perf/     Performance improvements
+```
+
+### 3. Develop
+
+```bash
+cd tools/nika
+
+# Run specific crate tests during development
+cargo test -p nika-engine --lib
+cargo test -p nika-core --lib
+
+# Check lints
+cargo clippy --workspace -- -D warnings
+
+# Format code
+cargo fmt --all
+```
+
+### 4. Validate Before Pushing
+
+All of these must pass:
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace -- -D warnings
+cargo test --workspace --lib
+```
+
+### 5. Push and Open a PR
+
+```bash
+git push -u origin feat/my-feature
+```
+
+Then open a Pull Request on GitHub. Fill out the PR template completely.
+
+### 6. CI + Review
+
+- CI runs automatically (format, clippy, tests across Ubuntu/macOS/Windows, coverage, security audit)
+- Automated code review runs
+- A maintainer will review your PR
+
+### 7. Merge
+
+- Squash merge to main
+- release-plz auto-creates Release PRs for versioned changes
+
+### Cleanup
+
+```bash
+# If you used a worktree
+git worktree remove ../.worktrees/nika-my-feature
+
+# Or just delete the branch
+git branch -d feat/my-feature
+```
+
+## Testing
+
+### Running Tests
+
+```bash
+cd tools/nika
+
+# All workspace tests (9,000+)
+cargo test --workspace --lib
+
+# Specific crate
+cargo test -p nika-engine --lib          # Engine (4,170+ tests)
+cargo test -p nika-tui --lib             # TUI (2,150+ tests)
+cargo test -p nika-daemon --lib          # Daemon (164 tests)
+cargo test -p nika-core --lib            # Core (AST, transforms)
+
+# With nextest (parallel, recommended)
+cargo nextest run --workspace --lib
+
+# Specific test pattern
+cargo test -p nika-engine --lib -- display
+```
+
+**IMPORTANT**: Always use `--lib`. Running `cargo test` without `--lib` triggers integration tests that may cause macOS Keychain popups.
+
+### Writing Tests
+
+- **Location**: In-module `#[cfg(test)]` blocks (unit tests) or `tests/` directories (integration)
+- **Snapshots**: We use the `insta` crate for snapshot testing
+- **Naming**: `test_<function>_<scenario>_<expected_outcome>`
+- **Philosophy**: Tests must validate behavior programmatically, not just check `!is_empty()`
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_workflow_valid_yaml_returns_workflow() {
+        // Arrange
+        let yaml = r#"
+            schema: "nika/workflow@0.12"
+            tasks:
+              - id: hello
+                infer: "Say hello"
+        "#;
+
+        // Act
+        let result = parse_workflow(yaml);
+
+        // Assert
+        assert!(result.is_ok());
+        let wf = result.unwrap();
+        assert_eq!(wf.tasks.len(), 1);
+        assert_eq!(wf.tasks[0].id, "hello");
+    }
+}
 ```
 
 ## Commit Convention
@@ -155,12 +229,12 @@ chore/    -> Tooling, CI, dependencies
 We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-type(scope): description
+type(scope): concise description
 
 [optional body]
 
 Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+Co-Authored-By: Nika <nika@supernovae.studio>
 ```
 
 ### Types
@@ -170,38 +244,44 @@ Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 | `feat` | New feature |
 | `fix` | Bug fix |
 | `docs` | Documentation |
-| `style` | Formatting (no code change) |
+| `style` | Formatting (no logic change) |
 | `refactor` | Code refactoring |
 | `test` | Adding/updating tests |
 | `chore` | Tooling, CI, dependencies |
 | `perf` | Performance improvement |
-| `ci` | CI/CD changes |
+
+### Scopes
+
+Common scopes: `engine`, `tui`, `ast`, `runtime`, `mcp`, `provider`, `dag`, `event`, `binding`, `media`, `cli`, `serve`, `daemon`, `core`, `lsp`
 
 ### Examples
 
-```bash
-feat(tui): add command palette widget
-fix(mcp): handle timeout in tool calls
-docs(readme): update installation guide
-refactor(runtime): simplify executor logic
-test(binding): add lazy resolution tests
-chore(ci): update rust version to 1.86
 ```
+feat(engine): add structured output repair with cheaper model
+fix(mcp): handle timeout in tool calls
+docs(readme): update installation section
+refactor(runtime): simplify executor dispatch
+test(binding): add lazy resolution edge cases
+chore(ci): update Rust toolchain to 1.86
+perf(media): SIMD-accelerate thumbnail generation
+```
+
+### One Fix = One Commit
+
+Each logical change gets its own commit. Don't batch unrelated fixes. Exception: tightly coupled changes (rename + usages, feature + tests, bugfix + regression test).
 
 ## Pull Request Process
 
-```
-1. Create feature branch from main
-2. Make changes with conventional commits
-3. Run quality gates locally
-4. Push and open PR
-5. Fill out PR template completely
-6. Wait for CI (all 8 jobs)
-7. Address review feedback
-8. Squash merge when approved
-```
+1. **Create a feature branch** from `main`
+2. **Make changes** with conventional commits
+3. **Run quality gates** locally (fmt, clippy, test)
+4. **Push** and open a PR
+5. **Fill out the PR template** completely
+6. **Wait for CI** -- all jobs must pass
+7. **Address review feedback**
+8. **Squash merge** when approved
 
-### PR Title Format
+### PR Title
 
 Follow the same convention as commits:
 
@@ -210,123 +290,82 @@ feat(tui): add streaming inference widget
 fix(runtime): prevent infinite recursion in spawn_agent
 ```
 
-### PR Checklist
+### What Makes a Good PR
 
-- [ ] Code follows project style guidelines
-- [ ] Tests added for new functionality
-- [ ] Documentation updated if needed
-- [ ] CHANGELOG.md updated for significant changes
-- [ ] All CI quality gates pass locally
+- **Small and focused**: One concern per PR
+- **Tests included**: New functionality has tests, bug fixes include a regression test
+- **Docs updated**: If you changed behavior, update relevant docs
+- **CHANGELOG entry**: For user-facing changes, add an entry to CHANGELOG.md
 
-## Testing
+## Issue Guidelines
 
-### Test Structure
+### Bug Reports
 
-- **Unit tests**: In-module `#[cfg(test)]` blocks
-- **Integration tests**: `tests/` directory
-- **Snapshot tests**: Using `insta` crate
+Use the [Bug Report template](https://github.com/supernovae-st/nika/issues/new?template=bug_report.yml). Include:
 
-### Writing Tests
+- Nika version (`nika --version`)
+- Your OS and provider
+- The workflow file (sanitized -- remove API keys)
+- Full error output
+- Steps to reproduce
 
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+### Feature Requests
 
-    #[test]
-    fn test_feature_behavior() {
-        // Arrange
-        let input = "test";
+Use the [Feature Request template](https://github.com/supernovae-st/nika/issues/new?template=feature_request.yml). Include:
 
-        // Act
-        let result = my_function(input);
+- The problem you're solving
+- Proposed workflow syntax (if applicable)
+- Alternatives you considered
 
-        // Assert
-        assert_eq!(result, expected);
-    }
-}
-```
+### Security Issues
 
-### Test Naming
+**Do NOT report security vulnerabilities through public GitHub issues.** Email **security@supernovae.studio** instead. See [SECURITY.md](.github/SECURITY.md).
+
+## Version Lock Policy
 
 ```
-test_<function>_<scenario>_<expected_outcome>
+Nika will NEVER be version 1.0.0 or higher.
+Valid versions: 0.0.1 through 0.99.99
 ```
 
-Examples:
-- `test_parse_workflow_valid_yaml_returns_workflow`
-- `test_execute_task_missing_binding_returns_error`
+This is by design:
 
-## Documentation
+- Perpetual 0.x.x enables continuous evolution
+- SemVer 0.x allows breaking changes without drama
+- Follows Rust ecosystem norms (many crates stay 0.x forever)
 
-### When to Update
+PRs that bump the version to 1.0.0+ will be automatically rejected by CI.
 
-- New features -> Update CLAUDE.md and README
-- API changes -> Update docstrings
-- Bug fixes -> Add test documenting the fix
-- Breaking changes -> Update CHANGELOG.md
+## Error Handling
 
-### Docstring Style
+Nika uses `NikaError` with `NIKA-XXX` codes, not `anyhow`. When adding error cases:
 
-```rust
-/// Brief one-line description.
-///
-/// More detailed explanation if needed.
-///
-/// # Arguments
-///
-/// * `param` - Description of the parameter
-///
-/// # Returns
-///
-/// Description of return value
-///
-/// # Errors
-///
-/// When and why this function returns an error
-///
-/// # Examples
-///
-/// ```rust
-/// let result = my_function("input");
-/// assert!(result.is_ok());
-/// ```
-pub fn my_function(param: &str) -> Result<Output, Error> {
-    // ...
-}
-```
+- Pick the right error code range (see `tools/nika/CLAUDE.md` for the full table)
+- Include a `FixSuggestion` when possible
+- Never expose internal paths or secrets in error messages
 
-## Getting Started
+## Code Style
 
-### Prerequisites
+- **Formatting**: `cargo fmt` (default rustfmt config)
+- **Linting**: Zero clippy warnings (`-D warnings`)
+- **Errors**: `NikaError` with NIKA-XXX codes
+- **AST pipeline**: Always Raw -> Analyzed -> Lower (never skip phases)
+- **Logging**: `tracing` macros
+- **Extensions**: `.nika.yaml` for workflows
+- **License header**: Not required in source files (AGPL covers the whole project)
 
-- Rust 1.86+ (rustup recommended)
-- Git 2.40+
-- cargo-nextest (for testing)
+See [CONVENTIONS.md](CONVENTIONS.md) for workflow authoring conventions.
 
-### Setup
+## Code of Conduct
 
-```bash
-# Clone the repository
-git clone https://github.com/supernovae-st/nika.git
-cd nika/tools/nika
-
-# Build
-cargo build
-
-# Run tests (--lib avoids macOS Keychain popups)
-cargo nextest run --workspace --lib
-
-# Run the TUI
-cargo run
-```
+Be kind, be constructive, be patient. We're building something meaningful here. Harassment, discrimination, and bad-faith behavior have no place in this project.
 
 ## Questions?
 
-- Open an issue for bugs or feature requests
-- Check existing issues before creating new ones
-- For security issues, see [SECURITY.md](.github/SECURITY.md)
+- **Bugs or features**: [Open an issue](https://github.com/supernovae-st/nika/issues)
+- **Security**: Email security@supernovae.studio
+- **General discussion**: [GitHub Discussions](https://github.com/supernovae-st/nika/discussions) (if enabled)
 
 ---
 
-**Thank you for contributing to Nika!** 🏴‍☠️
+Built with care by [SuperNovae Studio](https://supernovae.studio), Paris.

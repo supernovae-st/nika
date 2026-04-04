@@ -1,0 +1,75 @@
+name: Feature Request
+description: Suggest an improvement or new capability for Nika
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement! Please describe the problem you're solving and how you'd like Nika to handle it.
+
+        **Note:** Nika has exactly 5 verbs (infer, exec, fetch, invoke, agent). New capabilities are added as builtin tools via `invoke:`, not as new verbs.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: "What problem are you trying to solve? What's frustrating about the current behavior?"
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: "Describe the solution you'd like."
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example usage
+      description: "Show how this feature would look in a workflow."
+      render: yaml
+      placeholder: |
+        tasks:
+          - id: example
+            # Your proposed syntax here
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: "What other approaches have you considered? Is there a current workaround?"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: "Which part of Nika does this relate to?"
+      options:
+        - Workflow engine (verbs, DAG, bindings)
+        - Builtin tools (nika:*)
+        - CLI / UX
+        - TUI
+        - Providers / Models
+        - MCP integration
+        - nika serve (HTTP API)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to contribute this feature
+          required: false
