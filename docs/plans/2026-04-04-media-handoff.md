@@ -32,6 +32,28 @@ Fix HIGH first (import path validation), then the two MEDIUMs (pipeline step lim
 
 ---
 
+## Code Review Findings (rust-pro agent)
+
+| # | Sev | Finding | File:Line | Fix |
+|---|-----|---------|-----------|-----|
+| 1 | **MEDIUM** | `WorkingMemoryBudget` defined but never wired — concurrent for_each image decodes bypass 512MB OOM guard | `context.rs:28` | Call `ctx.working_memory.acquire()` before `decode_image_safe()` |
+| 2 | **MEDIUM** | `svg_render` silently clamps 99999→10000 instead of rejecting | `svg.rs:115-116` | Return error if value > 10000 (consistent with thumbnail) |
+| 3 | **MEDIUM** | `svg_render` division-by-zero on viewBox 0x0 SVG | `svg.rs:102-107` | Guard `svg_size.width() == 0.0` before ratio calc |
+| 4 | **MEDIUM** | `pdf_extract` spawns unbounded OS threads (no semaphore) | `pdf.rs:75-78` | Use rayon ComputePool or add Semaphore(4) |
+| 5 | LOW | import TOCTOU between metadata check and read | `import.rs:121-156` | Defense-in-depth via CAS 100MB limit, acceptable |
+| 6 | LOW | thumbnail `as u32` truncation on u64 > 2^32 | `thumbnail.rs:54-55` | Schema declares max 10000, low risk |
+| 7 | INFO | All 24 tools consistent patterns, no unwrap on user data, atomic CAS | — | No action needed |
+
+### Priority for next session
+
+1. **Security HIGH**: import path confinement (Sprint fix)
+2. **Security MEDIUM x2**: pipeline step limit + budget (Sprint fix)
+3. **Code review MEDIUM #3**: svg_render div-by-zero (quick guard)
+4. **Code review MEDIUM #4**: pdf_extract thread limit (semaphore)
+5. **Code review MEDIUM #1-2**: WorkingMemoryBudget wiring + svg clamp (nice-to-have)
+
+---
+
 ## nika:decode Implementation — Ready to Code
 
 ### Architecture Decision
@@ -107,16 +129,19 @@ base64::engine::general_purpose::STANDARD.decode(&clean_b64)?
 ## Execution Order for Next Session
 
 ```
-Step 1 (5 min)  — Check rust-pro code review results (agent may have completed)
-Step 2 (15 min) — Fix HIGH security finding (import.rs path validation)
-Step 3 (15 min) — Fix 2 MEDIUM findings (pipeline step limit + budget)
-Step 4 (45 min) — Implement nika:decode (TDD, skeleton provided)
-Step 5 (15 min) — Create 2 showcase workflows (URL pattern + base64 pattern)
-Step 6 (10 min) — Update DX files (62 builtins, decode pattern)
-Step 7 (5 min)  — Full test suite + clippy + push
+Step 1 (15 min) — Fix HIGH: import.rs path confinement to project dir
+Step 2 (15 min) — Fix MEDIUM x2: pipeline step limit + budget check
+Step 3 (10 min) — Fix MEDIUM: svg_render div-by-zero guard + clamp→error
+Step 4 (10 min) — Fix MEDIUM: pdf_extract thread semaphore
+Step 5 (45 min) — Implement nika:decode (TDD, skeleton provided below)
+Step 6 (15 min) — Create 2 showcase workflows (URL + base64 patterns)
+Step 7 (10 min) — Update DX files (62 builtins, decode pattern)
+Step 8 (5 min)  — Full test suite + clippy + push
 ```
 
-**Total: ~1h50**
+**Total: ~2h05**
+**Priority**: Steps 1-4 are security/stability fixes (ship even without nika:decode).
+Step 5+ is the new capability.
 
 ---
 
