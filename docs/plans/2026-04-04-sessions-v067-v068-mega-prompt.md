@@ -89,13 +89,39 @@ Test: all 17 existing jq tests must pass unchanged.
 Add: `eval_jq("test(\"foo\")", &Value::Null)` → error, not panic.
 Commit: `feat(core): upgrade jaq 1.5 → 3.0 — kills regex panic, cleaner API`
 
+### Sprint 3b: Fix InjectTool bugs (30 min)
+
+Two bugs from v0.66 audit — NOT FIXED:
+
+**BUG: missing end_marker silently drops file tail**
+In `builtin/data/io.rs:102-120`: if `end_marker` is never found, `skipping` stays true
+and all lines after `start_marker` are lost. No error, no warning.
+Fix: after the loop, if `skipping` is still true, return an error:
+```rust
+if skipping {
+    return Err(NikaError::BuiltinToolError {
+        tool: "nika:inject".into(),
+        reason: format!("End marker '{}' not found in template", params.end_marker),
+    });
+}
+```
+
+**BUG: inject test is no-op on macOS**
+`inject_basic_replacement` silently swallows errors because tempdir is outside cwd.
+Fix: use a subdirectory of the current project as temp, or set cwd in a controlled way.
+
+**Also fix**: Filter test weak assertions (check values, not just len).
+
 ### Sprint 4: Error UX — "did you mean?" (1h)
 
-NIKA-071 (UnknownAlias) is the #1 newbie error.
-`find_similar()` (Jaro-Winkler, threshold 0.6) exists in nika-core analyzer.
+NIKA-071 (UnknownAlias) is the #1 newbie error. v0.66 audit confirmed:
+fuzzy matching exists in LSP (code actions for NIKA-140) but NOT in runtime.
+The `declared_aliases` set is available at the error site but unused.
 
-Fix: import and use in nika-engine's binding/template.rs where
-`declared_aliases` set is available. Same for NIKA-080 (WithUnknownTask).
+Fix: import `find_similar()` from nika-core analyzer into nika-engine's
+binding/template.rs. Same for NIKA-080 (WithUnknownTask) — task list is available.
+
+Also: update tools/nika/CLAUDE.md source tree (still shows old layout without data/ split).
 
 Also: add example YAML snippets to top 5 error messages (NIKA-032, 071, 041, 021, 053).
 
