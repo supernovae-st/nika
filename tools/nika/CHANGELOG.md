@@ -5,6 +5,15 @@ All notable changes to Nika are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.0] — 2026-04-04 — FEATURE FREEZE
+
+### Added
+
+- **`nika run URL`** — Execute remote workflows directly from HTTP/HTTPS URLs. Downloads to `.nika/remote/`, validates YAML, then runs normally. Zero new deps (uses curl). `nika run https://raw.githubusercontent.com/.../workflow.nika.yaml`
+- **`nika explain`** — Human-readable workflow summary. Shows task count, verb breakdown, providers required, model, estimated cost. Quick understanding without reading YAML.
+
+---
+
 ## [0.67.0] — 2026-04-04
 
 ### Architecture
