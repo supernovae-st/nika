@@ -1733,13 +1733,79 @@ async fn handle_result(result: Result<(), NikaError>) {
 // WORKFLOW COMMANDS
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Download a remote `.nika.yaml` workflow to `.nika/remote/` and return its path.
+async fn download_remote_workflow(url: &str) -> Result<PathBuf, NikaError> {
+    if !url.ends_with(".nika.yaml") && !url.ends_with(".yaml") {
+        return Err(NikaError::WorkflowNotFound {
+            path: format!("Remote URL must end with .nika.yaml or .yaml: {url}"),
+        });
+    }
+
+    let filename = url
+        .rsplit('/')
+        .next()
+        .unwrap_or("remote-workflow.nika.yaml");
+
+    let remote_dir = PathBuf::from(".nika").join("remote");
+    tokio::fs::create_dir_all(&remote_dir).await.map_err(|e| {
+        NikaError::IoError(std::io::Error::other(format!(
+            "Cannot create .nika/remote/: {e}"
+        )))
+    })?;
+
+    let dest = remote_dir.join(filename);
+
+    eprintln!("  {} Downloading {}", "→".cyan(), url.dimmed());
+
+    let output = tokio::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", "-o"])
+        .arg(&dest)
+        .arg(url)
+        .output()
+        .await
+        .map_err(|e| {
+            NikaError::IoError(std::io::Error::other(format!(
+                "curl not found or failed: {e}"
+            )))
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(NikaError::WorkflowNotFound {
+            path: format!("Failed to download {url}: {stderr}"),
+        });
+    }
+
+    let content = tokio::fs::read_to_string(&dest).await.map_err(|e| {
+        NikaError::IoError(std::io::Error::other(format!(
+            "Cannot read downloaded file: {e}"
+        )))
+    })?;
+
+    if !content.contains("schema:") && !content.contains("tasks:") {
+        let _ = tokio::fs::remove_file(&dest).await;
+        return Err(NikaError::WorkflowNotFound {
+            path: format!("Downloaded file from {url} does not appear to be a Nika workflow"),
+        });
+    }
+
+    eprintln!("  {} Downloaded to {}", "✓".green(), dest.display());
+    Ok(dest)
+}
+
 /// Resolve a workflow reference to an actual file path.
 ///
 /// Resolution order:
-/// 1. If starts with '@' (e.g., @workflows/seo-audit) -> Package resolution from ~/.nika/packages/
-/// 2. If simple name without path/extension -> Search in .nika/workflows/{name}.nika.yaml
-/// 3. Otherwise -> Use as-is (filesystem path)
+/// 0. URL (http/https) -> Download to `.nika/remote/`
+/// 1. Package reference (`@name`) -> `~/.nika/packages/`
+/// 2. Simple name -> `.nika/workflows/{name}.nika.yaml`
+/// 3. Filesystem path -> as-is
 async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
+    // 0. Remote URL — download to temp and execute
+    if reference.starts_with("http://") || reference.starts_with("https://") {
+        return download_remote_workflow(reference).await;
+    }
+
     // 1. Package reference (starts with @)
     if reference.starts_with('@') {
         let resolved =
