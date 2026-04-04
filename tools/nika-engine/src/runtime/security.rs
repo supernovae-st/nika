@@ -247,19 +247,8 @@ fn contains_unquoted(haystack: &str, needle: &str) -> bool {
 ///
 /// Returns `BlockedCommand` if a shell-mode blocklisted pattern is found.
 pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
-    // BUG-020: same scan limit as check_blocklist
-    const SCAN_LIMIT: usize = 4096;
-    let scan_input = if cmd.len() > SCAN_LIMIT {
-        let mut end = SCAN_LIMIT;
-        while end > 0 && !cmd.is_char_boundary(end) {
-            end -= 1;
-        }
-        &cmd[..end]
-    } else {
-        cmd
-    };
-
-    let normalized = normalize_for_blocklist(scan_input);
+    // SEC-1: Scan the FULL command (no 4KB limit).
+    let normalized = normalize_for_blocklist(cmd);
     let lower = normalized.to_lowercase();
 
     for pattern in SHELL_MODE_BLOCKLIST {
@@ -429,25 +418,13 @@ fn normalize_for_blocklist(s: &str) -> String {
 ///
 /// Returns `BlockedCommand` if a blocklisted pattern is found.
 pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
-    // BUG-020: Only scan the first 4 KiB of the resolved command.
-    // Blocklist patterns target shell keywords at the start of commands,
-    // not data payloads deep inside interpolated values. Large data from
-    // for_each or infer results can accidentally contain words like "sudo"
-    // or "xargs" causing false positives.
-    const SCAN_LIMIT: usize = 4096;
-    let scan_input = if cmd.len() > SCAN_LIMIT {
-        // Find a safe UTF-8 char boundary at or before SCAN_LIMIT
-        let mut end = SCAN_LIMIT;
-        while end > 0 && !cmd.is_char_boundary(end) {
-            end -= 1;
-        }
-        &cmd[..end]
-    } else {
-        cmd
-    };
+    // SEC-1: Scan the FULL command, not just first 4KB.
+    // The old BUG-020 limit could be bypassed by padding 5KB+ of harmless
+    // data before a dangerous command. False positives from data payloads
+    // are acceptable — users should use `| shell` transform for safe interpolation.
 
     // Normalize the command using NFKC to handle Unicode confusables
-    let normalized = normalize_for_blocklist(scan_input);
+    let normalized = normalize_for_blocklist(cmd);
     let lower = normalized.to_lowercase();
 
     // SEC-3: Strip shell quoting characters before pattern matching.
@@ -514,18 +491,8 @@ const INTENT_PATTERNS: &[&str] = &[
 ///
 /// When `raw_template` is `None`, behaves identically to `check_blocklist` (all blocked).
 pub fn check_blocklist_with_intent(cmd: &str, raw_template: Option<&str>) -> Result<(), NikaError> {
-    const SCAN_LIMIT: usize = 4096;
-    let scan_input = if cmd.len() > SCAN_LIMIT {
-        let mut end = SCAN_LIMIT;
-        while end > 0 && !cmd.is_char_boundary(end) {
-            end -= 1;
-        }
-        &cmd[..end]
-    } else {
-        cmd
-    };
-
-    let normalized = normalize_for_blocklist(scan_input);
+    // SEC-1: Scan the FULL command (no 4KB limit).
+    let normalized = normalize_for_blocklist(cmd);
     let lower = normalized.to_lowercase();
     let dequoted: String = lower
         .chars()
@@ -2176,5 +2143,40 @@ mod tests {
         assert!(check_blocklist_with_intent(raw, Some(raw)).is_ok());
         let raw = "ruby -e 'puts 1'";
         assert!(check_blocklist_with_intent(raw, Some(raw)).is_ok());
+    }
+
+    // =========================================================================
+    // SEC-1: Blocklist must scan full command, not just first 4KB
+    // =========================================================================
+
+    #[test]
+    fn sec1_blocklist_rejects_padded_command_beyond_4kb() {
+        // 5KB of harmless padding followed by a dangerous command
+        let padding = "x".repeat(5000);
+        let cmd = format!("echo {} && sudo rm -rf /", padding);
+        assert!(
+            check_blocklist(&cmd).is_err(),
+            "Dangerous command after 5KB padding must be blocked"
+        );
+    }
+
+    #[test]
+    fn sec1_shell_mode_blocklist_rejects_padded_command_beyond_4kb() {
+        let padding = "x".repeat(5000);
+        let cmd = format!("echo {} && alias ls='rm -rf /'", padding);
+        assert!(
+            check_shell_mode_blocklist(&cmd).is_err(),
+            "Shell alias after 5KB padding must be blocked"
+        );
+    }
+
+    #[test]
+    fn sec1_blocklist_with_intent_rejects_padded_command_beyond_4kb() {
+        let padding = "x".repeat(5000);
+        let cmd = format!("echo {} && sudo rm -rf /", padding);
+        assert!(
+            check_blocklist_with_intent(&cmd, None).is_err(),
+            "Dangerous command after 5KB padding must be blocked (with_intent)"
+        );
     }
 }
