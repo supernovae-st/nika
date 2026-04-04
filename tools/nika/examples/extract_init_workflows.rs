@@ -13,9 +13,9 @@ fn main() {
         fs::remove_dir_all(base).unwrap();
     }
 
-    let workflows = nika::init::get_all_workflows();
-    let context_files = nika::init::get_all_context_files();
-    let schemas = nika::init::get_all_schemas();
+    let workflows = nika_init::get_all_workflows();
+    let context_files = nika_init::get_all_context_files();
+    let schemas = nika_init::get_all_schemas();
 
     // Write workflows
     for w in &workflows {
@@ -46,7 +46,7 @@ fn main() {
 
     // Write README
     let readme_path = base.join("workflows/README.md");
-    fs::write(&readme_path, nika::init::WORKFLOWS_README).unwrap();
+    fs::write(&readme_path, nika_init::WORKFLOWS_README).unwrap();
     println!("  {}", readme_path.display());
 
     println!(

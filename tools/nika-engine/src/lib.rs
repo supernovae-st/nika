@@ -41,7 +41,6 @@ pub mod display;
 pub mod error;
 pub mod error_domains;
 pub mod event;
-pub use nika_init as init;
 pub mod mcp;
 pub mod media;
 pub mod new;

@@ -10,11 +10,11 @@ use clap::Subcommand;
 use colored::Colorize;
 
 use nika_engine::error::NikaError;
-use nika_engine::init::course::showcase::ShowcaseWorkflow;
-use nika_engine::init::course::showcase_builtin::SHOWCASE_BUILTIN;
-use nika_engine::init::course::showcase_exec::SHOWCASE_EXEC;
-use nika_engine::init::course::showcase_llm::SHOWCASE_LLM;
-use nika_engine::init::WorkflowTemplate;
+use nika_init::course::showcase::ShowcaseWorkflow;
+use nika_init::course::showcase_builtin::SHOWCASE_BUILTIN;
+use nika_init::course::showcase_exec::SHOWCASE_EXEC;
+use nika_init::course::showcase_llm::SHOWCASE_LLM;
+use nika_init::WorkflowTemplate;
 
 /// Showcase subcommand actions
 #[derive(Subcommand)]
@@ -90,7 +90,7 @@ fn all_showcases() -> Vec<ShowcaseEntry> {
     }
 
     // Init showcase workflows (WorkflowTemplate type)
-    let init_workflows = nika_engine::init::get_all_workflows();
+    let init_workflows = nika_init::get_all_workflows();
     for w in &init_workflows {
         // Skip minimal starters — they are not really showcases
         if w.tier_dir == "minimal" {
@@ -207,7 +207,7 @@ fn cmd_list(category: Option<&str>, _quiet: bool) -> Result<(), NikaError> {
 
 /// Substitute `{{PROVIDER}}` and `{{MODEL}}` placeholders with auto-detected values.
 fn substitute_placeholders(content: &str) -> String {
-    let (provider, model) = nika_engine::init::course::generator::detect_provider();
+    let (provider, model) = nika_init::course::generator::detect_provider();
     content
         .replace("{{PROVIDER}}", provider)
         .replace("{{MODEL}}", model)

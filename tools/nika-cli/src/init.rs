@@ -301,7 +301,7 @@ default = "anthropic"
 
 /// Handle `nika init --course` — generate interactive course files.
 pub fn init_course() -> Result<(), NikaError> {
-    use nika_engine::init::course::generator::{generate_course, CourseConfig};
+    use nika_init::course::generator::{generate_course, CourseConfig};
 
     let config = CourseConfig {
         dest: std::path::PathBuf::from("nika-course"),
@@ -323,7 +323,9 @@ pub fn init_course() -> Result<(), NikaError> {
         }
         Err(e) => {
             eprintln!("{} Course generation failed: {e}", "Error:".red().bold());
-            Err(e.into())
+            Err(NikaError::ConfigError {
+                reason: e.to_string(),
+            })
         }
     }
 }

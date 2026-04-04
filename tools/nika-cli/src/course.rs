@@ -10,7 +10,7 @@ use clap::Subcommand;
 use colored::Colorize;
 
 use nika_engine::error::NikaError;
-use nika_engine::init::course::{
+use nika_init::course::{
     checks::{
         check_has_depends_on, check_has_schema, check_has_verb, check_has_with_bindings,
         check_min_tasks, check_no_todos, CheckVerdict, ExerciseReport, LevelReport,
@@ -110,7 +110,9 @@ fn find_course_root() -> Result<PathBuf, NikaError> {
 fn load_progress(root: &Path) -> Result<CourseProgress, NikaError> {
     let path = root.join(PROGRESS_FILE);
     if path.exists() {
-        Ok(CourseProgress::load(&path)?)
+        CourseProgress::load(&path).map_err(|e| NikaError::ConfigError {
+            reason: e.to_string(),
+        })
     } else {
         Ok(CourseProgress::new_course())
     }
@@ -119,7 +121,9 @@ fn load_progress(root: &Path) -> Result<CourseProgress, NikaError> {
 /// Save course progress
 fn save_progress(root: &Path, progress: &mut CourseProgress) -> Result<(), NikaError> {
     let path = root.join(PROGRESS_FILE);
-    Ok(progress.save(&path)?)
+    progress.save(&path).map_err(|e| NikaError::ConfigError {
+        reason: e.to_string(),
+    })
 }
 
 // ─── Level resolution ───────────────────────────────────────────────────────
@@ -576,11 +580,11 @@ fn cmd_check(level_arg: Option<String>) -> Result<(), NikaError> {
 
         // QW #4: Run real AST validation (Phase 1 + Phase 2)
         match nika_engine::ast::parse_analyzed(&yaml) {
-            Ok(_) => checks.push(nika_engine::init::course::checks::CheckResult {
+            Ok(_) => checks.push(nika_init::course::checks::CheckResult {
                 name: "nika check (AST)",
                 verdict: CheckVerdict::Pass,
             }),
-            Err(e) => checks.push(nika_engine::init::course::checks::CheckResult {
+            Err(e) => checks.push(nika_init::course::checks::CheckResult {
                 name: "nika check (AST)",
                 verdict: CheckVerdict::Fail(e.to_string()),
             }),
@@ -738,7 +742,7 @@ fn build_checks_for_level(
     level_num: u8,
     exercise_num: u8,
     yaml: &str,
-) -> Vec<nika_engine::init::course::checks::CheckResult> {
+) -> Vec<nika_init::course::checks::CheckResult> {
     let mut checks = vec![
         check_has_schema(yaml),
         check_no_todos(yaml),
@@ -874,9 +878,9 @@ fn cmd_hint(exercise_arg: Option<String>) -> Result<(), NikaError> {
     // Show all previously revealed hints
     for (hint_level, text) in hints.hints {
         let shown = match hint_level {
-            nika_engine::init::course::hints::HintLevel::Conceptual => hints_revealed >= 1,
-            nika_engine::init::course::hints::HintLevel::Specific => hints_revealed >= 2,
-            nika_engine::init::course::hints::HintLevel::Solution => hints_revealed >= 3,
+            nika_init::course::hints::HintLevel::Conceptual => hints_revealed >= 1,
+            nika_init::course::hints::HintLevel::Specific => hints_revealed >= 2,
+            nika_init::course::hints::HintLevel::Solution => hints_revealed >= 3,
         };
 
         if shown {
