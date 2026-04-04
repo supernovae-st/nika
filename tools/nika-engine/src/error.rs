@@ -366,8 +366,12 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // BINDING VALIDATION (070-079)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-071] Unknown alias '{{{{with.{alias}}}}}' - not declared in with: block")]
-    UnknownAlias { alias: String, task_id: String },
+    #[error("[NIKA-071] Unknown alias '{{{{with.{alias}}}}}' in task '{task_id}' — not declared in with: block{}", suggestion.as_ref().map(|s| format!(". Did you mean '{s}'?")).unwrap_or_default())]
+    UnknownAlias {
+        alias: String,
+        task_id: String,
+        suggestion: Option<String>,
+    },
 
     #[error("[NIKA-072] Null value at path '{path}' (strict mode)")]
     NullValue { path: String, alias: String },
@@ -392,11 +396,12 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // DAG VALIDATION (080-089)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-080] with.{alias} references unknown task '{from_task}'")]
+    #[error("[NIKA-080] with.{alias} references unknown task '{from_task}'{}", suggestion.as_ref().map(|s| format!(". Did you mean '{s}'?")).unwrap_or_default())]
     WithUnknownTask {
         alias: String,
         from_task: String,
         task_id: String,
+        suggestion: Option<String>,
     },
 
     #[error("[NIKA-081] with.{alias}='{from_task}' is not upstream of task '{task_id}'")]
@@ -1863,11 +1868,23 @@ mod tests {
         let err = NikaError::UnknownAlias {
             alias: "undefined".to_string(),
             task_id: "current_task".to_string(),
+            suggestion: None,
         };
         assert_eq!(err.code(), "NIKA-071");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-071]"));
         assert!(msg.contains("undefined"));
+    }
+
+    #[test]
+    fn test_unknown_alias_with_suggestion() {
+        let err = NikaError::UnknownAlias {
+            alias: "dta".to_string(),
+            task_id: "summarize".to_string(),
+            suggestion: Some("data".to_string()),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("Did you mean 'data'?"), "got: {msg}");
     }
 
     #[test]
@@ -1916,6 +1933,7 @@ mod tests {
             alias: "ctx".to_string(),
             from_task: "undefined".to_string(),
             task_id: "current".to_string(),
+            suggestion: None,
         };
         assert_eq!(err.code(), "NIKA-080");
         let msg = err.to_string();

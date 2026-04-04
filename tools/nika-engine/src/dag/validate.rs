@@ -184,6 +184,7 @@ fn validate_with_spec(
                          access it as {{{{with.{var}}}}} in templates instead)"
                     ),
                     task_id: task_id.to_string(),
+                    suggestion: None,
                 });
             }
         }
@@ -222,10 +223,14 @@ fn validate_from_task(
 
     // Check task exists (O(1) hash lookup)
     if !all_task_ids.contains(from_task) {
+        let candidates: Vec<&str> = all_task_ids.iter().copied().collect();
+        let suggestion =
+            nika_core::ast::analyzer::suggestions::find_similar(from_task, &candidates, 0.6);
         return Err(NikaError::WithUnknownTask {
             alias: alias.to_string(),
             from_task: from_task.to_string(),
             task_id: task_id.to_string(),
+            suggestion,
         });
     }
 

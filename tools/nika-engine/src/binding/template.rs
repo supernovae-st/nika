@@ -829,9 +829,13 @@ pub fn validate_with_refs(
 ) -> Result<(), NikaError> {
     for alias in extract_with_refs(template) {
         if !declared_aliases.contains(&alias) {
+            let candidates: Vec<&str> = declared_aliases.iter().map(|s| s.as_str()).collect();
+            let suggestion =
+                nika_core::ast::analyzer::suggestions::find_similar(&alias, &candidates, 0.6);
             return Err(NikaError::UnknownAlias {
                 alias,
                 task_id: task_id.to_string(),
+                suggestion,
             });
         }
     }
@@ -1919,9 +1923,13 @@ pub fn validate_refs(
 ) -> Result<(), NikaError> {
     for (alias, _full_path) in extract_refs(template) {
         if !declared_aliases.contains(&alias) {
+            let candidates: Vec<&str> = declared_aliases.iter().map(|s| s.as_str()).collect();
+            let suggestion =
+                nika_core::ast::analyzer::suggestions::find_similar(&alias, &candidates, 0.6);
             return Err(NikaError::UnknownAlias {
                 alias,
                 task_id: task_id.to_string(),
+                suggestion,
             });
         }
     }
