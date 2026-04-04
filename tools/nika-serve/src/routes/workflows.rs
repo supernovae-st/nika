@@ -594,6 +594,10 @@ impl Drop for SlotGuard<'_> {
 }
 
 /// Reject workflow paths that attempt directory traversal.
+///
+/// Checks both literal separators and percent-encoded variants to prevent
+/// bypass via `%2e%2e` (..),  `%2f` (/), `%5c` (\). Matches the SDK's
+/// `validate_path_segment` defense (nika-sdk/src/remote.rs).
 fn validate_workflow_path(workflow: &str) -> Result<(), ServeError> {
     if workflow.contains('\0')
         || workflow.contains("..")
@@ -602,6 +606,13 @@ fn validate_workflow_path(workflow: &str) -> Result<(), ServeError> {
     {
         return Err(ServeError::PathTraversal);
     }
+
+    // Percent-encoded traversal: %2F (/), %5C (\), %2E%2E (..)
+    let lower = workflow.to_ascii_lowercase();
+    if lower.contains("%2f") || lower.contains("%5c") || lower.contains("%2e%2e") {
+        return Err(ServeError::PathTraversal);
+    }
+
     if !workflow.ends_with(".nika.yaml") {
         return Err(ServeError::InvalidWorkflow(
             "workflow must have .nika.yaml extension".into(),
@@ -630,6 +641,19 @@ mod tests {
     fn rejects_wrong_extension() {
         assert!(validate_workflow_path("script.sh").is_err());
         assert!(validate_workflow_path("workflow.yaml").is_err());
+    }
+
+    #[test]
+    fn rejects_percent_encoded_traversal() {
+        // %2e%2e = ".." (directory traversal)
+        assert!(validate_workflow_path("%2e%2e/secret.nika.yaml").is_err());
+        assert!(validate_workflow_path("%2E%2E/secret.nika.yaml").is_err());
+        // %2f = "/" (path separator)
+        assert!(validate_workflow_path("foo%2fetc%2fpasswd.nika.yaml").is_err());
+        assert!(validate_workflow_path("foo%2Fetc.nika.yaml").is_err());
+        // %5c = "\" (Windows path separator)
+        assert!(validate_workflow_path("foo%5cbar.nika.yaml").is_err());
+        assert!(validate_workflow_path("foo%5Cbar.nika.yaml").is_err());
     }
 
     #[test]
