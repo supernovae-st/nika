@@ -501,7 +501,10 @@ mod tests {
             .inject(Some("Base"), &["ghost"], &skills_map, temp_dir.path())
             .await;
 
-        assert!(result.is_err(), "inject must fail when skill file is missing");
+        assert!(
+            result.is_err(),
+            "inject must fail when skill file is missing"
+        );
         let err = result.unwrap_err();
         assert!(
             matches!(err, NikaError::SkillLoadError { .. }),

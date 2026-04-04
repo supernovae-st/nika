@@ -41,8 +41,17 @@ pub enum ExtractMode {
 impl ExtractMode {
     /// All valid mode names, for error messages and LSP completions.
     pub const ALL_NAMES: &'static [&'static str] = &[
-        "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
-        "llm_txt", "sitemap", "metadata_links",
+        "markdown",
+        "article",
+        "text",
+        "selector",
+        "metadata",
+        "links",
+        "jsonpath",
+        "feed",
+        "llm_txt",
+        "sitemap",
+        "metadata_links",
     ];
 
     /// Parse a string into an `ExtractMode`.

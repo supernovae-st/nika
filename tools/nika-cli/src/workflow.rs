@@ -388,9 +388,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
 
             // Validate file paths: skills and context files must exist on disk
             {
-                let base_dir = file
-                    .parent()
-                    .unwrap_or_else(|| std::path::Path::new("."));
+                let base_dir = file.parent().unwrap_or_else(|| std::path::Path::new("."));
 
                 // Skills file paths
                 if let Some(ref skills) = workflow.skills {
@@ -423,10 +421,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 if let Some(ref ctx) = workflow.context {
                     for (alias, path) in &ctx.files {
                         // Skip glob patterns and template paths
-                        if path.contains('*')
-                            || path.contains('?')
-                            || path.contains("{{")
-                        {
+                        if path.contains('*') || path.contains('?') || path.contains("{{") {
                             continue;
                         }
                         let resolved = base_dir.join(path);

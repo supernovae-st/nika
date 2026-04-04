@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEO / GEO Audit Dashboard</title>
+<!--
+  Self-contained dashboard: all data is embedded by the Nika workflow at build time.
+  No user input is processed. innerHTML usage is safe in this context (no XSS surface).
+  See: docs/research/2026-04-04-treemap-dashboard-research.md, Security note.
+-->
+<style>
+/* ========================================================================
+   BASE THEME
+   ======================================================================== */
+:root {
+  --bg-body: #0f1117;
+  --bg-card: #1e2130;
+  --bg-card-hover: #252840;
+  --border: #2d3148;
+  --border-light: #3d4168;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --green: #10b981;
+  --green-dim: rgba(16, 185, 129, 0.15);
+  --yellow: #f59e0b;
+  --yellow-dim: rgba(245, 158, 11, 0.15);
+  --red: #ef4444;
+  --red-dim: rgba(239, 68, 68, 0.15);
+  --blue: #6366f1;
+  --blue-dim: rgba(99, 102, 241, 0.15);
+  --cyan: #06b6d4;
+  --cyan-dim: rgba(6, 182, 212, 0.15);
+  --orange: #f97316;
+  --purple: #a855f7;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-body);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+}
+
+.dashboard-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.dashboard-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-header .subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Card base */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  transition: border-color 200ms ease;
+}
+
+.card:hover {
+  border-color: var(--border-light);
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ========================================================================
+   TOOLTIP
+   ======================================================================== */
+.viz-tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: #1a1d2e;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  line-height: 1.5;
+}
+
+.viz-tooltip.visible { opacity: 1; }
+
+.viz-tooltip .tt-label {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.viz-tooltip .tt-value {
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+/* ========================================================================
+   A. HEALTH RING  (span 3 cols)
+   ======================================================================== */
+.health-ring-card { grid-column: span 3; }
+
+.health-ring-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.health-ring-svg {
+  width: 180px;
+  height: 180px;
+}
+
+.health-ring-bg {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 12;
+}
+
+.health-ring-fg {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.3s ease;
+  transform-origin: center;
+  transform: rotate(-90deg);
+}
+
+.health-ring-label {
+  font-size: 36px;
+  font-weight: 700;
+  fill: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.health-ring-unit {
+  font-size: 14px;
+  fill: var(--text-muted);
+}
+
+.health-ring-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.health-ring-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.legend-good::before { background: var(--green); }
+.legend-warn::before { background: var(--yellow); }
+.legend-bad::before  { background: var(--red); }
+
+/* ========================================================================
+   B. STATUS DISTRIBUTION  (span 5 cols)
+   ======================================================================== */
+.status-dist-card { grid-column: span 5; }
+
+.status-bar-container {
+  margin-top: 8px;
+}
+
+.status-bar {
+  display: flex;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--border);
+}
+
+.status-bar-segment {
+  height: 100%;
+  position: relative;
+  transition: flex 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  min-width: 2px;
+}
+
+.status-bar-segment:hover {
+  filter: brightness(1.25);
+}
+
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.status-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.status-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.status-legend-count {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-left: 2px;
+}
+
+/* ========================================================================
+   C. DEPTH HEATMAP  (span 4 cols)
+   ======================================================================== */
+.depth-heatmap-card { grid-column: span 4; }
+
+.depth-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 160px;
+  padding-top: 8px;
+}
+
+.depth-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.depth-bar {
+  width: 100%;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  min-height: 4px;
+}
+
+.depth-bar:hover {
+  filter: brightness(1.3);
+}
+
+.depth-bar-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.depth-bar-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ========================================================================
+   D. AI CRAWLER ACCESS GRID  (span 4 cols)
+   ======================================================================== */
+.crawler-grid-card { grid-column: span 4; }
+
+.crawler-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+}
+
+.crawler-row {
+  display: contents;
+  cursor: default;
+}
+
+.crawler-name {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 0;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crawler-status {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.crawler-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.crawler-dot-allowed { background: var(--green); box-shadow: 0 0 6px var(--green-dim); }
+.crawler-dot-blocked { background: var(--red); box-shadow: 0 0 6px var(--red-dim); }
+.crawler-dot-unknown { background: var(--text-muted); }
+
+.crawler-status-text { color: var(--text-secondary); }
+
+.crawler-summary {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.crawler-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.crawler-summary-item .count {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Extras row for llms.txt and citability */
+.crawler-extras {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 20px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.crawler-extras .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.badge-ok { background: var(--green-dim); color: var(--green); }
+.badge-warn { background: var(--yellow-dim); color: var(--yellow); }
+.badge-bad { background: var(--red-dim); color: var(--red); }
+
+/* ========================================================================
+   E. LOCALE COVERAGE TABLE  (span 8 cols)
+   ======================================================================== */
+.locale-coverage-card { grid-column: span 8; }
+
+.locale-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.locale-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.locale-table th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+}
+
+.locale-table th:first-child {
+  text-align: left;
+  min-width: 140px;
+}
+
+.locale-table td {
+  padding: 7px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+}
+
+.locale-table td:first-child {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.locale-table tr:hover td {
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.locale-check {
+  color: var(--green);
+  font-size: 15px;
+}
+
+.locale-gap {
+  color: var(--red);
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.locale-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.locale-coverage-pct {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* ========================================================================
+   F. RESPONSE TIME HISTOGRAM  (span 6 cols)
+   ======================================================================== */
+.response-hist-card { grid-column: span 6; }
+
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 140px;
+  padding-top: 8px;
+}
+
+.hist-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.hist-bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  min-height: 2px;
+}
+
+.hist-bar:hover {
+  filter: brightness(1.35);
+}
+
+.hist-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hist-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.histogram-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.histogram-stats .stat-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ========================================================================
+   G. MARKDOWN REPORT  (span 6 cols)
+   ======================================================================== */
+.report-card { grid-column: span 6; }
+
+.report-content {
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.report-content::-webkit-scrollbar { width: 6px; }
+.report-content::-webkit-scrollbar-track { background: transparent; }
+.report-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* Markdown rendered styles */
+.md h1 { font-size: 20px; font-weight: 700; margin: 20px 0 10px; color: var(--text-primary); }
+.md h2 { font-size: 16px; font-weight: 600; margin: 18px 0 8px; color: var(--text-primary); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.md h3 { font-size: 14px; font-weight: 600; margin: 14px 0 6px; color: var(--text-primary); }
+.md h4 { font-size: 13px; font-weight: 600; margin: 12px 0 4px; color: var(--text-secondary); }
+
+.md p { margin: 8px 0; color: var(--text-secondary); line-height: 1.7; }
+
+.md strong { color: var(--text-primary); font-weight: 600; }
+.md em { font-style: italic; }
+.md code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--blue);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.md pre {
+  background: #13151f;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin: 10px 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.md pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.md ul, .md ol {
+  margin: 8px 0;
+  padding-left: 24px;
+  color: var(--text-secondary);
+}
+
+.md li { margin: 3px 0; }
+.md li::marker { color: var(--text-muted); }
+
+.md blockquote {
+  border-left: 3px solid var(--blue);
+  padding: 6px 14px;
+  margin: 10px 0;
+  color: var(--text-muted);
+  background: rgba(99, 102, 241, 0.04);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.md table th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-primary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.md table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.md table tr:hover td { background: rgba(99, 102, 241, 0.04); }
+
+.md a {
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.md a:hover { text-decoration: underline; }
+
+/* ========================================================================
+   RESPONSIVE
+   ======================================================================== */
+@media (max-width: 1100px) {
+  .dashboard { grid-template-columns: repeat(6, 1fr); gap: 16px; }
+  .health-ring-card { grid-column: span 3; }
+  .status-dist-card { grid-column: span 3; }
+  .depth-heatmap-card { grid-column: span 3; }
+  .crawler-grid-card { grid-column: span 3; }
+  .locale-coverage-card { grid-column: span 6; }
+  .response-hist-card { grid-column: span 6; }
+  .report-card { grid-column: span 6; }
+}
+
+@media (max-width: 700px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+  .dashboard > * { grid-column: 1 / -1 !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Shared tooltip element -->
+<div class="viz-tooltip" id="tooltip" role="tooltip"></div>
+
+<div class="dashboard">
+  <div class="dashboard-header">
+    <h1>Site Audit</h1>
+    <span class="subtitle">SEO &amp; GEO Analysis</span>
+  </div>
+
+  <!-- A. Health Ring -->
+  <div class="card health-ring-card" id="health-ring-card">
+    <div class="card-title">Health Score</div>
+    <div class="health-ring-wrap" id="health-ring"></div>
+  </div>
+
+  <!-- B. Status Distribution -->
+  <div class="card status-dist-card" id="status-dist-card">
+    <div class="card-title">HTTP Status Distribution</div>
+    <div class="status-bar-container" id="status-dist"></div>
+  </div>
+
+  <!-- C. Depth Heatmap -->
+  <div class="card depth-heatmap-card">
+    <div class="card-title">Pages by Crawl Depth</div>
+    <div class="depth-bars" id="depth-heatmap" role="img" aria-label="Bar chart showing page count at each crawl depth level"></div>
+  </div>
+
+  <!-- D. AI Crawler Access Grid -->
+  <div class="card crawler-grid-card">
+    <div class="card-title">AI Crawler Access</div>
+    <div class="crawler-grid" id="crawler-grid" role="table" aria-label="AI bot access status grid"></div>
+  </div>
+
+  <!-- E. Locale Coverage Table -->
+  <div class="card locale-coverage-card">
+    <div class="card-title">Locale x Section Coverage</div>
+    <div class="locale-table-wrap" id="locale-coverage"></div>
+  </div>
+
+  <!-- F. Response Time Histogram -->
+  <div class="card response-hist-card">
+    <div class="card-title">Response Time Distribution</div>
+    <div class="histogram" id="response-hist" role="img" aria-label="Histogram showing response time distribution"></div>
+    <div class="histogram-stats" id="response-hist-stats"></div>
+  </div>
+
+  <!-- G. Markdown Report -->
+  <div class="card report-card">
+    <div class="card-title">Audit Report</div>
+    <div class="report-content md" id="report-content"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// DATA VARIABLES
+// Injected by Nika workflow via artifact template. Replace these with real data.
+// ============================================================================
+
+var TREE = {
+  name: "example.com",
+  total_pages: 278,
+  health_score: 82,
+  children: [
+    { name: "en", children: [
+      { name: "blog", value: 45 },
+      { name: "docs", value: 80 },
+      { name: "product", value: 30 },
+      { name: "legal", value: 5 }
+    ]},
+    { name: "fr", children: [
+      { name: "blog", value: 38 },
+      { name: "docs", value: 42 },
+      { name: "product", value: 25 },
+      { name: "legal", value: 3 }
+    ]},
+    { name: "de", children: [
+      { name: "docs", value: 10 }
+    ]}
+  ]
+};
+
+var GRAPH = {
+  nodes: [
+    { id: "/", g: "root" },
+    { id: "/en", g: "locale" },
+    { id: "/fr", g: "locale" },
+    { id: "/en/blog", g: "section" },
+    { id: "/en/docs", g: "section" }
+  ],
+  links: [["/", "/en"], ["/", "/fr"], ["/en", "/en/blog"], ["/en", "/en/docs"]]
+};
+
+var STATS = {
+  status: { ok: 270, redirect: 2, client_error: 5, server_error: 1 },
+  depth: { 0: 1, 1: 15, 2: 120, 3: 100, 4: 42 },
+  avg_response_ms: 245,
+  response_times: [
+    42, 55, 67, 78, 89, 92, 95, 102, 110, 115, 118, 120, 125, 130, 132,
+    138, 145, 150, 155, 160, 162, 168, 172, 178, 180, 185, 190, 195, 198,
+    200, 205, 210, 215, 220, 225, 228, 230, 235, 240, 242, 245, 248, 250,
+    255, 260, 265, 270, 278, 280, 285, 290, 295, 300, 310, 315, 320, 325,
+    330, 340, 345, 350, 360, 370, 380, 395, 400, 420, 450, 480, 500, 520,
+    560, 600, 650, 700, 750, 800, 920, 1050, 1200, 1500, 2100, 2800, 3200
+  ],
+  hreflang: { total: 1200, with_hreflang: 800, bidirectional_ok: 780, issues: 20 },
+  geo: {
+    bots: {
+      GPTBot: "allowed",
+      ChatGPT_User: "allowed",
+      ClaudeBot: "blocked",
+      Anthropic_Web: "blocked",
+      Google_Extended: "allowed",
+      GoogleOther: "allowed",
+      Bytespider: "blocked",
+      CCBot: "blocked",
+      PerplexityBot: "allowed",
+      Cohere_AI: "unknown",
+      Meta_ExternalAgent: "unknown",
+      Applebot_Extended: "allowed"
+    },
+    llmstxt: true,
+    citability: 72
+  }
+};
+
+var REPORT = [
+  "# Site Audit Report",
+  "",
+  "## Executive Summary",
+  "",
+  "The site **example.com** achieves an overall health score of **82/100**. ",
+  "The majority of pages return `200 OK` with an average response time of 245ms. ",
+  "Key areas for improvement include hreflang coverage and AI crawler access policy.",
+  "",
+  "## HTTP Status Overview",
+  "",
+  "| Status | Count | Percentage |",
+  "|--------|------:|----------:|",
+  "| 2xx OK | 270 | 97.1% |",
+  "| 3xx Redirect | 2 | 0.7% |",
+  "| 4xx Client Error | 5 | 1.8% |",
+  "| 5xx Server Error | 1 | 0.4% |",
+  "",
+  "## Crawl Depth Analysis",
+  "",
+  "Most pages are reachable within **2-3 clicks** from the homepage, which is optimal for SEO. ",
+  "However, 42 pages sit at depth 4 -- consider restructuring internal links to surface these.",
+  "",
+  "### Recommendations",
+  "",
+  "1. **Fix 5 broken links** returning 4xx errors",
+  "2. **Investigate server error** on 1 page",
+  "3. **Add hreflang tags** to 400 pages missing them",
+  "4. **Review AI bot policy** -- ClaudeBot and Bytespider are blocked",
+  "5. **Improve deep pages** -- reduce depth-4 pages from 42 to under 20",
+  "",
+  "## GEO (Generative Engine Optimization)",
+  "",
+  "> The site has `llms.txt` configured, which is a positive signal for AI discoverability.",
+  "",
+  "The **citability score is 72/100** -- above average but room for improvement. ",
+  "Key factors:",
+  "",
+  "- **Structured data**: Present on 85% of pages",
+  "- **Clear attribution**: Author and date on 70% of articles",
+  "- **Unique insights**: 60% of content contains original research or data",
+  "",
+  "```",
+  "Citability Breakdown:",
+  "  Structured data ......... 85%",
+  "  Clear attribution ....... 70%",
+  "  Original research ....... 60%",
+  "  Canonical URLs .......... 95%",
+  "  Response freshness ...... 78%",
+  "```",
+  "",
+  "## Hreflang Coverage",
+  "",
+  "- **Total entries**: 1,200",
+  "- **With hreflang**: 800 (66.7%)",
+  "- **Bidirectional OK**: 780 (97.5% of tagged)",
+  "- **Issues**: 20 unidirectional or mismatched tags",
+  "",
+  "---",
+  "",
+  "*Report generated by Nika SEO Audit Workflow*"
+].join("\n");
+
+
+// ============================================================================
+// SHARED TOOLTIP UTILITY
+// ============================================================================
+(function() {
+  var tooltip = document.getElementById('tooltip');
+
+  window.showTooltip = function(evt, htmlContent) {
+    tooltip.textContent = '';
+    // Build tooltip content safely via a DocumentFragment parsed from trusted source
+    // Note: all tooltip content is generated from embedded data, not user input
+    var fragment = document.createRange().createContextualFragment(htmlContent);
+    tooltip.appendChild(fragment);
+    tooltip.classList.add('visible');
+    positionTooltip(evt);
+  };
+
+  function positionTooltip(evt) {
+    var x = evt.clientX + 12;
+    var y = evt.clientY - 8;
+    var rect = tooltip.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth - 8) x = evt.clientX - rect.width - 12;
+    if (y + rect.height > window.innerHeight - 8) y = evt.clientY - rect.height - 8;
+    if (y < 8) y = 8;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+
+  window.hideTooltip = function() {
+    tooltip.classList.remove('visible');
+  };
+
+  document.addEventListener('mousemove', function(e) {
+    if (tooltip.classList.contains('visible')) positionTooltip(e);
+  });
+})();
+
+
+// ============================================================================
+// SAFE DOM HELPERS
+// All content in this dashboard is from embedded data, not user input.
+// These helpers use textContent for plain text and createRange for
+// trusted HTML fragments (tooltip formatting etc).
+// ============================================================================
+function setHTML(el, htmlContent) {
+  el.textContent = '';
+  var fragment = document.createRange().createContextualFragment(htmlContent);
+  el.appendChild(fragment);
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.textContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function escapeHtmlRaw(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+
+// ============================================================================
+// A. HEALTH RING
+// ============================================================================
+(function renderHealthRing() {
+  var container = document.getElementById('health-ring');
+  var score = TREE.health_score;
+  var radius = 68;
+  var circumference = 2 * Math.PI * radius;
+  var offset = circumference * (1 - score / 100);
+
+  var color;
+  if (score >= 80) color = 'var(--green)';
+  else if (score >= 50) color = 'var(--yellow)';
+  else color = 'var(--red)';
+
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'health-ring-svg');
+  svg.setAttribute('viewBox', '0 0 180 180');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Health score: ' + score + ' out of 100');
+
+  // Background circle
+  var bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  bgCircle.setAttribute('class', 'health-ring-bg');
+  bgCircle.setAttribute('cx', '90');
+  bgCircle.setAttribute('cy', '90');
+  bgCircle.setAttribute('r', String(radius));
+  svg.appendChild(bgCircle);
+
+  // Foreground arc
+  var fgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  fgCircle.setAttribute('class', 'health-ring-fg');
+  fgCircle.setAttribute('cx', '90');
+  fgCircle.setAttribute('cy', '90');
+  fgCircle.setAttribute('r', String(radius));
+  fgCircle.setAttribute('stroke', color);
+  fgCircle.setAttribute('stroke-dasharray', String(circumference));
+  fgCircle.setAttribute('stroke-dashoffset', String(circumference));
+  fgCircle.dataset.target = String(offset);
+  svg.appendChild(fgCircle);
+
+  // Score label
+  var labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  labelText.setAttribute('class', 'health-ring-label');
+  labelText.setAttribute('x', '90');
+  labelText.setAttribute('y', '86');
+  labelText.setAttribute('text-anchor', 'middle');
+  labelText.setAttribute('dominant-baseline', 'central');
+  labelText.textContent = String(score);
+  svg.appendChild(labelText);
+
+  // Unit label
+  var unitText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  unitText.setAttribute('class', 'health-ring-unit');
+  unitText.setAttribute('x', '90');
+  unitText.setAttribute('y', '112');
+  unitText.setAttribute('text-anchor', 'middle');
+  unitText.textContent = '/100';
+  svg.appendChild(unitText);
+
+  container.appendChild(svg);
+
+  // Legend
+  var legend = document.createElement('div');
+  legend.className = 'health-ring-legend';
+
+  var spans = [
+    { cls: 'legend-good', text: '80-100 Good' },
+    { cls: 'legend-warn', text: '50-79 Fair' },
+    { cls: 'legend-bad', text: '0-49 Poor' }
+  ];
+  spans.forEach(function(s) {
+    var span = document.createElement('span');
+    span.className = s.cls;
+    span.textContent = s.text;
+    legend.appendChild(span);
+  });
+  container.appendChild(legend);
+
+  // Animate on load
+  requestAnimationFrame(function() {
+    fgCircle.style.strokeDashoffset = String(offset);
+  });
+
+  // Tooltip on ring
+  svg.addEventListener('mouseenter', function(e) {
+    showTooltip(e,
+      '<span class="tt-label">Health Score</span><br>' +
+      '<span class="tt-value">' + score + '/100</span><br>' +
+      '<span class="tt-label">' + TREE.total_pages + ' pages crawled</span>'
+    );
+  });
+  svg.addEventListener('mouseleave', hideTooltip);
+})();
+
+
+// ============================================================================
+// B. STATUS DISTRIBUTION
+// ============================================================================
+(function renderStatusDist() {
+  var container = document.getElementById('status-dist');
+  var s = STATS.status;
+  var total = s.ok + s.redirect + s.client_error + s.server_error;
+
+  var segments = [
+    { label: '2xx OK', count: s.ok, color: 'var(--green)' },
+    { label: '3xx Redirect', count: s.redirect, color: 'var(--yellow)' },
+    { label: '4xx Client Error', count: s.client_error, color: 'var(--orange)' },
+    { label: '5xx Server Error', count: s.server_error, color: 'var(--red)' }
+  ];
+
+  // Bar
+  var bar = document.createElement('div');
+  bar.className = 'status-bar';
+  bar.setAttribute('role', 'img');
+  bar.setAttribute('aria-label', 'HTTP status distribution: ' +
+    segments.map(function(seg) {
+      return seg.count + ' ' + seg.label;
+    }).join(', ')
+  );
+
+  segments.forEach(function(seg) {
+    if (seg.count === 0) return;
+    var pct = (seg.count / total * 100).toFixed(1);
+    var el = document.createElement('div');
+    el.className = 'status-bar-segment';
+    el.style.flex = String(seg.count);
+    el.style.background = seg.color;
+    el.addEventListener('mouseenter', function(e) {
+      showTooltip(e,
+        '<span class="tt-label">' + escapeHtmlRaw(seg.label) + '</span><br>' +
+        '<span class="tt-value">' + seg.count + '</span> pages (' + pct + '%)'
+      );
+    });
+    el.addEventListener('mouseleave', hideTooltip);
+    bar.appendChild(el);
+  });
+
+  container.appendChild(bar);
+
+  // Legend
+  var legend = document.createElement('div');
+  legend.className = 'status-legend';
+  segments.forEach(function(seg) {
+    var pct = (seg.count / total * 100).toFixed(1);
+    var item = document.createElement('div');
+    item.className = 'status-legend-item';
+
+    var dot = document.createElement('span');
+    dot.className = 'status-legend-dot';
+    dot.style.background = seg.color;
+    item.appendChild(dot);
+
+    var labelNode = document.createTextNode(seg.label + ' ');
+    item.appendChild(labelNode);
+
+    var countSpan = document.createElement('span');
+    countSpan.className = 'status-legend-count';
+    countSpan.textContent = String(seg.count);
+    item.appendChild(countSpan);
+
+    var pctSpan = document.createElement('span');
+    pctSpan.style.color = 'var(--text-muted)';
+    pctSpan.textContent = ' (' + pct + '%)';
+    item.appendChild(pctSpan);
+
+    legend.appendChild(item);
+  });
+  container.appendChild(legend);
+})();
+
+
+// ============================================================================
+// C. DEPTH HEATMAP
+// ============================================================================
+(function renderDepthHeatmap() {
+  var container = document.getElementById('depth-heatmap');
+  var d = STATS.depth;
+  var keys = Object.keys(d).sort(function(a, b) { return Number(a) - Number(b); });
+  var maxVal = Math.max.apply(null, keys.map(function(k) { return d[k]; }));
+
+  // Color ramp from cyan to blue to purple as depth increases
+  var depthColors = ['var(--cyan)', 'var(--blue)', '#818cf8', 'var(--purple)', 'var(--red)'];
+
+  keys.forEach(function(key, i) {
+    var val = d[key];
+    var pct = (val / maxVal * 100);
+    var col = document.createElement('div');
+    col.className = 'depth-bar-col';
+
+    var countEl = document.createElement('div');
+    countEl.className = 'depth-bar-count';
+    countEl.textContent = String(val);
+
+    var barEl = document.createElement('div');
+    barEl.className = 'depth-bar';
+    barEl.style.height = '0%';
+    barEl.style.background = depthColors[i] || depthColors[depthColors.length - 1];
+    barEl.setAttribute('role', 'listitem');
+    barEl.setAttribute('aria-label', 'Depth ' + key + ': ' + val + ' pages');
+
+    barEl.addEventListener('mouseenter', function(e) {
+      var totalPages = keys.reduce(function(sum, k) { return sum + d[k]; }, 0);
+      showTooltip(e,
+        '<span class="tt-label">Depth ' + escapeHtmlRaw(key) + '</span><br>' +
+        '<span class="tt-value">' + val + '</span> pages' +
+        ' (' + (val / totalPages * 100).toFixed(1) + '%)'
+      );
+    });
+    barEl.addEventListener('mouseleave', hideTooltip);
+
+    var labelEl = document.createElement('div');
+    labelEl.className = 'depth-bar-label';
+    labelEl.textContent = 'd' + key;
+
+    col.appendChild(countEl);
+    col.appendChild(barEl);
+    col.appendChild(labelEl);
+    container.appendChild(col);
+
+    // Animate
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        barEl.style.height = Math.max(pct, 3) + '%';
+      }, i * 80);
+    });
+  });
+})();
+
+
+// ============================================================================
+// D. AI CRAWLER ACCESS GRID
+// ============================================================================
+(function renderCrawlerGrid() {
+  var container = document.getElementById('crawler-grid');
+  var bots = STATS.geo.bots;
+  var botNames = Object.keys(bots);
+
+  // Friendly display names
+  var displayNames = {
+    GPTBot: 'GPTBot',
+    ChatGPT_User: 'ChatGPT-User',
+    ClaudeBot: 'ClaudeBot',
+    Anthropic_Web: 'Anthropic-Web',
+    Google_Extended: 'Google-Extended',
+    GoogleOther: 'GoogleOther',
+    Bytespider: 'Bytespider (TikTok)',
+    CCBot: 'CCBot (Common Crawl)',
+    PerplexityBot: 'PerplexityBot',
+    Cohere_AI: 'Cohere-AI',
+    Meta_ExternalAgent: 'Meta-ExternalAgent',
+    Applebot_Extended: 'Applebot-Extended'
+  };
+
+  var counts = { allowed: 0, blocked: 0, unknown: 0 };
+
+  botNames.forEach(function(bot) {
+    var status = bots[bot];
+    counts[status] = (counts[status] || 0) + 1;
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'crawler-name';
+    nameEl.textContent = displayNames[bot] || bot;
+
+    var statusEl = document.createElement('div');
+    statusEl.className = 'crawler-status';
+
+    var dot = document.createElement('span');
+    dot.className = 'crawler-dot crawler-dot-' + status;
+
+    var text = document.createElement('span');
+    text.className = 'crawler-status-text';
+    text.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+
+    statusEl.appendChild(dot);
+    statusEl.appendChild(text);
+
+    container.appendChild(nameEl);
+    container.appendChild(statusEl);
+  });
+
+  // Summary counters
+  var summary = document.createElement('div');
+  summary.className = 'crawler-summary';
+
+  var summaryItems = [
+    { cls: 'crawler-dot-allowed', label: 'Allowed', count: counts.allowed },
+    { cls: 'crawler-dot-blocked', label: 'Blocked', count: counts.blocked },
+    { cls: 'crawler-dot-unknown', label: 'Unknown', count: counts.unknown || 0 }
+  ];
+
+  summaryItems.forEach(function(item) {
+    var div = document.createElement('div');
+    div.className = 'crawler-summary-item';
+
+    var dotEl = document.createElement('span');
+    dotEl.className = 'crawler-dot ' + item.cls;
+    div.appendChild(dotEl);
+
+    div.appendChild(document.createTextNode(item.label + ' '));
+
+    var countEl = document.createElement('span');
+    countEl.className = 'count';
+    countEl.textContent = String(item.count);
+    div.appendChild(countEl);
+
+    summary.appendChild(div);
+  });
+  container.appendChild(summary);
+
+  // Extras: llms.txt + citability
+  var extras = document.createElement('div');
+  extras.className = 'crawler-extras';
+
+  var llmsBadge = document.createElement('span');
+  llmsBadge.className = 'badge ' + (STATS.geo.llmstxt ? 'badge-ok' : 'badge-warn');
+  llmsBadge.textContent = STATS.geo.llmstxt ? 'llms.txt present' : 'llms.txt missing';
+  extras.appendChild(llmsBadge);
+
+  var citScore = STATS.geo.citability;
+  var citClass = citScore >= 70 ? 'badge-ok' : citScore >= 40 ? 'badge-warn' : 'badge-bad';
+  var citBadge = document.createElement('span');
+  citBadge.className = 'badge ' + citClass;
+  citBadge.textContent = 'Citability: ' + citScore + '/100';
+  extras.appendChild(citBadge);
+
+  container.appendChild(extras);
+})();
+
+
+// ============================================================================
+// E. LOCALE COVERAGE TABLE
+// ============================================================================
+(function renderLocaleCoverage() {
+  var container = document.getElementById('locale-coverage');
+
+  // Extract locales and sections from TREE
+  var locales = TREE.children.map(function(c) { return c.name; });
+  var sectionSet = {};
+  TREE.children.forEach(function(locale) {
+    (locale.children || []).forEach(function(sec) {
+      sectionSet[sec.name] = true;
+    });
+  });
+  var sections = Object.keys(sectionSet).sort();
+
+  // Build lookup: locale -> section -> count
+  var lookup = {};
+  TREE.children.forEach(function(locale) {
+    lookup[locale.name] = {};
+    (locale.children || []).forEach(function(sec) {
+      lookup[locale.name][sec.name] = sec.value;
+    });
+  });
+
+  var table = document.createElement('table');
+  table.className = 'locale-table';
+  table.setAttribute('role', 'table');
+  table.setAttribute('aria-label', 'Locale and section coverage matrix');
+
+  // Header
+  var thead = document.createElement('thead');
+  var headerRow = document.createElement('tr');
+
+  var thSection = document.createElement('th');
+  thSection.textContent = 'Section';
+  headerRow.appendChild(thSection);
+
+  locales.forEach(function(loc) {
+    var th = document.createElement('th');
+    th.textContent = loc.toUpperCase();
+    headerRow.appendChild(th);
+  });
+
+  var thCoverage = document.createElement('th');
+  thCoverage.textContent = 'Coverage';
+  headerRow.appendChild(thCoverage);
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  // Body
+  var tbody = document.createElement('tbody');
+  sections.forEach(function(section) {
+    var tr = document.createElement('tr');
+
+    var tdName = document.createElement('td');
+    tdName.textContent = section;
+    tr.appendChild(tdName);
+
+    var present = 0;
+    locales.forEach(function(loc) {
+      var td = document.createElement('td');
+      var val = lookup[loc] && lookup[loc][section];
+      if (val && val > 0) {
+        present++;
+        var checkSpan = document.createElement('span');
+        checkSpan.className = 'locale-check';
+        checkSpan.setAttribute('aria-label', 'Present');
+        checkSpan.textContent = '\u2713';
+        td.appendChild(checkSpan);
+
+        td.appendChild(document.createTextNode(' '));
+
+        var countSpan = document.createElement('span');
+        countSpan.className = 'locale-count';
+        countSpan.textContent = String(val);
+        td.appendChild(countSpan);
+      } else {
+        var gapSpan = document.createElement('span');
+        gapSpan.className = 'locale-gap';
+        gapSpan.setAttribute('aria-label', 'Missing');
+        gapSpan.textContent = '\u2014';
+        td.appendChild(gapSpan);
+      }
+      tr.appendChild(td);
+    });
+
+    var tdPct = document.createElement('td');
+    var pct = Math.round(present / locales.length * 100);
+    var pctColor = pct === 100 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    var pctSpan = document.createElement('span');
+    pctSpan.className = 'locale-coverage-pct';
+    pctSpan.style.color = pctColor;
+    pctSpan.textContent = pct + '%';
+    tdPct.appendChild(pctSpan);
+    tr.appendChild(tdPct);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+})();
+
+
+// ============================================================================
+// F. RESPONSE TIME HISTOGRAM
+// ============================================================================
+(function renderResponseHist() {
+  var container = document.getElementById('response-hist');
+  var statsEl = document.getElementById('response-hist-stats');
+  var times = (STATS.response_times || []).slice().sort(function(a, b) { return a - b; });
+
+  if (times.length === 0) {
+    var msg = document.createElement('div');
+    msg.style.color = 'var(--text-muted)';
+    msg.style.padding = '20px';
+    msg.textContent = 'No response time data available.';
+    container.appendChild(msg);
+    return;
+  }
+
+  // Define buckets (ms)
+  var bucketEdges = [0, 100, 200, 300, 400, 500, 750, 1000, 1500, 2000, 3000, Infinity];
+  var buckets = [];
+  for (var i = 0; i < bucketEdges.length - 1; i++) {
+    var lo = bucketEdges[i];
+    var hi = bucketEdges[i + 1];
+    var label;
+    if (hi === Infinity) label = lo + '+';
+    else label = lo + '-' + hi;
+    buckets.push({ lo: lo, hi: hi, label: label, count: 0 });
+  }
+
+  times.forEach(function(t) {
+    for (var b = 0; b < buckets.length; b++) {
+      if (t >= buckets[b].lo && t < buckets[b].hi) {
+        buckets[b].count++;
+        break;
+      }
+    }
+  });
+
+  var maxCount = Math.max.apply(null, buckets.map(function(b) { return b.count; }));
+
+  // Color function: green < 300, yellow 300-1000, red > 1000
+  function bucketColor(lo) {
+    if (lo < 300) return 'var(--green)';
+    if (lo < 1000) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  buckets.forEach(function(bucket, idx) {
+    var col = document.createElement('div');
+    col.className = 'hist-bar-col';
+
+    var countEl = document.createElement('div');
+    countEl.className = 'hist-count';
+    countEl.textContent = bucket.count > 0 ? String(bucket.count) : '';
+
+    var barEl = document.createElement('div');
+    barEl.className = 'hist-bar';
+    barEl.style.height = '0%';
+    barEl.style.background = bucketColor(bucket.lo);
+    barEl.setAttribute('aria-label', bucket.label + 'ms: ' + bucket.count + ' pages');
+
+    barEl.addEventListener('mouseenter', function(e) {
+      showTooltip(e,
+        '<span class="tt-label">' + escapeHtmlRaw(bucket.label) + ' ms</span><br>' +
+        '<span class="tt-value">' + bucket.count + '</span> pages'
+      );
+    });
+    barEl.addEventListener('mouseleave', hideTooltip);
+
+    var labelEl = document.createElement('div');
+    labelEl.className = 'hist-label';
+    labelEl.textContent = bucket.label;
+
+    col.appendChild(countEl);
+    col.appendChild(barEl);
+    col.appendChild(labelEl);
+    container.appendChild(col);
+
+    // Animate
+    requestAnimationFrame(function() {
+      setTimeout(function() {
+        var pct = maxCount > 0 ? (bucket.count / maxCount * 100) : 0;
+        barEl.style.height = Math.max(pct, bucket.count > 0 ? 3 : 0) + '%';
+      }, idx * 50);
+    });
+  });
+
+  // Stats summary
+  var total = times.length;
+  var sum = times.reduce(function(a, b) { return a + b; }, 0);
+  var avg = Math.round(sum / total);
+  var median = times[Math.floor(total / 2)];
+  var p95 = times[Math.floor(total * 0.95)];
+  var p99 = times[Math.floor(total * 0.99)];
+
+  var statsDefs = [
+    { label: 'Avg', value: avg + 'ms' },
+    { label: 'Median', value: median + 'ms' },
+    { label: 'P95', value: p95 + 'ms' },
+    { label: 'P99', value: p99 + 'ms' },
+    { label: 'Total', value: String(total) + ' pages' }
+  ];
+
+  statsDefs.forEach(function(stat) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(stat.label + ' '));
+    var valSpan = document.createElement('span');
+    valSpan.className = 'stat-value';
+    valSpan.textContent = stat.value;
+    div.appendChild(valSpan);
+    statsEl.appendChild(div);
+  });
+})();
+
+
+// ============================================================================
+// G. MARKDOWN REPORT RENDERER
+// ============================================================================
+(function renderMarkdownReport() {
+  var container = document.getElementById('report-content');
+  var html = renderMarkdown(REPORT);
+  // This dashboard is self-contained with embedded data, no user input.
+  // The markdown renderer operates on trusted REPORT content only.
+  setHTML(container, html);
+})();
+
+/**
+ * Minimal markdown-to-HTML renderer.
+ * Supports: headings, bold, italic, inline code, code blocks, blockquotes,
+ * ordered/unordered lists, tables, horizontal rules, links, paragraphs.
+ *
+ * No external dependencies. Operates on trusted embedded data only.
+ */
+function renderMarkdown(src) {
+  var lines = src.split('\n');
+  var out = [];
+  var i = 0;
+  var len = lines.length;
+
+  while (i < len) {
+    var line = lines[i];
+
+    // Fenced code block
+    if (line.match(/^```/)) {
+      var lang = line.slice(3).trim();
+      var code = [];
+      i++;
+      while (i < len && !lines[i].match(/^```/)) {
+        code.push(escapeHtmlRaw(lines[i]));
+        i++;
+      }
+      i++; // skip closing ```
+      out.push('<pre><code' + (lang ? ' class="lang-' + escapeHtmlRaw(lang) + '"' : '') + '>' + code.join('\n') + '</code></pre>');
+      continue;
+    }
+
+    // Heading
+    var headingMatch = line.match(/^(#{1,6})\s+(.+)/);
+    if (headingMatch) {
+      var level = headingMatch[1].length;
+      out.push('<h' + level + '>' + inlineFormat(headingMatch[2]) + '</h' + level + '>');
+      i++;
+      continue;
+    }
+
+    // Horizontal rule
+    if (line.match(/^(-{3,}|\*{3,}|_{3,})\s*$/)) {
+      out.push('<hr>');
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.match(/^>\s?/)) {
+      var bq = [];
+      while (i < len && lines[i].match(/^>\s?/)) {
+        bq.push(lines[i].replace(/^>\s?/, ''));
+        i++;
+      }
+      out.push('<blockquote>' + renderMarkdown(bq.join('\n')) + '</blockquote>');
+      continue;
+    }
+
+    // Table
+    if (line.match(/^\|/) && i + 1 < len && lines[i + 1].match(/^\|[\s\-:|]+\|/)) {
+      var headerCells = parseTableRow(line);
+      i++; // skip to separator line
+
+      // Parse alignment from separator
+      var sepCells = parseTableRow(lines[i]);
+      var aligns = sepCells.map(function(cell) {
+        var trimmed = cell.trim();
+        if (trimmed.match(/^:.*:$/)) return 'center';
+        if (trimmed.match(/:$/)) return 'right';
+        return 'left';
+      });
+      i++;
+
+      var tableHtml = '<table><thead><tr>';
+      headerCells.forEach(function(cell, ci) {
+        var align = aligns[ci] || 'left';
+        tableHtml += '<th style="text-align:' + align + '">' + inlineFormat(cell.trim()) + '</th>';
+      });
+      tableHtml += '</tr></thead><tbody>';
+
+      while (i < len && lines[i].match(/^\|/)) {
+        var rowCells = parseTableRow(lines[i]);
+        tableHtml += '<tr>';
+        rowCells.forEach(function(cell, ci) {
+          var align = aligns[ci] || 'left';
+          tableHtml += '<td style="text-align:' + align + '">' + inlineFormat(cell.trim()) + '</td>';
+        });
+        tableHtml += '</tr>';
+        i++;
+      }
+
+      tableHtml += '</tbody></table>';
+      out.push(tableHtml);
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^[\s]*[-*+]\s/)) {
+      var listItems = [];
+      while (i < len && lines[i].match(/^[\s]*[-*+]\s/)) {
+        listItems.push(inlineFormat(lines[i].replace(/^[\s]*[-*+]\s/, '')));
+        i++;
+      }
+      out.push('<ul>' + listItems.map(function(li) { return '<li>' + li + '</li>'; }).join('') + '</ul>');
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^[\s]*\d+\.\s/)) {
+      var olItems = [];
+      while (i < len && lines[i].match(/^[\s]*\d+\.\s/)) {
+        olItems.push(inlineFormat(lines[i].replace(/^[\s]*\d+\.\s/, '')));
+        i++;
+      }
+      out.push('<ol>' + olItems.map(function(li) { return '<li>' + li + '</li>'; }).join('') + '</ol>');
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    // Paragraph (collect consecutive non-empty, non-special lines)
+    var para = [];
+    while (i < len && lines[i].trim() !== '' &&
+           !lines[i].match(/^(#{1,6}\s|```|>\s?|\||-{3,}|\*{3,}|_{3,}|[\s]*[-*+]\s|[\s]*\d+\.\s)/) ) {
+      para.push(lines[i]);
+      i++;
+    }
+    if (para.length > 0) {
+      out.push('<p>' + inlineFormat(para.join(' ')) + '</p>');
+    }
+  }
+
+  return out.join('\n');
+}
+
+function parseTableRow(line) {
+  return line.replace(/^\|/, '').replace(/\|$/, '').split('|');
+}
+
+function inlineFormat(text) {
+  // Inline code (must be first to protect content from further formatting)
+  text = text.replace(/`([^`]+)`/g, function(_, code) {
+    return '<code>' + escapeHtmlRaw(code) + '</code>';
+  });
+  // Bold + italic
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  // Bold
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Links [text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Strikethrough
+  text = text.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  return text;
+}
+</script>
+</body>
+</html>

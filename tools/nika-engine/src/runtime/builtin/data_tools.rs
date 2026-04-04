@@ -1048,13 +1048,12 @@ impl BuiltinTool for JqTool {
                     reason: format!("Invalid params: {e}"),
                 })?;
 
-            let result =
-                nika_core::binding::eval_jq(&params.expr, &params.data).map_err(|e| {
-                    NikaError::BuiltinToolError {
-                        tool: "nika:jq".into(),
-                        reason: e,
-                    }
-                })?;
+            let result = nika_core::binding::eval_jq(&params.expr, &params.data).map_err(|e| {
+                NikaError::BuiltinToolError {
+                    tool: "nika:jq".into(),
+                    reason: e,
+                }
+            })?;
 
             serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:jq".into(),

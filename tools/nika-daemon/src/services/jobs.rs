@@ -167,19 +167,21 @@ impl JobService {
 
         // Spawn child process (H3: error on missing exe instead of fallback)
         // VPS-01: fallback to persisted exe path when current_exe() fails (e.g. after upgrade)
-        let exe = std::env::current_exe().or_else(|_| {
-            let stored = std::fs::read_to_string(crate::daemon_dir().join("nika-exe-path"))
-                .map_err(|e| std::io::Error::other(format!("no stored exe path: {e}")))?;
-            let path = std::path::PathBuf::from(stored.trim());
-            if path.exists() {
-                Ok(path)
-            } else {
-                Err(std::io::Error::other(format!(
-                    "stored exe path does not exist: {}",
-                    path.display()
-                )))
-            }
-        }).map_err(|e| DaemonError::Lifecycle(format!("cannot find nika binary: {e}")))?;
+        let exe = std::env::current_exe()
+            .or_else(|_| {
+                let stored = std::fs::read_to_string(crate::daemon_dir().join("nika-exe-path"))
+                    .map_err(|e| std::io::Error::other(format!("no stored exe path: {e}")))?;
+                let path = std::path::PathBuf::from(stored.trim());
+                if path.exists() {
+                    Ok(path)
+                } else {
+                    Err(std::io::Error::other(format!(
+                        "stored exe path does not exist: {}",
+                        path.display()
+                    )))
+                }
+            })
+            .map_err(|e| DaemonError::Lifecycle(format!("cannot find nika binary: {e}")))?;
         let mut cmd = Command::new(exe);
         cmd.args(["run", &job.workflow, "-y", "--no-interactive"]);
 

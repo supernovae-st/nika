@@ -650,7 +650,8 @@ fn extract_sitemap_xml(body: &str) -> Result<String, NikaError> {
                     "urls": [],
                     "count": 0,
                     "is_index": false,
-                }).to_string());
+                })
+                .to_string());
             }
             _ => {}
         }
@@ -1316,9 +1317,7 @@ mod tests {
         .unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         // Title should be empty or missing
-        assert!(
-            parsed["title"].is_null() || parsed["title"] == "" || parsed["title"] == "null"
-        );
+        assert!(parsed["title"].is_null() || parsed["title"] == "" || parsed["title"] == "null");
         // Links should exist but be empty
         assert!(parsed["links"].is_object());
     }

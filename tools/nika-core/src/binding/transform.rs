@@ -1077,7 +1077,7 @@ impl TransformOp {
                     1 => Ok(results.into_iter().next().unwrap()),
                     _ => Ok(Value::Array(results)),
                 }
-            },
+            }
         }
     }
 }
@@ -3880,7 +3880,9 @@ mod tests {
 
     #[test]
     fn jq_null_input() {
-        let result = TransformOp::Jq(".".to_string()).apply(&Value::Null).unwrap();
+        let result = TransformOp::Jq(".".to_string())
+            .apply(&Value::Null)
+            .unwrap();
         assert_eq!(result, Value::Null);
     }
 
@@ -3891,10 +3893,15 @@ mod tests {
             {"locale": "en", "section": "docs"},
             {"locale": "fr", "section": "blog"}
         ]);
-        let result = TransformOp::Jq("[group_by(.locale)[] | {name: .[0].locale, count: length}]".to_string())
-            .apply(&data)
-            .unwrap();
-        assert_eq!(result, json!([{"name": "en", "count": 2}, {"name": "fr", "count": 1}]));
+        let result = TransformOp::Jq(
+            "[group_by(.locale)[] | {name: .[0].locale, count: length}]".to_string(),
+        )
+        .apply(&data)
+        .unwrap();
+        assert_eq!(
+            result,
+            json!([{"name": "en", "count": 2}, {"name": "fr", "count": 1}])
+        );
     }
 
     #[test]
@@ -3945,10 +3952,13 @@ mod tests {
         let result = TransformOp::Jq(
             "[group_by(.locale)[] | {name: .[0].locale, children: [group_by(.section)[] | {name: .[0].section, value: length}]}]".to_string()
         ).apply(&data).unwrap();
-        assert_eq!(result, json!([
-            {"name": "en", "children": [{"name": "blog", "value": 2}, {"name": "docs", "value": 1}]},
-            {"name": "fr", "children": [{"name": "blog", "value": 1}]}
-        ]));
+        assert_eq!(
+            result,
+            json!([
+                {"name": "en", "children": [{"name": "blog", "value": 2}, {"name": "docs", "value": 1}]},
+                {"name": "fr", "children": [{"name": "blog", "value": 1}]}
+            ])
+        );
     }
 
     #[test]
@@ -3965,7 +3975,10 @@ mod tests {
 
     #[test]
     fn display_jq() {
-        assert_eq!(TransformOp::Jq(".name".to_string()).to_string(), "jq('.name')");
+        assert_eq!(
+            TransformOp::Jq(".name".to_string()).to_string(),
+            "jq('.name')"
+        );
     }
 }
 

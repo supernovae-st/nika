@@ -480,7 +480,10 @@ mod tests {
             })
             .await;
 
-        assert!(result.is_ok(), "overwrite: true should succeed on existing file");
+        assert!(
+            result.is_ok(),
+            "overwrite: true should succeed on existing file"
+        );
         let content = fs::read_to_string(&file_path).await.unwrap();
         assert_eq!(content, "new data");
     }

@@ -163,7 +163,10 @@ impl std::fmt::Debug for DaemonRequest {
                 write!(f, "DaemonRequest::DeleteSecret {{ provider: {provider:?}, auth_token: <redacted> }}")
             }
             Self::GetSecret { provider, .. } => {
-                write!(f, "DaemonRequest::GetSecret {{ provider: {provider:?}, auth_token: <redacted> }}")
+                write!(
+                    f,
+                    "DaemonRequest::GetSecret {{ provider: {provider:?}, auth_token: <redacted> }}"
+                )
             }
             Self::Ping => write!(f, "DaemonRequest::Ping"),
             Self::Status => write!(f, "DaemonRequest::Status"),
