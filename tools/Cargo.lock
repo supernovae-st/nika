@@ -1291,15 +1291,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chumsky"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eebd66744a15ded14960ab4ccdbfb51ad3b81f51f3f04a80adac98c985396c9"
-dependencies = [
- "hashbrown 0.14.5",
-]
-
-[[package]]
 name = "ciborium"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3638,10 +3629,6 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-dependencies = [
- "ahash",
- "allocator-api2",
-]
 
 [[package]]
 name = "hashbrown"
@@ -3786,9 +3773,9 @@ dependencies = [
 
 [[package]]
 name = "hifijson"
-version = "0.2.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a7763b98ba8a24f59e698bf9ab197e7676c640d6455d1580b4ce7dc560f0f0d"
+checksum = "242402749acf71e6f32f5857598b7002c4058a4e3c3b22b4c7d51cab9aea754e"
 
 [[package]]
 name = "hkdf"
@@ -4577,62 +4564,50 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jaq-core"
-version = "1.5.1"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6fda09ee08c84c81293fdf811d9ebaa87b327557b5391f290c926d728c2ddd4"
+checksum = "dca0f164c8e9c55fc5aefe60b371df735c719b09930dac185878f2f8c7ab6b68"
 dependencies = [
- "aho-corasick",
- "base64 0.22.1",
- "chrono",
- "hifijson",
- "jaq-interpret",
- "libm",
- "log",
- "regex",
- "urlencoding",
+ "dyn-clone",
+ "once_cell",
+ "typed-arena",
 ]
 
 [[package]]
-name = "jaq-interpret"
-version = "1.5.0"
+name = "jaq-json"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fe95ec3c24af3fd9f3dd1091593f5e49b003a66c496a8aa39d764d0a06ae17b"
+checksum = "f5c5baabe63d1d72cde60ec7548a098036773e3541dbc65c6a44fb38e9cfb272"
 dependencies = [
- "ahash",
- "dyn-clone",
+ "bstr 1.12.1",
+ "bytes",
+ "foldhash 0.1.5",
  "hifijson",
  "indexmap 2.13.0",
- "jaq-syn",
- "once_cell",
- "serde_json",
-]
-
-[[package]]
-name = "jaq-parse"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0346d7d3146cdda8acd929581f3d6626a332356c74d5c95aeaffaac2eb6dee82"
-dependencies = [
- "chumsky",
- "jaq-syn",
+ "jaq-core",
+ "jaq-std",
+ "num-bigint",
+ "num-traits",
+ "ryu",
+ "self_cell",
+ "serde_core",
 ]
 
 [[package]]
 name = "jaq-std"
-version = "1.6.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfbaa55578fd3b70433b594a370741e0c364e4afff92cc0099623fce87311bc1"
+checksum = "2a11bb307027b20b3dc7b212ad687e7e410cbc43933eec5d498672ab2bc60666"
 dependencies = [
- "jaq-syn",
-]
-
-[[package]]
-name = "jaq-syn"
-version = "1.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba44fe4428c71304604261ecbae047ee9cfb60c4f1a6bd222ebbb31726d3948"
-dependencies = [
- "serde",
+ "aho-corasick",
+ "base64 0.22.1",
+ "bstr 1.12.1",
+ "jaq-core",
+ "jiff",
+ "libm",
+ "log",
+ "regex-bites",
+ "urlencoding",
 ]
 
 [[package]]
@@ -4648,10 +4623,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a3546dc96b6d42c5f24902af9e2538e82e39ad350b0c766eb3fbf2d8f3d8359"
 dependencies = [
  "jiff-static",
+ "jiff-tzdb-platform",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4663,6 +4640,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "jiff-tzdb"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c900ef84826f1338a557697dc8fc601df9ca9af4ac137c7fb61d4c6f2dfd3076"
+
+[[package]]
+name = "jiff-tzdb-platform"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "875a5a69ac2bab1a891711cf5eccbec1ce0341ea805560dcd90b7a2e925132e8"
+dependencies = [
+ "jiff-tzdb",
 ]
 
 [[package]]
@@ -5814,7 +5806,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -5833,6 +5825,7 @@ dependencies = [
  "nika-core",
  "nika-daemon",
  "nika-engine",
+ "nika-init",
  "nika-serve",
  "nika-tui",
  "parking_lot",
@@ -5858,7 +5851,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "chrono",
  "clap",
@@ -5873,7 +5866,9 @@ dependencies = [
  "nika-core",
  "nika-daemon",
  "nika-engine",
+ "nika-init",
  "nika-mcp",
+ "nika-vault",
  "regex",
  "rustc-hash 2.1.2",
  "secrecy",
@@ -5889,27 +5884,23 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
- "fs2",
  "indexmap 2.13.0",
  "insta",
  "jaq-core",
- "jaq-interpret",
- "jaq-parse",
+ "jaq-json",
  "jaq-std",
  "jsonschema",
  "lru 0.12.5",
  "marked-yaml",
  "miette",
- "orion",
  "pretty_assertions",
  "proptest",
  "regex",
  "rustc-hash 2.1.2",
- "secrecy",
  "serde",
  "serde-saphyr 0.0.20",
  "serde_json",
@@ -5920,13 +5911,12 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
- "whoami",
  "xxhash-rust",
 ]
 
 [[package]]
 name = "nika-daemon"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -5936,6 +5926,7 @@ dependencies = [
  "globset",
  "nika-core",
  "nika-storage",
+ "nika-vault",
  "nix 0.31.2",
  "notify",
  "sd-notify",
@@ -5952,7 +5943,7 @@ dependencies = [
 
 [[package]]
 name = "nika-engine"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -5983,10 +5974,10 @@ dependencies = [
  "nika-core",
  "nika-daemon",
  "nika-event",
- "nika-init",
  "nika-lsp-core",
  "nika-mcp",
  "nika-media",
+ "nika-vault",
  "nix 0.31.2",
  "parking_lot",
  "petgraph",
@@ -6032,7 +6023,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -6049,7 +6040,7 @@ dependencies = [
 
 [[package]]
 name = "nika-init"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "serde",
  "serde-saphyr 0.0.20",
@@ -6061,7 +6052,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "dashmap",
  "libc",
@@ -6081,7 +6072,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "dashmap",
  "insta",
@@ -6099,7 +6090,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "backon",
  "dashmap",
@@ -6125,7 +6116,7 @@ dependencies = [
 
 [[package]]
 name = "nika-media"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -6176,7 +6167,7 @@ dependencies = [
 
 [[package]]
 name = "nika-napi"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "futures-util",
  "napi",
@@ -6190,7 +6181,7 @@ dependencies = [
 
 [[package]]
 name = "nika-py"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "futures-util",
  "nika-sdk",
@@ -6203,7 +6194,7 @@ dependencies = [
 
 [[package]]
 name = "nika-sdk"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -6225,7 +6216,7 @@ dependencies = [
 
 [[package]]
 name = "nika-serve"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "aide",
  "async-stream",
@@ -6259,7 +6250,7 @@ dependencies = [
 
 [[package]]
 name = "nika-storage"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -6272,7 +6263,7 @@ dependencies = [
 
 [[package]]
 name = "nika-tui"
-version = "0.66.0"
+version = "0.68.0"
 dependencies = [
  "arboard",
  "camino",
@@ -6286,6 +6277,7 @@ dependencies = [
  "nika-core",
  "nika-engine",
  "nika-lsp-core",
+ "nika-vault",
  "parking_lot",
  "pretty_assertions",
  "rand 0.8.5",
@@ -6313,6 +6305,23 @@ dependencies = [
  "uuid 1.23.0",
  "xxhash-rust",
  "zeroize",
+]
+
+[[package]]
+name = "nika-vault"
+version = "0.68.0"
+dependencies = [
+ "chrono",
+ "fs2",
+ "orion",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+ "whoami",
 ]
 
 [[package]]
@@ -8348,6 +8357,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-bites"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6a15a2fa0bfda9361941c45550896ae87b15cc6c8c939ea350079670332e211"
+
+[[package]]
 name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9175,6 +9190,12 @@ dependencies = [
  "servo_arc",
  "smallvec 1.15.1",
 ]
+
+[[package]]
+name = "self_cell"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b12e76d157a900eb52e81bc6e9f3069344290341720e9178cde2407113ac8d89"
 
 [[package]]
 name = "semver"
@@ -11147,6 +11168,12 @@ checksum = "fa10c302f5a53b7ad27fd42a3996e23d096ba39b5b8dd6d9e683a05b01bee749"
 dependencies = [
  "pom",
 ]
+
+[[package]]
+name = "typed-arena"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
 
 [[package]]
 name = "typed-path"

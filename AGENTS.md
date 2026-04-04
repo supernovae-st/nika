@@ -50,6 +50,8 @@ Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
 # Workflows
 nika run workflow.nika.yaml            # Execute workflow
 nika run workflow.nika.yaml --no-live  # Force classic append-only output
+nika run https://example.com/wf.nika.yaml  # Execute remote workflow
+nika explain workflow.nika.yaml        # Human-readable summary
 nika check workflow.nika.yaml          # Validate syntax + DAG
 nika check workflow.nika.yaml --strict # + test MCP connections
 nika new my-flow --verb infer          # Create new workflow

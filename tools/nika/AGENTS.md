@@ -6,16 +6,20 @@ Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 
 ```
 tools/
-├── nika/           Binary (2k lines) — CLI entry point
+├── nika/           Binary (2k) — CLI entry point
 ├── nika-engine/    Execution engine (135k) — embeddable runtime
+├── nika-core/      AST, types, catalogs (23k) — pure, zero I/O
+├── nika-vault/     Encrypted secrets (1.2k) — XChaCha20 + Argon2i
 ├── nika-daemon/    Background daemon (5k) — secrets, jobs, watch, cache
 ├── nika-init/      Project scaffolding (21k) — init wizard + course
-├── nika-core/      AST, types, catalogs (23k) — zero I/O
 ├── nika-event/     EventLog, TraceWriter (4k)
 ├── nika-mcp/       MCP client, rmcp (9k)
 ├── nika-media/     CAS store, processor (13k)
+├── nika-storage/   Storage abstraction (1k)
 ├── nika-cli/       CLI subcommands (8k)
 ├── nika-tui/       Terminal UI (86k) — ratatui
+├── nika-serve/     HTTP API server (4k)
+├── nika-sdk/       Embedded SDK (3k) — programmatic API
 ├── nika-lsp-core/  LSP intelligence (9k)
 └── nika-lsp/       LSP binary (2.5k)
 ```
