@@ -54,8 +54,15 @@ impl RemoteTransport {
 }
 
 /// Validate a path segment is safe for URL interpolation (no traversal).
+///
+/// Checks both literal separators and percent-encoded variants (%2F, %5C, %2E%2E).
 fn validate_path_segment(value: &str, label: &str) -> Result<(), SdkError> {
     if value.is_empty() || value.contains('/') || value.contains('\\') || value.contains("..") {
+        return Err(SdkError::InvalidUrl(format!("unsafe {label}: {value:?}")));
+    }
+    // Percent-encoded traversal: %2F (/), %5C (\), %2E (%2E%2E = ..)
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("%2f") || lower.contains("%5c") || lower.contains("%2e%2e") {
         return Err(SdkError::InvalidUrl(format!("unsafe {label}: {value:?}")));
     }
     Ok(())
@@ -300,13 +307,25 @@ fn map_reqwest_error(e: reqwest::Error) -> SdkError {
 }
 
 /// Extract error info from HTTP response body.
+///
+/// Body is truncated to avoid leaking raw server responses (provider
+/// error details, account info) via Debug/log output.
 async fn map_http_error(status: u16, resp: reqwest::Response) -> SdkError {
-    let body = resp.text().await.ok();
-    let message = body
+    let raw_body = resp.text().await.ok();
+    let message = raw_body
         .as_deref()
         .and_then(|b| serde_json::from_str::<serde_json::Value>(b).ok())
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
         .unwrap_or_else(|| format!("HTTP {status}"));
+
+    // Truncate body to prevent leaking raw server responses in Debug output
+    let body = raw_body.map(|b| {
+        if b.len() > 256 {
+            format!("{}...<truncated {} bytes>", &b[..256], b.len())
+        } else {
+            b
+        }
+    });
 
     match status {
         401 => SdkError::Unauthorized,
@@ -356,6 +375,15 @@ mod tests {
         assert!(validate_path_segment("foo\\bar", "test").is_err());
         assert!(validate_path_segment("", "test").is_err());
         assert!(validate_path_segment("..foo", "test").is_err());
+    }
+
+    #[test]
+    fn percent_encoded_traversal_rejected() {
+        assert!(validate_path_segment("foo%2Fbar", "test").is_err());
+        assert!(validate_path_segment("foo%2fbar", "test").is_err());
+        assert!(validate_path_segment("%5Cetc", "test").is_err());
+        assert!(validate_path_segment("%2e%2e", "test").is_err());
+        assert!(validate_path_segment("%2E%2Efoo", "test").is_err());
     }
 
     #[test]
