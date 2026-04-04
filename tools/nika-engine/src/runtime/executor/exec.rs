@@ -64,14 +64,21 @@ impl TaskExecutor {
                     // mechanism — a ' in the value closes the quoting → injection.
                     let resolved = template_resolve(m, bindings, datastore)?;
                     if !value_safe_in_single_quotes(&resolved) {
+                        let reason = format!(
+                            "Binding {} is inside single quotes but resolved to a value \
+                             containing a single quote, which breaks shell quoting. \
+                             Use | shell transform instead of single quotes.",
+                            m
+                        );
+                        self.event_log.emit(EventKind::PolicyBlocked {
+                            task_id: Arc::clone(task_id),
+                            verb: "exec".to_string(),
+                            policy_type: "shell_injection".to_string(),
+                            reason: reason.clone(),
+                        });
                         return Err(NikaError::BlockedCommand {
                             command: crate::util::redact_secrets(&params.command),
-                            reason: format!(
-                                "Binding {} is inside single quotes but resolved to a value \
-                                 containing a single quote, which breaks shell quoting. \
-                                 Use | shell transform instead of single quotes.",
-                                m
-                            ),
+                            reason,
                         });
                     }
                     continue; // value is safe inside single quotes
@@ -79,14 +86,21 @@ impl TaskExecutor {
                 unsafe_bindings.push(m.to_string());
             }
             if !unsafe_bindings.is_empty() {
+                let reason = format!(
+                    "shell: true with unescaped binding(s): {}. \
+                     Use | shell transform (e.g. {{{{with.val | shell}}}}) \
+                     or single-quote the binding",
+                    unsafe_bindings.join(", ")
+                );
+                self.event_log.emit(EventKind::PolicyBlocked {
+                    task_id: Arc::clone(task_id),
+                    verb: "exec".to_string(),
+                    policy_type: "shell_injection".to_string(),
+                    reason: reason.clone(),
+                });
                 return Err(NikaError::BlockedCommand {
                     command: crate::util::redact_secrets(&params.command),
-                    reason: format!(
-                        "shell: true with unescaped binding(s): {}. \
-                         Use | shell transform (e.g. {{{{with.val | shell}}}}) \
-                         or single-quote the binding",
-                        unsafe_bindings.join(", ")
-                    ),
+                    reason,
                 });
             }
         }
@@ -95,7 +109,18 @@ impl TaskExecutor {
         // template data (not written by the dev in the YAML). Compares raw template
         // vs resolved command — patterns present in both are intentional.
         if is_shell {
-            crate::runtime::security::check_shell_data_injection(&params.command, &resolved_cmd)?;
+            if let Err(e) = crate::runtime::security::check_shell_data_injection(
+                &params.command,
+                &resolved_cmd,
+            ) {
+                self.event_log.emit(EventKind::PolicyBlocked {
+                    task_id: Arc::clone(task_id),
+                    verb: "exec".to_string(),
+                    policy_type: "shell_data_injection".to_string(),
+                    reason: e.to_string(),
+                });
+                return Err(e);
+            }
         }
 
         // POLICY CHECK: exec verb
@@ -434,7 +459,9 @@ mod tests {
     #[test]
     fn value_safe_in_single_quotes_rejects_quote() {
         // Any single quote in value = breakout risk
-        assert!(!value_safe_in_single_quotes("hello' && echo pwned && echo '"));
+        assert!(!value_safe_in_single_quotes(
+            "hello' && echo pwned && echo '"
+        ));
         assert!(!value_safe_in_single_quotes("it's a trap"));
         assert!(!value_safe_in_single_quotes("O'Brien"));
         assert!(!value_safe_in_single_quotes("'"));

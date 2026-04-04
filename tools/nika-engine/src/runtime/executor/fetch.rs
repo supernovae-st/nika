@@ -209,6 +209,11 @@ impl TaskExecutor {
         if let Some(ref limiter) = self.domain_rate_limiter {
             if let Ok(parsed) = url::Url::parse(&url) {
                 if let Some(domain) = parsed.host_str() {
+                    tracing::debug!(
+                        task_id = %task_id,
+                        domain = %domain,
+                        "fetch: acquiring domain rate limit"
+                    );
                     limiter.acquire(domain).await;
                 }
             }
@@ -335,20 +340,30 @@ impl TaskExecutor {
             let resolved_value = template_resolve(value, bindings, datastore)?;
             // SECURITY: reject CRLF injection in header keys and values
             if resolved_key.contains('\r') || resolved_key.contains('\n') {
-                return Err(NikaError::ValidationError {
-                    reason: format!(
-                        "fetch: header key '{}' contains illegal CRLF characters",
-                        resolved_key.chars().take(30).collect::<String>()
-                    ),
+                let reason = format!(
+                    "fetch: header key '{}' contains illegal CRLF characters",
+                    resolved_key.chars().take(30).collect::<String>()
+                );
+                self.event_log.emit(EventKind::PolicyBlocked {
+                    task_id: Arc::clone(task_id),
+                    verb: "fetch".to_string(),
+                    policy_type: "crlf_injection".to_string(),
+                    reason: reason.clone(),
                 });
+                return Err(NikaError::ValidationError { reason });
             }
             if resolved_value.contains('\r') || resolved_value.contains('\n') {
-                return Err(NikaError::ValidationError {
-                    reason: format!(
-                        "fetch: header '{}' value contains illegal CRLF characters",
-                        resolved_key
-                    ),
+                let reason = format!(
+                    "fetch: header '{}' value contains illegal CRLF characters",
+                    resolved_key
+                );
+                self.event_log.emit(EventKind::PolicyBlocked {
+                    task_id: Arc::clone(task_id),
+                    verb: "fetch".to_string(),
+                    policy_type: "crlf_injection".to_string(),
+                    reason: reason.clone(),
                 });
+                return Err(NikaError::ValidationError { reason });
             }
             request = request.header(resolved_key, resolved_value.as_ref());
         }
@@ -513,12 +528,17 @@ impl TaskExecutor {
                             let h = host.to_lowercase();
                             let h = h.trim_start_matches('[').trim_end_matches(']');
                             if resolve_and_check_ssrf(h).await {
-                                return Err(NikaError::PolicyViolation {
-                                    reason: format!(
-                                        "SSRF protection: final URL '{}' resolved to blocked IP after redirect",
-                                        final_url
-                                    ),
+                                let reason = format!(
+                                    "SSRF protection: final URL '{}' resolved to blocked IP after redirect",
+                                    final_url
+                                );
+                                self.event_log.emit(EventKind::PolicyBlocked {
+                                    task_id: Arc::clone(task_id),
+                                    verb: "fetch".to_string(),
+                                    policy_type: "ssrf".to_string(),
+                                    reason: reason.clone(),
                                 });
+                                return Err(NikaError::PolicyViolation { reason });
                             }
                         }
                     }
