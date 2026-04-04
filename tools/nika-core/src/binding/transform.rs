@@ -1091,13 +1091,26 @@ pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
     let filter = compile_jq(expr)?;
     let inputs = jaq_interpret::RcIter::new(core::iter::empty());
     let jaq_val = jaq_interpret::Val::from(data.clone());
-    let mut results: Vec<Value> = Vec::new();
-    for r in filter.run((jaq_interpret::Ctx::new([], &inputs), jaq_val)) {
-        match r {
-            Ok(val) => results.push(Value::from(val)),
-            Err(e) => return Err(format!("jq runtime error: {e}")),
+
+    // jaq-core 1.5.x can panic on regex test() with null/non-string input.
+    // Wrap in catch_unwind to convert panics into clean errors.
+    let run_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut results: Vec<Value> = Vec::new();
+        for r in filter.run((jaq_interpret::Ctx::new([], &inputs), jaq_val)) {
+            match r {
+                Ok(val) => results.push(Value::from(val)),
+                Err(e) => return Err(format!("jq runtime error: {e}")),
+            }
         }
-    }
+        Ok(results)
+    }));
+
+    let results = match run_result {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => return Err("jq expression panicked (likely regex on null input)".into()),
+    };
+
     match results.len() {
         0 => Ok(Value::Null),
         1 => Ok(results.into_iter().next().unwrap()),
