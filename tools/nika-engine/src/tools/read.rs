@@ -107,6 +107,21 @@ impl ReadTool {
 
         let is_optional = params.optional.unwrap_or(false);
 
+        // SEC-4: Pre-check file size to prevent OOM from huge files
+        const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
+        if let Ok(metadata) = tokio::fs::metadata(&path).await {
+            if metadata.len() > MAX_FILE_SIZE {
+                return Err(NikaError::ToolError {
+                    code: ToolErrorCode::ReadFailed.code(),
+                    message: format!(
+                        "File too large: {} bytes (max {} MB). Use offset/limit to read portions.",
+                        metadata.len(),
+                        MAX_FILE_SIZE / (1024 * 1024)
+                    ),
+                });
+            }
+        }
+
         // Check file exists
         if !path.exists() {
             if is_optional {
@@ -556,5 +571,33 @@ mod tests {
 
         assert!(!result.is_error);
         assert!(result.content.contains("content"));
+    }
+
+    #[tokio::test]
+    async fn sec4_rejects_file_exceeding_50mb() {
+        let (temp_dir, ctx) = setup_test().await;
+        // Create a file slightly over 50MB
+        let large_content = "x".repeat(51 * 1024 * 1024);
+        let path = create_test_file(&temp_dir, "huge.txt", &large_content).await;
+        let file_path = path.to_string_lossy().to_string();
+
+        let tool = ReadTool::new(ctx);
+        let result = tool
+            .execute(ReadParams {
+                file_path,
+                offset: None,
+                limit: None,
+                raw: None,
+                optional: None,
+                fallback: None,
+            })
+            .await;
+
+        assert!(result.is_err(), "Should reject files > 50MB");
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("File too large"),
+            "Error should mention file too large, got: {err}"
+        );
     }
 }
