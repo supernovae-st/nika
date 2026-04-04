@@ -28,6 +28,9 @@ pub struct MediaToolContext {
     pub working_memory: Arc<WorkingMemoryBudget>,
     /// Workflow cancellation token.
     pub cancel: CancellationToken,
+    /// Project working directory for path confinement (import, read).
+    /// When set, file-based tools reject paths outside this directory.
+    pub working_dir: Option<std::path::PathBuf>,
 }
 
 impl MediaToolContext {
@@ -41,7 +44,16 @@ impl MediaToolContext {
             compute: Arc::new(ComputePool::new()?),
             working_memory: Arc::new(WorkingMemoryBudget::new()),
             cancel: CancellationToken::new(),
+            working_dir: None,
         })
+    }
+
+    /// Set the project working directory for path confinement.
+    ///
+    /// When set, `nika:import` rejects paths that resolve outside this directory.
+    pub fn with_working_dir(mut self, dir: std::path::PathBuf) -> Self {
+        self.working_dir = Some(dir);
+        self
     }
 
     /// Read media data from CAS by hash.

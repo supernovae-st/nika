@@ -58,6 +58,7 @@ infer = { workspace = true }
 mime_guess = { workspace = true }
 
 # Always-on tools
+dirs = { workspace = true }
 imagesize = { workspace = true }
 thumbhash = { workspace = true }
 color-thief = { workspace = true }

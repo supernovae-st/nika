@@ -6123,6 +6123,7 @@ dependencies = [
  "c2pa",
  "charts-rs",
  "color-thief",
+ "dirs",
  "dom_smoothie",
  "dssim-core",
  "fast_image_resize",

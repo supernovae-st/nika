@@ -223,9 +223,11 @@ impl TaskExecutor {
         let tool_ctx = Arc::new(ToolContext::new(working_dir.clone(), perm));
 
         // Create media tool context with CAS store at workspace default
-        let media_ctx = Arc::new(MediaToolContext::new(CasStore::workspace_default(
-            &working_dir,
-        ))?);
+        // Path confinement: import only allows files within working_dir
+        let media_ctx = Arc::new(
+            MediaToolContext::new(CasStore::workspace_default(&working_dir))?
+                .with_working_dir(working_dir.clone()),
+        );
         // Separate CAS handle for vision content resolution (same directory)
         let cas = Arc::new(CasStore::workspace_default(&working_dir));
 
