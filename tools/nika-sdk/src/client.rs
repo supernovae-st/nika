@@ -144,9 +144,17 @@ impl Job {
                     });
                 }
                 Event::Failed { error, .. } => {
+                    let msg = error.unwrap_or_default();
+                    let code = if msg.starts_with("NIKA-") {
+                        msg.split_whitespace()
+                            .next()
+                            .map(|s| s.trim_end_matches(':').to_string())
+                    } else {
+                        None
+                    };
                     return Err(SdkError::Engine {
-                        message: error.unwrap_or_default(),
-                        code: None,
+                        message: msg,
+                        code,
                     });
                 }
                 Event::Cancelled { .. } => {
