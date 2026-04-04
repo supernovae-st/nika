@@ -1,6 +1,5 @@
 ---
-source: tests/regression/workflow_snapshots.rs
-assertion_line: 424
+source: nika/tests/regression/workflow_snapshots.rs
 expression: errors
 ---
-- "[NIKA-145] MCP server 'broken' uses stdio transport but has no 'command' field"
+- "[NIKA-145] MCP server 'broken' missing 'command:' or 'from:' field (add command: for inline or from: config to resolve from .mcp.json)"
