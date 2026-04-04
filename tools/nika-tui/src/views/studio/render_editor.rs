@@ -184,7 +184,7 @@ impl YamlEditorPanel {
                 // Line number with git gutter + diagnostic gutter prefix
                 // PERF: Reuse line_buf instead of format! allocation per line
                 line_buf.clear();
-                write!(line_buf, "{:4} ", line_num).unwrap();
+                let _ = write!(line_buf, "{:4} ", line_num);
                 let mut spans = vec![
                     git_gutter,
                     diag_gutter,
