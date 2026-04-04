@@ -1,0 +1,70 @@
+# Media pipeline — import, analyze, resize
+#
+# DAG: import_image → [get_info, get_colors] → generate_thumbnail → describe
+#
+# Run: nika run examples/06-media-pipeline/thumbnails.nika.yaml --input image_path="photo.jpg"
+# Test: nika run examples/06-media-pipeline/thumbnails.nika.yaml --dry-run
+
+schema: "nika/workflow@0.12"
+workflow: media-pipeline
+description: "Import an image, analyze it, and generate thumbnails"
+
+provider: mock
+model: mock-default
+
+inputs:
+  image_path: "photo.jpg"
+
+artifacts:
+  dir: ./output
+
+tasks:
+  - id: import_image
+    invoke:
+      tool: nika:import
+      params:
+        path: "{{inputs.image_path}}"
+
+  - id: get_info
+    depends_on: [import_image]
+    with:
+      hash: $import_image
+    invoke:
+      tool: nika:dimensions
+      params:
+        hash: "{{with.hash}}"
+
+  - id: get_colors
+    depends_on: [import_image]
+    with:
+      hash: $import_image
+    invoke:
+      tool: nika:dominant_color
+      params:
+        hash: "{{with.hash}}"
+
+  - id: generate_thumbnail
+    depends_on: [import_image]
+    with:
+      hash: $import_image
+    invoke:
+      tool: nika:thumbnail
+      params:
+        hash: "{{with.hash}}"
+        width: 300
+        height: 200
+    artifact:
+      path: thumb.webp
+      format: binary
+
+  - id: describe
+    depends_on: [get_info, get_colors]
+    with:
+      dims: $get_info
+      colors: $get_colors
+    infer: |
+      An image has these properties:
+      Dimensions: {{with.dims | to_json}}
+      Dominant colors: {{with.colors | to_json}}
+
+      Suggest 3 creative caption ideas for this image based on its visual properties.

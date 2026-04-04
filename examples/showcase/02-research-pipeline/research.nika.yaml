@@ -1,0 +1,54 @@
+# Research pipeline — fan-out research + synthesis
+#
+# DAG: topic → [angle_tech, angle_social, angle_economic] → synthesize
+#
+# Run: nika run examples/02-research-pipeline/research.nika.yaml
+# Test: nika run examples/02-research-pipeline/research.nika.yaml --provider mock
+
+schema: "nika/workflow@0.12"
+workflow: research-pipeline
+description: "Fan-out research from 3 angles, then synthesize"
+
+provider: mock
+model: mock-default
+
+inputs:
+  topic: "The impact of open source AI on startups"
+
+tasks:
+  - id: angle_tech
+    infer:
+      prompt: |
+        Research the TECHNICAL angle of: {{inputs.topic}}
+        Focus on tools, frameworks, and infrastructure. Keep to 3-4 sentences.
+      temperature: 0.7
+
+  - id: angle_social
+    infer:
+      prompt: |
+        Research the SOCIAL angle of: {{inputs.topic}}
+        Focus on community, collaboration, and access. Keep to 3-4 sentences.
+      temperature: 0.7
+
+  - id: angle_economic
+    infer:
+      prompt: |
+        Research the ECONOMIC angle of: {{inputs.topic}}
+        Focus on cost, funding, and business models. Keep to 3-4 sentences.
+      temperature: 0.7
+
+  - id: synthesize
+    depends_on: [angle_tech, angle_social, angle_economic]
+    with:
+      tech: $angle_tech
+      social: $angle_social
+      economic: $angle_economic
+    infer:
+      prompt: |
+        Synthesize these three research angles into a cohesive executive summary:
+
+        TECHNICAL: {{with.tech}}
+        SOCIAL: {{with.social}}
+        ECONOMIC: {{with.economic}}
+
+        Write 2-3 paragraphs covering key themes and insights.

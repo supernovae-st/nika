@@ -1,0 +1,49 @@
+# Web scraper — fetch + extract + summarize
+#
+# DAG: fetch_page → summarize → save
+#
+# Run: nika run examples/03-web-scraper/scraper.nika.yaml
+# Test: nika run examples/03-web-scraper/scraper.nika.yaml --dry-run
+
+schema: "nika/workflow@0.12"
+workflow: web-scraper
+description: "Fetch a web page, extract article content, then summarize"
+
+provider: mock
+model: mock-default
+
+inputs:
+  url: "https://en.wikipedia.org/wiki/Workflow_engine"
+
+artifacts:
+  dir: ./output
+
+tasks:
+  - id: fetch_page
+    fetch:
+      url: "{{inputs.url}}"
+      extract: article
+      timeout: 15
+
+  - id: summarize
+    depends_on: [fetch_page]
+    with:
+      content: $fetch_page.text_content
+    infer:
+      prompt: |
+        Summarize the following article in 5 bullet points.
+        Focus on key concepts and practical takeaways.
+
+        {{with.content | trim}}
+      max_tokens: 500
+
+  - id: save
+    depends_on: [summarize]
+    with:
+      summary: $summarize
+    invoke:
+      tool: nika:write
+      params:
+        file_path: "output/summary.md"
+        content: "# Summary\n\n{{with.summary}}"
+        overwrite: true

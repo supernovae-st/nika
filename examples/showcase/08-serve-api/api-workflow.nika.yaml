@@ -1,0 +1,57 @@
+# Serve API — workflow designed for HTTP serving
+#
+# DAG: validate → process → format
+#
+# Serve: nika serve --workflows examples/08-serve-api/
+# Call:  curl -X POST http://localhost:3000/api-workflow \
+#          -H 'Content-Type: application/json' \
+#          -d '{"inputs": {"text": "Hello, Nika!", "target_lang": "French"}}'
+
+schema: "nika/workflow@0.12"
+workflow: api-workflow
+description: "A translation endpoint — designed for nika serve"
+
+provider: mock
+model: mock-default
+
+inputs:
+  text: "Hello, world!"
+  target_lang: "French"
+
+tasks:
+  - id: validate
+    exec:
+      command: "echo '{\"char_count\": {{inputs.text | length}}, \"lang\": \"{{inputs.target_lang}}\"}'"
+      shell: true
+
+  - id: process
+    depends_on: [validate]
+    infer:
+      prompt: |
+        Translate the following text to {{inputs.target_lang}}.
+        Return ONLY the translation, nothing else.
+
+        Text: {{inputs.text}}
+      temperature: 0.3
+      max_tokens: 500
+
+  - id: format
+    depends_on: [process, validate]
+    with:
+      translation: $process
+      meta: $validate
+    structured:
+      schema:
+        type: object
+        properties:
+          original: { type: string }
+          translation: { type: string }
+          target_language: { type: string }
+          metadata: { type: object }
+        required: [original, translation, target_language]
+    infer: |
+      Package this translation result:
+      Original: {{inputs.text}}
+      Translation: {{with.translation}}
+      Target: {{inputs.target_lang}}
+      Metadata: {{with.meta}}

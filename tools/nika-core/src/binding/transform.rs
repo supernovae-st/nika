@@ -1118,8 +1118,29 @@ pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
     }
 }
 
+/// Global LRU cache for compiled jq filters.
+/// `jaq_interpret::Filter` is `Clone`, so we can cache and clone on hit.
+/// 64 entries covers realistic workflow diversity (most workflows use <10 distinct expressions).
+static JQ_FILTER_CACHE: LazyLock<Mutex<lru::LruCache<String, jaq_interpret::Filter>>> =
+    LazyLock::new(|| {
+        Mutex::new(lru::LruCache::new(
+            std::num::NonZeroUsize::new(64).unwrap(),
+        ))
+    });
+
 /// Compile a jq expression using jaq-interpret + jaq-parse.
+/// Results are cached in a global LRU — for_each loops with the same expression
+/// compile once instead of N times.
 fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
+    // Fast path: check cache
+    {
+        let mut cache = JQ_FILTER_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(filter) = cache.get(expr) {
+            return Ok(filter.clone());
+        }
+    }
+
+    // Slow path: parse + compile + cache
     let (main, errs) = jaq_parse::parse(expr, jaq_parse::main());
     if !errs.is_empty() {
         return Err(format!(
@@ -1140,10 +1161,16 @@ fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
     if !ctx.errs.is_empty() {
         return Err(format!("compile error ({} issues)", ctx.errs.len()));
     }
+
+    // Store in cache
+    {
+        let mut cache = JQ_FILTER_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        cache.put(expr.to_string(), filter.clone());
+    }
+
     Ok(filter)
 }
 
-/// Deep merge overlay into base (RFC 7396 semantics).
 /// Deep merge overlay into base (RFC 7396 semantics).
 pub fn deep_merge(base: &mut serde_json::Map<String, Value>, overlay: &serde_json::Map<String, Value>) {
     for (key, value) in overlay {

@@ -1,0 +1,54 @@
+# Multi-provider — same question, three perspectives
+#
+# DAG: [claude_view, gpt_view, gemini_view] → compare
+#
+# Run: nika run examples/05-multi-provider/multi-provider.nika.yaml
+# Test: nika run examples/05-multi-provider/multi-provider.nika.yaml --provider mock
+
+schema: "nika/workflow@0.12"
+workflow: multi-provider
+description: "Ask the same question to Claude, GPT, and Gemini, then compare"
+
+provider: mock
+model: mock-default
+
+inputs:
+  question: "What makes a great developer experience?"
+
+tasks:
+  - id: claude_view
+    provider: anthropic
+    model: claude-haiku-4-5
+    infer:
+      prompt: "{{inputs.question}} Answer in 3 concise bullet points."
+      temperature: 0.7
+
+  - id: gpt_view
+    provider: openai
+    model: gpt-4o-mini
+    infer:
+      prompt: "{{inputs.question}} Answer in 3 concise bullet points."
+      temperature: 0.7
+
+  - id: gemini_view
+    provider: gemini
+    model: gemini-2.5-flash
+    infer:
+      prompt: "{{inputs.question}} Answer in 3 concise bullet points."
+      temperature: 0.7
+
+  - id: compare
+    depends_on: [claude_view, gpt_view, gemini_view]
+    with:
+      claude: $claude_view
+      gpt: $gpt_view
+      gemini: $gemini_view
+    infer:
+      prompt: |
+        Compare these three AI perspectives on the same question:
+
+        CLAUDE: {{with.claude}}
+        GPT: {{with.gpt}}
+        GEMINI: {{with.gemini}}
+
+        What themes are shared? Where do they diverge? (2-3 sentences)

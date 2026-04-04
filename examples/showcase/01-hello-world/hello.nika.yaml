@@ -1,0 +1,20 @@
+# Your first Nika workflow
+#
+# DAG: greet (single node)
+#
+# Run: nika run examples/01-hello-world/hello.nika.yaml
+# Test: nika run examples/01-hello-world/hello.nika.yaml --provider mock
+
+schema: "nika/workflow@0.12"
+workflow: hello-world
+description: "The simplest possible workflow — one task, one verb"
+
+provider: mock
+model: mock-default
+
+inputs:
+  name: "World"
+
+tasks:
+  - id: greet
+    infer: "Say hello to {{inputs.name}} in three languages (English, French, Japanese)"

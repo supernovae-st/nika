@@ -5901,6 +5901,7 @@ dependencies = [
  "jaq-parse",
  "jaq-std",
  "jsonschema",
+ "lru 0.12.5",
  "marked-yaml",
  "miette",
  "orion",

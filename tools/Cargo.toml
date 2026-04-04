@@ -104,6 +104,7 @@ dashmap = "6.1"
 parking_lot = "0.12"
 
 # Utilities
+lru = "0.12"
 regex = "1.11"
 colored = "2.1"
 indicatif = "0.18"

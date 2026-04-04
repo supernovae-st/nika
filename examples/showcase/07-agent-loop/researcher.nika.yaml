@@ -1,0 +1,41 @@
+# Agent loop — multi-turn research assistant
+#
+# DAG: research_agent → format_report
+#
+# Run: nika run examples/07-agent-loop/researcher.nika.yaml
+# Test: nika run examples/07-agent-loop/researcher.nika.yaml --provider mock
+
+schema: "nika/workflow@0.12"
+workflow: agent-researcher
+description: "Multi-turn agent that reasons through a research question"
+
+provider: mock
+model: mock-default
+
+inputs:
+  question: "What are the key differences between workflow engines and orchestration platforms?"
+
+tasks:
+  - id: research_agent
+    agent:
+      system: "You are a thorough research assistant. Break down complex questions into sub-questions, reason through each one, then synthesize."
+      prompt: "Research this question step by step: {{inputs.question}}"
+      tools: [nika:log]
+      max_turns: 5
+      temperature: 0.5
+      completion:
+        mode: natural
+
+  - id: format_report
+    depends_on: [research_agent]
+    with:
+      research: $research_agent
+    infer:
+      prompt: |
+        Format this research into a clean report with:
+        - Executive summary (2-3 sentences)
+        - Key findings (bullet points)
+        - Conclusion
+
+        Research: {{with.research}}
+      max_tokens: 1000
