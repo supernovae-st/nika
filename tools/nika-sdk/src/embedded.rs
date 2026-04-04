@@ -377,3 +377,228 @@ impl Transport for EmbeddedTransport {
         Ok(true)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_transport_succeeds() {
+        let transport = EmbeddedTransport::new();
+        assert!(transport.is_ok());
+    }
+
+    #[tokio::test]
+    async fn health_always_true() {
+        let transport = EmbeddedTransport::new().unwrap();
+        assert!(transport.health().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn status_unknown_job_returns_not_found() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let err = transport.status("nonexistent-job").await.unwrap_err();
+        assert!(matches!(err, SdkError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn cancel_unknown_job_returns_not_found() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let err = transport.cancel("nonexistent-job").await.unwrap_err();
+        assert!(matches!(err, SdkError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn events_unknown_job_returns_not_found() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let result = transport.events("nonexistent-job").await;
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, SdkError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn list_artifacts_unknown_job_returns_not_found() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let err = transport.list_artifacts("nonexistent-job").await.unwrap_err();
+        assert!(matches!(err, SdkError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn download_artifact_returns_not_found() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let err = transport
+            .download_artifact("job1", "report.md")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, SdkError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn submit_resume_rejected_before_file_read() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let req = RunRequest {
+            workflow: "nonexistent.nika.yaml".into(),
+            inputs: None,
+            resume_from: Some("prev-job".into()),
+        };
+        let err = transport.submit(&req).await.unwrap_err();
+        assert!(matches!(err, SdkError::Engine { .. }));
+        if let SdkError::Engine { message, .. } = &err {
+            assert!(
+                message.contains("resume not supported"),
+                "expected resume error, got: {message}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_invalid_workflow_path() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let req = RunRequest {
+            workflow: "/nonexistent/path/workflow.nika.yaml".into(),
+            inputs: None,
+            resume_from: None,
+        };
+        let err = transport.submit(&req).await.unwrap_err();
+        assert!(matches!(err, SdkError::InvalidWorkflow(_)));
+    }
+
+    #[tokio::test]
+    async fn list_artifacts_known_job_returns_engine_error() {
+        let transport = EmbeddedTransport::new().unwrap();
+        // Manually insert a job to test artifact listing
+        {
+            let mut jobs = transport.jobs.lock().await;
+            let cancel_token = tokio_util::sync::CancellationToken::new();
+            jobs.insert(
+                "test-job".into(),
+                JobState {
+                    status: JobStatus::Completed,
+                    workflow: "test.nika.yaml".into(),
+                    output: Some("done".into()),
+                    cancel_token,
+                    event_tx: None,
+                    monitor_handle: None,
+                },
+            );
+        }
+        let err = transport.list_artifacts("test-job").await.unwrap_err();
+        assert!(matches!(err, SdkError::Engine { .. }));
+    }
+
+    #[tokio::test]
+    async fn cancel_sets_cancelled_status() {
+        let transport = EmbeddedTransport::new().unwrap();
+        let cancel_token = tokio_util::sync::CancellationToken::new();
+        {
+            let mut jobs = transport.jobs.lock().await;
+            jobs.insert(
+                "cancel-me".into(),
+                JobState {
+                    status: JobStatus::Running,
+                    workflow: "test.nika.yaml".into(),
+                    output: None,
+                    cancel_token: cancel_token.clone(),
+                    event_tx: None,
+                    monitor_handle: None,
+                },
+            );
+        }
+
+        let info = transport.cancel("cancel-me").await.unwrap();
+        assert_eq!(info.status, JobStatus::Cancelled);
+        assert!(cancel_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn status_returns_job_info() {
+        let transport = EmbeddedTransport::new().unwrap();
+        {
+            let mut jobs = transport.jobs.lock().await;
+            jobs.insert(
+                "info-job".into(),
+                JobState {
+                    status: JobStatus::Running,
+                    workflow: "pipeline.nika.yaml".into(),
+                    output: None,
+                    cancel_token: tokio_util::sync::CancellationToken::new(),
+                    event_tx: None,
+                    monitor_handle: None,
+                },
+            );
+        }
+
+        let info = transport.status("info-job").await.unwrap();
+        assert_eq!(info.job_id, "info-job");
+        assert_eq!(info.status, JobStatus::Running);
+        assert_eq!(info.workflow, "pipeline.nika.yaml");
+    }
+
+    #[test]
+    fn reap_noop_below_threshold() {
+        let mut jobs = std::collections::HashMap::new();
+        for i in 0..MAX_JOBS {
+            jobs.insert(
+                format!("job-{i}"),
+                JobState {
+                    status: JobStatus::Completed,
+                    workflow: "test.nika.yaml".into(),
+                    output: None,
+                    cancel_token: tokio_util::sync::CancellationToken::new(),
+                    event_tx: None,
+                    monitor_handle: None,
+                },
+            );
+        }
+        assert_eq!(jobs.len(), MAX_JOBS);
+        reap_completed_jobs(&mut jobs);
+        // At threshold, no reaping
+        assert_eq!(jobs.len(), MAX_JOBS);
+    }
+
+    #[test]
+    fn reap_removes_terminal_above_threshold() {
+        let mut jobs = std::collections::HashMap::new();
+        // Fill to MAX_JOBS + 1 with completed jobs
+        for i in 0..=MAX_JOBS {
+            jobs.insert(
+                format!("job-{i}"),
+                JobState {
+                    status: JobStatus::Completed,
+                    workflow: "test.nika.yaml".into(),
+                    output: None,
+                    cancel_token: tokio_util::sync::CancellationToken::new(),
+                    event_tx: None,
+                    monitor_handle: None,
+                },
+            );
+        }
+        assert_eq!(jobs.len(), MAX_JOBS + 1);
+        reap_completed_jobs(&mut jobs);
+        // Reaped down to MAX_JOBS / 2
+        assert!(jobs.len() <= MAX_JOBS / 2);
+    }
+
+    #[test]
+    fn reap_preserves_running_jobs() {
+        let mut jobs = std::collections::HashMap::new();
+        // All running — reap cannot remove any
+        for i in 0..=MAX_JOBS {
+            jobs.insert(
+                format!("job-{i}"),
+                JobState {
+                    status: JobStatus::Running,
+                    workflow: "test.nika.yaml".into(),
+                    output: None,
+                    cancel_token: tokio_util::sync::CancellationToken::new(),
+                    event_tx: None,
+                    monitor_handle: None,
+                },
+            );
+        }
+        reap_completed_jobs(&mut jobs);
+        // Nothing removed — all running
+        assert_eq!(jobs.len(), MAX_JOBS + 1);
+    }
+}
