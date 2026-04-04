@@ -779,9 +779,9 @@ mod tests {
         "XAI_API_KEY",
     ];
 
-    /// Clear all provider env vars + store, returning their previous values for restore.
+    /// Clear all provider env vars + store + vault, returning previous values for restore.
     fn clear_provider_env() -> Vec<(String, Option<String>)> {
-        PROVIDER_VARS
+        let mut saved: Vec<(String, Option<String>)> = PROVIDER_VARS
             .iter()
             .map(|var| {
                 let prev = std::env::var(var).ok();
@@ -791,14 +791,27 @@ mod tests {
                 nika_engine::secrets::store::remove_secret(var);
                 (var.to_string(), prev)
             })
-            .collect()
+            .collect();
+        // Point NIKA_HOME to a non-existent dir so vault lookup finds nothing
+        let prev_home = std::env::var("NIKA_HOME").ok();
+        // SAFETY: single-threaded access guaranteed by ENV_LOCK mutex
+        unsafe { std::env::set_var("NIKA_HOME", "/tmp/nika-test-empty-vault") };
+        saved.push(("NIKA_HOME".to_string(), prev_home));
+        saved
     }
 
     /// Restore previously saved env vars.
     fn restore_provider_env(saved: Vec<(String, Option<String>)>) {
         for (var, val) in saved {
             match val {
-                Some(v) => nika_engine::secrets::inject_secret_to_env(&var, &v),
+                Some(v) => {
+                    if var == "NIKA_HOME" {
+                        // SAFETY: single-threaded access guaranteed by ENV_LOCK
+                        unsafe { std::env::set_var(&var, &v) };
+                    } else {
+                        nika_engine::secrets::inject_secret_to_env(&var, &v);
+                    }
+                }
                 // SAFETY: remove_var in single-threaded test context (ENV_LOCK held)
                 None => unsafe { std::env::remove_var(&var) },
             }
@@ -884,7 +897,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_provider_returns_none_when_no_keys() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let result = detect_provider();
@@ -896,7 +909,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_provider_returns_anthropic_when_set() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // SAFETY: single-threaded access guaranteed by ENV_LOCK
@@ -910,7 +923,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_provider_priority_anthropic_over_openai() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // SAFETY: single-threaded access guaranteed by ENV_LOCK
@@ -931,7 +944,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_provider_falls_through_to_openai() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // SAFETY: single-threaded access guaranteed by ENV_LOCK
@@ -945,7 +958,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_provider_ignores_empty_and_whitespace_keys() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // SAFETY: single-threaded access guaranteed by ENV_LOCK
@@ -967,7 +980,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_provider_xai_last_resort() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // SAFETY: single-threaded access guaranteed by ENV_LOCK
@@ -985,7 +998,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_explicit_provider_flag_wins() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // Even with ANTHROPIC_API_KEY set, explicit flag should win
@@ -1002,7 +1015,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_composite_model_extracts_both() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let (provider, model) =
@@ -1017,7 +1030,7 @@ mod tests {
     #[serial]
     fn resolve_composite_model_ignores_provider_flag() {
         // Composite syntax should take precedence over the -p flag
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let (provider, model) =
@@ -1034,7 +1047,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_model_only_uses_env_auto_detect() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         // SAFETY: single-threaded access guaranteed by ENV_LOCK
@@ -1050,7 +1063,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_no_provider_no_env_is_error() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let err = resolve_provider_model(None, Some("gpt-4o")).unwrap_err();
@@ -1066,7 +1079,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_no_provider_no_model_no_env_is_error() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let err = resolve_provider_model(None, None).unwrap_err();
@@ -1082,7 +1095,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_provider_flag_only_no_model() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let (provider, model) = resolve_provider_model(Some("anthropic"), None).unwrap();
@@ -1095,7 +1108,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_invalid_composite_model_propagates_error() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let saved = clear_provider_env();
 
         let err = resolve_provider_model(None, Some("a/b/c")).unwrap_err();
