@@ -5,6 +5,28 @@ All notable changes to Nika are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.67.0] — 2026-04-04
+
+### Architecture
+
+- **nika-vault crate** — vault.rs (1243 lines, 36 tests) extracted from nika-core into dedicated crate. nika-core is now pure (zero I/O: orion, whoami, fs2, secrecy deps removed).
+- **engine→init decoupled** — nika-init dependency removed from nika-engine, moved to nika-cli where it belongs. Dead From<NikaInitError> impl removed.
+- **jaq 1.5 → 3.0** — jaq-interpret + jaq-parse replaced by jaq-core 3.0, jaq-std 3.0, jaq-json 2.0. LRU cache uses Arc<Filter> (not Clone in 3.x). New regex-on-null safety test.
+
+### Fixed
+
+- **CRITICAL: security.rs secret leak** — `check_blocklist_with_intent` now redacts secrets in BlockedCommand error (every other path already used `redact_secrets()`).
+- **InjectTool silent truncation** — Missing end_marker now returns error instead of silently dropping all lines after start_marker.
+- **"Did you mean?" errors** — NIKA-071 (UnknownAlias) and NIKA-080 (WithUnknownTask) now include fuzzy suggestions via Jaro-Winkler similarity.
+- **REGEX_CACHE unbounded** — HashMap replaced with lru::LruCache(128) to prevent memory growth from user-supplied regex patterns.
+- **EnrichTool clone overhead** — `extract_field_from_map()` avoids cloning entire obj map per field in `nika:enrich`.
+- **TUI render safety** — Audit confirmed 0 dangerous unwrap() calls in render paths. One write!().unwrap() replaced with let _ = write!().
+
+### Changed
+
+- **AGENTS.md/CLAUDE.md** — Source tree updated to reflect data/ split from v0.66.
+- **5 stale section comments** fixed in data/ module (copy-paste leftovers from split).
+
 ## [Unreleased]
 
 ```
