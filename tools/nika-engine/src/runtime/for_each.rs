@@ -14,7 +14,6 @@ use crate::error::NikaError;
 use crate::store::RunContext;
 
 /// Result of resolving for_each items from a binding expression.
-#[allow(dead_code)] // Wired into runner.rs in next commit
 pub(crate) enum ForEachResolution {
     /// Successfully resolved to a list of items.
     Items(Vec<Value>),
@@ -33,7 +32,6 @@ pub(crate) enum ForEachResolution {
 ///
 /// Returns `ForEachResolution::NotABinding` for literal arrays or unrecognized formats
 /// (caller should try `for_each.parse_items()` as fallback).
-#[allow(dead_code)] // Wired into runner.rs in next commit
 pub(crate) fn resolve_for_each_binding(
     items_str: &str,
     bindings: &ResolvedBindings,
