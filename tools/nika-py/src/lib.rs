@@ -6,7 +6,9 @@
 use std::sync::{Arc, OnceLock};
 
 use futures_util::StreamExt;
-use pyo3::exceptions::{PyConnectionError, PyRuntimeError, PyTimeoutError, PyValueError};
+use pyo3::exceptions::{
+    PyConnectionError, PyPermissionError, PyRuntimeError, PyTimeoutError, PyValueError,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -18,8 +20,12 @@ use pyo3::types::PyDict;
 fn runtime() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
+        let cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            .max(4);
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
+            .worker_threads(cpus)
             .enable_all()
             .build()
             .expect("failed to create Tokio runtime")
@@ -39,7 +45,7 @@ fn sdk_err(e: nika_sdk::SdkError) -> PyErr {
         nika_sdk::SdkError::Timeout(d) => {
             PyTimeoutError::new_err(format!("request timeout after {d:?}"))
         }
-        nika_sdk::SdkError::Unauthorized => PyConnectionError::new_err("authentication failed"),
+        nika_sdk::SdkError::Unauthorized => PyPermissionError::new_err("authentication failed"),
         nika_sdk::SdkError::Cancelled => NikaError::new_err("job cancelled"),
         nika_sdk::SdkError::NotFound(msg) => NikaError::new_err(format!("not found: {msg}")),
         nika_sdk::SdkError::QueueFull => NikaError::new_err("server queue full"),
