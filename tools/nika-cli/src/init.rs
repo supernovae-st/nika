@@ -12,6 +12,15 @@ use nika_engine::tools::PermissionMode;
 /// Used for project-level AGENTS.md so teams work without running `nika setup`.
 const AGENTS_MD_CONTENT: &str = include_str!("../rules/claude.md");
 
+/// Copilot instructions (GitHub Copilot / VS Code Copilot Chat).
+const COPILOT_MD_CONTENT: &str = include_str!("../rules/copilot.md");
+
+/// Cursor rules (Cursor IDE).
+const CURSOR_MDC_CONTENT: &str = include_str!("../rules/cursor.mdc");
+
+/// Windsurf rules (Windsurf / Codeium).
+const WINDSURF_MD_CONTENT: &str = include_str!("../rules/windsurf.md");
+
 /// Starter workflow created by `nika init` so the LSP activates immediately.
 const STARTER_WORKFLOW: &str = r#"schema: "nika/workflow@0.12"
 workflow: hello-nika
@@ -277,6 +286,29 @@ default = "anthropic"
     let agents_md_path = root.join("AGENTS.md");
     if !agents_md_path.exists() {
         fs::write(&agents_md_path, AGENTS_MD_CONTENT)?;
+    }
+
+    // Create IDE-specific AI instruction files (so every AI assistant understands Nika)
+    // GitHub Copilot: .github/copilot-instructions.md
+    let copilot_dir = root.join(".github");
+    let copilot_path = copilot_dir.join("copilot-instructions.md");
+    if !copilot_path.exists() {
+        fs::create_dir_all(&copilot_dir).ok();
+        fs::write(&copilot_path, COPILOT_MD_CONTENT)?;
+    }
+
+    // Cursor: .cursor/rules/nika.mdc
+    let cursor_dir = root.join(".cursor").join("rules");
+    let cursor_path = cursor_dir.join("nika.mdc");
+    if !cursor_path.exists() {
+        fs::create_dir_all(&cursor_dir).ok();
+        fs::write(&cursor_path, CURSOR_MDC_CONTENT)?;
+    }
+
+    // Windsurf: .windsurfrules
+    let windsurf_path = root.join(".windsurfrules");
+    if !windsurf_path.exists() {
+        fs::write(&windsurf_path, WINDSURF_MD_CONTENT)?;
     }
 
     // Create or append .gitignore

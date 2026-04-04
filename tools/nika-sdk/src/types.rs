@@ -96,6 +96,7 @@ pub type EventStream = Pin<Box<dyn Stream<Item = Result<Event, SdkError>> + Send
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JobStatus {
+    Pending,
     Queued,
     Running,
     Completed,
@@ -109,6 +110,7 @@ pub enum JobStatus {
 impl std::fmt::Display for JobStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Pending => write!(f, "pending"),
             Self::Queued => write!(f, "queued"),
             Self::Running => write!(f, "running"),
             Self::Completed => write!(f, "completed"),
@@ -321,6 +323,7 @@ mod tests {
     #[test]
     fn job_status_all_variants_roundtrip() {
         for (s, expected) in [
+            ("\"pending\"", JobStatus::Pending),
             ("\"queued\"", JobStatus::Queued),
             ("\"running\"", JobStatus::Running),
             ("\"completed\"", JobStatus::Completed),
