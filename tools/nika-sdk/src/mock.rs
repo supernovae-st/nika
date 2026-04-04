@@ -53,7 +53,7 @@ impl Default for MockTransport {
             artifacts: Arc::new(vec![ArtifactInfo {
                 name: "report.md".into(),
                 size: 1024,
-                format: Some("markdown".into()),
+                format: "markdown".into(),
                 content_type: "text/markdown".into(),
                 checksum: Some("abc123".into()),
             }]),

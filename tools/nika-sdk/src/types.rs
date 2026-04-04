@@ -154,7 +154,7 @@ pub struct JobResult {
 pub struct ArtifactInfo {
     pub name: String,
     pub size: u64,
-    pub format: Option<String>,
+    pub format: String,
     pub content_type: String,
     pub checksum: Option<String>,
 }

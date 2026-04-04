@@ -149,7 +149,7 @@ pub struct ArtifactInfo {
     #[pyo3(get)]
     pub size: u64,
     #[pyo3(get)]
-    pub format: Option<String>,
+    pub format: String,
     #[pyo3(get)]
     pub content_type: String,
     #[pyo3(get)]
@@ -227,7 +227,7 @@ impl Job {
                     size: a.size(),
                     format: a.info().format.clone(),
                     content_type: a.content_type().to_string(),
-                    checksum: a.checksum().map(|s| s.to_string()),
+                    checksum: a.checksum().map(String::from),
                 })
                 .collect())
         })
@@ -748,7 +748,7 @@ mod tests {
         let a = ArtifactInfo {
             name: "report.md".into(),
             size: 4096,
-            format: Some("markdown".into()),
+            format: "markdown".into(),
             content_type: "text/markdown".into(),
             checksum: None,
         };
@@ -761,7 +761,7 @@ mod tests {
         let info = ArtifactInfo {
             name: "report.md".into(),
             size: 4096,
-            format: Some("markdown".into()),
+            format: "markdown".into(),
             content_type: "text/markdown".into(),
             checksum: None,
         };
