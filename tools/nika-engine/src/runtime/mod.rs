@@ -34,6 +34,7 @@ pub mod context;
 pub mod context_loader;
 pub mod event_guard;
 mod executor;
+pub(crate) mod for_each;
 pub mod executor_compressor;
 pub mod fetch_cache;
 pub mod hitl;

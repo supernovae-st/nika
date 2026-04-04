@@ -168,7 +168,7 @@ fn detect_first_configured_provider() -> &'static str {
 /// # Returns
 /// - `Some(Vec<Value>)` if the value is an array or a parseable JSON array string
 /// - `None` if the value cannot be converted to an array
-fn value_to_array(value: &Value) -> Option<Vec<Value>> {
+pub(crate) fn value_to_array(value: &Value) -> Option<Vec<Value>> {
     // BUG-034: Treat null as empty array — 0 iterations, not error.
     if value.is_null() {
         return Some(vec![]);
