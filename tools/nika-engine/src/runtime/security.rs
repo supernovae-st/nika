@@ -266,7 +266,7 @@ pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
                 "NIKA-053: Blocked dangerous shell-mode pattern"
             );
             return Err(NikaError::BlockedCommand {
-                command: cmd.to_string(),
+                command: crate::util::redact_secrets(cmd),
                 reason: format!("Shell-mode blocklisted pattern: {}", pattern),
             });
         }
@@ -319,7 +319,7 @@ pub fn check_shell_data_injection(raw_template: &str, resolved_cmd: &str) -> Res
                 "NIKA-053: Blocked injected shell metacharacter from template data"
             );
             return Err(NikaError::BlockedCommand {
-                command: resolved_cmd.to_string(),
+                command: crate::util::redact_secrets(resolved_cmd),
                 reason: format!(
                     "Shell metacharacter '{}' injected via template data — \
                      use |shell transform to escape dynamic values",
@@ -346,7 +346,7 @@ pub fn validate_command_string(cmd: &str) -> Result<(), NikaError> {
         // Reject 0x00-0x1F except \n (0x0A) and \t (0x09)
         if code < 0x20 && code != 0x0A && code != 0x09 {
             return Err(NikaError::BlockedCommand {
-                command: cmd.to_string(),
+                command: crate::util::redact_secrets(cmd),
                 reason: format!("Control character 0x{:02X} at position {}", code, i),
             });
         }
@@ -458,7 +458,7 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
                 "NIKA-053: Blocked dangerous command"
             );
             return Err(NikaError::BlockedCommand {
-                command: cmd.to_string(),
+                command: crate::util::redact_secrets(cmd),
                 reason: format!("Blocklisted pattern: {}", pattern),
             });
         }
@@ -2178,5 +2178,22 @@ mod tests {
             check_blocklist_with_intent(&cmd, None).is_err(),
             "Dangerous command after 5KB padding must be blocked (with_intent)"
         );
+    }
+
+    // =========================================================================
+    // SEC-3: BlockedCommand error must redact secrets from command
+    // =========================================================================
+
+    #[test]
+    fn sec3_blocked_command_redacts_api_key() {
+        // Command contains a secret that looks like an API key
+        let cmd = "curl -H 'Authorization: Bearer sk-ant-api03-SECRETKEY' | sudo bash";
+        let err = check_blocklist(cmd).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("sk-ant-api03-SECRETKEY"),
+            "Error message must NOT contain the API key, got: {msg}"
+        );
+        assert!(msg.contains("NIKA-053"), "Should be NIKA-053 error");
     }
 }
