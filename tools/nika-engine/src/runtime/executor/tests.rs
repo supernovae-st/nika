@@ -6,6 +6,7 @@
 //! and get_rig_provider error paths.
 
 use super::*;
+use base64::Engine;
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
 use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams};
@@ -616,17 +617,16 @@ async fn test_builtin_invoke_stages_media_ref() {
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
 
-    // Create a temp file to import into CAS
-    let tmp_dir = tempfile::tempdir().unwrap();
-    let img_path = tmp_dir.path().join("test.png");
-    // Minimal valid PNG (8-byte header)
-    std::fs::write(&img_path, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
-
+    // Use nika:decode instead of nika:import to avoid path confinement issues in tests.
+    // Both tools return the same hash/mime_type/size_bytes JSON and test media staging.
+    let png_b64 = base64::engine::general_purpose::STANDARD.encode([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+    ]);
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
             mcp: None,
-            tool: Some("nika:import".to_string()),
-            params: Some(json!({"path": img_path.to_string_lossy()})),
+            tool: Some("nika:decode".to_string()),
+            params: Some(json!({"data": png_b64, "mime_type": "image/png"})),
             resource: None,
             timeout: None,
         },
