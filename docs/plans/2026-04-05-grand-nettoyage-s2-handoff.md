@@ -5,12 +5,19 @@
 
 ---
 
-## CURRENT SESSION: S3+ — Stabilization, Telemetry, Polish
+## CURRENT SESSION: S4+ — Provider Polish, LSP, Remaining Coverage
 
-**Previous**: S1 Security (10 commits) + S2 for_each extraction (-544 LOC) + dead code cleanup
-**Total commits this sprint**: 17
-**Tests**: 9,847 → 9,907 (+60)
+**Previous**: S1 Security (10 commits) + S2 for_each (-544 LOC) + S3 Stabilization (8 commits)
+**Total commits this sprint**: 25
+**Tests**: 9,847 → 9,909 (+62)
 **Runner LOC**: 8,252 → 7,708
+
+### S3 Session Results (8 commits)
+- **W1**: Fix help text 29→52 transforms, fix 14 verbs test failures (vault+mutex), accept snapshot drift
+- **W2**: Emit PolicyBlocked events in exec.rs (3 locations) and fetch.rs (3: SSRF, 2x CRLF). 14 "dead" variants verified ALIVE (earlier audit was wrong)
+- **W3**: RigProvider::Mock enum variant added, mock provider in catalog (requires_key: false)
+- **W4**: Budget size limit enforced before YAML parse (DoS fix), 3 unwrap() eliminated via @ binding
+- **W5**: nika-napi/nika-py removed from workspace (no more --exclude), 6 infer.rs unit tests added
 
 ---
 
@@ -38,16 +45,11 @@
 
 ### P0 — Ship Blockers
 
-#### Fix Integration Test Drift (NIKA-034)
-~20 integration tests fail because `model:` is now required on infer/agent tasks.
-Fix: add `model:` field to test fixtures, or use `provider: mock`.
-```bash
-cd tools && cargo test --test comprehensive_tests 2>&1 | grep FAILED
-cargo insta review  # Accept snapshot drift
-```
+#### ~~Fix Integration Test Drift (NIKA-034)~~ ✅ S3
+Snapshot drift accepted (2 snapshots: improved error messages).
 
-#### Fix Pre-existing CLI Test Failures
-10 nika-cli verbs tests fail (env detection). Fix the tests, not the code.
+#### ~~Fix Pre-existing CLI Test Failures~~ ✅ S3
+14 verbs test failures fixed (vault leak + mutex poison cascade).
 
 ### P1 — Stability & Observability
 
@@ -92,7 +94,7 @@ cargo insta review  # Accept snapshot drift
 - L0b token counts: uses estimate_tokens() → real provider counts
 
 #### CLI UX (S6)
-- Help text says "29 transforms" → actual is 50
+- ~~Help text says "29 transforms" → actual is 52~~ ✅ S3
 - `bench`, `explain`, `switch`, `vault`, `clean` missing from get_short_desc/get_example
 - config get/set uses raw TOML string manipulation → typed struct
 - `curl` subprocess for remote download → reqwest
@@ -107,7 +109,7 @@ cargo insta review  # Accept snapshot drift
 - **NOTE: 12/13 handlers fully implemented** with 180+ test cases. Only diagnostics + formatting missing.
 
 #### Dead Code (S11)
-- nika-napi, nika-py still in workspace (link failures)
+- ~~nika-napi, nika-py still in workspace (link failures)~~ ✅ S3 — removed from workspace
 - 4 unused deps: tokio-stream (nika-sdk, nika-serve), dirs (nika-mcp), serde (nika-napi)
 - .nika/config.toml legacy fallback in 5 files
 - JsonQueryTool deprecated but still registered
