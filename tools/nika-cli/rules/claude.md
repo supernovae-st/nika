@@ -82,13 +82,18 @@ include:                           # Include partial workflows (tasks merged int
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 - **Context files**: `{{context.readme}}` for loaded file content
 
-## Pipe Transforms (31 available)
+## Pipe Transforms (50 available)
 
 **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
 **Array**: `first`, `last`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
 **Numeric**: `to_number`, `round`, `abs`, `ceil`, `floor`
 **Type**: `to_bool`, `to_json`, `parse_json`, `type_of`
-**Parametric**: `join(", ")`, `split(",")`, `default("fallback")`
+**Parametric**: `join(", ")`, `split(",")`, `default("fallback")`, `slice(start, end)`
+**Query**: `pluck(field)`, `where(field, val)`, `pick(f1, f2)`, `omit(f1, f2)`, `sort_by(field)`, `group_by(field)`, `merge`, `regex(pattern)`
+**String test**: `starts_with(str)`, `ends_with(str)`, `contains(str)`
+**URL**: `url_host`, `url_path`, `url_without_query`, `url_normalize`
+**Encoding**: `base64_encode`, `base64_decode`, `content_hash`, `unique_urls`
+**JQ**: `jq(expr)` — full jq stdlib (100+ functions via jaq-core)
 **System**: `shell` (shell-escape value for safe interpolation — NOT command execution)
 
 Usage: `{{with.items | flatten | unique | join(", ")}}`
@@ -241,7 +246,7 @@ Use `content:` array instead of `prompt:` for images:
 ```
 
 **Tool naming rules:**
-- `nika:tool_name` — 30+ builtin tools (always available, no server needed)
+- `nika:tool_name` — 61 builtin tools (always available, no server needed)
 - `server::tool_name` — MCP server tools (double colon `::`, server must be running)
 - `mcp: server` + `tool: name` — split form (equivalent to `server::name`)
 - Short form for builtins: `invoke: "nika:thumbnail"`
@@ -373,14 +378,18 @@ Binary artifact (media pipeline):
     format: binary                     # Store raw CAS bytes directly
 ```
 
-## 30+ Builtin Tools (nika:*)
+## 61 Builtin Tools (nika:*)
 
-**Always-on**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`, `nika:pipeline`
-**Media core**: `nika:thumbnail`, `nika:convert`, `nika:strip`, `nika:metadata`, `nika:optimize`, `nika:svg_render`
-**Opt-in**: `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:chart`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
-**Core**: `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`, `nika:complete`
-**File**: `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
-**Introspection**: `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`, `nika:cost`, `nika:records`
+**Core (7)**: `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`, `nika:complete`
+**File (5)**: `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
+**Introspection (6)**: `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`, `nika:cost`, `nika:records`
+**Data (13)**: `nika:json_merge`, `nika:set_diff`, `nika:zip`, `nika:map`, `nika:filter`, `nika:group_by`, `nika:chunk`, `nika:token_count`, `nika:enrich`, `nika:jq`, `nika:tree_data`, `nika:inject`, `nika:json_query`†
+**Data Sprint 2 (6)**: `nika:json_verify`, `nika:yaml_validate`, `nika:locale_lookup`, `nika:aggregate`, `nika:json_flatten`, `nika:json_unflatten`
+**Media always-on (4)**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`
+**Media core (3)**: `nika:thumbnail`, `nika:convert`, `nika:strip`
+**Media opt-in (17)**: `nika:metadata`, `nika:optimize`, `nika:svg_render`, `nika:chart`, `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`, `nika:pipeline`
+
+† `nika:json_query` is deprecated — use `nika:jq` instead
 
 ## Pipeline Patterns
 
@@ -456,6 +465,8 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 | `max_retries: 3` at task level | `retry: { max_attempts: 3 }` — `max_retries` is only valid inside `structured:` |
 | `model: haiku` inside `infer:` block | `model: claude-haiku-4-5` at task level — model goes on the task, not the verb |
 | `$()` in shell: true commands | NIKA-053 blocks `$(` — use transforms or exec without shell instead |
+| `echo {{with.val}}` with `shell: true` | `echo {{with.val \| shell}}` — unescaped bindings in shell: true are blocked (NIKA-053) |
+| `nika:json_query` | Use `nika:jq` instead — json_query is deprecated |
 
 ## Key Error Codes
 
@@ -475,6 +486,7 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 | NIKA-107 | MCP parameter validation failed — missing or invalid tool params |
 | NIKA-112 | Agent guardrail violation |
 | NIKA-140 | AST analysis failure |
+| NIKA-270 | Skill file not found — referenced in skills: block but missing |
 | NIKA-281 | Artifact write failed (path, permissions, disk space) |
 | NIKA-300 | Structured output validation failed |
 
@@ -490,9 +502,11 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 
 - API keys: env vars only (`$env.API_KEY`). Never hardcode in workflow YAML.
 - `fetch:` validates URLs against SSRF (private IP ranges blocked by default).
-- `exec:` has command blocklist: `rm -rf /`, `sudo`, fork bombs blocked (NIKA-053).
-- `shell: true` enables shell features — use only when pipe/redirect is required.
+- `exec:` has command blocklist: `rm -rf /`, `sudo`, fork bombs blocked (NIKA-053). Scans full command (no 4KB limit).
+- `shell: true` requires `| shell` transform on ALL template bindings. Unescaped `{{with.*}}` in shell mode → NIKA-053.
+- `nika:read` rejects files > 50MB (pre-check via metadata). Use offset/limit for partial reads.
 - File paths validated against directory traversal (`../`) attacks.
+- Blocked command errors redact secrets from error messages.
 - Traces may contain API responses — never commit `.nika/traces/` to git.
 
 ## Validation

@@ -1,27 +1,23 @@
-//! Builtin Tools Module - nika:* tools for HITL, workflow composition, file operations, and completion
+//! Builtin Tools Module — 61 nika:* tools across 6 tiers
 //!
-//! Provides 12 builtin tools with nika: prefix (7 core + 5 file):
+//! **Core (7):** sleep, log, emit, assert, prompt, run, complete
+//! **Data (13):** json_merge, set_diff, zip, json_query†, map, filter, group_by,
+//!   chunk, token_count, enrich, jq, tree_data, inject
+//! **Data Sprint 2 (6):** json_verify, yaml_validate, locale_lookup, aggregate,
+//!   json_flatten, json_unflatten
+//! **File (5):** read, write, edit, glob, grep
+//! **Introspection (6):** cost, records, dag_info, task_status, threads, orchestrate
+//! **Media (24):** import, dimensions, thumbhash, dominant_color, thumbnail, convert,
+//!   strip, metadata, optimize, svg_render, chart, phash, compare, pdf_extract,
+//!   provenance, verify, qr_validate, quality, css_select, extract_metadata,
+//!   extract_links, html_to_md, readability, pipeline
 //!
-//! **Core tools (7):**
-//! - `nika:sleep` - Pause execution for duration
-//! - `nika:log` - Emit log event at level
-//! - `nika:emit` - Emit custom event to EventLog
-//! - `nika:assert` - Validate condition, fail if false
-//! - `nika:prompt` - HITL - request user input
-//! - `nika:run` - Execute nested workflow
-//! - `nika:complete` - Signal agent task completion
-//!
-//! **File tools (5):**
-//! - `nika:read` - Read file with line numbers
-//! - `nika:write` - Create/overwrite file
-//! - `nika:edit` - Modify file (old_string → new_string)
-//! - `nika:glob` - Find files by pattern
-//! - `nika:grep` - Search content with regex
+//! † json_query is deprecated — use jq instead
 //!
 //! # Architecture
 //!
 //! ```text
-//! invoke: nika_sleep → BuiltinToolRouter → SleepTool.call()
+//! invoke: nika:sleep → BuiltinToolRouter → SleepTool.call()
 //!                            │
 //!                            ├── is_builtin("nika_*") = true
 //!                            └── dispatch to appropriate tool
