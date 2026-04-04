@@ -334,7 +334,9 @@ mod tests {
         assert!(router.has_tool("aggregate"));
         assert!(router.has_tool("json_flatten"));
         assert!(router.has_tool("json_unflatten"));
-        assert_eq!(router.tool_names().len(), 23); // 7 core + 10 data + 6 sprint2
+        assert!(router.has_tool("jq"));
+        assert!(router.has_tool("tree_data"));
+        assert_eq!(router.tool_names().len(), 25); // 7 core + 12 data + 6 sprint2
     }
 
     #[test]
@@ -364,7 +366,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 28); // 7 core + 10 data + 6 sprint2 + 5 file
+        assert_eq!(router.tool_names().len(), 30); // 7 core + 12 data + 6 sprint2 + 5 file
     }
 
     #[test]
@@ -448,8 +450,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has 7 core + 10 data + 6 sprint2 tools
-        assert_eq!(router.tool_names().len(), 23);
+        // Default router has 7 core + 12 data + 6 sprint2 tools
+        assert_eq!(router.tool_names().len(), 25);
     }
 
     #[tokio::test]
