@@ -24,6 +24,8 @@ struct JobState {
     cancel_token: tokio_util::sync::CancellationToken,
     /// Broadcast sender for engine events — subscribers get real task events.
     event_tx: Option<tokio::sync::broadcast::Sender<Event>>,
+    /// Handle to the monitor task — aborted on cancel to stop the workflow.
+    monitor_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 /// Maximum number of jobs retained in the embedded job map.
@@ -68,6 +70,14 @@ fn reap_completed_jobs(jobs: &mut std::collections::HashMap<String, JobState>) {
 #[async_trait]
 impl Transport for EmbeddedTransport {
     async fn submit(&self, req: &RunRequest) -> Result<String, SdkError> {
+        // Fail fast: resume not supported in embedded mode
+        if req.resume_from.is_some() {
+            return Err(SdkError::Engine {
+                message: "resume not supported in embedded mode".into(),
+                code: None,
+            });
+        }
+
         let job_id = uuid::Uuid::new_v4().to_string();
 
         // Read and parse workflow
@@ -97,14 +107,6 @@ impl Transport for EmbeddedTransport {
             .with_base_path(base_path)
             .with_cancel_token(cancel_token.clone());
 
-        // Resume not supported in embedded mode yet
-        if req.resume_from.is_some() {
-            return Err(SdkError::Engine {
-                message: "resume not supported in embedded mode".into(),
-                code: None,
-            });
-        }
-
         // Inject workflow inputs
         if let Some(ref inputs) = req.inputs {
             if let Some(map) = inputs.as_object() {
@@ -129,6 +131,7 @@ impl Transport for EmbeddedTransport {
                     output: None,
                     cancel_token,
                     event_tx: Some(sdk_event_tx.clone()),
+                    monitor_handle: None, // set after spawning
                 },
             );
         }
@@ -196,35 +199,45 @@ impl Transport for EmbeddedTransport {
         // Run in background task — capture JoinHandle to detect panics
         let jobs = Arc::clone(&self.jobs);
         let jid = job_id.clone();
-        let handle = tokio::spawn(async move { runner.run().await });
+        let run_handle = tokio::spawn(async move { runner.run().await });
 
-        // Monitor the handle in a separate task
-        tokio::spawn(async move {
-            match handle.await {
+        // Monitor the run handle in a separate task
+        let monitor_jobs = Arc::clone(&jobs);
+        let monitor_jid = jid.clone();
+        let monitor_handle = tokio::spawn(async move {
+            match run_handle.await {
                 Ok(Ok(output)) => {
-                    let mut jobs = jobs.lock().await;
-                    if let Some(state) = jobs.get_mut(&jid) {
+                    let mut jobs = monitor_jobs.lock().await;
+                    if let Some(state) = jobs.get_mut(&monitor_jid) {
                         state.status = JobStatus::Completed;
                         state.output = Some(output);
                     }
                 }
                 Ok(Err(e)) => {
-                    let mut jobs = jobs.lock().await;
-                    if let Some(state) = jobs.get_mut(&jid) {
+                    let mut jobs = monitor_jobs.lock().await;
+                    if let Some(state) = jobs.get_mut(&monitor_jid) {
                         state.status = JobStatus::Failed;
                         state.output = Some(e.to_string());
                     }
                 }
                 Err(join_err) => {
                     // Panic or cancellation in the spawned task
-                    let mut jobs = jobs.lock().await;
-                    if let Some(state) = jobs.get_mut(&jid) {
+                    let mut jobs = monitor_jobs.lock().await;
+                    if let Some(state) = jobs.get_mut(&monitor_jid) {
                         state.status = JobStatus::Failed;
                         state.output = Some(format!("internal error: {join_err}"));
                     }
                 }
             }
         });
+
+        // Store the monitor handle so cancel() can abort it
+        {
+            let mut jobs = jobs.lock().await;
+            if let Some(state) = jobs.get_mut(&jid) {
+                state.monitor_handle = Some(monitor_handle);
+            }
+        }
 
         Ok(job_id)
     }
@@ -253,6 +266,9 @@ impl Transport for EmbeddedTransport {
             .get_mut(job_id)
             .ok_or_else(|| SdkError::NotFound(job_id.into()))?;
         state.cancel_token.cancel(); // signal the Runner to stop
+        if let Some(handle) = state.monitor_handle.take() {
+            handle.abort(); // abort the monitor task (which holds the run handle)
+        }
         state.status = JobStatus::Cancelled;
 
         Ok(JobInfo {
@@ -344,8 +360,11 @@ impl Transport for EmbeddedTransport {
         if !jobs.contains_key(job_id) {
             return Err(SdkError::NotFound(job_id.into()));
         }
-        // Embedded mode doesn't track artifacts in v0.61
-        Ok(Vec::new())
+        Err(SdkError::Engine {
+            message: "artifact listing not supported in embedded mode — use remote transport"
+                .into(),
+            code: None,
+        })
     }
 
     async fn download_artifact(&self, job_id: &str, name: &str) -> Result<Bytes, SdkError> {
