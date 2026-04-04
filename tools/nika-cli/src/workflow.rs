@@ -362,7 +362,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                         continue;
                     }
                     if let Some(provider) = nika_engine::core::find_provider(provider_name) {
-                        if provider.requires_key && !provider.has_env_key() {
+                        if provider.requires_key && !nika_engine::secrets::has_provider_key(provider) {
                             issues.push((
                                 "warn".to_string(),
                                 "NIKA-032".to_string(),

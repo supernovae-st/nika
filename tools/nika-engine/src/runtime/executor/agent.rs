@@ -163,7 +163,7 @@ impl TaskExecutor {
                 }
                 // Check catalog provider has env key
                 match crate::core::find_provider(name) {
-                    Some(p) if p.has_env_key() || !p.requires_key => {
+                    Some(p) if crate::secrets::has_provider_key(p) || !p.requires_key => {
                         found_provider = Some((name.clone(), i));
                         break;
                     }

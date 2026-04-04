@@ -172,7 +172,7 @@ impl RigProvider {
         })?;
 
         // Check env var is set (rig-core panics without it)
-        if provider.requires_key && !provider.has_env_key() {
+        if provider.requires_key && !crate::secrets::has_provider_key(provider) {
             return Err(ProviderError::MissingApiKey {
                 provider: provider.id.to_string(),
             }
@@ -1346,7 +1346,7 @@ impl RigProvider {
 
         // Iterate KNOWN_PROVIDERS in priority order (LLM providers first, then native)
         for p in KNOWN_PROVIDERS.iter() {
-            if p.category == ProviderCategory::Llm && p.has_env_key() {
+            if p.category == ProviderCategory::Llm && crate::secrets::has_provider_key(p) {
                 return match p.id {
                     "anthropic" => Some(Self::claude()),
                     "openai" => Some(Self::openai()),
@@ -1361,7 +1361,7 @@ impl RigProvider {
         }
         // Native is opt-in: requires NIKA_NATIVE_MODEL to be set
         #[cfg(feature = "native-inference")]
-        if std::env::var("NIKA_NATIVE_MODEL").is_ok_and(|v| !v.trim().is_empty()) {
+        if crate::secrets::store::resolve_env("NIKA_NATIVE_MODEL").is_some() {
             return Some(Self::native());
         }
         None
@@ -1444,7 +1444,7 @@ impl RigProvider {
     /// This is a fast, synchronous check that doesn't make network calls.
     /// Use `verify()` for actual connection testing.
     pub fn is_configured(&self) -> bool {
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
+        let has_key = |key: &str| crate::secrets::store::resolve_env(key).is_some();
 
         match self {
             RigProvider::Claude(_) => has_key("ANTHROPIC_API_KEY"),

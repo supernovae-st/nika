@@ -148,7 +148,7 @@ fn detect_first_configured_provider() -> &'static str {
         if p.category != ProviderCategory::Llm {
             continue;
         }
-        if p.has_env_key() {
+        if crate::secrets::has_provider_key(p) {
             return p.id;
         }
     }

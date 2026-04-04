@@ -3,9 +3,11 @@
 mod fallback;
 pub mod key_utils;
 mod result;
+pub mod store;
 pub mod vault;
 
 pub use fallback::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
+pub use store::resolve_env;
 pub use key_utils::{
     mask_api_key, migrate_env_to_vault, validate_key_format, KeyringError, MigrationReport,
 };
@@ -16,24 +18,20 @@ pub fn provider_env_var(provider: &str) -> &'static str {
     crate::core::provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
 }
 
-/// Inject a secret into the process environment.
+/// Inject a secret into the in-process SecretStore.
 ///
-/// # Safety contract
-///
-/// `std::env::set_var` is unsafe because it is not thread-safe: concurrent
-/// reads/writes to the process environment from multiple threads cause UB.
-///
-/// This function is safe to call ONLY when one of these conditions holds:
-/// 1. **Sequential boot** — called during `BootSequence::run()` (phases 1-4)
-///    before any worker threads or Tokio tasks are spawned.
-/// 2. **Single-threaded CLI** — called from the main CLI thread before
-///    workflow execution begins (e.g., `nika provider set`, onboarding).
-///
-/// It MUST NOT be called from `nika serve` worker threads, Tokio task pools,
-/// or any context where concurrent env reads are possible.
+/// Thread-safe: backed by a `DashMap`, callable from any context including
+/// `nika serve` worker threads and Tokio task pools.
 pub fn inject_secret_to_env(env_var: &str, value: &str) {
-    // SAFETY: callers guarantee single-threaded context (see doc above)
-    unsafe { std::env::set_var(env_var, value) };
+    store::set_secret(env_var, value);
+}
+
+/// Check if a provider's API key is available (store + env).
+///
+/// Drop-in replacement for `Provider::has_env_key()` that also checks
+/// the in-process SecretStore (populated from daemon/vault at boot).
+pub fn has_provider_key(provider: &crate::core::Provider) -> bool {
+    store::resolve_env(provider.env_var).is_some()
 }
 
 #[cfg(test)]
@@ -102,6 +100,8 @@ mod tests {
         let orig = std::env::var(key).ok();
         let orig_no_daemon = std::env::var("NIKA_NO_DAEMON").ok();
         std::env::set_var(key, "");
+        // Also clear the in-process store (may have been populated by prior tests)
+        store::remove_secret(key);
         // Prevent fallback to daemon/vault which may have the real key
         std::env::set_var("NIKA_NO_DAEMON", "1");
         assert!(!has_secret("xai").await);

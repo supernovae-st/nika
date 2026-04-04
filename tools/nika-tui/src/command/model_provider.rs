@@ -63,7 +63,7 @@ impl ModelProvider {
         match self {
             ModelProvider::List => true,
             _ => nika_engine::core::find_provider(self.command_name())
-                .map(|p| !p.requires_key || p.has_env_key())
+                .map(|p| !p.requires_key || nika_engine::secrets::has_provider_key(p))
                 .unwrap_or(false),
         }
     }

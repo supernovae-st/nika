@@ -193,7 +193,7 @@ impl RigAgentLoop {
         // Auto-detect: iterate KNOWN_PROVIDERS in priority order (LLM category only)
         use crate::core::providers::{ProviderCategory, KNOWN_PROVIDERS};
         for p in KNOWN_PROVIDERS.iter() {
-            if p.category == ProviderCategory::Llm && p.has_env_key() {
+            if p.category == ProviderCategory::Llm && crate::secrets::has_provider_key(p) {
                 return match p.id {
                     "anthropic" => self.run_claude().await,
                     "openai" => self.run_openai().await,

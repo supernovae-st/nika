@@ -29,9 +29,9 @@ use nika_engine::store::RunContext;
 pub fn detect_provider() -> Option<String> {
     use nika_engine::core::providers::{providers_by_category, ProviderCategory};
 
-    // Check env vars first (fast path)
+    // Check store + env vars first (fast path)
     for provider in providers_by_category(ProviderCategory::Llm) {
-        if provider.has_env_key() {
+        if nika_engine::secrets::has_provider_key(provider) {
             return Some(provider.id.to_string());
         }
     }
@@ -779,7 +779,7 @@ mod tests {
         "XAI_API_KEY",
     ];
 
-    /// Clear all provider env vars, returning their previous values for restore.
+    /// Clear all provider env vars + store, returning their previous values for restore.
     fn clear_provider_env() -> Vec<(String, Option<String>)> {
         PROVIDER_VARS
             .iter()
@@ -787,6 +787,8 @@ mod tests {
                 let prev = std::env::var(var).ok();
                 // SAFETY: single-threaded access guaranteed by ENV_LOCK mutex
                 unsafe { std::env::remove_var(var) };
+                // Also clear the in-process SecretStore
+                nika_engine::secrets::store::remove_secret(var);
                 (var.to_string(), prev)
             })
             .collect()

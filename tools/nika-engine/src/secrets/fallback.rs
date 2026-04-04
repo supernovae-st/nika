@@ -69,12 +69,9 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         let provider_id = provider.id;
         let env_var = provider.env_var;
 
-        // 1. Check env var first (zero overhead)
-        if std::env::var(env_var)
-            .map(|v| !v.is_empty())
-            .unwrap_or(false)
-        {
-            trace!("{}: already in env", provider_id);
+        // 1. Check store + env var first (zero overhead)
+        if super::store::resolve_env(env_var).is_some() {
+            trace!("{}: already in env/store", provider_id);
             result.from_env.push(provider_id.to_string());
             continue;
         }
@@ -130,11 +127,9 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     let env_var = provider_env_var(provider);
     let backend = nika_vault::VaultBackend::from_env();
 
-    // 1. Check env (always first, regardless of backend)
-    if let Ok(value) = std::env::var(env_var) {
-        if !value.is_empty() {
-            return Some(SecretString::from(value));
-        }
+    // 1. Check store + env (always first, regardless of backend)
+    if let Some(value) = super::store::resolve_env(env_var) {
+        return Some(SecretString::from(value));
     }
 
     // 2. If Doppler backend: try doppler before daemon/vault
@@ -180,11 +175,8 @@ pub async fn has_secret(provider: &str) -> bool {
     let env_var = provider_env_var(provider);
     let backend = nika_vault::VaultBackend::from_env();
 
-    // 1. Check env
-    if std::env::var(env_var)
-        .map(|v| !v.is_empty())
-        .unwrap_or(false)
-    {
+    // 1. Check store + env
+    if super::store::resolve_env(env_var).is_some() {
         return true;
     }
 

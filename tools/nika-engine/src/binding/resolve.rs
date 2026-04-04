@@ -833,9 +833,9 @@ fn resolve_binding_path(
         }
 
         BindingSource::Env(var_name) => {
-            // NOTE: daemon/vault secrets are pre-loaded into the process env
-            // by `load_from_daemon_or_fallback()` during boot (before any task
-            // execution), so `std::env::var` sees them here.
+            // NOTE: daemon/vault secrets are pre-loaded into the SecretStore
+            // by `load_from_daemon_or_fallback()` during boot. `resolve_env`
+            // checks the store first, then falls back to std::env::var.
 
             // SEC-1: Block access to dangerous system/process env vars that
             // could enable privilege escalation or secret exfiltration if a
@@ -870,9 +870,9 @@ fn resolve_binding_path(
             } else {
                 tracing::debug!(var = %var_name, "Accessing env var via $env binding");
             }
-            match std::env::var(var_name.as_ref()) {
-                Ok(val) => Ok(Some(Value::String(val))),
-                Err(_) => Ok(None),
+            match crate::secrets::store::resolve_env(var_name.as_ref()) {
+                Some(val) => Ok(Some(Value::String(val))),
+                None => Ok(None),
             }
         }
 

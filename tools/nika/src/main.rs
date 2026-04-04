@@ -3139,7 +3139,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
 
         for provider_name in &providers_used {
             if let Some(provider) = nika::core::find_provider(provider_name) {
-                if provider.requires_key && !provider.has_env_key() {
+                if provider.requires_key && !nika::secrets::has_provider_key(provider) {
                     provider_warnings.push(format!(
                         "{} not set (provider '{}' used in workflow)",
                         provider.env_var, provider_name
@@ -3526,7 +3526,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 
         for provider_name in &providers_used {
             if let Some(provider) = nika::core::find_provider(provider_name) {
-                if provider.requires_key && !provider.has_env_key() {
+                if provider.requires_key && !nika::secrets::has_provider_key(provider) {
                     provider_warnings.push(format!(
                         "{} not set (provider '{}' used in workflow)",
                         provider.env_var, provider_name
