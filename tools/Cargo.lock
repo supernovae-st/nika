@@ -4576,6 +4576,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "jaq-core"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6fda09ee08c84c81293fdf811d9ebaa87b327557b5391f290c926d728c2ddd4"
+dependencies = [
+ "aho-corasick",
+ "base64 0.22.1",
+ "chrono",
+ "hifijson",
+ "jaq-interpret",
+ "libm",
+ "log",
+ "regex",
+ "urlencoding",
+]
+
+[[package]]
 name = "jaq-interpret"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4597,6 +4614,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0346d7d3146cdda8acd929581f3d6626a332356c74d5c95aeaffaac2eb6dee82"
 dependencies = [
  "chumsky",
+ "jaq-syn",
+]
+
+[[package]]
+name = "jaq-std"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfbaa55578fd3b70433b594a370741e0c364e4afff92cc0099623fce87311bc1"
+dependencies = [
  "jaq-syn",
 ]
 
@@ -5788,7 +5814,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -5832,7 +5858,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "chrono",
  "clap",
@@ -5863,15 +5889,17 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "fs2",
  "indexmap 2.13.0",
  "insta",
+ "jaq-core",
  "jaq-interpret",
  "jaq-parse",
+ "jaq-std",
  "jsonschema",
  "marked-yaml",
  "miette",
@@ -5897,7 +5925,7 @@ dependencies = [
 
 [[package]]
 name = "nika-daemon"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -5923,7 +5951,7 @@ dependencies = [
 
 [[package]]
 name = "nika-engine"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -6003,7 +6031,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -6020,7 +6048,7 @@ dependencies = [
 
 [[package]]
 name = "nika-init"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "serde",
  "serde-saphyr 0.0.20",
@@ -6032,7 +6060,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "dashmap",
  "libc",
@@ -6052,7 +6080,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "dashmap",
  "insta",
@@ -6070,7 +6098,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "backon",
  "dashmap",
@@ -6096,7 +6124,7 @@ dependencies = [
 
 [[package]]
 name = "nika-media"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -6147,7 +6175,7 @@ dependencies = [
 
 [[package]]
 name = "nika-napi"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "futures-util",
  "napi",
@@ -6161,7 +6189,7 @@ dependencies = [
 
 [[package]]
 name = "nika-py"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "futures-util",
  "nika-sdk",
@@ -6174,7 +6202,7 @@ dependencies = [
 
 [[package]]
 name = "nika-sdk"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -6196,7 +6224,7 @@ dependencies = [
 
 [[package]]
 name = "nika-serve"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "aide",
  "async-stream",
@@ -6230,7 +6258,7 @@ dependencies = [
 
 [[package]]
 name = "nika-storage"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -6243,7 +6271,7 @@ dependencies = [
 
 [[package]]
 name = "nika-tui"
-version = "0.63.0"
+version = "0.64.0"
 dependencies = [
  "arboard",
  "camino",

@@ -1096,8 +1096,10 @@ fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
     }
     let main = main.ok_or_else(|| "empty jq expression".to_string())?;
 
-    // Core context includes builtins like `.[]`, `select`, `keys`, `length`, etc.
+    // Load full jq stdlib: length, keys, group_by, sort_by, map, select, etc.
     let mut ctx = jaq_interpret::ParseCtx::new(Vec::new());
+    ctx.insert_natives(jaq_core::core());
+    ctx.insert_defs(jaq_std::std());
     let filter = ctx.compile(main);
     if !ctx.errs.is_empty() {
         return Err(format!("compile error ({} issues)", ctx.errs.len()));
@@ -3857,6 +3859,73 @@ mod tests {
     fn jq_null_input() {
         let result = TransformOp::Jq(".".to_string()).apply(&Value::Null).unwrap();
         assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn jq_stdlib_group_by() {
+        let data = json!([
+            {"locale": "en", "section": "blog"},
+            {"locale": "en", "section": "docs"},
+            {"locale": "fr", "section": "blog"}
+        ]);
+        let result = TransformOp::Jq("[group_by(.locale)[] | {name: .[0].locale, count: length}]".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!([{"name": "en", "count": 2}, {"name": "fr", "count": 1}]));
+    }
+
+    #[test]
+    fn jq_stdlib_map_select() {
+        let data = json!([1, 2, 3, 4, 5]);
+        let result = TransformOp::Jq("[.[] | select(. > 3)]".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!([4, 5]));
+    }
+
+    #[test]
+    fn jq_stdlib_keys_length() {
+        let data = json!({"a": 1, "b": 2, "c": 3});
+        let result = TransformOp::Jq("keys | length".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!(3));
+    }
+
+    #[test]
+    fn jq_stdlib_to_entries() {
+        let data = json!({"name": "Alice", "age": 30});
+        let result = TransformOp::Jq("to_entries | length".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!(2));
+    }
+
+    #[test]
+    fn jq_stdlib_sort_by() {
+        let data = json!([{"n": 3}, {"n": 1}, {"n": 2}]);
+        let result = TransformOp::Jq("[sort_by(.n)[] | .n]".to_string())
+            .apply(&data)
+            .unwrap();
+        assert_eq!(result, json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn jq_stdlib_nested_group_by() {
+        // The exact pattern needed for site-audit dashboard TREE
+        let data = json!([
+            {"locale": "en", "section": "blog"},
+            {"locale": "en", "section": "blog"},
+            {"locale": "en", "section": "docs"},
+            {"locale": "fr", "section": "blog"}
+        ]);
+        let result = TransformOp::Jq(
+            "[group_by(.locale)[] | {name: .[0].locale, children: [group_by(.section)[] | {name: .[0].section, value: length}]}]".to_string()
+        ).apply(&data).unwrap();
+        assert_eq!(result, json!([
+            {"name": "en", "children": [{"name": "blog", "value": 2}, {"name": "docs", "value": 1}]},
+            {"name": "fr", "children": [{"name": "blog", "value": 1}]}
+        ]));
     }
 
     #[test]

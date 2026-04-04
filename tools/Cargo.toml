@@ -210,9 +210,11 @@ urlencoding = "2.1"
 flate2 = "1.1"
 tar = "0.4"
 
-# jq expressions
+# jq expressions (full stdlib: group_by, sort_by, map, select, etc.)
 jaq-interpret = "1.5"
 jaq-parse = "1.0"
+jaq-core = "1.5"
+jaq-std = "1.5"
 
 # Scheduler
 croner = "3"
