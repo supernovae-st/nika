@@ -7,10 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.65.0 — NATIVE JQ + DASHBOARD                                     ║
-║  nika:jq | nika:tree_data | eval_jq() public API | 100% native workflows  ║
+║  NIKA v0.66.0 — SECURITY + STABILIZATION                                  ║
+║  50 transforms | 61 tools | data_tools split | 4 security fixes            ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.66.0] — 2026-04-04
+
+### Security
+- **SEC-1: Full command scan** — Exec blocklist now scans the entire command, not just first 4KB. Prevents bypass via padding.
+- **SEC-2: Shell injection block** — `shell: true` with unescaped template bindings now returns NIKA-053 error. Use `| shell` transform or single-quote bindings.
+- **SEC-3: Redact BlockedCommand** — Error messages for blocked commands now redact secrets (API keys, tokens).
+- **SEC-4: Read file size limit** — `nika:read` pre-checks file metadata, rejects files > 50MB.
+
+### Changed
+- **data_tools.rs split** — Monolithic 2122-line file split into 6 categorized modules under `builtin/data/`: merge.rs, transform.rs, aggregate.rs, jq.rs, text.rs, io.rs. Zero behavior changes.
+- **nika:json_query deprecated** — Use `nika:jq` instead. Deprecation warning emitted on each call.
+
+### Documentation
+- **50 pipe transforms** documented (was 31 — 19 missing: pluck, where, pick, omit, sort_by, group_by, merge, regex, starts_with, ends_with, contains, url_host, url_path, url_without_query, url_normalize, base64_encode, base64_decode, content_hash, unique_urls)
+- **61 builtin tools** documented in full categorized inventory
+- Updated security section, common mistakes, error codes
+- Serve-api showcase updated for SEC-2 compliance
 
 ## [0.65.0] — 2026-04-04
 
