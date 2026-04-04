@@ -18,8 +18,7 @@ use crate::state::AppState;
 /// Returns `Ok(())` on valid token, `Err(StatusCode::UNAUTHORIZED)` otherwise.
 /// Uses SHA-256 + constant-time comparison to prevent timing side-channels.
 fn check_bearer_token(auth_header: Option<&str>, expected_token: &str) -> Result<(), StatusCode> {
-    let token = auth_header
-        .and_then(|v| v.strip_prefix("Bearer "));
+    let token = auth_header.and_then(|v| v.strip_prefix("Bearer "));
 
     match token {
         Some(t) => {

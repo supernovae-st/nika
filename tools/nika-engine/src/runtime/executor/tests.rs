@@ -6,13 +6,13 @@
 //! and get_rig_provider error paths.
 
 use super::*;
-use base64::Engine;
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
 use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams};
 use crate::event::EventKind;
 use crate::runtime::Runner;
 use crate::store::{RunContext, TaskResult};
+use base64::Engine;
 use serde_json::json;
 use std::time::Duration;
 
@@ -619,9 +619,8 @@ async fn test_builtin_invoke_stages_media_ref() {
 
     // Use nika:decode instead of nika:import to avoid path confinement issues in tests.
     // Both tools return the same hash/mime_type/size_bytes JSON and test media staging.
-    let png_b64 = base64::engine::general_purpose::STANDARD.encode([
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-    ]);
+    let png_b64 = base64::engine::general_purpose::STANDARD
+        .encode([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
             mcp: None,

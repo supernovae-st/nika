@@ -6,9 +6,9 @@
 use clap::Subcommand;
 use colored::Colorize;
 
-use nika_vault::NikaVault;
 use nika_engine::display::{hint, separator, status_line, tree_connector, StatusIcon};
 use nika_engine::error::NikaError;
+use nika_vault::NikaVault;
 
 /// Vault management actions.
 #[derive(Subcommand, Debug)]

@@ -34,8 +34,7 @@ pub fn compute_layers<'a>(
     edges: &[(&'a str, &'a str)],
 ) -> FxHashMap<&'a str, usize> {
     // Build adjacency list and in-degree map
-    let mut in_degree: FxHashMap<&'a str, usize> =
-        nodes.iter().map(|&n| (n, 0)).collect();
+    let mut in_degree: FxHashMap<&'a str, usize> = nodes.iter().map(|&n| (n, 0)).collect();
     let mut successors: FxHashMap<&'a str, Vec<&'a str>> = FxHashMap::default();
 
     for &(from, to) in edges {
@@ -46,8 +45,7 @@ pub fn compute_layers<'a>(
     }
 
     // BFS from roots (in-degree 0)
-    let mut depths: FxHashMap<&'a str, usize> =
-        nodes.iter().map(|&n| (n, 0)).collect();
+    let mut depths: FxHashMap<&'a str, usize> = nodes.iter().map(|&n| (n, 0)).collect();
     let mut queue: VecDeque<&'a str> = in_degree
         .iter()
         .filter(|(_, &deg)| deg == 0)

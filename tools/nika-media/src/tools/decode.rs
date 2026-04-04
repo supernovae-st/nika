@@ -281,10 +281,7 @@ mod tests {
         let (_dir, ctx) = setup().await;
         let op = DecodeOp;
         let result = op
-            .execute(
-                serde_json::json!({"mime_type": "image/png"}),
-                &ctx,
-            )
+            .execute(serde_json::json!({"mime_type": "image/png"}), &ctx)
             .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-294"));
@@ -362,10 +359,7 @@ mod tests {
 
         for mime in ["image/jpeg", "audio/mp3", "application/pdf", "video/mp4"] {
             let result = op
-                .execute(
-                    serde_json::json!({"data": &b64, "mime_type": mime}),
-                    &ctx,
-                )
+                .execute(serde_json::json!({"data": &b64, "mime_type": mime}), &ctx)
                 .await;
             assert!(result.is_ok(), "mime {mime} should be accepted");
         }

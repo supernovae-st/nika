@@ -129,12 +129,12 @@ impl BuiltinTool for InjectTool {
                 });
             }
 
-            tokio::fs::write(&output_path, &output)
-                .await
-                .map_err(|e| NikaError::BuiltinToolError {
+            tokio::fs::write(&output_path, &output).await.map_err(|e| {
+                NikaError::BuiltinToolError {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot write '{}': {e}", params.output),
-                })?;
+                }
+            })?;
 
             Ok(serde_json::json!({
                 "path": params.output,

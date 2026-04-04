@@ -13,11 +13,11 @@ pub mod chart;
 pub mod color;
 #[cfg(feature = "media-phash")]
 pub mod compare;
-pub mod decode;
 #[cfg(feature = "media-thumbnail")]
 pub mod convert;
 #[cfg(feature = "fetch-html")]
 pub mod css_select;
+pub mod decode;
 pub mod dimensions;
 #[cfg(feature = "fetch-html")]
 pub mod extract_links;

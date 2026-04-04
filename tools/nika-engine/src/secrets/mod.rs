@@ -7,11 +7,11 @@ pub mod store;
 pub mod vault;
 
 pub use fallback::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
-pub use store::resolve_env;
 pub use key_utils::{
     mask_api_key, migrate_env_to_vault, validate_key_format, KeyringError, MigrationReport,
 };
 pub use result::SecretsLoadResult;
+pub use store::resolve_env;
 
 /// Get the environment variable name for a provider ID.
 pub fn provider_env_var(provider: &str) -> &'static str {

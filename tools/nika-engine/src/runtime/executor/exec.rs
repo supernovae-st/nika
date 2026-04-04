@@ -109,10 +109,9 @@ impl TaskExecutor {
         // template data (not written by the dev in the YAML). Compares raw template
         // vs resolved command — patterns present in both are intentional.
         if is_shell {
-            if let Err(e) = crate::runtime::security::check_shell_data_injection(
-                &params.command,
-                &resolved_cmd,
-            ) {
+            if let Err(e) =
+                crate::runtime::security::check_shell_data_injection(&params.command, &resolved_cmd)
+            {
                 self.event_log.emit(EventKind::PolicyBlocked {
                     task_id: Arc::clone(task_id),
                     verb: "exec".to_string(),

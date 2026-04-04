@@ -152,10 +152,7 @@ impl Job {
                     } else {
                         None
                     };
-                    return Err(SdkError::Engine {
-                        message: msg,
-                        code,
-                    });
+                    return Err(SdkError::Engine { message: msg, code });
                 }
                 Event::Cancelled { .. } => {
                     return Err(SdkError::Cancelled);

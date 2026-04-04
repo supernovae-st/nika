@@ -99,10 +99,7 @@ impl MediaOp for SvgRenderOp {
 
                     // Guard: reject degenerate 0x0 viewBox SVGs (division by zero)
                     if svg_size.width() == 0.0 || svg_size.height() == 0.0 {
-                        return Err(invalid_args(
-                            "svg_render",
-                            "SVG has zero-dimension viewBox",
-                        ));
+                        return Err(invalid_args("svg_render", "SVG has zero-dimension viewBox"));
                     }
 
                     let (w, h) = match (req_width, req_height) {
@@ -278,10 +275,7 @@ mod tests {
 
         let op = SvgRenderOp;
         let result = op
-            .execute(
-                serde_json::json!({"hash": sr.hash, "width": 99999}),
-                &ctx,
-            )
+            .execute(serde_json::json!({"hash": sr.hash, "width": 99999}), &ctx)
             .await;
         assert!(result.is_err(), "width=99999 must be rejected, not clamped");
         assert!(result.unwrap_err().to_string().contains("NIKA-294"));
@@ -291,8 +285,7 @@ mod tests {
     async fn svg_render_zero_viewbox_rejected() {
         let (_dir, ctx) = setup().await;
         // viewBox 0 0 0 0 is degenerate — would cause div-by-zero
-        let svg =
-            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>"#;
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>"#;
         let sr = ctx.cas.store(svg.as_bytes()).await.unwrap();
 
         let op = SvgRenderOp;

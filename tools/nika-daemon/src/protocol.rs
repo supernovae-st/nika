@@ -49,9 +49,7 @@ pub enum DaemonRequest {
 
     /// List all provider secret status.
     /// Requires auth token to prevent same-UID enumeration of stored secrets.
-    ListSecrets {
-        auth_token: Option<String>,
-    },
+    ListSecrets { auth_token: Option<String> },
 
     /// Store a secret (API key) for a provider in the encrypted vault.
     SetSecret {

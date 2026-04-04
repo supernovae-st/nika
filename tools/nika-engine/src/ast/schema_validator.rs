@@ -65,9 +65,10 @@ impl WorkflowSchemaValidator {
     /// * `Err(NikaError::SchemaValidationFailed)` with detailed errors if invalid
     pub fn validate_yaml(&self, yaml: &str) -> Result<(), NikaError> {
         // Parse YAML to JSON Value (serde_yaml can handle this)
-        let value: Value = crate::util::parse_yaml_budgeted(yaml).map_err(|e| NikaError::ParseError {
-            details: format!("YAML parse error: {}", e),
-        })?;
+        let value: Value =
+            crate::util::parse_yaml_budgeted(yaml).map_err(|e| NikaError::ParseError {
+                details: format!("YAML parse error: {}", e),
+            })?;
 
         self.validate_value(&value)
     }

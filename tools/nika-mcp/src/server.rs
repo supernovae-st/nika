@@ -173,7 +173,10 @@ impl NikaMcpServer {
             250..=259 => ("Media", "Media pipeline error"),
             270..=279 => ("Skills", "Skill file not found or invalid"),
             280..=289 => ("Artifacts", "Artifact write/path error"),
-            290..=297 => ("Media Tools", "Builtin media tool error (import, decode, thumbnail, etc.)"),
+            290..=297 => (
+                "Media Tools",
+                "Builtin media tool error (import, decode, thumbnail, etc.)",
+            ),
             300..=309 => ("Structured Output", "Structured output error"),
             _ => ("Unknown", "Unknown error code"),
         };

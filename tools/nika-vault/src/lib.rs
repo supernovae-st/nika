@@ -466,7 +466,6 @@ impl NikaVault {
         self.vault_path.exists()
     }
 
-
     /// Check if the vault exists and is readable with the current key.
     ///
     /// Returns:
@@ -609,9 +608,14 @@ impl NikaVault {
         let kdf_salt = kdf::Salt::from_slice(&salt)
             .map_err(|e| VaultError::Crypto(format!("KDF salt: {e}")))?;
 
-        let derived =
-            kdf::derive_key(&password, &kdf_salt, Self::KDF_ITERATIONS, Self::KDF_MEMORY_KIB, 32)
-                .map_err(|e| VaultError::Crypto(format!("KDF derive: {e}")))?;
+        let derived = kdf::derive_key(
+            &password,
+            &kdf_salt,
+            Self::KDF_ITERATIONS,
+            Self::KDF_MEMORY_KIB,
+            32,
+        )
+        .map_err(|e| VaultError::Crypto(format!("KDF derive: {e}")))?;
 
         orion::aead::SecretKey::from_slice(derived.unprotected_as_bytes())
             .map_err(|e| VaultError::Crypto(format!("AEAD key: {e}")))

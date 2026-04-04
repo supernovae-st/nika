@@ -420,7 +420,10 @@ mod tests {
     #[tokio::test]
     async fn list_artifacts_unknown_job_returns_not_found() {
         let transport = EmbeddedTransport::new().unwrap();
-        let err = transport.list_artifacts("nonexistent-job").await.unwrap_err();
+        let err = transport
+            .list_artifacts("nonexistent-job")
+            .await
+            .unwrap_err();
         assert!(matches!(err, SdkError::NotFound(_)));
     }
 

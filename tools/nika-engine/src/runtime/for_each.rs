@@ -137,23 +137,19 @@ fn resolve_dollar_binding(
     let base_alias = match segments.next() {
         Some(a) if !a.is_empty() => a,
         _ => {
-            return ForEachResolution::Failed(
-                "for_each: empty alias after '$' prefix".to_string(),
-            );
+            return ForEachResolution::Failed("for_each: empty alias after '$' prefix".to_string());
         }
     };
 
     // Try with: bindings first, then fall back to datastore
-    let base_value = match bindings
-        .get_resolved(base_alias, datastore)
-        .or_else(|_| {
-            datastore
-                .get_output(base_alias)
-                .map(|arc| arc.as_ref().clone())
-                .ok_or_else(|| NikaError::BindingNotFound {
-                    alias: base_alias.to_string(),
-                })
-        }) {
+    let base_value = match bindings.get_resolved(base_alias, datastore).or_else(|_| {
+        datastore
+            .get_output(base_alias)
+            .map(|arc| arc.as_ref().clone())
+            .ok_or_else(|| NikaError::BindingNotFound {
+                alias: base_alias.to_string(),
+            })
+    }) {
         Ok(v) => v,
         Err(e) => {
             return ForEachResolution::Failed(format!(
@@ -263,16 +259,14 @@ fn resolve_binding_source(
 ) -> Result<Value, String> {
     let base_value = match source {
         crate::binding::BindingSource::Task(task_id) => {
-            match bindings
-                .get_resolved(task_id, datastore)
-                .or_else(|_| {
-                    datastore
-                        .get_output(task_id)
-                        .map(|arc| arc.as_ref().clone())
-                        .ok_or_else(|| NikaError::BindingNotFound {
-                            alias: task_id.to_string(),
-                        })
-                }) {
+            match bindings.get_resolved(task_id, datastore).or_else(|_| {
+                datastore
+                    .get_output(task_id)
+                    .map(|arc| arc.as_ref().clone())
+                    .ok_or_else(|| NikaError::BindingNotFound {
+                        alias: task_id.to_string(),
+                    })
+            }) {
                 Ok(output) => {
                     let working = crate::binding::jsonpath::try_parse_json_str(&output)
                         .unwrap_or_else(|| output.clone());

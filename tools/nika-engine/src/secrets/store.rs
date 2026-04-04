@@ -42,9 +42,7 @@ pub fn resolve_env(key: &str) -> Option<String> {
             return Some(val);
         }
     }
-    std::env::var(key)
-        .ok()
-        .filter(|v| !v.trim().is_empty())
+    std::env::var(key).ok().filter(|v| !v.trim().is_empty())
 }
 
 #[cfg(test)]

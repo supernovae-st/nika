@@ -208,9 +208,10 @@ fn parse_yaml(
     path: &Path,
     _kind: DefinitionKind,
 ) -> Result<LoadedDefinition, NikaError> {
-    let def: YamlDefinition = crate::util::parse_yaml_budgeted(content).map_err(|e| NikaError::ParseError {
-        details: format!("{}: {}", path.display(), e),
-    })?;
+    let def: YamlDefinition =
+        crate::util::parse_yaml_budgeted(content).map_err(|e| NikaError::ParseError {
+            details: format!("{}: {}", path.display(), e),
+        })?;
 
     let name = def.name.unwrap_or_else(|| extract_name_from_path(path));
 

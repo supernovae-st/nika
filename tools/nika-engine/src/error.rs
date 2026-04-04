@@ -974,7 +974,6 @@ impl From<nika_media::tools::error::MediaToolError> for NikaError {
     }
 }
 
-
 impl NikaError {
     /// Get the error code (e.g., "NIKA-001")
     pub fn code(&self) -> &'static str {

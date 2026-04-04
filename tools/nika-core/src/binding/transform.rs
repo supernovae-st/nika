@@ -32,8 +32,8 @@
 
 use serde_json::Value;
 use smallvec::SmallVec;
-use std::num::NonZeroUsize;
 use std::fmt;
+use std::num::NonZeroUsize;
 use std::sync::{Arc, LazyLock, Mutex};
 
 /// A single transform operation
@@ -1081,8 +1081,8 @@ pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
             match r {
                 Ok(val) => {
                     let json_str = format!("{val}");
-                    let serde_val: Value = serde_json::from_str(&json_str)
-                        .unwrap_or(Value::String(json_str));
+                    let serde_val: Value =
+                        serde_json::from_str(&json_str).unwrap_or(Value::String(json_str));
                     results.push(serde_val);
                 }
                 Err(e) => return Err(format!("jq runtime error: {e:?}")),
@@ -1108,11 +1108,7 @@ pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
 /// `Filter` is not Clone in jaq 3.x, so we wrap in Arc.
 /// 64 entries covers realistic workflow diversity (most workflows use <10 distinct expressions).
 static JQ_FILTER_CACHE: LazyLock<Mutex<lru::LruCache<String, Arc<JaqFilter>>>> =
-    LazyLock::new(|| {
-        Mutex::new(lru::LruCache::new(
-            NonZeroUsize::new(64).unwrap(),
-        ))
-    });
+    LazyLock::new(|| Mutex::new(lru::LruCache::new(NonZeroUsize::new(64).unwrap())));
 
 /// Compile a jq expression using jaq-core 3.x.
 /// Results are cached in a global LRU — for_each loops with the same expression
@@ -1176,7 +1172,10 @@ fn compile_jq(expr: &str) -> Result<Arc<JaqFilter>, String> {
 }
 
 /// Deep merge overlay into base (RFC 7396 semantics).
-pub fn deep_merge(base: &mut serde_json::Map<String, Value>, overlay: &serde_json::Map<String, Value>) {
+pub fn deep_merge(
+    base: &mut serde_json::Map<String, Value>,
+    overlay: &serde_json::Map<String, Value>,
+) {
     for (key, value) in overlay {
         match (base.get_mut(key), value) {
             (Some(Value::Object(base_obj)), Value::Object(overlay_obj)) => {
@@ -1202,11 +1201,7 @@ pub fn navigate_dot_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> 
 /// Cache for compiled regexes (dynamic patterns from user expressions).
 /// Bounded LRU (128 entries) to prevent unbounded growth from user-supplied patterns.
 static REGEX_CACHE: LazyLock<Mutex<lru::LruCache<String, regex::Regex>>> =
-    LazyLock::new(|| {
-        Mutex::new(lru::LruCache::new(
-            NonZeroUsize::new(128).unwrap(),
-        ))
-    });
+    LazyLock::new(|| Mutex::new(lru::LruCache::new(NonZeroUsize::new(128).unwrap())));
 
 /// Get or compile a regex pattern, caching the result.
 fn cached_regex(pattern: &str) -> Result<regex::Regex, regex::Error> {
@@ -4036,7 +4031,10 @@ mod tests {
         // jaq 1.5.x panicked on test("x") with null input.
         // jaq 3.x should return an error, not panic.
         let result = eval_jq("test(\"foo\")", &Value::Null);
-        assert!(result.is_err(), "regex test() on null should error, not panic");
+        assert!(
+            result.is_err(),
+            "regex test() on null should error, not panic"
+        );
     }
 }
 

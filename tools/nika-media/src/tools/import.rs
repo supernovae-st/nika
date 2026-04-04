@@ -108,10 +108,7 @@ fn validate_import_path(
                 if !canonical.starts_with(&wd_canonical) {
                     return Err(security_violation(
                         "import",
-                        format!(
-                            "path is outside project directory: {}",
-                            canonical.display()
-                        ),
+                        format!("path is outside project directory: {}", canonical.display()),
                     ));
                 }
             }
