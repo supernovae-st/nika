@@ -107,6 +107,13 @@ const BLOCKLIST: &[&str] = &[
     "|php",
     // Command wrapper bypass (env can prefix any blocked command)
     "env ",
+    // Shell prefix commands — bypass functions/aliases or wrap arbitrary commands
+    "command ",
+    "builtin ",
+    "nohup ",
+    "nice ",
+    "timeout ",
+    "strace ",
     // Privilege escalation (su; sudo already covered above)
     "su ",
     // ── Windows-specific dangerous patterns ──
@@ -2209,5 +2216,60 @@ mod tests {
             "check_blocklist_with_intent must redact secrets, got: {msg}"
         );
         assert!(msg.contains("NIKA-053"), "Should be NIKA-053 error");
+    }
+
+    // =========================================================================
+    // H-1: Shell prefix command blocklist gaps
+    // =========================================================================
+
+    #[test]
+    fn blocklist_rejects_command_prefix() {
+        // `command` bypasses shell functions/aliases → can wrap any binary
+        let err = check_blocklist("command ls -la").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_builtin_prefix() {
+        // `builtin` forces shell builtin execution
+        let err = check_blocklist("builtin echo test").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_nohup_prefix() {
+        // `nohup` detaches process from terminal, can hide blocked commands
+        let err = check_blocklist("nohup sleep 999 &").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_nice_prefix() {
+        // `nice` re-prioritizes but still executes any command
+        let err = check_blocklist("nice -n 19 cp /etc/passwd /tmp/").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_timeout_prefix() {
+        // `timeout` wraps any command with a time limit
+        let err = check_blocklist("timeout 60 cat /etc/shadow").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_rejects_strace_prefix() {
+        // `strace` can trace and dump sensitive syscalls
+        let err = check_blocklist("strace -f -e trace=write cat /etc/passwd").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn blocklist_no_false_positive_on_prefix_substring() {
+        // Trailing space in pattern prevents matching inside words
+        assert!(check_blocklist("echo commander").is_ok());
+        assert!(check_blocklist("echo nicely").is_ok());
+        assert!(check_blocklist("echo timeout_val=30").is_ok());
+        assert!(check_blocklist("echo straceability").is_ok());
     }
 }
