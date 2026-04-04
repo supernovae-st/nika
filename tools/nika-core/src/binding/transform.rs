@@ -1082,6 +1082,29 @@ impl TransformOp {
     }
 }
 
+/// Evaluate a jq expression against a JSON value.
+///
+/// Used by `| jq()` transform AND `nika:jq` builtin tool.
+/// Returns single value for one result, array for multiple, null for empty.
+pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
+    use jaq_interpret::FilterT as _;
+    let filter = compile_jq(expr)?;
+    let inputs = jaq_interpret::RcIter::new(core::iter::empty());
+    let jaq_val = jaq_interpret::Val::from(data.clone());
+    let mut results: Vec<Value> = Vec::new();
+    for r in filter.run((jaq_interpret::Ctx::new([], &inputs), jaq_val)) {
+        match r {
+            Ok(val) => results.push(Value::from(val)),
+            Err(e) => return Err(format!("jq runtime error: {e}")),
+        }
+    }
+    match results.len() {
+        0 => Ok(Value::Null),
+        1 => Ok(results.into_iter().next().unwrap()),
+        _ => Ok(Value::Array(results)),
+    }
+}
+
 /// Compile a jq expression using jaq-interpret + jaq-parse.
 fn compile_jq(expr: &str) -> Result<jaq_interpret::Filter, String> {
     let (main, errs) = jaq_parse::parse(expr, jaq_parse::main());

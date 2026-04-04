@@ -61,8 +61,8 @@ pub use complete::{
 };
 pub use cost::CostTool;
 pub use data_tools::{
-    ChunkTool, EnrichTool, FilterTool, GroupByTool, JsonMergeTool, JsonQueryTool, MapTool,
-    SetDiffTool, TokenCountTool, ZipTool,
+    ChunkTool, EnrichTool, FilterTool, GroupByTool, JqTool, JsonMergeTool, JsonQueryTool, MapTool,
+    SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
 };
 pub use emit::EmitTool;
 pub use fetch_tool::FetchTool;
