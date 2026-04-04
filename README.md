@@ -118,7 +118,7 @@ flowchart LR
     INFER[infer]:::verb --> LLM["7 Cloud + Local"]:::target
     EXEC[exec]:::verb --> SHELL[Shell]:::target
     FETCH[fetch]:::verb --> HTTP["HTTP + 9 Extract Modes"]:::target
-    INVOKE[invoke]:::verb --> TOOLS["61 Tools + MCP"]:::target
+    INVOKE[invoke]:::verb --> TOOLS["62 Tools + MCP"]:::target
     AGENT[agent]:::verb --> LOOP["Agentic Loop + Guardrails"]:::target
 ```
 
@@ -302,7 +302,7 @@ tasks:
   infer: "Translate to {{with.locale}}: {{with.text}}"
 ```
 
-### 61 Builtin Tools
+### 62 Builtin Tools
 
 All accessible via `invoke: nika:*` -- no external dependencies.
 
@@ -312,6 +312,7 @@ All accessible via `invoke: nika:*` -- no external dependencies.
 | Tool | Purpose |
 |:-----|:--------|
 | `nika:import` | Import any file into CAS |
+| `nika:decode` | Base64 string → CAS store |
 | `nika:thumbnail` | SIMD-accelerated resize (Lanczos3) |
 | `nika:convert` | Format conversion (PNG/JPEG/WebP) |
 | `nika:optimize` | Lossless PNG optimization (oxipng) |
@@ -490,7 +491,7 @@ flowchart TD
     subgraph Backends
         PROV["7 Cloud + Local + Mock"]:::backend
         MCPS["MCP Servers"]:::backend
-        BUILT["61 Builtin Tools"]:::backend
+        BUILT["62 Builtin Tools"]:::backend
         CAS["CAS Media Store"]:::backend
     end
 
