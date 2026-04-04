@@ -265,6 +265,19 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         requires_key: false,
         description: "Local GGUF models via mistral.rs",
     },
+    // =============================================================================
+    // MOCK PROVIDER (1)
+    // =============================================================================
+    Provider {
+        id: "mock",
+        name: "Mock",
+        aliases: &[],
+        env_var: "",
+        key_prefix: None,
+        category: ProviderCategory::Local,
+        requires_key: false,
+        description: "Deterministic test responses — no API calls, no keys needed",
+    },
 ];
 
 /// Find a provider by ID or alias (case-insensitive).
@@ -355,8 +368,8 @@ mod tests {
 
     #[test]
     fn test_known_providers_count() {
-        // 7 LLM + 11 MCP + 1 Local = 19 total
-        assert_eq!(KNOWN_PROVIDERS.len(), 19);
+        // 7 LLM + 11 MCP + 1 Local + 1 Mock = 20 total
+        assert_eq!(KNOWN_PROVIDERS.len(), 20);
     }
 
     #[test]
@@ -367,7 +380,7 @@ mod tests {
 
         assert_eq!(llm.len(), 7);
         assert_eq!(mcp.len(), 11);
-        assert_eq!(local.len(), 1);
+        assert_eq!(local.len(), 2); // native + mock
     }
 
     #[test]

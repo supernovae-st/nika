@@ -149,6 +149,10 @@ pub enum RigProvider {
         /// M7: Shared HTTP client for raw calls (connection reuse)
         http_client: reqwest::Client,
     },
+    /// Deterministic mock provider — no API keys, no network calls.
+    /// Mock responses are generated in the executor (infer.rs, agent.rs),
+    /// not through RigProvider completion methods.
+    Mock,
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
     /// Now uses NativeRuntime directly with full streaming support.
@@ -187,6 +191,7 @@ impl RigProvider {
             "deepseek" => Ok(Self::deepseek()),
             "gemini" => Ok(Self::gemini()),
             "xai" => Ok(Self::xai()),
+            "mock" => Ok(Self::Mock),
             #[cfg(feature = "native-inference")]
             "native" => Ok(Self::native()),
             _ => Err(ProviderError::NotConfigured {
@@ -479,6 +484,7 @@ impl RigProvider {
             RigProvider::Gemini(_) => Some(ProviderKind::Gemini),
             RigProvider::XAi(_) => Some(ProviderKind::XAi),
             RigProvider::OpenAiCompat { .. } => Some(ProviderKind::OpenAI),
+            RigProvider::Mock => None,
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => Some(ProviderKind::Native),
         }
@@ -495,6 +501,7 @@ impl RigProvider {
             RigProvider::Gemini(_) => "gemini",
             RigProvider::XAi(_) => "xai",
             RigProvider::OpenAiCompat { cached_name, .. } => cached_name,
+            RigProvider::Mock => "mock",
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native",
         }
@@ -735,6 +742,9 @@ impl RigProvider {
                 tracing::debug!(prompt_tokens, completion_tokens, "OpenAiCompat infer usage");
                 Ok(content)
             }
+            RigProvider::Mock => {
+                unreachable!("mock provider generates responses in executor, not via RigProvider")
+            }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 // Native inference uses direct API, not rig-core agent
@@ -870,6 +880,9 @@ impl RigProvider {
             RigProvider::DeepSeek(_) => Err(RigInferError::VisionNotSupported(
                 "DeepSeek does not support vision".to_string(),
             )),
+            RigProvider::Mock => {
+                unreachable!("mock provider generates responses in executor, not via RigProvider")
+            }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => Err(RigInferError::VisionNotSupported(
                 "Native provider requires NativeRuntime path for vision".to_string(),
@@ -1000,6 +1013,11 @@ impl RigProvider {
                     return Err(RigInferError::VisionNotSupported(
                         "DeepSeek does not support vision".to_string(),
                     ))
+                }
+                RigProvider::Mock => {
+                    unreachable!(
+                        "mock provider generates responses in executor, not via RigProvider"
+                    )
                 }
                 #[cfg(feature = "native-inference")]
                 RigProvider::Native(_) => {
@@ -1183,6 +1201,11 @@ impl RigProvider {
                             })
                     }
                 }
+                RigProvider::Mock => {
+                    unreachable!(
+                        "mock provider generates responses in executor, not via RigProvider"
+                    )
+                }
                 #[cfg(feature = "native-inference")]
                 RigProvider::Native(_) => Err(RigInferError::PromptError(
                     "Native inference does not support tool-based structured output".to_string(),
@@ -1306,6 +1329,9 @@ impl RigProvider {
                     "OpenAiCompat infer_with_options usage"
                 );
                 Ok(content)
+            }
+            RigProvider::Mock => {
+                unreachable!("mock provider generates responses in executor, not via RigProvider")
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
@@ -1455,6 +1481,7 @@ impl RigProvider {
             RigProvider::Gemini(_) => has_key("GEMINI_API_KEY"),
             RigProvider::XAi(_) => has_key("XAI_API_KEY"),
             RigProvider::OpenAiCompat { .. } => true,
+            RigProvider::Mock => true,
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => {
                 // Native doesn't need API key, but requires model to be loaded
@@ -1683,6 +1710,9 @@ impl RigProvider {
                     stream_start,
                 )
                 .await?;
+            }
+            RigProvider::Mock => {
+                unreachable!("mock provider generates responses in executor, not via RigProvider")
             }
             RigProvider::OpenAiCompat { client, .. } => {
                 let model = client.completion_model(model_id);
@@ -1960,6 +1990,9 @@ impl RigProvider {
                     stream_start,
                 )
                 .await?;
+            }
+            RigProvider::Mock => {
+                unreachable!("mock provider generates responses in executor, not via RigProvider")
             }
             // Native provider - uses infer_stream() with options for true streaming
             #[cfg(feature = "native-inference")]

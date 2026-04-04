@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn test_local_providers_count() {
         let count = local_providers().len();
-        assert_eq!(count, 1, "Expected 1 Local provider (native)");
+        assert_eq!(count, 2, "Expected 2 Local providers (native + mock)");
     }
 
     #[test]
@@ -113,8 +113,8 @@ mod tests {
     fn test_all_providers_count() {
         let count = KNOWN_PROVIDERS.len();
         assert_eq!(
-            count, 19,
-            "Expected 19 total providers (7 LLM + 11 MCP + 1 Local)"
+            count, 20,
+            "Expected 20 total providers (7 LLM + 11 MCP + 2 Local)"
         );
     }
 
