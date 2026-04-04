@@ -171,6 +171,9 @@ impl NikaMcpServer {
             110..=119 => ("Agent", "Agent loop error"),
             200..=219 => ("File Tools", "Builtin file tool error"),
             250..=259 => ("Media", "Media pipeline error"),
+            270..=279 => ("Skills", "Skill file not found or invalid"),
+            280..=289 => ("Artifacts", "Artifact write/path error"),
+            290..=297 => ("Media Tools", "Builtin media tool error (import, decode, thumbnail, etc.)"),
             300..=309 => ("Structured Output", "Structured output error"),
             _ => ("Unknown", "Unknown error code"),
         };
@@ -285,10 +288,33 @@ schema, workflow, description, provider, model, inputs, context, include, mcp, a
 
 ## Bindings
 with: { alias: $task_id } → {{with.alias}}
-Transforms: upper, lower, trim, trim_start, trim_end, length, to_string, first, last, first(N), last(N), flatten, reverse, sort, unique, compact, keys, values, to_number, round(N), abs, ceil, floor, to_bool, to_json, parse_json, type_of, join(sep), split(sep), default(val), shell
+Path: $task.data.field | Defaults: $task.path ?? "fallback" | Env: $env.API_KEY
+
+## 50 Transforms
+String: upper, lower, trim, trim_start, trim_end, length, to_string
+Array: first, last, flatten, reverse, sort, unique, compact, keys, values
+Numeric: to_number, round, abs, ceil, floor
+Type: to_bool, to_json, parse_json, type_of
+Parametric: join(sep), split(sep), default(val), slice(start, end)
+Query: pluck(field), where(field, val), pick(f1, f2), omit(f1, f2), sort_by(field), group_by(field), merge, regex(pattern)
+String test: starts_with(str), ends_with(str), contains(str)
+URL: url_host, url_path, url_without_query, url_normalize
+Encoding: base64_encode, base64_decode, content_hash, unique_urls
+JQ: jq(expr) — full jq stdlib via jaq-core
+System: shell (escape for shell: true commands)
 
 ## Extract Modes (fetch:)
 markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
+
+## 62 Builtin Tools (nika:*)
+Core (7): sleep, log, emit, assert, prompt, run, complete
+File (5): read, write, edit, glob, grep
+Introspection (6): dag_info, task_status, threads, orchestrate, cost, records
+Data (13): json_merge, set_diff, zip, map, filter, group_by, chunk, token_count, enrich, jq, tree_data, inject, json_query (deprecated → jq)
+Data Sprint 2 (6): json_verify, yaml_validate, locale_lookup, aggregate, json_flatten, json_unflatten
+Media always-on (5): import, decode, dimensions, thumbhash, dominant_color
+Media core (3): thumbnail, convert, strip
+Media opt-in (17): metadata, optimize, svg_render, chart, phash, compare, pdf_extract, provenance, verify, qr_validate, quality, html_to_md, css_select, extract_metadata, extract_links, readability, pipeline
 
 ## Providers
 anthropic (claude), openai (gpt), mistral, groq, deepseek (deep-seek), gemini (google), xai (grok), native (local), mock
