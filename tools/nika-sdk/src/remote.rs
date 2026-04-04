@@ -311,7 +311,8 @@ async fn map_http_error(status: u16, resp: reqwest::Response) -> SdkError {
     match status {
         401 => SdkError::Unauthorized,
         404 => SdkError::NotFound(message),
-        429 => SdkError::QueueFull,
+        429 => SdkError::RateLimited,
+        503 => SdkError::QueueFull,
         _ => SdkError::Http {
             status,
             message,

@@ -25,7 +25,10 @@ pub enum SdkError {
     #[error("request timeout after {0:?}")]
     Timeout(Duration),
 
-    #[error("engine error: {message}")]
+    #[error("{}", match code {
+        Some(c) => format!("[{c}] {message}"),
+        None => format!("engine error: {message}"),
+    })]
     Engine {
         message: String,
         code: Option<String>,
@@ -36,6 +39,9 @@ pub enum SdkError {
 
     #[error("server queue full")]
     QueueFull,
+
+    #[error("rate limited")]
+    RateLimited,
 
     #[error("invalid workflow: {0}")]
     InvalidWorkflow(String),
@@ -76,7 +82,22 @@ mod tests {
             message: "DAG cycle".into(),
             code: Some("NIKA-020".into()),
         };
-        assert_eq!(err.to_string(), "engine error: DAG cycle");
+        assert_eq!(err.to_string(), "[NIKA-020] DAG cycle");
+    }
+
+    #[test]
+    fn error_display_engine_no_code() {
+        let err = SdkError::Engine {
+            message: "something broke".into(),
+            code: None,
+        };
+        assert_eq!(err.to_string(), "engine error: something broke");
+    }
+
+    #[test]
+    fn error_display_rate_limited() {
+        let err = SdkError::RateLimited;
+        assert_eq!(err.to_string(), "rate limited");
     }
 
     #[test]

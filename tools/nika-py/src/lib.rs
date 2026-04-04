@@ -43,6 +43,7 @@ fn sdk_err(e: nika_sdk::SdkError) -> PyErr {
         nika_sdk::SdkError::Cancelled => NikaError::new_err("job cancelled"),
         nika_sdk::SdkError::NotFound(msg) => NikaError::new_err(format!("not found: {msg}")),
         nika_sdk::SdkError::QueueFull => NikaError::new_err("server queue full"),
+        nika_sdk::SdkError::RateLimited => NikaError::new_err("rate limited"),
         nika_sdk::SdkError::StreamClosed => NikaError::new_err("event stream closed unexpectedly"),
         nika_sdk::SdkError::EventParse(msg) => NikaError::new_err(format!("event parse: {msg}")),
         nika_sdk::SdkError::Http {
