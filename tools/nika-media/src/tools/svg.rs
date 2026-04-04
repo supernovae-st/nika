@@ -96,24 +96,38 @@ impl MediaOp for SvgRenderOp {
                         .map_err(|e| tool_error("svg_render", format!("SVG parse: {e}")))?;
 
                     let svg_size = tree.size();
+
+                    // Guard: reject degenerate 0x0 viewBox SVGs (division by zero)
+                    if svg_size.width() == 0.0 || svg_size.height() == 0.0 {
+                        return Err(invalid_args(
+                            "svg_render",
+                            "SVG has zero-dimension viewBox",
+                        ));
+                    }
+
                     let (w, h) = match (req_width, req_height) {
                         (Some(w), Some(h)) => (w, h),
                         (Some(w), None) => {
                             let ratio = svg_size.height() / svg_size.width();
-                            (w, (w as f32 * ratio).round() as u32)
+                            (w, (w as f32 * ratio).round().max(1.0) as u32)
                         }
                         (None, Some(h)) => {
                             let ratio = svg_size.width() / svg_size.height();
-                            ((h as f32 * ratio).round() as u32, h)
+                            ((h as f32 * ratio).round().max(1.0) as u32, h)
                         }
                         (None, None) => (
-                            svg_size.width().round() as u32,
-                            svg_size.height().round() as u32,
+                            svg_size.width().round().max(1.0) as u32,
+                            svg_size.height().round().max(1.0) as u32,
                         ),
                     };
 
-                    let w = w.clamp(1, 10_000);
-                    let h = h.clamp(1, 10_000);
+                    // Reject out-of-range dimensions (consistent with thumbnail)
+                    if w == 0 || w > 10_000 || h == 0 || h > 10_000 {
+                        return Err(invalid_args(
+                            "svg_render",
+                            format!("dimensions out of range: {w}x{h} (max 10000x10000)"),
+                        ));
+                    }
 
                     let mut pixmap = tiny_skia::Pixmap::new(w, h).ok_or_else(|| {
                         tool_error("svg_render", format!("failed to create {w}x{h} pixmap"))
@@ -252,5 +266,38 @@ mod tests {
         let op = SvgRenderOp;
         let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn svg_render_rejects_oversized_dimensions() {
+        let (_dir, ctx) = setup().await;
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="blue"/>
+    </svg>"#;
+        let sr = ctx.cas.store(svg.as_bytes()).await.unwrap();
+
+        let op = SvgRenderOp;
+        let result = op
+            .execute(
+                serde_json::json!({"hash": sr.hash, "width": 99999}),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err(), "width=99999 must be rejected, not clamped");
+        assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+    }
+
+    #[tokio::test]
+    async fn svg_render_zero_viewbox_rejected() {
+        let (_dir, ctx) = setup().await;
+        // viewBox 0 0 0 0 is degenerate — would cause div-by-zero
+        let svg =
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>"#;
+        let sr = ctx.cas.store(svg.as_bytes()).await.unwrap();
+
+        let op = SvgRenderOp;
+        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
+        // Either parse error or our zero-dimension guard
+        assert!(result.is_err(), "0x0 viewBox must be rejected");
     }
 }
