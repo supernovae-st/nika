@@ -55,12 +55,28 @@ impl TaskExecutor {
             let mut unsafe_bindings = Vec::new();
             for cap in BINDING_RE.find_iter(&params.command) {
                 let m = cap.as_str();
-                if !m.contains("| shell") && !m.contains("|shell") {
-                    if is_inside_single_quotes(&params.command, cap.start()) {
-                        continue;
-                    }
-                    unsafe_bindings.push(m.to_string());
+                if m.contains("| shell") || m.contains("|shell") {
+                    continue; // shell-escaped, safe
                 }
+                if is_inside_single_quotes(&params.command, cap.start()) {
+                    // SEC-2b: Single-quote context is safe ONLY if the resolved
+                    // value doesn't contain '. POSIX single quotes have no escape
+                    // mechanism — a ' in the value closes the quoting → injection.
+                    let resolved = template_resolve(m, bindings, datastore)?;
+                    if !value_safe_in_single_quotes(&resolved) {
+                        return Err(NikaError::BlockedCommand {
+                            command: crate::util::redact_secrets(&params.command),
+                            reason: format!(
+                                "Binding {} is inside single quotes but resolved to a value \
+                                 containing a single quote, which breaks shell quoting. \
+                                 Use | shell transform instead of single quotes.",
+                                m
+                            ),
+                        });
+                    }
+                    continue; // value is safe inside single quotes
+                }
+                unsafe_bindings.push(m.to_string());
             }
             if !unsafe_bindings.is_empty() {
                 return Err(NikaError::BlockedCommand {
@@ -358,6 +374,16 @@ impl TaskExecutor {
     }
 }
 
+/// Check if a value is safe to interpolate inside POSIX single quotes.
+///
+/// In POSIX shell, single quotes have NO escape mechanism — a `'` in the value
+/// unconditionally closes the quoting, enabling command injection.
+/// Example: template `echo '{{with.val}}'` with val = `x' && rm -rf / && echo '`
+/// resolves to `echo 'x' && rm -rf / && echo ''` — shell injection.
+fn value_safe_in_single_quotes(value: &str) -> bool {
+    !value.contains('\'')
+}
+
 /// Check if position `pos` in `cmd` falls inside single quotes.
 /// Single-quoted content in shell is not subject to metacharacter expansion,
 /// so template bindings inside single quotes are safe without `| shell`.
@@ -390,5 +416,27 @@ mod tests {
         assert!(!is_inside_single_quotes("echo \"{{inputs.url}}\"", 6));
         // After closing single quote — unsafe
         assert!(!is_inside_single_quotes("echo 'safe' {{inputs.url}}", 12));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SEC-2b: Single-quote breakout detection
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn value_safe_in_single_quotes_clean_value() {
+        assert!(value_safe_in_single_quotes("hello world"));
+        assert!(value_safe_in_single_quotes("no-special-chars"));
+        assert!(value_safe_in_single_quotes(""));
+        // Double quotes are fine inside single quotes
+        assert!(value_safe_in_single_quotes("say \"hello\""));
+    }
+
+    #[test]
+    fn value_safe_in_single_quotes_rejects_quote() {
+        // Any single quote in value = breakout risk
+        assert!(!value_safe_in_single_quotes("hello' && echo pwned && echo '"));
+        assert!(!value_safe_in_single_quotes("it's a trap"));
+        assert!(!value_safe_in_single_quotes("O'Brien"));
+        assert!(!value_safe_in_single_quotes("'"));
     }
 }
