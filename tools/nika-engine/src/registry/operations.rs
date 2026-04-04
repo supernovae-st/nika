@@ -154,7 +154,7 @@ pub fn load_registry() -> Result<RegistryIndex, NikaError> {
     })?;
 
     let index: RegistryIndex =
-        serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+        crate::util::parse_yaml_budgeted(&content).map_err(|e| NikaError::ParseError {
             details: format!("Failed to parse registry YAML: {}", e),
         })?;
 
@@ -248,7 +248,7 @@ pub fn load_manifest(name: &str, version: &str) -> Result<Manifest, NikaError> {
         reason: format!("Failed to read manifest file '{}': {}", path.display(), e),
     })?;
 
-    serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+    crate::util::parse_yaml_budgeted(&content).map_err(|e| NikaError::ParseError {
         details: format!("Failed to parse manifest YAML: {}", e),
     })
 }

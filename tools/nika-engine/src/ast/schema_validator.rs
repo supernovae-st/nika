@@ -18,7 +18,6 @@
 //! ```
 
 use crate::error::NikaError;
-use crate::serde_yaml;
 use jsonschema::Validator;
 use serde_json::Value;
 use std::sync::OnceLock;
@@ -66,7 +65,7 @@ impl WorkflowSchemaValidator {
     /// * `Err(NikaError::SchemaValidationFailed)` with detailed errors if invalid
     pub fn validate_yaml(&self, yaml: &str) -> Result<(), NikaError> {
         // Parse YAML to JSON Value (serde_yaml can handle this)
-        let value: Value = serde_yaml::from_str(yaml).map_err(|e| NikaError::ParseError {
+        let value: Value = crate::util::parse_yaml_budgeted(yaml).map_err(|e| NikaError::ParseError {
             details: format!("YAML parse error: {}", e),
         })?;
 

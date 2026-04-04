@@ -5,6 +5,7 @@
 //! - `fs`: Atomic file write operations
 //! - `interner`: String interning for recurring task IDs (`Arc<str>` deduplication)
 //! - `system`: Platform-specific system information (RAM detection, etc.)
+//! - `parse_yaml_budgeted`: Hardened YAML deserialization with size/alias budgets
 
 pub mod constants;
 pub mod fs;
@@ -113,6 +114,35 @@ pub fn truncate_str(s: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &s[..end]
+}
+
+/// Deserialize YAML with hardened budget limits.
+///
+/// Defends against YAML bombs (alias expansion, deeply nested structures,
+/// oversized input) by enforcing:
+/// - 1 MiB max input size
+/// - 100 max anchors, 1000 max aliases
+/// - 64 max depth
+/// - alias/anchor ratio enforcement
+///
+/// Use this for ALL file-loaded YAML (workflows, skills, configs, partials).
+/// Test code can continue using `serde_yaml::from_str` without budgets.
+pub fn parse_yaml_budgeted<'de, T: serde::de::Deserialize<'de>>(
+    content: &'de str,
+) -> Result<T, crate::serde_yaml::Error> {
+    use crate::serde_yaml::Budget;
+    let options = crate::serde_yaml::Options {
+        budget: Some(Budget {
+            max_reader_input_bytes: Some(1_048_576), // 1 MiB
+            max_aliases: 1_000,
+            max_anchors: 100,
+            max_depth: 64,
+            enforce_alias_anchor_ratio: true,
+            ..Budget::default()
+        }),
+        ..Default::default()
+    };
+    crate::serde_yaml::from_str_with_options(content, options)
 }
 
 #[cfg(test)]

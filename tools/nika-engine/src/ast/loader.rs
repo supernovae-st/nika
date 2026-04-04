@@ -24,7 +24,6 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::error::NikaError;
-use crate::serde_yaml;
 
 /// Parsed agent/skill definition from any format
 #[derive(Debug, Clone)]
@@ -209,7 +208,7 @@ fn parse_yaml(
     path: &Path,
     _kind: DefinitionKind,
 ) -> Result<LoadedDefinition, NikaError> {
-    let def: YamlDefinition = serde_yaml::from_str(content).map_err(|e| NikaError::ParseError {
+    let def: YamlDefinition = crate::util::parse_yaml_budgeted(content).map_err(|e| NikaError::ParseError {
         details: format!("{}: {}", path.display(), e),
     })?;
 
@@ -236,7 +235,7 @@ fn parse_markdown(
     let (frontmatter, body) = extract_frontmatter(content)?;
 
     let fm: Frontmatter = if let Some(fm_str) = frontmatter {
-        serde_yaml::from_str(&fm_str).map_err(|e| NikaError::ParseError {
+        crate::util::parse_yaml_budgeted(&fm_str).map_err(|e| NikaError::ParseError {
             details: format!("{}: Invalid frontmatter: {}", path.display(), e),
         })?
     } else {

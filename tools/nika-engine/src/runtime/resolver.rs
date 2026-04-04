@@ -28,7 +28,6 @@ use crate::ast::analyzed::AnalyzedWorkflow;
 use crate::ast::{AgentDef, SkillDef, Workflow};
 use crate::error::NikaError;
 use crate::registry::resolver; // Package resolution
-use crate::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
@@ -370,7 +369,7 @@ async fn resolve_agent(
 
             // Parse the external file as an inline agent definition
             let parsed: ExternalAgentFile =
-                serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+                crate::util::parse_yaml_budgeted(&content).map_err(|e| NikaError::ParseError {
                     details: format!("Failed to parse agent file '{}': {}", file, e),
                 })?;
 

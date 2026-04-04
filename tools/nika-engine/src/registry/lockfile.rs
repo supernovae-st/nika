@@ -148,7 +148,7 @@ impl Lockfile {
         }
 
         let content = std::fs::read_to_string(&lockfile_path)?;
-        let lockfile: Lockfile = crate::serde_yaml::from_str(&content)
+        let lockfile: Lockfile = crate::util::parse_yaml_budgeted(&content)
             .map_err(|e| LockfileError::YamlParseError(e.to_string()))?;
         Ok(lockfile)
     }

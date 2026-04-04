@@ -307,7 +307,7 @@ fn resolve_package_path_uncached(reference: &str) -> Result<ResolvedPackage, Res
     }
 
     let manifest_content = std::fs::read_to_string(&manifest_path)?;
-    let manifest: Manifest = crate::serde_yaml::from_str(&manifest_content)
+    let manifest: Manifest = crate::util::parse_yaml_budgeted(&manifest_content)
         .map_err(|e| ResolverError::ManifestError(e.to_string()))?;
 
     Ok(ResolvedPackage {

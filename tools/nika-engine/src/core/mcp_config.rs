@@ -221,7 +221,7 @@ pub fn load_config_from_path(path: Option<PathBuf>) -> Result<Option<McpConfig>,
         source: e,
     })?;
 
-    let config: McpConfig = serde_yaml::from_str(&content).map_err(|e| McpConfigError::Parse {
+    let config: McpConfig = crate::util::parse_yaml_budgeted(&content).map_err(|e| McpConfigError::Parse {
         path: path.clone(),
         message: e.to_string(),
     })?;

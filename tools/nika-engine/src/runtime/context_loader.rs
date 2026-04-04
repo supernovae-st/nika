@@ -21,7 +21,6 @@
 //!   session: .nika/sessions/prev.json  # Session restore
 //! ```
 
-use crate::serde_yaml;
 use std::path::Path;
 
 use globset::GlobBuilder;
@@ -198,7 +197,7 @@ async fn load_single_file(path: &Path) -> Result<Value, NikaError> {
             reason: format!("Invalid JSON: {}", e),
         }),
         Some("yaml") | Some("yml") => {
-            serde_yaml::from_str(&content).map_err(|e| NikaError::ContextLoadError {
+            crate::util::parse_yaml_budgeted(&content).map_err(|e| NikaError::ContextLoadError {
                 alias: String::new(),
                 path: path.display().to_string(),
                 reason: format!("Invalid YAML: {}", e),
