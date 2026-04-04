@@ -732,6 +732,10 @@ enum Commands {
     #[command(next_help_heading = "SYSTEM")]
     Setup,
 
+    /// Show version, build info, and channel
+    #[command(next_help_heading = "SYSTEM", visible_alias = "v")]
+    Version,
+
     /// The cosmos awaits
     #[command(hide = true)]
     Cosmic,
@@ -1451,6 +1455,11 @@ async fn main() {
 
         Some(Commands::Setup) => cli::onboarding::handle_setup_command(quiet).await,
 
+        Some(Commands::Version) => {
+            println!("nika {}", long_version());
+            Ok(())
+        }
+
         Some(Commands::Cosmic) => {
             cli::help::print_cosmic();
             Ok(())
@@ -1676,6 +1685,8 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Init { .. }) => false,
         // Setup: explicit setup wizard — must trigger machine setup.
         Some(Commands::Setup) => false,
+        // Version: just print info, no setup needed.
+        Some(Commands::Version) => false,
         // New: creating a workflow — user-facing, benefits from setup.
         Some(Commands::New { .. }) => false,
         // Daemon: `nika daemon start` is the post-install entry point
