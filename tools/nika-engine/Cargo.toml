@@ -48,6 +48,7 @@ nika-core = { workspace = true }
 nika-event = { workspace = true }
 nika-mcp = { workspace = true }
 nika-media = { workspace = true }
+nika-vault = { workspace = true }
 
 # Async
 tokio = { workspace = true }

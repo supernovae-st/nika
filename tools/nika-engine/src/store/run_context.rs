@@ -275,7 +275,7 @@ pub struct RunContext {
     ///
     /// Set by the runner at workflow start. When `None`, vault bindings
     /// return a clear error ("vault not configured").
-    vault: Option<Arc<nika_core::vault::NikaVault>>,
+    vault: Option<Arc<nika_vault::NikaVault>>,
 }
 
 impl Default for RunContext {
@@ -449,7 +449,7 @@ impl RunContext {
     }
 
     /// Set the NikaVault for `$vault.SERVICE.FIELD` bindings.
-    pub fn set_vault(&mut self, vault: Arc<nika_core::vault::NikaVault>) {
+    pub fn set_vault(&mut self, vault: Arc<nika_vault::NikaVault>) {
         self.vault = Some(vault);
     }
 
@@ -462,7 +462,7 @@ impl RunContext {
         &self,
         service: &str,
         field: &str,
-    ) -> Result<Option<String>, nika_core::vault::VaultError> {
+    ) -> Result<Option<String>, nika_vault::VaultError> {
         let vault = match &self.vault {
             Some(v) => v,
             None => return Ok(None),

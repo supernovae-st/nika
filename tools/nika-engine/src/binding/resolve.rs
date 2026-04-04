@@ -3683,7 +3683,7 @@ mod tests {
         // Set up a vault with credentials in a temp dir
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
         let dir = tempfile::TempDir::new().unwrap();
-        let vault = nika_core::vault::NikaVault::new(dir.path());
+        let vault = nika_vault::NikaVault::new(dir.path());
 
         let mut fields = std::collections::BTreeMap::new();
         fields.insert("api_key".to_string(), "sk_live_test123".to_string());
@@ -3716,7 +3716,7 @@ mod tests {
         // Vault has no "nonexistent" service
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
         let dir = tempfile::TempDir::new().unwrap();
-        let vault = nika_core::vault::NikaVault::new(dir.path());
+        let vault = nika_vault::NikaVault::new(dir.path());
 
         let mut store = RunContext::new();
         store.set_vault(Arc::new(vault));
@@ -3743,7 +3743,7 @@ mod tests {
         // When vault credential is missing, the ?? default should apply
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
         let dir = tempfile::TempDir::new().unwrap();
-        let vault = nika_core::vault::NikaVault::new(dir.path());
+        let vault = nika_vault::NikaVault::new(dir.path());
 
         let mut store = RunContext::new();
         store.set_vault(Arc::new(vault));
@@ -3769,7 +3769,7 @@ mod tests {
         // Vault-sourced bindings must be redacted in to_value_redacted()
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
         let dir = tempfile::TempDir::new().unwrap();
-        let vault = nika_core::vault::NikaVault::new(dir.path());
+        let vault = nika_vault::NikaVault::new(dir.path());
         vault.set("anthropic", "sk-ant-secret").unwrap();
 
         let mut store = RunContext::new();
@@ -3805,7 +3805,7 @@ mod tests {
         // A simple Key("sk-ant-test") is accessible as $vault.anthropic.key
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-only");
         let dir = tempfile::TempDir::new().unwrap();
-        let vault = nika_core::vault::NikaVault::new(dir.path());
+        let vault = nika_vault::NikaVault::new(dir.path());
         vault.set("anthropic", "sk-ant-test-12345").unwrap();
 
         let mut store = RunContext::new();

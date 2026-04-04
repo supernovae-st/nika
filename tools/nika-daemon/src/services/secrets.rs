@@ -8,7 +8,7 @@
 //! All secret storage uses NikaVault encrypted file store.
 
 use crate::protocol::{ProviderSecretInfo, SecretSource};
-use nika_core::vault::NikaVault;
+use nika_vault::NikaVault;
 use secrecy::ExposeSecret;
 use tracing::{debug, trace};
 

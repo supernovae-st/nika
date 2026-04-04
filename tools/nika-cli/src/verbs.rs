@@ -41,7 +41,7 @@ pub fn detect_provider() -> Option<String> {
         .ok()
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
-    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
     use secrecy::ExposeSecret;
     let vault_providers = [
         "anthropic",

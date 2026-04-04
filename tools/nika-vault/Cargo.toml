@@ -1,0 +1,24 @@
+[package]
+name = "nika-vault"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Encrypted secret storage for Nika — XChaCha20Poly1305 + Argon2i"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+orion = { workspace = true }
+whoami = { workspace = true }
+fs2 = { workspace = true }
+secrecy = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+serial_test = { workspace = true }

@@ -18,6 +18,7 @@ members = [
     "nika-sdk",
     "nika-napi",
     "nika-py",
+    "nika-vault",
 ]
 
 [workspace.package]
@@ -43,6 +44,7 @@ nika-storage = { path = "nika-storage", version = "0.66.0" }
 nika-serve = { path = "nika-serve", version = "0.66.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.66.0" }
 nika-sdk = { path = "nika-sdk", version = "0.66.0" }
+nika-vault = { path = "nika-vault", version = "0.66.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }

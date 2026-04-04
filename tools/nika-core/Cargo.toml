@@ -24,10 +24,6 @@ smallvec = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
 regex = { workspace = true }
-orion = { workspace = true }
-whoami = { workspace = true }
-fs2 = { workspace = true }
-secrecy = { workspace = true }
 url = { workspace = true }
 base64 = { workspace = true }
 jaq-interpret = { workspace = true }

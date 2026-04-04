@@ -16,6 +16,7 @@ default = []
 # Internal (lightweight — no nika-engine dependency to avoid circular deps)
 nika-core = { workspace = true }
 nika-storage = { workspace = true }
+nika-vault = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["net", "signal", "process", "fs", "io-util", "rt-multi-thread", "macros", "sync", "time"] }

@@ -60,7 +60,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
     #[cfg(not(unix))]
     let _daemon: Option<()> = None;
 
-    let backend = nika_core::vault::VaultBackend::from_env();
+    let backend = nika_vault::VaultBackend::from_env();
 
     for provider in KNOWN_PROVIDERS
         .iter()
@@ -80,8 +80,8 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         }
 
         // 2. If Doppler backend: try doppler before daemon/vault
-        if backend == nika_core::vault::VaultBackend::Doppler {
-            if let Ok(Some(val)) = nika_core::vault::DopplerBackend::get(env_var) {
+        if backend == nika_vault::VaultBackend::Doppler {
+            if let Ok(Some(val)) = nika_vault::DopplerBackend::get(env_var) {
                 super::inject_secret_to_env(env_var, &val);
                 debug!("{}: loaded from doppler", provider_id);
                 result.from_env.push(provider_id.to_string());
@@ -110,7 +110,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
             #[cfg(not(unix))]
             let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
-            let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+            let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
             if let Ok(Some(secret)) = vault.get(provider_id) {
                 let val = secret.expose_secret().to_string();
                 super::inject_secret_to_env(env_var, &val);
@@ -128,7 +128,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
 pub async fn get_secret(provider: &str) -> Option<SecretString> {
     let env_var = provider_env_var(provider);
-    let backend = nika_core::vault::VaultBackend::from_env();
+    let backend = nika_vault::VaultBackend::from_env();
 
     // 1. Check env (always first, regardless of backend)
     if let Ok(value) = std::env::var(env_var) {
@@ -138,8 +138,8 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     }
 
     // 2. If Doppler backend: try doppler before daemon/vault
-    if backend == nika_core::vault::VaultBackend::Doppler {
-        if let Ok(Some(val)) = nika_core::vault::DopplerBackend::get(env_var) {
+    if backend == nika_vault::VaultBackend::Doppler {
+        if let Ok(Some(val)) = nika_vault::DopplerBackend::get(env_var) {
             super::inject_secret_to_env(env_var, &val);
             debug!("{}: loaded from doppler", provider);
             return Some(SecretString::from(val));
@@ -165,7 +165,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
     #[cfg(not(unix))]
     let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
-    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
     if let Ok(Some(secret)) = vault.get(provider) {
         let val = secret.expose_secret().to_string();
         super::inject_secret_to_env(env_var, &val);
@@ -178,7 +178,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
 
 pub async fn has_secret(provider: &str) -> bool {
     let env_var = provider_env_var(provider);
-    let backend = nika_core::vault::VaultBackend::from_env();
+    let backend = nika_vault::VaultBackend::from_env();
 
     // 1. Check env
     if std::env::var(env_var)
@@ -189,8 +189,8 @@ pub async fn has_secret(provider: &str) -> bool {
     }
 
     // 2. If Doppler backend: try doppler
-    if backend == nika_core::vault::VaultBackend::Doppler {
-        if let Ok(Some(_)) = nika_core::vault::DopplerBackend::get(env_var) {
+    if backend == nika_vault::VaultBackend::Doppler {
+        if let Ok(Some(_)) = nika_vault::DopplerBackend::get(env_var) {
             return true;
         }
     }
@@ -217,7 +217,7 @@ pub async fn has_secret(provider: &str) -> bool {
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".nika"));
     #[cfg(not(unix))]
     let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
-    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
     if let Ok(Some(_)) = vault.get(provider) {
         return true;
     }

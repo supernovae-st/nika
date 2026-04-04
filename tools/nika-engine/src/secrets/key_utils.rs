@@ -104,7 +104,7 @@ pub fn migrate_env_to_vault() -> MigrationReport {
     let nika_home = dirs::home_dir()
         .expect("home directory required")
         .join(".nika");
-    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
     let mut report = MigrationReport::default();
 
     for provider in MIGRATEABLE_PROVIDERS {

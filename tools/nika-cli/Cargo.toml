@@ -36,6 +36,7 @@ nika-engine = { workspace = true }
 nika-core = { workspace = true }
 nika-init = { workspace = true }
 nika-mcp = { workspace = true }
+nika-vault = { workspace = true }
 
 # CLI
 clap = { workspace = true }

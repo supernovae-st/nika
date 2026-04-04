@@ -6,7 +6,7 @@
 use clap::Subcommand;
 use colored::Colorize;
 
-use nika_core::vault::NikaVault;
+use nika_vault::NikaVault;
 use nika_engine::display::{hint, separator, status_line, tree_connector, StatusIcon};
 use nika_engine::error::NikaError;
 

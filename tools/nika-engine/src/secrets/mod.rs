@@ -246,7 +246,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_doppler_backend_selected_from_env() {
-        use nika_core::vault::VaultBackend;
+        use nika_vault::VaultBackend;
         std::env::set_var("NIKA_VAULT_BACKEND", "doppler");
         assert_eq!(VaultBackend::from_env(), VaultBackend::Doppler);
         unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_local_backend_is_default() {
-        use nika_core::vault::VaultBackend;
+        use nika_vault::VaultBackend;
         unsafe { std::env::remove_var("NIKA_VAULT_BACKEND") };
         assert_eq!(VaultBackend::from_env(), VaultBackend::Local);
     }

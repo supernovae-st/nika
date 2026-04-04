@@ -90,7 +90,7 @@ impl ProviderKeyEntry {
         // Priority 2: Check vault (skip in test mode to avoid I/O)
         if !cfg!(test) {
             let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
-            let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+            let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
             if let Ok(Some(secret)) = vault.get(provider) {
                 use secrecy::ExposeSecret;
                 return ApiKeyState::Stored {

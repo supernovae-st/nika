@@ -43,7 +43,7 @@ pub fn has_any_provider_key() -> bool {
     // Check NikaVault (keys stored via `nika provider set`)
     // If vault fails (machine-id issue, permissions), don't trigger wizard.
     let nika_home = nika_home_dir();
-    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
     let vault_providers = [
         "anthropic",
         "openai",
@@ -190,7 +190,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
 
     // Store key in NikaVault (encrypted file-based storage)
     let nika_home = nika_home_dir();
-    let vault = nika_core::vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
     vault
         .set(&provider, &api_key)
         .map_err(|e| NikaError::ConfigError {
