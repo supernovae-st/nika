@@ -437,6 +437,31 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn test_symlink_escape_caught_by_canonicalized_boundary() {
+        // validate_artifact_path alone doesn't resolve symlinks (logical only).
+        // The write path calls validate_canonicalized_boundary() after creating
+        // parent dirs, which DOES resolve symlinks and catches escapes.
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let base_dir = temp.path().join("artifacts");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        let escape_target = temp.path().join("outside");
+        fs::create_dir_all(&escape_target).unwrap();
+
+        // Create symlink inside artifacts that points outside
+        let symlink_path = base_dir.join("sneaky");
+        symlink(&escape_target, &symlink_path).unwrap();
+
+        // validate_canonicalized_boundary catches the escape
+        let result = validate_canonicalized_boundary(&base_dir, &symlink_path);
+        assert!(result.is_err(), "symlink escape must be detected");
+        assert!(result.unwrap_err().reason.contains("traversal"));
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn test_validate_artifact_path_does_not_resolve_symlinks() {
         // validate_artifact_path uses normalize_path (logical) not canonicalize.
         // This documents the known limitation: symlinks inside the artifact dir

@@ -32,7 +32,7 @@ use tokio::fs;
 use crate::ast::OutputFormat;
 use crate::error::NikaError;
 use crate::io::atomic::write_atomic;
-use crate::io::security::validate_artifact_path;
+use crate::io::security::{validate_artifact_path, validate_canonicalized_boundary};
 use crate::io::template::TemplateResolver;
 
 /// Default maximum artifact size (100 MB) — matches nika-core DEFAULT_MAX_ARTIFACT_SIZE
@@ -225,43 +225,16 @@ impl ArtifactWriter {
                 })?;
         }
 
-        // Final path validation after directory creation — canonicalize parent
-        // to detect symlink escapes (the parent now exists on disk).
-        // SEC-3/4: Fail-closed — canonicalize errors are treated as escapes, not ignored.
+        // Post-creation symlink check: canonicalize parent (which now exists on
+        // disk) to detect symlinks that escape the artifact boundary.
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
         if let Some(parent) = final_path.parent() {
-            let canonical_parent =
-                parent
-                    .canonicalize()
-                    .map_err(|e| NikaError::ArtifactPathError {
-                        path: final_path.display().to_string(),
-                        reason: format!(
-                            "Cannot canonicalize parent '{}' (fail-closed): {}",
-                            parent.display(),
-                            e
-                        ),
-                    })?;
-            let canonical_base =
-                self.artifact_dir
-                    .canonicalize()
-                    .map_err(|e| NikaError::ArtifactPathError {
-                        path: final_path.display().to_string(),
-                        reason: format!(
-                            "Cannot canonicalize artifact dir '{}' (fail-closed): {}",
-                            self.artifact_dir.display(),
-                            e
-                        ),
-                    })?;
-            if !canonical_parent.starts_with(&canonical_base) {
-                return Err(NikaError::ArtifactPathError {
+            validate_canonicalized_boundary(&self.artifact_dir, parent).map_err(|e| {
+                NikaError::ArtifactPathError {
                     path: final_path.display().to_string(),
-                    reason: format!(
-                        "Symlink escape detected: resolved parent '{}' is outside artifact dir '{}'",
-                        canonical_parent.display(),
-                        canonical_base.display()
-                    ),
-                });
-            }
+                    reason: e.to_string(),
+                }
+            })?;
         }
 
         // Write atomically
@@ -330,43 +303,16 @@ impl ArtifactWriter {
                 })?;
         }
 
-        // Final path validation after directory creation — canonicalize parent
-        // to detect symlink escapes (the parent now exists on disk).
-        // SEC-3/4: Fail-closed — canonicalize errors are treated as escapes, not ignored.
+        // Post-creation symlink check: canonicalize parent (which now exists on
+        // disk) to detect symlinks that escape the artifact boundary.
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
         if let Some(parent) = final_path.parent() {
-            let canonical_parent =
-                parent
-                    .canonicalize()
-                    .map_err(|e| NikaError::ArtifactPathError {
-                        path: final_path.display().to_string(),
-                        reason: format!(
-                            "Cannot canonicalize parent '{}' (fail-closed): {}",
-                            parent.display(),
-                            e
-                        ),
-                    })?;
-            let canonical_base =
-                self.artifact_dir
-                    .canonicalize()
-                    .map_err(|e| NikaError::ArtifactPathError {
-                        path: final_path.display().to_string(),
-                        reason: format!(
-                            "Cannot canonicalize artifact dir '{}' (fail-closed): {}",
-                            self.artifact_dir.display(),
-                            e
-                        ),
-                    })?;
-            if !canonical_parent.starts_with(&canonical_base) {
-                return Err(NikaError::ArtifactPathError {
+            validate_canonicalized_boundary(&self.artifact_dir, parent).map_err(|e| {
+                NikaError::ArtifactPathError {
                     path: final_path.display().to_string(),
-                    reason: format!(
-                        "Symlink escape detected: resolved parent '{}' is outside artifact dir '{}'",
-                        canonical_parent.display(),
-                        canonical_base.display()
-                    ),
-                });
-            }
+                    reason: e.to_string(),
+                }
+            })?;
         }
 
         // Write binary from CAS source using atomic temp+rename pattern.
@@ -977,8 +923,8 @@ mod tests {
         );
         let err = result.unwrap_err().to_string();
         assert!(
-            err.contains("Symlink escape") || err.contains("escape"),
-            "Error should mention symlink escape, got: {}",
+            err.contains("traversal") || err.contains("escape"),
+            "Error should mention traversal/escape, got: {}",
             err
         );
 
