@@ -81,6 +81,7 @@ impl BuiltinToolRouter {
         tools.insert("enrich", Arc::new(EnrichTool));
         tools.insert("jq", Arc::new(JqTool));
         tools.insert("tree_data", Arc::new(TreeDataTool));
+        tools.insert("inject", Arc::new(super::data_tools::InjectTool));
 
         // Register 6 Sprint 2 data tools
         use super::{
@@ -336,7 +337,7 @@ mod tests {
         assert!(router.has_tool("json_unflatten"));
         assert!(router.has_tool("jq"));
         assert!(router.has_tool("tree_data"));
-        assert_eq!(router.tool_names().len(), 25); // 7 core + 12 data + 6 sprint2
+        assert_eq!(router.tool_names().len(), 26); // 7 core + 13 data + 6 sprint2
     }
 
     #[test]
@@ -366,7 +367,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 30); // 7 core + 12 data + 6 sprint2 + 5 file
+        assert_eq!(router.tool_names().len(), 31); // 7 core + 13 data + 6 sprint2 + 5 file
     }
 
     #[test]
@@ -450,8 +451,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has 7 core + 12 data + 6 sprint2 tools
-        assert_eq!(router.tool_names().len(), 25);
+        // Default router has 7 core + 13 data + 6 sprint2 tools
+        assert_eq!(router.tool_names().len(), 26);
     }
 
     #[tokio::test]

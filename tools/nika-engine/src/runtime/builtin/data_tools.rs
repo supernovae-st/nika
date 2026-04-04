@@ -1227,6 +1227,106 @@ impl BuiltinTool for TreeDataTool {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// nika:inject — Replace content between markers in a template file
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct InjectTool;
+
+#[derive(Debug, Deserialize)]
+struct InjectParams {
+    /// Path to the template file
+    template: String,
+    /// Path to write the output file
+    output: String,
+    /// Marker that starts the replaceable section (line containing this string)
+    start_marker: String,
+    /// Marker that ends the replaceable section (line containing this string)
+    end_marker: String,
+    /// Content to inject between the markers
+    content: String,
+}
+
+impl BuiltinTool for InjectTool {
+    fn name(&self) -> &'static str {
+        "inject"
+    }
+
+    fn description(&self) -> &'static str {
+        "Read a template file, replace content between start/end markers with injected content, write to output file."
+    }
+
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["template", "output", "start_marker", "end_marker", "content"],
+            "properties": {
+                "template": {"type": "string", "description": "Path to template file"},
+                "output": {"type": "string", "description": "Path to output file"},
+                "start_marker": {"type": "string", "description": "Line containing this string starts the replaceable section"},
+                "end_marker": {"type": "string", "description": "Line containing this string ends the replaceable section"},
+                "content": {"type": "string", "description": "Content to inject between markers"}
+            }
+        })
+    }
+
+    fn call(
+        &self,
+        params_json: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + '_>> {
+        Box::pin(async move {
+            let params: InjectParams =
+                serde_json::from_str(&params_json).map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika:inject".into(),
+                    reason: format!("Invalid params: {e}"),
+                })?;
+
+            let template = std::fs::read_to_string(&params.template).map_err(|e| {
+                NikaError::BuiltinToolError {
+                    tool: "nika:inject".into(),
+                    reason: format!("Cannot read template '{}': {e}", params.template),
+                }
+            })?;
+
+            let mut output = String::new();
+            let mut skipping = false;
+
+            for line in template.lines() {
+                if line.contains(&params.start_marker) {
+                    output.push_str(line);
+                    output.push('\n');
+                    output.push_str(&params.content);
+                    output.push('\n');
+                    skipping = true;
+                    continue;
+                }
+                if skipping && line.contains(&params.end_marker) {
+                    skipping = false;
+                }
+                if !skipping {
+                    output.push_str(line);
+                    output.push('\n');
+                }
+            }
+
+            if let Some(parent) = std::path::Path::new(&params.output).parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            std::fs::write(&params.output, &output).map_err(|e| NikaError::BuiltinToolError {
+                tool: "nika:inject".into(),
+                reason: format!("Cannot write '{}': {e}", params.output),
+            })?;
+
+            Ok(serde_json::json!({
+                "path": params.output,
+                "size": output.len(),
+                "lines": output.lines().count()
+            })
+            .to_string())
+        })
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
