@@ -13,6 +13,9 @@ use super::error::{invalid_args, pipeline_empty, pipeline_step_failed};
 use super::safety::{decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
 
+/// Maximum number of pipeline steps to prevent CPU exhaustion.
+const MAX_PIPELINE_STEPS: usize = 50;
+
 pub struct PipelineOp;
 
 impl MediaOp for PipelineOp {
@@ -70,6 +73,17 @@ impl MediaOp for PipelineOp {
 
             if steps.is_empty() {
                 return Err(pipeline_empty());
+            }
+
+            if steps.len() > MAX_PIPELINE_STEPS {
+                return Err(invalid_args(
+                    "pipeline",
+                    format!(
+                        "too many steps ({}, max {})",
+                        steps.len(),
+                        MAX_PIPELINE_STEPS
+                    ),
+                ));
             }
 
             let data = ctx.read_media(hash).await?;
@@ -270,6 +284,11 @@ impl MediaOp for PipelineOp {
 
             let (data, mime_type, extension) = output;
 
+            // Charge budget for the final output (was missing — bypassed budget accounting)
+            ctx.budget
+                .check_and_add(data.len() as u64, "pipeline")
+                .map_err(|e| -> MediaToolError { e.into() })?;
+
             Ok(MediaOpResult::Binary {
                 data,
                 mime_type,
@@ -395,6 +414,41 @@ mod tests {
         let result = op.execute(serde_json::json!({}), &ctx).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+    }
+
+    #[tokio::test]
+    async fn pipeline_rejects_too_many_steps() {
+        let (_dir, ctx) = setup().await;
+        let data = b"some data for CAS";
+        let sr = ctx.cas.store(data).await.unwrap();
+
+        // Build 51 steps (over MAX_PIPELINE_STEPS=50)
+        let steps: Vec<serde_json::Value> = (0..51)
+            .map(|_| serde_json::json!({"op": "thumbnail", "width": 100}))
+            .collect();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": steps
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err(), "51 steps must be rejected");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("NIKA-294"),
+            "should be invalid args error, got: {err}"
+        );
+        assert!(err.contains("too many steps"));
+    }
+
+    #[test]
+    fn pipeline_step_limit_is_50() {
+        assert_eq!(MAX_PIPELINE_STEPS, 50);
     }
 
     // ═══════════════════════════════════════════════════════════════
