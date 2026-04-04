@@ -368,6 +368,7 @@ mod tests {
                 crate::runtime::builtin::media::context::WorkingMemoryBudget::new(),
             ),
             cancel: tokio_util::sync::CancellationToken::new(),
+            working_dir: None,
         });
 
         // Fill budget to 900 bytes

@@ -37,6 +37,7 @@ mod tests {
             compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new().unwrap()),
             working_memory: Arc::new(WorkingMemoryBudget::new()),
             cancel: tokio_util::sync::CancellationToken::new(),
+            working_dir: None,
         })
     }
 
@@ -49,6 +50,7 @@ mod tests {
             compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new().unwrap()),
             working_memory: Arc::new(WorkingMemoryBudget::with_max(max_bytes)),
             cancel: tokio_util::sync::CancellationToken::new(),
+            working_dir: None,
         })
     }
 
