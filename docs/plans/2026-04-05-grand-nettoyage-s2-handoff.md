@@ -125,35 +125,43 @@ cargo insta review  # Accept snapshot drift
 - **OK**: AST sync is CORRECT — nika-engine properly re-exports from nika-core
 - **OK**: 12/13 handlers implemented with 180+ tests. Only diagnostics + formatting missing.
 
-### Telemetry (S1+S2 agents, 26 findings)
-- **Silent error paths**: Template resolution failures, CRLF injection, domain rate limiting — no events emitted
-- **Missing event types**: `SecurityBlocked`, `RateLimitDelayed`, `ProviderInitFailed`
-- **Dead event**: `StructuredOutputTimeout` defined but never emitted
-- **`TaskRetry`**: exists in EventKind but never emitted anywhere
-- **Verb asymmetry**: exec has duration_ms, FetchRetry has backoff_ms, McpRetry has NO duration field
-- **Security events**: NIKA-053 blocks only logged via tracing, not emitted as events (TUI/serve can't display)
-- **Fix pattern**: Emit event BEFORE `return Err(...)` in executor paths
+### Telemetry (S1+S2 agents — COMPLETE, 85 EventKind variants audited)
+- **14 dead event variants** (defined but never emitted): BindingDefaultApplied, BindingEnvResolved, BindingTransformApplied, BindingVaultResolved, BudgetExceeded, BudgetOk, FallbackTriggered, McpConnected, McpError, McpRetry, NativeModelLoaded, PresetApplied, WorkflowPaused, WorkflowResumed
+- **7 silent error paths** (return Err without event): SSRF redirect block (fetch.rs:516), domain rate limit (fetch.rs:208), URL validation (fetch.rs:66), stdout truncation (exec.rs:352), shell injection bindings (exec.rs:67,82), shell data injection (exec.rs:98), vision resolution (infer.rs:1570)
+- **CRITICAL**: SSRF blocks emit NO PolicyBlocked event (fetch.rs:271-280, 516-521) — invisible to TUI
+- **CRITICAL**: Shell injection detection emits NO event (exec.rs:67,82,98) — security blocks invisible
+- **Verb asymmetry**: TemplateResolved emitted by exec/fetch/infer but NOT invoke/agent. PolicyBlocked emitted by exec/fetch but NOT invoke/agent. McpRetry variant exists but never emitted.
+- **Suggested new variants**: `RateLimitApplied` (domain fetch), `OutputTruncated` (exec stdout)
+- **Fix pattern**: Emit `PolicyBlocked` event BEFORE every `return Err(BlockedCommand/PolicyViolation)` in executor paths
+- **Coverage**: 71/85 variants emitted (84%), 12/19 error paths have events (63%)
 
-### Crate Structure (S2 agent — pending full report)
-- **P0**: nika-napi, nika-py still in workspace members (link failures on macOS)
-- **P1**: 4 unused deps — tokio-stream (nika-sdk, nika-serve), dirs (nika-mcp), serde (nika-napi)
-- **P1**: 3x duplicate `find_project_root` — nika-cli, nika-engine/mcp_config, nika-tui
-- **P2**: nika-engine is 44% of codebase (168K LOC) — target for nika-builtins + nika-display extraction
+### Crate Structure (S2 agent — COMPLETE)
+- **OK**: cargo machete found ZERO unused deps (earlier audit was wrong about tokio-stream/dirs)
+- **P1**: 3x duplicate `find_project_root` — nika-cli, nika-engine/mcp_config, nika-tui → extract to nika-core
+- **P1**: 4x duplicate `format_duration` in nika-tui → extract to nika-tui/src/util/format.rs
+- **P1**: deny.toml only in nika/ crate, not workspace root — move to tools/
+- **P1**: RUSTSEC-2024-0436 advisory ignore needs upstream link + review date
+- **P2**: nika-engine 168K LOC (60% of workspace) — consider nika-builtins + nika-display extraction
+- **P2**: media-chart, media-pdf could move to Tier 3 (opt-in) for faster builds
 
-### CLI UX (S2 agent — pending full report)
-- **P1**: Help text says "29 transforms" → actual is 50 (`nika/src/cli/help.rs:496`)
-- **P1**: `bench`, `explain`, `switch`, `vault`, `clean` missing from get_short_desc/get_example
-- **P2**: Cost estimation uses fixed $0.003/infer → use ModelPricing tables
-- **P2**: config get/set uses raw TOML string manipulation → typed struct
-- **P2**: `curl` subprocess for remote workflow download → reqwest
+### CLI UX (S2 agent — COMPLETE)
+- **P0**: Help says "29 transforms" → actual is **56** (`help.rs:203,488`)
+- **P1**: 10 subcommands missing from get_short_desc/get_example (explain, bench, vault, clean, tools, help, switch, serve, cosmic, lsp)
+- **P1**: 57 error variants have #[diagnostic] but NO help() text — add actionable suggestions
+- **P1**: 8 CLI subcommand files with 0 tests (pkg, schema, workflow, init, jobs, new_cmd, cache_cmd, tools_cmd)
+- **P2**: Cost estimation uses fixed $0.003/infer → use ModelPricing (2-5x variance)
+- **P2**: No fuzzy matcher for mistyped commands ("nika workkflow" → no suggestion)
 
-### Provider + Structured Output (S2 agent — pending full report)
-- **P1**: Mock is string sentinel `if provider_name == "mock"` → proper enum variant
-- **P1**: OpenAiCompat raw HTTP logic 3x duplicated → extract helper (-200 LOC)
-- **P1**: ModelResolver bypassed in agent loop → wire everywhere
-- **P2**: L1 ghost: `enable_extractor` silently accepted → NIKA-010 error
-- **P2**: Schema/validator cache clear-all-on-cap → LRU
-- **P2**: L0 fallback: transport error skips L0b entirely → should try L0b
+### Provider + Structured Output (S2 agent — COMPLETE)
+- **P1**: OpenAiCompat raw HTTP duplicated 2x (text path vs tools path) → extract helper
+- **P1**: Mock is string sentinel `if provider_name == "mock"` → add `RigProvider::Mock` variant
+- **P1**: Agent loop hardcodes model defaults (run_mistral, etc.) bypassing ModelResolver
+- **P1**: `RigInferError` too coarse — uses string parsing for 401/429/5xx → align with `ProviderVerifyError`
+- **P1**: XAi provider variant has no dedicated test
+- **P2**: L1 ghost: `enable_extractor` never referenced → remove from docs or implement
+- **P2**: L0 transport error fallback to L0b not documented
+- **OK**: Cost tracking correctly handles cached responses (no double-counting)
+- **OK**: LRU cache not needed — schema compilation is <1ms per call
 
 ### Test Coverage (S1 agent)
 | File | LOC | Tests | Priority |
