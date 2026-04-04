@@ -50,12 +50,10 @@ use tokio::sync::RwLock;
 /// A tracked spawned task with its cancellation token.
 #[cfg(feature = "native-inference")]
 struct TrackedTask {
-    /// Handle to the spawned task.
-    #[allow(dead_code)] // Used for abort on drop
+    /// Handle to the spawned task — used for cleanup (retain, await).
     handle: JoinHandle<()>,
     /// Cancellation token for graceful shutdown.
-    #[allow(dead_code)] // Stored for future cancellation use
-    token: CancellationToken,
+    _token: CancellationToken,
 }
 
 /// Native runtime for local LLM inference.
@@ -545,7 +543,7 @@ fn spawn_stream_task(
         let mut tasks = runtime.tasks.lock();
         tasks.push(TrackedTask {
             handle,
-            token: task_token,
+            _token: task_token,
         });
     }
 

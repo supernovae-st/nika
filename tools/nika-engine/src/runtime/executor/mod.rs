@@ -109,12 +109,8 @@ pub struct TaskExecutor {
     /// Per-domain rate limiter for polite crawling.
     domain_rate_limiter: Option<Arc<crate::runtime::rate_limit::DomainRateLimiter>>,
     /// Shared cookie jar for session persistence (fetch tasks with session: true).
-    /// Infrastructure: not yet wired into fetch executor.
-    #[allow(dead_code)]
     cookie_jar: Arc<reqwest_cookie_store::CookieStoreRwLock>,
     /// HTTP response cache for ETag / If-Modified-Since conditional requests.
-    /// Infrastructure: not yet wired into fetch executor.
-    #[allow(dead_code)]
     fetch_cache: Arc<crate::runtime::fetch_cache::FetchCache>,
 }
 

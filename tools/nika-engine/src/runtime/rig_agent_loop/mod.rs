@@ -82,9 +82,7 @@ pub struct RigAgentLoop {
     params: AgentParams,
     /// Event log for observability
     event_log: EventLog,
-    /// Connected MCP clients (used in run_claude for tool result callbacks)
-    #[allow(dead_code)] // Will be used when run_claude is fully implemented
-    mcp_clients: FxHashMap<String, Arc<McpClient>>,
+    _mcp_clients: FxHashMap<String, Arc<McpClient>>,
     /// Pre-built tools from MCP clients
     tools: Vec<Arc<dyn rig::tool::ToolDyn>>,
     /// Conversation history for multi-turn chat.
@@ -117,8 +115,7 @@ pub struct RigAgentLoop {
     /// Root agents own a token; child agents (via SpawnAgentTool) receive
     /// a child_token() so cancelling the parent cascades to children.
     /// Stored to keep the token alive — child_token() refs depend on it.
-    #[allow(dead_code)]
-    cancel_token: tokio_util::sync::CancellationToken,
+    _cancel_token: tokio_util::sync::CancellationToken,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -503,7 +500,7 @@ impl RigAgentLoop {
             task_id,
             params,
             event_log,
-            mcp_clients,
+            _mcp_clients: mcp_clients,
             tools,
             history: Vec::with_capacity(history_capacity),
             turn_count: 0,
@@ -513,7 +510,7 @@ impl RigAgentLoop {
             base_dir: None,
             media_staging,
             limit_tracker,
-            cancel_token,
+            _cancel_token: cancel_token,
         })
     }
 
