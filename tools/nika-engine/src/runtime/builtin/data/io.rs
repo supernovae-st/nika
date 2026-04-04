@@ -91,12 +91,12 @@ impl BuiltinTool for InjectTool {
             let template_path = validate(&params.template, "Template")?;
             let output_path = validate(&params.output, "Output")?;
 
-            let template = std::fs::read_to_string(&template_path).map_err(|e| {
-                NikaError::BuiltinToolError {
+            let template = tokio::fs::read_to_string(&template_path)
+                .await
+                .map_err(|e| NikaError::BuiltinToolError {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot read template '{}': {e}", params.template),
-                }
-            })?;
+                })?;
 
             let mut output = String::with_capacity(template.len() + params.content.len());
             let mut skipping = false;
@@ -129,10 +129,12 @@ impl BuiltinTool for InjectTool {
                 });
             }
 
-            std::fs::write(&output_path, &output).map_err(|e| NikaError::BuiltinToolError {
-                tool: "nika:inject".into(),
-                reason: format!("Cannot write '{}': {e}", params.output),
-            })?;
+            tokio::fs::write(&output_path, &output)
+                .await
+                .map_err(|e| NikaError::BuiltinToolError {
+                    tool: "nika:inject".into(),
+                    reason: format!("Cannot write '{}': {e}", params.output),
+                })?;
 
             Ok(serde_json::json!({
                 "path": params.output,

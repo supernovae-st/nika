@@ -1134,7 +1134,8 @@ pub async fn validate_structured_output(
             SchemaRef::Inline(v) => Some(v.clone()),
             SchemaRef::File(path) => {
                 // Re-read the example file for key reordering (standalone fn, rare path).
-                std::fs::read_to_string(path)
+                tokio::fs::read_to_string(path)
+                    .await
                     .ok()
                     .and_then(|c| serde_json::from_str(&c).ok())
             }
