@@ -48,6 +48,8 @@ impl BuiltinTool for JsonQueryTool {
         args: String,
     ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
         Box::pin(async move {
+            tracing::warn!("nika:json_query is deprecated — use nika:jq instead");
+
             let params: JsonQueryParams =
                 serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
                     tool: "nika:json_query".into(),
