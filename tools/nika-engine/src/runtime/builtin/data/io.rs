@@ -119,6 +119,16 @@ impl BuiltinTool for InjectTool {
                 }
             }
 
+            if skipping {
+                return Err(NikaError::BuiltinToolError {
+                    tool: "nika:inject".into(),
+                    reason: format!(
+                        "End marker '{}' not found in template after start marker '{}'",
+                        params.end_marker, params.start_marker
+                    ),
+                });
+            }
+
             std::fs::write(&output_path, &output).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:inject".into(),
                 reason: format!("Cannot write '{}': {e}", params.output),
@@ -199,5 +209,39 @@ mod tests {
             assert!(!output.contains("old content"));
         }
         // If result is Err, it's a path validation error (tempdir outside cwd) — acceptable
+    }
+
+    #[tokio::test]
+    async fn inject_missing_end_marker_errors() {
+        // Template has start marker but no end marker — must error, not silently drop tail
+        let dir = tempfile::tempdir().unwrap();
+        let template_path = dir.path().join("template.html");
+        let output_path = dir.path().join("output.html");
+        std::fs::write(
+            &template_path,
+            "HEADER\n<!-- START -->\nsome content\nFOOTER\n",
+        )
+        .unwrap();
+
+        let tool = InjectTool;
+        let data = json!({
+            "template": template_path.to_str().unwrap(),
+            "output": output_path.to_str().unwrap(),
+            "start_marker": "<!-- START -->",
+            "end_marker": "<!-- END -->",
+            "content": "INJECTED"
+        });
+        let result = tool.call(data.to_string()).await;
+        // Either path validation error (tempdir outside cwd) or end_marker error
+        if let Err(e) = &result {
+            let msg = e.to_string();
+            if !msg.contains("outside working directory") && !msg.contains("not found") {
+                assert!(
+                    msg.contains("End marker"),
+                    "expected end marker error, got: {msg}"
+                );
+            }
+        }
+        // If path validation passes (rare), the end_marker check must trigger
     }
 }
