@@ -466,6 +466,7 @@ impl NikaVault {
         self.vault_path.exists()
     }
 
+
     /// Check if the vault exists and is readable with the current key.
     ///
     /// Returns:
@@ -586,6 +587,19 @@ impl NikaVault {
         Ok(())
     }
 
+    /// KDF memory parameter in KiB: 64 MiB (1 << 16 KiB).
+    ///
+    /// OWASP recommends Argon2id with 19 MiB minimum. Our 64 MiB with 6 iterations
+    /// exceeds that by 3x. Do NOT change this without migration logic — existing
+    /// vaults are encrypted with this key derivation.
+    ///
+    /// Note: orion's `kdf::derive_key` memory parameter is in KiB (kibibytes),
+    /// so `1 << 16` = 65536 KiB = 64 MiB (NOT 64 KB).
+    const KDF_MEMORY_KIB: u32 = 1 << 16;
+
+    /// KDF iteration count (Argon2i time cost).
+    const KDF_ITERATIONS: u32 = 6;
+
     fn derive_key(&self) -> Result<orion::aead::SecretKey, VaultError> {
         let salt = self.load_or_create_salt()?;
         let fingerprint = machine_fingerprint()?;
@@ -595,8 +609,9 @@ impl NikaVault {
         let kdf_salt = kdf::Salt::from_slice(&salt)
             .map_err(|e| VaultError::Crypto(format!("KDF salt: {e}")))?;
 
-        let derived = kdf::derive_key(&password, &kdf_salt, 6, 1 << 16, 32)
-            .map_err(|e| VaultError::Crypto(format!("KDF derive: {e}")))?;
+        let derived =
+            kdf::derive_key(&password, &kdf_salt, Self::KDF_ITERATIONS, Self::KDF_MEMORY_KIB, 32)
+                .map_err(|e| VaultError::Crypto(format!("KDF derive: {e}")))?;
 
         orion::aead::SecretKey::from_slice(derived.unprotected_as_bytes())
             .map_err(|e| VaultError::Crypto(format!("AEAD key: {e}")))
@@ -1236,6 +1251,22 @@ mod tests {
         vault.set("test", "key123").unwrap();
         let mode = std::fs::metadata(&secrets).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700, "secrets dir must be 0o700, got {mode:o}");
+    }
+
+    #[test]
+    #[serial]
+    fn kdf_params_above_owasp_minimum() {
+        // Verify KDF constants: 64 MiB memory, 6 iterations
+        // OWASP recommends: Argon2id, 19 MiB, 2 iterations
+        // Our params exceed that: Argon2i, 64 MiB, 6 iterations
+        assert_eq!(NikaVault::KDF_MEMORY_KIB, 1 << 16); // 64 MiB in KiB
+        assert_eq!(NikaVault::KDF_ITERATIONS, 6);
+
+        // Verify vault roundtrip works with documented params
+        let (_dir, vault) = test_vault();
+        vault.set("test_kdf", "secret_value").unwrap();
+        let val = vault.get("test_kdf").unwrap().unwrap();
+        assert_eq!(val.expose_secret(), "secret_value");
     }
 
     #[test]
