@@ -249,6 +249,7 @@ jobs:
 
       - name: Extract version from tag
         id: version
+        shell: bash
         env:
           TAG: ${{ env.RELEASE_TAG }}
         run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
@@ -575,7 +576,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Update Homebrew Formula
+  # Update Homebrew Formula (multi-arch: macOS arm64/x64 + Linux x64/arm64)
   # ─────────────────────────────────────────────────────────────────────────────
   update-homebrew:
     name: Update Homebrew Formula
@@ -589,16 +590,125 @@ jobs:
         id: version
         run: echo "version=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
-      - name: Update Homebrew formula
+      - name: Skip if no token
+        if: env.HAS_HOMEBREW_TOKEN != 'true'
+        run: echo "::warning::HOMEBREW_TAP_TOKEN not set — Homebrew formula update SKIPPED"
+
+      - name: Download SHA256 checksums
         if: env.HAS_HOMEBREW_TOKEN == 'true'
-        uses: mislav/bump-homebrew-formula-action@v3
-        with:
-          formula-name: nika
-          homebrew-tap: supernovae-st/homebrew-tap
-          download-url: https://github.com/supernovae-st/nika/releases/download/${{ env.TAG }}/nika-macos-x64-${{ steps.version.outputs.version }}.tar.gz
+        id: sha
         env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        continue-on-error: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+          VERSION: ${{ steps.version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sha256
+
+          for artifact in nika-macos-arm64 nika-macos-x64 nika-linux-arm64 nika-linux-x64; do
+            gh release download "$TAG" \
+              --repo "$REPO" \
+              --pattern "${artifact}-${VERSION}.tar.gz.sha256" \
+              --dir /tmp/sha256
+          done
+
+          echo "macos_arm64=$(awk '{print $1}' /tmp/sha256/nika-macos-arm64-${VERSION}.tar.gz.sha256)" >> $GITHUB_OUTPUT
+          echo "macos_x64=$(awk '{print $1}' /tmp/sha256/nika-macos-x64-${VERSION}.tar.gz.sha256)" >> $GITHUB_OUTPUT
+          echo "linux_arm64=$(awk '{print $1}' /tmp/sha256/nika-linux-arm64-${VERSION}.tar.gz.sha256)" >> $GITHUB_OUTPUT
+          echo "linux_x64=$(awk '{print $1}' /tmp/sha256/nika-linux-x64-${VERSION}.tar.gz.sha256)" >> $GITHUB_OUTPUT
+
+      - name: Generate and push formula
+        if: env.HAS_HOMEBREW_TOKEN == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA_MACOS_ARM64: ${{ steps.sha.outputs.macos_arm64 }}
+          SHA_MACOS_X64: ${{ steps.sha.outputs.macos_x64 }}
+          SHA_LINUX_ARM64: ${{ steps.sha.outputs.linux_arm64 }}
+          SHA_LINUX_X64: ${{ steps.sha.outputs.linux_x64 }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/supernovae-st/homebrew-tap.git" /tmp/tap
+          cd /tmp/tap
+
+          cat > Formula/nika.rb << 'FORMULA'
+          # Formula/nika.rb — Pre-built binaries, multi-arch (macOS + Linux)
+          # Updated automatically by CI on each release (release.yml → update-homebrew)
+          class Nika < Formula
+            desc "Semantic YAML workflow engine for AI — 5 verbs, 9 providers, LSP"
+            homepage "https://github.com/supernovae-st/nika"
+            version "VERSION_PLACEHOLDER"
+            license "AGPL-3.0-or-later"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/supernovae-st/nika/releases/download/v#{version}/nika-macos-arm64-#{version}.tar.gz"
+                sha256 "SHA_MACOS_ARM64_PLACEHOLDER"
+              else
+                url "https://github.com/supernovae-st/nika/releases/download/v#{version}/nika-macos-x64-#{version}.tar.gz"
+                sha256 "SHA_MACOS_X64_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/supernovae-st/nika/releases/download/v#{version}/nika-linux-arm64-#{version}.tar.gz"
+                sha256 "SHA_LINUX_ARM64_PLACEHOLDER"
+              else
+                url "https://github.com/supernovae-st/nika/releases/download/v#{version}/nika-linux-x64-#{version}.tar.gz"
+                sha256 "SHA_LINUX_X64_PLACEHOLDER"
+              end
+            end
+
+            def install
+              bin.install "nika"
+            end
+
+            def post_install
+              return unless OS.mac? || OS.linux?
+              Timeout.timeout(15) do
+                system bin/"nika", "--quiet", "daemon", "start"
+              end
+            rescue Timeout::Error, StandardError
+              # Silently ignore — daemon starts on first use
+            end
+
+            test do
+              assert_match "nika #{version}", shell_output("#{bin}/nika --version")
+
+              (testpath/"test.nika.yaml").write <<~YAML
+                schema: "nika/workflow@0.12"
+                description: "Homebrew test"
+                tasks:
+                  - id: hello
+                    exec: "echo hello"
+              YAML
+              assert_match "DAG", shell_output("#{bin}/nika check #{testpath}/test.nika.yaml")
+            end
+          end
+          FORMULA
+
+          # Strip heredoc indentation
+          sed -i 's/^          //' Formula/nika.rb
+
+          # Replace placeholders with actual values
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" Formula/nika.rb
+          sed -i "s/SHA_MACOS_ARM64_PLACEHOLDER/${SHA_MACOS_ARM64}/" Formula/nika.rb
+          sed -i "s/SHA_MACOS_X64_PLACEHOLDER/${SHA_MACOS_X64}/" Formula/nika.rb
+          sed -i "s/SHA_LINUX_ARM64_PLACEHOLDER/${SHA_LINUX_ARM64}/" Formula/nika.rb
+          sed -i "s/SHA_LINUX_X64_PLACEHOLDER/${SHA_LINUX_X64}/" Formula/nika.rb
+
+          echo "=== Generated formula ==="
+          cat Formula/nika.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/nika.rb
+          git diff --cached --quiet && { echo "No changes to formula"; exit 0; }
+          git commit -m "nika ${VERSION}"
+          git push
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Publish VS Code Extension
