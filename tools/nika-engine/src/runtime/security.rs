@@ -166,6 +166,15 @@ const SHELL_INJECTION_PATTERNS: &[&str] = &[
     "`",  // Bash process substitution — executes commands via /dev/fd
     "<(", // Here-string — feeds arbitrary input to interpreters
     "<<<",
+    // Shell control operators — command chaining and redirection.
+    // Injected via data, these enable running arbitrary follow-up commands
+    // or redirecting output to overwrite files.
+    "&&", // AND chain: first && injected_cmd
+    "||", // OR chain: first || injected_cmd
+    ";",  // Sequential: first; injected_cmd
+    ">>", // Append redirect (checked before > to match longest first)
+    ">",  // Output redirect: cmd > /etc/crontab
+    "|",  // Pipe: cmd | bash
 ];
 
 /// Check whether `haystack` contains `needle` outside of quoted regions.
@@ -2203,6 +2212,71 @@ mod tests {
             "Error message must NOT contain the API key, got: {msg}"
         );
         assert!(msg.contains("NIKA-053"), "Should be NIKA-053 error");
+    }
+
+    // =========================================================================
+    // L-1: Shell injection pattern extension
+    // =========================================================================
+
+    #[test]
+    fn data_injection_detects_ampersand_chain() {
+        // && injected via data should be blocked
+        let raw = "echo '{{with.val}}'";
+        let resolved = "echo 'safe' && echo pwned";
+        let err = check_shell_data_injection(raw, resolved).unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn data_injection_detects_or_chain() {
+        let raw = "echo '{{with.val}}'";
+        let resolved = "echo 'fail' || echo pwned";
+        let err = check_shell_data_injection(raw, resolved).unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn data_injection_detects_semicolon() {
+        let raw = "echo '{{with.val}}'";
+        let resolved = "echo 'x'; rm -rf /";
+        let err = check_shell_data_injection(raw, resolved).unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn data_injection_detects_redirect() {
+        let raw = "echo '{{with.val}}'";
+        let resolved = "echo 'data' > /etc/crontab";
+        let err = check_shell_data_injection(raw, resolved).unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn data_injection_detects_append_redirect() {
+        let raw = "echo '{{with.val}}'";
+        let resolved = "echo 'payload' >> /etc/crontab";
+        let err = check_shell_data_injection(raw, resolved).unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn data_injection_detects_pipe() {
+        let raw = "echo '{{with.val}}'";
+        let resolved = "echo 'data' | bash";
+        let err = check_shell_data_injection(raw, resolved).unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn data_injection_allows_intentional_patterns() {
+        // If the pattern is in the RAW template, it's intentional
+        let raw = "echo hello && echo world";
+        let resolved = "echo hello && echo world";
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
+
+        let raw = "cat file.txt | grep pattern";
+        let resolved = "cat file.txt | grep pattern";
+        assert!(check_shell_data_injection(raw, resolved).is_ok());
     }
 
     #[test]
