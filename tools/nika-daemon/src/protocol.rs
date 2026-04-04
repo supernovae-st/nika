@@ -48,7 +48,10 @@ pub enum DaemonRequest {
     HasSecret { provider: String },
 
     /// List all provider secret status.
-    ListSecrets,
+    /// Requires auth token to prevent same-UID enumeration of stored secrets.
+    ListSecrets {
+        auth_token: Option<String>,
+    },
 
     /// Store a secret (API key) for a provider in the encrypted vault.
     SetSecret {
@@ -173,7 +176,9 @@ impl std::fmt::Debug for DaemonRequest {
             Self::HasSecret { provider } => {
                 write!(f, "DaemonRequest::HasSecret {{ provider: {provider:?} }}")
             }
-            Self::ListSecrets => write!(f, "DaemonRequest::ListSecrets"),
+            Self::ListSecrets { .. } => {
+                write!(f, "DaemonRequest::ListSecrets {{ auth_token: <redacted> }}")
+            }
             Self::Shutdown { .. } => {
                 write!(f, "DaemonRequest::Shutdown {{ auth_token: <redacted> }}")
             }
@@ -505,9 +510,9 @@ mod tests {
 
     #[test]
     fn request_serialize_list_secrets() {
-        let req = DaemonRequest::ListSecrets;
+        let req = DaemonRequest::ListSecrets { auth_token: None };
         let json = serde_json::to_string(&req).unwrap();
-        assert_eq!(json, r#"{"type":"ListSecrets"}"#);
+        assert_eq!(json, r#"{"type":"ListSecrets","auth_token":null}"#);
     }
 
     #[test]
@@ -693,7 +698,7 @@ mod tests {
             DaemonRequest::HasSecret {
                 provider: "openai".into(),
             },
-            DaemonRequest::ListSecrets,
+            DaemonRequest::ListSecrets { auth_token: None },
             DaemonRequest::SetSecret {
                 provider: "anthropic".into(),
                 key: "sk-ant-test".into(),
@@ -873,7 +878,7 @@ mod tests {
         let messages = vec![
             DaemonRequest::Ping,
             DaemonRequest::Status,
-            DaemonRequest::ListSecrets,
+            DaemonRequest::ListSecrets { auth_token: None },
         ];
 
         // Encode all into one buffer

@@ -465,7 +465,10 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             DaemonResponse::SecretExists { exists }
         }
 
-        DaemonRequest::ListSecrets => {
+        DaemonRequest::ListSecrets { auth_token } => {
+            if !validate_auth_token(&auth_token, &state.auth_token) {
+                return DaemonResponse::AuthRequired;
+            }
             let providers = state.secret_service.list_secrets().await;
             DaemonResponse::SecretList { providers }
         }
