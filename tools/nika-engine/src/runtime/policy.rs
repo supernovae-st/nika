@@ -87,6 +87,42 @@ pub(crate) async fn resolve_and_check_ssrf(host: &str) -> bool {
     resolve_and_pin_ssrf(host).await.is_err()
 }
 
+/// Build a redirect policy that checks each hop against the SSRF blocklist.
+///
+/// `allowed_hosts` are exempted from blocking (e.g., explicitly whitelisted private hosts).
+/// Stops after `max_redirects` hops regardless of SSRF status.
+pub fn ssrf_safe_redirect_policy(
+    allowed_hosts: Vec<String>,
+    max_redirects: usize,
+) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= max_redirects {
+            attempt.stop()
+        } else {
+            let blocked = attempt.url().host_str().and_then(|host| {
+                let h = host.to_lowercase();
+                let h_normalized = h.trim_start_matches('[').trim_end_matches(']');
+                let explicitly_allowed = allowed_hosts
+                    .iter()
+                    .any(|a| h_normalized == a.to_lowercase());
+                if !explicitly_allowed && is_ssrf_blocked(h_normalized) {
+                    Some(h)
+                } else {
+                    None
+                }
+            });
+            if let Some(host) = blocked {
+                attempt.error(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    format!("SSRF protection: redirect to '{}' blocked", host),
+                ))
+            } else {
+                attempt.follow()
+            }
+        }
+    })
+}
+
 /// Resolve DNS for SSRF check and return pinned addresses.
 ///
 /// Returns `Ok(Vec<SocketAddr>)` if all resolved IPs are safe (can be used for pinning).

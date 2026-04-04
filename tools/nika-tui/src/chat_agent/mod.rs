@@ -139,7 +139,7 @@ impl ChatAgent {
             stream_chunk_tx: None,
             streaming_state: StreamingState::new(),
             http_client: reqwest::Client::builder()
-                .redirect(reqwest::redirect::Policy::limited(5))
+                .redirect(nika_engine::runtime::policy::ssrf_safe_redirect_policy(vec![], 5))
                 .build()
                 .expect("HTTP client build with default TLS is infallible"),
             total_input_tokens: 0,
