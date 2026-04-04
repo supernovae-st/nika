@@ -21,7 +21,7 @@ inputs:
 tasks:
   - id: validate
     exec:
-      command: "echo '{\"char_count\": {{inputs.text | length}}, \"lang\": \"{{inputs.target_lang}}\"}'"
+      command: "echo '{\"char_count\": {{inputs.text | length | shell}}, \"lang\": \"{{inputs.target_lang | shell}}\"}'"
       shell: true
 
   - id: process
