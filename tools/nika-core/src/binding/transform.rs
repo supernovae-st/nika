@@ -3,16 +3,18 @@
 //! Pipeline transforms applied to binding values.
 //! Transforms are chained with `|` pipes: `sort | unique | first(3)`
 //!
-//! # Categories (49 transforms)
+//! # Categories (58 transforms)
 //!
 //! | Category | Ops |
 //! |----------|-----|
-//! | String | `upper`, `lower`, `trim`, `trim_start`, `trim_end` |
+//! | String | `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `replace(A, B)`, `truncate(N)` |
 //! | Collection | `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact` |
 //! | Data | `pluck(F)`, `where(F, [op], V)`, `pick(F…)`, `omit(F…)`, `sort_by(F)`, `group_by(F)`, `merge`, `merge(obj)` |
+//! | Aggregation | `add`, `min`, `max` |
 //! | Regex | `regex(P)` |
 //! | Type conversion | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json` |
 //! | Numeric | `round(N)`, `abs`, `ceil`, `floor` |
+//! | Logic | `not` |
 //! | Encoding | `base64_encode`, `base64_decode` (text-only, use `nika:import` for binary) |
 //! | Predicate | `starts_with(S)`, `ends_with(S)`, `contains(S)` |
 //! | Hash | `content_hash` |
@@ -116,6 +118,24 @@ pub enum TransformOp {
 
     // -- URL dedup --
     UniqueUrls,
+
+    // -- String manipulation --
+    /// String replacement: `replace("old", "new")`
+    Replace(String, String),
+    /// Truncate string to N chars: `truncate(100)`
+    Truncate(usize),
+
+    // -- Aggregation --
+    /// Sum numbers or concat arrays: `add`
+    Add,
+    /// Minimum of numeric array: `min`
+    Min,
+    /// Maximum of numeric array: `max`
+    Max,
+
+    // -- Logic --
+    /// Boolean negation: `not`
+    Not,
 
     // -- jq expression --
     /// Full jq expression: `jq("[.[] | select(.score > 80)]")`
@@ -1047,6 +1067,172 @@ impl TransformOp {
                 _ => Err(type_mismatch("unique_urls", "array", value)),
             },
 
+            // ── String manipulation ────────────────────────────────
+            TransformOp::Replace(from, to) => match value {
+                Value::Null => Err(TransformError::NullInput { op: "replace" }),
+                Value::String(s) => Ok(Value::String(s.replace(from.as_str(), to.as_str()))),
+                _ => Err(type_mismatch("replace", "string", value)),
+            },
+            TransformOp::Truncate(n) => match value {
+                Value::Null => Err(TransformError::NullInput { op: "truncate" }),
+                Value::String(s) => {
+                    let truncated: String = s.chars().take(*n).collect();
+                    Ok(Value::String(truncated))
+                }
+                _ => Err(type_mismatch("truncate", "string", value)),
+            },
+
+            // ── Aggregation ───────────────────────────────────────────
+            TransformOp::Add => match value {
+                Value::Null => Ok(Value::Null), // propagating
+                Value::Array(arr) => {
+                    // Detect type from first non-null element
+                    let first_non_null = arr.iter().find(|v| !v.is_null());
+                    match first_non_null {
+                        Some(Value::Number(_)) | None => {
+                            // Sum numbers (null → 0)
+                            let mut sum = 0.0_f64;
+                            for item in arr {
+                                match item {
+                                    Value::Number(n) => {
+                                        sum += n.as_f64().unwrap_or(0.0);
+                                    }
+                                    Value::Null => {} // skip nulls
+                                    _ => {
+                                        return Err(type_mismatch(
+                                            "add",
+                                            "array of numbers",
+                                            item,
+                                        ))
+                                    }
+                                }
+                            }
+                            // Return integer if no fractional part
+                            if sum.fract() == 0.0
+                                && sum >= i64::MIN as f64
+                                && sum <= i64::MAX as f64
+                            {
+                                Ok(Value::Number((sum as i64).into()))
+                            } else {
+                                Ok(Value::Number(
+                                    serde_json::Number::from_f64(sum)
+                                        .unwrap_or_else(|| (sum as i64).into()),
+                                ))
+                            }
+                        }
+                        Some(Value::String(_)) => {
+                            // Concat strings
+                            let mut result = String::new();
+                            for item in arr {
+                                match item {
+                                    Value::String(s) => result.push_str(s),
+                                    Value::Null => {} // skip nulls
+                                    _ => {
+                                        return Err(type_mismatch(
+                                            "add",
+                                            "array of strings",
+                                            item,
+                                        ))
+                                    }
+                                }
+                            }
+                            Ok(Value::String(result))
+                        }
+                        Some(Value::Array(_)) => {
+                            // Concat arrays
+                            let mut result = Vec::new();
+                            for item in arr {
+                                match item {
+                                    Value::Array(inner) => result.extend(inner.iter().cloned()),
+                                    Value::Null => {} // skip nulls
+                                    _ => {
+                                        return Err(type_mismatch(
+                                            "add",
+                                            "array of arrays",
+                                            item,
+                                        ))
+                                    }
+                                }
+                            }
+                            Ok(Value::Array(result))
+                        }
+                        _ => Err(type_mismatch(
+                            "add",
+                            "array of numbers, strings, or arrays",
+                            value,
+                        )),
+                    }
+                }
+                _ => Err(type_mismatch("add", "array", value)),
+            },
+            TransformOp::Min => match value {
+                Value::Null => Ok(Value::Null), // propagating
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
+                Value::Array(arr) => {
+                    let mut min_val: Option<f64> = None;
+                    for item in arr {
+                        match item {
+                            Value::Number(n) => {
+                                let v = n.as_f64().unwrap_or(f64::NAN);
+                                min_val = Some(match min_val {
+                                    Some(current) => current.min(v),
+                                    None => v,
+                                });
+                            }
+                            Value::Null => {} // skip nulls
+                            _ => return Err(type_mismatch("min", "array of numbers", item)),
+                        }
+                    }
+                    match min_val {
+                        Some(v) if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 => {
+                            Ok(Value::Number((v as i64).into()))
+                        }
+                        Some(v) => Ok(Value::Number(
+                            serde_json::Number::from_f64(v).unwrap_or_else(|| (v as i64).into()),
+                        )),
+                        None => Ok(Value::Null), // all nulls
+                    }
+                }
+                _ => Err(type_mismatch("min", "array", value)),
+            },
+            TransformOp::Max => match value {
+                Value::Null => Ok(Value::Null), // propagating
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
+                Value::Array(arr) => {
+                    let mut max_val: Option<f64> = None;
+                    for item in arr {
+                        match item {
+                            Value::Number(n) => {
+                                let v = n.as_f64().unwrap_or(f64::NAN);
+                                max_val = Some(match max_val {
+                                    Some(current) => current.max(v),
+                                    None => v,
+                                });
+                            }
+                            Value::Null => {} // skip nulls
+                            _ => return Err(type_mismatch("max", "array of numbers", item)),
+                        }
+                    }
+                    match max_val {
+                        Some(v) if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 => {
+                            Ok(Value::Number((v as i64).into()))
+                        }
+                        Some(v) => Ok(Value::Number(
+                            serde_json::Number::from_f64(v).unwrap_or_else(|| (v as i64).into()),
+                        )),
+                        None => Ok(Value::Null), // all nulls
+                    }
+                }
+                _ => Err(type_mismatch("max", "array", value)),
+            },
+
+            // ── Logic ─────────────────────────────────────────────────
+            TransformOp::Not => match value {
+                Value::Null => Ok(Value::Null), // propagating
+                Value::Bool(b) => Ok(Value::Bool(!b)),
+                _ => Err(type_mismatch("not", "boolean", value)),
+            },
+
             // ── jq expression ──────────────────────────────────────
             TransformOp::Jq(expr) => {
                 eval_jq(expr, value).map_err(|e| TransformError::TypeMismatch {
@@ -1484,6 +1670,28 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 let text = strip_quotes(arg);
                 Ok(TransformOp::Contains(text.to_string()))
             }
+            "replace" => {
+                let parts = split_parametric_args(arg);
+                if parts.len() != 2 {
+                    return Err(TransformParseError {
+                        input: full_input.to_string(),
+                        reason: format!(
+                            "replace() requires 2 arguments (from, to), got {}",
+                            parts.len()
+                        ),
+                    });
+                }
+                let from = strip_quotes(parts[0].trim()).to_string();
+                let to = strip_quotes(parts[1].trim()).to_string();
+                Ok(TransformOp::Replace(from, to))
+            }
+            "truncate" => {
+                let n: usize = arg.parse().map_err(|_| TransformParseError {
+                    input: full_input.to_string(),
+                    reason: format!("invalid argument for truncate(): '{}'", arg),
+                })?;
+                Ok(TransformOp::Truncate(n))
+            }
             "jq" => {
                 let expr = strip_quotes(arg);
                 Ok(TransformOp::Jq(expr.to_string()))
@@ -1531,6 +1739,10 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "base64_decode" => Ok(TransformOp::Base64Decode),
             "content_hash" => Ok(TransformOp::ContentHash),
             "unique_urls" => Ok(TransformOp::UniqueUrls),
+            "add" => Ok(TransformOp::Add),
+            "min" => Ok(TransformOp::Min),
+            "max" => Ok(TransformOp::Max),
+            "not" => Ok(TransformOp::Not),
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
                 reason: format!("unknown transform: '{}'", trimmed),
@@ -1773,6 +1985,12 @@ impl fmt::Display for TransformOp {
             TransformOp::Contains(text) => write!(f, "contains('{}')", text),
             TransformOp::ContentHash => write!(f, "content_hash"),
             TransformOp::UniqueUrls => write!(f, "unique_urls"),
+            TransformOp::Replace(from, to) => write!(f, "replace('{}', '{}')", from, to),
+            TransformOp::Truncate(n) => write!(f, "truncate({})", n),
+            TransformOp::Add => write!(f, "add"),
+            TransformOp::Min => write!(f, "min"),
+            TransformOp::Max => write!(f, "max"),
+            TransformOp::Not => write!(f, "not"),
             TransformOp::Jq(expr) => write!(f, "jq('{}')", expr),
         }
     }
@@ -4034,6 +4252,351 @@ mod tests {
         assert!(
             result.is_err(),
             "regex test() on null should error, not panic"
+        );
+    }
+
+    // ── replace ─────────────────────────────────────────────
+
+    #[test]
+    fn replace_basic() {
+        let val = json!("hello world");
+        let result = TransformOp::Replace("world".into(), "rust".into())
+            .apply(&val)
+            .unwrap();
+        assert_eq!(result, json!("hello rust"));
+    }
+
+    #[test]
+    fn replace_multiple_occurrences() {
+        let val = json!("aaa");
+        let result = TransformOp::Replace("a".into(), "bb".into())
+            .apply(&val)
+            .unwrap();
+        assert_eq!(result, json!("bbbbbb"));
+    }
+
+    #[test]
+    fn replace_no_match() {
+        let val = json!("hello");
+        let result = TransformOp::Replace("xyz".into(), "abc".into())
+            .apply(&val)
+            .unwrap();
+        assert_eq!(result, json!("hello"));
+    }
+
+    #[test]
+    fn replace_to_empty() {
+        let val = json!("remove-dashes");
+        let result = TransformOp::Replace("-".into(), "".into())
+            .apply(&val)
+            .unwrap();
+        assert_eq!(result, json!("removedashes"));
+    }
+
+    #[test]
+    fn replace_null_fails() {
+        assert!(TransformOp::Replace("a".into(), "b".into())
+            .apply(&Value::Null)
+            .is_err());
+    }
+
+    #[test]
+    fn replace_non_string_fails() {
+        assert!(TransformOp::Replace("a".into(), "b".into())
+            .apply(&json!(42))
+            .is_err());
+    }
+
+    #[test]
+    fn replace_parse() {
+        let expr = TransformExpr::parse("replace('hello', 'world')").unwrap();
+        assert_eq!(expr.ops.len(), 1);
+        assert_eq!(
+            expr.ops[0],
+            TransformOp::Replace("hello".into(), "world".into())
+        );
+    }
+
+    #[test]
+    fn replace_display() {
+        assert_eq!(
+            TransformOp::Replace("a".into(), "b".into()).to_string(),
+            "replace('a', 'b')"
+        );
+    }
+
+    // ── truncate ────────────────────────────────────────────
+
+    #[test]
+    fn truncate_basic() {
+        let val = json!("hello world");
+        let result = TransformOp::Truncate(5).apply(&val).unwrap();
+        assert_eq!(result, json!("hello"));
+    }
+
+    #[test]
+    fn truncate_longer_than_string() {
+        let val = json!("hi");
+        let result = TransformOp::Truncate(100).apply(&val).unwrap();
+        assert_eq!(result, json!("hi"));
+    }
+
+    #[test]
+    fn truncate_zero() {
+        let val = json!("hello");
+        let result = TransformOp::Truncate(0).apply(&val).unwrap();
+        assert_eq!(result, json!(""));
+    }
+
+    #[test]
+    fn truncate_unicode() {
+        let val = json!("héllo wörld");
+        let result = TransformOp::Truncate(5).apply(&val).unwrap();
+        assert_eq!(result, json!("héllo"));
+    }
+
+    #[test]
+    fn truncate_null_fails() {
+        assert!(TransformOp::Truncate(5).apply(&Value::Null).is_err());
+    }
+
+    #[test]
+    fn truncate_parse() {
+        let expr = TransformExpr::parse("truncate(10)").unwrap();
+        assert_eq!(expr.ops.len(), 1);
+        assert_eq!(expr.ops[0], TransformOp::Truncate(10));
+    }
+
+    // ── add ─────────────────────────────────────────────────
+
+    #[test]
+    fn add_numbers() {
+        let val = json!([1, 2, 3, 4, 5]);
+        let result = TransformOp::Add.apply(&val).unwrap();
+        assert_eq!(result, json!(15));
+    }
+
+    #[test]
+    fn add_floats() {
+        let val = json!([1.5, 2.3]);
+        let result = TransformOp::Add.apply(&val).unwrap();
+        // 1.5 + 2.3 = 3.8 — has fractional part, stays float
+        assert_eq!(result.as_f64().unwrap(), 3.8);
+    }
+
+    #[test]
+    fn add_strings() {
+        let val = json!(["hello", " ", "world"]);
+        let result = TransformOp::Add.apply(&val).unwrap();
+        assert_eq!(result, json!("hello world"));
+    }
+
+    #[test]
+    fn add_arrays() {
+        let val = json!([[1, 2], [3, 4]]);
+        let result = TransformOp::Add.apply(&val).unwrap();
+        assert_eq!(result, json!([1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn add_empty_array() {
+        let val = json!([]);
+        let result = TransformOp::Add.apply(&val).unwrap();
+        // Empty array with no type hint → sum = 0
+        assert_eq!(result, json!(0));
+    }
+
+    #[test]
+    fn add_with_nulls_skipped() {
+        let val = json!([1, null, 3]);
+        let result = TransformOp::Add.apply(&val).unwrap();
+        assert_eq!(result, json!(4));
+    }
+
+    #[test]
+    fn add_null_propagates() {
+        assert_eq!(TransformOp::Add.apply(&Value::Null).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn add_non_array_fails() {
+        assert!(TransformOp::Add.apply(&json!("not an array")).is_err());
+    }
+
+    #[test]
+    fn add_mixed_types_fails() {
+        assert!(TransformOp::Add.apply(&json!([1, "two"])).is_err());
+    }
+
+    // ── min ─────────────────────────────────────────────────
+
+    #[test]
+    fn min_basic() {
+        let val = json!([3, 1, 4, 1, 5]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, json!(1));
+    }
+
+    #[test]
+    fn min_floats() {
+        let val = json!([3.14, 2.71, 1.41]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, json!(1.41));
+    }
+
+    #[test]
+    fn min_single_element() {
+        let val = json!([42]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, json!(42));
+    }
+
+    #[test]
+    fn min_empty_array() {
+        let val = json!([]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn min_with_nulls() {
+        let val = json!([5, null, 2, null]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, json!(2));
+    }
+
+    #[test]
+    fn min_all_nulls() {
+        let val = json!([null, null]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn min_null_propagates() {
+        assert_eq!(TransformOp::Min.apply(&Value::Null).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn min_negative() {
+        let val = json!([-10, -5, -20]);
+        let result = TransformOp::Min.apply(&val).unwrap();
+        assert_eq!(result, json!(-20));
+    }
+
+    // ── max ─────────────────────────────────────────────────
+
+    #[test]
+    fn max_basic() {
+        let val = json!([3, 1, 4, 1, 5]);
+        let result = TransformOp::Max.apply(&val).unwrap();
+        assert_eq!(result, json!(5));
+    }
+
+    #[test]
+    fn max_floats() {
+        let val = json!([3.14, 2.71, 1.41]);
+        let result = TransformOp::Max.apply(&val).unwrap();
+        assert_eq!(result, json!(3.14));
+    }
+
+    #[test]
+    fn max_empty_array() {
+        let val = json!([]);
+        let result = TransformOp::Max.apply(&val).unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn max_with_nulls() {
+        let val = json!([null, 3, null, 7]);
+        let result = TransformOp::Max.apply(&val).unwrap();
+        assert_eq!(result, json!(7));
+    }
+
+    #[test]
+    fn max_null_propagates() {
+        assert_eq!(TransformOp::Max.apply(&Value::Null).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn max_non_array_fails() {
+        assert!(TransformOp::Max.apply(&json!(42)).is_err());
+    }
+
+    // ── not ─────────────────────────────────────────────────
+
+    #[test]
+    fn not_true() {
+        assert_eq!(
+            TransformOp::Not.apply(&json!(true)).unwrap(),
+            json!(false)
+        );
+    }
+
+    #[test]
+    fn not_false() {
+        assert_eq!(
+            TransformOp::Not.apply(&json!(false)).unwrap(),
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn not_null_propagates() {
+        assert_eq!(TransformOp::Not.apply(&Value::Null).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn not_non_bool_fails() {
+        assert!(TransformOp::Not.apply(&json!("true")).is_err());
+        assert!(TransformOp::Not.apply(&json!(1)).is_err());
+    }
+
+    // ── parsing and chaining ────────────────────────────────
+
+    #[test]
+    fn parse_add_min_max_not() {
+        assert_eq!(TransformExpr::parse("add").unwrap().ops[0], TransformOp::Add);
+        assert_eq!(TransformExpr::parse("min").unwrap().ops[0], TransformOp::Min);
+        assert_eq!(TransformExpr::parse("max").unwrap().ops[0], TransformOp::Max);
+        assert_eq!(TransformExpr::parse("not").unwrap().ops[0], TransformOp::Not);
+    }
+
+    #[test]
+    fn chain_add_round() {
+        let val = json!([1.1, 2.2, 3.3]);
+        let expr = TransformExpr::parse("add | round").unwrap();
+        let result = expr.apply(&val).unwrap();
+        assert_eq!(result, json!(7));
+    }
+
+    #[test]
+    fn chain_replace_upper() {
+        let val = json!("hello world");
+        let expr = TransformExpr::parse("replace('world', 'rust') | upper").unwrap();
+        let result = expr.apply(&val).unwrap();
+        assert_eq!(result, json!("HELLO RUST"));
+    }
+
+    #[test]
+    fn chain_pluck_add() {
+        let val = json!([{"score": 10}, {"score": 20}, {"score": 30}]);
+        let expr = TransformExpr::parse("pluck('score') | add").unwrap();
+        let result = expr.apply(&val).unwrap();
+        assert_eq!(result, json!(60));
+    }
+
+    #[test]
+    fn display_v069_transforms() {
+        assert_eq!(TransformOp::Add.to_string(), "add");
+        assert_eq!(TransformOp::Min.to_string(), "min");
+        assert_eq!(TransformOp::Max.to_string(), "max");
+        assert_eq!(TransformOp::Not.to_string(), "not");
+        assert_eq!(TransformOp::Truncate(10).to_string(), "truncate(10)");
+        assert_eq!(
+            TransformOp::Replace("a".into(), "b".into()).to_string(),
+            "replace('a', 'b')"
         );
     }
 }
