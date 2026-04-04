@@ -1280,14 +1280,44 @@ impl BuiltinTool for InjectTool {
                     reason: format!("Invalid params: {e}"),
                 })?;
 
-            let template = std::fs::read_to_string(&params.template).map_err(|e| {
+            // Security: validate paths against directory traversal
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let validate = |path: &str, label: &str| -> Result<std::path::PathBuf, NikaError> {
+                let resolved = cwd.join(path);
+                let canonical = resolved
+                    .canonicalize()
+                    .or_else(|_| {
+                        // Output file may not exist yet — canonicalize parent
+                        if let Some(parent) = resolved.parent() {
+                            std::fs::create_dir_all(parent).ok();
+                            parent.canonicalize().map(|p| p.join(resolved.file_name().unwrap_or_default()))
+                        } else {
+                            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "no parent"))
+                        }
+                    })
+                    .map_err(|e| NikaError::BuiltinToolError {
+                        tool: "nika:inject".into(),
+                        reason: format!("{label} path '{}' not found: {e}", path),
+                    })?;
+                if !canonical.starts_with(&cwd) {
+                    return Err(NikaError::BuiltinToolError {
+                        tool: "nika:inject".into(),
+                        reason: format!("{label} path '{}' is outside working directory", path),
+                    });
+                }
+                Ok(canonical)
+            };
+            let template_path = validate(&params.template, "Template")?;
+            let output_path = validate(&params.output, "Output")?;
+
+            let template = std::fs::read_to_string(&template_path).map_err(|e| {
                 NikaError::BuiltinToolError {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot read template '{}': {e}", params.template),
                 }
             })?;
 
-            let mut output = String::new();
+            let mut output = String::with_capacity(template.len() + params.content.len());
             let mut skipping = false;
 
             for line in template.lines() {
@@ -1308,10 +1338,7 @@ impl BuiltinTool for InjectTool {
                 }
             }
 
-            if let Some(parent) = std::path::Path::new(&params.output).parent() {
-                std::fs::create_dir_all(parent).ok();
-            }
-            std::fs::write(&params.output, &output).map_err(|e| NikaError::BuiltinToolError {
+            std::fs::write(&output_path, &output).map_err(|e| NikaError::BuiltinToolError {
                 tool: "nika:inject".into(),
                 reason: format!("Cannot write '{}': {e}", params.output),
             })?;
@@ -2043,5 +2070,60 @@ mod tests {
         let result = tool.call(data.to_string()).await.unwrap();
         let parsed: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed, json!([]));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // nika:inject tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn inject_traversal_blocked() {
+        let tool = InjectTool;
+        let data = json!({
+            "template": "/etc/passwd",
+            "output": "/tmp/pwned.txt",
+            "start_marker": "root",
+            "end_marker": "nobody",
+            "content": "INJECTED"
+        });
+        let result = tool.call(data.to_string()).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("outside working directory") || err.contains("not found"),
+            "expected path validation error, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn inject_basic_replacement() {
+        let dir = tempfile::tempdir().unwrap();
+        let template_path = dir.path().join("template.html");
+        let output_path = dir.path().join("output.html");
+        std::fs::write(
+            &template_path,
+            "HEADER\n// START\nold content\n// END\nFOOTER\n",
+        )
+        .unwrap();
+
+        let tool = InjectTool;
+        // Must run from the temp dir for path validation
+        let _guard = std::env::set_current_dir(dir.path());
+        let data = json!({
+            "template": template_path.to_str().unwrap(),
+            "output": output_path.to_str().unwrap(),
+            "start_marker": "// START",
+            "end_marker": "// END",
+            "content": "NEW CONTENT"
+        });
+        let result = tool.call(data.to_string()).await.unwrap();
+        let parsed: Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed["size"].as_u64().unwrap() > 0);
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        assert!(output.contains("HEADER"));
+        assert!(output.contains("NEW CONTENT"));
+        assert!(output.contains("FOOTER"));
+        assert!(!output.contains("old content"));
     }
 }
