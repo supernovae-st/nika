@@ -200,7 +200,7 @@ pub fn print_help(app: &clap::Command) {
     section("DEEP DIVE");
     topic("nika help verbs", "The 5 semantic verbs explained");
     topic("nika help providers", "All 9 providers with status");
-    topic("nika help templates", "Template syntax & 31 transforms");
+    topic("nika help templates", "Template syntax & 52 transforms");
     topic("nika help examples", "Common workflow patterns");
     sep();
 
@@ -485,7 +485,7 @@ fn topic_templates() {
     binding("{{context.readme}}", "File context");
     println!();
 
-    println!("  {} (29 available)", "PIPE TRANSFORMS".bold());
+    println!("  {} (52 available)", "PIPE TRANSFORMS".bold());
     transform(
         "String:",
         "upper, lower, trim, trim_start, trim_end, length, to_string",
@@ -498,8 +498,22 @@ fn topic_templates() {
     transform("Type:", "to_bool, to_json, parse_json, type_of");
     transform(
         "Param:",
-        "join(\", \"), split(\",\"), default(\"fallback\")",
+        "join(sep), split(sep), default(val), slice(start, end)",
     );
+    transform(
+        "Query:",
+        "pluck(f), where(f, v), pick(f1, f2), omit(f1, f2), sort_by(f), group_by(f), merge, regex(pat)",
+    );
+    transform("String test:", "starts_with(s), ends_with(s), contains(s)");
+    transform(
+        "URL:",
+        "url_host, url_path, url_without_query, url_normalize",
+    );
+    transform(
+        "Encoding:",
+        "base64_encode, base64_decode, content_hash, unique_urls",
+    );
+    transform("JQ:", "jq(expr) — full jq stdlib via jaq-core");
     transform("System:", "shell (escape for safe interpolation)");
     println!();
     println!(
