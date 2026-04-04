@@ -5,11 +5,17 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::LazyLock;
 
 use super::context::MediaToolContext;
 use super::error::MediaToolError;
 use super::error::{invalid_args, tool_error};
 use super::{MediaOp, MediaOpResult};
+
+/// Limit concurrent PDF extractions to prevent unbounded OS thread spawning.
+/// Each extraction spawns a dedicated 4MB-stack thread, so 4 concurrent = 16MB stack.
+static PDF_SEMAPHORE: LazyLock<tokio::sync::Semaphore> =
+    LazyLock::new(|| tokio::sync::Semaphore::new(4));
 
 pub struct PdfExtractOp;
 
@@ -46,6 +52,12 @@ impl MediaOp for PdfExtractOp {
                 .ok_or_else(|| invalid_args("pdf_extract", "missing 'hash'"))?;
 
             let data = ctx.read_media(hash).await?;
+
+            // Acquire semaphore to limit concurrent PDF thread spawns (max 4)
+            let _permit = PDF_SEMAPHORE
+                .acquire()
+                .await
+                .map_err(|_| tool_error("pdf_extract", "semaphore closed"))?;
 
             // SECURITY: Run PDF extraction in a dedicated thread with limited stack
             // to contain potential stack overflows from recursive PDF structures.
