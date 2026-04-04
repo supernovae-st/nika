@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/supernovae-st/nika"
   },
+  "deprecated": "Use @supernovae-st/nika-client instead — pure TypeScript, zero deps, Workers/Deno/Bun compatible",
   "keywords": [
     "nika",
     "workflow",
