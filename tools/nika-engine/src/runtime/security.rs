@@ -2341,6 +2341,59 @@ mod tests {
         assert!(err.to_string().contains("NIKA-053"));
     }
 
+    // =========================================================================
+    // Edge case: contains_unquoted with nested/escaped quotes
+    // =========================================================================
+
+    #[test]
+    fn contains_unquoted_nested_quotes() {
+        // Pattern inside single quotes within double quotes — still quoted
+        assert!(!contains_unquoted(r#""it's a 'test $()'"#, "$("));
+        // Pattern after all quotes close — unquoted
+        assert!(contains_unquoted("'safe' $(dangerous)", "$("));
+        // Escaped double quote inside double quotes
+        assert!(!contains_unquoted(r#""escaped \" still $(inside)""#, "$("));
+    }
+
+    #[test]
+    fn contains_unquoted_empty_inputs() {
+        assert!(!contains_unquoted("", "anything"));
+        assert!(!contains_unquoted("anything", ""));
+        assert!(!contains_unquoted("", ""));
+    }
+
+    // =========================================================================
+    // Edge case: basename normalization with tricky paths
+    // =========================================================================
+
+    #[test]
+    fn basename_resolves_deeply_nested_paths() {
+        // /usr/local/sbin/sudo → sudo (blocked)
+        assert!(check_blocklist("/usr/local/sbin/sudo rm -rf /tmp").is_err());
+        // Backslash path (Windows-style)
+        assert!(check_blocklist("C:\\Windows\\System32\\cmd /c del").is_err());
+    }
+
+    #[test]
+    fn basename_does_not_affect_args() {
+        // Only first token gets basename-resolved, args stay intact
+        // /usr/bin/echo should resolve to "echo" (not blocked)
+        assert!(check_blocklist("/usr/bin/echo hello world").is_ok());
+    }
+
+    #[test]
+    fn dequoting_catches_blocklist_inside_quotes() {
+        // SEC-3 dequoting means blocklist patterns inside quotes ARE caught.
+        // This is an accepted trade-off: `echo 'sudo rm'` is blocked because
+        // dequoting produces `echo sudo rm` which matches `sudo `.
+        // Users should restructure or use variables.
+        assert!(check_blocklist("/usr/bin/echo 'sudo rm' text").is_err());
+    }
+
+    // =========================================================================
+    // Blocklist: additional bash builtins
+    // =========================================================================
+
     #[test]
     fn blocklist_rejects_source_builtin() {
         // `source` executes a script in the current shell context
