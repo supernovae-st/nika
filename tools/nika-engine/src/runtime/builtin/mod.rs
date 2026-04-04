@@ -31,7 +31,7 @@ mod aggregate;
 mod assert;
 mod complete;
 mod cost;
-mod data_tools;
+mod data;
 mod emit;
 mod fetch_tool;
 mod file_adapter;
@@ -60,7 +60,7 @@ pub use complete::{
     CompleteTool, COMPLETION_MARKER,
 };
 pub use cost::CostTool;
-pub use data_tools::{
+pub use data::{
     ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonMergeTool,
     JsonQueryTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
 };
