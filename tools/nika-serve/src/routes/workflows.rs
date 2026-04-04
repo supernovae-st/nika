@@ -202,7 +202,7 @@ pub async fn get_status(
 pub async fn cancel_job(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<CancelResponse>, ServeError> {
+) -> Result<Json<StatusResponse>, ServeError> {
     // Verify job exists
     let job = state
         .storage
@@ -215,10 +215,16 @@ pub async fn cancel_job(
         job.state,
         nika_storage::JobState::Pending | nika_storage::JobState::Running
     ) {
-        return Ok(Json(CancelResponse {
-            job_id: id,
+        // Return current state — job already finished
+        return Ok(Json(StatusResponse {
+            job_id: job.id,
             status: job.state.as_str().to_string(),
-            message: Some("job already finished".into()),
+            workflow: job.workflow,
+            created_at: job.created_at,
+            started_at: job.started_at,
+            completed_at: job.completed_at,
+            exit_code: job.exit_code,
+            output: job.output,
         }));
     }
 
@@ -258,26 +264,28 @@ pub async fn cancel_job(
         .await;
     state.event_bus.remove(&id).await;
 
-    Ok(Json(CancelResponse {
-        job_id: id,
-        status: "cancelled".into(),
-        message: None,
+    // Re-read job state to return complete StatusResponse
+    let job = state
+        .storage
+        .get_job(&id)
+        .await?
+        .ok_or(ServeError::NotFound)?;
+
+    Ok(Json(StatusResponse {
+        job_id: job.id,
+        status: job.state.as_str().to_string(),
+        workflow: job.workflow,
+        created_at: job.created_at,
+        started_at: job.started_at,
+        completed_at: job.completed_at,
+        exit_code: job.exit_code,
+        output: job.output,
     }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIST WORKFLOWS
 // ═══════════════════════════════════════════════════════════════════════════
-
-#[derive(Serialize, JsonSchema)]
-pub struct CancelResponse {
-    pub job_id: String,
-    /// Job status after cancellation: `"cancelled"` or the current terminal state.
-    pub status: String,
-    /// Present when the job was already finished before cancel was called.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
-}
 
 #[derive(Serialize, JsonSchema)]
 pub struct WorkflowInfo {
