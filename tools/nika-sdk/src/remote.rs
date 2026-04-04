@@ -140,7 +140,7 @@ impl Transport for RemoteTransport {
         let event_stream = async_stream::stream! {
             let mut buffer = String::new();
             let mut byte_stream = std::pin::pin!(byte_stream);
-            const MAX_BUFFER: usize = 1024 * 1024; // 1 MiB
+            const MAX_BUFFER: usize = 2 * 1024 * 1024; // 2 MiB — aligned with serve max_output_bytes
 
             while let Some(chunk_result) = byte_stream.next().await {
                 let chunk = match chunk_result {
