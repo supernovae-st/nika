@@ -13,6 +13,7 @@ pub mod chart;
 pub mod color;
 #[cfg(feature = "media-phash")]
 pub mod compare;
+pub mod decode;
 #[cfg(feature = "media-thumbnail")]
 pub mod convert;
 #[cfg(feature = "fetch-html")]
@@ -102,6 +103,7 @@ pub fn create_all_media_ops() -> Vec<Box<dyn MediaOp>> {
 
     // Tier 1 — Always on
     ops.push(Box::new(import::ImportOp));
+    ops.push(Box::new(decode::DecodeOp));
     ops.push(Box::new(dimensions::DimensionsOp));
     ops.push(Box::new(thumbhash_tool::ThumbhashOp));
     ops.push(Box::new(color::DominantColorOp));
