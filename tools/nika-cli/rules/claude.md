@@ -147,7 +147,7 @@ Use `content:` array instead of `prompt:` for images:
 ```
 
 **Vision rules:**
-- `source:` must be a CAS hash from `nika:import` or `fetch: … response: binary` — NEVER a file path
+- `source:` must be a CAS hash from `nika:import`, `nika:decode`, or `fetch: … response: binary` — NEVER a file path
 - Supported providers: anthropic, openai, mistral, groq, gemini, xai
 - `provider: native` with GGUF = **text only**; use cloud provider for vision
 - `provider: deepseek` = VisionNotSupported error
@@ -246,7 +246,7 @@ Use `content:` array instead of `prompt:` for images:
 ```
 
 **Tool naming rules:**
-- `nika:tool_name` — 61 builtin tools (always available, no server needed)
+- `nika:tool_name` — 62 builtin tools (always available, no server needed)
 - `server::tool_name` — MCP server tools (double colon `::`, server must be running)
 - `mcp: server` + `tool: name` — split form (equivalent to `server::name`)
 - Short form for builtins: `invoke: "nika:thumbnail"`
@@ -378,14 +378,14 @@ Binary artifact (media pipeline):
     format: binary                     # Store raw CAS bytes directly
 ```
 
-## 61 Builtin Tools (nika:*)
+## 62 Builtin Tools (nika:*)
 
 **Core (7)**: `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`, `nika:complete`
 **File (5)**: `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
 **Introspection (6)**: `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`, `nika:cost`, `nika:records`
 **Data (13)**: `nika:json_merge`, `nika:set_diff`, `nika:zip`, `nika:map`, `nika:filter`, `nika:group_by`, `nika:chunk`, `nika:token_count`, `nika:enrich`, `nika:jq`, `nika:tree_data`, `nika:inject`, `nika:json_query`†
 **Data Sprint 2 (6)**: `nika:json_verify`, `nika:yaml_validate`, `nika:locale_lookup`, `nika:aggregate`, `nika:json_flatten`, `nika:json_unflatten`
-**Media always-on (4)**: `nika:import`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`
+**Media always-on (5)**: `nika:import`, `nika:decode`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`
 **Media core (3)**: `nika:thumbnail`, `nika:convert`, `nika:strip`
 **Media opt-in (17)**: `nika:metadata`, `nika:optimize`, `nika:svg_render`, `nika:chart`, `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`, `nika:pipeline`
 
@@ -422,6 +422,46 @@ tasks:
     infer: "Synthesize these articles into a report: {{with.articles | join('\n---\n')}}"
 ```
 
+### Base64 API → CAS → Media Pipeline
+
+For APIs returning inline base64 images (Gemini, Replicate, fal.ai, Stability AI):
+
+```yaml
+tasks:
+  - id: generate
+    fetch:
+      url: "https://api.example.com/generate"
+      method: POST
+      headers:
+        Authorization: "Bearer $env.API_KEY"
+      json:
+        prompt: "A sunset over mountains"
+      extract: jsonpath
+      selector: "$.image_b64"
+
+  - id: decode
+    with:
+      b64: $generate
+    invoke:
+      tool: nika:decode
+      params:
+        data: "{{with.b64}}"
+        mime_type: "image/png"
+
+  - id: thumbnail
+    with:
+      img: $decode
+    invoke:
+      tool: nika:thumbnail
+      params:
+        hash: "{{with.img.hash}}"
+        width: 256
+        format: webp
+    artifact:
+      path: preview.webp
+      format: binary
+```
+
 ### Testing Without API Calls
 
 ```yaml
@@ -453,7 +493,8 @@ Run: `nika run workflow.nika.yaml --provider mock` or `nika run workflow.nika.ya
 | `tool: "server/tool"` (slash) | `tool: "server::tool"` (double colon) |
 | `output: { format: json }` | `structured: { schema: ... }` for validated JSON |
 | `{{with.results.field}}` after for_each | `{{with.results[0].field}}` (for_each = array) |
-| Passing file path to vision `source:` | Pass CAS hash from `nika:import` output |
+| Passing file path to vision `source:` | Pass CAS hash from `nika:import` or `nika:decode` output |
+| `\| base64_decode` on API response | Use `nika:decode` — transforms produce strings, not CAS blobs |
 | `provider: native` for vision | GGUF is text-only — use cloud provider |
 | `provider: deepseek` for vision | DeepSeek doesn't support vision |
 | `retry:` inside `invoke:` block | `retry:` is task-level — place it alongside `invoke:`, not inside |
