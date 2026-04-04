@@ -1315,6 +1315,23 @@ fn parse_optional_serde_field<T: serde::de::DeserializeOwned>(
 /// let workflow = raw::parse(&content, file_id)?;
 /// ```
 pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
+    // SECURITY: Enforce budget before parsing to prevent YAML bombs (DoS).
+    // default_budget().max_reader_input_bytes = 2 MiB.
+    let budget = crate::ast::budget::default_budget();
+    if let Some(max_bytes) = budget.max_reader_input_bytes {
+        if source.len() > max_bytes {
+            return Err(ParseError {
+                kind: ParseErrorKind::Syntax,
+                span: Span::new(file_id, 0, 1),
+                message: format!(
+                    "workflow file exceeds size limit ({} bytes > {} byte budget)",
+                    source.len(),
+                    max_bytes
+                ),
+            });
+        }
+    }
+
     // Parse YAML with marked_yaml
     // The first argument is a source ID (we use file_id.0)
     let node = parse_yaml(file_id.0 as usize, source).map_err(|e| {
@@ -1904,8 +1921,8 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     // `provider: anthropic` → single provider
     // `provider: [groq, anthropic]` → first is primary, full list becomes routing.fallback
     let (provider, provider_chain) = match map.get_node("provider") {
-        Some(Node::Scalar(_)) => {
-            let p = extract_string(file_id, map.get_node("provider").unwrap())?;
+        Some(node @ Node::Scalar(_)) => {
+            let p = extract_string(file_id, node)?;
             (Some(p), None)
         }
         Some(Node::Sequence(seq)) => {
@@ -1926,8 +1943,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
             let chain: Vec<String> = items.into_iter().map(|s| s.into_inner()).collect();
             (Some(primary), Some(chain))
         }
-        Some(_) => {
-            let node = map.get_node("provider").unwrap();
+        Some(node) => {
             return Err(ParseError {
                 kind: ParseErrorKind::InvalidType,
                 span: node_to_span(file_id, node),
@@ -1944,8 +1960,8 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     // This is ergonomic sugar: `agent: think` ≡ `preset: think`.
     // If both `agent: think` and `preset: other` are set, `agent:` wins.
     let preset = match map.get_node("agent") {
-        Some(Node::Scalar(_)) => {
-            let agent_str = extract_string(file_id, map.get_node("agent").unwrap())?;
+        Some(node @ Node::Scalar(_)) => {
+            let agent_str = extract_string(file_id, node)?;
             Some(agent_str)
         }
         _ => preset,
@@ -3893,5 +3909,26 @@ tasks:
             "Error should suggest include: as alternative: {}",
             err.message,
         );
+    }
+
+    #[test]
+    fn test_parse_rejects_oversized_input() {
+        let file_id = FileId(0);
+        // Budget max_reader_input_bytes = 2 MiB
+        let oversized = "a".repeat(3 * 1024 * 1024); // 3 MiB
+        let err = parse(&oversized, file_id).unwrap_err();
+        assert!(
+            err.message.contains("exceeds size limit"),
+            "Expected size limit error, got: {}",
+            err.message,
+        );
+    }
+
+    #[test]
+    fn test_parse_accepts_normal_sized_input() {
+        let file_id = FileId(0);
+        // Should not trigger size limit (valid YAML, under 2 MiB)
+        let result = parse(SIMPLE_WORKFLOW, file_id);
+        assert!(result.is_ok());
     }
 }
