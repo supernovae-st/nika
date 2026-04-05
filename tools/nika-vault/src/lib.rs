@@ -751,6 +751,9 @@ fn get_machine_id() -> Result<String, VaultError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // SAFETY: expose_secret() is used throughout this test module to verify vault
+    // roundtrip behavior (set → get → compare). All secret values are test fixtures
+    // ("sk-ant-test", "sk_live_123", etc.) — never real credentials.
     use secrecy::ExposeSecret;
     use serial_test::serial;
     use tempfile::TempDir;

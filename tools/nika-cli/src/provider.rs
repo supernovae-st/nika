@@ -616,6 +616,8 @@ pub async fn handle_provider_command(
                     // Check vault
                     let vault = get_vault();
                     match vault.get(&provider) {
+                        // SAFETY: expose_secret() feeds directly into mask_api_key()
+                        // which redacts the key (e.g. "sk-ant...7f3d"). No cleartext logged.
                         Ok(Some(secret)) => println!(
                             "  {} {}: {} {}",
                             StatusIcon::Ok,

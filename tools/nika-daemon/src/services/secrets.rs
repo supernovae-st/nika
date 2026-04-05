@@ -223,12 +223,15 @@ mod tests {
 
     // ── set_secret / delete_secret tests ─────────────────────────────
 
+    // Test-only fake API key — not a real secret, never leaves the test vault.
+    const TEST_FAKE_API_KEY: &str = "sk-test-fixture-not-real";
+
     #[tokio::test]
     #[serial]
     async fn set_secret_via_vault() {
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-daemon");
         let (_dir, svc) = make_test_service();
-        let result = svc.set_secret("anthropic", "sk-test").await;
+        let result = svc.set_secret("anthropic", TEST_FAKE_API_KEY).await;
         assert!(
             result.is_ok(),
             "set_secret should succeed via vault, got: {result:?}"
@@ -238,7 +241,7 @@ mod tests {
         let orig = std::env::var("ANTHROPIC_API_KEY").ok();
         unsafe { std::env::remove_var("ANTHROPIC_API_KEY") };
         let secret = svc.get_secret("anthropic").await;
-        assert_eq!(secret, Some("sk-test".to_string()));
+        assert_eq!(secret, Some(TEST_FAKE_API_KEY.to_string()));
         if let Some(v) = orig {
             std::env::set_var("ANTHROPIC_API_KEY", v);
         }
@@ -249,7 +252,7 @@ mod tests {
     async fn delete_secret_via_vault() {
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-daemon");
         let (_dir, svc) = make_test_service();
-        svc.set_secret("anthropic", "sk-test").await.unwrap();
+        svc.set_secret("anthropic", TEST_FAKE_API_KEY).await.unwrap();
         let result = svc.delete_secret("anthropic").await;
         assert!(
             result.is_ok(),

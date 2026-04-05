@@ -3,6 +3,9 @@
 use super::*;
 use serial_test::serial;
 
+// Test-only fake API key — not a real secret, used only to satisfy provider init checks.
+const TEST_FAKE_API_KEY: &str = "test-key-for-unit-test";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // StreamingState tests
 // ═══════════════════════════════════════════════════════════════════════════
@@ -148,7 +151,7 @@ async fn test_chat_agent_creation() {
 #[serial]
 fn test_chat_agent_initial_state() {
     // Set a dummy key for the test (ensures at least one provider is available)
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
 
@@ -179,7 +182,7 @@ fn test_chat_agent_with_claude_fallback() {
     // This test verifies Claude fallback logic.
     // Due to parallel test execution, we can't reliably remove OPENAI_API_KEY.
     // Instead, test that agent creation always succeeds.
-    std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("ANTHROPIC_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     // Provider will be openai if OPENAI_API_KEY is set (by parallel test),
@@ -194,7 +197,7 @@ fn test_chat_agent_with_claude_fallback() {
 #[test]
 #[serial]
 fn test_set_provider_openai() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     let result = agent.set_provider(ModelProvider::OpenAI);
@@ -206,8 +209,8 @@ fn test_set_provider_openai() {
 #[test]
 #[serial]
 fn test_set_provider_claude() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
-    std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
+    std::env::set_var("ANTHROPIC_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
 
@@ -225,7 +228,7 @@ fn test_set_provider_claude() {
 fn test_set_provider_missing_key() {
     temp_env::with_vars(
         [
-            ("OPENAI_API_KEY", Some("test-key-for-unit-test")),
+            ("OPENAI_API_KEY", Some(TEST_FAKE_API_KEY)),
             ("ANTHROPIC_API_KEY", None::<&str>),
         ],
         || {
@@ -248,7 +251,7 @@ fn test_set_provider_missing_key() {
 #[test]
 #[serial]
 fn test_set_provider_list_does_not_change() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     let original = agent.provider_name().to_string();
@@ -266,8 +269,8 @@ fn test_set_provider_list_does_not_change() {
 #[test]
 #[serial]
 fn test_set_provider_mistral() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
-    std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
+    std::env::set_var("MISTRAL_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     let result = agent.set_provider(ModelProvider::Mistral);
@@ -281,8 +284,8 @@ fn test_set_provider_mistral() {
 #[test]
 #[serial]
 fn test_set_provider_groq() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
-    std::env::set_var("GROQ_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
+    std::env::set_var("GROQ_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     let result = agent.set_provider(ModelProvider::Groq);
@@ -296,8 +299,8 @@ fn test_set_provider_groq() {
 #[test]
 #[serial]
 fn test_set_provider_deepseek() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
-    std::env::set_var("DEEPSEEK_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
+    std::env::set_var("DEEPSEEK_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     let result = agent.set_provider(ModelProvider::DeepSeek);
@@ -311,7 +314,7 @@ fn test_set_provider_deepseek() {
 #[test]
 #[serial]
 fn test_with_overrides_mistral() {
-    std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("MISTRAL_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::with_overrides(Some("mistral"), None);
     if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
@@ -323,7 +326,7 @@ fn test_with_overrides_mistral() {
 #[test]
 #[serial]
 fn test_with_overrides_invalid_provider() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::with_overrides(Some("invalid_provider"), None);
     assert!(agent.is_err());
@@ -339,7 +342,7 @@ fn test_with_overrides_invalid_provider() {
 #[test]
 #[serial]
 fn test_history_starts_empty() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     assert!(agent.history().is_empty());
@@ -348,7 +351,7 @@ fn test_history_starts_empty() {
 #[test]
 #[serial]
 fn test_clear_history() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
 
@@ -366,7 +369,7 @@ fn test_clear_history() {
 #[test]
 #[serial]
 fn test_with_history() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let history = vec![
         ChatMessage::user("Hello"),
@@ -386,7 +389,7 @@ fn test_with_history() {
 #[test]
 #[serial]
 fn test_take_history() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     agent.history.push(ChatMessage::user("Hello"));
@@ -403,7 +406,7 @@ fn test_take_history() {
 #[test]
 #[serial]
 fn test_set_history() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let mut agent = ChatAgent::new().expect("Should create agent");
     agent.history.push(ChatMessage::user("Old message"));
@@ -427,7 +430,7 @@ fn test_set_history() {
 #[tokio::test]
 #[serial]
 async fn test_exec_command_echo() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo hello").await;
@@ -439,7 +442,7 @@ async fn test_exec_command_echo() {
 #[tokio::test]
 #[serial]
 async fn test_exec_command_with_args() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("echo -n 'test output'").await;
@@ -451,7 +454,7 @@ async fn test_exec_command_with_args() {
 #[tokio::test]
 #[serial]
 async fn test_exec_command_failure() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent.exec_command("exit 1").await;
@@ -465,7 +468,7 @@ async fn test_exec_command_failure() {
 #[tokio::test]
 #[serial]
 async fn test_exec_command_pipe() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent
@@ -483,7 +486,7 @@ async fn test_exec_command_pipe() {
 #[test]
 #[serial]
 fn test_streaming_state_access() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
 
@@ -498,7 +501,7 @@ fn test_streaming_state_access() {
 #[tokio::test]
 #[serial]
 async fn test_with_streaming_channel() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let (tx, _rx) = mpsc::channel::<String>(10);
     let agent = ChatAgent::new()
@@ -516,7 +519,7 @@ async fn test_with_streaming_channel() {
 #[tokio::test]
 #[serial]
 async fn test_invoke_unknown_server() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent
@@ -540,7 +543,7 @@ async fn test_invoke_unknown_server() {
 #[tokio::test]
 #[serial]
 async fn test_invoke_no_servers_configured() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     // Note: This test assumes no MCP servers are globally configured.
     // In real scenarios, global config may have servers, so we test
@@ -591,7 +594,7 @@ fn test_invoke_params_round_trip_through_json_string() {
 #[tokio::test]
 #[serial]
 async fn test_run_agent_no_servers_configured() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     let agent = ChatAgent::new().expect("Should create agent");
     let result = agent
@@ -616,7 +619,7 @@ async fn test_run_agent_no_servers_configured() {
 #[tokio::test]
 #[serial]
 async fn test_run_agent_empty_goal_validation() {
-    std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+    std::env::set_var("OPENAI_API_KEY", TEST_FAKE_API_KEY);
 
     // Note: Empty goal should be caught by RigAgentLoop validation
     // Since we don't have real MCP servers, we test with non-existent server

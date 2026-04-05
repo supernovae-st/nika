@@ -277,6 +277,8 @@ pub async fn handle_vault_command(action: VaultAction, _quiet: bool) -> Result<(
                             if reveal {
                                 if let Ok(Some(secret)) = vault.get(key) {
                                     use secrecy::ExposeSecret;
+                                    // SAFETY: user explicitly requested --reveal flag to export
+                                    // cleartext secrets for shell eval. This is intentional.
                                     println!("{}={}", env_name, secret.expose_secret());
                                 }
                             } else {
