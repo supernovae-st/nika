@@ -1363,6 +1363,49 @@ fn test_from_name_with_endpoints_unknown() {
 }
 
 // =========================================================================
+// Security: fail fast on missing API key for OpenAI-compat providers
+// =========================================================================
+
+#[test]
+#[serial]
+fn test_openai_compat_missing_key_fails_fast() {
+    // Ensure no key is set for any of the OpenAI-compat providers
+    let providers = [
+        "openrouter",
+        "together",
+        "fireworks",
+        "cerebras",
+        "sambanova",
+        "cohere",
+        "ai21",
+    ];
+
+    for name in &providers {
+        // Remove env var to ensure key is missing
+        let env_var = format!("{}_API_KEY", name.to_uppercase());
+        std::env::remove_var(&env_var);
+        crate::secrets::store::clear();
+
+        let result = RigProvider::from_name(name);
+        assert!(
+            result.is_err(),
+            "Provider '{}' should fail when API key is missing, but got Ok",
+            name
+        );
+        let err = result.unwrap_err();
+        let err_str = err.to_string();
+        assert!(
+            err_str.contains("API key")
+                || err_str.contains("api key")
+                || err_str.contains("NIKA-035"),
+            "Error for '{}' should mention API key, got: {}",
+            name,
+            err_str
+        );
+    }
+}
+
+// =========================================================================
 // Security: Debug impl redacts raw_api_key
 // =========================================================================
 

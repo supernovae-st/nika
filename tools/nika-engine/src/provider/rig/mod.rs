@@ -230,7 +230,11 @@ impl RigProvider {
             // OpenAI-compatible providers — zero rig-core code, config-driven
             "openrouter" => {
                 let key =
-                    crate::secrets::store::resolve_env("OPENROUTER_API_KEY").unwrap_or_default();
+                    crate::secrets::store::resolve_env("OPENROUTER_API_KEY").ok_or_else(|| {
+                        ProviderError::MissingApiKey {
+                            provider: "openrouter".into(),
+                        }
+                    })?;
                 Self::openai_compat(
                     "openrouter",
                     "https://openrouter.ai/api/v1",
@@ -241,12 +245,20 @@ impl RigProvider {
             }
             "together" => {
                 let key =
-                    crate::secrets::store::resolve_env("TOGETHER_API_KEY").unwrap_or_default();
+                    crate::secrets::store::resolve_env("TOGETHER_API_KEY").ok_or_else(|| {
+                        ProviderError::MissingApiKey {
+                            provider: "together".into(),
+                        }
+                    })?;
                 Self::openai_compat("together", "https://api.together.xyz/v1", &key, None, 300)
             }
             "fireworks" => {
                 let key =
-                    crate::secrets::store::resolve_env("FIREWORKS_API_KEY").unwrap_or_default();
+                    crate::secrets::store::resolve_env("FIREWORKS_API_KEY").ok_or_else(|| {
+                        ProviderError::MissingApiKey {
+                            provider: "fireworks".into(),
+                        }
+                    })?;
                 Self::openai_compat(
                     "fireworks",
                     "https://api.fireworks.ai/inference/v1",
@@ -257,16 +269,29 @@ impl RigProvider {
             }
             "cerebras" => {
                 let key =
-                    crate::secrets::store::resolve_env("CEREBRAS_API_KEY").unwrap_or_default();
+                    crate::secrets::store::resolve_env("CEREBRAS_API_KEY").ok_or_else(|| {
+                        ProviderError::MissingApiKey {
+                            provider: "cerebras".into(),
+                        }
+                    })?;
                 Self::openai_compat("cerebras", "https://api.cerebras.ai/v1", &key, None, 300)
             }
             "sambanova" => {
                 let key =
-                    crate::secrets::store::resolve_env("SAMBANOVA_API_KEY").unwrap_or_default();
+                    crate::secrets::store::resolve_env("SAMBANOVA_API_KEY").ok_or_else(|| {
+                        ProviderError::MissingApiKey {
+                            provider: "sambanova".into(),
+                        }
+                    })?;
                 Self::openai_compat("sambanova", "https://api.sambanova.ai/v1", &key, None, 300)
             }
             "cohere" => {
-                let key = crate::secrets::store::resolve_env("COHERE_API_KEY").unwrap_or_default();
+                let key =
+                    crate::secrets::store::resolve_env("COHERE_API_KEY").ok_or_else(|| {
+                        ProviderError::MissingApiKey {
+                            provider: "cohere".into(),
+                        }
+                    })?;
                 Self::openai_compat(
                     "cohere",
                     "https://api.cohere.com/compatibility/v1",
@@ -276,7 +301,11 @@ impl RigProvider {
                 )
             }
             "ai21" => {
-                let key = crate::secrets::store::resolve_env("AI21_API_KEY").unwrap_or_default();
+                let key = crate::secrets::store::resolve_env("AI21_API_KEY").ok_or_else(|| {
+                    ProviderError::MissingApiKey {
+                        provider: "ai21".into(),
+                    }
+                })?;
                 Self::openai_compat("ai21", "https://api.ai21.com/studio/v1", &key, None, 300)
             }
             _ => Err(ProviderError::NotConfigured {
