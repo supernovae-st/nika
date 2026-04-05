@@ -92,16 +92,9 @@ fn top_models_for_provider(provider: &str) -> &'static str {
     }
 }
 
-/// Get vault instance for secret operations.
-pub fn get_vault() -> nika_vault::NikaVault {
-    #[cfg(unix)]
-    let nika_home = nika_daemon::daemon_dir()
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
-    #[cfg(not(unix))]
-    let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
-    nika_vault::NikaVault::new(&nika_home.join("secrets"))
+/// Get vault instance — delegates to the canonical keys::get_vault().
+fn get_vault() -> nika_vault::NikaVault {
+    crate::keys::get_vault()
 }
 
 /// Check if a provider has a key in env or vault.

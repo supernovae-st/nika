@@ -429,14 +429,18 @@ fn top_models(provider_id: &str) -> Vec<String> {
 ///
 /// e.g. "sk-ant-api03-abcdefgh12345678xyz" -> "sk-ant-••••8xyz"
 pub fn mask_key_pretty(key: &str) -> String {
-    if key.len() <= 8 {
+    if key.is_empty() {
         return "••••".to_string();
     }
-    let last4 = &key[key.len().saturating_sub(4)..];
-    // Find a prefix boundary (up to 8 chars before the dots)
-    let prefix_len = key.len().min(6);
-    let prefix = &key[..prefix_len];
-    format!("{prefix}-\u{2022}\u{2022}\u{2022}\u{2022}{last4}")
+    // Use char boundaries to avoid panics on multi-byte UTF-8
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() <= 8 {
+        return "••••".to_string();
+    }
+    let suffix: String = chars[chars.len() - 4..].iter().collect();
+    let prefix_len = chars.len().min(6);
+    let prefix: String = chars[..prefix_len].iter().collect();
+    format!("{prefix}-\u{2022}\u{2022}\u{2022}\u{2022}{suffix}")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -896,13 +900,17 @@ pub fn build_json_output(keys: &[ResolvedKey]) -> KeysJsonOutput {
 // PUBLIC ENTRY POINT
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Get a vault instance (same pattern as provider.rs).
-pub fn get_vault() -> nika_vault::NikaVault {
+/// Canonical vault instance for the CLI. Used by keys, provider, and onboarding.
+pub(crate) fn get_vault() -> nika_vault::NikaVault {
     #[cfg(unix)]
     let nika_home = nika_daemon::daemon_dir()
         .parent()
         .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".nika"));
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+                .join(".nika")
+        });
     #[cfg(not(unix))]
     let nika_home = dirs::home_dir().unwrap_or_default().join(".nika");
     nika_vault::NikaVault::new(&nika_home.join("secrets"))
@@ -1008,7 +1016,7 @@ async fn set_known_provider(
     provider: &Provider,
     stdin: bool,
     no_test: bool,
-    _quiet: bool,
+    quiet: bool,
 ) -> Result<(), NikaError> {
     let is_tty = io::stdin().is_terminal();
 
@@ -1018,8 +1026,10 @@ async fn set_known_provider(
         io::stdin().read_to_string(&mut buf).map_err(io_err)?;
         buf.trim().to_string()
     } else {
-        // Interactive cliclack flow
-        cliclack::intro(format!("nika keys set \u{2014} {}", provider.name)).map_err(io_err)?;
+        // Interactive cliclack flow (skip intro when called from nika setup)
+        if !quiet {
+            cliclack::intro(format!("nika keys set \u{2014} {}", provider.name)).map_err(io_err)?;
+        }
 
         // UX #9: detect existing env var — offer to save to vault
         let from_env = std::env::var(provider.env_var)
@@ -1105,7 +1115,7 @@ async fn set_known_provider(
     })?;
 
     // Also inject into current process env
-    unsafe { std::env::set_var(provider.env_var, &key_value) };
+    nika_engine::secrets::store::set_secret(provider.env_var, &key_value);
 
     if is_tty && !stdin {
         eprintln!(
@@ -1148,7 +1158,7 @@ async fn set_known_provider(
         }
     }
 
-    if is_tty && !stdin {
+    if is_tty && !stdin && !quiet {
         cliclack::outro(format!(
             "{} {} configured",
             "\u{2713}".green().bold(),
@@ -1196,7 +1206,7 @@ async fn set_custom_key(
     })?;
 
     // Also inject into env so workflows can use $env.NAME
-    unsafe { std::env::set_var(name, &key_value) };
+    nika_engine::secrets::store::set_secret(name, &key_value);
 
     if is_tty && !stdin {
         eprintln!(
@@ -1237,10 +1247,10 @@ async fn handle_keys_remove(name: Option<String>, _quiet: bool) -> Result<(), Ni
     let deleted_custom = vault.delete(&format!("custom:{name}")).unwrap_or(false);
 
     if deleted_provider || deleted_custom {
-        // Clear from env
-        unsafe { std::env::remove_var(&name) };
+        // Clear from in-process store
+        nika_engine::secrets::store::remove_secret(&name);
         if let Some(provider) = find_provider(&name) {
-            unsafe { std::env::remove_var(provider.env_var) };
+            nika_engine::secrets::store::remove_secret(provider.env_var);
         }
 
         eprintln!(
@@ -2037,6 +2047,35 @@ mod tests {
     fn mask_key_pretty_short() {
         let masked = mask_key_pretty("short");
         assert_eq!(masked, "\u{2022}\u{2022}\u{2022}\u{2022}");
+    }
+
+    #[test]
+    fn mask_key_pretty_empty() {
+        assert_eq!(mask_key_pretty(""), "\u{2022}\u{2022}\u{2022}\u{2022}");
+    }
+
+    #[test]
+    fn mask_key_pretty_boundary_8() {
+        // Exactly 8 chars = short
+        assert_eq!(
+            mask_key_pretty("12345678"),
+            "\u{2022}\u{2022}\u{2022}\u{2022}"
+        );
+    }
+
+    #[test]
+    fn mask_key_pretty_boundary_9() {
+        // 9 chars = first to get prefix+suffix treatment
+        let masked = mask_key_pretty("123456789");
+        assert!(masked.ends_with("6789"), "last 4 chars: {masked}");
+        assert!(masked.starts_with("123456"), "prefix: {masked}");
+    }
+
+    #[test]
+    fn mask_key_pretty_non_ascii() {
+        // Non-ASCII must not panic (custom secrets may contain unicode)
+        let masked = mask_key_pretty("clé-secrète-très-longue");
+        assert!(masked.contains("\u{2022}"), "must have dots: {masked}");
     }
 
     #[test]

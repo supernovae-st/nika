@@ -140,6 +140,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
 
     // Native provider: no API key needed, just show model pull hint
     if provider == "native" {
+        mark_onboarding_done();
         cliclack::outro(format!(
             "{} Native provider selected! Pull a model to get started:\n\n  nika model pull <model-name>\n\n  Example: nika model pull mistral-7b-instruct",
             StatusIcon::Ok
@@ -150,7 +151,8 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
 
     // Delegate to keys module — single code path for key management
     // (handles password prompt, validation, vault, env injection, connection test)
-    super::keys::handle_keys_set(Some(provider.clone()), false, false, false).await?;
+    // quiet=true suppresses the keys intro/outro (onboarding has its own)
+    super::keys::handle_keys_set(Some(provider.clone()), false, false, true).await?;
 
     // Mark onboarding as done — prevents the wizard from looping
     mark_onboarding_done();

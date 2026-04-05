@@ -170,7 +170,7 @@ pub async fn handle_doctor_command(
 }
 
 fn check_vault_health() -> DiagnosticCheck {
-    let vault = crate::provider::get_vault();
+    let vault = crate::keys::get_vault();
     if !vault.exists() {
         return DiagnosticCheck::pass(
             "Vault",
