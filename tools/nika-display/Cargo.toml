@@ -1,0 +1,25 @@
+[package]
+name = "nika-display"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "CLI display renderers for Nika workflow engine"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+nika-event = { workspace = true }
+nika-core = { workspace = true }
+colored = { workspace = true }
+indicatif = { workspace = true }
+unicode-width = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+indexmap = { workspace = true }
+terminal_size = { workspace = true }
+rustc-hash = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

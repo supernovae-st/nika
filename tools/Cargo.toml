@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "nika",
     "nika-engine",
+    "nika-display",
     "nika-init",
     "nika-daemon",
     "nika-cli",
@@ -33,6 +34,7 @@ rust-version = "1.86"
 # Internal crates
 nika-cli = { path = "nika-cli", version = "0.71.0" }
 nika-core = { path = "nika-core", version = "0.71.0" }
+nika-display = { path = "nika-display", version = "0.71.0" }
 nika-engine = { path = "nika-engine", version = "0.71.0", default-features = true }
 nika-init = { path = "nika-init", version = "0.71.0" }
 nika-tui = { path = "nika-tui", version = "0.71.0" }
