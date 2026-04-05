@@ -1023,7 +1023,7 @@ schema: "nika/workflow@0.12"
 
 tasks:
   # TODO: Query a JSON API using JSONPath
-  - id: json_query
+  - id: api_jsonpath
     fetch:
       url: "https://api.github.com"
       extract: jsonpath  # TODO: change this value
@@ -1052,7 +1052,7 @@ const DATA_HEIST_03_SOLUTION: &str = r##"# =====================================
 schema: "nika/workflow@0.12"
 
 tasks:
-  - id: json_query
+  - id: api_jsonpath
     fetch:
       url: "https://api.github.com"
       extract: jsonpath
