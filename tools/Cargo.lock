@@ -3762,6 +3762,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
 
 [[package]]
+name = "hron"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8fca285423333bcc30de337e53058734a28738b6399799d9896dfc9cb6178c3"
+dependencies = [
+ "jiff",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "htmd"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5747,8 +5758,10 @@ dependencies = [
  "clap",
  "cliclack",
  "colored",
+ "croner",
  "dirs",
  "filetime",
+ "hron",
  "humantime",
  "image",
  "indicatif 0.18.4",
@@ -5778,6 +5791,9 @@ version = "0.71.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "chrono-tz",
+ "croner",
+ "hron",
  "indexmap 2.13.0",
  "insta",
  "jaq-core",
@@ -5810,6 +5826,7 @@ version = "0.71.0"
 dependencies = [
  "blake3",
  "chrono",
+ "chrono-tz",
  "croner",
  "dashmap",
  "dirs",

@@ -28,8 +28,12 @@ pub mod config;
 pub mod daemon;
 pub mod doctor;
 #[cfg(unix)]
+pub mod every;
+#[cfg(unix)]
 pub mod jobs;
 pub mod media;
+#[cfg(unix)]
+pub mod schedule;
 pub mod schema;
 pub mod workflow;
 

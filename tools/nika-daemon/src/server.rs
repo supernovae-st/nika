@@ -877,6 +877,196 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
             }
         }
 
+        // ── Schedules ────────────────────────────────────────────────────
+        DaemonRequest::ScheduleCreate {
+            name,
+            workflow,
+            cron_expr,
+            timezone,
+            source,
+            overlap,
+            inputs_json,
+        } => {
+            if let Err(e) = cron_expr.parse::<croner::Cron>() {
+                return DaemonResponse::Error {
+                    code: "NIKA-280".into(),
+                    message: format!("invalid cron expression '{cron_expr}': {e}"),
+                };
+            }
+            let tz_str = timezone.as_deref().unwrap_or("UTC");
+            if tz_str.parse::<chrono_tz::Tz>().is_err() {
+                return DaemonResponse::Error {
+                    code: "NIKA-282".into(),
+                    message: format!(
+                        "invalid timezone '{tz_str}' — use IANA name (e.g. Europe/Paris)"
+                    ),
+                };
+            }
+            let now = chrono::Utc::now();
+            let id = uuid::Uuid::new_v4().to_string();
+            let schedule = nika_storage::CronSchedule {
+                id: id.clone(),
+                name: name.clone(),
+                workflow,
+                cron_expr,
+                timezone: tz_str.to_string(),
+                paused: false,
+                source: source.unwrap_or_else(|| "cli".to_string()),
+                overlap: overlap.unwrap_or_else(|| "skip".to_string()),
+                inputs_json,
+                last_run_at: None,
+                next_run_at: None,
+                run_count: 0,
+                last_job_id: None,
+                created_at: now.to_rfc3339(),
+                updated_at: now.to_rfc3339(),
+            };
+            match state.job_service.storage().insert_schedule(schedule).await {
+                Ok(()) => DaemonResponse::ScheduleCreated { id, name },
+                Err(e) => DaemonResponse::Error {
+                    code: "NIKA-284".into(),
+                    message: format!("schedule insert failed: {e}"),
+                },
+            }
+        }
+
+        DaemonRequest::ScheduleList { enabled_only } => {
+            match state
+                .job_service
+                .storage()
+                .list_schedules(enabled_only)
+                .await
+            {
+                Ok(schedules) => {
+                    let json: Vec<serde_json::Value> = schedules
+                        .iter()
+                        .filter_map(|s| serde_json::to_value(s).ok())
+                        .collect();
+                    DaemonResponse::ScheduleListResult { schedules: json }
+                }
+                Err(e) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        DaemonRequest::ScheduleGet { name } => {
+            match state
+                .job_service
+                .storage()
+                .get_schedule_by_name(&name)
+                .await
+            {
+                Ok(Some(sched)) => match serde_json::to_value(&sched) {
+                    Ok(v) => DaemonResponse::ScheduleDetail { schedule: v },
+                    Err(e) => DaemonResponse::Error {
+                        code: "NIKA-283".into(),
+                        message: format!("serialize: {e}"),
+                    },
+                },
+                Ok(None) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: format!("schedule '{name}' not found"),
+                },
+                Err(e) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        DaemonRequest::SchedulePause { name } => {
+            match state
+                .job_service
+                .storage()
+                .get_schedule_by_name(&name)
+                .await
+            {
+                Ok(Some(sched)) => {
+                    match state
+                        .job_service
+                        .storage()
+                        .update_schedule_enabled(&sched.id, false)
+                        .await
+                    {
+                        Ok(()) => DaemonResponse::Ok,
+                        Err(e) => DaemonResponse::Error {
+                            code: "NIKA-283".into(),
+                            message: e.to_string(),
+                        },
+                    }
+                }
+                Ok(None) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: format!("schedule '{name}' not found"),
+                },
+                Err(e) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        DaemonRequest::ScheduleResume { name } => {
+            match state
+                .job_service
+                .storage()
+                .get_schedule_by_name(&name)
+                .await
+            {
+                Ok(Some(sched)) => {
+                    match state
+                        .job_service
+                        .storage()
+                        .update_schedule_enabled(&sched.id, true)
+                        .await
+                    {
+                        Ok(()) => DaemonResponse::Ok,
+                        Err(e) => DaemonResponse::Error {
+                            code: "NIKA-283".into(),
+                            message: e.to_string(),
+                        },
+                    }
+                }
+                Ok(None) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: format!("schedule '{name}' not found"),
+                },
+                Err(e) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: e.to_string(),
+                },
+            }
+        }
+
+        DaemonRequest::ScheduleDelete { name } => {
+            match state
+                .job_service
+                .storage()
+                .get_schedule_by_name(&name)
+                .await
+            {
+                Ok(Some(sched)) => {
+                    match state.job_service.storage().delete_schedule(&sched.id).await {
+                        Ok(()) => DaemonResponse::Ok,
+                        Err(e) => DaemonResponse::Error {
+                            code: "NIKA-283".into(),
+                            message: e.to_string(),
+                        },
+                    }
+                }
+                Ok(None) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: format!("schedule '{name}' not found"),
+                },
+                Err(e) => DaemonResponse::Error {
+                    code: "NIKA-283".into(),
+                    message: e.to_string(),
+                },
+            }
+        }
+
         // ── Lifecycle ────────────────────────────────────────────────────
         DaemonRequest::Shutdown { auth_token } => {
             if !validate_auth_token(&auth_token, &state.auth_token) {

@@ -398,6 +398,11 @@ impl JobService {
         Ok(self.storage.list_jobs_for_workflow(workflow).await?)
     }
 
+    /// Access the underlying storage handle (for schedule operations).
+    pub fn storage(&self) -> &Storage {
+        &self.storage
+    }
+
     /// Try to start the next pending job from the queue.
     ///
     /// Called by the drain loop when a running slot frees up.

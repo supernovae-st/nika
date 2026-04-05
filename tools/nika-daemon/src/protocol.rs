@@ -45,11 +45,15 @@ pub enum DaemonRequest {
     },
 
     /// Check if a secret exists for a provider.
-    HasSecret { provider: String },
+    HasSecret {
+        provider: String,
+    },
 
     /// List all provider secret status.
     /// Requires auth token to prevent same-UID enumeration of stored secrets.
-    ListSecrets { auth_token: Option<String> },
+    ListSecrets {
+        auth_token: Option<String>,
+    },
 
     /// Store a secret (API key) for a provider in the encrypted vault.
     SetSecret {
@@ -77,22 +81,35 @@ pub enum DaemonRequest {
     },
 
     /// List jobs, optionally filtered by state.
-    JobList { state: Option<String> },
+    JobList {
+        state: Option<String>,
+    },
 
     /// Get job status/details.
-    JobStatus { id: String },
+    JobStatus {
+        id: String,
+    },
 
     /// Cancel a running job.
-    JobCancel { id: String },
+    JobCancel {
+        id: String,
+    },
 
     /// Retry a failed job.
-    JobRetry { id: String },
+    JobRetry {
+        id: String,
+    },
 
     /// Get job history events.
-    JobHistory { id: String },
+    JobHistory {
+        id: String,
+    },
     // ── Watch ─────────────────────────────────────────────────────────────
     /// Start watching a directory for workflow changes.
-    WatchStart { dir: String, patterns: Vec<String> },
+    WatchStart {
+        dir: String,
+        patterns: Vec<String>,
+    },
 
     /// Stop watching.
     WatchStop,
@@ -102,7 +119,9 @@ pub enum DaemonRequest {
 
     // ── Cache ────────────────────────────────────────────────────────────
     /// Get a cached LLM response.
-    CacheGet { key: String },
+    CacheGet {
+        key: String,
+    },
 
     /// Store a response in the cache.
     CacheSet {
@@ -139,7 +158,9 @@ pub enum DaemonRequest {
     },
 
     /// Get recent runs for a workflow file (for LSP hover/code lens).
-    GetWorkflowHistory { workflow: String },
+    GetWorkflowHistory {
+        workflow: String,
+    },
 
     /// Get daemon capabilities and stats (for LSP status bar).
     GetDaemonCapabilities,
@@ -150,6 +171,32 @@ pub enum DaemonRequest {
     Shutdown {
         /// Auth token for shutdown (read from `~/.nika/daemon/.token`).
         auth_token: Option<String>,
+    },
+
+    // ── Schedules ────────────────────────────────────────────────────────
+    ScheduleCreate {
+        name: String,
+        workflow: String,
+        cron_expr: String,
+        timezone: Option<String>,
+        source: Option<String>,
+        overlap: Option<String>,
+        inputs_json: Option<String>,
+    },
+    ScheduleList {
+        enabled_only: bool,
+    },
+    ScheduleGet {
+        name: String,
+    },
+    SchedulePause {
+        name: String,
+    },
+    ScheduleResume {
+        name: String,
+    },
+    ScheduleDelete {
+        name: String,
     },
 }
 
@@ -211,6 +258,22 @@ impl std::fmt::Debug for DaemonRequest {
                 )
             }
             Self::GetDaemonCapabilities => write!(f, "DaemonRequest::GetDaemonCapabilities"),
+            Self::ScheduleCreate { name, .. } => {
+                write!(f, "DaemonRequest::ScheduleCreate {{ name: {name:?}, .. }}")
+            }
+            Self::ScheduleList { .. } => write!(f, "DaemonRequest::ScheduleList"),
+            Self::ScheduleGet { name } => {
+                write!(f, "DaemonRequest::ScheduleGet {{ name: {name:?} }}")
+            }
+            Self::SchedulePause { name } => {
+                write!(f, "DaemonRequest::SchedulePause {{ name: {name:?} }}")
+            }
+            Self::ScheduleResume { name } => {
+                write!(f, "DaemonRequest::ScheduleResume {{ name: {name:?} }}")
+            }
+            Self::ScheduleDelete { name } => {
+                write!(f, "DaemonRequest::ScheduleDelete {{ name: {name:?} }}")
+            }
         }
     }
 }
@@ -341,6 +404,18 @@ pub enum DaemonResponse {
         capabilities: nika_core::catalogs::DaemonCapabilities,
     },
 
+    // ── Schedules ────────────────────────────────────────────────────────
+    ScheduleCreated {
+        id: String,
+        name: String,
+    },
+    ScheduleListResult {
+        schedules: Vec<serde_json::Value>,
+    },
+    ScheduleDetail {
+        schedule: serde_json::Value,
+    },
+
     // ── Lifecycle ─────────────────────────────────────────────────────────
     /// Acknowledgement that daemon is shutting down.
     ShuttingDown,
@@ -375,6 +450,9 @@ impl std::fmt::Debug for DaemonResponse {
             Self::CostEstimateResult { .. } => "CostEstimateResult",
             Self::WorkflowHistoryResult { .. } => "WorkflowHistoryResult",
             Self::DaemonCapabilitiesResult { .. } => "DaemonCapabilitiesResult",
+            Self::ScheduleCreated { .. } => "ScheduleCreated",
+            Self::ScheduleListResult { .. } => "ScheduleListResult",
+            Self::ScheduleDetail { .. } => "ScheduleDetail",
             Self::ShuttingDown => "ShuttingDown",
         };
         write!(f, "DaemonResponse::{tag}")

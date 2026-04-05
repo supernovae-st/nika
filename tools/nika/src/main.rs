@@ -758,6 +758,19 @@ enum Commands {
         action: cli::cache_cmd::CacheAction,
     },
 
+    /// Create a recurring schedule for a workflow
+    #[cfg(unix)]
+    #[command(next_help_heading = "SYSTEM")]
+    Every(cli::every::EveryArgs),
+
+    /// Manage cron schedules
+    #[cfg(unix)]
+    #[command(next_help_heading = "SYSTEM")]
+    Schedule {
+        #[command(subcommand)]
+        action: cli::schedule::ScheduleAction,
+    },
+
     /// Manage background jobs via daemon
     #[cfg(unix)]
     #[command(next_help_heading = "SYSTEM")]
@@ -1825,6 +1838,14 @@ async fn main() {
                     .map_err(|e| mk(format!("serve error: {e}"))),
                 Err(e) => Err(e),
             }
+        }
+
+        #[cfg(unix)]
+        Some(Commands::Every(args)) => cli::every::handle_every_command(args, quiet).await,
+
+        #[cfg(unix)]
+        Some(Commands::Schedule { action }) => {
+            cli::schedule::handle_schedule_command(action, quiet).await
         }
 
         #[cfg(unix)]
