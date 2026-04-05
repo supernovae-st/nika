@@ -2892,11 +2892,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
+        // Phase 3: Finalize — media integrity, artifacts, trace, summary, MCP shutdown
+        self.finalize_run(&init, workflow_start).await
+    }
+
+    /// Phase 3 of `run()`: media integrity check, artifact manifest, orchestrator
+    /// completion events, CAS GC, record persistence, trace, summary, MCP shutdown.
+    async fn finalize_run(
+        &mut self,
+        init: &InitResult,
+        workflow_start: Instant,
+    ) -> Result<String, NikaError> {
         // Verify media integrity (warn-only, never fail successful workflows)
         let media_warnings = self.verify_media_integrity();
-
-        // Lockfile is removed automatically when `_lockfile_guard` drops
-        // (at function exit -- normal return, error, or panic).
 
         // Write artifact manifest if configured
         if let Some(ref artifacts_config) = self.workflow.artifacts {
@@ -2936,8 +2944,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .datastore
                 .get(crate::runtime::orchestrate::ORCHESTRATOR_TASK_ID)
                 .and_then(|result| {
-                    // The output is either a JSON string containing the complete response
-                    // or the raw text. Try to parse confidence from it.
                     match result.output.as_ref() {
                         Value::String(s) => serde_json::from_str::<serde_json::Value>(s)
                             .ok()
