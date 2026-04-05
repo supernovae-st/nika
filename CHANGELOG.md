@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-## [Unreleased] — Post v0.69.0
+## [0.70.0] — 2026-04-05
 
 ### Added
 - **`nika eval` command** — Workflow evaluation framework. Run a workflow against a dataset of inputs, validate outputs with 4 assertion types (`output_contains`, `output_min_words`, `output_max_words`, `output_matches_schema`). Supports `--format json` for CI integration. Defaults to mock provider for safety.
