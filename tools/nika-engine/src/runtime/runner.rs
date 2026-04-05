@@ -1872,8 +1872,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .join(".nika-run.lock"),
         );
 
-        let mut _completed = 0;
-
         loop {
             // Check for cancellation at start of each loop iteration
             if self.cancel_token.is_cancelled() {
@@ -2661,7 +2659,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                                 } = iteration_result;
 
-                                _completed += 1;
                                 let success = task_result.is_success();
                                 let skipped = task_result.is_skipped();
 
