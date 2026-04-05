@@ -38,7 +38,9 @@ fn is_html_content_type(ct: &str) -> bool {
 ///
 /// Returns a delay in milliseconds, guaranteed to be in `[1, MAX_BACKOFF_MS]`.
 fn safe_backoff_delay(base_ms: u64, multiplier: f64, exp: u32) -> u64 {
-    let factor = multiplier.powi(exp.min(30) as i32);
+    // Negative or zero multiplier → use 1.0 (no backoff growth, but safe)
+    let safe_mult = if multiplier <= 0.0 { 1.0 } else { multiplier };
+    let factor = safe_mult.powi(exp.min(30) as i32);
     if factor.is_infinite() || factor.is_nan() || factor > MAX_BACKOFF_MS as f64 {
         return MAX_BACKOFF_MS;
     }
@@ -1289,6 +1291,19 @@ mod tests {
         // 100 * 2.0^0 = 100
         let delay = safe_backoff_delay(100, 2.0, 0);
         assert_eq!(delay, 100);
+    }
+
+    #[test]
+    fn backoff_negative_multiplier_uses_one() {
+        // Negative multiplier should not produce 0ms or negative delays
+        let delay = safe_backoff_delay(100, -1.0, 3);
+        assert_eq!(delay, 100, "negative multiplier should fall back to 1.0");
+
+        let delay = safe_backoff_delay(100, 0.0, 3);
+        assert_eq!(delay, 100, "zero multiplier should fall back to 1.0");
+
+        let delay = safe_backoff_delay(100, -2.5, 5);
+        assert_eq!(delay, 100, "negative multiplier should always produce base_ms");
     }
 
     #[test]
