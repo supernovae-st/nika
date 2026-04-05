@@ -1098,6 +1098,7 @@ impl TransformOp {
             // ── Aggregation ───────────────────────────────────────────
             TransformOp::Add => match value {
                 Value::Null => Ok(Value::Null), // propagating
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
                 Value::Array(arr) => {
                     // Detect type from first non-null element
                     let first_non_null = arr.iter().find(|v| !v.is_null());
@@ -1116,18 +1117,7 @@ impl TransformOp {
                                     }
                                 }
                             }
-                            // Return integer if no fractional part
-                            if sum.fract() == 0.0
-                                && sum >= i64::MIN as f64
-                                && sum <= i64::MAX as f64
-                            {
-                                Ok(Value::Number((sum as i64).into()))
-                            } else {
-                                Ok(Value::Number(
-                                    serde_json::Number::from_f64(sum)
-                                        .unwrap_or_else(|| (sum as i64).into()),
-                                ))
-                            }
+                            Ok(f64_to_json_number(sum))
                         }
                         Some(Value::String(_)) => {
                             // Concat strings
@@ -1172,25 +1162,20 @@ impl TransformOp {
                     for item in arr {
                         match item {
                             Value::Number(n) => {
-                                let v = n.as_f64().unwrap_or(f64::NAN);
-                                min_val = Some(match min_val {
-                                    Some(current) => current.min(v),
-                                    None => v,
-                                });
+                                if let Some(v) = n.as_f64() {
+                                    min_val = Some(match min_val {
+                                        Some(current) => current.min(v),
+                                        None => v,
+                                    });
+                                }
+                                // skip numbers that can't be represented as f64
                             }
                             Value::Null => {} // skip nulls
                             _ => return Err(type_mismatch("min", "array of numbers", item)),
                         }
                     }
                     match min_val {
-                        Some(v)
-                            if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 =>
-                        {
-                            Ok(Value::Number((v as i64).into()))
-                        }
-                        Some(v) => Ok(Value::Number(
-                            serde_json::Number::from_f64(v).unwrap_or_else(|| (v as i64).into()),
-                        )),
+                        Some(v) => Ok(f64_to_json_number(v)),
                         None => Ok(Value::Null), // all nulls
                     }
                 }
@@ -1204,25 +1189,19 @@ impl TransformOp {
                     for item in arr {
                         match item {
                             Value::Number(n) => {
-                                let v = n.as_f64().unwrap_or(f64::NAN);
-                                max_val = Some(match max_val {
-                                    Some(current) => current.max(v),
-                                    None => v,
-                                });
+                                if let Some(v) = n.as_f64() {
+                                    max_val = Some(match max_val {
+                                        Some(current) => current.max(v),
+                                        None => v,
+                                    });
+                                }
                             }
                             Value::Null => {} // skip nulls
                             _ => return Err(type_mismatch("max", "array of numbers", item)),
                         }
                     }
                     match max_val {
-                        Some(v)
-                            if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 =>
-                        {
-                            Ok(Value::Number((v as i64).into()))
-                        }
-                        Some(v) => Ok(Value::Number(
-                            serde_json::Number::from_f64(v).unwrap_or_else(|| (v as i64).into()),
-                        )),
+                        Some(v) => Ok(f64_to_json_number(v)),
                         None => Ok(Value::Null), // all nulls
                     }
                 }
@@ -1293,9 +1272,7 @@ impl TransformOp {
                         return Ok(Value::Null);
                     }
                     let avg = sum / count as f64;
-                    Ok(Value::Number(
-                        serde_json::Number::from_f64(avg).unwrap_or_else(|| (avg as i64).into()),
-                    ))
+                    Ok(f64_to_json_number(avg))
                 }
                 _ => Err(type_mismatch("avg", "array", value)),
             },
@@ -1868,6 +1845,21 @@ fn type_mismatch(op: &'static str, expected: &'static str, got: &Value) -> Trans
         op,
         expected,
         got: value_type_name(got).to_string(),
+    }
+}
+
+/// Convert f64 to JSON Value with NaN/Infinity guard.
+/// Returns integer if no fractional part, null for non-finite values.
+fn f64_to_json_number(v: f64) -> Value {
+    if v.is_nan() || v.is_infinite() {
+        return Value::Null;
+    }
+    if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 {
+        Value::Number((v as i64).into())
+    } else {
+        serde_json::Number::from_f64(v)
+            .map(Value::Number)
+            .unwrap_or(Value::Null)
     }
 }
 
@@ -4502,8 +4494,8 @@ mod tests {
     fn add_empty_array() {
         let val = json!([]);
         let result = TransformOp::Add.apply(&val).unwrap();
-        // Empty array with no type hint → sum = 0
-        assert_eq!(result, json!(0));
+        // Empty array → null (consistent with min/max/avg)
+        assert_eq!(result, Value::Null);
     }
 
     #[test]

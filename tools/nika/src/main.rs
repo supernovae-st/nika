@@ -2988,40 +2988,74 @@ async fn run_workflow(
 
     // Resume from last run: pre-populate datastore with completed tasks
     if resume {
+        use colored::Colorize;
         let traces = nika::event::list_traces()?;
         if let Some(trace) = traces.first() {
-            let content = std::fs::read_to_string(&trace.path)?;
-            let mut resumed_count = 0u32;
-            for line in content.lines() {
-                if let Ok(event) = serde_json::from_str::<nika::event::Event>(line) {
-                    if let nika::event::EventKind::TaskCompleted {
-                        task_id,
-                        output,
-                        duration_ms,
-                    } = event.kind
-                    {
-                        runner.datastore().insert(
-                            task_id,
-                            nika::store::TaskResult::success(
-                                output.as_ref().clone(),
-                                std::time::Duration::from_millis(duration_ms),
-                            ),
-                        );
-                        resumed_count += 1;
+            // Safety: reject oversized traces (consistent with SEC-4 50MB limit)
+            let trace_size = std::fs::metadata(&trace.path).map(|m| m.len()).unwrap_or(0);
+            if trace_size > 50 * 1024 * 1024 {
+                if !quiet {
+                    eprintln!(
+                        "  {} trace too large ({} MB), running from scratch",
+                        "Resume:".yellow(),
+                        trace_size / (1024 * 1024)
+                    );
+                }
+            } else {
+                let content = std::fs::read_to_string(&trace.path)?;
+                let mut resumed_count = 0u32;
+                // Verify workflow identity via hash in first WorkflowStarted event
+                let mut trace_hash: Option<String> = None;
+                for line in content.lines() {
+                    if let Ok(event) = serde_json::from_str::<nika::event::Event>(line) {
+                        match event.kind {
+                            nika::event::EventKind::WorkflowStarted { workflow_hash, .. } => {
+                                trace_hash = Some(workflow_hash);
+                            }
+                            nika::event::EventKind::TaskCompleted {
+                                task_id,
+                                output,
+                                duration_ms,
+                            } => {
+                                runner.datastore().insert(
+                                    task_id,
+                                    nika::store::TaskResult::success(
+                                        output.as_ref().clone(),
+                                        std::time::Duration::from_millis(duration_ms),
+                                    ),
+                                );
+                                resumed_count += 1;
+                            }
+                            _ => {}
+                        }
                     }
                 }
-            }
-            if !quiet && resumed_count > 0 {
-                use colored::Colorize;
-                eprintln!(
-                    "  {} resuming from {} ({} completed tasks cached)",
-                    "Resume:".cyan(),
-                    trace.generation_id,
-                    resumed_count
-                );
+                // Warn if workflow changed since trace was recorded
+                if let Some(ref th) = trace_hash {
+                    let current_hash = nika::event::calculate_workflow_hash(&yaml);
+                    if *th != current_hash && !quiet {
+                        eprintln!(
+                            "  {} workflow changed since last run (trace hash mismatch)",
+                            "Warning:".yellow()
+                        );
+                    }
+                }
+                if !quiet && resumed_count > 0 {
+                    eprintln!(
+                        "  {} resuming from {} ({} completed tasks cached)",
+                        "Resume:".cyan(),
+                        trace.generation_id,
+                        resumed_count
+                    );
+                } else if !quiet && resumed_count == 0 {
+                    eprintln!(
+                        "  {} trace found ({}) but no completed tasks to resume",
+                        "Resume:".yellow(),
+                        trace.generation_id
+                    );
+                }
             }
         } else if !quiet {
-            use colored::Colorize;
             eprintln!(
                 "  {} no previous trace found, running from scratch",
                 "Resume:".yellow()
