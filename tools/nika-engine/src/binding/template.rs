@@ -833,6 +833,19 @@ pub fn validate_with_refs(
     }
     for cap in TEMPLATE_RE.captures_iter(template) {
         let content = &cap[1];
+
+        // Detect nested templates: {{with.a.{{with.b}}}} → NIKA-074
+        if content.contains("{{") {
+            return Err(NikaError::TemplateParse {
+                position: 0,
+                details: format!(
+                    "[NIKA-074] Nested templates are not supported in task '{}': \
+                     found '{{{{{}}}}}'. Use with: to compose bindings instead.",
+                    task_id, content
+                ),
+            });
+        }
+
         if let Ok(expr) = parse_template_expr(content) {
             // Extract alias and transforms from any variant
             let (alias_opt, transforms) = match &expr {
@@ -3733,6 +3746,32 @@ mod v028_template_tests {
         let declared: FxHashSet<String> = FxHashSet::default();
         let result = validate_with_refs("{{inputs.locale | bogus}}", &declared, "task1");
         assert!(result.is_err(), "invalid transform on inputs should fail");
+    }
+
+    #[test]
+    fn validate_refs_nested_template_detected() {
+        let declared: FxHashSet<String> = ["a", "b"].iter().map(|s| s.to_string()).collect();
+        let result =
+            validate_with_refs("{{a.{{b}}}}", &declared, "task1");
+        assert!(result.is_err(), "nested templates should fail");
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("NIKA-074") || msg.contains("Nested templates"),
+            "should mention nested templates, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn validate_refs_non_nested_passes() {
+        let declared: FxHashSet<String> = ["a", "b"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs("{{a}} then {{b}}", &declared, "task1");
+        assert!(
+            result.is_ok(),
+            "sequential templates should pass: {:?}",
+            result
+        );
     }
 
     // ═════════════════════════════════════════════════════════════════════════
