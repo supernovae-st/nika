@@ -1406,6 +1406,37 @@ fn test_openai_compat_missing_key_fails_fast() {
 }
 
 // =========================================================================
+// Provider flag methods
+// =========================================================================
+
+#[test]
+#[serial]
+fn test_is_anthropic() {
+    std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+    assert!(RigProvider::claude().is_anthropic());
+    std::env::set_var("OPENAI_API_KEY", "test-key");
+    assert!(!RigProvider::openai().is_anthropic());
+    assert!(!RigProvider::Mock.is_anthropic());
+}
+
+#[test]
+fn test_supports_vision() {
+    assert!(!RigProvider::Mock.supports_vision());
+    let compat = RigProvider::openai_compat("test", "http://localhost:8000/v1", "k", None, 300)
+        .unwrap();
+    assert!(compat.supports_vision());
+}
+
+#[test]
+#[serial]
+fn test_supports_thinking() {
+    std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+    assert!(RigProvider::claude().supports_thinking());
+    std::env::set_var("OPENAI_API_KEY", "test-key");
+    assert!(!RigProvider::openai().supports_thinking());
+}
+
+// =========================================================================
 // Security: Debug impl redacts raw_api_key
 // =========================================================================
 
