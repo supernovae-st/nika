@@ -253,7 +253,7 @@ pub enum NikaError {
 
     /// Workflow exceeded its max_duration_secs timeout (NIKA-038)
     #[error(
-        "Workflow timed out after {duration_secs}s ({} tasks still running)",
+        "[NIKA-038] Workflow timed out after {duration_secs}s ({} tasks still running)",
         running_tasks.len()
     )]
     WorkflowTimeout {
