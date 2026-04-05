@@ -370,14 +370,8 @@ pub async fn batch_run(
         }
     }
 
-    // Check queue capacity for the entire batch
-    let max_queued = state.config.max_concurrent * 3;
-    let current = state.active_jobs.load(std::sync::atomic::Ordering::Relaxed);
-    if current + requests.len() > max_queued {
-        return Err(ServeError::QueueFull(current));
-    }
-
     // Pass 2: submit all (validation already passed)
+    // Queue capacity is enforced per-job by try_acquire_job_slot() CAS inside run_workflow.
     let mut responses = Vec::with_capacity(requests.len());
     for req in requests {
         let resp = run_workflow(State(state.clone()), Json(req)).await?;
@@ -1020,5 +1014,43 @@ mod tests {
         assert_eq!(id.len(), 32, "simple UUID should be 32 hex chars");
         assert!(!id.contains('-'), "simple UUID must not contain hyphens");
         assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // ── validate_tag_key ────────────────────────────────────────
+
+    #[test]
+    fn tag_key_valid_alphanumeric() {
+        assert!(validate_tag_key("env").is_ok());
+        assert!(validate_tag_key("team_name").is_ok());
+        assert!(validate_tag_key("v2").is_ok());
+    }
+
+    #[test]
+    fn tag_key_rejects_empty() {
+        assert!(validate_tag_key("").is_err());
+    }
+
+    #[test]
+    fn tag_key_rejects_special_chars() {
+        assert!(validate_tag_key("env.prod").is_err());
+        assert!(validate_tag_key("../etc").is_err());
+        assert!(validate_tag_key("key=val").is_err());
+        assert!(validate_tag_key("a b").is_err());
+    }
+
+    #[test]
+    fn tag_key_rejects_too_long() {
+        let long_key = "a".repeat(129);
+        assert!(validate_tag_key(&long_key).is_err());
+        // 128 is the limit
+        let ok_key = "a".repeat(128);
+        assert!(validate_tag_key(&ok_key).is_ok());
+    }
+
+    // ── batch size validation ───────────────────────────────────
+
+    #[test]
+    fn batch_max_size_default() {
+        assert_eq!(MAX_BATCH_SIZE, 50);
     }
 }
