@@ -85,6 +85,7 @@ impl JobService {
             output: None,
             retry_count: 0,
             max_retries,
+            tags: None,
         };
 
         self.storage.insert_job(job).await?;
