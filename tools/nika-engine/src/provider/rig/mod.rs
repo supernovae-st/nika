@@ -1396,13 +1396,6 @@ impl RigProvider {
         }
 
         match self {
-            RigProvider::Claude(client) => build_and_prompt!(client),
-            RigProvider::OpenAI(client) => build_and_prompt!(client),
-            RigProvider::Mistral(client) => build_and_prompt!(client),
-            RigProvider::Groq(client) => build_and_prompt!(client),
-            RigProvider::DeepSeek(client) => build_and_prompt!(client),
-            RigProvider::Gemini(client) => build_and_prompt!(client),
-            RigProvider::XAi(client) => build_and_prompt!(client),
             RigProvider::OpenAiCompat {
                 raw_base_url,
                 raw_api_key,
@@ -1455,6 +1448,8 @@ impl RigProvider {
                         RigInferError::PromptError(e.to_string())
                     })
             }
+            // All rig-core providers
+            _ => dispatch_rig!(self, |client| build_and_prompt!(client)),
         }
     }
 
