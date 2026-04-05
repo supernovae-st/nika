@@ -42,6 +42,7 @@ chrono = { workspace = true }
 
 # Cron expression parsing (scheduler)
 croner = { workspace = true }
+chrono-tz = { workspace = true }
 
 # IDs
 uuid = { workspace = true }

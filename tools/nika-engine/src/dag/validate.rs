@@ -257,6 +257,18 @@ fn validate_from_task(
 pub fn validate_bindings(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
     let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
 
+    // Collect declared inputs and context file aliases for template validation
+    let declared_inputs: FxHashSet<String> = workflow
+        .inputs
+        .as_ref()
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default();
+    let declared_context_files: FxHashSet<String> = workflow
+        .context
+        .as_ref()
+        .map(|c| c.files.keys().cloned().collect())
+        .unwrap_or_default();
+
     for task in &workflow.tasks {
         if let Some(ref with_spec) = task.with_spec {
             let loop_var = if task.for_each.is_some() {
@@ -266,14 +278,18 @@ pub fn validate_bindings(workflow: &Workflow, flow_graph: &Dag) -> Result<(), Ni
             };
             validate_with_spec(&task.id, with_spec, &all_task_ids, flow_graph, loop_var)?;
         }
-        validate_template_refs_with(task)?;
+        validate_template_refs_with(task, &declared_inputs, &declared_context_files)?;
     }
 
     Ok(())
 }
 
-/// Validate `{{with.alias}}` template refs (runtime `Task` type).
-fn validate_template_refs_with(task: &crate::ast::Task) -> Result<(), NikaError> {
+/// Validate `{{with.alias}}`, `{{inputs.*}}`, and `{{context.files.*}}` template refs.
+fn validate_template_refs_with(
+    task: &crate::ast::Task,
+    declared_inputs: &FxHashSet<String>,
+    declared_context_files: &FxHashSet<String>,
+) -> Result<(), NikaError> {
     let mut declared_aliases: FxHashSet<String> = task
         .with_spec
         .as_ref()
@@ -290,9 +306,26 @@ fn validate_template_refs_with(task: &crate::ast::Task) -> Result<(), NikaError>
         declared_aliases.insert("for_each_index".to_string());
     }
 
+    let inputs = if declared_inputs.is_empty() {
+        None
+    } else {
+        Some(declared_inputs)
+    };
+    let ctx_files = if declared_context_files.is_empty() {
+        None
+    } else {
+        Some(declared_context_files)
+    };
+
     let templates = extract_task_templates(&task.action);
     for template in templates {
-        validate_with_refs(&template, &declared_aliases, &task.id)?;
+        crate::binding::validate_with_refs_full(
+            &template,
+            &declared_aliases,
+            &task.id,
+            inputs,
+            ctx_files,
+        )?;
     }
 
     Ok(())

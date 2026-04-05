@@ -70,7 +70,8 @@ pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
     escape_for_shell, extract_refs, extract_with_refs, parse_template_expr,
     resolve as template_resolve, resolve_for_shell as template_resolve_for_shell,
-    resolve_with as template_resolve_with, validate_refs, validate_with_refs, TemplateExpr,
+    resolve_with as template_resolve_with, validate_refs, validate_with_refs,
+    validate_with_refs_full, TemplateExpr,
 };
 pub use transform::{TransformError, TransformExpr, TransformOp, TransformParseError};
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};

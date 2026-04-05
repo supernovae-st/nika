@@ -823,10 +823,24 @@ pub fn extract_with_refs(template: &str) -> Vec<String> {
 
 /// Validate that all template alias references exist in declared aliases,
 /// and that all inline transforms are valid.
+///
+/// Optionally validates `{{inputs.*}}` and `{{context.files.*}}` references
+/// when the corresponding sets are provided.
 pub fn validate_with_refs(
     template: &str,
     declared_aliases: &FxHashSet<String>,
     task_id: &str,
+) -> Result<(), NikaError> {
+    validate_with_refs_full(template, declared_aliases, task_id, None, None)
+}
+
+/// Extended validation with optional inputs and context file checking.
+pub fn validate_with_refs_full(
+    template: &str,
+    declared_aliases: &FxHashSet<String>,
+    task_id: &str,
+    declared_inputs: Option<&FxHashSet<String>>,
+    declared_context_files: Option<&FxHashSet<String>>,
 ) -> Result<(), NikaError> {
     if !template.contains("{{") {
         return Ok(());
@@ -848,33 +862,77 @@ pub fn validate_with_refs(
 
         if let Ok(expr) = parse_template_expr(content) {
             // Extract alias and transforms from any variant
-            let (alias_opt, transforms) = match &expr {
+            let transforms = match &expr {
                 TemplateExpr::Alias { path, transforms } => {
+                    // Validate alias reference
                     let alias = path.split('.').next().unwrap().to_string();
-                    (Some(alias), transforms.as_slice())
+                    if !declared_aliases.contains(&alias) {
+                        let candidates: Vec<&str> =
+                            declared_aliases.iter().map(|s| s.as_str()).collect();
+                        let suggestion = nika_core::ast::analyzer::suggestions::find_similar(
+                            &alias,
+                            &candidates,
+                            0.6,
+                        );
+                        return Err(NikaError::UnknownAlias {
+                            alias,
+                            task_id: task_id.to_string(),
+                            suggestion,
+                        });
+                    }
+                    transforms.as_slice()
                 }
-                TemplateExpr::Context { transforms, .. }
-                | TemplateExpr::Input { transforms, .. }
-                | TemplateExpr::Skills { transforms, .. } => (None, transforms.as_slice()),
+                TemplateExpr::Input { path, transforms } => {
+                    // Validate inputs.* reference if declared_inputs is provided
+                    if let Some(inputs) = declared_inputs {
+                        let key = path.split('.').next().unwrap_or(path);
+                        if !inputs.contains(key) {
+                            return Err(NikaError::TemplateParse {
+                                position: 0,
+                                details: format!(
+                                    "task '{}' references undeclared input '{{{{inputs.{}}}}}'. \
+                                     Declared inputs: {}",
+                                    task_id,
+                                    path,
+                                    if inputs.is_empty() {
+                                        "(none)".to_string()
+                                    } else {
+                                        inputs.iter().cloned().collect::<Vec<_>>().join(", ")
+                                    }
+                                ),
+                            });
+                        }
+                    }
+                    transforms.as_slice()
+                }
+                TemplateExpr::Context { path, transforms } => {
+                    // Validate context.files.* reference if declared_context_files is provided
+                    if let Some(ctx_files) = declared_context_files {
+                        // context.files.alias → check alias exists
+                        if let Some(rest) = path.strip_prefix("files.") {
+                            let alias = rest.split('.').next().unwrap_or(rest);
+                            if !ctx_files.contains(alias) {
+                                return Err(NikaError::TemplateParse {
+                                    position: 0,
+                                    details: format!(
+                                        "task '{}' references undeclared context file \
+                                         '{{{{context.files.{}}}}}'. Declared files: {}",
+                                        task_id,
+                                        alias,
+                                        if ctx_files.is_empty() {
+                                            "(none)".to_string()
+                                        } else {
+                                            ctx_files.iter().cloned().collect::<Vec<_>>().join(", ")
+                                        }
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                    transforms.as_slice()
+                }
+                TemplateExpr::Skills { transforms, .. } => transforms.as_slice(),
             };
-
-            // Validate alias reference
-            if let Some(ref alias) = alias_opt {
-                if !declared_aliases.contains(alias) {
-                    let candidates: Vec<&str> =
-                        declared_aliases.iter().map(|s| s.as_str()).collect();
-                    let suggestion = nika_core::ast::analyzer::suggestions::find_similar(
-                        alias,
-                        &candidates,
-                        0.6,
-                    );
-                    return Err(NikaError::UnknownAlias {
-                        alias: alias.clone(),
-                        task_id: task_id.to_string(),
-                        suggestion,
-                    });
-                }
-            }
 
             // Validate inline transforms
             for transform in transforms {
@@ -3769,6 +3827,103 @@ mod v028_template_tests {
             "sequential templates should pass: {:?}",
             result
         );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // G5: Validate inputs.* references
+    // ═════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn validate_refs_full_inputs_declared_passes() {
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let inputs: FxHashSet<String> = ["topic", "locale"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs_full(
+            "Research {{inputs.topic}} in {{inputs.locale}}",
+            &declared,
+            "task1",
+            Some(&inputs),
+            None,
+        );
+        assert!(result.is_ok(), "declared inputs should pass: {:?}", result);
+    }
+
+    #[test]
+    fn validate_refs_full_inputs_undeclared_errors() {
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let inputs: FxHashSet<String> = ["topic"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs_full(
+            "Translate to {{inputs.missing_locale}}",
+            &declared,
+            "task1",
+            Some(&inputs),
+            None,
+        );
+        assert!(result.is_err(), "undeclared input should error");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("undeclared input") && msg.contains("missing_locale"),
+            "error should mention undeclared input, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn validate_refs_full_inputs_none_skips_check() {
+        // When no declared_inputs is provided, inputs.* refs should pass
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let result = validate_with_refs_full("{{inputs.anything}}", &declared, "task1", None, None);
+        assert!(result.is_ok(), "no inputs check should pass: {:?}", result);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // G6: Validate context.files.* references
+    // ═════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn validate_refs_full_context_files_declared_passes() {
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let ctx_files: FxHashSet<String> =
+            ["readme", "brand"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs_full(
+            "Based on {{context.files.readme}}",
+            &declared,
+            "task1",
+            None,
+            Some(&ctx_files),
+        );
+        assert!(
+            result.is_ok(),
+            "declared context file should pass: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn validate_refs_full_context_files_undeclared_errors() {
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let ctx_files: FxHashSet<String> = ["readme"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs_full(
+            "Use {{context.files.missing}}",
+            &declared,
+            "task1",
+            None,
+            Some(&ctx_files),
+        );
+        assert!(result.is_err(), "undeclared context file should error");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("undeclared context file") && msg.contains("missing"),
+            "error should mention undeclared context file, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn validate_refs_full_context_files_none_skips_check() {
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let result =
+            validate_with_refs_full("{{context.files.anything}}", &declared, "task1", None, None);
+        assert!(result.is_ok(), "no context check should pass: {:?}", result);
     }
 
     // ═════════════════════════════════════════════════════════════════════════
