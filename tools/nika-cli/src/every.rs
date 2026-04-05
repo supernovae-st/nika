@@ -6,6 +6,7 @@
 //!   nika every --cron "0 */6 * * *" report.nika.yaml
 
 use colored::Colorize;
+use nika_core::ast::schedule::duration_to_cron;
 use std::time::Duration;
 
 use nika_daemon::{daemon_socket_path, DaemonClient, DaemonRequest, DaemonResponse};
@@ -55,7 +56,9 @@ pub async fn handle_every_command(args: EveryArgs, quiet: bool) -> Result<(), Ni
         ));
     }
 
-    let workflow = args.args.last().unwrap().clone();
+    let Some(workflow) = args.args.last().cloned() else {
+        return Err(NikaError::Execution("missing workflow argument".into()));
+    };
     if !workflow.ends_with(".nika.yaml") {
         return Err(NikaError::Execution(format!(
             "last argument must be a .nika.yaml workflow file, got '{workflow}'"
@@ -207,36 +210,6 @@ fn auto_name(workflow: &str, cron_expr: &str) -> String {
         _ => "cron",
     };
     format!("{stem}-{freq}")
-}
-
-/// Convert duration shorthand to cron (mirrors ast/schedule.rs logic).
-fn duration_to_cron(s: &str) -> Option<String> {
-    let s = s.trim();
-    if let Some(rest) = s.strip_suffix('h') {
-        let n: u32 = rest.parse().ok()?;
-        if n == 0 || n > 23 {
-            return None;
-        }
-        Some(format!("0 */{n} * * *"))
-    } else if let Some(rest) = s.strip_suffix('m') {
-        let n: u32 = rest.parse().ok()?;
-        if n == 0 || n > 59 {
-            return None;
-        }
-        Some(format!("*/{n} * * * *"))
-    } else if let Some(rest) = s.strip_suffix('d') {
-        let n: u32 = rest.parse().ok()?;
-        if n == 0 || n > 28 {
-            return None;
-        }
-        if n == 1 {
-            Some("0 0 * * *".to_string())
-        } else {
-            Some(format!("0 0 */{n} * *"))
-        }
-    } else {
-        None
-    }
 }
 
 #[cfg(test)]

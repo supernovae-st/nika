@@ -902,7 +902,25 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
                     ),
                 };
             }
+            // Validate overlap policy
+            let overlap_str = overlap.unwrap_or_else(|| "skip".to_string());
+            if !["skip", "queue", "replace"].contains(&overlap_str.as_str()) {
+                return DaemonResponse::Error {
+                    code: "NIKA-281".into(),
+                    message: format!(
+                        "invalid overlap '{overlap_str}' — must be skip, queue, or replace"
+                    ),
+                };
+            }
+
+            // Compute initial next_run_at
             let now = chrono::Utc::now();
+            let parsed_cron: croner::Cron = cron_expr.parse().unwrap(); // already validated
+            let next_run_at = parsed_cron
+                .find_next_occurrence(&now, false)
+                .ok()
+                .map(|dt| dt.to_rfc3339());
+
             let id = uuid::Uuid::new_v4().to_string();
             let schedule = nika_storage::CronSchedule {
                 id: id.clone(),
@@ -912,10 +930,10 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
                 timezone: tz_str.to_string(),
                 paused: false,
                 source: source.unwrap_or_else(|| "cli".to_string()),
-                overlap: overlap.unwrap_or_else(|| "skip".to_string()),
+                overlap: overlap_str,
                 inputs_json,
                 last_run_at: None,
-                next_run_at: None,
+                next_run_at,
                 run_count: 0,
                 last_job_id: None,
                 created_at: now.to_rfc3339(),

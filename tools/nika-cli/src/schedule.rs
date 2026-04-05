@@ -196,12 +196,12 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
             }
         }
 
-        ScheduleAction::Trigger { name } => {
-            // For now, just show a message. Full implementation would submit a job.
-            if !quiet {
-                println!("{} triggering {} (manual run)", "⠋".cyan(), name.bold());
-                println!("  TODO: submit job from schedule workflow");
-            }
+        ScheduleAction::Trigger { name: _ } => {
+            return Err(NikaError::Execution(
+                "nika schedule trigger is not yet implemented.\n\
+                 Use 'nika run <workflow>' to run a workflow manually."
+                    .into(),
+            ));
         }
 
         ScheduleAction::Remove { name } => {

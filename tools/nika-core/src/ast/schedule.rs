@@ -109,6 +109,8 @@ fn parse_schedule_string(s: &str, span: Span) -> Result<ScheduleConfig, String> 
             let cron = schedule
                 .to_cron()
                 .map_err(|e| format!("hron→cron conversion failed: {e}"))?;
+            // Validate the generated cron expression (defense-in-depth)
+            validate_cron(&cron)?;
             let tz = schedule.timezone().map(|s| s.to_string());
             return Ok(ScheduleConfig {
                 cron,
@@ -164,8 +166,10 @@ fn validate_timezone(tz: &str) -> Result<(), String> {
     })
 }
 
-/// Convert duration shorthand to cron.
-fn duration_to_cron(s: &str) -> Option<String> {
+/// Convert duration shorthand to cron expression.
+///
+/// Supports: "6h" → "0 */6 * * *", "30m" → "*/30 * * * *", "1d" → "0 0 * * *".
+pub fn duration_to_cron(s: &str) -> Option<String> {
     let s = s.trim();
     if let Some(rest) = s.strip_suffix('h') {
         let n: u32 = rest.parse().ok()?;

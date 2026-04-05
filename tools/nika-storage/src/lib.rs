@@ -1429,11 +1429,14 @@ fn do_update_schedule_after_fire(
     last_job_id: &str,
 ) -> StorageResult<()> {
     let now = chrono::Utc::now().to_rfc3339();
-    conn.execute(
+    let affected = conn.execute(
         "UPDATE schedules SET last_run_at = ?1, next_run_at = ?2, last_job_id = ?3, \
          run_count = run_count + 1, updated_at = ?4 WHERE id = ?5",
         params![last_run_at, next_run_at, last_job_id, now, id],
     )?;
+    if affected == 0 {
+        return Err(StorageError::NotFound(id.to_string()));
+    }
     Ok(())
 }
 
