@@ -37,6 +37,9 @@ pub struct RunRequest {
     /// Resume from a previous job's checkpoints. Tasks that completed in
     /// the source job are skipped, using their cached outputs.
     pub resume_from: Option<String>,
+
+    /// Optional tags for job metadata (e.g. `{"env": "staging"}`).
+    pub tags: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -55,7 +58,31 @@ pub struct StatusResponse {
     pub completed_at: Option<String>,
     pub exit_code: Option<i32>,
     pub output: Option<String>,
+    pub tags: Option<Value>,
 }
+
+/// Response for `GET /v1/jobs` — paginated job list.
+#[derive(Serialize, JsonSchema)]
+pub struct JobListResponse {
+    pub jobs: Vec<StatusResponse>,
+    pub total: usize,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+/// Query parameters for `GET /v1/jobs`.
+#[derive(Deserialize, JsonSchema)]
+pub struct JobListQuery {
+    pub state: Option<String>,
+    pub workflow: Option<String>,
+    /// Filter by tag: `tag=env:staging`
+    pub tag: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// Maximum number of jobs in a single batch submission.
+const MAX_BATCH_SIZE: usize = 50;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HANDLERS
@@ -144,8 +171,18 @@ pub async fn run_workflow(
     // Generate job ID — full 128-bit UUID in simple (no-hyphen) format
     let job_id = uuid::Uuid::new_v4().simple().to_string();
 
+    // Serialize tags to JSON string for storage
+    let tags_json = req
+        .tags
+        .as_ref()
+        .map(|t| serde_json::to_string(t).unwrap_or_default());
+
     // Persist job
-    if let Err(e) = state.storage.create_job(&job_id, &req.workflow).await {
+    if let Err(e) = state
+        .storage
+        .create_job_with_tags(&job_id, &req.workflow, tags_json)
+        .await
+    {
         // SlotGuard will decrement on drop, no manual fetch_sub needed
         return Err(e.into());
     }
@@ -183,7 +220,13 @@ pub async fn get_status(
         .await?
         .ok_or(ServeError::NotFound)?;
 
-    Ok(Json(StatusResponse {
+    Ok(Json(job_to_status_response(job)))
+}
+
+/// Convert a Job to StatusResponse (shared by get_status, job list, cancel).
+fn job_to_status_response(job: nika_storage::Job) -> StatusResponse {
+    let tags = job.tags.as_ref().and_then(|t| serde_json::from_str(t).ok());
+    StatusResponse {
         job_id: job.id,
         status: job.state.as_str().to_string(),
         workflow: job.workflow,
@@ -192,7 +235,8 @@ pub async fn get_status(
         completed_at: job.completed_at,
         exit_code: job.exit_code,
         output: job.output,
-    }))
+        tags,
+    }
 }
 
 /// `POST /v1/cancel/{id}` -- Cancel a running job (ERRATA-3).
@@ -216,16 +260,7 @@ pub async fn cancel_job(
         nika_storage::JobState::Pending | nika_storage::JobState::Running
     ) {
         // Return current state — job already finished
-        return Ok(Json(StatusResponse {
-            job_id: job.id,
-            status: job.state.as_str().to_string(),
-            workflow: job.workflow,
-            created_at: job.created_at,
-            started_at: job.started_at,
-            completed_at: job.completed_at,
-            exit_code: job.exit_code,
-            output: job.output,
-        }));
+        return Ok(Json(job_to_status_response(job)));
     }
 
     // Kill subprocess + abort the worker task (FIX-12: SIGTERM subprocess PID)
@@ -271,15 +306,81 @@ pub async fn cancel_job(
         .await?
         .ok_or(ServeError::NotFound)?;
 
-    Ok(Json(StatusResponse {
-        job_id: job.id,
-        status: job.state.as_str().to_string(),
-        workflow: job.workflow,
-        created_at: job.created_at,
-        started_at: job.started_at,
-        completed_at: job.completed_at,
-        exit_code: job.exit_code,
-        output: job.output,
+    Ok(Json(job_to_status_response(job)))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATCH + JOB LIST
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// `POST /v1/batch/run` -- Submit multiple workflows for execution.
+pub async fn batch_run(
+    State(state): State<AppState>,
+    Json(requests): Json<Vec<RunRequest>>,
+) -> Result<Json<Vec<RunResponse>>, ServeError> {
+    let max_batch = std::env::var("NIKA_SERVE_BATCH_MAX")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(MAX_BATCH_SIZE);
+
+    if requests.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    if requests.len() > max_batch {
+        return Err(ServeError::InvalidWorkflow(format!(
+            "batch too large: {} jobs (max {})",
+            requests.len(),
+            max_batch
+        )));
+    }
+
+    let mut responses = Vec::with_capacity(requests.len());
+    for req in requests {
+        // Reuse the same validation + submission logic
+        let resp = run_workflow(State(state.clone()), Json(req)).await?;
+        responses.push(resp.0);
+    }
+
+    Ok(Json(responses))
+}
+
+/// `GET /v1/jobs` -- List jobs with optional filtering.
+pub async fn list_jobs(
+    State(state): State<AppState>,
+    Query(query): Query<JobListQuery>,
+) -> Result<Json<JobListResponse>, ServeError> {
+    let state_filter = query.state.as_deref().map(nika_storage::JobState::parse);
+
+    let tag_filter = query.tag.as_deref().and_then(|t| {
+        let parts: Vec<&str> = t.splitn(2, ':').collect();
+        if parts.len() == 2 {
+            Some((parts[0].to_string(), parts[1].to_string()))
+        } else {
+            None
+        }
+    });
+
+    let limit = query.limit.unwrap_or(50).min(100);
+    let offset = query.offset.unwrap_or(0);
+
+    let filter = nika_storage::JobFilter {
+        state: state_filter,
+        workflow: query.workflow,
+        tag: tag_filter,
+        limit: Some(limit),
+        offset: Some(offset),
+    };
+
+    let jobs = state.storage.list_jobs_filtered(filter).await?;
+    let total = jobs.len();
+
+    let job_responses: Vec<StatusResponse> = jobs.into_iter().map(job_to_status_response).collect();
+
+    Ok(Json(JobListResponse {
+        jobs: job_responses,
+        total,
+        limit,
+        offset,
     }))
 }
 
@@ -528,6 +629,26 @@ pub fn reload_docs(op: TransformOperation) -> TransformOperation {
         .summary("Reload workflows from disk")
         .description("Rescans the workflows directory and returns the refreshed list.")
         .tag("workflows")
+}
+
+pub fn batch_docs(op: TransformOperation) -> TransformOperation {
+    op.id("batchRun")
+        .summary("Submit multiple workflows for execution")
+        .description(
+            "Accepts a JSON array of RunRequests. Returns array of RunResponses.\n\
+             Max batch size: 50 (configurable via NIKA_SERVE_BATCH_MAX).",
+        )
+        .tag("jobs")
+}
+
+pub fn jobs_list_docs(op: TransformOperation) -> TransformOperation {
+    op.id("listJobs")
+        .summary("List jobs with filtering")
+        .description(
+            "Returns paginated job list. Filter by state, workflow, or tag.\n\
+             Tag format: `tag=key:value` (e.g. `tag=env:staging`).",
+        )
+        .tag("jobs")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

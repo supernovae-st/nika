@@ -49,6 +49,14 @@ pub fn build_router(state: AppState) -> Router {
             post_with(workflows::reload_workflows, workflows::reload_docs),
         )
         .api_route(
+            "/v1/batch/run",
+            post_with(workflows::batch_run, workflows::batch_docs),
+        )
+        .api_route(
+            "/v1/jobs",
+            get_with(workflows::list_jobs, workflows::jobs_list_docs),
+        )
+        .api_route(
             "/v1/jobs/{id}/artifacts",
             get_with(artifacts::list_artifacts, artifacts::list_docs),
         )
