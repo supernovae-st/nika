@@ -527,32 +527,19 @@ impl RigProvider {
         nika_core::catalogs::default_model_for_provider(self.name()).unwrap_or("claude-sonnet-4-6")
     }
 
-    /// Raw HTTP completion for OpenAI-compatible endpoints.
+    /// Shared low-level POST to /chat/completions for OpenAI-compatible endpoints.
     ///
-    /// Bypasses rig-core deserialization entirely — extracts `choices[0].message.content`
-    /// from the raw JSON response. This avoids deserialization failures with vLLM, Ollama,
-    /// and other servers that add non-standard fields (annotations, reasoning, stop_reason).
-    #[allow(clippy::too_many_arguments)]
-    /// Returns `(content, prompt_tokens, completion_tokens)`.
-    async fn raw_openai_compat_infer(
+    /// Returns the parsed JSON response body + token usage. Both `raw_openai_compat_infer`
+    /// and `infer_with_tools` (OpenAiCompat arm) delegate here, eliminating HTTP code
+    /// duplication and ensuring token tracking works in both paths.
+    async fn raw_chat_completion(
         http_client: &reqwest::Client,
         base_url: &str,
         api_key: &str,
-        model: &str,
-        messages: Vec<serde_json::Value>,
-        max_tokens: u64,
-        temperature: Option<f64>,
+        body: serde_json::Value,
         timeout: std::time::Duration,
-    ) -> Result<(String, u64, u64), RigInferError> {
+    ) -> Result<(serde_json::Value, u64, u64), RigInferError> {
         let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
-        let mut body = serde_json::json!({
-            "model": model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-        });
-        if let Some(temp) = temperature {
-            body["temperature"] = serde_json::json!(temp);
-        }
 
         let mut req = http_client.post(&url).json(&body).timeout(timeout);
         if !api_key.is_empty() {
@@ -598,6 +585,38 @@ impl RigProvider {
             .pointer("/usage/completion_tokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
+
+        Ok((json, prompt_tokens, completion_tokens))
+    }
+
+    /// Raw HTTP completion for OpenAI-compatible endpoints.
+    ///
+    /// Bypasses rig-core deserialization entirely — extracts `choices[0].message.content`
+    /// from the raw JSON response. This avoids deserialization failures with vLLM, Ollama,
+    /// and other servers that add non-standard fields (annotations, reasoning, stop_reason).
+    #[allow(clippy::too_many_arguments)]
+    /// Returns `(content, prompt_tokens, completion_tokens)`.
+    async fn raw_openai_compat_infer(
+        http_client: &reqwest::Client,
+        base_url: &str,
+        api_key: &str,
+        model: &str,
+        messages: Vec<serde_json::Value>,
+        max_tokens: u64,
+        temperature: Option<f64>,
+        timeout: std::time::Duration,
+    ) -> Result<(String, u64, u64), RigInferError> {
+        let mut body = serde_json::json!({
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        });
+        if let Some(temp) = temperature {
+            body["temperature"] = serde_json::json!(temp);
+        }
+
+        let (json, prompt_tokens, completion_tokens) =
+            Self::raw_chat_completion(http_client, base_url, api_key, body, timeout).await?;
 
         let content = json["choices"]
             .get(0)
@@ -1050,7 +1069,8 @@ impl RigProvider {
     /// * `max_tokens` - Optional max tokens for the response (default: 8192)
     ///
     /// # Returns
-    /// The tool call arguments as a string (the structured JSON output)
+    /// `(content, prompt_tokens, completion_tokens)` — tokens are non-zero for
+    /// OpenAiCompat (from API response), zero for rig-core providers (no access).
     pub async fn infer_with_tools(
         &self,
         prompt: &str,
@@ -1058,7 +1078,7 @@ impl RigProvider {
         model: Option<&str>,
         max_tokens: Option<u32>,
         system: Option<&str>,
-    ) -> Result<String, RigInferError> {
+    ) -> Result<(String, u64, u64), RigInferError> {
         use rig::agent::AgentBuilder;
         use rig::message::ToolChoice as RigToolChoice;
 
@@ -1081,6 +1101,7 @@ impl RigProvider {
                 agent
                     .prompt(prompt)
                     .await
+                    .map(|s| (s, 0u64, 0u64)) // rig-core doesn't expose token counts
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }};
         }
@@ -1110,7 +1131,7 @@ impl RigProvider {
                     // Bypass rig-core agent.prompt() to avoid deserialization
                     // failures with vLLM/Ollama non-standard response fields.
                     // Convert ToolDyn definitions to OpenAI tool format, send raw
-                    // HTTP, and extract tool_calls[0].function.arguments.
+                    // HTTP via raw_chat_completion(), and extract tool_calls.
                     let mut openai_tools = Vec::new();
                     for tool in &tools {
                         let def = tool.definition(String::new()).await;
@@ -1130,7 +1151,6 @@ impl RigProvider {
                     }
                     messages.push(serde_json::json!({"role": "user", "content": prompt}));
 
-                    let url = format!("{}/chat/completions", raw_base_url.trim_end_matches('/'));
                     let body = serde_json::json!({
                         "model": model_id,
                         "messages": messages,
@@ -1139,44 +1159,15 @@ impl RigProvider {
                         "tool_choice": "required",
                     });
 
-                    let mut req = http_client
-                        .post(&url)
-                        .json(&body)
-                        .timeout(effective_timeout);
-                    if !raw_api_key.is_empty() {
-                        req = req.bearer_auth(raw_api_key);
-                    }
-
-                    let resp = req.send().await.map_err(|e| {
-                        if e.is_timeout() {
-                            RigInferError::Timeout {
-                                duration_ms: effective_timeout.as_millis() as u64,
-                            }
-                        } else {
-                            RigInferError::PromptError(format!("HTTP error: {e}"))
-                        }
-                    })?;
-
-                    let status = resp.status();
-                    let body_text = resp.text().await.map_err(|e| {
-                        RigInferError::PromptError(format!("failed to read response body: {e}"))
-                    })?;
-
-                    if !status.is_success() {
-                        let truncated = if body_text.len() > 500 {
-                            format!("{}...(truncated)", &body_text[..500])
-                        } else {
-                            body_text
-                        };
-                        return Err(RigInferError::PromptError(format!(
-                            "HTTP {status}: {truncated}"
-                        )));
-                    }
-
-                    let json: serde_json::Value =
-                        serde_json::from_str(&body_text).map_err(|e| {
-                            RigInferError::PromptError(format!("invalid JSON response: {e}"))
-                        })?;
+                    let (json, prompt_tokens, completion_tokens) =
+                        Self::raw_chat_completion(
+                            http_client,
+                            raw_base_url,
+                            raw_api_key,
+                            body,
+                            effective_timeout,
+                        )
+                        .await?;
 
                     // Primary: extract tool call arguments
                     let arguments = json["choices"]
@@ -1186,7 +1177,7 @@ impl RigProvider {
                         .map(|s| s.to_string());
 
                     if let Some(args) = arguments {
-                        Ok(args)
+                        Ok((args, prompt_tokens, completion_tokens))
                     } else {
                         // Fallback: content field (some vLLM models respond
                         // with JSON in content instead of tool calls)
@@ -1194,6 +1185,7 @@ impl RigProvider {
                             .get(0)
                             .and_then(|c| c["message"]["content"].as_str())
                             .map(|s| s.to_string())
+                            .map(|s| (s, prompt_tokens, completion_tokens))
                             .ok_or_else(|| {
                                 RigInferError::PromptError(
                                     "no tool_calls or content in response".into(),

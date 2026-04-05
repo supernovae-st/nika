@@ -1273,7 +1273,7 @@ impl TaskExecutor {
             )
             .await
         {
-            Ok(tool_result) => {
+            Ok((tool_result, api_prompt_tokens, api_completion_tokens)) => {
                 debug!(
                     task_id = %task_id,
                     result_len = tool_result.len(),
@@ -1302,8 +1302,13 @@ impl TaskExecutor {
                             });
                             let result_str =
                                 super::verbs::strip_think_tags(&result.value.to_string());
-                            let est_in = estimate_tokens(prompt.len());
-                            let est_out = estimate_tokens(result_str.len());
+                            // Use real tokens from API when available (OpenAiCompat),
+                            // fall back to estimation for rig-core providers (tokens=0)
+                            let (est_in, est_out) = if api_prompt_tokens > 0 || api_completion_tokens > 0 {
+                                (api_prompt_tokens, api_completion_tokens)
+                            } else {
+                                (estimate_tokens(prompt.len()), estimate_tokens(result_str.len()))
+                            };
                             let cost = provider
                                 .cost_provider_kind()
                                 .map(|pk| {
@@ -1361,8 +1366,13 @@ impl TaskExecutor {
                         success: true,
                         error: None,
                     });
-                    let est_in = estimate_tokens(prompt.len());
-                    let est_out = estimate_tokens(tool_result.len());
+                    // Use real tokens from API when available (OpenAiCompat),
+                    // fall back to estimation for rig-core providers (tokens=0)
+                    let (est_in, est_out) = if api_prompt_tokens > 0 || api_completion_tokens > 0 {
+                        (api_prompt_tokens, api_completion_tokens)
+                    } else {
+                        (estimate_tokens(prompt.len()), estimate_tokens(tool_result.len()))
+                    };
                     let cost = provider
                         .cost_provider_kind()
                         .map(|pk| {

@@ -1755,9 +1755,13 @@ async fn test_openai_compat_infer_with_tools_raw_http() {
         .await;
 
     assert!(result.is_ok(), "Failed: {:?}", result.err());
-    let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    let (content, prompt_tokens, completion_tokens) = result.unwrap();
+    let json: serde_json::Value = serde_json::from_str(&content).unwrap();
     assert_eq!(json["name"], "Rust");
     assert_eq!(json["age"], 30);
+    // Verify tokens are tracked from API response
+    assert_eq!(prompt_tokens, 120);
+    assert_eq!(completion_tokens, 30);
 }
 
 /// Test infer_with_tools fallback: when vLLM responds with content instead
@@ -1818,6 +1822,78 @@ async fn test_openai_compat_infer_with_tools_content_fallback() {
 
     // Falls back to content field when tool_calls is empty
     assert!(result.is_ok(), "Failed: {:?}", result.err());
-    let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    let (content, _prompt_tokens, _completion_tokens) = result.unwrap();
+    let json: serde_json::Value = serde_json::from_str(&content).unwrap();
     assert_eq!(json["name"], "Python");
+}
+
+/// Test that infer_with_tools returns non-zero token counts for OpenAiCompat.
+/// This was a bug: the OpenAiCompat path discarded usage data from the API response,
+/// causing telemetry to silently report zero tokens.
+#[tokio::test]
+async fn test_openai_compat_infer_with_tools_tracks_tokens() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let response = serde_json::json!({
+        "id": "chatcmpl-tokens",
+        "object": "chat.completion",
+        "created": 1712000000,
+        "model": "qwen3.5-27b",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "id": "call_456",
+                    "type": "function",
+                    "function": {
+                        "name": "submit_result",
+                        "arguments": "{\"name\":\"Token\",\"age\":42}"
+                    }
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }],
+        "usage": { "prompt_tokens": 200, "total_tokens": 250, "completion_tokens": 50 }
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&response))
+        .mount(&server)
+        .await;
+
+    let provider = RigProvider::openai_compat(
+        "h100",
+        &format!("{}/v1", server.uri()),
+        "test-key",
+        Some("qwen3.5-27b"),
+        300,
+    )
+    .unwrap();
+
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": { "name": { "type": "string" }, "age": { "type": "number" } },
+        "required": ["name", "age"]
+    });
+    let submit_tool = crate::runtime::submit_tool::DynamicSubmitTool::new(schema);
+    let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
+
+    let result = provider
+        .infer_with_tools("Extract info", tools, None, None, None)
+        .await;
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let (content, prompt_tokens, completion_tokens) = result.unwrap();
+    let json: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(json["name"], "Token");
+    assert_eq!(json["age"], 42);
+
+    // Key assertion: tokens must be non-zero (the bug was silent zero telemetry)
+    assert_eq!(prompt_tokens, 200, "prompt_tokens should come from API response");
+    assert_eq!(completion_tokens, 50, "completion_tokens should come from API response");
 }
