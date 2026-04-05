@@ -222,7 +222,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .unwrap_or_else(|| rig::providers::mistral::MISTRAL_LARGE.to_string());
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (provider: mistral)".to_string(),
+            })?;
         let client = rig::providers::mistral::Client::from_env();
         self.run_agent_loop(
             client,
@@ -238,7 +240,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "llama-3.3-70b-versatile".to_string());
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (provider: groq)".to_string(),
+            })?;
         let client = rig::providers::groq::Client::from_env();
         self.run_agent_loop(
             client,
@@ -254,7 +258,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "deepseek-chat".to_string());
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (provider: deepseek)".to_string(),
+            })?;
         let client = rig::providers::deepseek::Client::from_env();
         self.run_agent_loop(
             client,
@@ -270,7 +276,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "gemini-2.0-flash".to_string());
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (provider: gemini)".to_string(),
+            })?;
         let client = rig::providers::gemini::Client::from_env();
         self.run_agent_loop(
             client,
@@ -286,7 +294,9 @@ impl RigAgentLoop {
             .params
             .model
             .clone()
-            .unwrap_or_else(|| "grok-3-fast".to_string());
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "model field is required for LLM verbs (provider: xai)".to_string(),
+            })?;
         let client = rig::providers::xai::Client::from_env();
         self.run_agent_loop(
             client,

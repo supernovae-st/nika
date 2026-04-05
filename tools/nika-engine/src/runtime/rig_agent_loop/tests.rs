@@ -2156,3 +2156,140 @@ fn test_scope_explicit_tools_override_scope() {
         "explicit tools list should override minimal scope (3 + spawn_agent)"
     );
 }
+
+// ========================================================================
+// ModelResolver: agent loop requires model (no hardcoded defaults)
+// ========================================================================
+
+/// run_groq() must error when params.model is None.
+/// Previously it silently defaulted to "llama-3.3-70b-versatile", bypassing ModelResolver.
+#[tokio::test]
+#[serial]
+async fn test_run_groq_errors_on_missing_model() {
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        provider: Some(nika_core::ProviderName::parse("groq")),
+        model: None, // No model — must error, not silently default
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mcp_clients = FxHashMap::default();
+
+    let mut agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        mcp_clients,
+        None,
+        None,
+    )
+    .unwrap();
+
+    let result = agent.run_groq().await;
+    assert!(result.is_err(), "run_groq() must error when model is None");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("model field is required"),
+        "Error should mention model requirement, got: {err}"
+    );
+}
+
+/// run_mistral() must error when params.model is None.
+#[tokio::test]
+#[serial]
+async fn test_run_mistral_errors_on_missing_model() {
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        provider: Some(nika_core::ProviderName::parse("mistral")),
+        model: None,
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mut agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        FxHashMap::default(),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let result = agent.run_mistral().await;
+    assert!(result.is_err(), "run_mistral() must error when model is None");
+}
+
+/// run_deepseek() must error when params.model is None.
+#[tokio::test]
+#[serial]
+async fn test_run_deepseek_errors_on_missing_model() {
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        provider: Some(nika_core::ProviderName::parse("deepseek")),
+        model: None,
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mut agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        FxHashMap::default(),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let result = agent.run_deepseek().await;
+    assert!(result.is_err(), "run_deepseek() must error when model is None");
+}
+
+/// run_gemini() must error when params.model is None.
+#[tokio::test]
+#[serial]
+async fn test_run_gemini_errors_on_missing_model() {
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        provider: Some(nika_core::ProviderName::parse("gemini")),
+        model: None,
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mut agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        FxHashMap::default(),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let result = agent.run_gemini().await;
+    assert!(result.is_err(), "run_gemini() must error when model is None");
+}
+
+/// run_xai() must error when params.model is None.
+#[tokio::test]
+#[serial]
+async fn test_run_xai_errors_on_missing_model() {
+    let params = AgentParams {
+        prompt: "Test".to_string(),
+        provider: Some(nika_core::ProviderName::parse("xai")),
+        model: None,
+        ..Default::default()
+    };
+    let event_log = EventLog::new();
+    let mut agent = RigAgentLoop::new(
+        "test".to_string(),
+        params,
+        event_log,
+        FxHashMap::default(),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let result = agent.run_xai().await;
+    assert!(result.is_err(), "run_xai() must error when model is None");
+}
