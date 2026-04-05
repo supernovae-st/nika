@@ -427,6 +427,10 @@
         "description": {
           "type": "string",
           "description": "Human-readable task description"
+        },
+        "when": {
+          "type": "string",
+          "description": "Conditional execution expression. If falsy (false, empty, null, 0), task is skipped."
         }
       },
       "oneOf": [

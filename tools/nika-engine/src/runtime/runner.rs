@@ -7705,4 +7705,28 @@ mod tests {
         let result = value_to_array(&arr).unwrap();
         assert_eq!(result, vec![json!(1), json!(2), json!(3)]);
     }
+
+    // ── is_truthy tests ─────────────────────────────────────
+
+    #[test]
+    fn truthy_accepts_valid_values() {
+        assert!(is_truthy("true"));
+        assert!(is_truthy("yes"));
+        assert!(is_truthy("1"));
+        assert!(is_truthy("hello"));
+        assert!(is_truthy("42"));
+        assert!(is_truthy("  true  ")); // trimmed
+    }
+
+    #[test]
+    fn truthy_rejects_falsy_values() {
+        assert!(!is_truthy("false"));
+        assert!(!is_truthy("null"));
+        assert!(!is_truthy("0"));
+        assert!(!is_truthy("0.0"));
+        assert!(!is_truthy(""));
+        assert!(!is_truthy("  false  ")); // trimmed
+        assert!(!is_truthy("  null  "));
+        assert!(!is_truthy("  0  "));
+    }
 }

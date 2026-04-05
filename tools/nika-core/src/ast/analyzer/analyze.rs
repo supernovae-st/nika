@@ -845,7 +845,7 @@ fn analyze_task(
                 Some(val)
             }
         }),
-        when: None,
+        when: raw.when.as_ref().map(|s| s.value.clone()),
         span: raw.span,
     };
 
@@ -3766,6 +3766,51 @@ tasks:
                 .any(|w| w.message.contains("collides")),
             "Should warn when append collides with overwrite: {:?}",
             result.warnings
+        );
+    }
+
+    #[test]
+    fn test_analyze_when_field_preserved() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: conditional
+    when: "{{inputs.run_this}}"
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.is_empty(),
+            "when: field should be valid: {:?}",
+            result.errors
+        );
+        let task = &result.value.unwrap().tasks[0];
+        assert_eq!(
+            task.when.as_deref(),
+            Some("{{inputs.run_this}}"),
+            "when: field must be preserved through analysis"
+        );
+    }
+
+    #[test]
+    fn test_analyze_when_field_none_when_absent() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: test
+tasks:
+  - id: unconditional
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        let task = &result.value.unwrap().tasks[0];
+        assert!(
+            task.when.is_none(),
+            "when: should be None when not specified"
         );
     }
 }
