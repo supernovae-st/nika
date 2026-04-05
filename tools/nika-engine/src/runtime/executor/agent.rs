@@ -278,7 +278,7 @@ impl TaskExecutor {
             );
             agent_loop.with_skills(
                 Arc::clone(&self.skill_injector),
-                self.skills_map.clone(),
+                (*self.skills_map).clone(),
                 self.workflow_base_dir.clone(),
             )
         } else {

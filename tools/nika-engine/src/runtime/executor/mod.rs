@@ -88,7 +88,8 @@ pub struct TaskExecutor {
     /// Shared SkillInjector for loading and caching skill files
     skill_injector: Arc<SkillInjector>,
     /// Workflow-level skills mapping (alias -> file path)
-    skills_map: std::collections::HashMap<String, String>,
+    /// Arc-wrapped to avoid cloning the map for each spawned task.
+    skills_map: Arc<std::collections::HashMap<String, String>>,
     /// Base directory for resolving relative skill paths
     workflow_base_dir: std::path::PathBuf,
     /// Project root directory (parent of nika.toml), used by working_dir_mode "project"
@@ -261,7 +262,7 @@ impl TaskExecutor {
             cas,
             tool_ctx,
             skill_injector: Arc::new(SkillInjector::new()),
-            skills_map: std::collections::HashMap::new(),
+            skills_map: Arc::new(std::collections::HashMap::new()),
             workflow_base_dir: working_dir,
             project_root: None,
             working_dir_mode: None,
@@ -354,7 +355,7 @@ impl TaskExecutor {
         skills_map: std::collections::HashMap<String, String>,
         base_dir: std::path::PathBuf,
     ) -> Self {
-        self.skills_map = skills_map;
+        self.skills_map = Arc::new(skills_map);
         // Only set workflow_base_dir if not already set via with_base_path()
         // (with_base_path uses the workflow file directory which is more specific)
         let working_dir = std::env::current_dir().unwrap_or_default();

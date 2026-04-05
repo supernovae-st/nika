@@ -1591,3 +1591,372 @@ pub(crate) fn format_output_preview(output: &Value, term_width: u16) -> Vec<Stri
 
     lines
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event::{Event, EventKind, FinishReason, GuardrailType, Severity};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    /// Helper: wrap an EventKind into an Event for `apply_event`.
+    fn event(kind: EventKind) -> Event {
+        Event {
+            id: 0,
+            timestamp_ms: 0,
+            kind,
+        }
+    }
+
+    #[test]
+    fn run_stats_initial_values() {
+        let stats = RunStats::default();
+        assert_eq!(stats.tasks_passed, 0);
+        assert_eq!(stats.tasks_failed, 0);
+        assert_eq!(stats.tasks_skipped, 0);
+        assert_eq!(stats.total_input_tokens, 0);
+        assert_eq!(stats.total_output_tokens, 0);
+        assert_eq!(stats.total_cache_tokens, 0);
+        assert!((stats.total_cost - 0.0).abs() < f64::EPSILON);
+        assert!(stats.ttft_values.is_empty());
+        assert_eq!(stats.mcp_calls, 0);
+        assert_eq!(stats.mcp_retries, 0);
+        assert_eq!(stats.mcp_errors, 0);
+        assert_eq!(stats.media_stored, 0);
+        assert_eq!(stats.media_bytes, 0);
+        assert_eq!(stats.media_dedup, 0);
+        assert_eq!(stats.artifacts_count, 0);
+        assert_eq!(stats.artifacts_bytes, 0);
+        assert_eq!(stats.guardrails_passed, 0);
+        assert_eq!(stats.guardrails_failed, 0);
+        assert_eq!(stats.guardrails_escalations, 0);
+        assert_eq!(stats.retries, 0);
+        assert_eq!(stats.structured_attempts, 0);
+        assert!(stats.structured_success_layer.is_none());
+        assert!(stats.root_failure.is_none());
+        assert!(stats.task_timeline.is_empty());
+        assert!(stats.provider_calls.is_empty());
+        assert!(stats.pending_providers.is_empty());
+    }
+
+    #[test]
+    fn run_stats_task_completed() {
+        let mut stats = RunStats::default();
+        stats.apply_event(&event(EventKind::TaskCompleted {
+            task_id: Arc::from("step1"),
+            output: Arc::new(json!("result")),
+            duration_ms: 100,
+        }));
+        assert_eq!(stats.tasks_passed, 1);
+        assert_eq!(stats.tasks_failed, 0);
+        assert_eq!(stats.tasks_skipped, 0);
+    }
+
+    #[test]
+    fn run_stats_task_failed() {
+        let mut stats = RunStats::default();
+        stats.apply_event(&event(EventKind::TaskFailed {
+            task_id: Arc::from("broken"),
+            error: "something went wrong".to_string(),
+            duration_ms: 50,
+            error_code: Some("NIKA-044".to_string()),
+        }));
+        assert_eq!(stats.tasks_failed, 1);
+        assert_eq!(stats.tasks_passed, 0);
+        assert!(stats.root_failure.is_some());
+        assert!(stats.root_failure.as_ref().unwrap().contains("broken"));
+    }
+
+    #[test]
+    fn run_stats_task_failed_root_failure_is_first_only() {
+        let mut stats = RunStats::default();
+        stats.apply_event(&event(EventKind::TaskFailed {
+            task_id: Arc::from("first"),
+            error: "first error".to_string(),
+            duration_ms: 10,
+            error_code: None,
+        }));
+        stats.apply_event(&event(EventKind::TaskFailed {
+            task_id: Arc::from("second"),
+            error: "second error".to_string(),
+            duration_ms: 20,
+            error_code: None,
+        }));
+        assert_eq!(stats.tasks_failed, 2);
+        // root_failure should remain the first failure
+        assert!(stats.root_failure.as_ref().unwrap().contains("first"));
+        assert!(!stats.root_failure.as_ref().unwrap().contains("second"));
+    }
+
+    #[test]
+    fn run_stats_task_skipped() {
+        let mut stats = RunStats::default();
+        stats.apply_event(&event(EventKind::TaskSkipped {
+            task_id: Arc::from("downstream"),
+            reason: "upstream failed".to_string(),
+        }));
+        assert_eq!(stats.tasks_skipped, 1);
+    }
+
+    #[test]
+    fn run_stats_multiple_events() {
+        let mut stats = RunStats::default();
+
+        // 3 completions
+        for i in 0..3 {
+            stats.apply_event(&event(EventKind::TaskCompleted {
+                task_id: Arc::from(format!("task_{i}")),
+                output: Arc::new(json!(null)),
+                duration_ms: 100,
+            }));
+        }
+
+        // 1 failure
+        stats.apply_event(&event(EventKind::TaskFailed {
+            task_id: Arc::from("bad_task"),
+            error: "boom".to_string(),
+            duration_ms: 10,
+            error_code: None,
+        }));
+
+        // 2 skips
+        for i in 0..2 {
+            stats.apply_event(&event(EventKind::TaskSkipped {
+                task_id: Arc::from(format!("skipped_{i}")),
+                reason: "dep failed".to_string(),
+            }));
+        }
+
+        assert_eq!(stats.tasks_passed, 3);
+        assert_eq!(stats.tasks_failed, 1);
+        assert_eq!(stats.tasks_skipped, 2);
+    }
+
+    #[test]
+    fn run_stats_provider_responded_accumulates_tokens() {
+        let mut stats = RunStats::default();
+
+        // First: register provider call so the join works
+        stats.apply_event(&event(EventKind::ProviderCalled {
+            task_id: Arc::from("t1"),
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4-20250514".to_string(),
+            prompt_len: 100,
+            endpoint_url: None,
+        }));
+
+        stats.apply_event(&event(EventKind::ProviderResponded {
+            task_id: Arc::from("t1"),
+            request_id: None,
+            input_tokens: 200,
+            output_tokens: 50,
+            cache_read_tokens: 10,
+            ttft_ms: Some(42),
+            finish_reason: FinishReason::Stop,
+            cost_usd: 0.003,
+        }));
+
+        assert_eq!(stats.total_input_tokens, 200);
+        assert_eq!(stats.total_output_tokens, 50);
+        assert_eq!(stats.total_cache_tokens, 10);
+        assert!((stats.total_cost - 0.003).abs() < 1e-10);
+        assert_eq!(stats.ttft_values, vec![42]);
+        assert_eq!(stats.provider_calls.len(), 1);
+        assert_eq!(stats.provider_calls[0].provider, "anthropic");
+    }
+
+    #[test]
+    fn run_stats_mcp_events() {
+        let mut stats = RunStats::default();
+
+        stats.apply_event(&event(EventKind::McpInvoke {
+            task_id: Arc::from("t"),
+            call_id: "c1".to_string(),
+            mcp_server: "novanet".to_string(),
+            tool: Some("search".to_string()),
+            resource: None,
+            params: None,
+        }));
+        stats.apply_event(&event(EventKind::McpRetry {
+            task_id: Arc::from("t"),
+            server_name: "novanet".to_string(),
+            operation: "search".to_string(),
+            attempt: 2,
+            max_attempts: 3,
+            error: "timeout".to_string(),
+        }));
+        stats.apply_event(&event(EventKind::McpError {
+            server_name: "novanet".to_string(),
+            error: "connection refused".to_string(),
+        }));
+
+        assert_eq!(stats.mcp_calls, 1);
+        assert_eq!(stats.mcp_retries, 1);
+        assert_eq!(stats.mcp_errors, 1);
+    }
+
+    #[test]
+    fn run_stats_guardrail_events() {
+        let mut stats = RunStats::default();
+
+        stats.apply_event(&event(EventKind::GuardrailPassed {
+            task_id: Arc::from("t"),
+            guardrail_type: GuardrailType::Length,
+            description: "word count ok".to_string(),
+        }));
+        stats.apply_event(&event(EventKind::GuardrailFailed {
+            task_id: Arc::from("t"),
+            guardrail_type: GuardrailType::Schema,
+            description: "schema check".to_string(),
+            message: "missing field".to_string(),
+        }));
+        stats.apply_event(&event(EventKind::GuardrailEscalation {
+            task_id: Arc::from("t"),
+            guardrail_type: GuardrailType::Llm,
+            guardrail_id: "llm_check".to_string(),
+            message: "factually inaccurate".to_string(),
+            severity: Severity::High,
+            suggested_action: None,
+        }));
+
+        assert_eq!(stats.guardrails_passed, 1);
+        assert_eq!(stats.guardrails_failed, 1);
+        assert_eq!(stats.guardrails_escalations, 1);
+    }
+
+    #[test]
+    fn run_stats_artifact_written() {
+        let mut stats = RunStats::default();
+
+        stats.apply_event(&event(EventKind::ArtifactWritten {
+            task_id: Arc::from("report"),
+            path: "output/report.md".to_string(),
+            size: 4096,
+            format: "markdown".to_string(),
+            checksum: None,
+        }));
+        stats.apply_event(&event(EventKind::ArtifactWritten {
+            task_id: Arc::from("data"),
+            path: "output/data.json".to_string(),
+            size: 1024,
+            format: "json".to_string(),
+            checksum: Some("blake3:def456".to_string()),
+        }));
+
+        assert_eq!(stats.artifacts_count, 2);
+        assert_eq!(stats.artifacts_bytes, 5120);
+    }
+
+    #[test]
+    fn run_stats_media_stored() {
+        let mut stats = RunStats::default();
+
+        stats.apply_event(&event(EventKind::MediaStored {
+            task_id: Arc::from("img"),
+            hash: "blake3:abc".to_string(),
+            path: "/store/abc".to_string(),
+            size_bytes: 50_000,
+            verified: true,
+            deduplicated: false,
+            pipeline_ms: 10,
+        }));
+        stats.apply_event(&event(EventKind::MediaStored {
+            task_id: Arc::from("img2"),
+            hash: "blake3:abc".to_string(),
+            path: "/store/abc".to_string(),
+            size_bytes: 50_000,
+            verified: true,
+            deduplicated: true,
+            pipeline_ms: 1,
+        }));
+
+        assert_eq!(stats.media_stored, 2);
+        assert_eq!(stats.media_bytes, 100_000);
+        assert_eq!(stats.media_dedup, 1);
+    }
+
+    #[test]
+    fn run_stats_structured_output() {
+        let mut stats = RunStats::default();
+
+        stats.apply_event(&event(EventKind::StructuredOutputAttempt {
+            task_id: Arc::from("extract"),
+            layer: 0,
+            layer_name: "tool_injection".to_string(),
+            attempt: 1,
+            success: false,
+            error: Some("no tool response".to_string()),
+        }));
+        stats.apply_event(&event(EventKind::StructuredOutputAttempt {
+            task_id: Arc::from("extract"),
+            layer: 2,
+            layer_name: "extract_validate".to_string(),
+            attempt: 1,
+            success: true,
+            error: None,
+        }));
+        stats.apply_event(&event(EventKind::StructuredOutputSuccess {
+            task_id: Arc::from("extract"),
+            layer: 2,
+            layer_name: "extract_validate".to_string(),
+            total_attempts: 2,
+        }));
+
+        assert_eq!(stats.structured_attempts, 2);
+        assert_eq!(stats.structured_success_layer, Some(2));
+    }
+
+    #[test]
+    fn run_stats_retry_events() {
+        let mut stats = RunStats::default();
+
+        stats.apply_event(&event(EventKind::FetchRetry {
+            task_id: Arc::from("f"),
+            url: "https://api.example.com".to_string(),
+            attempt: 2,
+            max_attempts: 3,
+            status_code: Some(503),
+            backoff_ms: 2000,
+        }));
+        stats.apply_event(&event(EventKind::TaskRetry {
+            task_id: Arc::from("t"),
+            attempt: 2,
+            max_attempts: 3,
+            backoff_ms: 1000,
+            error: Some("temporary".to_string()),
+        }));
+        stats.apply_event(&event(EventKind::FetchExhausted {
+            task_id: Arc::from("f"),
+            url: "https://api.example.com".to_string(),
+            attempts: 3,
+            last_status: Some(503),
+            reason: "all retries failed".to_string(),
+        }));
+        stats.apply_event(&event(EventKind::ProviderAutoRetried {
+            task_id: Arc::from("p"),
+            attempt: 1,
+            max_attempts: 4,
+            delay_ms: 500,
+            error: "rate limit".to_string(),
+        }));
+
+        assert_eq!(stats.retries, 4);
+    }
+
+    #[test]
+    fn run_stats_unknown_event_is_noop() {
+        let mut stats = RunStats::default();
+        // WorkflowStarted is not handled by apply_event (falls into _ => {})
+        stats.apply_event(&event(EventKind::WorkflowStarted {
+            task_count: 5,
+            generation_id: "gen-1".to_string(),
+            workflow_hash: "abc123".to_string(),
+            nika_version: "0.70.0".to_string(),
+        }));
+        // All counters should remain at zero
+        assert_eq!(stats.tasks_passed, 0);
+        assert_eq!(stats.tasks_failed, 0);
+        assert_eq!(stats.tasks_skipped, 0);
+        assert_eq!(stats.retries, 0);
+    }
+}
