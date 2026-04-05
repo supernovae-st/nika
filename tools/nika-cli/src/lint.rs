@@ -13,8 +13,8 @@ use std::path::Path;
 
 #[cfg(test)]
 use nika_engine::ast::analyzed::{
-    AnalyzedFetchAction, AnalyzedForEach, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedRetry,
-    AnalyzedTask, TaskId,
+    AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach, AnalyzedInferAction,
+    AnalyzedInvokeAction, AnalyzedRetry, AnalyzedTask, TaskId,
 };
 
 /// Lint severity
@@ -159,6 +159,65 @@ pub fn lint_workflow(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
             task_id: None,
             message: "Single-task workflow — consider `nika infer` or `nika fetch` directly".into(),
         });
+    }
+
+    // L080: expensive task after conditional without its own when:
+    // If a task has when: and a downstream task (infer/agent/fetch) doesn't,
+    // the downstream runs unconditionally even when the conditional was skipped.
+    {
+        let conditional_ids: Vec<_> = workflow
+            .tasks
+            .iter()
+            .filter(|t| t.when.is_some())
+            .map(|t| t.id)
+            .collect();
+        if !conditional_ids.is_empty() {
+            for task in &workflow.tasks {
+                if task.when.is_some() {
+                    continue; // already conditional
+                }
+                let is_expensive = matches!(
+                    task.action,
+                    AnalyzedTaskAction::Infer(_)
+                        | AnalyzedTaskAction::Agent(_)
+                        | AnalyzedTaskAction::Fetch(_)
+                );
+                if !is_expensive {
+                    continue;
+                }
+                // Check if any upstream is conditional
+                let has_conditional_upstream = task
+                    .depends_on
+                    .iter()
+                    .chain(task.implicit_deps.iter())
+                    .any(|dep| conditional_ids.contains(dep));
+                if has_conditional_upstream {
+                    findings.push(LintFinding {
+                        severity: Severity::Info,
+                        rule: "L080",
+                        task_id: Some(task.name.clone()),
+                        message: "Expensive task depends on conditional — consider adding `when:`"
+                            .into(),
+                    });
+                }
+            }
+        }
+    }
+
+    // L090: duplicate task IDs (analyzer catches this as an error, but lint
+    // gives a friendlier message before the hard error)
+    {
+        let mut seen = std::collections::HashSet::new();
+        for task in &workflow.tasks {
+            if !seen.insert(&task.name) {
+                findings.push(LintFinding {
+                    severity: Severity::Warning,
+                    rule: "L090",
+                    task_id: Some(task.name.clone()),
+                    message: "Duplicate task name — each task must have a unique ID".into(),
+                });
+            }
+        }
     }
 
     findings
@@ -607,5 +666,148 @@ mod tests {
             warnings.is_empty(),
             "Expected 0 warnings, got: {warnings:?}"
         );
+    }
+
+    // ── L080: expensive task after conditional ──────────────────
+
+    #[test]
+    fn l080_fires_on_infer_after_conditional() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "check", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id1).unwrap().when = Some("{{inputs.enabled}}".into());
+
+        let _id2 = make_task(
+            &mut wf,
+            "generate",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+        );
+        wf.tasks
+            .iter_mut()
+            .find(|t| t.name == "generate")
+            .unwrap()
+            .depends_on = vec![id1];
+
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L080", "generate"));
+    }
+
+    #[test]
+    fn l080_silent_when_downstream_also_has_when() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "check", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id1).unwrap().when = Some("{{inputs.enabled}}".into());
+
+        let _id2 = make_task(
+            &mut wf,
+            "generate",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+        );
+        {
+            let t = wf.tasks.iter_mut().find(|t| t.name == "generate").unwrap();
+            t.depends_on = vec![id1];
+            t.when = Some("{{inputs.enabled}}".into());
+        }
+
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L080", "generate"));
+    }
+
+    #[test]
+    fn l080_silent_on_exec_after_conditional() {
+        // exec is not "expensive" in the L080 sense (no LLM cost)
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "check", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id1).unwrap().when = Some("{{inputs.enabled}}".into());
+
+        let _id2 = make_task(
+            &mut wf,
+            "run_cmd",
+            AnalyzedTaskAction::Exec(AnalyzedExecAction::default()),
+        );
+        wf.tasks
+            .iter_mut()
+            .find(|t| t.name == "run_cmd")
+            .unwrap()
+            .depends_on = vec![id1];
+
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L080", "run_cmd"));
+    }
+
+    // ── L090: duplicate task names ──────────────────────────────
+
+    #[test]
+    fn l090_fires_on_duplicate_names() {
+        let mut wf = AnalyzedWorkflow::default();
+        // Manually insert two tasks with the same name (bypassing TaskTable uniqueness)
+        let id1 = wf.task_table.insert("step1");
+        wf.tasks.push(AnalyzedTask {
+            id: id1,
+            name: "step1".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::default(),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            record: None,
+            context_budget: None,
+            preset: None,
+            routing: None,
+            when: None,
+            span: Span::dummy(),
+        });
+        // Second task with same name but different TaskId
+        let id2 = TaskId::new(99);
+        wf.tasks.push(AnalyzedTask {
+            id: id2,
+            name: "step1".to_string(), // duplicate!
+            description: None,
+            action: AnalyzedTaskAction::default(),
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            record: None,
+            context_budget: None,
+            preset: None,
+            routing: None,
+            when: None,
+            span: Span::dummy(),
+        });
+
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L090", "step1"));
+    }
+
+    #[test]
+    fn l090_silent_on_unique_names() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(&mut wf, "step1", AnalyzedTaskAction::default());
+        make_task(&mut wf, "step2", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule(&findings, "L090"));
     }
 }
