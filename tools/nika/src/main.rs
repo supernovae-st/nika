@@ -241,6 +241,10 @@ enum Commands {
         /// Permission mode for file tools: deny, plan, accept-edits, yolo
         #[arg(long, default_value = "accept-edits")]
         permission: String,
+
+        /// Resume from last run: skip tasks that already succeeded
+        #[arg(long)]
+        resume: bool,
     },
 
     /// Call an LLM directly (no workflow needed)
@@ -1017,6 +1021,7 @@ async fn main() {
                 cli.detail,
                 cli.no_live,
                 "accept-edits",
+                false,
             )
             .await;
             handle_result(result).await;
@@ -1208,6 +1213,7 @@ async fn main() {
             from,
             yes,
             permission,
+            resume,
         }) => {
             // Auto-discover workflow if no file specified
             let resolved_file = match file {
@@ -1245,6 +1251,7 @@ async fn main() {
                     detail,
                     cli.no_live,
                     &permission,
+                    resume,
                 )
                 .await
             }
@@ -2024,6 +2031,7 @@ tasks:
         detail,
         false, // demo always uses live renderer
         "deny",
+        false,
     )
     .await;
 
@@ -2579,6 +2587,7 @@ async fn run_workflow(
     detail: nika::display::DetailLevel,
     no_live: bool,
     permission: &str,
+    resume: bool,
 ) -> Result<(), NikaError> {
     // Bootstrap secrets: env vars → daemon IPC → vault.
     // Ensures keys stored via `nika provider set` are available without restarting the shell.
@@ -2829,6 +2838,50 @@ async fn run_workflow(
     } else {
         runner.with_detail_level(detail)
     };
+
+    // Resume from last run: pre-populate datastore with completed tasks
+    if resume {
+        let traces = nika::event::list_traces()?;
+        if let Some(trace) = traces.first() {
+            let content = std::fs::read_to_string(&trace.path)?;
+            let mut resumed_count = 0u32;
+            for line in content.lines() {
+                if let Ok(event) = serde_json::from_str::<nika::event::Event>(line) {
+                    if let nika::event::EventKind::TaskCompleted {
+                        task_id,
+                        output,
+                        duration_ms,
+                    } = event.kind
+                    {
+                        runner.datastore().insert(
+                            task_id,
+                            nika::store::TaskResult::success(
+                                output.as_ref().clone(),
+                                std::time::Duration::from_millis(duration_ms),
+                            ),
+                        );
+                        resumed_count += 1;
+                    }
+                }
+            }
+            if !quiet && resumed_count > 0 {
+                use colored::Colorize;
+                eprintln!(
+                    "  {} resuming from {} ({} completed tasks cached)",
+                    "Resume:".cyan(),
+                    trace.generation_id,
+                    resumed_count
+                );
+            }
+        } else if !quiet {
+            use colored::Colorize;
+            eprintln!(
+                "  {} no previous trace found, running from scratch",
+                "Resume:".yellow()
+            );
+        }
+    }
+
     let run_output = runner.run().await?;
 
     // Save task outputs to file if -o/--output specified
