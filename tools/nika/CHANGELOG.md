@@ -8,6 +8,85 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.72.0] — 2026-04-06
+
+### Added
+
+- **`on_error:` fallback routing** — 3 recovery strategies when task fails after retries: `ignore` (null output), `retry_with_provider` (different provider), `fallback` (execute another task's action). NIKA-290 for unknown fallback. Depth limit 1.
+- **`nika keys`** — Unified API key management. 5 commands: `keys` (categorized list with source provenance), `keys set` (smart detection + cliclack), `keys remove`, `keys check` (real API latency bars), `keys sync` (GitHub Actions via gh). Replaces `nika provider set` and `nika vault`.
+- **`nika every` + `nika schedule`** — Cron-based workflow scheduling. `nika every 6h report.nika.yaml`, `nika every day at 9:00`, `--cron "0 */6 * * *"`. Schedule management: list, show (card with next-run preview), pause, resume, trigger, remove.
+- **`schedule:` field in workflow YAML** — Inline scheduling with cron expressions, IANA timezones, overlap policy (skip/queue/replace).
+- **V5 storage schema** — `schedules` table with CronSchedule CRUD, timezone validation, next-run computation.
+- **Auto-infer provider from model name** — `model: gpt-4o` auto-resolves to `provider: openai`. Works for all 19 known providers.
+- **Provider array → fallback chain** — `provider: [anthropic, openai]` wired to automatic fallback routing. Rejects single-entry arrays.
+- **L031 lint rule** — Warn when `for_each` has no explicit `concurrency:` (default is sequential).
+- **Did-you-mean for everything** — Jaro-Winkler suggestions for providers (19), models, builtin tools (61), transforms (63). Catches typos at `nika check` time.
+- **Nested template detection** — NIKA-074 error for `{{outer.{{inner}}}}` patterns.
+- **Inline transform validation** — Validates `{{with.x | bogus}}` at check time, not runtime.
+- **Misplaced field warnings** — NIKA-163 rejects task-level fields inside verb blocks. Warns when `temperature:` / `max_tokens:` / `system:` are ignored with full form `infer:`.
+- **Temperature range validation** — Enforced [0.0, 2.0] at analysis time.
+- **Extract field validation** — `extract: selector` and `extract: jsonpath` now require `selector:` field.
+- **`keys check` real test** — Real API connection test with latency measurement (replaces stub).
+- **Schedule show card** — `nika schedule show <name>` displays detail card with next-run preview.
+
+### Changed
+
+- **Did-you-mean for old commands** — `nika provider set X` → "Did you mean? `nika keys set X`". Hidden clap variants for seamless migration.
+- **Course updates** — Level descriptions updated: `provider setup` → `API key setup`, `json_query` → `api_jsonpath`.
+
+### Removed
+
+- **`nika:json_query`** — Deprecated builtin removed. Use `nika:jq` instead.
+- **`enable_extractor` shim** — Layer 1 structured output was never implemented. Dead field removed.
+- **`RoutingStrategy` enum** — Dead code, never read by engine.
+- **`vault.rs` CLI module** — 693 LOC deleted. All vault commands replaced by `nika keys`.
+- **`ProviderAction::{Set, Get, Delete, Migrate, VaultReset}`** — Replaced by `nika keys`.
+
+### Fixed
+
+- **CodeQL cleartext-logging alerts** — Annotated intentional + test fixtures.
+- **Model warning suppression** — No warning when provider is explicitly set alongside model.
+- **Duplicate concurrency check** — Removed redundant `for_each` check from analyzer.
+
+---
+
+## [0.71.0] — 2026-04-05
+
+### Architecture
+
+- **nika-display crate** — CLI display renderers extracted from nika-engine (303 tests, 11K LOC). CliRenderer, LiveRenderer, RunStats now in dedicated crate.
+- **runner.rs split** — `init_run()` and `finalize_run()` extracted from 800-line `run()` function. Clear phase separation.
+- **`dispatch_rig!` macro** — Eliminates 7-arm provider repetition in infer/agent paths (removed 280+ LOC). Single-site model dispatch.
+- **Agent loop unification** — Deleted 7 `run_*()` + 7 `chat_continue_*()` wrappers. Single struct, single dispatch path.
+- **`OPENAI_COMPAT_PROVIDERS` static table** — Deduplicates `from_name` / `from_name_with_base_url` logic.
+- **Vault hardening** — Atomic writes (tmp+rename) for vault and salt files. Custom vault keys (`custom:KEY` injection). `try_open_vault()` helper.
+
+### Added
+
+- **RAII `TokenReservation`** — Token budget guard auto-releases on drop instead of manual release. Prevents budget leak on cancel.
+- **4 telemetry event variants** — `TemplateResolutionFailed`, `RateLimitDelay`, `SchemaLoadFailed`, `VisionContentFailed` (85→89 total).
+- **CliRenderer exhaustive match** — All EventKind arms explicit (was catch-all `_ => {}`). New variants can't be silently swallowed.
+- **CI: AI-powered release notes** — Diff analysis + breaking changes detection + enriched Telegram notifications.
+- **`fix_suggestion_for_code()` in nika-core** — Error fix suggestions moved to core for LSP reuse.
+
+### Fixed
+
+- **7 unused dependencies removed** — indicatif/unicode-width/terminal_size (moved to nika-display), chrono, dirs, tokio-stream ×2.
+- **Dead `_completed` counter** — Incremented but never read in runner loop.
+- **`extended_thinking` provider warning** — Warns when declared provider ignores extended thinking.
+- **Task panic capture** — `task_id` included in spawned task panic messages.
+- **`MIGRATEABLE_PROVIDERS` 7→14** — Include OpenAI-compatible providers in vault migration.
+- **`safe_backoff_delay`** — Handles negative multiplier gracefully.
+- **NIKA-038 prefix** — Added to `WorkflowTimeout` display.
+- **Stale TUI model names** — Updated cloud provider tab.
+
+### Security
+
+- **RigProvider Debug redaction** — API keys masked in debug output.
+- **Fail-fast missing API keys** — OpenAI-compatible providers fail immediately instead of cryptic errors.
+
+---
+
 ## [0.70.0] — 2026-04-05
 
 ### Added
