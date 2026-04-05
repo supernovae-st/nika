@@ -4,7 +4,7 @@
 > Status: `[ ]` = pending, `[x]` = done, `[~]` = in progress.
 > After each commit: update status + test count below.
 
-**Test baseline**: 9,909 tests (after S3)
+**Test baseline**: 9,909 tests (after S3) → **9,981 tests** (after Session A)
 **Workspace**: `cd /Users/thibaut/dev/supernovae/nika/tools`
 **Test cmd**: `cargo test --workspace --lib`
 **Commit format**: `type(scope): description` + both co-authors
@@ -69,7 +69,7 @@ Before starting each session, verify these are still accurate:
 
 ### Task A1: Extract `raw_chat_completion()` helper
 
-**Status**: `[ ]`
+**Status**: `[x]` ✅ Done (commit a1218f1)
 **Skills**: `/spn-powers:test-driven-development`, `/spn-rust:rust-core`
 **Research**: `ctx7 library reqwest "POST json bearer auth timeout"` for HTTP patterns
 **Files**: `nika-engine/src/provider/rig/mod.rs`
@@ -107,7 +107,7 @@ Before starting each session, verify these are still accurate:
 
 ### Task A2: Wire ModelResolver in agent loop (replace hardcoded defaults)
 
-**Status**: `[ ]`
+**Status**: `[x]` ✅ Done (commit 37c212f)
 **Skills**: `/spn-powers:test-driven-development`, `/spn-rust:rust-core` (error handling with thiserror)
 **Files**: `nika-engine/src/runtime/rig_agent_loop/providers.rs`
 **Lines**: 225, 241, 257, 273, 289
@@ -141,7 +141,7 @@ Before starting each session, verify these are still accurate:
 
 ### Task A3: Replace CLI display-only model defaults
 
-**Status**: `[ ]`
+**Status**: `[x]` ✅ Done (commit e6082bb)
 **Files**: `nika-cli/src/verbs.rs:74-85`
 
 **Steps**:
@@ -157,7 +157,7 @@ Before starting each session, verify these are still accurate:
 
 ### Task A4: Add OpenRouter as first-class provider
 
-**Status**: `[ ]`
+**Status**: `[x]` ✅ Done (commit c051c3c — combined A4+A5+A6)
 **Skills**: `/spn-powers:test-driven-development`
 **Research**: `/spn-search:scrape` on `https://openrouter.ai/docs/api-reference/overview` for latest API details.
   Verify: base URL, auth header format, model name format (`provider/model`), streaming support.
@@ -208,7 +208,7 @@ Before starting each session, verify these are still accurate:
 
 ### Task A5: Add Together, Fireworks, Cerebras providers
 
-**Status**: `[ ]`
+**Status**: `[x]` ✅ Done (commit c051c3c — combined A4+A5+A6)
 **Skills**: `/spn-powers:test-driven-development`
 **Research**: Before coding, verify base URLs with `/spn-search:search`:
   - "Together AI API base URL v1 chat completions 2026"
@@ -236,7 +236,7 @@ Commit: `feat(provider): add Together, Fireworks, Cerebras providers`
 
 ### Task A6: Add SambaNova, Cohere, AI21 providers
 
-**Status**: `[ ]`
+**Status**: `[x]` ✅ Done (commit c051c3c — combined A4+A5+A6)
 **Files**: Same as A4
 
 | Provider | ID | Env Var | Base URL | Default Model | Key Prefix |
