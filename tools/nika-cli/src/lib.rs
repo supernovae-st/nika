@@ -46,5 +46,4 @@ pub mod onboarding;
 pub mod provider;
 pub mod switch;
 pub mod tools_cmd;
-pub mod vault;
 pub mod verbs;
