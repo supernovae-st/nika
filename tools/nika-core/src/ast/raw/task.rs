@@ -95,6 +95,10 @@ pub struct RawTask {
     /// On-error fallback: `on_error: { ignore: true }` or `on_error: { fallback: task_id }`.
     pub on_error: Option<Spanned<serde_json::Value>>,
 
+    /// LLM fields at task level that are ignored because infer: is in full form.
+    /// Populated by the parser; the analyzer emits warnings from this.
+    pub misplaced_llm_fields: Vec<String>,
+
     /// The span of the entire task block
     pub span: Span,
 }

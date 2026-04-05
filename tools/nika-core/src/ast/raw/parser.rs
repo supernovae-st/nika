@@ -2113,6 +2113,33 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         None
     };
 
+    // Detect task-level LLM fields that are ignored with full-form infer.
+    // When infer: is a mapping (not scalar), task-level siblings like temperature:
+    // are silently ignored. Collect them so the analyzer can emit warnings.
+    let misplaced_llm_fields = {
+        const LLM_SIBLING_FIELDS: &[&str] = &[
+            "temperature",
+            "max_tokens",
+            "system",
+            "extended_thinking",
+            "thinking_budget",
+            "response_format",
+        ];
+        let is_full_form_infer = matches!(&action, Some(RawTaskAction::Infer(_)))
+            && map
+                .get_node("infer")
+                .is_some_and(|n| matches!(n, Node::Mapping(_)));
+        if is_full_form_infer {
+            LLM_SIBLING_FIELDS
+                .iter()
+                .filter(|f| map.get_node(f).is_some())
+                .map(|f| f.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    };
+
     let task = RawTask {
         span,
         id,
@@ -2138,6 +2165,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         context_budget,
         when,
         on_error,
+        misplaced_llm_fields,
     };
 
     Ok(Spanned::new(task, span))

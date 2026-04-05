@@ -251,6 +251,30 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
             }
         }
 
+        // Check for task-level LLM fields that are silently ignored with full-form infer
+        if !task.misplaced_llm_fields.is_empty() {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                task.id.span,
+                format!(
+                    "task '{}': {} at task level {} ignored with full infer: block form. \
+                     Move {} inside the infer: block.",
+                    task.id.value,
+                    task.misplaced_llm_fields.join(", "),
+                    if task.misplaced_llm_fields.len() == 1 {
+                        "is"
+                    } else {
+                        "are"
+                    },
+                    if task.misplaced_llm_fields.len() == 1 {
+                        "it"
+                    } else {
+                        "them"
+                    },
+                ),
+            ));
+        }
+
         // Check for_each without explicit concurrency on large literal arrays
         if let Some(ref for_each) = task.for_each {
             if for_each.value.concurrency.is_none() {
@@ -4316,6 +4340,59 @@ tasks:
             concurrency_warnings.is_empty(),
             "explicit concurrency should not warn, got: {:?}",
             concurrency_warnings
+        );
+    }
+
+    // ====================================================================
+    // M5: Misplaced LLM fields warning
+    // ====================================================================
+
+    #[test]
+    fn test_validate_misplaced_llm_fields_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    temperature: 0.7
+    infer:
+      prompt: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("temperature") && w.message.contains("ignored")),
+            "task-level temperature with full form infer should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_shorthand_infer_no_misplaced_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    temperature: 0.7
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let misplaced_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("ignored"))
+            .collect();
+        assert!(
+            misplaced_warnings.is_empty(),
+            "shorthand infer should not warn about misplaced fields, got: {:?}",
+            misplaced_warnings
         );
     }
 }
