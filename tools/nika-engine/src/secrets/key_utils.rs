@@ -94,6 +94,13 @@ const MIGRATEABLE_PROVIDERS: &[&str] = &[
     "deepseek",
     "gemini",
     "xai",
+    "openrouter",
+    "together",
+    "fireworks",
+    "cerebras",
+    "sambanova",
+    "cohere",
+    "ai21",
 ];
 
 /// Migrate API keys from environment variables to NikaVault.
@@ -224,8 +231,8 @@ mod tests {
     fn test_migrateable_providers_count() {
         assert_eq!(
             MIGRATEABLE_PROVIDERS.len(),
-            7,
-            "Expected 7 migrateable providers (all LLM), got: {:?}",
+            14,
+            "Expected 14 migrateable providers (all LLM), got: {:?}",
             MIGRATEABLE_PROVIDERS
         );
     }
