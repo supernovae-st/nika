@@ -226,6 +226,41 @@ impl ModelResolver {
         }
     }
 
+    /// Infer provider from model name prefix.
+    ///
+    /// Returns `Some(ProviderName)` for unambiguous model prefixes (claude, gpt, gemini, etc.).
+    /// Returns `None` for ambiguous models (llama, qwen, custom) that need explicit `provider:`.
+    pub fn infer_provider_from_model(model: &str) -> Option<crate::ProviderName> {
+        let lower = model.to_lowercase();
+        if lower.starts_with("claude") {
+            return Some(crate::ProviderName::Anthropic);
+        }
+        if lower.starts_with("gpt-")
+            || lower.starts_with("o1")
+            || lower.starts_with("o3")
+            || lower.starts_with("o4")
+        {
+            return Some(crate::ProviderName::OpenAI);
+        }
+        if lower.starts_with("gemini") {
+            return Some(crate::ProviderName::Gemini);
+        }
+        if lower.starts_with("mistral")
+            || lower.starts_with("codestral")
+            || lower.starts_with("pixtral")
+            || lower.starts_with("ministral")
+        {
+            return Some(crate::ProviderName::Mistral);
+        }
+        if lower.starts_with("deepseek") {
+            return Some(crate::ProviderName::DeepSeek);
+        }
+        if lower.starts_with("grok") {
+            return Some(crate::ProviderName::XAi);
+        }
+        None
+    }
+
     /// Normalize provider name to canonical ID.
     fn canonical_provider(name: &str) -> &str {
         find_provider(name).map(|p| p.id).unwrap_or(name)
@@ -357,5 +392,50 @@ mod tests {
     #[test]
     fn mock_provider_has_default() {
         assert_eq!(default_model_for_provider("mock"), Some("mock-model"));
+    }
+
+    // ── infer_provider_from_model tests ───────────────────────────────
+
+    #[test]
+    fn test_infer_provider_claude() {
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("claude-sonnet-4-20250514"),
+            Some(crate::ProviderName::Anthropic)
+        );
+    }
+
+    #[test]
+    fn test_infer_provider_gpt() {
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("gpt-4o"),
+            Some(crate::ProviderName::OpenAI)
+        );
+    }
+
+    #[test]
+    fn test_infer_provider_gemini() {
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("gemini-2.5-flash"),
+            Some(crate::ProviderName::Gemini)
+        );
+    }
+
+    #[test]
+    fn test_infer_provider_ambiguous_returns_none() {
+        assert_eq!(ModelResolver::infer_provider_from_model("llama-3.3-70b"), None);
+        assert_eq!(ModelResolver::infer_provider_from_model("Qwen/Qwen3-8B"), None);
+        assert_eq!(ModelResolver::infer_provider_from_model("custom-model"), None);
+    }
+
+    #[test]
+    fn test_infer_provider_o_series() {
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("o3"),
+            Some(crate::ProviderName::OpenAI)
+        );
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("o4-mini"),
+            Some(crate::ProviderName::OpenAI)
+        );
     }
 }

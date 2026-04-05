@@ -283,12 +283,17 @@ impl TaskExecutor {
             None => None,
         };
 
-        // Build provider chain: explicit chain > single provider > workflow default
+        // Build provider chain: explicit chain > single provider > auto-inferred > workflow default
         let effective_chain: Vec<String> = if let Some(ref chain) = infer.provider_chain {
             chain.iter().map(|p| p.to_string()).collect()
         } else {
+            let auto_provider = resolved_model
+                .as_ref()
+                .and_then(|m| ModelResolver::infer_provider_from_model(m))
+                .map(|p| p.to_string());
             vec![resolved_provider
                 .clone()
+                .or(auto_provider)
                 .unwrap_or_else(|| self.default_provider.to_string())]
         };
 

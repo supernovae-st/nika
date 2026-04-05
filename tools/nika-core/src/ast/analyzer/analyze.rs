@@ -26,7 +26,9 @@ use crate::ast::raw::{
 };
 use crate::ast::schema::SchemaVersion;
 use crate::binding::{parse_with_entry, WithSpec};
+use crate::catalogs::ModelResolver;
 use crate::source::{Span, Spanned};
+use crate::ProviderName;
 
 /// Analyzer context - holds state during analysis.
 struct AnalyzerContext {
@@ -153,6 +155,26 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                 ),
                 note: None,
             });
+        }
+
+        // Check model/provider compatibility — warn if model prefix doesn't match provider
+        if let (Some(ref task_model), Some(ref task_provider)) = (&task.model, &task.provider)
+        {
+            if let Some(inferred) = ModelResolver::infer_provider_from_model(&task_model.value)
+            {
+                let declared = ProviderName::parse(&task_provider.value);
+                if inferred != declared && declared != ProviderName::Mock {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        task_model.span,
+                        format!(
+                            "model '{}' is typically used with provider '{}', \
+                             but task '{}' specifies provider '{}'",
+                            task_model.value, inferred, task.id.value, task_provider.value
+                        ),
+                    ));
+                }
+            }
         }
     }
 
