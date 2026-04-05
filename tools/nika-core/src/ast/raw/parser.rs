@@ -1985,11 +1985,14 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
                 .map(|node| extract_string(file_id, node))
                 .collect();
             let items = items?;
-            if items.is_empty() {
+            if items.len() < 2 {
                 return Err(ParseError {
                     kind: ParseErrorKind::InvalidType,
                     span,
-                    message: "provider array must have at least one entry".to_string(),
+                    message:
+                        "provider array must have at least 2 entries for fallback — \
+                         use `provider: 'name'` for a single provider"
+                            .to_string(),
                 });
             }
             let primary = items[0].clone();
@@ -3632,7 +3635,7 @@ tasks:
     }
 
     #[test]
-    fn provider_single_element_array_no_routing() {
+    fn provider_single_element_array_is_error() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
 tasks:
@@ -3641,12 +3644,16 @@ tasks:
     infer: "hello"
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_ok(), "parse failed: {:?}", result.err());
-        let wf = result.unwrap();
-        let task = &wf.tasks.value[0].value;
-        assert_eq!(task.provider.as_ref().unwrap().value, "anthropic");
-        // Single-element array: routing generated but only 1 entry
-        assert!(task.routing.is_some());
+        assert!(
+            result.is_err(),
+            "single-entry provider array should be rejected"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.message.contains("at least 2"),
+            "Error should hint about 2+ entries: {}",
+            err.message
+        );
     }
 
     #[test]

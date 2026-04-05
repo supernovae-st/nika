@@ -113,7 +113,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
     let provider_chain: Option<Vec<nika_core::ProviderName>> = task
         .routing
         .as_ref()
-        .filter(|r| r.fallback.len() > 1)
+        .filter(|r| !r.fallback.is_empty())
         .map(|r| {
             r.fallback
                 .iter()
