@@ -487,21 +487,23 @@ impl TaskExecutor {
             endpoint_url: resolved_base_url.clone(),
         });
 
-        // POLICY CHECK: token budget (atomic reserve to prevent TOCTOU with concurrent for_each)
+        // POLICY CHECK: token budget (atomic reserve to prevent TOCTOU with concurrent for_each).
+        // RAII guard (W6.4): if the task is cancelled or errors before adjust(),
+        // Drop releases the reserved tokens back to the budget.
         let estimated_tokens = estimate_tokens(prompt.len());
-        if let Err(reason) = self
-            .policy_enforcer
-            .write()
-            .reserve_tokens(estimated_tokens)
-        {
+        let mut token_reservation = crate::runtime::policy::TokenReservation::new(
+            Arc::clone(&self.policy_enforcer),
+            estimated_tokens,
+        )
+        .map_err(|reason| {
             tracing::warn!(
                 task_id = %task_id,
                 estimated_tokens = estimated_tokens,
                 reason = %reason,
                 "infer: blocked by token budget"
             );
-            return Err(NikaError::PolicyViolation { reason });
-        }
+            NikaError::PolicyViolation { reason }
+        })?;
 
         // ═══════════════════════════════════════════════════════════════════
         // VISION DISPATCH — must run BEFORE Layer 0
@@ -520,7 +522,7 @@ impl TaskExecutor {
                     provider_name,
                     &model_id,
                     resolved_system.as_deref(),
-                    estimated_tokens,
+                    &mut token_reservation,
                 )
                 .await?;
 
@@ -708,7 +710,7 @@ impl TaskExecutor {
                             task_id,
                             provider_name,
                             &resolved_system,
-                            estimated_tokens,
+                            &mut token_reservation,
                         )
                         .await?
                     } else {
@@ -735,7 +737,7 @@ impl TaskExecutor {
                                     task_id,
                                     provider_name,
                                     &resolved_system,
-                                    estimated_tokens,
+                                    &mut token_reservation,
                                 )
                                 .await?
                             {
@@ -930,9 +932,7 @@ impl TaskExecutor {
 
         // Adjust reservation with actual token count
         let actual_tokens = stream_result.input_tokens + stream_result.output_tokens;
-        self.policy_enforcer
-            .write()
-            .adjust_reservation(estimated_tokens, actual_tokens);
+        token_reservation.adjust(actual_tokens);
 
         // EMIT: ProviderResponded with accurate token counts and cost from streaming response
         let infer_duration = infer_start.elapsed();
@@ -1063,7 +1063,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         provider_name: &str,
         resolved_system: &Option<String>,
-        estimated_tokens: u64,
+        token_reservation: &mut crate::runtime::policy::TokenReservation,
     ) -> Result<(bool, Option<String>), NikaError> {
         if !provider.supports_native_structured_output() {
             return Ok((false, None));
@@ -1136,8 +1136,7 @@ impl TaskExecutor {
                                     .unwrap_or(nika_event::FinishReason::Stop),
                                 cost_usd: if cost.is_finite() { cost } else { 0.0 },
                             });
-                            self.policy_enforcer.write().adjust_reservation(
-                                estimated_tokens,
+                            token_reservation.adjust(
                                 stream_result.input_tokens + stream_result.output_tokens,
                             );
                             return Ok((true, Some(result_str)));
@@ -1168,8 +1167,7 @@ impl TaskExecutor {
                         success: true,
                         error: None,
                     });
-                    self.policy_enforcer.write().adjust_reservation(
-                        estimated_tokens,
+                    token_reservation.adjust(
                         stream_result.input_tokens + stream_result.output_tokens,
                     );
                     // BUGFIX SF2: Emit ProviderResponded before early return
@@ -1244,7 +1242,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         provider_name: &str,
         resolved_system: &Option<String>,
-        estimated_tokens: u64,
+        token_reservation: &mut crate::runtime::policy::TokenReservation,
     ) -> Result<Option<String>, NikaError> {
         let submit_tool = crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value.clone());
         let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
@@ -1338,9 +1336,7 @@ impl TaskExecutor {
                                 "Layer 0 + validation succeeded"
                             );
                             // Adjust token reservation before early return
-                            self.policy_enforcer
-                                .write()
-                                .adjust_reservation(estimated_tokens, est_in + est_out);
+                            token_reservation.adjust(est_in + est_out);
                             return Ok(Some(result_str));
                         }
                         Err(e) => {
@@ -1400,9 +1396,7 @@ impl TaskExecutor {
                         cost_usd: if cost.is_finite() { cost } else { 0.0 },
                     });
                     // Adjust token reservation before early return
-                    self.policy_enforcer
-                        .write()
-                        .adjust_reservation(estimated_tokens, est_in + est_out);
+                    token_reservation.adjust(est_in + est_out);
                     return Ok(Some(tool_result));
                 }
             }
@@ -1457,7 +1451,7 @@ impl TaskExecutor {
         _provider_name: &str,
         model_id: &str,
         resolved_system: Option<&str>,
-        reserved_tokens: u64,
+        token_reservation: &mut crate::runtime::policy::TokenReservation,
     ) -> Result<String, NikaError> {
         const MAX_VISION_IMAGE_PARTS: usize = 20;
         const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024;
@@ -1669,9 +1663,7 @@ impl TaskExecutor {
         };
         let est_in = estimate_tokens(prompt.len()) + image_tokens as u64;
         let est_out = estimate_tokens(vision_result.len());
-        self.policy_enforcer
-            .write()
-            .adjust_reservation(reserved_tokens, est_in + est_out);
+        token_reservation.adjust(est_in + est_out);
 
         let cost = provider
             .cost_provider_kind()

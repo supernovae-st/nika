@@ -94,24 +94,25 @@ impl TaskExecutor {
         // Validate agent params
         resolved_agent.validate()?;
 
-        // Atomic reserve tokens for budget (prevents TOCTOU with concurrent for_each)
+        // RAII token reservation (W6.4): if the agent is cancelled or panics
+        // before adjust(), Drop releases the reserved tokens back to the budget.
         let estimated_tokens: u64 = resolved_agent
             .token_budget
             .map(u64::from)
             .unwrap_or_else(|| estimate_tokens(resolved_agent.prompt.len()) as u64);
-        if let Err(reason) = self
-            .policy_enforcer
-            .write()
-            .reserve_tokens(estimated_tokens)
-        {
+        let mut token_reservation = crate::runtime::policy::TokenReservation::new(
+            Arc::clone(&self.policy_enforcer),
+            estimated_tokens,
+        )
+        .map_err(|reason| {
             tracing::warn!(
                 task_id = %task_id,
                 estimated_tokens = estimated_tokens,
                 reason = %reason,
                 "agent: blocked by token budget"
             );
-            return Err(NikaError::PolicyViolation { reason });
-        }
+            NikaError::PolicyViolation { reason }
+        })?;
 
         // EMIT: AgentStart event
         self.event_log.emit(EventKind::AgentStart {
@@ -371,9 +372,7 @@ impl TaskExecutor {
         let duration_ms = start.elapsed().as_millis() as u64;
 
         // Adjust reservation with actual agent token usage
-        self.policy_enforcer
-            .write()
-            .adjust_reservation(estimated_tokens, result.total_tokens as u64);
+        token_reservation.adjust(result.total_tokens as u64);
 
         // Log routing status for observability
         if result.status.is_flagged() {

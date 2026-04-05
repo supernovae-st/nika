@@ -85,7 +85,7 @@ pub use boot::{
     BootContext, BootPhase, BootSequence, BootstrapConfig, EditorConfig, PhaseResult, PolicyConfig,
     ProviderConfig, SessionConfig, ToolsConfig, TraceConfig,
 };
-pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget};
+pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget, TokenReservation};
 
 pub use security::{
     check_blocklist, check_shell_data_injection, check_shell_mode_blocklist,

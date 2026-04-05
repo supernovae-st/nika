@@ -7,6 +7,9 @@
 //! - Host restrictions
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 
 use crate::error::NikaError;
 use crate::runtime::boot::PolicyConfig;
@@ -533,6 +536,67 @@ impl PolicyEnforcer {
                     reason: format!("Requires approval: {}", reason),
                 })
             }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RAII TokenReservation guard (W6.4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// RAII guard that releases reserved tokens back to the budget on drop.
+///
+/// Between `reserve_tokens()` and `adjust_reservation()`, a task cancellation
+/// or early error return would leak the reserved tokens permanently, shrinking
+/// the effective budget for the rest of the workflow. This guard ensures the
+/// reservation is always cleaned up.
+///
+/// Usage:
+/// ```ignore
+/// let reservation = TokenReservation::new(Arc::clone(&policy), estimated)?;
+/// // ... do work ...
+/// reservation.adjust(actual_tokens);  // consumes the guard
+/// ```
+pub struct TokenReservation {
+    enforcer: Arc<RwLock<PolicyEnforcer>>,
+    reserved: u64,
+}
+
+impl TokenReservation {
+    /// Reserve `estimated` tokens from the budget. Returns an RAII guard that
+    /// will release the tokens on drop if not consumed via `adjust()`.
+    pub fn new(
+        enforcer: Arc<RwLock<PolicyEnforcer>>,
+        estimated: u64,
+    ) -> Result<Self, String> {
+        enforcer.write().reserve_tokens(estimated)?;
+        Ok(Self {
+            enforcer,
+            reserved: estimated,
+        })
+    }
+
+    /// Adjust the reservation to match actual token usage and disarm the guard.
+    /// After this call, Drop will not release any tokens.
+    pub fn adjust(&mut self, actual: u64) {
+        if self.reserved > 0 {
+            self.enforcer
+                .write()
+                .adjust_reservation(self.reserved, actual);
+            // Disarm: prevent Drop from double-releasing
+            self.reserved = 0;
+        }
+    }
+}
+
+impl Drop for TokenReservation {
+    fn drop(&mut self) {
+        if self.reserved > 0 {
+            // Task was cancelled or errored between reserve and adjust —
+            // release the reserved tokens back to the budget.
+            let mut enforcer = self.enforcer.write();
+            enforcer.token_budget.used =
+                enforcer.token_budget.used.saturating_sub(self.reserved);
         }
     }
 }
@@ -1111,6 +1175,82 @@ mod tests {
                 .check_fetch("http://10.0.2.99:9090/api")
                 .is_blocked(),
             "Non-endpoint private IPs should still be blocked"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RAII TokenReservation guard (W6.4)
+    // ═══════════════════════════════════════════════════════════════
+
+    fn make_enforcer(limit: u64) -> Arc<RwLock<PolicyEnforcer>> {
+        let config = PolicyConfig {
+            max_token_spend: Some(limit),
+            ..Default::default()
+        };
+        Arc::new(RwLock::new(PolicyEnforcer::new(config)))
+    }
+
+    #[test]
+    fn token_reservation_adjust_records_actual() {
+        let enforcer = make_enforcer(10_000);
+        let mut reservation = TokenReservation::new(Arc::clone(&enforcer), 5_000).unwrap();
+        // After reserve, 5000 used
+        assert_eq!(enforcer.read().tokens_used(), 5_000);
+
+        // Actual usage was only 3000
+        reservation.adjust(3_000);
+        assert_eq!(enforcer.read().tokens_used(), 3_000);
+    }
+
+    #[test]
+    fn token_reservation_drop_releases_tokens() {
+        let enforcer = make_enforcer(10_000);
+        {
+            let _reservation = TokenReservation::new(Arc::clone(&enforcer), 5_000).unwrap();
+            assert_eq!(enforcer.read().tokens_used(), 5_000);
+            // _reservation dropped here without adjust()
+        }
+        // Tokens should be released back
+        assert_eq!(
+            enforcer.read().tokens_used(),
+            0,
+            "Reserved tokens must be released on drop"
+        );
+    }
+
+    #[test]
+    fn token_reservation_adjust_then_drop_no_double_release() {
+        let enforcer = make_enforcer(10_000);
+        let mut reservation = TokenReservation::new(Arc::clone(&enforcer), 5_000).unwrap();
+        reservation.adjust(3_000);
+        // After adjust(3000), used = 3000. Drop should NOT release again.
+        assert_eq!(enforcer.read().tokens_used(), 3_000);
+    }
+
+    #[test]
+    fn token_reservation_exceeds_budget() {
+        let enforcer = make_enforcer(1_000);
+        let result = TokenReservation::new(Arc::clone(&enforcer), 2_000);
+        assert!(result.is_err(), "Should fail when reservation exceeds budget");
+        // Budget should be untouched
+        assert_eq!(enforcer.read().tokens_used(), 0);
+    }
+
+    #[test]
+    fn token_reservation_sequential_reserves() {
+        let enforcer = make_enforcer(10_000);
+        {
+            let mut r1 = TokenReservation::new(Arc::clone(&enforcer), 4_000).unwrap();
+            let _r2 = TokenReservation::new(Arc::clone(&enforcer), 3_000).unwrap();
+            assert_eq!(enforcer.read().tokens_used(), 7_000);
+            r1.adjust(2_000); // actual was lower
+            assert_eq!(enforcer.read().tokens_used(), 5_000);
+            // _r2 dropped here: releases 3000
+        }
+        assert_eq!(
+            enforcer.read().tokens_used(),
+            2_000,
+            "Only r1's adjusted 2000 should remain"
         );
     }
 }
