@@ -335,9 +335,14 @@ fn check_ipv4(ip: std::net::Ipv4Addr) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    // Test-only HMAC keys — not real secrets, used only in unit test assertions.
+    const TEST_HMAC_KEY: &str = "test-hmac-key";
+    const TEST_HMAC_KEY_ALT: &str = "test-hmac-key-alt";
+    const TEST_WEBHOOK_SECRET: &str = "test-webhook-secret";
+
     #[test]
     fn sign_v2_produces_timestamped_format() {
-        let sig = sign_v2("my-secret", b"hello world", 1711929600);
+        let sig = sign_v2(TEST_WEBHOOK_SECRET, b"hello world", 1711929600);
         assert!(
             sig.starts_with("t=1711929600,v1="),
             "signature must start with t=<ts>,v1="
@@ -348,46 +353,52 @@ mod tests {
 
     #[test]
     fn sign_v2_deterministic() {
-        let a = sign_v2("key", b"data", 1000);
-        let b = sign_v2("key", b"data", 1000);
+        let a = sign_v2(TEST_HMAC_KEY, b"data", 1000);
+        let b = sign_v2(TEST_HMAC_KEY, b"data", 1000);
         assert_eq!(a, b, "same key+data+timestamp must produce same signature");
     }
 
     #[test]
     fn sign_v2_different_keys_produce_different_sigs() {
-        let a = sign_v2("key1", b"data", 1000);
-        let b = sign_v2("key2", b"data", 1000);
+        let a = sign_v2(TEST_HMAC_KEY, b"data", 1000);
+        let b = sign_v2(TEST_HMAC_KEY_ALT, b"data", 1000);
         assert_ne!(a, b);
     }
 
     #[test]
     fn sign_v2_includes_timestamp() {
-        let sig = sign_v2("secret", b"body", 1711929600);
+        let sig = sign_v2(TEST_WEBHOOK_SECRET, b"body", 1711929600);
         assert!(sig.starts_with("t=1711929600,v1="));
     }
 
     #[test]
     fn sign_v2_different_timestamps_differ() {
-        let a = sign_v2("key", b"data", 1000);
-        let b = sign_v2("key", b"data", 2000);
+        let a = sign_v2(TEST_HMAC_KEY, b"data", 1000);
+        let b = sign_v2(TEST_HMAC_KEY, b"data", 2000);
         assert_ne!(a, b);
     }
 
     #[test]
     fn verify_valid_signature() {
-        let sig = sign_v2("secret", b"hello", 1000);
-        assert!(verify("secret", b"hello", &sig, 1005, 300));
+        let sig = sign_v2(TEST_WEBHOOK_SECRET, b"hello", 1000);
+        assert!(verify(TEST_WEBHOOK_SECRET, b"hello", &sig, 1005, 300));
     }
 
     #[test]
     fn verify_rejects_expired() {
-        let sig = sign_v2("secret", b"hello", 1000);
-        assert!(!verify("secret", b"hello", &sig, 1600, 300));
+        let sig = sign_v2(TEST_WEBHOOK_SECRET, b"hello", 1000);
+        assert!(!verify(TEST_WEBHOOK_SECRET, b"hello", &sig, 1600, 300));
     }
 
     #[test]
     fn verify_rejects_wrong_sig() {
-        assert!(!verify("secret", b"body", "t=1000,v1=deadbeef", 1005, 300));
+        assert!(!verify(
+            TEST_WEBHOOK_SECRET,
+            b"body",
+            "t=1000,v1=deadbeef",
+            1005,
+            300,
+        ));
     }
 
     #[test]
