@@ -878,9 +878,7 @@ pub fn validate_with_refs(
 
             // Validate inline transforms
             for transform in transforms {
-                if let Err(e) =
-                    nika_core::binding::TransformExpr::parse(transform)
-                {
+                if let Err(e) = nika_core::binding::TransformExpr::parse(transform) {
                     return Err(NikaError::TemplateParse {
                         position: 0,
                         details: format!(
@@ -3751,8 +3749,7 @@ mod v028_template_tests {
     #[test]
     fn validate_refs_nested_template_detected() {
         let declared: FxHashSet<String> = ["a", "b"].iter().map(|s| s.to_string()).collect();
-        let result =
-            validate_with_refs("{{a.{{b}}}}", &declared, "task1");
+        let result = validate_with_refs("{{a.{{b}}}}", &declared, "task1");
         assert!(result.is_err(), "nested templates should fail");
         let err = result.unwrap_err();
         let msg = err.to_string();

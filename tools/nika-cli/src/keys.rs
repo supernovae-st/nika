@@ -185,10 +185,9 @@ fn find_closest_provider(name: &str) -> Option<&'static str> {
     let mut best: Option<(&str, usize)> = None;
     for p in KNOWN_PROVIDERS.iter() {
         let dist = levenshtein(&lower, p.id);
-        if dist > 0 && dist <= 2
-            && (best.is_none() || dist < best.unwrap().1) {
-                best = Some((p.id, dist));
-            }
+        if dist > 0 && dist <= 2 && (best.is_none() || dist < best.unwrap().1) {
+            best = Some((p.id, dist));
+        }
     }
     best.map(|(id, _)| id)
 }
@@ -241,12 +240,8 @@ pub async fn handle_keys_command(
             no_test,
         }) => handle_keys_set(name, stdin, no_test, quiet).await,
         Some(KeysAction::Remove { name }) => handle_keys_remove(name, quiet).await,
-        Some(KeysAction::Check { provider, quiet: q }) => {
-            handle_keys_check(provider, q).await
-        }
-        Some(KeysAction::Sync { repo, dry_run }) => {
-            handle_keys_sync(repo, dry_run, quiet).await
-        }
+        Some(KeysAction::Check { provider, quiet: q }) => handle_keys_check(provider, q).await,
+        Some(KeysAction::Sync { repo, dry_run }) => handle_keys_sync(repo, dry_run, quiet).await,
     }
 }
 
@@ -399,14 +394,12 @@ pub struct KeysJsonOutput {
 pub fn categorize_provider(provider: &Provider) -> KeyCategory {
     match provider.category {
         ProviderCategory::Llm => KeyCategory::Inference,
-        ProviderCategory::Mcp => {
-            match provider.id {
-                "perplexity" | "firecrawl" | "ahrefs" | "dataforseo" | "supadata" => {
-                    KeyCategory::Search
-                }
-                _ => KeyCategory::Custom,
+        ProviderCategory::Mcp => match provider.id {
+            "perplexity" | "firecrawl" | "ahrefs" | "dataforseo" | "supadata" => {
+                KeyCategory::Search
             }
-        }
+            _ => KeyCategory::Custom,
+        },
         ProviderCategory::Local => KeyCategory::Local,
     }
 }
@@ -597,9 +590,7 @@ pub fn gather_all_keys(vault: &nika_vault::NikaVault) -> Vec<ResolvedKey> {
         .iter()
         // Skip providers that don't need keys and aren't interesting for display
         // (filesystem, memory — keep mock + native)
-        .filter(|p| {
-            p.requires_key || p.id == "mock" || p.id == "native"
-        })
+        .filter(|p| p.requires_key || p.id == "mock" || p.id == "native")
         .map(|p| resolve_provider_key(p, vault))
         .collect();
 
@@ -664,11 +655,7 @@ pub fn render_keys_list(keys: &[ResolvedKey], verbose: bool) -> String {
 
         out.push('\n');
         // Category header
-        let header = format!(
-            "  {} {}",
-            cat.icon(),
-            cat.label().bold().cyan(),
-        );
+        let header = format!("  {} {}", cat.icon(), cat.label().bold().cyan(),);
         let desc = format!("\u{2014} {}", cat.description());
         // Right-align description
         out.push_str(&format!("{header:<44}{}\n", desc.dimmed()));
@@ -971,9 +958,7 @@ async fn handle_keys_set(
         KeyKind::KnownProvider(provider) => {
             set_known_provider(&vault, provider, stdin, no_test, quiet).await
         }
-        KeyKind::Custom(custom_name) => {
-            set_custom_key(&vault, &custom_name, stdin, quiet).await
-        }
+        KeyKind::Custom(custom_name) => set_custom_key(&vault, &custom_name, stdin, quiet).await,
     }
 }
 
@@ -982,7 +967,13 @@ fn pick_provider_interactive() -> Result<String, NikaError> {
     let items: Vec<(String, String, String)> = KNOWN_PROVIDERS
         .iter()
         .filter(|p| p.requires_key && p.category == ProviderCategory::Llm)
-        .map(|p| (p.id.to_string(), p.name.to_string(), p.description.to_string()))
+        .map(|p| {
+            (
+                p.id.to_string(),
+                p.name.to_string(),
+                p.description.to_string(),
+            )
+        })
         .collect();
 
     cliclack::intro("nika keys set").map_err(io_err)?;
@@ -1017,8 +1008,7 @@ async fn set_known_provider(
         buf.trim().to_string()
     } else {
         // Interactive cliclack flow
-        cliclack::intro(format!("nika keys set \u{2014} {}", provider.name))
-            .map_err(io_err)?;
+        cliclack::intro(format!("nika keys set \u{2014} {}", provider.name)).map_err(io_err)?;
 
         if let Some(url) = console_url(provider.id) {
             cliclack::note("Get your key at", url).map_err(io_err)?;
@@ -1090,7 +1080,10 @@ async fn set_known_provider(
     unsafe { std::env::set_var(provider.env_var, &key_value) };
 
     if is_tty && !stdin {
-        eprintln!("  {} Encrypted and saved to vault", "\u{2713}".green().bold());
+        eprintln!(
+            "  {} Encrypted and saved to vault",
+            "\u{2713}".green().bold()
+        );
     }
 
     // Auto-test connection (unless --no-test)
@@ -1128,8 +1121,12 @@ async fn set_known_provider(
     }
 
     if is_tty && !stdin {
-        cliclack::outro(format!("{} {} configured", "\u{2713}".green().bold(), provider.id))
-            .map_err(io_err)?;
+        cliclack::outro(format!(
+            "{} {} configured",
+            "\u{2713}".green().bold(),
+            provider.id
+        ))
+        .map_err(io_err)?;
         eprintln!();
         eprintln!("  {} Next: nika run hello.nika.yaml", "\u{1F4A1}".dimmed());
     }
@@ -1151,12 +1148,12 @@ async fn set_custom_key(
         io::stdin().read_to_string(&mut buf).map_err(io_err)?;
         buf.trim().to_string()
     } else {
-        cliclack::intro(format!("nika keys set \u{2014} {name} \u{2014} custom secret"))
-            .map_err(io_err)?;
+        cliclack::intro(format!(
+            "nika keys set \u{2014} {name} \u{2014} custom secret"
+        ))
+        .map_err(io_err)?;
 
-        cliclack::password("Value:")
-            .interact()
-            .map_err(io_err)?
+        cliclack::password("Value:").interact().map_err(io_err)?
     };
 
     if key_value.is_empty() {
@@ -1174,14 +1171,14 @@ async fn set_custom_key(
     unsafe { std::env::set_var(name, &key_value) };
 
     if is_tty && !stdin {
-        eprintln!("  {} Encrypted and saved to vault", "\u{2713}".green().bold());
+        eprintln!(
+            "  {} Encrypted and saved to vault",
+            "\u{2713}".green().bold()
+        );
         cliclack::outro(format!("{} {name} configured", "\u{2713}".green().bold()))
             .map_err(io_err)?;
         eprintln!();
-        eprintln!(
-            "  {} Use in workflows: $env.{name}",
-            "\u{1F4A1}".dimmed()
-        );
+        eprintln!("  {} Use in workflows: $env.{name}", "\u{1F4A1}".dimmed());
     }
 
     Ok(())
@@ -1192,10 +1189,7 @@ async fn set_custom_key(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Execute `nika keys remove [name]`.
-async fn handle_keys_remove(
-    name: Option<String>,
-    _quiet: bool,
-) -> Result<(), NikaError> {
+async fn handle_keys_remove(name: Option<String>, _quiet: bool) -> Result<(), NikaError> {
     let vault = get_vault();
 
     let name = match name {
@@ -1277,10 +1271,7 @@ fn pick_configured_key_interactive(vault: &nika_vault::NikaVault) -> Result<Stri
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Execute `nika keys check`.
-async fn handle_keys_check(
-    provider: Option<String>,
-    quiet: bool,
-) -> Result<(), NikaError> {
+async fn handle_keys_check(provider: Option<String>, quiet: bool) -> Result<(), NikaError> {
     let vault = get_vault();
     let all_keys = gather_all_keys(&vault);
 
@@ -1430,9 +1421,7 @@ async fn handle_keys_sync(
     _quiet: bool,
 ) -> Result<(), NikaError> {
     // 1. Check gh CLI
-    let gh_check = std::process::Command::new("gh")
-        .arg("--version")
-        .output();
+    let gh_check = std::process::Command::new("gh").arg("--version").output();
     if gh_check.is_err() {
         eprintln!(
             "  {} {} CLI not found. Install: {}",
@@ -1504,10 +1493,7 @@ async fn handle_keys_sync(
         .collect();
 
     if syncable.is_empty() {
-        eprintln!(
-            "  {} No keys to sync",
-            "\u{1F4A1}".dimmed()
-        );
+        eprintln!("  {} No keys to sync", "\u{1F4A1}".dimmed());
         return Ok(());
     }
 
@@ -1515,10 +1501,7 @@ async fn handle_keys_sync(
     eprintln!("\n  Preview:");
     let mut to_push = Vec::new();
     for key in &syncable {
-        let env_name = key
-            .env_var
-            .as_deref()
-            .unwrap_or(&key.name);
+        let env_name = key.env_var.as_deref().unwrap_or(&key.name);
         let status = if existing_names.contains(env_name) {
             "="
         } else {
@@ -1541,7 +1524,11 @@ async fn handle_keys_sync(
     }
 
     if dry_run {
-        eprintln!("\n  {} {} keys would be pushed (--dry-run)", "\u{1F4A1}".dimmed(), to_push.len());
+        eprintln!(
+            "\n  {} {} keys would be pushed (--dry-run)",
+            "\u{1F4A1}".dimmed(),
+            to_push.len()
+        );
         return Ok(());
     }
 
@@ -1585,17 +1572,9 @@ async fn handle_keys_sync(
             let status = child.wait().map_err(NikaError::IoError)?;
             if status.success() {
                 pushed += 1;
-                eprintln!(
-                    "  {} {:<24} pushed",
-                    "\u{2713}".green().bold(),
-                    env_name
-                );
+                eprintln!("  {} {:<24} pushed", "\u{2713}".green().bold(), env_name);
             } else {
-                eprintln!(
-                    "  {} {:<24} failed",
-                    "\u{2717}".red().bold(),
-                    env_name
-                );
+                eprintln!("  {} {:<24} failed", "\u{2717}".red().bold(), env_name);
             }
         } else {
             // Fall back to env var
@@ -1617,11 +1596,7 @@ async fn handle_keys_sync(
                 let status = child.wait().map_err(NikaError::IoError)?;
                 if status.success() {
                     pushed += 1;
-                    eprintln!(
-                        "  {} {:<24} pushed",
-                        "\u{2713}".green().bold(),
-                        env_name
-                    );
+                    eprintln!("  {} {:<24} pushed", "\u{2713}".green().bold(), env_name);
                 }
             }
         }
@@ -1780,10 +1755,7 @@ mod tests {
             output.contains('\u{256F}'),
             "must have rounded bottom-right corner"
         );
-        assert!(
-            output.contains("Welcome!"),
-            "must show welcome message"
-        );
+        assert!(output.contains("Welcome!"), "must show welcome message");
         assert!(
             output.contains("nika keys set anthropic"),
             "must show getting started hint"
@@ -1921,10 +1893,7 @@ mod tests {
 
         let output = render_keys_list(&keys, false);
 
-        assert!(
-            output.contains("claude-sonnet-4-6"),
-            "must show model name"
-        );
+        assert!(output.contains("claude-sonnet-4-6"), "must show model name");
         assert!(
             output.contains("claude-haiku-4-5"),
             "must show second model"
@@ -2186,10 +2155,7 @@ mod tests {
 
     #[test]
     fn parse_github_repo_not_github() {
-        assert_eq!(
-            parse_github_repo("https://gitlab.com/user/repo.git"),
-            None
-        );
+        assert_eq!(parse_github_repo("https://gitlab.com/user/repo.git"), None);
     }
 
     // ── Console URL ─────────────────────────────────────────────────

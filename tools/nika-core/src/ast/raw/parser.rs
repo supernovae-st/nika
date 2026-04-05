@@ -1989,10 +1989,9 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
                 return Err(ParseError {
                     kind: ParseErrorKind::InvalidType,
                     span,
-                    message:
-                        "provider array must have at least 2 entries for fallback — \
+                    message: "provider array must have at least 2 entries for fallback — \
                          use `provider: 'name'` for a single provider"
-                            .to_string(),
+                        .to_string(),
                 });
             }
             let primary = items[0].clone();

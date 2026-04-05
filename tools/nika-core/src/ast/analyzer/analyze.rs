@@ -138,9 +138,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     // 2b2. Validate provider names are recognized
     let all_provider_names: Vec<&str> = crate::catalogs::KNOWN_PROVIDERS
         .iter()
-        .flat_map(|p| {
-            std::iter::once(p.id).chain(p.aliases.iter().copied())
-        })
+        .flat_map(|p| std::iter::once(p.id).chain(p.aliases.iter().copied()))
         .collect();
     // Check workflow-level provider
     if let Some(ref wf_provider) = raw.provider {
@@ -161,8 +159,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     for raw_task in &raw.tasks.value {
         if let Some(ref task_provider) = raw_task.value.provider {
             if crate::catalogs::find_provider(&task_provider.value).is_none() {
-                let suggestion =
-                    find_similar(&task_provider.value, &all_provider_names, 0.7);
+                let suggestion = find_similar(&task_provider.value, &all_provider_names, 0.7);
                 let mut err = AnalyzeError::new(
                     AnalyzeErrorKind::InvalidValue,
                     task_provider.span,
@@ -222,10 +219,8 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
 
         // Check model/provider compatibility — warn if model prefix doesn't match provider
-        if let (Some(ref task_model), Some(ref task_provider)) = (&task.model, &task.provider)
-        {
-            if let Some(inferred) = ModelResolver::infer_provider_from_model(&task_model.value)
-            {
+        if let (Some(ref task_model), Some(ref task_provider)) = (&task.model, &task.provider) {
+            if let Some(inferred) = ModelResolver::infer_provider_from_model(&task_model.value) {
                 let declared = ProviderName::parse(&task_provider.value);
                 if inferred != declared && declared != ProviderName::Mock {
                     ctx.add_warning(AnalyzeError::new(
@@ -283,8 +278,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                             ),
                         );
                         if let Some(ref similar) = suggestion {
-                            err =
-                                err.with_suggestion(format!("did you mean 'nika:{}'?", similar));
+                            err = err.with_suggestion(format!("did you mean 'nika:{}'?", similar));
                         }
                         ctx.errors.push(err);
                     }
@@ -1242,9 +1236,10 @@ fn analyze_task(
         task.output = Some(analyze_output(&output.value, ctx));
 
         // Reject output: { format: json } without schema on LLM verbs — use structured: instead
-        let is_llm_verb = raw.action.as_ref().is_some_and(|a| {
-            matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_))
-        });
+        let is_llm_verb = raw
+            .action
+            .as_ref()
+            .is_some_and(|a| matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
         let format_is_json = output
             .value
             .format
@@ -4096,16 +4091,16 @@ tasks:
             },
             make_span(0, 20),
         )));
-        task.model = Some(Spanned::new(
-            "typo-model".to_string(),
-            make_span(0, 10),
-        ));
+        task.model = Some(Spanned::new("typo-model".to_string(), make_span(0, 10)));
         task.provider = Some(Spanned::new("mock".to_string(), make_span(0, 4)));
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = validate(&raw);
         assert!(
-            result.warnings.iter().any(|w| w.message.contains("not a recognized model")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("not a recognized model")),
             "unknown model should warn, got: {:?}",
             result.warnings
         );
@@ -4179,7 +4174,10 @@ tasks:
 
         let result = validate(&raw);
         assert!(
-            result.warnings.iter().any(|w| w.message.contains("not a recognized model")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("not a recognized model")),
             "workflow-level unknown model should warn, got: {:?}",
             result.warnings
         );
@@ -4205,7 +4203,10 @@ tasks:
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = validate(&raw);
         assert!(
-            result.errors.iter().any(|e| e.message.contains("unknown builtin tool")),
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("unknown builtin tool")),
             "unknown nika: tool should error, got: {:?}",
             result.errors
         );
@@ -4272,7 +4273,10 @@ tasks:
         let mut task = make_raw_task("call");
         task.action = Some(RawTaskAction::Invoke(Spanned::new(
             RawInvokeAction {
-                tool: Some(Spanned::new("novanet::search".to_string(), make_span(0, 15))),
+                tool: Some(Spanned::new(
+                    "novanet::search".to_string(),
+                    make_span(0, 15),
+                )),
                 ..Default::default()
             },
             make_span(0, 30),
@@ -4303,10 +4307,7 @@ tasks:
         let mut task = make_raw_task("batch");
         task.for_each = Some(Spanned::new(
             RawForEach {
-                items: Spanned::new(
-                    r#"["a","b","c","d","e"]"#.to_string(),
-                    make_span(0, 20),
-                ),
+                items: Spanned::new(r#"["a","b","c","d","e"]"#.to_string(), make_span(0, 20)),
                 as_var: None,
                 concurrency: None,
                 fail_fast: None,
@@ -4317,7 +4318,10 @@ tasks:
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = validate(&raw);
         assert!(
-            result.warnings.iter().any(|w| w.message.contains("concurrency")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("concurrency")),
             "for_each with >3 items and no concurrency should warn, got: {:?}",
             result.warnings
         );
@@ -4359,10 +4363,7 @@ tasks:
         let mut task = make_raw_task("batch");
         task.for_each = Some(Spanned::new(
             RawForEach {
-                items: Spanned::new(
-                    r#"["a","b","c","d","e"]"#.to_string(),
-                    make_span(0, 20),
-                ),
+                items: Spanned::new(r#"["a","b","c","d","e"]"#.to_string(), make_span(0, 20)),
                 as_var: None,
                 concurrency: Some(Spanned::new(5, make_span(0, 1))),
                 fail_fast: None,
@@ -4458,10 +4459,7 @@ tasks:
             .iter()
             .filter(|e| e.message.contains("unknown provider"))
             .collect();
-        assert!(
-            !provider_errors.is_empty(),
-            "unknown provider should error"
-        );
+        assert!(!provider_errors.is_empty(), "unknown provider should error");
         assert!(
             provider_errors[0]
                 .suggestion

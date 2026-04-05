@@ -52,8 +52,6 @@ fn llm_provider_ids() -> Vec<&'static str> {
         .collect()
 }
 
-
-
 /// Top models per provider for `provider list` display.
 fn top_models_for_provider(provider: &str) -> &'static str {
     match provider {

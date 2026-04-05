@@ -422,9 +422,18 @@ mod tests {
 
     #[test]
     fn test_infer_provider_ambiguous_returns_none() {
-        assert_eq!(ModelResolver::infer_provider_from_model("llama-3.3-70b"), None);
-        assert_eq!(ModelResolver::infer_provider_from_model("Qwen/Qwen3-8B"), None);
-        assert_eq!(ModelResolver::infer_provider_from_model("custom-model"), None);
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("llama-3.3-70b"),
+            None
+        );
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("Qwen/Qwen3-8B"),
+            None
+        );
+        assert_eq!(
+            ModelResolver::infer_provider_from_model("custom-model"),
+            None
+        );
     }
 
     #[test]

@@ -858,6 +858,9 @@ mod tests {
             span: Span::dummy(),
         });
         let findings = lint_workflow(&wf);
-        assert!(!has_rule_for(&findings, "L031", "batch"), "L031 should NOT fire with concurrency");
+        assert!(
+            !has_rule_for(&findings, "L031", "batch"),
+            "L031 should NOT fire with concurrency"
+        );
     }
 }

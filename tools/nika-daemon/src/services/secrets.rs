@@ -252,7 +252,9 @@ mod tests {
     async fn delete_secret_via_vault() {
         std::env::set_var("NIKA_VAULT_PASSPHRASE", "test-daemon");
         let (_dir, svc) = make_test_service();
-        svc.set_secret("anthropic", TEST_FAKE_API_KEY).await.unwrap();
+        svc.set_secret("anthropic", TEST_FAKE_API_KEY)
+            .await
+            .unwrap();
         let result = svc.delete_secret("anthropic").await;
         assert!(
             result.is_ok(),
