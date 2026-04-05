@@ -1062,6 +1062,35 @@ pub enum EventKind {
         /// Error from the last provider
         last_error: String,
     },
+
+    // ═══════════════════════════════════════════
+    // DIAGNOSTICS (S6 telemetry)
+    // ═══════════════════════════════════════════
+    /// Template binding resolution failed before task execution.
+    TemplateResolutionFailed {
+        task_id: Arc<str>,
+        template: String,
+        error: String,
+    },
+    /// Domain rate limiter delayed request.
+    RateLimitDelay {
+        task_id: Arc<str>,
+        domain: String,
+        delay_ms: u64,
+    },
+    /// Schema file could not be loaded or parsed.
+    SchemaLoadFailed {
+        task_id: Arc<str>,
+        schema_path: String,
+        error: String,
+    },
+    /// Vision content resolution failed (CAS read, unsupported format, etc.).
+    VisionContentFailed {
+        task_id: Arc<str>,
+        source: String,
+        stage: String,
+        error: String,
+    },
 }
 
 impl EventKind {
@@ -1127,7 +1156,11 @@ impl EventKind {
             | Self::ForEachItemCompleted { task_id, .. }
             | Self::ForEachItemFailed { task_id, .. }
             | Self::TaskCancelled { task_id, .. }
-            | Self::FallbackChainExhausted { task_id, .. } => Some(task_id),
+            | Self::FallbackChainExhausted { task_id, .. }
+            | Self::TemplateResolutionFailed { task_id, .. }
+            | Self::RateLimitDelay { task_id, .. }
+            | Self::SchemaLoadFailed { task_id, .. }
+            | Self::VisionContentFailed { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -1514,6 +1547,67 @@ mod tests {
                 inputs: Arc::new(json!({"weather": "sunny"})),
             }
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // S6 telemetry variant serde roundtrip tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn template_resolution_failed_serde_roundtrip() {
+        let event = EventKind::TemplateResolutionFailed {
+            task_id: Arc::from("my_task"),
+            template: "{{with.missing}}".to_string(),
+            error: "unknown alias 'missing'".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"template_resolution_failed""#));
+        let rt: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, rt);
+        assert_eq!(rt.task_id(), Some("my_task"));
+    }
+
+    #[test]
+    fn rate_limit_delay_serde_roundtrip() {
+        let event = EventKind::RateLimitDelay {
+            task_id: Arc::from("fetch_step"),
+            domain: "api.example.com".to_string(),
+            delay_ms: 1500,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"rate_limit_delay""#));
+        let rt: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, rt);
+        assert_eq!(rt.task_id(), Some("fetch_step"));
+    }
+
+    #[test]
+    fn schema_load_failed_serde_roundtrip() {
+        let event = EventKind::SchemaLoadFailed {
+            task_id: Arc::from("extract"),
+            schema_path: "./schema.json".to_string(),
+            error: "No such file".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"schema_load_failed""#));
+        let rt: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, rt);
+        assert_eq!(rt.task_id(), Some("extract"));
+    }
+
+    #[test]
+    fn vision_content_failed_serde_roundtrip() {
+        let event = EventKind::VisionContentFailed {
+            task_id: Arc::from("analyze_image"),
+            source: "blake3:abc123".to_string(),
+            stage: "cas_read".to_string(),
+            error: "blob not found".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"vision_content_failed""#));
+        let rt: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, rt);
+        assert_eq!(rt.task_id(), Some("analyze_image"));
     }
 
     // ═══════════════════════════════════════════════════════════════

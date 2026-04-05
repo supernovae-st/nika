@@ -1616,6 +1616,49 @@ impl LiveRenderer {
                     last_error
                 ));
             }
+
+            // S6 diagnostics
+            EventKind::TemplateResolutionFailed { task_id, error, .. } => {
+                self.log(&format!(
+                    "{} {} {}: template error: {}",
+                    self.ts(),
+                    "✗".red(),
+                    task_id,
+                    error
+                ));
+            }
+            EventKind::RateLimitDelay { task_id, domain, delay_ms } => {
+                if self.detail.show_sub_events() {
+                    self.log(&format!(
+                        "{} {} {}: rate limited on {} ({}ms)",
+                        self.ts(),
+                        "⏱".yellow(),
+                        task_id,
+                        domain,
+                        delay_ms
+                    ));
+                }
+            }
+            EventKind::SchemaLoadFailed { task_id, schema_path, error } => {
+                self.log(&format!(
+                    "{} {} {}: schema load failed: {} — {}",
+                    self.ts(),
+                    "✗".red(),
+                    task_id,
+                    schema_path,
+                    error
+                ));
+            }
+            EventKind::VisionContentFailed { task_id, stage, error, .. } => {
+                self.log(&format!(
+                    "{} {} {}: vision {}: {}",
+                    self.ts(),
+                    "✗".red(),
+                    task_id,
+                    stage,
+                    error
+                ));
+            }
         }
     }
 

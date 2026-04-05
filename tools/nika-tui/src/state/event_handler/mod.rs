@@ -509,7 +509,11 @@ impl TuiState {
             | EventKind::ForEachItemCompleted { .. }
             | EventKind::ForEachItemFailed { .. }
             | EventKind::TaskCancelled { .. }
-            | EventKind::FallbackChainExhausted { .. } => {
+            | EventKind::FallbackChainExhausted { .. }
+            | EventKind::RateLimitDelay { .. }
+            | EventKind::TemplateResolutionFailed { .. }
+            | EventKind::SchemaLoadFailed { .. }
+            | EventKind::VisionContentFailed { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
                 // status via TaskStarted/TaskCompleted/TaskFailed.

@@ -1543,6 +1543,49 @@ impl CliRenderer {
             EventKind::ForEachItemStarted { .. }
             | EventKind::ForEachItemCompleted { .. }
             | EventKind::ForEachItemFailed { .. } => {}
+
+            // S6 diagnostics
+            EventKind::TemplateResolutionFailed { task_id, error, .. } => {
+                println!(
+                    "{} {} {}: template error: {}",
+                    self.ts(),
+                    "✗".red(),
+                    task_id,
+                    error
+                );
+            }
+            EventKind::RateLimitDelay { task_id, domain, delay_ms } => {
+                if self.detail.show_sub_events() {
+                    println!(
+                        "{} {} {}: rate limited on {} ({}ms)",
+                        self.ts(),
+                        "⏱".yellow(),
+                        task_id,
+                        domain,
+                        delay_ms
+                    );
+                }
+            }
+            EventKind::SchemaLoadFailed { task_id, schema_path, error } => {
+                println!(
+                    "{} {} {}: schema load failed: {} — {}",
+                    self.ts(),
+                    "✗".red(),
+                    task_id,
+                    schema_path,
+                    error
+                );
+            }
+            EventKind::VisionContentFailed { task_id, stage, error, .. } => {
+                println!(
+                    "{} {} {}: vision {}: {}",
+                    self.ts(),
+                    "✗".red(),
+                    task_id,
+                    stage,
+                    error
+                );
+            }
         }
     }
 
