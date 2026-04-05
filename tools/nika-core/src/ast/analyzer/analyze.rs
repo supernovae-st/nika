@@ -117,25 +117,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     // provider serves the model (e.g. llama models on groq).
     if raw.provider.is_none() {
         if let Some(ref wf_model) = raw.model {
-            if !wf_model.value.contains('/')
-                && ModelResolver::infer_provider_from_model(&wf_model.value).is_none()
-            {
-                let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
-                    .iter()
-                    .any(|(_, m)| *m == wf_model.value.as_str());
-                if !is_known_default {
-                    ctx.add_warning(AnalyzeError::new(
-                        AnalyzeErrorKind::InvalidValue,
-                        wf_model.span,
-                        format!(
-                            "model '{}' is not a recognized model name. \
-                             Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
-                             Custom models should use 'org/model' format.",
-                            wf_model.value
-                        ),
-                    ));
-                }
-            }
+            check_model_name(wf_model, &mut ctx);
         }
     }
 
@@ -241,29 +223,10 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
 
         // Check task-level model name is recognized
-        // Only warn when no explicit provider on this task — with explicit provider,
-        // user knows which provider serves the model.
+        // Only warn when no explicit provider on this task.
         if task.provider.is_none() {
             if let Some(ref task_model) = task.model {
-                if !task_model.value.contains('/')
-                    && ModelResolver::infer_provider_from_model(&task_model.value).is_none()
-                {
-                    let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
-                        .iter()
-                        .any(|(_, m)| *m == task_model.value.as_str());
-                    if !is_known_default {
-                        ctx.add_warning(AnalyzeError::new(
-                            AnalyzeErrorKind::InvalidValue,
-                            task_model.span,
-                            format!(
-                                "model '{}' is not a recognized model name. \
-                                 Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
-                                 Custom models should use 'org/model' format.",
-                                task_model.value
-                            ),
-                        ));
-                    }
-                }
+                check_model_name(task_model, &mut ctx);
             }
         }
 
@@ -737,6 +700,31 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         let mut result = AnalyzeResult::err(ctx.errors);
         result.warnings = ctx.warnings;
         result
+    }
+}
+
+/// Warn if a model name is not recognized.
+///
+/// Skips models with `org/model` format (custom endpoints) and known provider defaults.
+fn check_model_name(model: &Spanned<String>, ctx: &mut AnalyzerContext) {
+    if !model.value.contains('/')
+        && ModelResolver::infer_provider_from_model(&model.value).is_none()
+    {
+        let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
+            .iter()
+            .any(|(_, m)| *m == model.value.as_str());
+        if !is_known_default {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                model.span,
+                format!(
+                    "model '{}' is not a recognized model name. \
+                     Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
+                     Custom models should use 'org/model' format.",
+                    model.value
+                ),
+            ));
+        }
     }
 }
 
