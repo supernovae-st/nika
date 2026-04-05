@@ -1397,15 +1397,7 @@ fn latency_bar(ms: u64, max_ms: u64) -> String {
 /// Test a provider connection and return latency in ms.
 async fn test_provider_connection(provider: &Provider) -> Result<u64, String> {
     let start = std::time::Instant::now();
-    // Quick validation: check if key resolves
-    let has_key = std::env::var(provider.env_var)
-        .map(|v| !v.is_empty())
-        .unwrap_or(false);
-    if !has_key {
-        return Err("no API key".to_string());
-    }
-    // Simulate a lightweight test (in production, this would make an API call)
-    // For now, just verify the key exists and measure env resolution time
+    crate::provider::run_provider_test(provider.id).await?;
     let elapsed = start.elapsed().as_millis() as u64;
     Ok(elapsed)
 }

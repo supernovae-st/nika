@@ -451,7 +451,7 @@ async fn test_provider_connection(provider: &str) -> Result<(), NikaError> {
         .map_err(|msg| NikaError::ProviderApiError { message: msg })
 }
 
-async fn run_provider_test(provider: &str) -> Result<String, String> {
+pub async fn run_provider_test(provider: &str) -> Result<String, String> {
     use nika_engine::provider::rig::RigProvider;
     let prov = match provider {
         "anthropic" => RigProvider::claude(),
