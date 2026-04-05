@@ -1,7 +1,38 @@
 # nika keys — Mega Implementation Plan
 
-> v0 philosophy: zero backward compat, zero aliases, zero dead code.
-> 3 P0 bugs first, then 7-phase implementation.
+> v0 philosophy: zero backward compat, zero dead code.
+> BUT: smart UX everywhere — did you mean, typo correction, alias resolution, guidance.
+> 3 P0 bugs (DONE), then 7-phase implementation.
+
+## Design Decisions (validated)
+
+- **Name**: `keys` (research: 30/35 pts, precedent: Simon Willison's `llm keys`)
+- **Commands**: 5 (bare list, set, remove, check, sync)
+- **Categories**: 4 (🧠 Inference, 🔍 Search, 🔧 Custom, ◎ Local) — hidden if empty
+- **Icons**: ● configured, · not set, ◎ system, ○ offline, ⚠ env-only
+- **Source provenance**: vault (green) / env (yellow+warning) / daemon (cyan)
+- **v0 philosophy**: `provider set/delete/get/migrate` and `vault set/get/delete/list` DELETED
+- **UX helpers**: did-you-mean, typo correction, alias resolution, interactive picker, env→vault nudge
+
+## Smart UX Moments (15 total)
+
+| # | Trigger | Response |
+|---|---------|----------|
+| 1 | `nika provider set X` | ✗ "Did you mean? `nika keys set X`" |
+| 2 | `nika vault set X` | ✗ "Did you mean? `nika keys set X`" |
+| 3 | `nika keys set claude` | ✓ Auto-resolve alias: claude → anthropic |
+| 4 | `nika keys set antrhopic` | 💡 "Did you mean? anthropic" (Levenshtein) |
+| 5 | `nika keys set ANTHROPIC_API_KEY` | 💡 "Did you mean? `nika keys set anthropic`" |
+| 6 | `nika keys set sk-ant-abc123` | 💡 "That's a key, not a name → anthropic" |
+| 7 | `nika keys set` (no name) | 📋 Interactive picker (cliclack::select) |
+| 8 | `nika keys set anthropic` (exists) | ⚠ "Update? Current: sk-ant-••••7f2k" |
+| 9 | `nika keys set openai` (env exists) | 💡 "Found in env. Save to vault? (Y/n)" |
+| 10 | `nika keys remove` (no name) | 📋 Pick from configured keys |
+| 11 | `nika keys check` (zero keys) | 💡 "No keys. Run: nika keys set anthropic" |
+| 12 | `nika keys sync` (no git remote) | 💡 "Not in a git repo. Use --repo owner/name" |
+| 13 | `nika keys sync` (no gh CLI) | 💡 "Install: brew install gh" |
+| 14 | `nika run` (missing key) | 💡 Fix command + configured alternatives |
+| 15 | Wrong prefix (sk- for anthropic) | 💡 "Looks like OpenAI → nika keys set openai" |
 
 ## Pre-requisites: Fix 3 P0 Bugs
 
@@ -78,12 +109,12 @@ pub enum KeysAction {
     /// Sync keys to GitHub Actions
     Sync { #[arg(long)] github: bool, #[arg(long)] repo: Option<String>,
            #[arg(long)] dry_run: bool },
-    /// Import keys from env/dotenv/doppler
-    Import { #[arg(long, default_value = "env")] from: String },
 }
 ```
 
 `nika keys` (bare) → defaults to `KeysAction::List` (not help).
+`nika keys set` (no name) → interactive picker via cliclack::select.
+`nika k` → visible alias for `nika keys`.
 
 ### Tests (5)
 - classify_name("anthropic") → Provider

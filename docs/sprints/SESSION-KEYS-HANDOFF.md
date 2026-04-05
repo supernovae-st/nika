@@ -22,16 +22,31 @@ nika keys sync         ← push vers GitHub Actions via gh CLI
 ```
 
 ### Commandes SUPPRIMÉES (v0 = zéro backward compat)
+
+**ProviderAction enum — supprimer ces variants :**
 ```
-nika provider set      → SUPPRIMÉ (nika keys set)
-nika provider delete   → SUPPRIMÉ (nika keys remove)
-nika provider get      → SUPPRIMÉ (nika keys montre tout)
-nika provider migrate  → SUPPRIMÉ (absorbé par nika setup)
-nika vault set         → SUPPRIMÉ
-nika vault get         → SUPPRIMÉ
-nika vault delete      → SUPPRIMÉ
-nika vault list        → SUPPRIMÉ
+ProviderAction::Set        → SUPPRIMÉ (→ nika keys set)
+ProviderAction::Get        → SUPPRIMÉ (→ nika keys montre tout)
+ProviderAction::Delete     → SUPPRIMÉ (→ nika keys remove)
+ProviderAction::Migrate    → SUPPRIMÉ (absorbé par nika setup)
+ProviderAction::VaultReset → SUPPRIMÉ (→ nika keys + vault direct si besoin)
 ```
+**ProviderAction — GARDER :**
+```
+ProviderAction::List       → GARDER (catalogue read-only)
+ProviderAction::Test       → GARDER (tester connexion)
+```
+
+**VaultAction enum — supprimer ENTIÈREMENT le subcommand `nika vault` :**
+```
+VaultAction::Set           → SUPPRIMÉ (→ nika keys set)
+VaultAction::List          → SUPPRIMÉ (→ nika keys)
+VaultAction::Check         → SUPPRIMÉ (→ nika keys check)
+VaultAction::Export        → SUPPRIMÉ (rarement utilisé, v0 = nuke)
+VaultAction::Import        → SUPPRIMÉ (→ nika setup)
+```
+Supprimer `pub mod vault;` de lib.rs et le variant `Vault` du Commands enum dans main.rs.
+
 PAS d'alias. PAS de deprecation hints. MAIS : "Did you mean?" intelligent quand l'user tape une ancienne commande.
 
 ### Commandes qui RESTENT (read-only)
