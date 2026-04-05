@@ -53,6 +53,10 @@ nika run workflow.nika.yaml --resume   # Re-run, skip completed tasks
 nika run workflow.nika.yaml --no-live  # Force classic append-only output
 nika run https://example.com/wf.nika.yaml  # Execute remote workflow
 nika test workflow.nika.yaml           # Test with mock provider
+nika test wf.nika.yaml --golden snap.json  # Compare output to golden file
+nika test wf.nika.yaml --golden snap.json --update-snapshot  # Update golden
+nika eval wf.nika.yaml --dataset data.json  # Evaluate against assertions
+nika eval wf.nika.yaml --dataset d.json --provider anthropic --format json
 nika lint workflow.nika.yaml           # Best-practice linting
 nika explain workflow.nika.yaml        # Human-readable summary
 nika check workflow.nika.yaml          # Validate syntax + DAG

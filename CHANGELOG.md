@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.69.x — TRANSFORMS + CLI + SERVE V4                               ║
+║  63 transforms | 62 tools | eval framework | serve batch + tags            ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [Unreleased] — Post v0.69.0
+
+### Added
+- **`nika eval` command** — Workflow evaluation framework. Run a workflow against a dataset of inputs, validate outputs with 4 assertion types (`output_contains`, `output_min_words`, `output_max_words`, `output_matches_schema`). Supports `--format json` for CI integration. Defaults to mock provider for safety.
+- **`POST /v1/batch/run`** — Submit multiple workflows in a single request (max 50). Two-pass validation: all requests validated before any are submitted, preventing partial failures.
+- **`GET /v1/jobs`** — Paginated job list with filtering by state, workflow, and tag. Cursor-based `has_more` pagination.
+- **Job tags** — `tags` field on `RunRequest` (JSON key-value). Stored in SQLite, returned in all status responses, filterable via `GET /v1/jobs?tag=env:staging`.
+- **Storage V4** — `ALTER TABLE jobs ADD COLUMN tags TEXT`. New `list_jobs_filtered()` with state/workflow/tag/limit/offset.
+
+### Fixed
+- **Golden file comparison** — `nika test --golden` now actually compares output (was a stub). Normalizes duration_ms, shows field-by-field diff. `--update-snapshot` writes normalized output.
+- **L060 lint rule** — No longer unconditionally exempts last task. Terminal nodes (with upstream deps) are correctly exempt; orphan tasks (no deps at all) are flagged.
+- **`sum` transform** — Restricted to numbers only (was leaking `add` behavior: concat strings/arrays). Use `add` for polymorphic concat.
+- **`min_by`/`max_by` logging** — Now logs at debug level when items are skipped due to missing/non-numeric fields.
+- **Batch two-pass validation** — Validates all requests before submitting any.
+- **Tag key validation** — Rejects non-alphanumeric tag keys with 400 (was silently returning empty results).
+- **`has_more` pagination** — `GET /v1/jobs` response uses `count` + `has_more` instead of misleading `total`.
+
+## [0.69.0] — 2026-04-05
+
+### Added
+- **11 new transforms** (52 → 63): `replace(from, to)`, `truncate(N)`, `add`, `min`, `max`, `not`, `min_by(field)`, `max_by(field)`, `sum`, `avg`, `has(key)`
+- **`nika version`** — Version, channel, build info
+- **`nika test`** — Run workflow with mock provider, golden file comparison
+- **`nika lint`** — 8 best-practice rules (L001-L070)
+- **`nika env`** — Unified environment debug view
+- **`nika graph`** — Top-level alias for DAG visualization
+- **`--resume`** — Resume workflow from last trace (pre-populates datastore)
+
+### Fixed
+- **`when:` conditional** — Analyzer was setting `None` instead of copying from raw AST
+- **NaN guard** — `f64_to_json_number()` converts NaN/Infinity to null
+- **Empty array `add`** — Returns null (was 0, inconsistent with min/max/avg)
+- **Resume hardening** — Workflow hash verification, 50MB size limit, warns on 0 results
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
 ║  NIKA v0.68.2 — SDK HARDENING + MEDIA SECURITY                            ║
 ║  50 transforms | 62 tools | 9 SDK fixes | 5 media security fixes          ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
