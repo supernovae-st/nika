@@ -2798,4 +2798,180 @@ mod tests {
         assert!(result.contains("error 2"));
         assert!(result.contains("error 3"));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ERROR CODE FORMAT VERIFICATION (NIKA-XXX)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Verify that representative error variants from different groups all
+    /// produce codes with the "NIKA-" prefix.
+    #[test]
+    fn test_all_common_errors_have_nika_prefix() {
+        let errors: Vec<NikaError> = vec![
+            NikaError::ParseError {
+                details: "bad".into(),
+            },
+            NikaError::ValidationError {
+                reason: "missing tasks".into(),
+            },
+            NikaError::CycleDetected {
+                cycle: "a -> b -> a".into(),
+            },
+            NikaError::ProviderNotConfigured {
+                provider: "anthropic".into(),
+            },
+            NikaError::TemplateError {
+                template: "{{with.x}}".into(),
+                reason: "unresolved".into(),
+            },
+            NikaError::BlockedCommand {
+                command: "rm -rf /".into(),
+                reason: "dangerous".into(),
+            },
+            NikaError::McpNotConnected {
+                name: "novanet".into(),
+            },
+            NikaError::GuardrailViolation {
+                task_id: "t".into(),
+                violations: vec!["schema invalid".into()],
+            },
+            NikaError::StructuredOutputExtractionFailed {
+                task_id: "t".into(),
+                layer: "L2".into(),
+                reason: "no json".into(),
+            },
+            NikaError::WorkflowTimeout {
+                duration_secs: 60,
+                running_tasks: vec!["t1".into()],
+            },
+        ];
+
+        for err in &errors {
+            let code = err.code();
+            assert!(
+                code.starts_with("NIKA-"),
+                "Error {:?} has code '{}' which does not start with 'NIKA-'",
+                std::mem::discriminant(err),
+                code
+            );
+        }
+    }
+
+    /// Verify that error codes match the "NIKA-NNN" format (3 digits).
+    #[test]
+    fn test_error_code_is_numeric_suffix() {
+        let errors: Vec<NikaError> = vec![
+            NikaError::ParseError {
+                details: "x".into(),
+            },
+            NikaError::InvalidSchemaVersion {
+                version: "0.1".into(),
+            },
+            NikaError::CycleDetected {
+                cycle: "a->b".into(),
+            },
+            NikaError::ProviderApiError {
+                message: "server error".into(),
+            },
+            NikaError::ExecError {
+                reason: "fail".into(),
+            },
+            NikaError::FetchError {
+                reason: "timeout".into(),
+            },
+            NikaError::UnknownAlias {
+                alias: "x".into(),
+                task_id: "t".into(),
+                suggestion: None,
+            },
+            NikaError::McpToolError {
+                tool: "search".into(),
+                reason: "fail".into(),
+                error_code: None,
+            },
+            NikaError::AgentValidationError {
+                reason: "bad".into(),
+            },
+            NikaError::ToolError {
+                code: "NIKA-200".into(),
+                message: "no file".into(),
+            },
+            NikaError::SkillLoadError {
+                skill: "tone".into(),
+                reason: "not found".into(),
+            },
+            NikaError::ArtifactWriteError {
+                path: "/out/x".into(),
+                reason: "perm".into(),
+            },
+            NikaError::CourseNotFound {
+                path: "/c".into(),
+            },
+        ];
+
+        let re = regex::Regex::new(r"^NIKA-\d{3}$").unwrap();
+        for err in &errors {
+            let code = err.code();
+            assert!(
+                re.is_match(code),
+                "Error code '{}' does not match NIKA-NNN format",
+                code
+            );
+        }
+    }
+
+    /// WorkflowTimeout must map to NIKA-038 specifically.
+    #[test]
+    fn test_workflow_timeout_has_nika_038() {
+        let err = NikaError::WorkflowTimeout {
+            duration_secs: 120,
+            running_tasks: vec!["step1".into(), "step2".into()],
+        };
+        assert_eq!(err.code(), "NIKA-038");
+    }
+
+    /// All common error variants must have NIKA-NNN format codes.
+    #[test]
+    fn test_error_codes_have_nika_prefix() {
+        let errors: Vec<NikaError> = vec![
+            NikaError::ParseError { details: "x".into() },
+            NikaError::SchemaValidation { details: "x".into() },
+            NikaError::DagCycle { details: "x".into() },
+            NikaError::Execution("x".into()),
+            NikaError::WorkflowTimeout { duration_secs: 1, running_tasks: vec![] },
+            NikaError::ValidationError { reason: "x".into() },
+        ];
+        for err in &errors {
+            let code = err.code();
+            assert!(
+                code.starts_with("NIKA-"),
+                "Error {:?} has code '{}' without NIKA- prefix",
+                std::mem::discriminant(err),
+                code,
+            );
+            // Verify numeric suffix (3 digits)
+            let suffix = &code[5..];
+            assert!(
+                suffix.len() == 3 && suffix.chars().all(|c| c.is_ascii_digit()),
+                "Error code '{}' should have 3-digit suffix, got '{}'",
+                code,
+                suffix,
+            );
+        }
+    }
+
+    /// WorkflowTimeout display now includes NIKA-038 prefix.
+    #[test]
+    fn test_workflow_timeout_display_includes_prefix() {
+        let err = NikaError::WorkflowTimeout {
+            duration_secs: 60,
+            running_tasks: vec!["task1".into()],
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("[NIKA-038]"),
+            "WorkflowTimeout display should include [NIKA-038], got: {}",
+            msg,
+        );
+    }
 }
