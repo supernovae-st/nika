@@ -843,91 +843,6 @@ impl RigProvider {
         let effective_max_tokens = max_tokens.unwrap_or(8192);
 
         match self {
-            RigProvider::Claude(client) => {
-                // Anthropic requires max_tokens to be set explicitly
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::OpenAI(client) => {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Mistral(client) => {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Groq(client) => {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::DeepSeek(client) => {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Gemini(client) => {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::XAi(client) => {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
             RigProvider::OpenAiCompat {
                 raw_base_url,
                 raw_api_key,
@@ -969,6 +884,19 @@ impl RigProvider {
                 .map(|r| r.message.content)
                 .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
             }
+            // All rig-core providers (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi)
+            _ => dispatch_rig!(self, |client| {
+                let agent = client
+                    .agent(model_id)
+                    .max_tokens(effective_max_tokens)
+                    .build();
+                timeout(INFER_TIMEOUT, agent.prompt(prompt))
+                    .await
+                    .map_err(|_| RigInferError::Timeout {
+                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                    })?
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }),
         }
     }
 
