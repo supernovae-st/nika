@@ -69,19 +69,10 @@ pub fn detect_provider() -> Option<String> {
 
 /// Resolve the default model name for a provider (for display purposes).
 ///
-/// Returns the well-known default model for each LLM provider so the CLI
-/// header shows the actual model name instead of "(default)".
+/// Delegates to `nika_core::catalogs::default_model_for_provider()` — the single
+/// source of truth for provider defaults (ModelResolver catalog).
 fn default_model_for_provider(provider: &str) -> &'static str {
-    match provider {
-        "anthropic" => "claude-sonnet-4-6",
-        "openai" => "gpt-4o",
-        "mistral" => "mistral-large-latest",
-        "groq" => "llama-3.3-70b-versatile",
-        "deepseek" => "deepseek-chat",
-        "gemini" => "gemini-2.0-flash",
-        "xai" => "grok-3-fast",
-        _ => "default",
-    }
+    nika_core::catalogs::default_model_for_provider(provider).unwrap_or("default")
 }
 
 /// Parse composite model identifier: "anthropic/claude-sonnet" → (Some("anthropic"), "claude-sonnet")
