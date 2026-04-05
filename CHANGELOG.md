@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Storage V4** — `ALTER TABLE jobs ADD COLUMN tags TEXT`. New `list_jobs_filtered()` with state/workflow/tag/limit/offset.
 
 ### Fixed
+- **`nika lint` L080 + L090** — L080: warns when expensive task (infer/agent/fetch) follows a conditional without its own `when:`. L090: duplicate task names.
 - **Golden file comparison** — `nika test --golden` now actually compares output (was a stub). Normalizes duration_ms, shows field-by-field diff. `--update-snapshot` writes normalized output.
 - **L060 lint rule** — No longer unconditionally exempts last task. Terminal nodes (with upstream deps) are correctly exempt; orphan tasks (no deps at all) are flagged.
 - **`sum` transform** — Restricted to numbers only (was leaking `add` behavior: concat strings/arrays). Use `add` for polymorphic concat.
@@ -36,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **11 new transforms** (52 → 63): `replace(from, to)`, `truncate(N)`, `add`, `min`, `max`, `not`, `min_by(field)`, `max_by(field)`, `sum`, `avg`, `has(key)`
 - **`nika version`** — Version, channel, build info
 - **`nika test`** — Run workflow with mock provider, golden file comparison
-- **`nika lint`** — 8 best-practice rules (L001-L070)
+- **`nika lint`** — 10 best-practice rules (L001-L090)
 - **`nika env`** — Unified environment debug view
 - **`nika graph`** — Top-level alias for DAG visualization
 - **`--resume`** — Resume workflow from last trace (pre-populates datastore)
