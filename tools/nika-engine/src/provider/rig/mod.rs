@@ -1233,13 +1233,6 @@ impl RigProvider {
 
         let result = timeout(effective_timeout, async {
             match self {
-                RigProvider::Claude(client) => build_agent_with_tools!(client),
-                RigProvider::OpenAI(client) => build_agent_with_tools!(client),
-                RigProvider::Mistral(client) => build_agent_with_tools!(client),
-                RigProvider::Groq(client) => build_agent_with_tools!(client),
-                RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
-                RigProvider::Gemini(client) => build_agent_with_tools!(client),
-                RigProvider::XAi(client) => build_agent_with_tools!(client),
                 RigProvider::OpenAiCompat {
                     raw_base_url,
                     raw_api_key,
@@ -1319,6 +1312,8 @@ impl RigProvider {
                 RigProvider::Native(_) => Err(RigInferError::PromptError(
                     "Native inference does not support tool-based structured output".to_string(),
                 )),
+                // All rig-core providers
+                _ => dispatch_rig!(self, |client| build_agent_with_tools!(client)),
             }
         })
         .await
