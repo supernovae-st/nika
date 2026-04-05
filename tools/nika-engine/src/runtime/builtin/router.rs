@@ -637,4 +637,58 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Unknown builtin tool"));
     }
+
+    /// Verify that KNOWN_BUILTIN_TOOLS in nika-core stays in sync with the router.
+    ///
+    /// Every tool in the base router (core + data + sprint2) must be in the catalog.
+    /// Every non-contextual tool in the catalog must be in the base router.
+    #[test]
+    fn builtins_catalog_matches_router() {
+        let router = BuiltinToolRouter::new();
+        let router_names: std::collections::HashSet<&str> =
+            router.tool_names().into_iter().collect();
+
+        // Every tool in the router must be in KNOWN_BUILTIN_TOOLS
+        for name in &router_names {
+            assert!(
+                nika_core::catalogs::builtins::is_known_builtin(name),
+                "Router has tool '{}' not in KNOWN_BUILTIN_TOOLS catalog",
+                name
+            );
+        }
+
+        // Tools that require runtime context (not in base router)
+        let context_dependent: std::collections::HashSet<&str> = [
+            // File tools (need ToolContext)
+            "read", "write", "edit", "glob", "grep",
+            // Introspection tools (need DAG/EventLog)
+            "dag_info", "task_status", "threads", "orchestrate",
+            // Cost/Records (need EventLog/Datastore)
+            "cost", "records",
+            // Media always-on (need MediaToolContext)
+            "import", "decode", "dimensions", "thumbhash", "dominant_color",
+            // Media core
+            "thumbnail", "convert", "strip",
+            // Media opt-in
+            "metadata", "optimize", "svg_render", "chart", "phash", "compare",
+            "pdf_extract", "provenance", "verify", "qr_validate", "quality",
+            "html_to_md", "css_select", "extract_metadata", "extract_links",
+            "readability", "pipeline",
+        ]
+        .into_iter()
+        .collect();
+
+        // Every non-contextual tool in KNOWN_BUILTIN_TOOLS must be in the base router
+        for name in nika_core::catalogs::builtins::KNOWN_BUILTIN_TOOLS {
+            if context_dependent.contains(name) {
+                continue;
+            }
+            assert!(
+                router_names.contains(name),
+                "Catalog has '{}' not in base router — add it to BuiltinToolRouter::new() \
+                 or to the context_dependent set in this test",
+                name
+            );
+        }
+    }
 }
