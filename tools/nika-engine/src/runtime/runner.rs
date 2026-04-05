@@ -5,6 +5,7 @@
 //! - JoinSet for efficient parallel task collection
 //! - Tokio handles all concurrency (no artificial limits)
 
+use futures::FutureExt;
 use indexmap::IndexMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -200,6 +201,17 @@ struct IterationResult {
     result: TaskResult,
     /// For for_each: (parent_id, index) to enable aggregation
     for_each_info: Option<(Arc<str>, usize)>,
+}
+
+/// Extract a human-readable message from a `catch_unwind` panic payload.
+fn extract_panic_message(panic_info: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = panic_info.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = panic_info.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_string()
+    }
 }
 
 /// DAG workflow runner with event sourcing
@@ -2365,19 +2377,49 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 });
 
                                 let item_start = std::time::Instant::now();
-                                let result = Self::execute_task_iteration(
-                                    task,
-                                    Arc::clone(&task_id),
-                                    Arc::clone(&parent_task_id),
-                                    datastore,
-                                    executor,
-                                    event_log.clone(),
-                                    Some((var_name, item, idx)),
-                                    workflow_artifacts,
-                                    artifact_base_path,
-                                    workflow_base_url,
+                                // Wrap in catch_unwind so panics inside the iteration
+                                // produce a proper IterationResult with task_id (W6.5).
+                                let tid_for_panic = Arc::clone(&task_id);
+                                let ptid_for_panic = Arc::clone(&parent_task_id);
+                                let result = match std::panic::AssertUnwindSafe(
+                                    Self::execute_task_iteration(
+                                        task,
+                                        Arc::clone(&task_id),
+                                        Arc::clone(&parent_task_id),
+                                        datastore,
+                                        executor,
+                                        event_log.clone(),
+                                        Some((var_name, item, idx)),
+                                        workflow_artifacts,
+                                        artifact_base_path,
+                                        workflow_base_url,
+                                    ),
                                 )
-                                .await;
+                                .catch_unwind()
+                                .await
+                                {
+                                    Ok(result) => result,
+                                    Err(panic_info) => {
+                                        let msg = extract_panic_message(&panic_info);
+                                        tracing::error!(
+                                            task_id = %tid_for_panic,
+                                            panic_message = %msg,
+                                            "for_each iteration panicked"
+                                        );
+                                        let reason = format!(
+                                            "task '{}' panicked: {}",
+                                            tid_for_panic, msg
+                                        );
+                                        IterationResult {
+                                            store_id: tid_for_panic,
+                                            result: TaskResult::failed(
+                                                reason,
+                                                std::time::Duration::ZERO,
+                                            ),
+                                            for_each_info: Some((ptid_for_panic, idx)),
+                                        }
+                                    }
+                                };
 
                                 let item_duration_ms = item_start.elapsed().as_millis() as u64;
                                 if result.result.is_success() {
@@ -2458,7 +2500,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 };
                             }
                         };
-                        Self::execute_task_iteration(
+                        // Wrap in catch_unwind so panics inside the task produce a
+                        // proper IterationResult with the task_id instead of a bare
+                        // JoinError that loses all context (W6.5).
+                        let tid_for_panic = Arc::clone(&task_id);
+                        match std::panic::AssertUnwindSafe(Self::execute_task_iteration(
                             task,
                             Arc::clone(&task_id),
                             task_id,
@@ -2469,8 +2515,32 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             workflow_artifacts,
                             artifact_base_path,
                             workflow_base_url,
-                        )
+                        ))
+                        .catch_unwind()
                         .await
+                        {
+                            Ok(result) => result,
+                            Err(panic_info) => {
+                                let msg = extract_panic_message(&panic_info);
+                                tracing::error!(
+                                    task_id = %tid_for_panic,
+                                    panic_message = %msg,
+                                    "Task panicked during execution"
+                                );
+                                let reason = format!(
+                                    "task '{}' panicked: {}",
+                                    tid_for_panic, msg
+                                );
+                                IterationResult {
+                                    store_id: tid_for_panic,
+                                    result: TaskResult::failed(
+                                        reason,
+                                        std::time::Duration::ZERO,
+                                    ),
+                                    for_each_info: None,
+                                }
+                            }
+                        }
                     });
                 }
             }
@@ -2994,6 +3064,7 @@ mod tests {
     use crate::source::Span;
     use indexmap::IndexMap;
     use serde_json::json;
+    use std::panic::panic_any;
     use std::time::Duration;
 
     // ═══════════════════════════════════════════════════════════════
@@ -7728,5 +7799,39 @@ mod tests {
         assert!(!is_truthy("  false  ")); // trimmed
         assert!(!is_truthy("  null  "));
         assert!(!is_truthy("  0  "));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PANIC MESSAGE EXTRACTION (W6.5)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn extract_panic_message_str_literal() {
+        let result = std::panic::catch_unwind(|| {
+            panic!("literal message");
+        });
+        let payload = result.unwrap_err();
+        let msg = extract_panic_message(&payload);
+        assert_eq!(msg, "literal message");
+    }
+
+    #[test]
+    fn extract_panic_message_string_owned() {
+        let result = std::panic::catch_unwind(|| {
+            panic!("{}", format!("formatted {}", "message"));
+        });
+        let payload = result.unwrap_err();
+        let msg = extract_panic_message(&payload);
+        assert_eq!(msg, "formatted message");
+    }
+
+    #[test]
+    fn extract_panic_message_unknown_type() {
+        let result = std::panic::catch_unwind(|| {
+            panic_any(42_i32);
+        });
+        let payload = result.unwrap_err();
+        let msg = extract_panic_message(&payload);
+        assert_eq!(msg, "unknown panic");
     }
 }
