@@ -105,13 +105,13 @@ impl RigAgentLoop {
             return self.run_claude_with_thinking().await;
         }
 
-        let provider_ref = self
-            .params
-            .provider
-            .as_ref()
-            .ok_or_else(|| NikaError::AgentValidationError {
-                reason: "provider is required for agent: tasks".to_string(),
-            })?;
+        let provider_ref =
+            self.params
+                .provider
+                .as_ref()
+                .ok_or_else(|| NikaError::AgentValidationError {
+                    reason: "provider is required for agent: tasks".to_string(),
+                })?;
         let provider_str = provider_ref.as_str();
 
         let resolved = crate::core::find_provider(provider_str).ok_or_else(|| {
@@ -169,8 +169,9 @@ impl RigAgentLoop {
                     .await
             }
             "native" => Err(NikaError::AgentValidationError {
-                reason: "Provider 'native' is not supported for agent: tasks. Use a cloud provider."
-                    .to_string(),
+                reason:
+                    "Provider 'native' is not supported for agent: tasks. Use a cloud provider."
+                        .to_string(),
             }),
             _ => Err(NikaError::AgentValidationError {
                 reason: format!(

@@ -40,7 +40,7 @@ pub fn has_any_provider_key() -> bool {
         return true;
     }
 
-    // Check NikaVault (keys stored via `nika provider set`)
+    // Check NikaVault (keys stored via `nika keys set`)
     // If vault fails (machine-id issue, permissions), don't trigger wizard.
     let nika_home = nika_home_dir();
     let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
@@ -102,10 +102,7 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
     if !std::io::stdin().is_terminal() {
         println!();
         println!("  {} No API keys configured", StatusIcon::Warn);
-        println!(
-            "{}",
-            hint("Set an API key: nika provider set <provider> <key>")
-        );
+        println!("{}", hint("Set an API key: nika keys set <provider> <key>"));
         println!("{}", hint("Or run interactively: nika setup"));
         return Ok(false);
     }

@@ -162,7 +162,7 @@ pub fn key_value_width(label: &str, value: &str, width: usize) -> String {
 ///
 /// ```text
 ///     ✓ anthropic    sk-ant-a... (vault)
-///     ✗ mistral      → nika provider set mistral
+///     ✗ mistral      → nika keys set mistral
 /// ```
 pub fn status_line(icon: StatusIcon, message: &str) -> String {
     format!("    {} {message}", icon.render())
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn status_line_with_hint_format() {
-        let sl = status_line_with_hint(StatusIcon::Fail, "mistral", "nika provider set mistral");
+        let sl = status_line_with_hint(StatusIcon::Fail, "mistral", "nika keys set mistral");
         assert!(sl.contains('✗'));
         assert!(sl.contains("mistral"));
     }
@@ -332,8 +332,8 @@ mod tests {
 
     #[test]
     fn hint_produces_dimmed_text() {
-        let h = hint("Use nika provider set <name>");
-        assert!(h.contains("nika provider set"));
+        let h = hint("Use nika keys set <name>");
+        assert!(h.contains("nika keys set"));
     }
 
     #[test]

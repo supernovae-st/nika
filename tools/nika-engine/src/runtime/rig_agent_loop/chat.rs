@@ -107,7 +107,9 @@ impl RigAgentLoop {
                 }
             }
             found.ok_or_else(|| NikaError::AgentValidationError {
-                reason: "chat_continue requires a configured provider or an API key in the environment".to_string(),
+                reason:
+                    "chat_continue requires a configured provider or an API key in the environment"
+                        .to_string(),
             })?
         };
 
@@ -117,7 +119,8 @@ impl RigAgentLoop {
         macro_rules! dispatch_chat {
             ($client:expr) => {{
                 let model = $client.completion_model(&model_name);
-                self.chat_continue_with_model(prompt, model, &model_name).await
+                self.chat_continue_with_model(prompt, model, &model_name)
+                    .await
             }};
         }
 

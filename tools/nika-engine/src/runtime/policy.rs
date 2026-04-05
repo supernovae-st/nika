@@ -565,10 +565,7 @@ pub struct TokenReservation {
 impl TokenReservation {
     /// Reserve `estimated` tokens from the budget. Returns an RAII guard that
     /// will release the tokens on drop if not consumed via `adjust()`.
-    pub fn new(
-        enforcer: Arc<RwLock<PolicyEnforcer>>,
-        estimated: u64,
-    ) -> Result<Self, String> {
+    pub fn new(enforcer: Arc<RwLock<PolicyEnforcer>>, estimated: u64) -> Result<Self, String> {
         enforcer.write().reserve_tokens(estimated)?;
         Ok(Self {
             enforcer,
@@ -595,8 +592,7 @@ impl Drop for TokenReservation {
             // Task was cancelled or errored between reserve and adjust —
             // release the reserved tokens back to the budget.
             let mut enforcer = self.enforcer.write();
-            enforcer.token_budget.used =
-                enforcer.token_budget.used.saturating_sub(self.reserved);
+            enforcer.token_budget.used = enforcer.token_budget.used.saturating_sub(self.reserved);
         }
     }
 }
@@ -1231,7 +1227,10 @@ mod tests {
     fn token_reservation_exceeds_budget() {
         let enforcer = make_enforcer(1_000);
         let result = TokenReservation::new(Arc::clone(&enforcer), 2_000);
-        assert!(result.is_err(), "Should fail when reservation exceeds budget");
+        assert!(
+            result.is_err(),
+            "Should fail when reservation exceeds budget"
+        );
         // Budget should be untouched
         assert_eq!(enforcer.read().tokens_used(), 0);
     }

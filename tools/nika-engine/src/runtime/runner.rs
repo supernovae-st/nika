@@ -301,7 +301,12 @@ impl Runner {
             reason: format!("DAG construction failed: {e}"),
         })?;
         flow_graph.detect_cycles()?;
-        let datastore = RunContext::new();
+        let mut datastore = RunContext::new();
+
+        // Load vault if available (for $vault.SERVICE.FIELD bindings)
+        if let Some(vault) = crate::secrets::vault::try_open_vault() {
+            datastore.set_vault(Arc::new(vault));
+        }
 
         // Resolve MCP servers: from: references resolved from .mcp.json / global
         let resolver = crate::core::McpConfigResolver::from_environment();
@@ -364,7 +369,12 @@ impl Runner {
             reason: format!("DAG construction failed: {e}"),
         })?;
         flow_graph.detect_cycles()?;
-        let datastore = RunContext::new();
+        let mut datastore = RunContext::new();
+
+        // Load vault if available (for $vault.SERVICE.FIELD bindings)
+        if let Some(vault) = crate::secrets::vault::try_open_vault() {
+            datastore.set_vault(Arc::new(vault));
+        }
 
         let resolver = crate::core::McpConfigResolver::from_environment();
         let mcp_configs =
@@ -1753,7 +1763,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 })
                 .collect();
             let layers = crate::dag::flow::compute_layers(&nodes, &edges);
-            Some(layers.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+            Some(
+                layers
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v))
+                    .collect(),
+            )
         } else {
             None
         };
@@ -2558,16 +2573,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     panic_message = %msg,
                                     "Task panicked during execution"
                                 );
-                                let reason = format!(
-                                    "task '{}' panicked: {}",
-                                    tid_for_panic, msg
-                                );
+                                let reason = format!("task '{}' panicked: {}", tid_for_panic, msg);
                                 IterationResult {
                                     store_id: tid_for_panic,
-                                    result: TaskResult::failed(
-                                        reason,
-                                        std::time::Duration::ZERO,
-                                    ),
+                                    result: TaskResult::failed(reason, std::time::Duration::ZERO),
                                     for_each_info: None,
                                 }
                             }
@@ -2940,13 +2949,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let confidence = self
                 .datastore
                 .get(crate::runtime::orchestrate::ORCHESTRATOR_TASK_ID)
-                .and_then(|result| {
-                    match result.output.as_ref() {
-                        Value::String(s) => serde_json::from_str::<serde_json::Value>(s)
-                            .ok()
-                            .and_then(|v| v["confidence"].as_f64()),
-                        v => v.get("confidence").and_then(|c| c.as_f64()),
-                    }
+                .and_then(|result| match result.output.as_ref() {
+                    Value::String(s) => serde_json::from_str::<serde_json::Value>(s)
+                        .ok()
+                        .and_then(|v| v["confidence"].as_f64()),
+                    v => v.get("confidence").and_then(|c| c.as_f64()),
                 })
                 .unwrap_or(1.0);
             self.event_log.emit(EventKind::OrchestratorCompleted {

@@ -119,8 +119,67 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
         result.not_found.push(provider_id.to_string());
     }
+
+    // ── Inject custom vault keys into the SecretStore ───────────────────
+    //
+    // Keys stored with "custom:" prefix (e.g. `nika vault set custom:ELEVENLABS_API_KEY`)
+    // are NOT LLM providers, so the KNOWN_PROVIDERS loop above skips them.
+    // We inject them here so `$env.ELEVENLABS_API_KEY` bindings work at runtime.
+    inject_custom_vault_keys(&backend);
+
     info!("Secrets: {}", result.summary());
     result
+}
+
+/// Inject custom (non-provider) vault keys into the in-process SecretStore.
+///
+/// Scans the vault for entries starting with `custom:` and injects them as
+/// environment-style secrets. For example, `custom:ELEVENLABS_API_KEY` becomes
+/// accessible as `$env.ELEVENLABS_API_KEY` in workflow bindings.
+///
+/// Skips keys already present in the environment to preserve env var priority.
+fn inject_custom_vault_keys(backend: &nika_vault::VaultBackend) {
+    // Doppler custom keys: not applicable (Doppler manages its own env injection)
+    if *backend == nika_vault::VaultBackend::Doppler {
+        return;
+    }
+
+    let vault = match super::vault::try_open_vault() {
+        Some(v) => v,
+        None => return,
+    };
+
+    let keys = match vault.list() {
+        Ok(k) => k,
+        Err(e) => {
+            debug!("vault list failed (non-fatal): {e}");
+            return;
+        }
+    };
+
+    for key in keys.iter().filter(|k| k.starts_with("custom:")) {
+        let env_name = match key.strip_prefix("custom:") {
+            Some(name) if !name.is_empty() => name,
+            _ => continue,
+        };
+
+        // Respect env var priority: don't overwrite existing values
+        if super::store::resolve_env(env_name).is_some() {
+            trace!("custom:{}: already in env/store, skipping", env_name);
+            continue;
+        }
+
+        match vault.get(key) {
+            Ok(Some(secret)) => {
+                super::inject_secret_to_env(env_name, secret.expose_secret());
+                debug!("custom:{}: injected from vault", env_name);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                debug!("custom:{}: vault read failed (non-fatal): {e}", env_name);
+            }
+        }
+    }
 }
 
 pub async fn get_secret(provider: &str) -> Option<SecretString> {

@@ -218,7 +218,7 @@ pub enum NikaError {
     #[diagnostic(
         code(nika::missing_api_key),
         help(
-            "Set it now:   nika provider set {provider} <your-key>\n  Or run:       nika setup   (interactive wizard)\n\n  Run:          nika provider list   to see required env vars for each provider"
+            "Set it now:   nika keys set {provider} <your-key>\n  Or run:       nika setup   (interactive wizard)\n\n  Run:          nika provider list   to see required env vars for each provider"
         )
     )]
     MissingApiKey { provider: String },
@@ -2582,9 +2582,7 @@ mod tests {
                 path: "/out/x".into(),
                 reason: "perm".into(),
             },
-            NikaError::CourseNotFound {
-                path: "/c".into(),
-            },
+            NikaError::CourseNotFound { path: "/c".into() },
         ];
 
         let re = regex::Regex::new(r"^NIKA-\d{3}$").unwrap();
@@ -2612,10 +2610,17 @@ mod tests {
     #[test]
     fn test_error_codes_have_nika_prefix() {
         let errors: Vec<NikaError> = vec![
-            NikaError::ParseError { details: "x".into() },
-            NikaError::CycleDetected { cycle: "a→b→a".into() },
+            NikaError::ParseError {
+                details: "x".into(),
+            },
+            NikaError::CycleDetected {
+                cycle: "a→b→a".into(),
+            },
             NikaError::Execution("x".into()),
-            NikaError::WorkflowTimeout { duration_secs: 1, running_tasks: vec![] },
+            NikaError::WorkflowTimeout {
+                duration_secs: 1,
+                running_tasks: vec![],
+            },
             NikaError::ValidationError { reason: "x".into() },
         ];
         for err in &errors {

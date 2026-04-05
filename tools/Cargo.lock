@@ -5832,6 +5832,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-display"
+version = "0.71.0"
+dependencies = [
+ "colored",
+ "indexmap 2.13.0",
+ "indicatif 0.18.4",
+ "nika-core",
+ "nika-event",
+ "rustc-hash 2.1.2",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "terminal_size",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
 name = "nika-engine"
 version = "0.71.0"
 dependencies = [
@@ -5856,13 +5873,13 @@ dependencies = [
  "ignore",
  "image",
  "indexmap 2.13.0",
- "indicatif 0.18.4",
  "insta",
  "jsonschema",
  "miette",
  "mistralrs",
  "nika-core",
  "nika-daemon",
+ "nika-display",
  "nika-event",
  "nika-lsp-core",
  "nika-mcp",
@@ -5893,7 +5910,6 @@ dependencies = [
  "smallvec 1.15.1",
  "tar",
  "tempfile",
- "terminal_size",
  "text-splitter",
  "texting_robots",
  "thiserror 2.0.18",
@@ -5903,7 +5919,6 @@ dependencies = [
  "tower-lsp-server",
  "tracing",
  "unicode-normalization",
- "unicode-width 0.2.2",
  "url",
  "urlencoding",
  "uuid 1.23.0",
@@ -5984,7 +5999,6 @@ version = "0.71.0"
 dependencies = [
  "backon",
  "dashmap",
- "dirs",
  "jsonschema",
  "nika-core",
  "nika-event",
@@ -6072,7 +6086,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "tracing",
  "uuid 1.23.0",
@@ -6103,7 +6116,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "toml 0.8.23",
  "tower",

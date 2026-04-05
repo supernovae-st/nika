@@ -25,7 +25,7 @@ use nika_engine::store::RunContext;
 
 /// Auto-detect provider from environment variables and vault (priority order).
 ///
-/// Checks env vars first (fast), then NikaVault for keys stored via `nika provider set`.
+/// Checks env vars first (fast), then NikaVault for keys stored via `nika keys set`.
 pub fn detect_provider() -> Option<String> {
     use nika_engine::core::providers::{providers_by_category, ProviderCategory};
 
@@ -36,7 +36,7 @@ pub fn detect_provider() -> Option<String> {
         }
     }
 
-    // Check NikaVault (keys stored via `nika provider set`)
+    // Check NikaVault (keys stored via `nika keys set`)
     let nika_home = std::env::var("NIKA_HOME")
         .ok()
         .map(std::path::PathBuf::from)

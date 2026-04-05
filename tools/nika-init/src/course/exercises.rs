@@ -479,7 +479,7 @@ const JAILBREAK_04_TEMPLATE: &str = r##"# ======================================
 #   - provider: / model: at task level (override for one task)
 #   - system:, temperature:, max_tokens: in infer: block
 #
-# SETUP: nika provider set openai (or any provider you have)
+# SETUP: nika keys set openai (or any provider you have)
 # RUN:   nika run 04-provider-selection.nika.yaml
 # =============================================================================
 
@@ -1801,7 +1801,7 @@ const PAY_PER_DREAM_01_TEMPLATE: &str = r##"# ==================================
 #   - Mixing providers for different strengths
 #   - Cost/speed/quality tradeoffs
 #
-# SETUP: Configure at least 2 providers with nika provider set <name>
+# SETUP: Configure at least 2 providers with nika keys set <name>
 # RUN:   nika run 01-multi-provider.nika.yaml
 # =============================================================================
 

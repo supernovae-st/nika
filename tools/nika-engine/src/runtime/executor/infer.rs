@@ -1184,9 +1184,8 @@ impl TaskExecutor {
                                     .unwrap_or(nika_event::FinishReason::Stop),
                                 cost_usd: if cost.is_finite() { cost } else { 0.0 },
                             });
-                            token_reservation.adjust(
-                                stream_result.input_tokens + stream_result.output_tokens,
-                            );
+                            token_reservation
+                                .adjust(stream_result.input_tokens + stream_result.output_tokens);
                             return Ok((true, Some(result_str)));
                         }
                         Err(e) => {
@@ -1215,9 +1214,8 @@ impl TaskExecutor {
                         success: true,
                         error: None,
                     });
-                    token_reservation.adjust(
-                        stream_result.input_tokens + stream_result.output_tokens,
-                    );
+                    token_reservation
+                        .adjust(stream_result.input_tokens + stream_result.output_tokens);
                     // BUGFIX SF2: Emit ProviderResponded before early return
                     let cost = provider
                         .cost_provider_kind()

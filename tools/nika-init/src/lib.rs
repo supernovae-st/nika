@@ -83,7 +83,7 @@ nika run workflows/minimal/01-exec.nika.yaml
 nika run workflows/minimal/02-fetch.nika.yaml
 
 # 2. Setup LLM provider, then run LLM workflows
-nika provider set anthropic       # or: openai, mistral, groq, deepseek, gemini
+nika keys set anthropic       # or: openai, mistral, groq, deepseek, gemini
 nika run workflows/minimal/03-infer.nika.yaml
 nika run workflows/minimal/04-invoke.nika.yaml
 nika run workflows/minimal/05-agent.nika.yaml
@@ -126,12 +126,12 @@ nika course next
 
 ```bash
 nika provider list                   # Check available providers
-nika provider set anthropic          # Claude (recommended)
-nika provider set openai             # GPT-4
-nika provider set mistral            # Mistral Large
-nika provider set groq               # Groq (fast, free tier)
-nika provider set deepseek           # DeepSeek
-nika provider set gemini             # Google Gemini
+nika keys set anthropic          # Claude (recommended)
+nika keys set openai             # GPT-4
+nika keys set mistral            # Mistral Large
+nika keys set groq               # Groq (fast, free tier)
+nika keys set deepseek           # DeepSeek
+nika keys set gemini             # Google Gemini
 ```
 
 ## Learn More

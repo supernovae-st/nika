@@ -1422,8 +1422,8 @@ fn test_is_anthropic() {
 #[test]
 fn test_supports_vision() {
     assert!(!RigProvider::Mock.supports_vision());
-    let compat = RigProvider::openai_compat("test", "http://localhost:8000/v1", "k", None, 300)
-        .unwrap();
+    let compat =
+        RigProvider::openai_compat("test", "http://localhost:8000/v1", "k", None, 300).unwrap();
     assert!(compat.supports_vision());
 }
 

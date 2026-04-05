@@ -2797,7 +2797,7 @@ async fn run_workflow(
     resume: bool,
 ) -> Result<(), NikaError> {
     // Bootstrap secrets: env vars → daemon IPC → vault.
-    // Ensures keys stored via `nika provider set` are available without restarting the shell.
+    // Ensures keys stored via `nika keys set` are available without restarting the shell.
     let _ = nika::secrets::load_from_daemon_or_fallback().await;
 
     let resolved_path = resolve_workflow_path(file).await?;
@@ -2838,7 +2838,9 @@ async fn run_workflow(
         let configured = cli::onboarding::run_onboarding_wizard().await?;
         if !configured {
             return Err(NikaError::ConfigError {
-                reason: "No API key configured. Run `nika provider set <provider> <key>` or `nika setup`.".to_string(),
+                reason:
+                    "No API key configured. Run `nika keys set <provider> <key>` or `nika setup`."
+                        .to_string(),
             });
         }
     }
@@ -3921,7 +3923,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
                 detail: format!("{} missing API key(s)", provider_warnings.len()),
                 duration_ms: providers_elapsed.as_millis() as u64,
                 errors: provider_warnings.clone(),
-                hints: vec!["Run 'nika provider set <name>' to configure API keys".to_string()],
+                hints: vec!["Run 'nika keys set <name>' to configure API keys".to_string()],
             });
         }
 
@@ -4465,7 +4467,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
             detail: format!("{} missing API key(s)", provider_warnings.len()),
             duration_ms: providers_elapsed.as_millis() as u64,
             errors: provider_warnings,
-            hints: vec!["Run 'nika provider set <name>' to configure API keys".to_string()],
+            hints: vec!["Run 'nika keys set <name>' to configure API keys".to_string()],
         });
     }
 

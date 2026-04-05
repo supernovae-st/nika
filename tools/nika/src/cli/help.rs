@@ -464,7 +464,7 @@ fn topic_providers() {
     println!(
         "  {} {}",
         "\u{2192}".dimmed(),
-        "nika provider set <name>".dimmed()
+        "nika keys set <name>".dimmed()
     );
     println!("  {} {}", "\u{2192}".dimmed(), "nika model list".dimmed());
     println!();

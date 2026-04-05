@@ -98,7 +98,7 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
         "NIKA-072" => Some("Provide a default value or ensure non-null output"),
         "NIKA-073" => Some("Check the path - accessing field on non-object"),
         "NIKA-075" => {
-            Some("Check: nika provider set <service> or use ?? default. Run: nika doctor --fix")
+            Some("Check: nika keys set <service> or use ?? default. Run: nika doctor --fix")
         }
         "NIKA-080" => Some("Verify the task_id exists in your workflow"),
         "NIKA-081" => Some("Add depends_on: [source_task] to this task"),

@@ -30,7 +30,7 @@ tasks:
   - id: hello
     exec: "echo 'Hello from Nika! 🦋'"
 
-  # Uncomment to try an LLM task (requires: nika provider set <name>)
+  # Uncomment to try an LLM task (requires: nika keys set <name>)
   # - id: greet
   #   depends_on: [hello]
   #   provider: anthropic
@@ -101,7 +101,7 @@ pub async fn init_project(
             "# Run your first workflow".dimmed()
         );
         println!(
-            "    nika provider set anthropic     {}",
+            "    nika keys set anthropic     {}",
             "# Configure an LLM provider".dimmed()
         );
         println!(

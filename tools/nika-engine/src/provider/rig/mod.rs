@@ -299,8 +299,9 @@ impl RigProvider {
             "native" => Ok(Self::native()),
             // OpenAI-compatible providers — config-driven via static table
             _ => {
-                if let Some(&(id, base_url, env_var)) =
-                    OPENAI_COMPAT_PROVIDERS.iter().find(|(id, _, _)| *id == provider.id)
+                if let Some(&(id, base_url, env_var)) = OPENAI_COMPAT_PROVIDERS
+                    .iter()
+                    .find(|(id, _, _)| *id == provider.id)
                 {
                     let key = crate::secrets::store::resolve_env(env_var).ok_or_else(|| {
                         ProviderError::MissingApiKey {
@@ -410,8 +411,9 @@ impl RigProvider {
                 }),
             // OpenAI-compatible providers — config-driven via static table
             _ => {
-                if let Some(&(id, base_url, _)) =
-                    OPENAI_COMPAT_PROVIDERS.iter().find(|(id, _, _)| *id == provider.id)
+                if let Some(&(id, base_url, _)) = OPENAI_COMPAT_PROVIDERS
+                    .iter()
+                    .find(|(id, _, _)| *id == provider.id)
                 {
                     Self::openai_compat(id, base_url, api_key, None, 300)
                 } else {

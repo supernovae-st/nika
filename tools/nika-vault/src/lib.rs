@@ -570,14 +570,28 @@ impl NikaVault {
         let ciphertext = aead::seal(&key, &plaintext)
             .map_err(|e| VaultError::Crypto(format!("encrypt failed: {e}")))?;
 
-        std::fs::write(&self.vault_path, &ciphertext)?;
+        // Atomic write: write to tmp file then rename, so a concurrent read
+        // never sees a truncated/partial vault file.
+        let tmp_path = self.vault_path.with_extension("enc.tmp");
+        std::fs::write(&tmp_path, &ciphertext)?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let perms = std::fs::Permissions::from_mode(0o600);
-            std::fs::set_permissions(&self.vault_path, perms.clone())?;
+            std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o600))?;
+        }
+
+        if let Err(e) = std::fs::rename(&tmp_path, &self.vault_path) {
+            // Clean up tmp file on rename failure
+            let _ = std::fs::remove_file(&tmp_path);
+            return Err(VaultError::Io(e));
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
             if self.salt_path.exists() {
+                let perms = std::fs::Permissions::from_mode(0o600);
                 std::fs::set_permissions(&self.salt_path, perms)?;
             }
         }
@@ -640,12 +654,20 @@ impl NikaVault {
         let mut salt = vec![0u8; 16];
         orion::util::secure_rand_bytes(&mut salt)
             .map_err(|e| VaultError::Crypto(format!("CSPRNG: {e}")))?;
-        std::fs::write(&self.salt_path, &salt)?;
+
+        // Atomic write for salt file too
+        let tmp_salt = self.salt_path.with_extension("salt.tmp");
+        std::fs::write(&tmp_salt, &salt)?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&self.salt_path, std::fs::Permissions::from_mode(0o600))?;
+            std::fs::set_permissions(&tmp_salt, std::fs::Permissions::from_mode(0o600))?;
+        }
+
+        if let Err(e) = std::fs::rename(&tmp_salt, &self.salt_path) {
+            let _ = std::fs::remove_file(&tmp_salt);
+            return Err(VaultError::Io(e));
         }
 
         debug!("vault salt created");

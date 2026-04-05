@@ -1312,7 +1312,10 @@ mod tests {
         assert_eq!(delay, 100, "zero multiplier should fall back to 1.0");
 
         let delay = safe_backoff_delay(100, -2.5, 5);
-        assert_eq!(delay, 100, "negative multiplier should always produce base_ms");
+        assert_eq!(
+            delay, 100,
+            "negative multiplier should always produce base_ms"
+        );
     }
 
     #[test]
@@ -1342,7 +1345,10 @@ mod tests {
         // NaN comparison: NaN <= 0.0 is false, so safe_mult = NaN
         // NaN.powi(n) = NaN, which triggers the is_nan() guard → MAX_BACKOFF_MS
         let delay = safe_backoff_delay(100, f64::NAN, 1);
-        assert_eq!(delay, MAX_BACKOFF_MS, "NaN multiplier should return MAX_BACKOFF_MS");
+        assert_eq!(
+            delay, MAX_BACKOFF_MS,
+            "NaN multiplier should return MAX_BACKOFF_MS"
+        );
 
         let delay = safe_backoff_delay(100, f64::NAN, 0);
         // NaN^0 is 1.0 in IEEE 754 (special case), so this actually computes 100 * 1 = 100
@@ -1364,7 +1370,10 @@ mod tests {
         assert_eq!(delay, 1, "tiny factor should clamp to 1");
 
         let delay = safe_backoff_delay(1, 0.01, 20);
-        assert_eq!(delay, 1, "very small multiplier with high exp should return 1");
+        assert_eq!(
+            delay, 1,
+            "very small multiplier with high exp should return 1"
+        );
 
         // 0.5^10 = 0.000976..., as u64 = 0, 100 * 0 = 0, clamped to 1
         let delay = safe_backoff_delay(100, 0.5, 10);

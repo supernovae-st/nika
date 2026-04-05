@@ -117,7 +117,7 @@ const DAILY_STANDUP_REPORT: &str = r##"# ═════════════
 #   nika run daily-standup-report.nika.yaml --input days=3
 #
 # REQUIRES: Git repository, LLM provider
-# SETUP:    nika provider set anthropic  (or: openai, mistral, groq)
+# SETUP:    nika keys set anthropic  (or: openai, mistral, groq)
 
 schema: "nika/workflow@0.12"
 
@@ -224,7 +224,7 @@ const PR_REVIEW_HELPER: &str = r##"# ══════════════�
 #   nika run pr-review-helper.nika.yaml --input focus="security"
 #
 # REQUIRES: Git repository, LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 
 schema: "nika/workflow@0.12"
 
@@ -339,7 +339,7 @@ const CHANGELOG_GENERATOR: &str = r##"# ═════════════�
 #   nika run changelog-generator.nika.yaml --input repo_url="https://github.com/org/repo"
 #
 # REQUIRES: Git repository, LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 
 schema: "nika/workflow@0.12"
 
@@ -471,7 +471,7 @@ const SEO_AUDIT: &str = r##"# ════════════════�
 #   nika run seo-audit.nika.yaml --input url="https://example.com"
 #
 # REQUIRES: LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 # FEATURES: fetch-html, fetch-markdown (for extract: metadata, links, article)
 
 schema: "nika/workflow@0.12"
@@ -615,7 +615,7 @@ const CONTENT_BRIEF: &str = r##"# ═══════════════�
 #   nika run content-brief.nika.yaml --input keyword="rust async" --input audience="senior devs"
 #
 # REQUIRES: LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 # FEATURES: fetch-markdown (for extract: article)
 
 schema: "nika/workflow@0.12"
@@ -760,7 +760,7 @@ const API_MONITOR: &str = r##"# ════════════════
 #   nika run api-monitor.nika.yaml --input timeout=5
 #
 # REQUIRES: LLM provider (for summary). No API keys for the default endpoints.
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 #
 # TIP: Edit the fetch URLs below to monitor your own APIs.
 
@@ -887,7 +887,7 @@ const BATCH_TRANSLATOR: &str = r##"# ══════════════�
 #   nika run batch-translator.nika.yaml --input content="Your text here"
 #
 # REQUIRES: LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 
 schema: "nika/workflow@0.12"
 
@@ -1048,7 +1048,7 @@ const MEETING_SUMMARIZER: &str = r##"# ═════════════�
 #   nika run meeting-summarizer.nika.yaml --input meeting_title="Sprint Planning"
 #
 # REQUIRES: LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 
 schema: "nika/workflow@0.12"
 
@@ -1181,7 +1181,7 @@ const COMPETITIVE_INTEL: &str = r##"# ══════════════
 #   nika run competitive-intel.nika.yaml --input company_name="Acme Inc"
 #
 # REQUIRES: LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 # FEATURES: fetch-html, fetch-article (for extract: metadata, article)
 
 schema: "nika/workflow@0.12"
@@ -1326,7 +1326,7 @@ const KNOWLEDGE_BASE_QA: &str = r##"# ══════════════
 #   nika run knowledge-base-qa.nika.yaml --input product_name="Nika"
 #
 # REQUIRES: LLM provider
-# SETUP:    nika provider set anthropic
+# SETUP:    nika keys set anthropic
 # FEATURES: fetch-markdown (for extract: markdown)
 
 schema: "nika/workflow@0.12"

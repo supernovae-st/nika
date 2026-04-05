@@ -81,7 +81,7 @@ pub const MINIMAL_INFER: &str = r##"# ══════════════
 #
 # Send prompts to an LLM. Requires a provider API key.
 #
-# Setup: nika provider set {{PROVIDER}}
+# Setup: nika keys set {{PROVIDER}}
 # Run:   nika run workflows/03-infer.nika.yaml
 
 schema: "nika/workflow@0.12"
@@ -169,7 +169,7 @@ pub const MINIMAL_AGENT: &str = r##"# ══════════════
 # An autonomous agent that can use tools in a loop.
 # Requires a provider API key.
 #
-# Setup: nika provider set {{PROVIDER}}
+# Setup: nika keys set {{PROVIDER}}
 # Run:   nika run workflows/05-agent.nika.yaml
 
 schema: "nika/workflow@0.12"

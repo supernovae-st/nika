@@ -6,7 +6,7 @@
 //!
 //! 1. provider list returns all 13 providers (7 LLM + 6 MCP)
 //! 2. provider list shows status for each
-//! 3. provider set stores in vault
+//! 3. keys set stores in vault
 //! 4. provider get retrieves masked
 //! 5. provider get returns error for unknown
 //! 6. provider test validates key format

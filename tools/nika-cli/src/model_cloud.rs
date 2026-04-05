@@ -123,7 +123,7 @@ pub fn print_cloud_models(filter_provider: Option<&str>, json: bool) -> Result<(
             println!(
                 "  {} {}",
                 StatusIcon::Hint,
-                format!("nika provider set {}", p.name.to_lowercase()).dimmed()
+                format!("nika keys set {}", p.name.to_lowercase()).dimmed()
             );
         } else {
             for (i, (name, pricing)) in models.iter().enumerate() {
@@ -222,7 +222,7 @@ pub fn print_model_info(model_name: &str) -> Result<(), NikaError> {
                         format!("{} API key available", StatusIcon::Ok)
                     } else {
                         format!(
-                            "{} Set key: nika provider set {}",
+                            "{} Set key: nika keys set {}",
                             StatusIcon::Fail,
                             p.name.to_lowercase()
                         )
@@ -253,7 +253,7 @@ pub fn print_model_recommend() -> Result<(), NikaError> {
     }
     if available.is_empty() {
         println!("  No API keys configured.");
-        println!("{}", hint("nika provider set <provider>"));
+        println!("{}", hint("nika keys set <provider>"));
         println!();
         return Ok(());
     }

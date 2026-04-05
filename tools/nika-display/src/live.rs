@@ -1627,7 +1627,11 @@ impl LiveRenderer {
                     error
                 ));
             }
-            EventKind::RateLimitDelay { task_id, domain, delay_ms } => {
+            EventKind::RateLimitDelay {
+                task_id,
+                domain,
+                delay_ms,
+            } => {
                 if self.detail.show_sub_events() {
                     self.log(&format!(
                         "{} {} {}: rate limited on {} ({}ms)",
@@ -1639,7 +1643,11 @@ impl LiveRenderer {
                     ));
                 }
             }
-            EventKind::SchemaLoadFailed { task_id, schema_path, error } => {
+            EventKind::SchemaLoadFailed {
+                task_id,
+                schema_path,
+                error,
+            } => {
                 self.log(&format!(
                     "{} {} {}: schema load failed: {} — {}",
                     self.ts(),
@@ -1649,7 +1657,12 @@ impl LiveRenderer {
                     error
                 ));
             }
-            EventKind::VisionContentFailed { task_id, stage, error, .. } => {
+            EventKind::VisionContentFailed {
+                task_id,
+                stage,
+                error,
+                ..
+            } => {
                 self.log(&format!(
                     "{} {} {}: vision {}: {}",
                     self.ts(),

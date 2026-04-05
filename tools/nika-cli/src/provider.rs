@@ -23,7 +23,7 @@ pub enum ProviderAction {
         /// API key — prefer interactive mode (omit this to enter with hidden input)
         #[arg(hide = true)]
         key: Option<String>,
-        /// Read API key from stdin (for automation: echo $KEY | nika provider set openai --stdin)
+        /// Read API key from stdin (for automation: echo $KEY | nika keys set openai --stdin)
         #[arg(long)]
         stdin: bool,
         /// Read API key from a named environment variable (e.g. --key-env OPENAI_API_KEY)
@@ -52,7 +52,7 @@ pub enum ProviderAction {
     /// Reset the encrypted vault (deletes all stored keys)
     ///
     /// Use when the vault is corrupted or was created with a different passphrase.
-    /// After reset, re-add your API keys with `nika provider set <provider>`.
+    /// After reset, re-add your API keys with `nika keys set <provider>`.
     #[command(name = "vault-reset")]
     VaultReset,
 
@@ -299,7 +299,7 @@ pub async fn handle_provider_command(
                         connector,
                         icon,
                         provider,
-                        format!("→ nika provider set {provider}").dimmed()
+                        format!("→ nika keys set {provider}").dimmed()
                     );
                 } else {
                     let source_label = match source {
@@ -343,10 +343,7 @@ pub async fn handle_provider_command(
                 "local GGUF models → nika model pull <name>".dimmed()
             );
             println!();
-            println!(
-                "{}",
-                hint("nika provider set <name>  Add or update an API key")
-            );
+            println!("{}", hint("nika keys set <name>  Add or update an API key"));
             println!(
                 "{}",
                 hint("nika provider test <name> Test provider connection")
@@ -478,7 +475,7 @@ pub async fn handle_provider_command(
                         );
                         eprintln!(
                             "{}",
-                            hint("Prefer: nika provider set (interactive, masked input)")
+                            hint("Prefer: nika keys set (interactive, masked input)")
                         );
                         k
                     }
@@ -634,7 +631,7 @@ pub async fn handle_provider_command(
                                     &format!("{provider}: not configured")
                                 )
                             );
-                            println!("{}", hint(&format!("nika provider set {provider}")));
+                            println!("{}", hint(&format!("nika keys set {provider}")));
                         }
                     }
                 }
@@ -721,7 +718,7 @@ pub async fn handle_provider_command(
                 reason: format!("Failed to reset vault: {e}"),
             })?;
             println!("  {} Vault reset — all stored keys deleted", StatusIcon::Ok);
-            println!("{}", hint("Re-add your keys: nika provider set <provider>"));
+            println!("{}", hint("Re-add your keys: nika keys set <provider>"));
             Ok(())
         }
 
@@ -756,7 +753,7 @@ async fn test_provider_connection(provider: &str) -> Result<(), NikaError> {
             "{}",
             status_line(StatusIcon::Fail, &format!("No API key for {provider}"))
         );
-        println!("{}", hint(&format!("nika provider set {provider}")));
+        println!("{}", hint(&format!("nika keys set {provider}")));
         return Err(NikaError::ProviderNotConfigured {
             provider: provider.to_string(),
         });

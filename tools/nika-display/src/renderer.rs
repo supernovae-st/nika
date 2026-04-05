@@ -1554,7 +1554,11 @@ impl CliRenderer {
                     error
                 );
             }
-            EventKind::RateLimitDelay { task_id, domain, delay_ms } => {
+            EventKind::RateLimitDelay {
+                task_id,
+                domain,
+                delay_ms,
+            } => {
                 if self.detail.show_sub_events() {
                     println!(
                         "{} {} {}: rate limited on {} ({}ms)",
@@ -1566,7 +1570,11 @@ impl CliRenderer {
                     );
                 }
             }
-            EventKind::SchemaLoadFailed { task_id, schema_path, error } => {
+            EventKind::SchemaLoadFailed {
+                task_id,
+                schema_path,
+                error,
+            } => {
                 println!(
                     "{} {} {}: schema load failed: {} — {}",
                     self.ts(),
@@ -1576,7 +1584,12 @@ impl CliRenderer {
                     error
                 );
             }
-            EventKind::VisionContentFailed { task_id, stage, error, .. } => {
+            EventKind::VisionContentFailed {
+                task_id,
+                stage,
+                error,
+                ..
+            } => {
                 println!(
                     "{} {} {}: vision {}: {}",
                     self.ts(),

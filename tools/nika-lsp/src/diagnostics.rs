@@ -204,7 +204,7 @@ pub fn validate_document(
                         code_description: None,
                         source: Some("nika".to_string()),
                         message: format!(
-                            "no API key found for provider '{}'. Set {} or run `nika provider set {}`",
+                            "no API key found for provider '{}'. Set {} or run `nika keys set {}`",
                             provider_str, env_var, provider_str
                         ),
                         related_information: None,
