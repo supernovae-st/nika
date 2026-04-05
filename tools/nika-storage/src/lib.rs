@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 /// Current schema version.
-const SCHEMA_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 5;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR TYPES
@@ -119,6 +119,28 @@ pub struct Checkpoint {
     pub created_at: String,
 }
 
+/// A persistent cron schedule — fires jobs on a recurring basis.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CronSchedule {
+    pub id: String,
+    pub name: String,
+    pub workflow: String,
+    pub cron_expr: String,
+    pub timezone: String,
+    pub paused: bool,
+    /// "cli" or "yaml" — how this schedule was created.
+    pub source: String,
+    /// "skip", "queue", or "replace" — overlap policy.
+    pub overlap: String,
+    pub inputs_json: Option<String>,
+    pub last_run_at: Option<String>,
+    pub next_run_at: Option<String>,
+    pub run_count: u64,
+    pub last_job_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// Filter criteria for listing jobs.
 #[derive(Debug, Clone, Default)]
 pub struct JobFilter {
@@ -215,6 +237,39 @@ enum DbCommand {
     },
     DeleteCheckpoints {
         job_id: String,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    // ── Schedules ──────────────────────────────────────────────────────
+    InsertSchedule {
+        schedule: CronSchedule,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    GetSchedule {
+        id: String,
+        reply: oneshot::Sender<StorageResult<Option<CronSchedule>>>,
+    },
+    GetScheduleByName {
+        name: String,
+        reply: oneshot::Sender<StorageResult<Option<CronSchedule>>>,
+    },
+    ListSchedules {
+        enabled_only: bool,
+        reply: oneshot::Sender<StorageResult<Vec<CronSchedule>>>,
+    },
+    UpdateScheduleEnabled {
+        id: String,
+        enabled: bool,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    DeleteSchedule {
+        id: String,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    UpdateScheduleAfterFire {
+        id: String,
+        last_run_at: String,
+        next_run_at: Option<String>,
+        last_job_id: String,
         reply: oneshot::Sender<StorageResult<()>>,
     },
 }
@@ -530,6 +585,101 @@ impl Storage {
             .map_err(|_| StorageError::ChannelClosed)?;
         rx.await.map_err(|_| StorageError::ChannelClosed)?
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SCHEDULES
+    // ═══════════════════════════════════════════════════════════════════
+
+    pub async fn insert_schedule(&self, schedule: CronSchedule) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::InsertSchedule { schedule, reply })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn get_schedule(&self, id: &str) -> StorageResult<Option<CronSchedule>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::GetSchedule {
+                id: id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn get_schedule_by_name(&self, name: &str) -> StorageResult<Option<CronSchedule>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::GetScheduleByName {
+                name: name.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn list_schedules(&self, enabled_only: bool) -> StorageResult<Vec<CronSchedule>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::ListSchedules {
+                enabled_only,
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn update_schedule_enabled(&self, id: &str, enabled: bool) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::UpdateScheduleEnabled {
+                id: id.to_string(),
+                enabled,
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn delete_schedule(&self, id: &str) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::DeleteSchedule {
+                id: id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn update_schedule_after_fire(
+        &self,
+        id: &str,
+        last_run_at: &str,
+        next_run_at: Option<&str>,
+        last_job_id: &str,
+    ) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::UpdateScheduleAfterFire {
+                id: id.to_string(),
+                last_run_at: last_run_at.to_string(),
+                next_run_at: next_run_at.map(|s| s.to_string()),
+                last_job_id: last_job_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -633,6 +783,43 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
             DbCommand::DeleteCheckpoints { job_id, reply } => {
                 let _ = reply.send(do_delete_checkpoints(&conn, &job_id));
             }
+            // ── Schedules ──────────────────────────────────────────────────
+            DbCommand::InsertSchedule { schedule, reply } => {
+                let _ = reply.send(do_insert_schedule(&conn, &schedule));
+            }
+            DbCommand::GetSchedule { id, reply } => {
+                let _ = reply.send(do_get_schedule(&conn, &id));
+            }
+            DbCommand::GetScheduleByName { name, reply } => {
+                let _ = reply.send(do_get_schedule_by_name(&conn, &name));
+            }
+            DbCommand::ListSchedules {
+                enabled_only,
+                reply,
+            } => {
+                let _ = reply.send(do_list_schedules(&conn, enabled_only));
+            }
+            DbCommand::UpdateScheduleEnabled { id, enabled, reply } => {
+                let _ = reply.send(do_update_schedule_enabled(&conn, &id, enabled));
+            }
+            DbCommand::DeleteSchedule { id, reply } => {
+                let _ = reply.send(do_delete_schedule(&conn, &id));
+            }
+            DbCommand::UpdateScheduleAfterFire {
+                id,
+                last_run_at,
+                next_run_at,
+                last_job_id,
+                reply,
+            } => {
+                let _ = reply.send(do_update_schedule_after_fire(
+                    &conn,
+                    &id,
+                    &last_run_at,
+                    next_run_at.as_deref(),
+                    &last_job_id,
+                ));
+            }
         }
     }
     debug!("database thread shutting down");
@@ -723,6 +910,32 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
     if version < 4 {
         conn.execute_batch("ALTER TABLE jobs ADD COLUMN tags TEXT;")
             .map_err(|e| StorageError::Other(format!("add tags column: {e}")))?;
+    }
+
+    // V5: schedules table (first-class cron entities)
+    if version < 5 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schedules (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                workflow TEXT NOT NULL,
+                cron_expr TEXT NOT NULL,
+                timezone TEXT NOT NULL DEFAULT 'UTC',
+                paused INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'cli',
+                overlap TEXT NOT NULL DEFAULT 'skip',
+                inputs_json TEXT,
+                last_run_at TEXT,
+                next_run_at TEXT,
+                run_count INTEGER NOT NULL DEFAULT 0,
+                last_job_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run_at) WHERE paused = 0;
+            CREATE INDEX IF NOT EXISTS idx_schedules_workflow ON schedules(workflow);",
+        )
+        .map_err(|e| StorageError::Other(format!("create schedules table: {e}")))?;
     }
 
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
@@ -1100,6 +1313,128 @@ fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {
         max_retries: row.get(12)?,
         tags: row.get(13)?,
     })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHEDULE QUERIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SCHEDULE_COLUMNS: &str = "id, name, workflow, cron_expr, timezone, paused, source, \
+    overlap, inputs_json, last_run_at, next_run_at, run_count, last_job_id, created_at, \
+    updated_at";
+
+fn row_to_schedule(row: &rusqlite::Row) -> rusqlite::Result<CronSchedule> {
+    Ok(CronSchedule {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        workflow: row.get(2)?,
+        cron_expr: row.get(3)?,
+        timezone: row.get(4)?,
+        paused: row.get::<_, i32>(5)? != 0,
+        source: row.get(6)?,
+        overlap: row.get(7)?,
+        inputs_json: row.get(8)?,
+        last_run_at: row.get(9)?,
+        next_run_at: row.get(10)?,
+        run_count: row.get::<_, i64>(11)? as u64,
+        last_job_id: row.get(12)?,
+        created_at: row.get(13)?,
+        updated_at: row.get(14)?,
+    })
+}
+
+fn do_insert_schedule(conn: &Connection, sched: &CronSchedule) -> StorageResult<()> {
+    conn.execute(
+        &format!(
+            "INSERT INTO schedules ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            SCHEDULE_COLUMNS
+        ),
+        params![
+            sched.id,
+            sched.name,
+            sched.workflow,
+            sched.cron_expr,
+            sched.timezone,
+            sched.paused as i32,
+            sched.source,
+            sched.overlap,
+            sched.inputs_json,
+            sched.last_run_at,
+            sched.next_run_at,
+            sched.run_count as i64,
+            sched.last_job_id,
+            sched.created_at,
+            sched.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
+fn do_get_schedule(conn: &Connection, id: &str) -> StorageResult<Option<CronSchedule>> {
+    let sql = format!("SELECT {SCHEDULE_COLUMNS} FROM schedules WHERE id = ?1");
+    conn.query_row(&sql, params![id], row_to_schedule)
+        .optional()
+        .map_err(StorageError::from)
+}
+
+fn do_get_schedule_by_name(conn: &Connection, name: &str) -> StorageResult<Option<CronSchedule>> {
+    let sql = format!("SELECT {SCHEDULE_COLUMNS} FROM schedules WHERE name = ?1");
+    conn.query_row(&sql, params![name], row_to_schedule)
+        .optional()
+        .map_err(StorageError::from)
+}
+
+fn do_list_schedules(conn: &Connection, enabled_only: bool) -> StorageResult<Vec<CronSchedule>> {
+    let sql = if enabled_only {
+        format!(
+            "SELECT {SCHEDULE_COLUMNS} FROM schedules WHERE paused = 0 ORDER BY next_run_at ASC LIMIT 1000"
+        )
+    } else {
+        format!("SELECT {SCHEDULE_COLUMNS} FROM schedules ORDER BY created_at DESC LIMIT 1000")
+    };
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([], row_to_schedule)?;
+    let mut schedules = Vec::new();
+    for row in rows {
+        schedules.push(row?);
+    }
+    Ok(schedules)
+}
+
+fn do_update_schedule_enabled(conn: &Connection, id: &str, enabled: bool) -> StorageResult<()> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let affected = conn.execute(
+        "UPDATE schedules SET paused = ?1, updated_at = ?2 WHERE id = ?3",
+        params![(!enabled) as i32, now, id],
+    )?;
+    if affected == 0 {
+        return Err(StorageError::NotFound(id.to_string()));
+    }
+    Ok(())
+}
+
+fn do_delete_schedule(conn: &Connection, id: &str) -> StorageResult<()> {
+    let affected = conn.execute("DELETE FROM schedules WHERE id = ?1", params![id])?;
+    if affected == 0 {
+        return Err(StorageError::NotFound(id.to_string()));
+    }
+    Ok(())
+}
+
+fn do_update_schedule_after_fire(
+    conn: &Connection,
+    id: &str,
+    last_run_at: &str,
+    next_run_at: Option<&str>,
+    last_job_id: &str,
+) -> StorageResult<()> {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE schedules SET last_run_at = ?1, next_run_at = ?2, last_job_id = ?3, \
+         run_count = run_count + 1, updated_at = ?4 WHERE id = ?5",
+        params![last_run_at, next_run_at, last_job_id, now, id],
+    )?;
+    Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1700,5 +2035,186 @@ mod tests {
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "j1");
+    }
+
+    // ── Schedule tests ─────────────────────────────────────────────────
+
+    fn make_schedule(id: &str, name: &str) -> CronSchedule {
+        let now = chrono::Utc::now().to_rfc3339();
+        CronSchedule {
+            id: id.to_string(),
+            name: name.to_string(),
+            workflow: "test.nika.yaml".to_string(),
+            cron_expr: "0 9 * * *".to_string(),
+            timezone: "UTC".to_string(),
+            paused: false,
+            source: "cli".to_string(),
+            overlap: "skip".to_string(),
+            inputs_json: None,
+            last_run_at: None,
+            next_run_at: Some("2026-04-06T09:00:00+00:00".to_string()),
+            run_count: 0,
+            last_job_id: None,
+            created_at: now.clone(),
+            updated_at: now,
+        }
+    }
+
+    #[tokio::test]
+    async fn schedule_insert_and_get() {
+        let storage = Storage::open_memory().unwrap();
+        let sched = make_schedule("s1", "daily-report");
+
+        storage.insert_schedule(sched.clone()).await.unwrap();
+
+        let got = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert_eq!(got.id, "s1");
+        assert_eq!(got.name, "daily-report");
+        assert_eq!(got.cron_expr, "0 9 * * *");
+        assert_eq!(got.timezone, "UTC");
+        assert!(!got.paused);
+        assert_eq!(got.run_count, 0);
+    }
+
+    #[tokio::test]
+    async fn schedule_get_by_name() {
+        let storage = Storage::open_memory().unwrap();
+        storage
+            .insert_schedule(make_schedule("s1", "daily-report"))
+            .await
+            .unwrap();
+
+        let got = storage
+            .get_schedule_by_name("daily-report")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(got.id, "s1");
+
+        let missing = storage.get_schedule_by_name("nope").await.unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[tokio::test]
+    async fn schedule_list_ordered() {
+        let storage = Storage::open_memory().unwrap();
+        let mut s1 = make_schedule("s1", "alpha");
+        s1.next_run_at = Some("2026-04-06T10:00:00+00:00".to_string());
+        let mut s2 = make_schedule("s2", "beta");
+        s2.next_run_at = Some("2026-04-06T08:00:00+00:00".to_string());
+
+        storage.insert_schedule(s1).await.unwrap();
+        storage.insert_schedule(s2).await.unwrap();
+
+        // enabled_only=true → ordered by next_run_at ASC
+        let list = storage.list_schedules(true).await.unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].name, "beta"); // 08:00 first
+        assert_eq!(list[1].name, "alpha"); // 10:00 second
+    }
+
+    #[tokio::test]
+    async fn schedule_update_enabled() {
+        let storage = Storage::open_memory().unwrap();
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+
+        // Pause
+        storage.update_schedule_enabled("s1", false).await.unwrap();
+        let got = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert!(got.paused);
+
+        // enabled_only=true should exclude paused
+        let active = storage.list_schedules(true).await.unwrap();
+        assert!(active.is_empty());
+
+        // Resume
+        storage.update_schedule_enabled("s1", true).await.unwrap();
+        let active = storage.list_schedules(true).await.unwrap();
+        assert_eq!(active.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn schedule_delete() {
+        let storage = Storage::open_memory().unwrap();
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+
+        storage.delete_schedule("s1").await.unwrap();
+        let got = storage.get_schedule("s1").await.unwrap();
+        assert!(got.is_none());
+
+        // Delete non-existent → NotFound
+        let err = storage.delete_schedule("s1").await.unwrap_err();
+        assert!(matches!(err, StorageError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn schedule_name_unique() {
+        let storage = Storage::open_memory().unwrap();
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+
+        // Same name, different ID → unique constraint violation
+        let err = storage
+            .insert_schedule(make_schedule("s2", "daily"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, StorageError::Sqlite(_)));
+    }
+
+    #[tokio::test]
+    async fn schedule_update_after_fire() {
+        let storage = Storage::open_memory().unwrap();
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+
+        storage
+            .update_schedule_after_fire(
+                "s1",
+                "2026-04-06T09:00:00+00:00",
+                Some("2026-04-07T09:00:00+00:00"),
+                "job-42",
+            )
+            .await
+            .unwrap();
+
+        let got = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert_eq!(got.run_count, 1);
+        assert_eq!(got.last_job_id.as_deref(), Some("job-42"));
+        assert_eq!(
+            got.last_run_at.as_deref(),
+            Some("2026-04-06T09:00:00+00:00")
+        );
+        assert_eq!(
+            got.next_run_at.as_deref(),
+            Some("2026-04-07T09:00:00+00:00")
+        );
+    }
+
+    #[tokio::test]
+    async fn v5_migration_coexists_with_jobs() {
+        let storage = Storage::open_memory().unwrap();
+
+        // Jobs still work (V4 tables intact)
+        storage.create_job("j1", "test.nika.yaml").await.unwrap();
+        let job = storage.get_job("j1").await.unwrap().unwrap();
+        assert_eq!(job.workflow, "test.nika.yaml");
+
+        // Schedules work (V5 table exists)
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+        let sched = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert_eq!(sched.name, "daily");
     }
 }
