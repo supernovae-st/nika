@@ -205,7 +205,6 @@ structured:
   max_retries: 3                  # Retry with feedback on validation failure
   enable_repair: true             # Use LLM to fix complex violations
   repair_model: claude-sonnet-4-20250514 # Model for repair (default: same as task)
-  enable_extractor: true          # Rust-level type extraction
   enable_tool_injection: true     # Inject schema as a tool for provider-side enforcement
   enable_retry: true              # Enable retry with validation errors
 ```
@@ -216,8 +215,8 @@ Nika's structured output engine uses multiple layers for near-perfect compliance
 
 1. **Layer 0: Tool Injection** -- Sends the schema as a synthetic tool parameter, leveraging the provider's built-in function calling for schema enforcement
 2. **Layer 1: Extraction** -- Parses the response and extracts JSON from the output
-3. **Layer 3: Retry** -- Re-prompts with specific validation error messages
-4. **Layer 4: Repair** -- Uses an LLM to intelligently fix complex schema violations
+3. **Layer 2: Retry** -- Re-prompts with specific validation error messages
+4. **Layer 3: Repair** -- Uses an LLM to intelligently fix complex schema violations
 
 ### Using Structured Output with Transforms
 
