@@ -1,9 +1,53 @@
 # Changelog
 
-All notable changes to Nika are documented in this file.
+╔═══════════════════════════════════════════════════════════╗
+║  Nika — Inference as Code                                 ║
+║  All notable changes documented here                      ║
+╚═══════════════════════════════════════════════════════════╝
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.70.0] — 2026-04-05
+
+### Added
+
+- **`nika eval`** — Dataset-driven evaluation with assertion types: output_contains, output_min_words, output_max_words, output_matches_schema
+- **`POST /v1/batch/run`** — Submit up to 50 workflows atomically (two-pass validation)
+- **`GET /v1/jobs`** — List jobs with state/workflow/tag filters and pagination
+- **Job tags** — Arbitrary key:value metadata on jobs, filtered via `?tag=key:value`
+- **Lint rules L080 + L090** — Conditional gap detection, duplicate task name detection (10 total)
+
+### Fixed
+
+- **`nika test --golden`** — Proper output capture, normalization, and field-by-field diff
+- **sum transform** — Restricted to numbers only (was polymorphic)
+- **Batch validation** — All-or-nothing (prevents partial failures)
+
+---
+
+## [0.69.0] — 2026-04-05
+
+### Added
+
+- **11 new transforms** — `replace`, `truncate`, `add`, `min`, `max`, `not`, `min_by`, `max_by`, `sum`, `avg`, `has` (52→63 total)
+- **`when:` conditional execution** — Wired through analyzer and schema for runtime conditional evaluation
+- **`nika test`** — Run workflows with mock provider. `--golden` for snapshot comparison, `--update-snapshot` to update
+- **`--resume` flag** — Re-run workflows skipping completed tasks (reads latest trace NDJSON)
+- **`nika lint`** — Best-practice linting with 8 rules (L001-L070)
+- **`nika version`, `nika env`, `nika graph`** — Version info, debug view, DAG visualization
+- **7 OpenAI-compatible providers** — OpenRouter, Together AI, Fireworks AI, Cerebras, SambaNova, Cohere, AI21 Labs
+- **ModelResolver catalog** — Centralized model routing eliminates hardcoded fallback sites
+
+### Fixed
+
+- **NaN/Infinity** in min/max transforms — Guard with safe f64_to_json_number()
+- **when: analyzer bug** — Fixed setting `when: None` instead of copying from raw AST
+- **YAML bomb DoS** — Pre-parse 2 MiB budget check
+- **Shell injection** — Extended blocklist patterns, BASH_ENV/ENV blocking
+- **PolicyBlocked events** — Security blocks now emit events before returning errors
+
+---
 
 ## [0.68.0] — 2026-04-04 — FEATURE FREEZE
 
