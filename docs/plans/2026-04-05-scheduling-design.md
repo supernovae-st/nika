@@ -418,3 +418,118 @@ $ nika every 6h report.nika.yaml
 
 ---
 
+
+## Implementation Plan
+
+### Overview
+
+6 TDD phases, 25 tests, ~850 LOC. Each phase self-contained and independently shippable.
+
+### Phase 1: Storage (~150 LOC, 6 tests)
+
+V5 migration: `schedules` table. `CronSchedule` struct. 6 CRUD methods.
+
+```sql
+CREATE TABLE schedules (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+    workflow TEXT NOT NULL, cron_expr TEXT NOT NULL,
+    timezone TEXT NOT NULL DEFAULT 'UTC',
+    paused INTEGER NOT NULL DEFAULT 0,
+    source TEXT NOT NULL DEFAULT 'cli',
+    inputs_json TEXT, last_run_at TEXT, next_run_at TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+```
+
+Tests: insert+get, get_by_name, list_ordered, update, delete, name_unique.
+
+### Phase 2: AST — `schedule:` in YAML (~80 LOC, 5 tests)
+
+`ScheduleConfig` struct. String-or-object parsing. Validate cron (croner) + tz (chrono-tz).
+
+Tests: cron_string, object_form, hron_string, invalid_cron (NIKA-280), preset.
+
+### Phase 3: Protocol + Daemon (~120 LOC, 4 tests)
+
+6 `DaemonRequest` + 3 `DaemonResponse` variants. Refactor `fire_due_cron_jobs` → schedules table.
+
+Tests: create_via_protocol, list_via_protocol, pause_resume, fire_reads_table.
+
+### Phase 4: CLI — `nika every` + `nika schedule` (~250 LOC, 5 tests)
+
+`every.rs`: hron parsing, daemon call, cliclack wizard.
+`schedule.rs`: list/show/pause/resume/trigger/remove.
+
+Tests: parse_hron, parse_cron, auto_name, name_dedup, list_empty.
+
+### Phase 5: Display (~150 LOC, 3 tests)
+
+Schedule card (box drawing). Dashboard list (history dots). Cost estimation. Next-run previewer.
+
+Tests: card_fields, list_ordering, cost_format.
+
+### Phase 6: Serve Integration (~100 LOC, 2 tests)
+
+Startup scanner. 60s re-scan. Reconciliation (yaml vs cli source). Banner update.
+
+Tests: discovers_yaml, reconcile_orphan.
+
+### Dependency Graph
+
+```
+Phase 1 (Storage)
+    ├──▸ Phase 2 (AST) ──▸ Phase 6 (Serve)
+    └──▸ Phase 3 (Protocol)
+              └──▸ Phase 4 (CLI) ──▸ Phase 5 (Display)
+```
+
+### Crate Additions
+
+| Crate | Version | Why |
+|-------|---------|-----|
+| hron | 1.0 | Human-readable cron (825 tests, bidirectional) |
+| chrono-tz | 0.10 | IANA timezone validation |
+
+### New Files (6)
+
+| File | Phase |
+|------|-------|
+| `nika-storage/src/schedule.rs` | 1 |
+| `nika-cli/src/every.rs` | 4 |
+| `nika-cli/src/schedule.rs` | 4 |
+| `nika-cli/src/display/schedule_card.rs` | 5 |
+| `nika-cli/src/display/schedule_list.rs` | 5 |
+
+### Modified Files (12)
+
+| File | Phase | Change |
+|------|-------|--------|
+| `nika-storage/src/lib.rs` | 1 | V5 migration + mod schedule |
+| `nika-core/src/ast/raw/workflow.rs` | 2 | ScheduleConfig + schedule field |
+| `nika-core/src/ast/raw/parser.rs` | 2 | "schedule" in known keys + parse |
+| `nika-core/src/ast/analyzer/analyze.rs` | 2 | Validate cron + tz |
+| `nika-daemon/src/protocol.rs` | 3 | 6 request + 3 response variants |
+| `nika-daemon/src/server.rs` | 3 | Dispatch + fire refactor |
+| `nika-daemon/src/services/jobs.rs` | 3 | fire_due_cron_jobs reads schedules |
+| `nika-cli/src/lib.rs` | 4 | mod every + mod schedule |
+| `nika/src/main.rs` | 4 | Every + Schedule commands |
+| `nika-serve/src/lib.rs` | 6 | Scanner + reconcile + banner |
+
+### Error Codes
+
+| Code | Meaning |
+|------|---------|
+| NIKA-280 | Invalid schedule expression |
+| NIKA-282 | Invalid timezone |
+| NIKA-283 | Schedule not found |
+| NIKA-284 | Schedule name conflict |
+
+### Verification (before each commit)
+
+```bash
+cd tools/
+cargo test --workspace --lib --exclude nika-py
+cargo clippy --workspace -- -D warnings
+cargo fmt --all --check
+```
+
