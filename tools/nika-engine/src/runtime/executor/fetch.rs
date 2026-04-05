@@ -1307,6 +1307,62 @@ mod tests {
     }
 
     #[test]
+    fn backoff_base_zero_returns_one() {
+        // base_ms=0: 0 * factor = 0, clamped to 1 (minimum guarantee)
+        let delay = safe_backoff_delay(0, 2.0, 3);
+        assert_eq!(delay, 1, "base_ms=0 should clamp result to 1");
+
+        let delay = safe_backoff_delay(0, 1.0, 0);
+        assert_eq!(delay, 1, "base_ms=0 with identity factor should still be 1");
+
+        // When factor exceeds MAX_BACKOFF_MS (100^10 > 300_000), the function
+        // returns MAX_BACKOFF_MS before the base_ms multiplication happens.
+        let delay = safe_backoff_delay(0, 100.0, 10);
+        assert_eq!(
+            delay, MAX_BACKOFF_MS,
+            "huge factor triggers early MAX_BACKOFF_MS return regardless of base_ms"
+        );
+
+        // With a normal factor (2^3=8), base_ms=0 produces 0*8=0, clamped to 1
+        let delay = safe_backoff_delay(0, 2.0, 0);
+        assert_eq!(delay, 1, "base_ms=0 with factor=1 gives 0, clamped to 1");
+    }
+
+    #[test]
+    fn backoff_nan_multiplier_returns_max() {
+        // NaN comparison: NaN <= 0.0 is false, so safe_mult = NaN
+        // NaN.powi(n) = NaN, which triggers the is_nan() guard → MAX_BACKOFF_MS
+        let delay = safe_backoff_delay(100, f64::NAN, 1);
+        assert_eq!(delay, MAX_BACKOFF_MS, "NaN multiplier should return MAX_BACKOFF_MS");
+
+        let delay = safe_backoff_delay(100, f64::NAN, 0);
+        // NaN^0 is 1.0 in IEEE 754 (special case), so this actually computes 100 * 1 = 100
+        // But let's verify the actual behavior:
+        let expected = if f64::NAN.powi(0).is_nan() {
+            MAX_BACKOFF_MS
+        } else {
+            // IEEE 754: NaN^0 = 1.0
+            100
+        };
+        assert_eq!(delay, expected, "NaN^0 follows IEEE 754 rules");
+    }
+
+    #[test]
+    fn backoff_very_small_multiplier_returns_at_least_one() {
+        // 0.1^30 ≈ 1e-30, which truncates to 0 as u64
+        // Then base_ms * 0 = 0, clamped to 1
+        let delay = safe_backoff_delay(100, 0.1, 30);
+        assert_eq!(delay, 1, "tiny factor should clamp to 1");
+
+        let delay = safe_backoff_delay(1, 0.01, 20);
+        assert_eq!(delay, 1, "very small multiplier with high exp should return 1");
+
+        // 0.5^10 = 0.000976..., as u64 = 0, 100 * 0 = 0, clamped to 1
+        let delay = safe_backoff_delay(100, 0.5, 10);
+        assert_eq!(delay, 1, "0.5^10 truncates to 0, result clamped to 1");
+    }
+
+    #[test]
     fn is_html_content_type_detects_html() {
         assert!(is_html_content_type("text/html"));
         assert!(is_html_content_type("text/html; charset=utf-8"));
