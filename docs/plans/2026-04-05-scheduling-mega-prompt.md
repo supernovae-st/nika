@@ -430,6 +430,29 @@ cargo fmt --all --check
 
 ---
 
+## AUDIT FINDINGS (2 agents, verified)
+
+### hron Compatibility — CONFIRMED OK
+- Rust 1.94 > hron MSRV 1.93 ✓
+- jiff (hron dep) coexists with chrono (Nika dep) — zero conflicts ✓
+- MIT license compatible with AGPL ✓
+- croner @presets already work (@daily, @hourly, @weekly, @monthly, @yearly) ✓
+- croner .describe() gives human-readable output ✓
+- **hron adds**: "every weekday at 9am", "every 30 min from 09:00 to 17:00", timezone modifier, exception dates
+
+### Daemon cron scheduler — ALREADY WORKS
+- `fire_due_cron_jobs()` at `services/jobs.rs:486-554` — production-ready
+- 60s tick loop, overlap protection, croner parsing
+- Just needs refactoring to read `schedules` table instead of `jobs.cron` column
+
+### Gaps found (address in implementation)
+1. **nika.toml `[scheduler]`** — hardcoded 60s polling. Add `scan_interval` config field in Phase 6.
+2. **TUI `--view scheduler`** — referenced at main.rs:164 but unimplemented. Defer to Phase 7 (separate sprint).
+3. **LSP completions for `schedule:`** — no inline schema. Add to LSP completions in a follow-up.
+4. **AnalyzedWorkflow** — needs `schedule: Option<ScheduleConfig>` added alongside RawWorkflow.
+
+---
+
 ## WHAT NOT TO DO
 
 - No new verbs (5 verbs sacred)
@@ -438,7 +461,7 @@ cargo fmt --all --check
 - No TUI integration yet (Phase 7, separate sprint)
 - Don't rename `fire_due_cron_jobs` — refactor its body to read schedules table
 - Don't delete the Job.cron column — deprecate gradually
-- hron MSRV 1.93 → if Rust version < 1.93, implement a simple subset parser instead
+- hron MSRV 1.93 — CONFIRMED OK (Nika is Rust 1.94)
 
 ---
 
