@@ -1,6 +1,6 @@
 # Nika
 
-Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 50 transforms | 62 builtin tools | [QR Code AI](https://qrcode-ai.com)
+Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 63 transforms | 62 builtin tools | [QR Code AI](https://qrcode-ai.com)
 
 ## 5 Verbs
 
@@ -49,13 +49,16 @@ Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
 ```bash
 # Workflows
 nika run workflow.nika.yaml            # Execute workflow
+nika run workflow.nika.yaml --resume   # Re-run, skip completed tasks
 nika run workflow.nika.yaml --no-live  # Force classic append-only output
 nika run https://example.com/wf.nika.yaml  # Execute remote workflow
+nika test workflow.nika.yaml           # Test with mock provider
+nika lint workflow.nika.yaml           # Best-practice linting
 nika explain workflow.nika.yaml        # Human-readable summary
 nika check workflow.nika.yaml          # Validate syntax + DAG
 nika check workflow.nika.yaml --strict # + test MCP connections
 nika new my-flow --verb infer          # Create new workflow
-nika workflow graph flow.nika.yaml     # Visualize DAG
+nika graph flow.nika.yaml             # Visualize DAG
 
 # Direct verbs
 nika infer "Explain AI"                # Quick LLM call
@@ -90,6 +93,8 @@ nika pkg list                          # Package management
 nika media stats                       # Media store stats
 
 # System
+nika version                           # Version, channel, build info
+nika env                               # Environment debug view
 nika doctor --fix                      # System health + auto-repair
 nika daemon status                     # Background daemon (Unix)
 nika cache stats                       # LLM response cache (Unix)
