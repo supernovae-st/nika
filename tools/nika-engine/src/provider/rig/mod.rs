@@ -114,7 +114,7 @@ pub fn is_reasoning_model(model_id: &str) -> bool {
 ///
 /// Nika leverages rig-core's native multi-provider support.
 /// Each variant wraps the corresponding rig-core client.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum RigProvider {
     /// Claude (Anthropic) provider - ANTHROPIC_API_KEY
     Claude(anthropic::Client),
@@ -158,6 +158,39 @@ pub enum RigProvider {
     /// Now uses NativeRuntime directly with full streaming support.
     #[cfg(feature = "native-inference")]
     Native(super::native::NativeRuntime),
+}
+
+impl std::fmt::Debug for RigProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Claude(_) => f.debug_tuple("Claude").field(&"...").finish(),
+            Self::OpenAI(_) => f.debug_tuple("OpenAI").field(&"...").finish(),
+            Self::Mistral(_) => f.debug_tuple("Mistral").field(&"...").finish(),
+            Self::Groq(_) => f.debug_tuple("Groq").field(&"...").finish(),
+            Self::DeepSeek(_) => f.debug_tuple("DeepSeek").field(&"...").finish(),
+            Self::Gemini(_) => f.debug_tuple("Gemini").field(&"...").finish(),
+            Self::XAi(_) => f.debug_tuple("XAi").field(&"...").finish(),
+            Self::OpenAiCompat {
+                endpoint_name,
+                default_model,
+                cached_name,
+                timeout_secs,
+                raw_base_url,
+                ..
+            } => f
+                .debug_struct("OpenAiCompat")
+                .field("endpoint_name", endpoint_name)
+                .field("default_model", default_model)
+                .field("cached_name", cached_name)
+                .field("timeout_secs", timeout_secs)
+                .field("raw_base_url", raw_base_url)
+                .field("raw_api_key", &"***")
+                .finish(),
+            Self::Mock => write!(f, "Mock"),
+            #[cfg(feature = "native-inference")]
+            Self::Native(_) => f.debug_tuple("Native").field(&"...").finish(),
+        }
+    }
 }
 
 impl RigProvider {

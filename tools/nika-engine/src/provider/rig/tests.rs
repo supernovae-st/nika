@@ -1363,6 +1363,47 @@ fn test_from_name_with_endpoints_unknown() {
 }
 
 // =========================================================================
+// Security: Debug impl redacts raw_api_key
+// =========================================================================
+
+#[test]
+fn test_debug_redacts_raw_api_key() {
+    let provider = RigProvider::openai_compat(
+        "test-endpoint",
+        "http://localhost:8000/v1",
+        "sk-super-secret-key-12345",
+        Some("test-model"),
+        300,
+    )
+    .unwrap();
+
+    let debug_output = format!("{:?}", provider);
+    assert!(
+        !debug_output.contains("sk-super-secret-key-12345"),
+        "Debug output must NOT contain raw API key, got: {}",
+        debug_output
+    );
+    assert!(
+        debug_output.contains("***"),
+        "Debug output should show redacted key as '***', got: {}",
+        debug_output
+    );
+}
+
+#[test]
+fn test_debug_works_for_all_variants() {
+    // Verify Debug doesn't panic for rig-core variants
+    std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+    let claude = RigProvider::claude();
+    let _ = format!("{:?}", claude);
+
+    // Mock variant
+    let mock = RigProvider::Mock;
+    let debug = format!("{:?}", mock);
+    assert!(debug.contains("Mock"));
+}
+
+// =========================================================================
 // Fix 1.1: No Box::leak in name() and default_model()
 // =========================================================================
 
