@@ -34,6 +34,7 @@ pub mod schema;
 pub mod workflow;
 
 pub mod eval;
+pub mod keys;
 pub mod lint;
 pub mod machine;
 pub mod new_cmd;
