@@ -26,7 +26,7 @@ pub static LEVELS: &[Level] = &[
         number: 1,
         slug: "jailbreak",
         name: "Jailbreak",
-        description: "Break free. First workflows — infer:, exec:, fetch:, and provider setup.",
+        description: "Break free. First workflows — infer:, exec:, fetch:, and API key setup.",
         exercise_count: 5,
         boss: false,
     },
