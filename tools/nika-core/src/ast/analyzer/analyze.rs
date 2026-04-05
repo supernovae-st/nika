@@ -113,24 +113,28 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     collect_include_prefixes(raw, &mut ctx);
 
     // 2b. Validate workflow-level model name is recognized
-    if let Some(ref wf_model) = raw.model {
-        if !wf_model.value.contains('/')
-            && ModelResolver::infer_provider_from_model(&wf_model.value).is_none()
-        {
-            let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
-                .iter()
-                .any(|(_, m)| *m == wf_model.value.as_str());
-            if !is_known_default {
-                ctx.add_warning(AnalyzeError::new(
-                    AnalyzeErrorKind::InvalidValue,
-                    wf_model.span,
-                    format!(
-                        "model '{}' is not a recognized model name. \
-                         Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
-                         Custom models should use 'org/model' format.",
-                        wf_model.value
-                    ),
-                ));
+    // Only warn when no explicit provider — with explicit provider, user knows which
+    // provider serves the model (e.g. llama models on groq).
+    if raw.provider.is_none() {
+        if let Some(ref wf_model) = raw.model {
+            if !wf_model.value.contains('/')
+                && ModelResolver::infer_provider_from_model(&wf_model.value).is_none()
+            {
+                let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
+                    .iter()
+                    .any(|(_, m)| *m == wf_model.value.as_str());
+                if !is_known_default {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        wf_model.span,
+                        format!(
+                            "model '{}' is not a recognized model name. \
+                             Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
+                             Custom models should use 'org/model' format.",
+                            wf_model.value
+                        ),
+                    ));
+                }
             }
         }
     }
@@ -237,24 +241,28 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
 
         // Check task-level model name is recognized
-        if let Some(ref task_model) = task.model {
-            if !task_model.value.contains('/')
-                && ModelResolver::infer_provider_from_model(&task_model.value).is_none()
-            {
-                let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
-                    .iter()
-                    .any(|(_, m)| *m == task_model.value.as_str());
-                if !is_known_default {
-                    ctx.add_warning(AnalyzeError::new(
-                        AnalyzeErrorKind::InvalidValue,
-                        task_model.span,
-                        format!(
-                            "model '{}' is not a recognized model name. \
-                             Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
-                             Custom models should use 'org/model' format.",
-                            task_model.value
-                        ),
-                    ));
+        // Only warn when no explicit provider on this task — with explicit provider,
+        // user knows which provider serves the model.
+        if task.provider.is_none() {
+            if let Some(ref task_model) = task.model {
+                if !task_model.value.contains('/')
+                    && ModelResolver::infer_provider_from_model(&task_model.value).is_none()
+                {
+                    let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
+                        .iter()
+                        .any(|(_, m)| *m == task_model.value.as_str());
+                    if !is_known_default {
+                        ctx.add_warning(AnalyzeError::new(
+                            AnalyzeErrorKind::InvalidValue,
+                            task_model.span,
+                            format!(
+                                "model '{}' is not a recognized model name. \
+                                 Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
+                                 Custom models should use 'org/model' format.",
+                                task_model.value
+                            ),
+                        ));
+                    }
                 }
             }
         }
@@ -4082,7 +4090,7 @@ tasks:
     // ====================================================================
 
     #[test]
-    fn test_validate_unknown_model_warns() {
+    fn test_validate_unknown_model_without_provider_warns() {
         let mut task = make_raw_task("gen");
         task.action = Some(RawTaskAction::Infer(Spanned::new(
             RawInferAction {
@@ -4092,7 +4100,7 @@ tasks:
             make_span(0, 20),
         )));
         task.model = Some(Spanned::new("typo-model".to_string(), make_span(0, 10)));
-        task.provider = Some(Spanned::new("mock".to_string(), make_span(0, 4)));
+        // No provider set — should warn about unrecognized model
 
         let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         let result = validate(&raw);
@@ -4101,8 +4109,40 @@ tasks:
                 .warnings
                 .iter()
                 .any(|w| w.message.contains("not a recognized model")),
-            "unknown model should warn, got: {:?}",
+            "unknown model without provider should warn, got: {:?}",
             result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_unknown_model_with_explicit_provider_no_warning() {
+        // model: llama-3.1-8b-instant is ambiguous (groq/meta both have llama)
+        // but provider: groq is explicitly set — user knows what they're doing
+        let mut task = make_raw_task("gen");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("hello".to_string(), make_span(0, 5)),
+                ..Default::default()
+            },
+            make_span(0, 20),
+        )));
+        task.model = Some(Spanned::new(
+            "llama-3.1-8b-instant".to_string(),
+            make_span(0, 20),
+        ));
+        task.provider = Some(Spanned::new("groq".to_string(), make_span(0, 4)));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let model_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("not a recognized model"))
+            .collect();
+        assert!(
+            model_warnings.is_empty(),
+            "explicit provider should suppress model warning, got: {:?}",
+            model_warnings
         );
     }
 
@@ -4171,6 +4211,7 @@ tasks:
         let task = make_raw_task("step1");
         let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
         raw.model = Some(Spanned::new("bogus-model".to_string(), make_span(0, 11)));
+        // No provider set — should warn
 
         let result = validate(&raw);
         assert!(
@@ -4180,6 +4221,26 @@ tasks:
                 .any(|w| w.message.contains("not a recognized model")),
             "workflow-level unknown model should warn, got: {:?}",
             result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_workflow_level_unknown_model_with_provider_no_warning() {
+        let task = make_raw_task("step1");
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        raw.model = Some(Spanned::new("llama-3.1-8b-instant".to_string(), make_span(0, 20)));
+        raw.provider = Some(Spanned::new("groq".to_string(), make_span(0, 4)));
+
+        let result = validate(&raw);
+        let model_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("not a recognized model"))
+            .collect();
+        assert!(
+            model_warnings.is_empty(),
+            "workflow-level model with explicit provider should not warn, got: {:?}",
+            model_warnings
         );
     }
 
