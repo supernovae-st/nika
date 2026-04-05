@@ -334,11 +334,14 @@ exec:
 ### `invoke:` — call tools
 
 ```yaml
-# Short form — builtin tool, no params
+# invoke: always requires block form (no short form)
 - id: dims
-  invoke: "nika:dimensions"
+  invoke:
+    tool: nika:dimensions
+    params:
+      input: "photo.jpg"
 
-# Full form — with params
+# With params
 - id: resize
   invoke:
     tool: nika:thumbnail

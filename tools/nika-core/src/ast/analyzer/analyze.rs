@@ -779,11 +779,7 @@ fn check_agent_infer_fields(agent: &RawAgentAction, ctx: &mut AnalyzerContext) {
     }
 
     if let Some(ref budget) = agent.thinking_budget {
-        if !agent
-            .extended_thinking
-            .as_ref()
-            .is_some_and(|s| s.value)
-        {
+        if !agent.extended_thinking.as_ref().is_some_and(|s| s.value) {
             ctx.add_warning(AnalyzeError::new(
                 AnalyzeErrorKind::InvalidValue,
                 budget.span,
@@ -4282,7 +4278,10 @@ tasks:
     fn test_validate_workflow_level_unknown_model_with_provider_no_warning() {
         let task = make_raw_task("step1");
         let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
-        raw.model = Some(Spanned::new("llama-3.1-8b-instant".to_string(), make_span(0, 20)));
+        raw.model = Some(Spanned::new(
+            "llama-3.1-8b-instant".to_string(),
+            make_span(0, 20),
+        ));
         raw.provider = Some(Spanned::new("groq".to_string(), make_span(0, 4)));
 
         let result = validate(&raw);
