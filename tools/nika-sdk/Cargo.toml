@@ -22,7 +22,6 @@ tracing = { workspace = true }
 
 # Async
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
-tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 futures-util = { workspace = true }
 async-stream = { workspace = true }

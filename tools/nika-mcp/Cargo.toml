@@ -25,7 +25,6 @@ jsonschema = { workspace = true }
 shellexpand = { workspace = true }
 schemars = { workspace = true }
 rustc-hash = { workspace = true }
-dirs = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

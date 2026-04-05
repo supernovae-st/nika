@@ -103,7 +103,6 @@ async-stream = { version = "0.3", optional = true }
 # Utilities
 regex = { workspace = true }
 colored = { workspace = true }
-indicatif = { workspace = true }
 dashmap = { workspace = true }
 semver = { workspace = true }
 parking_lot = { workspace = true }
@@ -133,10 +132,6 @@ petgraph = { workspace = true }
 
 # LLM Agent Framework
 rig-core = { workspace = true }
-
-# Unicode text handling
-unicode-width = { workspace = true }
-terminal_size = { workspace = true }
 
 # Media pipeline
 blake3 = { workspace = true }

@@ -16,7 +16,6 @@ indicatif = { workspace = true }
 unicode-width = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
-chrono = { workspace = true }
 indexmap = { workspace = true }
 terminal_size = { workspace = true }
 rustc-hash = { workspace = true }

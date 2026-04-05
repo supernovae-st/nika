@@ -18,7 +18,6 @@ axum = { workspace = true }
 aide = { workspace = true }
 schemars = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tokio-stream = { workspace = true }
 futures-util = { workspace = true }
 async-stream = { workspace = true }
 governor = { workspace = true }
