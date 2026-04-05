@@ -22,7 +22,10 @@ pub static PROVIDER_DEFAULTS: &[(&str, &str)] = &[
     // OpenAI-compat providers
     ("openrouter", "anthropic/claude-sonnet-4-6"),
     ("together", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
-    ("fireworks", "accounts/fireworks/models/llama-v3p3-70b-instruct"),
+    (
+        "fireworks",
+        "accounts/fireworks/models/llama-v3p3-70b-instruct",
+    ),
     ("cerebras", "llama-3.3-70b"),
     ("sambanova", "Meta-Llama-3.3-70B-Instruct"),
     ("cohere", "command-r-plus"),

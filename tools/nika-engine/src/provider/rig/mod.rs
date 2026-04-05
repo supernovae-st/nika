@@ -196,8 +196,8 @@ impl RigProvider {
             "native" => Ok(Self::native()),
             // OpenAI-compatible providers — zero rig-core code, config-driven
             "openrouter" => {
-                let key = crate::secrets::store::resolve_env("OPENROUTER_API_KEY")
-                    .unwrap_or_default();
+                let key =
+                    crate::secrets::store::resolve_env("OPENROUTER_API_KEY").unwrap_or_default();
                 Self::openai_compat(
                     "openrouter",
                     "https://openrouter.ai/api/v1",
@@ -207,19 +207,13 @@ impl RigProvider {
                 )
             }
             "together" => {
-                let key = crate::secrets::store::resolve_env("TOGETHER_API_KEY")
-                    .unwrap_or_default();
-                Self::openai_compat(
-                    "together",
-                    "https://api.together.xyz/v1",
-                    &key,
-                    None,
-                    300,
-                )
+                let key =
+                    crate::secrets::store::resolve_env("TOGETHER_API_KEY").unwrap_or_default();
+                Self::openai_compat("together", "https://api.together.xyz/v1", &key, None, 300)
             }
             "fireworks" => {
-                let key = crate::secrets::store::resolve_env("FIREWORKS_API_KEY")
-                    .unwrap_or_default();
+                let key =
+                    crate::secrets::store::resolve_env("FIREWORKS_API_KEY").unwrap_or_default();
                 Self::openai_compat(
                     "fireworks",
                     "https://api.fireworks.ai/inference/v1",
@@ -229,30 +223,17 @@ impl RigProvider {
                 )
             }
             "cerebras" => {
-                let key = crate::secrets::store::resolve_env("CEREBRAS_API_KEY")
-                    .unwrap_or_default();
-                Self::openai_compat(
-                    "cerebras",
-                    "https://api.cerebras.ai/v1",
-                    &key,
-                    None,
-                    300,
-                )
+                let key =
+                    crate::secrets::store::resolve_env("CEREBRAS_API_KEY").unwrap_or_default();
+                Self::openai_compat("cerebras", "https://api.cerebras.ai/v1", &key, None, 300)
             }
             "sambanova" => {
-                let key = crate::secrets::store::resolve_env("SAMBANOVA_API_KEY")
-                    .unwrap_or_default();
-                Self::openai_compat(
-                    "sambanova",
-                    "https://api.sambanova.ai/v1",
-                    &key,
-                    None,
-                    300,
-                )
+                let key =
+                    crate::secrets::store::resolve_env("SAMBANOVA_API_KEY").unwrap_or_default();
+                Self::openai_compat("sambanova", "https://api.sambanova.ai/v1", &key, None, 300)
             }
             "cohere" => {
-                let key =
-                    crate::secrets::store::resolve_env("COHERE_API_KEY").unwrap_or_default();
+                let key = crate::secrets::store::resolve_env("COHERE_API_KEY").unwrap_or_default();
                 Self::openai_compat(
                     "cohere",
                     "https://api.cohere.com/compatibility/v1",
@@ -262,15 +243,8 @@ impl RigProvider {
                 )
             }
             "ai21" => {
-                let key =
-                    crate::secrets::store::resolve_env("AI21_API_KEY").unwrap_or_default();
-                Self::openai_compat(
-                    "ai21",
-                    "https://api.ai21.com/studio/v1",
-                    &key,
-                    None,
-                    300,
-                )
+                let key = crate::secrets::store::resolve_env("AI21_API_KEY").unwrap_or_default();
+                Self::openai_compat("ai21", "https://api.ai21.com/studio/v1", &key, None, 300)
             }
             _ => Err(ProviderError::NotConfigured {
                 provider: name.to_string(),
@@ -370,13 +344,47 @@ impl RigProvider {
                     .into()
                 }),
             // OpenAI-compatible providers
-            "openrouter" => Self::openai_compat("openrouter", "https://openrouter.ai/api/v1", api_key, None, 300),
-            "together" => Self::openai_compat("together", "https://api.together.xyz/v1", api_key, None, 300),
-            "fireworks" => Self::openai_compat("fireworks", "https://api.fireworks.ai/inference/v1", api_key, None, 300),
-            "cerebras" => Self::openai_compat("cerebras", "https://api.cerebras.ai/v1", api_key, None, 300),
-            "sambanova" => Self::openai_compat("sambanova", "https://api.sambanova.ai/v1", api_key, None, 300),
-            "cohere" => Self::openai_compat("cohere", "https://api.cohere.com/compatibility/v1", api_key, None, 300),
-            "ai21" => Self::openai_compat("ai21", "https://api.ai21.com/studio/v1", api_key, None, 300),
+            "openrouter" => Self::openai_compat(
+                "openrouter",
+                "https://openrouter.ai/api/v1",
+                api_key,
+                None,
+                300,
+            ),
+            "together" => Self::openai_compat(
+                "together",
+                "https://api.together.xyz/v1",
+                api_key,
+                None,
+                300,
+            ),
+            "fireworks" => Self::openai_compat(
+                "fireworks",
+                "https://api.fireworks.ai/inference/v1",
+                api_key,
+                None,
+                300,
+            ),
+            "cerebras" => {
+                Self::openai_compat("cerebras", "https://api.cerebras.ai/v1", api_key, None, 300)
+            }
+            "sambanova" => Self::openai_compat(
+                "sambanova",
+                "https://api.sambanova.ai/v1",
+                api_key,
+                None,
+                300,
+            ),
+            "cohere" => Self::openai_compat(
+                "cohere",
+                "https://api.cohere.com/compatibility/v1",
+                api_key,
+                None,
+                300,
+            ),
+            "ai21" => {
+                Self::openai_compat("ai21", "https://api.ai21.com/studio/v1", api_key, None, 300)
+            }
             _ => Err(ProviderError::NotConfigured {
                 provider: name.to_string(),
             }
@@ -1245,15 +1253,14 @@ impl RigProvider {
                         "tool_choice": "required",
                     });
 
-                    let (json, prompt_tokens, completion_tokens) =
-                        Self::raw_chat_completion(
-                            http_client,
-                            raw_base_url,
-                            raw_api_key,
-                            body,
-                            effective_timeout,
-                        )
-                        .await?;
+                    let (json, prompt_tokens, completion_tokens) = Self::raw_chat_completion(
+                        http_client,
+                        raw_base_url,
+                        raw_api_key,
+                        body,
+                        effective_timeout,
+                    )
+                    .await?;
 
                     // Primary: extract tool call arguments
                     let arguments = json["choices"]

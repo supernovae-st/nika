@@ -1894,6 +1894,12 @@ async fn test_openai_compat_infer_with_tools_tracks_tokens() {
     assert_eq!(json["age"], 42);
 
     // Key assertion: tokens must be non-zero (the bug was silent zero telemetry)
-    assert_eq!(prompt_tokens, 200, "prompt_tokens should come from API response");
-    assert_eq!(completion_tokens, 50, "completion_tokens should come from API response");
+    assert_eq!(
+        prompt_tokens, 200,
+        "prompt_tokens should come from API response"
+    );
+    assert_eq!(
+        completion_tokens, 50,
+        "completion_tokens should come from API response"
+    );
 }

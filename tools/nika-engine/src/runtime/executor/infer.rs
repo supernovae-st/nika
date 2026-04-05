@@ -1304,11 +1304,15 @@ impl TaskExecutor {
                                 super::verbs::strip_think_tags(&result.value.to_string());
                             // Use real tokens from API when available (OpenAiCompat),
                             // fall back to estimation for rig-core providers (tokens=0)
-                            let (est_in, est_out) = if api_prompt_tokens > 0 || api_completion_tokens > 0 {
-                                (api_prompt_tokens, api_completion_tokens)
-                            } else {
-                                (estimate_tokens(prompt.len()), estimate_tokens(result_str.len()))
-                            };
+                            let (est_in, est_out) =
+                                if api_prompt_tokens > 0 || api_completion_tokens > 0 {
+                                    (api_prompt_tokens, api_completion_tokens)
+                                } else {
+                                    (
+                                        estimate_tokens(prompt.len()),
+                                        estimate_tokens(result_str.len()),
+                                    )
+                                };
                             let cost = provider
                                 .cost_provider_kind()
                                 .map(|pk| {
@@ -1371,7 +1375,10 @@ impl TaskExecutor {
                     let (est_in, est_out) = if api_prompt_tokens > 0 || api_completion_tokens > 0 {
                         (api_prompt_tokens, api_completion_tokens)
                     } else {
-                        (estimate_tokens(prompt.len()), estimate_tokens(tool_result.len()))
+                        (
+                            estimate_tokens(prompt.len()),
+                            estimate_tokens(tool_result.len()),
+                        )
                     };
                     let cost = provider
                         .cost_provider_kind()
