@@ -872,7 +872,7 @@ async fn print_env_info(_quiet: bool) {
 
     // Features summary
     println!();
-    println!("  {} 58 transforms, 62 tools", "Engine:".cyan());
+    println!("  {} 63 transforms, 62 tools", "Engine:".cyan());
 }
 
 fn print_features() {
