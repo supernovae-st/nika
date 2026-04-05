@@ -161,6 +161,20 @@ pub struct TransformExpr {
     pub ops: SmallVec<[TransformOp; 2]>,
 }
 
+/// All known transform names (for "did you mean?" suggestions).
+pub static KNOWN_TRANSFORM_NAMES: &[&str] = &[
+    // Simple (no-arg)
+    "upper", "lower", "trim", "trim_start", "trim_end", "length", "first", "last", "keys",
+    "values", "flatten", "reverse", "sort", "unique", "compact", "to_string", "to_number",
+    "to_bool", "to_json", "parse_json", "round", "abs", "ceil", "floor", "type_of", "shell",
+    "url_host", "url_path", "url_without_query", "url_normalize", "merge", "base64_encode",
+    "base64_decode", "content_hash", "unique_urls", "add", "min", "max", "sum", "avg", "not",
+    // Parameterized
+    "join", "split", "default", "slice", "pluck", "where", "pick", "omit", "sort_by",
+    "group_by", "regex", "starts_with", "ends_with", "contains", "replace", "truncate",
+    "has", "min_by", "max_by", "jq",
+];
+
 /// Error parsing a transform expression (NIKA-151)
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformParseError {
@@ -1805,10 +1819,21 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 let expr = strip_quotes(arg);
                 Ok(TransformOp::Jq(expr.to_string()))
             }
-            _ => Err(TransformParseError {
-                input: full_input.to_string(),
-                reason: format!("unknown transform: '{}'", name),
-            }),
+            _ => {
+                let hint = crate::ast::analyzer::suggestions::find_similar(
+                    name,
+                    KNOWN_TRANSFORM_NAMES,
+                    0.7,
+                );
+                let reason = match hint {
+                    Some(ref s) => format!("unknown transform: '{}'. Did you mean '{}'?", name, s),
+                    None => format!("unknown transform: '{}'", name),
+                };
+                Err(TransformParseError {
+                    input: full_input.to_string(),
+                    reason,
+                })
+            }
         }
     } else {
         // Simple name (no args)
@@ -1854,10 +1879,23 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "sum" => Ok(TransformOp::Sum),
             "avg" => Ok(TransformOp::Avg),
             "not" => Ok(TransformOp::Not),
-            _ => Err(TransformParseError {
-                input: full_input.to_string(),
-                reason: format!("unknown transform: '{}'", trimmed),
-            }),
+            _ => {
+                let hint = crate::ast::analyzer::suggestions::find_similar(
+                    trimmed,
+                    KNOWN_TRANSFORM_NAMES,
+                    0.7,
+                );
+                let reason = match hint {
+                    Some(ref s) => {
+                        format!("unknown transform: '{}'. Did you mean '{}'?", trimmed, s)
+                    }
+                    None => format!("unknown transform: '{}'", trimmed),
+                };
+                Err(TransformParseError {
+                    input: full_input.to_string(),
+                    reason,
+                })
+            }
         }
     }
 }
@@ -2243,6 +2281,26 @@ mod tests {
     fn parse_unknown() {
         let err = TransformExpr::parse("bogus").unwrap_err();
         assert!(err.reason.contains("unknown transform"));
+    }
+
+    #[test]
+    fn parse_unknown_with_suggestion() {
+        let err = TransformExpr::parse("uper").unwrap_err();
+        assert!(
+            err.reason.contains("Did you mean 'upper'"),
+            "should suggest 'upper' for 'uper', got: {}",
+            err.reason
+        );
+    }
+
+    #[test]
+    fn parse_unknown_parametric_with_suggestion() {
+        let err = TransformExpr::parse("jion(',')").unwrap_err();
+        assert!(
+            err.reason.contains("Did you mean 'join'"),
+            "should suggest 'join' for 'jion', got: {}",
+            err.reason
+        );
     }
 
     #[test]

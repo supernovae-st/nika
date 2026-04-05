@@ -135,6 +135,47 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
     }
 
+    // 2b2. Validate provider names are recognized
+    let all_provider_names: Vec<&str> = crate::catalogs::KNOWN_PROVIDERS
+        .iter()
+        .flat_map(|p| {
+            std::iter::once(p.id).chain(p.aliases.iter().copied())
+        })
+        .collect();
+    // Check workflow-level provider
+    if let Some(ref wf_provider) = raw.provider {
+        if crate::catalogs::find_provider(&wf_provider.value).is_none() {
+            let suggestion = find_similar(&wf_provider.value, &all_provider_names, 0.7);
+            let mut err = AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                wf_provider.span,
+                format!("unknown provider '{}'", wf_provider.value),
+            );
+            if let Some(ref similar) = suggestion {
+                err = err.with_suggestion(format!("did you mean '{}'?", similar));
+            }
+            ctx.errors.push(err);
+        }
+    }
+    // Check task-level providers
+    for raw_task in &raw.tasks.value {
+        if let Some(ref task_provider) = raw_task.value.provider {
+            if crate::catalogs::find_provider(&task_provider.value).is_none() {
+                let suggestion =
+                    find_similar(&task_provider.value, &all_provider_names, 0.7);
+                let mut err = AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    task_provider.span,
+                    format!("unknown provider '{}'", task_provider.value),
+                );
+                if let Some(ref similar) = suggestion {
+                    err = err.with_suggestion(format!("did you mean '{}'?", similar));
+                }
+                ctx.errors.push(err);
+            }
+        }
+    }
+
     // 2c. Validate model is specified when LLM verbs are used
     let has_workflow_model = raw.model.is_some();
     let workflow_provider = raw
@@ -4393,6 +4434,89 @@ tasks:
             misplaced_warnings.is_empty(),
             "shorthand infer should not warn about misplaced fields, got: {:?}",
             misplaced_warnings
+        );
+    }
+
+    // ====================================================================
+    // M6: Provider name did-you-mean
+    // ====================================================================
+
+    #[test]
+    fn test_validate_unknown_provider_with_suggestion() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: antrhopic
+model: claude-sonnet-4-6
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let provider_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("unknown provider"))
+            .collect();
+        assert!(
+            !provider_errors.is_empty(),
+            "unknown provider should error"
+        );
+        assert!(
+            provider_errors[0]
+                .suggestion
+                .as_ref()
+                .is_some_and(|s| s.contains("anthropic")),
+            "should suggest 'anthropic', got: {:?}",
+            provider_errors[0].suggestion
+        );
+    }
+
+    #[test]
+    fn test_validate_known_provider_no_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-6
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let provider_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("unknown provider"))
+            .collect();
+        assert!(
+            provider_errors.is_empty(),
+            "known provider should not error, got: {:?}",
+            provider_errors
+        );
+    }
+
+    #[test]
+    fn test_validate_provider_alias_no_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let provider_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("unknown provider"))
+            .collect();
+        assert!(
+            provider_errors.is_empty(),
+            "provider alias should not error, got: {:?}",
+            provider_errors
         );
     }
 }
