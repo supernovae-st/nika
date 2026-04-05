@@ -126,8 +126,44 @@ pub async fn handle_every_command(args: EveryArgs, quiet: bool) -> Result<(), Ni
     match resp {
         DaemonResponse::ScheduleCreated { id: _, name } => {
             if !quiet {
+                // Cascading celebration
                 println!();
-                println!("  {} schedule created", "✓".green().bold());
+                println!("  {} Cron valid: {}", "✓".green().bold(), cron_expr);
+                println!("  {} Registered: {}", "✓".green().bold(), name.bold());
+
+                // Next 5 runs
+                if let Ok(parsed_cron) = cron_expr.parse::<croner::Cron>() {
+                    let now = chrono::Utc::now();
+                    let mut from = now;
+                    if let Ok(first) = parsed_cron.find_next_occurrence(&from, false) {
+                        let rel = humanize_relative(first.signed_duration_since(now).num_seconds());
+                        println!("  {} Next run: {}", "✓".green().bold(), rel);
+
+                        // Show next 5 in compact form
+                        println!();
+                        println!("  {}", "Next 5 runs".bold());
+                        let mut runs = vec![first];
+                        from = first;
+                        for _ in 0..4 {
+                            match parsed_cron.find_next_occurrence(&from, false) {
+                                Ok(next) => {
+                                    runs.push(next);
+                                    from = next;
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                        for (i, run) in runs.iter().enumerate() {
+                            let formatted = run.format("%a %d %b %H:%M UTC").to_string();
+                            let rel =
+                                humanize_relative(run.signed_duration_since(now).num_seconds());
+                            println!("   {}.  {:<26} {}", i + 1, formatted, rel.dimmed());
+                        }
+                    }
+                }
+
+                println!();
+                println!("  {} {} is live! 🦋", "✓".green().bold(), name.bold());
                 println!();
                 println!("  View:     nika schedule show {name}");
                 println!("  Pause:    nika schedule pause {name}");
@@ -210,6 +246,31 @@ fn auto_name(workflow: &str, cron_expr: &str) -> String {
         _ => "cron",
     };
     format!("{stem}-{freq}")
+}
+
+/// Convert seconds to a human-readable relative time string.
+fn humanize_relative(seconds: i64) -> String {
+    if seconds < 60 {
+        format!("in {seconds}s")
+    } else if seconds < 3600 {
+        format!("in {}m", seconds / 60)
+    } else if seconds < 86400 {
+        let h = seconds / 3600;
+        let m = (seconds % 3600) / 60;
+        if m == 0 {
+            format!("in {h}h")
+        } else {
+            format!("in {h}h {m}m")
+        }
+    } else {
+        let d = seconds / 86400;
+        let h = (seconds % 86400) / 3600;
+        if h == 0 {
+            format!("in {d}d")
+        } else {
+            format!("in {d}d {h}h")
+        }
+    }
 }
 
 #[cfg(test)]

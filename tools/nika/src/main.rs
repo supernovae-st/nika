@@ -772,7 +772,7 @@ enum Commands {
 
     /// Manage cron schedules
     #[cfg(unix)]
-    #[command(next_help_heading = "SYSTEM")]
+    #[command(next_help_heading = "SYSTEM", alias = "schedules")]
     Schedule {
         #[command(subcommand)]
         action: cli::schedule::ScheduleAction,
