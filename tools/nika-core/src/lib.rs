@@ -20,6 +20,7 @@ pub mod ast;
 pub mod binding;
 pub mod catalogs;
 pub mod error;
+pub mod error_codes;
 pub mod mcp;
 pub mod provider_name;
 pub mod schema;
