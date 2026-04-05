@@ -406,8 +406,8 @@ pub fn categorize_provider(provider: &Provider) -> KeyCategory {
     }
 }
 
-/// Top models per provider for display.
-fn top_models(provider_id: &str) -> Vec<String> {
+/// Top models per provider for display. Canonical source — also used by provider.rs.
+pub(crate) fn top_models(provider_id: &str) -> Vec<String> {
     match provider_id {
         "anthropic" => vec!["claude-sonnet-4-6".into(), "claude-haiku-4-5".into()],
         "openai" => vec!["gpt-4.1".into(), "gpt-4o".into(), "o4-mini".into()],
@@ -1185,7 +1185,7 @@ async fn set_custom_key(
     vault: &nika_vault::NikaVault,
     name: &str,
     stdin: bool,
-    _quiet: bool,
+    quiet: bool,
 ) -> Result<(), NikaError> {
     let is_tty = io::stdin().is_terminal();
 
@@ -1194,10 +1194,12 @@ async fn set_custom_key(
         io::stdin().read_to_string(&mut buf).map_err(io_err)?;
         buf.trim().to_string()
     } else {
-        cliclack::intro(format!(
-            "nika keys set \u{2014} {name} \u{2014} custom secret"
-        ))
-        .map_err(io_err)?;
+        if !quiet {
+            cliclack::intro(format!(
+                "nika keys set \u{2014} {name} \u{2014} custom secret"
+            ))
+            .map_err(io_err)?;
+        }
 
         cliclack::password("Value:").interact().map_err(io_err)?
     };
@@ -1216,7 +1218,7 @@ async fn set_custom_key(
     // Also inject into env so workflows can use $env.NAME
     nika_engine::secrets::store::set_secret(name, &key_value);
 
-    if is_tty && !stdin {
+    if is_tty && !stdin && !quiet {
         eprintln!(
             "  {} Encrypted and saved to vault",
             "\u{2713}".green().bold()
@@ -1235,7 +1237,7 @@ async fn set_custom_key(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Execute `nika keys remove [name]`.
-async fn handle_keys_remove(name: Option<String>, _quiet: bool) -> Result<(), NikaError> {
+async fn handle_keys_remove(name: Option<String>, quiet: bool) -> Result<(), NikaError> {
     let vault = get_vault();
 
     let name = match name {
@@ -1261,12 +1263,14 @@ async fn handle_keys_remove(name: Option<String>, _quiet: bool) -> Result<(), Ni
             nika_engine::secrets::store::remove_secret(provider.env_var);
         }
 
-        eprintln!(
-            "  {} {} removed from vault",
-            "\u{2713}".green().bold(),
-            name.bold()
-        );
-    } else {
+        if !quiet {
+            eprintln!(
+                "  {} {} removed from vault",
+                "\u{2713}".green().bold(),
+                name.bold()
+            );
+        }
+    } else if !quiet {
         eprintln!(
             "  {} {} not found in vault",
             "\u{2717}".red().bold(),

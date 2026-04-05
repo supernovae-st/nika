@@ -39,9 +39,9 @@ pub fn has_any_provider_key() -> bool {
     }
 
     // Check NikaVault (keys stored via `nika keys set`)
+    // Uses canonical get_vault() to match the same path as keys module.
     // If vault fails (machine-id issue, permissions), don't trigger wizard.
-    let nika_home = nika_home_dir();
-    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
+    let vault = super::keys::get_vault();
     let vault_providers = [
         "anthropic",
         "openai",

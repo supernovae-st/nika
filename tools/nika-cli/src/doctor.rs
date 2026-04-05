@@ -192,60 +192,47 @@ fn check_vault_health() -> DiagnosticCheck {
 }
 
 fn check_api_keys() -> Vec<DiagnosticCheck> {
+    use crate::keys::{gather_all_keys, KeySource, KeyStatus};
+
+    let vault = crate::keys::get_vault();
+    let all_keys = gather_all_keys(&vault);
+
     let mut checks = vec![];
+    let mut any_configured = false;
 
-    // Check common API keys (without exposing values)
-    let keys = [
-        ("ANTHROPIC_API_KEY", "Claude"),
-        ("OPENAI_API_KEY", "OpenAI"),
-        ("MISTRAL_API_KEY", "Mistral"),
-        ("GROQ_API_KEY", "Groq"),
-        ("DEEPSEEK_API_KEY", "DeepSeek"),
-        ("GEMINI_API_KEY", "Gemini"),
-        ("XAI_API_KEY", "xAI/Grok"),
-    ];
-
-    let mut any_found = false;
-    for (env_var, provider) in keys {
-        if let Ok(val) = std::env::var(env_var) {
-            // Basic format validation (don't expose the key)
-            let len = val.len();
-            let is_valid = if env_var == "ANTHROPIC_API_KEY" {
-                val.starts_with("sk-ant-") && len > 40
-            } else if env_var == "OPENAI_API_KEY" {
-                val.starts_with("sk-") && len > 20
-            } else {
-                len > 10
-            };
-
-            if val.is_empty() {
-                checks.push(DiagnosticCheck::warn(
-                    "API Key",
-                    format!("{provider} key is empty ({env_var})"),
-                    format!("Set a valid {provider} key"),
-                ));
-            } else if !is_valid {
-                checks.push(DiagnosticCheck::warn(
-                    "API Key",
-                    format!("{provider} key format looks invalid ({env_var}, {len} chars)"),
-                    format!("Verify your {provider} API key is correct"),
-                ));
-                any_found = true;
-            } else {
+    for key in &all_keys {
+        match key.status {
+            KeyStatus::Configured => {
+                let source = match key.source {
+                    KeySource::Vault => "vault",
+                    KeySource::Env => "env",
+                    KeySource::Daemon => "daemon",
+                    _ => "configured",
+                };
                 checks.push(DiagnosticCheck::pass(
                     "API Key",
-                    format!("{provider} configured ({env_var}, {len} chars)"),
+                    format!("{} configured ({})", key.name, source),
                 ));
-                any_found = true;
+                any_configured = true;
             }
+            KeyStatus::EnvOnly => {
+                checks.push(DiagnosticCheck::warn(
+                    "API Key",
+                    format!("{} env-only (lost on reboot)", key.name),
+                    format!("Run: nika keys set {}", key.name),
+                ));
+                any_configured = true;
+            }
+            KeyStatus::System | KeyStatus::Offline => {} // skip local providers
+            KeyStatus::NotConfigured => {}                // report below
         }
     }
 
-    if !any_found {
+    if !any_configured {
         checks.push(DiagnosticCheck::warn(
             "API Key",
             "No LLM API keys found",
-            "Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or use provider: native",
+            "Run: nika keys set anthropic",
         ));
     }
 

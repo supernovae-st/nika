@@ -72,18 +72,9 @@ fn llm_provider_ids() -> Vec<&'static str> {
         .collect()
 }
 
-/// Top models per provider for `provider list` display.
-fn top_models_for_provider(provider: &str) -> &'static str {
-    match provider {
-        "anthropic" => "claude-sonnet-4-6, claude-haiku-4-5",
-        "openai" => "gpt-4.1, gpt-4o, o4-mini",
-        "mistral" => "mistral-large, mistral-small",
-        "groq" => "llama-3.3-70b, mixtral-8x7b",
-        "deepseek" => "deepseek-chat, deepseek-reasoner",
-        "gemini" => "gemini-2.5-pro, gemini-2.5-flash",
-        "xai" => "grok-3, grok-3-mini",
-        _ => "",
-    }
+/// Top models per provider — delegates to keys::top_models().
+fn top_models_for_provider(provider: &str) -> String {
+    crate::keys::top_models(provider).join(", ")
 }
 
 /// Get vault instance — delegates to the canonical keys::get_vault().
