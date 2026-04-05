@@ -46,13 +46,15 @@ pub struct EvalExpected {
 /// Assertions for a single task's output.
 #[derive(Debug, Clone, Deserialize)]
 pub struct TaskAssertions {
-    /// Output must contain this substring (case-insensitive).
+    /// Output must contain this substring (case-insensitive). Must be non-empty.
     pub output_contains: Option<String>,
-    /// Output must have at least this many words.
+    /// Output must have at least this many words (ASCII whitespace split — not CJK-aware).
     pub output_min_words: Option<usize>,
-    /// Output must have at most this many words.
+    /// Output must have at most this many words (ASCII whitespace split — not CJK-aware).
     pub output_max_words: Option<usize>,
-    /// Output must be valid JSON matching this schema (JSON Schema object).
+    /// Output must be valid JSON with matching top-level `type` and `required` keys.
+    /// Subset validation only — does not check property types, min/max, patterns.
+    /// For full JSON Schema validation, use `structured:` in the workflow itself.
     pub output_matches_schema: Option<serde_json::Value>,
 }
 
@@ -92,7 +94,12 @@ pub fn validate_task_output(
 
     // output_contains (case-insensitive)
     if let Some(ref needle) = assertions.output_contains {
-        if !output_str.to_lowercase().contains(&needle.to_lowercase()) {
+        if needle.is_empty() {
+            failures.push(format!(
+                "{}: output_contains is empty — vacuous assertion",
+                task_id
+            ));
+        } else if !output_str.to_lowercase().contains(&needle.to_lowercase()) {
             failures.push(format!(
                 "{}: output_contains '{}' — not found",
                 task_id, needle
@@ -100,7 +107,7 @@ pub fn validate_task_output(
         }
     }
 
-    // output_min_words
+    // output_min_words (ASCII whitespace splitting — not suitable for CJK text)
     if let Some(min) = assertions.output_min_words {
         let word_count = output_str.split_whitespace().count();
         if word_count < min {
@@ -122,7 +129,8 @@ pub fn validate_task_output(
         }
     }
 
-    // output_matches_schema (basic: check JSON parseable + type match)
+    // output_matches_schema (subset validation: JSON parseable + type + required keys)
+    // Does NOT validate property types, minimum/maximum, pattern, etc. — use structured: for full schema.
     if let Some(ref schema) = assertions.output_matches_schema {
         // Validate output is valid JSON
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&output_str);
@@ -369,6 +377,20 @@ mod tests {
         assert_eq!(failures.len(), 1);
         assert!(failures[0].contains("output_contains"));
         assert!(failures[0].contains("blockchain"));
+    }
+
+    #[test]
+    fn output_contains_empty_needle_fails() {
+        let assertions = TaskAssertions {
+            output_contains: Some(String::new()),
+            output_min_words: None,
+            output_max_words: None,
+            output_matches_schema: None,
+        };
+        let output = json!("any text");
+        let failures = validate_task_output("t1", &output, &assertions);
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("vacuous"));
     }
 
     #[test]
