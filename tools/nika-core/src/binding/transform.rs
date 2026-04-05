@@ -222,6 +222,15 @@ impl fmt::Display for TransformError {
                 {
                     write!(f, " — try: to_string | {}", op)?;
                 }
+                // Hint about extract: article returning an object
+                if *expected == "string" && got == "object" {
+                    write!(
+                        f,
+                        ". If this is from extract: article, use $task.text_content \
+                         instead — extract: article returns an object with title, \
+                         content, text_content, excerpt, byline fields"
+                    )?;
+                }
                 Ok(())
             }
             TransformError::NullInput { op } => {
@@ -3085,6 +3094,21 @@ mod tests {
             got: "number".to_string(),
         };
         assert!(err.to_string().contains("NIKA-152"));
+    }
+
+    #[test]
+    fn error_display_object_hints_extract_article() {
+        let err = TransformError::TypeMismatch {
+            op: "trim",
+            expected: "string",
+            got: "object".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("text_content"),
+            "should hint about extract: article fields, got: {}",
+            msg
+        );
     }
 
     #[test]
