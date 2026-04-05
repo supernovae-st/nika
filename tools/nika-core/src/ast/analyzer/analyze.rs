@@ -250,6 +250,32 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                 }
             }
         }
+
+        // Check for_each without explicit concurrency on large literal arrays
+        if let Some(ref for_each) = task.for_each {
+            if for_each.value.concurrency.is_none() {
+                let items_str = &for_each.value.items.value;
+                if items_str.starts_with('[') {
+                    if let Ok(serde_json::Value::Array(arr)) =
+                        serde_json::from_str::<serde_json::Value>(items_str)
+                    {
+                        if arr.len() > 3 {
+                            ctx.add_warning(AnalyzeError::new(
+                                AnalyzeErrorKind::InvalidValue,
+                                for_each.value.items.span,
+                                format!(
+                                    "for_each has {} items but no explicit concurrency:. \
+                                     Default is sequential (concurrency: 1). \
+                                     Add concurrency: {} for parallel execution.",
+                                    arr.len(),
+                                    arr.len().min(10)
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // 3. Build task table (detect duplicates)
@@ -4198,6 +4224,98 @@ tasks:
             tool_errors.is_empty(),
             "MCP tool should not be checked as builtin, got: {:?}",
             tool_errors
+        );
+    }
+
+    // ====================================================================
+    // M4: for_each concurrency warning
+    // ====================================================================
+
+    #[test]
+    fn test_validate_for_each_large_array_no_concurrency_warns() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("batch");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new(
+                    r#"["a","b","c","d","e"]"#.to_string(),
+                    make_span(0, 20),
+                ),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 40),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        assert!(
+            result.warnings.iter().any(|w| w.message.contains("concurrency")),
+            "for_each with >3 items and no concurrency should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_for_each_small_array_no_warning() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("batch");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new(r#"["a","b"]"#.to_string(), make_span(0, 10)),
+                as_var: None,
+                concurrency: None,
+                fail_fast: None,
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let concurrency_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("concurrency"))
+            .collect();
+        assert!(
+            concurrency_warnings.is_empty(),
+            "small array should not warn, got: {:?}",
+            concurrency_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_for_each_with_explicit_concurrency_no_warning() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("batch");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new(
+                    r#"["a","b","c","d","e"]"#.to_string(),
+                    make_span(0, 20),
+                ),
+                as_var: None,
+                concurrency: Some(Spanned::new(5, make_span(0, 1))),
+                fail_fast: None,
+            },
+            make_span(0, 40),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let concurrency_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("concurrency"))
+            .collect();
+        assert!(
+            concurrency_warnings.is_empty(),
+            "explicit concurrency should not warn, got: {:?}",
+            concurrency_warnings
         );
     }
 }
