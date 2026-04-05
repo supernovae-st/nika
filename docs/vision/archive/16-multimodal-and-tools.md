@@ -1620,12 +1620,12 @@ nika mcp add comfyui
 
 # Add premium translation
 nika mcp add deepl
-nika provider set deepl
+nika keys set deepl
 # Now nika:translate prefers DeepL when key available
 
 # Add premium TTS
 nika mcp add elevenlabs
-nika provider set elevenlabs
+nika keys set elevenlabs
 # Now nika:speak prefers ElevenLabs when key available
 ```
 

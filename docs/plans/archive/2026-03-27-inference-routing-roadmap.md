@@ -1488,7 +1488,7 @@ Pings `GET /v1/models` on all configured endpoints + checks cloud API keys.
 
   ⋈ anthropic     ✓ sk-ant-a...   claude-sonnet-4   text,json,vision,reasoning
   ⋈ openai        ✓ sk-proj...    gpt-4o            text,json,vision,reasoning
-  ⋈ groq          ✗ no key        → nika provider set groq
+  ⋈ groq          ✗ no key        → nika keys set groq
 
   ── Auto-generated capabilities ───────────────────────────────────
 
@@ -1792,9 +1792,9 @@ Every routing error includes:
   │   ⋈ native  → text                         │
   │                                             │
   │ Vision-capable providers (not configured):  │
-  │   ⋈ anthropic  → nika provider set anthropic│
-  │   ⋈ openai     → nika provider set openai   │
-  │   ⋈ gemini     → nika provider set gemini   │
+  │   ⋈ anthropic  → nika keys set anthropic│
+  │   ⋈ openai     → nika keys set openai   │
+  │   ⋈ gemini     → nika keys set gemini   │
   ╰────────────────────────────────────────────╯
 ```
 

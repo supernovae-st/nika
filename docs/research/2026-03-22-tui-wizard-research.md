@@ -585,7 +585,7 @@ End with actionable, copy-pasteable commands:
   Next steps:
 
   cd ./my-project
-  nika provider set anthropic
+  nika keys set anthropic
   nika run workflows/tier-2-llm/04-infer-basics.nika.yaml
 
   Problems? https://github.com/supernovae-st/nika/issues
@@ -705,7 +705,7 @@ console = "0.15"      # Styling + terminal detection
   nika run workflows/tier-1-no-deps/01-exec-basics.nika.yaml
 
   # Set up your provider
-  nika provider set anthropic
+  nika keys set anthropic
 
   # Then try LLM workflows
   nika run workflows/tier-2-llm/04-infer-basics.nika.yaml
@@ -794,7 +794,7 @@ pub fn init_wizard() -> Result<(), NikaError> {
          nika run workflows/tier-1-no-deps/01-exec-basics.nika.yaml\n\
          \n\
          # Set up your provider\n\
-         nika provider set {provider}\n\
+         nika keys set {provider}\n\
          \n\
          # Then try LLM workflows\n\
          nika run workflows/tier-2-llm/04-infer-basics.nika.yaml"

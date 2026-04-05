@@ -1,7 +1,7 @@
 # BUG: NIKA-135 — vault decrypt fails with UnknownCryptoError on provider set
 
 **Date**: 2026-04-02
-**Severity**: P1 — blocks `nika provider set` on VPS deployments
+**Severity**: P1 — blocks `nika keys set` on VPS deployments
 **Nika version**: v0.62.0
 **Environment**: nk-jungo-vps (Ubuntu 22.04, Scaleway PLAY2-MICRO)
 **Reporter**: Thibaut Melen
@@ -10,7 +10,7 @@
 
 ## Problem
 
-`nika provider set <provider>` fails with:
+`nika keys set <provider>` fails with:
 ```
 ✕ [NIKA-135] Config error: Failed to store key: vault crypto error: decrypt failed: UnknownCryptoError
 ```
@@ -21,13 +21,13 @@ This happens for ALL providers (tested mistral and openai). The vault file exist
 ## Reproduction
 
 ```bash
-nika@nk-jungo-vps:~$ nika provider set mistral
+nika@nk-jungo-vps:~$ nika keys set mistral
 ◇  Paste your mistral API key:
 │  ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 │
 │  ✕ [NIKA-135] Config error: Failed to store key: vault crypto error: decrypt failed: UnknownCryptoError
 
-nika@nk-jungo-vps:~$ nika provider set openai
+nika@nk-jungo-vps:~$ nika keys set openai
 ◇  Paste your openai API key:
 │  ●●●●●●●●●●●●...
 │
@@ -51,14 +51,14 @@ $ env | grep VAULT
 # (empty — NIKA_VAULT_PASSPHRASE is not set)
 ```
 
-The vault was likely created during a previous `nika provider set` call where the passphrase
+The vault was likely created during a previous `nika keys set` call where the passphrase
 was either:
 1. Set interactively and not persisted to `.env` or shell profile
 2. Derived from a default that changed between versions
 3. Set via a different user session (root vs nika)
 
 ### The decrypt flow
-1. `nika provider set` → `vault.get_or_create()` → tries to decrypt `vault.enc`
+1. `nika keys set` → `vault.get_or_create()` → tries to decrypt `vault.enc`
 2. Derives encryption key from `NIKA_VAULT_PASSPHRASE` via Argon2i (6 iterations + salt)
 3. If passphrase is empty/wrong → Argon2i produces wrong key → XChaCha20Poly1305 decrypt fails
 4. Error: `UnknownCryptoError` (generic crypto error, no detail on what failed)
@@ -69,7 +69,7 @@ The error message doesn't help the user understand what happened. There are seve
 1. **No hint about passphrase**: The error says "decrypt failed" but doesn't mention
    `NIKA_VAULT_PASSPHRASE` or suggest setting it
 2. **No recovery path**: If the passphrase is lost, there's no `nika vault reset` command
-3. **Silent vault creation**: The first `nika provider set` creates the vault silently.
+3. **Silent vault creation**: The first `nika keys set` creates the vault silently.
    If the passphrase changes (or was never set), all subsequent calls fail
 4. **Empty passphrase accepted**: If `NIKA_VAULT_PASSPHRASE` is not set, nika uses
    an empty string (or a default) which varies by version/environment
@@ -113,7 +113,7 @@ unconfigured (it only checks the vault) but the workflows run fine.
 # Nuclear option — loses all stored keys
 rm ~/.nika/secrets/vault.enc ~/.nika/secrets/vault.salt
 export NIKA_VAULT_PASSPHRASE="my-new-passphrase"
-nika provider set openai   # Creates fresh vault
+nika keys set openai   # Creates fresh vault
 ```
 
 ## Affected Code

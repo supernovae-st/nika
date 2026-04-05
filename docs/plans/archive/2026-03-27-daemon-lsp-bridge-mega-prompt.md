@@ -782,7 +782,7 @@ if let Some(daemon_providers) = daemon_provider_status {
     // Check daemon first (covers keychain)
     if let Some(info) = daemon_providers.iter().find(|p| p.id == provider) {
         if !info.has_key {
-            warn NIKA-031 with "Set via `nika provider set {provider}` or {env_var}"
+            warn NIKA-031 with "Set via `nika keys set {provider}` or {env_var}"
         }
     }
 } else {

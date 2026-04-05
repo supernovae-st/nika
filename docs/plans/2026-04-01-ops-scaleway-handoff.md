@@ -174,8 +174,8 @@ echo 'export PATH="$HOME/.nika/bin:$PATH"' >> /home/nika/.bashrc
 
 # Setup les API keys
 su - nika
-nika provider set openai   # coller la cle
-nika provider set xai      # coller la cle
+nika keys set openai   # coller la cle
+nika keys set xai      # coller la cle
 nika provider list          # verifier
 
 # Setup le daemon systemd

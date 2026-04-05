@@ -143,8 +143,8 @@ Le daemon auto-start est implemente mais il faut:
 
 1. **Supprimer le code legacy keyring** non utilise:
    - `keyring.rs`: les fonctions `NikaKeyring::get()`, `set()`, `delete()` restent pour le daemon
-   - MAIS: `nika provider set` (CLI) doit stocker via daemon IPC, PAS keyring direct
-   - Verifier que `nika provider set anthropic` passe par le daemon
+   - MAIS: `nika keys set` (CLI) doit stocker via daemon IPC, PAS keyring direct
+   - Verifier que `nika keys set anthropic` passe par le daemon
 
 2. **Tests daemon auto-start** (4 tests):
 ```rust

@@ -13,7 +13,7 @@ nika run workflow.nika.yaml --input key=val # Execute with input overrides
 nika check <workflow.nika.yaml>            # Validate without executing
 nika ui                                     # Launch the Terminal UI
 nika provider list                          # Show configured providers
-nika provider set <provider>                # Set active provider
+nika keys set <provider>                # Set active provider
 ```
 
 ### Course Commands

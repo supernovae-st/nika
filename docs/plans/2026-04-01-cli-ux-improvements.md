@@ -18,7 +18,7 @@ Usage: nika provider [OPTIONS] <COMMAND>
 For more information, try '--help'.
 ```
 
-The user meant `nika provider set openai`. The CLI should:
+The user meant `nika keys set openai`. The CLI should:
 1. Detect the likely intent
 2. Suggest the correct command
 3. Be friendly, not robotic
@@ -33,7 +33,7 @@ When a subcommand is close to a valid one (Levenshtein distance ≤ 2), suggest 
 $ nika set provider openai
 error: unknown subcommand 'set'
 
-  Did you mean?  nika provider set openai
+  Did you mean?  nika keys set openai
 
 For all commands: nika help
 ```
@@ -84,7 +84,7 @@ $ nika run hello.nika.yaml
 
   This workflow needs 'openai'. Let's set it up:
 
-    nika provider set openai
+    nika keys set openai
 
   Or use mock provider (no API key needed):
     nika run hello.nika.yaml --provider mock
@@ -115,12 +115,12 @@ $ nika serve
   Ctrl+C to stop
 ```
 
-### 5. nika provider set — guide the user
+### 5. nika keys set — guide the user
 
-Currently `nika provider set openai` just shows a bare prompt. Should guide:
+Currently `nika keys set openai` just shows a bare prompt. Should guide:
 
 ```
-$ nika provider set openai
+$ nika keys set openai
 
   🔑 OpenAI API Key
 
@@ -158,11 +158,11 @@ Hint (gray):      → Try this instead
 
 ### 7. BUG (BLOCKER): Onboarding wizard triggers on EVERY infer, cannot be skipped
 
-`nika infer "prompt" --provider openai` on a fresh VPS triggers the "Welcome to Nika! Let's set up your first provider" wizard, even though the user JUST ran `nika provider set openai` and got `Connection OK`. The wizard re-asks for the same API key.
+`nika infer "prompt" --provider openai` on a fresh VPS triggers the "Welcome to Nika! Let's set up your first provider" wizard, even though the user JUST ran `nika keys set openai` and got `Connection OK`. The wizard re-asks for the same API key.
 
-**Root cause:** The onboarding check probably looks at a different state than the provider vault — maybe a config flag like `onboarding_complete` that `nika provider set` doesn't set.
+**Root cause:** The onboarding check probably looks at a different state than the provider vault — maybe a config flag like `onboarding_complete` that `nika keys set` doesn't set.
 
-**Fix:** If any provider key exists in the vault, skip the onboarding wizard. Or: `nika provider set` should mark onboarding as done.
+**Fix:** If any provider key exists in the vault, skip the onboarding wizard. Or: `nika keys set` should mark onboarding as done.
 
 ### 8. BUG: Default provider is anthropic even when only openai is configured
 
@@ -216,9 +216,9 @@ model: Qwen3.5-27B
 
 This is a bigger design change — brainstorm and ADR before implementing.
 
-### 10. BUG (BLOCKER): `nika provider set` is silently overridden by env vars
+### 10. BUG (BLOCKER): `nika keys set` is silently overridden by env vars
 
-`nika provider set openai` stores a new key in the vault and says "Connection OK". But at runtime, if `OPENAI_API_KEY` exists in the environment (from .bashrc, .profile, systemd EnvironmentFile, or parent process), the env var takes priority over the vault. The old/invalid env key is used, the new vault key is ignored.
+`nika keys set openai` stores a new key in the vault and says "Connection OK". But at runtime, if `OPENAI_API_KEY` exists in the environment (from .bashrc, .profile, systemd EnvironmentFile, or parent process), the env var takes priority over the vault. The old/invalid env key is used, the new vault key is ignored.
 
 The user has no idea this is happening. They just set a new key, tested it, got "Connection OK", and then `nika infer` fails with "invalid key".
 
@@ -226,9 +226,9 @@ The user has no idea this is happening. They just set a new key, tested it, got 
 **The problem:** env var ALWAYS wins, even when stale/invalid
 
 **Fix options:**
-- **Option A (minimal):** `nika provider set` warns if an env var exists: "Warning: OPENAI_API_KEY found in environment. It will override the vault key. Remove it with: unset OPENAI_API_KEY"
-- **Option B (better):** Invert priority: vault > env var. If the user explicitly set a key via `nika provider set`, that should win.
-- **Option C (best):** `nika provider set` detects env var conflicts AND offers to unset/override: "OPENAI_API_KEY found in env (sk-old...). Replace with the new key? [Y/n]"
+- **Option A (minimal):** `nika keys set` warns if an env var exists: "Warning: OPENAI_API_KEY found in environment. It will override the vault key. Remove it with: unset OPENAI_API_KEY"
+- **Option B (better):** Invert priority: vault > env var. If the user explicitly set a key via `nika keys set`, that should win.
+- **Option C (best):** `nika keys set` detects env var conflicts AND offers to unset/override: "OPENAI_API_KEY found in env (sk-old...). Replace with the new key? [Y/n]"
 
 Also `nika provider get openai` shows `(env)` which is a hint, but most users won't notice or understand what it means.
 
@@ -271,7 +271,7 @@ XAI_API_KEY=xai-...
 Then restart `nika serve`. The embedded executor reads env vars directly — no vault, no daemon, no wizard.
 
 **Root cause chain:**
-1. Onboarding wizard checks a flag that `nika provider set` doesn't update → wizard loops
+1. Onboarding wizard checks a flag that `nika keys set` doesn't update → wizard loops
 2. Vault keys are overridden by stale env vars → wrong key used
 3. `--no-interactive` doesn't exist on `nika infer` → can't skip wizard
 4. Default provider is anthropic even when only openai configured → fails without -p flag
@@ -301,10 +301,10 @@ $ nika provider list
   ✗ xai          api.x.ai               (not configured)
     ├── grok-3            $3.00/M in   $15.0/M out
     └── grok-3-mini       $0.30/M in   $0.50/M out
-    → nika provider set xai
+    → nika keys set xai
 
   ✗ anthropic    api.anthropic.com       (not configured)
-    → nika provider set anthropic
+    → nika keys set anthropic
 
   Custom Endpoints
   ──────────────────────────────────────────────────────────────────
@@ -346,9 +346,9 @@ $ nika model list
 
   Unavailable (need API key)
   ──────────────────────────────────────────────────────────────────
-  anthropic/claude-sonnet-4   → nika provider set anthropic
-  xai/grok-3-mini             → nika provider set xai
-  gemini/gemini-2.5-flash     → nika provider set gemini
+  anthropic/claude-sonnet-4   → nika keys set anthropic
+  xai/grok-3-mini             → nika keys set xai
+  gemini/gemini-2.5-flash     → nika keys set gemini
 ```
 
 ### 17. IMPROVEMENT: `nika doctor` should check VPS readiness
@@ -404,14 +404,14 @@ Show warnings at startup:
 
 ### 19. IMPROVEMENT: CLI should guide the user through the whole flow
 
-After `nika provider set openai` succeeds, the CLI should say:
+After `nika keys set openai` succeeds, the CLI should say:
 
 ```
   ✓ openai configured!
 
   What's next?
   ├── Test it:        nika infer "hello" -p openai
-  ├── Set more keys:  nika provider set xai
+  ├── Set more keys:  nika keys set xai
   ├── Migrate env:    nika provider migrate
   ├── Check status:   nika provider list
   └── Start serving:  nika serve
@@ -440,10 +440,10 @@ After `nika serve` starts:
 
 **Principle:** Every command output should end with "what to do next". The user should never be left staring at a prompt wondering what to type. The CLI is a guide, not a wall.
 
-### 20. IMPROVEMENT: `nika provider set` should suggest `migrate` when env vars exist
+### 20. IMPROVEMENT: `nika keys set` should suggest `migrate` when env vars exist
 
 ```
-$ nika provider set openai
+$ nika keys set openai
   Paste your openai API key:
   ●●●●●●●●●●
 

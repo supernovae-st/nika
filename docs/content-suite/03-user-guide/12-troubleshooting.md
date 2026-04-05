@@ -204,7 +204,7 @@ tasks:
 export ANTHROPIC_API_KEY="sk-ant-..."
 
 # Or store in system keychain
-nika provider set anthropic
+nika keys set anthropic
 ```
 
 ### Template and Binding Errors (040-049)

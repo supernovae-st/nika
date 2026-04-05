@@ -108,7 +108,7 @@ Fix: split into always-available (list/info/recommend) and gated (pull/delete/vi
 
 1. `-m provider/model` or `-p` flag (explicit)
 2. `.nika/config.toml` `default_provider` + `default_model`
-3. Keychain (via `nika provider set`)
+3. Keychain (via `nika keys set`)
 4. Environment variables (scan in order: anthropic, openai, ...)
 5. Error with actionable fix suggestion
 
@@ -334,7 +334,7 @@ Output design:
 │  ├── gpt-4.1-mini              $0.40 / $1.60                       │
 │  └── o3                         $10.00 / $40.00                     │
 │                                                                      │
-│  MISTRAL (✗ no key → nika provider set mistral)                      │
+│  MISTRAL (✗ no key → nika keys set mistral)                      │
 │  GROQ (✗ no key)                                                     │
 │  DEEPSEEK (✗ no key)                                                 │
 │  GEMINI (✗ no key)                                                   │
@@ -420,7 +420,7 @@ MODELS & PROVIDERS:
     nika model info claude-sonnet-4-6     Model details + cost
     nika model recommend                  Smart suggestion
     nika provider list                    API key status
-    nika provider set anthropic           Store key in keychain
+    nika keys set anthropic           Store key in keychain
 
 WORKFLOWS:
     nika run [file]                       Run workflow (auto-discover)

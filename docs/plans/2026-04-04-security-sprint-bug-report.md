@@ -6,7 +6,7 @@
 
 **Files**: `tools/nika-cli/src/verbs.rs` (tests: `detect_provider_*`, `resolve_*`)
 
-**Root cause**: Tests call `clear_provider_env()` which removes env vars, but `detect_provider()` also checks the NikaVault at `~/.nika/secrets/vault.enc`. On machines with stored vault keys (via `nika provider set`), the vault check finds the key and returns a provider even though the test expects `None`.
+**Root cause**: Tests call `clear_provider_env()` which removes env vars, but `detect_provider()` also checks the NikaVault at `~/.nika/secrets/vault.enc`. On machines with stored vault keys (via `nika keys set`), the vault check finds the key and returns a provider even though the test expects `None`.
 
 **Impact**: 10-13 tests fail on any developer machine with vault-stored API keys.
 

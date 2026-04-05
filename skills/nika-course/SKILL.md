@@ -113,7 +113,7 @@ Validation checks:
 | 1 (Jailbreak) | Missing `schema:` line | Always start with `schema: nika/workflow@0.12` |
 | 2 (Hot Wire) | Wrong HTTP method for fetch | Check `method:` field (default GET) |
 | 3 (Fork Bomb) | Circular `depends_on:` | DAG must be acyclic — no circular refs |
-| 4 (Root Access) | Missing provider API key | Set env var or `nika provider set` |
+| 4 (Root Access) | Missing provider API key | Set env var or `nika keys set` |
 | 5 (Shapeshifter) | `with: { x: task }` without `$` | Use `$task_id` with dollar prefix |
 | 6 (Pay-Per-Dream) | Missing `required:` in schema | Always list required properties |
 | 7 (Swiss Knife) | Wrong tool name | Use `nika:` prefix for builtins |

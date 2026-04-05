@@ -72,7 +72,7 @@ All Nika errors use the `NikaError` enum with `NIKA-XXX` codes. Errors implement
 |------|---------|-------------|------|
 | NIKA-030 | `ProviderNotConfigured` | Provider not set up | Configure the provider |
 | NIKA-031 | `ProviderApiError` | LLM API call failed | Check API key and network |
-| NIKA-032 | `MissingApiKey` | API key not found | Set environment variable or use `nika provider set` |
+| NIKA-032 | `MissingApiKey` | API key not found | Set environment variable or use `nika keys set` |
 | NIKA-033 | `InvalidConfig` | Configuration value invalid | Fix config file |
 
 ## Template/Binding Errors (040-049)

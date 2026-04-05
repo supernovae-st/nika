@@ -329,7 +329,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **timeout_secs propagation** — Custom endpoint `timeout_secs` from `config.toml` was parsed but never passed to the HTTP client. Now stored in `OpenAiCompat` variant and used for all infer/vision/stream timeouts.
 - **Signal handler panic** — SIGTERM/SIGINT handlers used `.expect()` which panics in restricted environments. Replaced with `.ok()` + graceful `pending()` fallback.
 - **SQLite failure now fatal** — Storage open errors were silently swallowed, disabling jobs. Now propagated so systemd can restart the daemon.
-- **`nika provider set` uses NikaVault** — On headless Linux, OS keyring fails (no D-Bus). Now writes to encrypted vault file instead.
+- **`nika keys set` uses NikaVault** — On headless Linux, OS keyring fails (no D-Bus). Now writes to encrypted vault file instead.
 - **Vault fallback without daemon** — With `NIKA_NO_DAEMON=1` or dead daemon, secrets resolve from vault file directly (env → daemon → vault → None).
 - **Connection drain on shutdown** — Active IPC connections are now tracked and drained with 5-second timeout on graceful shutdown.
 - **`$env.VAR` resolution order** — Documented guarantee that daemon/vault secrets are pre-loaded into process env before workflow binding resolution.
@@ -1019,7 +1019,7 @@ All spn features now available directly via nika commands:
 ```bash
 # Provider management
 nika provider list        # Show all providers with status
-nika provider set claude  # Store API key in keychain
+nika keys set claude  # Store API key in keychain
 nika provider test claude # Validate key with provider
 
 # Model management

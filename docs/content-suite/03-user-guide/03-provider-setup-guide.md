@@ -292,12 +292,12 @@ Store keys in your operating system's secure keychain:
 
 ```bash
 # Store a key
-nika provider set anthropic
+nika keys set anthropic
 # Prompts: Enter API key for Anthropic Claude:
 
 # Store multiple
-nika provider set openai
-nika provider set mistral
+nika keys set openai
+nika keys set mistral
 ```
 
 Keys stored in the keychain are never written to disk in plain text.
@@ -596,7 +596,7 @@ If you suspect a key is compromised:
 
 1. Generate a new key in the provider's dashboard
 2. Update your environment: `export ANTHROPIC_API_KEY="new-key"`
-3. Store in keychain: `nika provider set anthropic`
+3. Store in keychain: `nika keys set anthropic`
 4. Revoke the old key in the provider's dashboard
 
 ### Monitor Usage

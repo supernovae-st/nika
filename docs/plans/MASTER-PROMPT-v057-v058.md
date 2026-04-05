@@ -748,7 +748,7 @@ ssh root@<JUNGO_IP> << 'EOF'
   mkdir -p /home/nika/.nika/bin
   curl -fsSL https://github.com/SuperNovae-studio/nika/releases/latest/download/nika-linux-x86_64 \
     -o /home/nika/.nika/bin/nika && chmod +x /home/nika/.nika/bin/nika
-  su - nika -c 'nika provider set anthropic'
+  su - nika -c 'nika keys set anthropic'
 
   # systemd daemon + serve
   su - nika -c 'nika daemon install'

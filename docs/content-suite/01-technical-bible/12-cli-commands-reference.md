@@ -182,7 +182,7 @@ nika provider <action>
 | Command | Description |
 |---------|-------------|
 | `nika provider list` | Show providers and API key status |
-| `nika provider set <provider>` | Store key in system keychain |
+| `nika keys set <provider>` | Store key in system keychain |
 | `nika provider test <provider>` | Test provider connection |
 | `nika provider migrate` | Move env vars to keychain |
 

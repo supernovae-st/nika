@@ -189,7 +189,7 @@ source ~/.zshrc
 
 # Alternative: use Nika's OS keychain storage
 # WARNING: triggers macOS Keychain popup on first use
-# nika provider set anthropic
+# nika keys set anthropic
 ```
 
 ### Step 5: Initialize Project

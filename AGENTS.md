@@ -80,7 +80,7 @@ nika model list                        # Cloud models + pricing
 nika model info claude-sonnet-4-6      # Model details
 nika model recommend                   # Smart recommendation
 nika provider list                     # API key status
-nika provider set anthropic            # Store key in encrypted vault
+nika keys set anthropic            # Store key in encrypted vault
 nika mcp list                          # MCP server connections
 
 # Learning
@@ -142,7 +142,7 @@ Result: valid JSON matching the schema. Same result on ALL 7 providers. No excep
 
 Resolution order: env vars → daemon IPC → NikaVault encrypted file → None.
 NikaVault uses XChaCha20Poly1305 + Argon2i KDF. Key from machine fingerprint or `NIKA_VAULT_PASSPHRASE`.
-- `nika provider set` writes to vault (no OS keychain, no popups).
+- `nika keys set` writes to vault (no OS keychain, no popups).
 - Daemon reads vault at `~/.nika/secrets/vault.enc`.
 - Engine fallback reads vault directly when daemon is unavailable (`NIKA_NO_DAEMON=1`).
 

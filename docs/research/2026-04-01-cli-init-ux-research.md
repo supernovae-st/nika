@@ -305,7 +305,7 @@ Every great init has a clear, actionable completion message. The best pattern:
 │                                         │
 │  Next steps:                            │
 │    nika run hello.nika.yaml   # Try it  │
-│    nika provider set          # Add AI  │
+│    nika keys set          # Add AI  │
 │    nika showcase list         # Explore │
 │    nika course next           # Learn   │
 │                                         │
@@ -345,7 +345,7 @@ The current `nika init` (`/Users/thibaut/dev/supernovae/nika/tools/nika-cli/src/
 - Shows file paths with checkmarks
 - Shows "Next steps" as plain text
 - No interactivity (permission mode via `--permission` flag)
-- No provider setup (separate `nika setup` / `nika provider set`)
+- No provider setup (separate `nika setup` / `nika keys set`)
 - No template selection
 - No mascot or personality
 

@@ -596,7 +596,7 @@ Add to existing `doctor.rs` (currently 11 checks):
   ✓ Claude (ANTHROPIC_API_KEY set)
   ✓ OpenAI (OPENAI_API_KEY set)
   ⚠ Groq (GROQ_API_KEY not set)
-    → Set GROQ_API_KEY or run: nika provider set groq
+    → Set GROQ_API_KEY or run: nika keys set groq
 
   Editors
   ✓ VS Code — nika-lang 0.40.0 installed

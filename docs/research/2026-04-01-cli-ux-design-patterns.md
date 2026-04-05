@@ -168,7 +168,7 @@ oclif (Open CLI Framework) powers the Salesforce CLI, Heroku CLI, and Twilio CLI
   ╭──────────────────────────────────╮
   │  Next steps                      │
   ├──────────────────────────────────┤
-  │  1. nika provider set anthropic  │
+  │  1. nika keys set anthropic  │
   │  2. nika run hello.nika.yaml     │
   │  3. nika ui                      │
   ╰──────────────────────────────────╯

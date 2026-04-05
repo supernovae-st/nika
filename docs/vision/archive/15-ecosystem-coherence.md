@@ -285,7 +285,7 @@ Depuis v0.27.0, TOUT passe par un seul CLI unifie. `spn` est deprecated.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 nika provider list                   # Show all providers with status
-nika provider set anthropic          # Store API key in OS keychain
+nika keys set anthropic          # Store API key in OS keychain
 nika provider get openai             # Retrieve key (masked)
 nika provider test claude            # Validate key with provider
 nika provider migrate                # Migrate env vars to keychain

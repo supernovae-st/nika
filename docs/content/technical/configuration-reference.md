@@ -130,8 +130,8 @@ default = "claude"
 ### Interactive Setup
 
 ```bash
-nika provider set anthropic     # Prompts for API key, stores in keychain
-nika provider set openai        # Same for OpenAI
+nika keys set anthropic     # Prompts for API key, stores in keychain
+nika keys set openai        # Same for OpenAI
 nika provider test anthropic    # Verify connection works
 nika provider list              # Show all providers and key status
 nika provider migrate           # Move env vars to keychain

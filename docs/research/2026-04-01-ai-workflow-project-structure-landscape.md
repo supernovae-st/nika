@@ -452,7 +452,7 @@ plugins/
 ### What Nika Could Learn
 
 1. **`langgraph.json` schema URL** -- LangGraph includes `"$schema": "https://langgra.ph/schema.json"` for editor autocomplete. Nika could publish a JSON Schema for `.nika.yaml` and reference it.
-2. **Prompt Flow's `pf connection create`** -- Dedicated CLI for managing connections/secrets is cleaner than `nika provider set` (which conflates provider selection with secret storage).
+2. **Prompt Flow's `pf connection create`** -- Dedicated CLI for managing connections/secrets is cleaner than `nika keys set` (which conflates provider selection with secret storage).
 3. **CrewAI's separation of concerns** -- Agents and tasks in separate YAML files allows reuse across crews. Nika's `include:` with `prefix:` achieves similar but is less intuitive.
 4. **LangGraph Studio** -- Desktop app that auto-detects `langgraph.json` and visualizes graphs. Nika's TUI serves a similar role but could be more discoverable.
 5. **Windmill's Git sync** -- `wmill deploy` pushes to Git automatically. Nika workflows are already Git-friendly but lack built-in sync tooling.

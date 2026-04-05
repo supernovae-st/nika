@@ -148,7 +148,7 @@ Rust 1.66+ marks `std::env::set_var` as `unsafe` because concurrent `getenv`/`se
 
 ### Why It Exists
 
-The `set_var` calls serve one purpose: make API keys available to `RigProvider::from_name()` and friends that read env vars. After `nika provider set` stores a key in the vault, the current process needs the key in env for the connection test.
+The `set_var` calls serve one purpose: make API keys available to `RigProvider::from_name()` and friends that read env vars. After `nika keys set` stores a key in the vault, the current process needs the key in env for the connection test.
 
 ### Fix Plan
 

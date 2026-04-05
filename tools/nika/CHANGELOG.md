@@ -415,16 +415,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - **`nika setup`** — interactive onboarding wizard using `cliclack` for first-run API key setup
-- **`nika provider set` interactive mode** — masked password prompt when key is not provided as argument
-- **Auto-onboarding on `nika run`** — if a workflow contains `infer:` or `agent:` tasks and no API key is configured, the setup wizard launches automatically (non-interactive: shows `nika provider set` hint)
+- **`nika keys set` interactive mode** — masked password prompt when key is not provided as argument
+- **Auto-onboarding on `nika run`** — if a workflow contains `infer:` or `agent:` tasks and no API key is configured, the setup wizard launches automatically (non-interactive: shows `nika keys set` hint)
 - **Cron scheduler** — daemon background loop checks every 60s and fires due scheduled jobs; `nika job submit --cron "* * * * *"` now repeats reliably (was silent no-op after first run)
 - **`nika model pull` progress bar** — indicatif bar with transfer speed, ETA, and bytes progress (replaces raw percentage output)
 - **`nika model info` metadata** — shows capability tags (Reasoning, Vision, Code, Fast) and context window size
 - **Daemon L3 auth** — CSPRNG session token (uuid v4, 64 hex chars) gates `SetSecret`/`DeleteSecret` IPC; token written to `~/.nika/daemon/.token` with `0o600` permissions
 
 ### Fixed
-- **Keychain → runner bridge** — `nika run` now calls `load_from_daemon_or_fallback()` at startup; keys stored via `nika provider set` are available without restarting the shell or setting `NIKA_KEYCHAIN_BOOT`
-- **`native-keychain` enabled by default** — `nika provider set` now stores keys reliably on all platforms (macOS Keychain, Linux Secret Service, Windows Credential Manager)
+- **Keychain → runner bridge** — `nika run` now calls `load_from_daemon_or_fallback()` at startup; keys stored via `nika keys set` are available without restarting the shell or setting `NIKA_KEYCHAIN_BOOT`
+- **`native-keychain` enabled by default** — `nika keys set` now stores keys reliably on all platforms (macOS Keychain, Linux Secret Service, Windows Credential Manager)
 - **`exec: shell: true` on Windows** — was hardcoded to `sh -c` (fails with `NotFound`); now uses `cmd.exe /C` on Windows and `sh -c` on Unix
 - **TUI** — `Zeroizing<String>` type fix in provider modal and chat key save/test paths; keys were passed by value instead of `as_str()` reference
 - **TUI** — agent state fully reset on workflow re-run; `spawned_agents` no longer leak across runs
@@ -2210,7 +2210,7 @@ Manage your LLM provider API keys securely via OS keychain:
 
 ```bash
 nika provider list              # Show all providers with status
-nika provider set anthropic     # Store API key in OS keychain
+nika keys set anthropic     # Store API key in OS keychain
 nika provider get openai        # Retrieve (masked) key
 nika provider test claude       # Validate key with provider
 nika provider migrate           # Migrate env vars to keychain
@@ -2510,7 +2510,7 @@ nika model pull llama3.2:1b
 | Old Command | New Command |
 |-------------|-------------|
 | `spn provider list` | `nika provider list` |
-| `spn provider set <name>` | `nika provider set <name>` |
+| `spn provider set <name>` | `nika keys set <name>` |
 | `spn model list` | `nika model list` |
 | `spn model pull <model>` | `nika model pull <model>` |
 | `spn mcp add <alias>` | `nika mcp add <alias>` |

@@ -67,9 +67,9 @@ CONFIG (manage resources)          INTERACTIVE (use nika)
 
 1. `-p` flag (explicit override)
 2. `.nika/config.toml` `default_provider` (project default)
-3. Keychain (via `nika provider set`)
+3. Keychain (via `nika keys set`)
 4. Environment variables (`ANTHROPIC_API_KEY`, etc.)
-5. Error: "No provider found. Run `nika provider set <name>` or set API key env var"
+5. Error: "No provider found. Run `nika keys set <name>` or set API key env var"
 
 ### TTY-aware output
 
@@ -451,7 +451,7 @@ Quantum computing uses qubits that can exist in superposition...
 ```
   ✗ Provider error: ANTHROPIC_API_KEY not set
 
-  Fix: nika provider set anthropic
+  Fix: nika keys set anthropic
        or: export ANTHROPIC_API_KEY=sk-ant-...
 ```
 

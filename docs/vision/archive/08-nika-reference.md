@@ -2425,7 +2425,7 @@ nika new                          # Interactive workflow wizard
 nika trace list|show|export       # Trace inspection
 
 nika provider list                # Show all providers + status
-nika provider set <name>          # Store API key in OS keychain
+nika keys set <name>              # Store API key in encrypted vault
 nika provider get <name>          # Retrieve (masked)
 nika provider test <name>         # Validate key with API call
 nika provider migrate             # Migrate env vars → keychain
@@ -2452,7 +2452,7 @@ nika setup [nika|novanet|claude-code]  # Interactive onboarding wizard
 
 ### Provider Resolution Priority
 
-1. OS Keychain (most secure) — via `nika provider set`
+1. NikaVault (most secure) — via `nika keys set`
 2. Environment variable — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.
 3. `.env` file — via dotenvy
 

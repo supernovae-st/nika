@@ -29,7 +29,7 @@ Read the plan at docs/plans/2026-03-23-dx-v042-roadmap.md and the memory files f
 5. `nika` bare = live 3-second demo (built-in DAG, no API key)
 6. Inline DAG summary before `nika run`
 7. Editor reveal: show each editor name, not just count
-8. Provider list as guide: `✗ openai → nika provider set openai`
+8. Provider list as guide: `✗ openai → nika keys set openai`
 9. Memorable end-of-run: `3 tasks | 2 parallel | 1.2k tokens | $0.003 | 847ms`
 
 ### Priority 3: ARCHITECTURE

@@ -40,11 +40,11 @@ Les bugs CLI UX trouves pendant le setup VPS. Ce sont les plus impactants pour l
 
 ## PRIORITE 1 : Wizard onboarding loop (BLOCKER)
 
-**Symptome :** Sur un VPS, apres `nika provider set openai` (qui dit "Connection OK"), chaque `nika infer "prompt" -p openai` relance le wizard "Welcome to Nika! Let's set up your first provider".
+**Symptome :** Sur un VPS, apres `nika keys set openai` (qui dit "Connection OK"), chaque `nika infer "prompt" -p openai` relance le wizard "Welcome to Nika! Let's set up your first provider".
 
 **Root cause probable :** `has_any_provider_key()` dans `tools/nika-cli/src/onboarding.rs` check les env vars + le vault. Sur le VPS, le vault unlock peut echouer silencieusement (machine-id issue, ou le daemon n'est pas connecte au moment du check). La fonction retourne `false` → le wizard se declenche.
 
-**Aussi :** `nika provider set` devrait marquer l'onboarding comme done en appelant `set_no_onboarding()` apres un set reussi. Actuellement il ne le fait pas.
+**Aussi :** `nika keys set` devrait marquer l'onboarding comme done en appelant `set_no_onboarding()` apres un set reussi. Actuellement il ne le fait pas.
 
 **Fichiers :**
 - `tools/nika-cli/src/onboarding.rs` — `has_any_provider_key()`, `skip_onboarding()`, `set_no_onboarding()`
@@ -60,7 +60,7 @@ Les bugs CLI UX trouves pendant le setup VPS. Ce sont les plus impactants pour l
 **Test :**
 ```bash
 # Sur un VPS ou en simulant (sans daemon)
-NIKA_NO_DAEMON=1 nika provider set openai  # coller une cle
+NIKA_NO_DAEMON=1 nika keys set openai  # coller une cle
 nika infer "test" -p openai                 # NE DOIT PAS lancer le wizard
 ```
 
@@ -72,7 +72,7 @@ nika infer "test" -p openai                 # NE DOIT PAS lancer le wizard
 
 **Fichier :** `tools/nika/src/main.rs` — chercher ou le default provider est determine pour `nika infer`
 
-**Fix :** Si aucun `--provider` n'est specifie, iterer les providers dans l'ordre et utiliser le premier qui a une cle (env ou vault). Si aucun → montrer un message clair : "No providers configured. Run: nika provider set openai"
+**Fix :** Si aucun `--provider` n'est specifie, iterer les providers dans l'ordre et utiliser le premier qui a une cle (env ou vault). Si aucun → montrer un message clair : "No providers configured. Run: nika keys set openai"
 
 ## PRIORITE 3 : `--no-interactive` sur tous les verbs
 
@@ -82,9 +82,9 @@ nika infer "test" -p openai                 # NE DOIT PAS lancer le wizard
 
 **Fix :** Ajouter `#[arg(long)]` pour `no_interactive: bool` sur InferArgs (et les autres verbs). Quand `no_interactive` est true, set `onboarding::set_no_onboarding()` au debut.
 
-## PRIORITE 4 : `nika provider set` warn quand env var existe
+## PRIORITE 4 : `nika keys set` warn quand env var existe
 
-**Symptome :** User fait `nika provider set openai`, la cle va dans le vault, mais `OPENAI_API_KEY` dans l'env ecrase le vault. Le user ne comprend pas pourquoi sa nouvelle cle ne marche pas.
+**Symptome :** User fait `nika keys set openai`, la cle va dans le vault, mais `OPENAI_API_KEY` dans l'env ecrase le vault. Le user ne comprend pas pourquoi sa nouvelle cle ne marche pas.
 
 **Fichier :** `tools/nika-cli/src/provider.rs` — `handle_set()`
 
@@ -133,7 +133,7 @@ Lister les fichiers `.nika.yaml` dans le workflows dir. Checker quels providers 
   Cloud Providers
   ├── ✓ openai    [sk-proj-****]  (vault)   gpt-4.1-mini, gpt-4.1, gpt-4o
   ├── ✓ xai       [xai-KVIT****]  (env)     grok-3, grok-3-mini
-  └── ✗ anthropic                            → nika provider set anthropic
+  └── ✗ anthropic                            → nika keys set anthropic
 
   Custom Endpoints
   └── (none configured — add with: nika endpoint add <name> --url <url>)

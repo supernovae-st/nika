@@ -1353,9 +1353,9 @@ nika trace clean [--keep N]
 
 # PROVIDERS
 nika provider list                         # Status: keychain/env/missing
-nika provider set <NAME> [KEY]             # Store in OS keychain
+nika keys set <NAME> [KEY]             # Store in OS keychain
 nika provider get <NAME>                   # Show masked key
-nika provider delete <NAME>
+nika keys remove <NAME>
 nika provider test <NAME>                  # Test API connectivity
 nika provider migrate                      # Env vars → keychain
 

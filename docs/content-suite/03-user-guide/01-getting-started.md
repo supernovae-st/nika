@@ -339,7 +339,7 @@ nika studio workflow.nika.yaml         # Studio editor (shortcut)
 
 ```bash
 nika provider list                     # Show providers and API key status
-nika provider set anthropic            # Store key in system keychain
+nika keys set anthropic            # Store key in system keychain
 nika provider test openai              # Test provider connection
 ```
 
