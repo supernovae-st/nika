@@ -92,6 +92,16 @@ impl RigAgentLoop {
     pub async fn run(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         // Extended thinking: Anthropic-only, completely separate path
         if self.params.extended_thinking == Some(true) {
+            if let Some(ref p) = self.params.provider {
+                let name = p.as_str();
+                if name != "anthropic" && name != "claude" {
+                    tracing::warn!(
+                        declared_provider = %name,
+                        "extended_thinking is Anthropic-only — ignoring provider '{}', using Claude",
+                        name
+                    );
+                }
+            }
             return self.run_claude_with_thinking().await;
         }
 

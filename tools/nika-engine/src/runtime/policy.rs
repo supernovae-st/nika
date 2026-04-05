@@ -555,7 +555,7 @@ impl PolicyEnforcer {
 /// ```ignore
 /// let reservation = TokenReservation::new(Arc::clone(&policy), estimated)?;
 /// // ... do work ...
-/// reservation.adjust(actual_tokens);  // consumes the guard
+/// reservation.adjust(actual_tokens);  // disarms the guard (Drop becomes no-op)
 /// ```
 pub struct TokenReservation {
     enforcer: Arc<RwLock<PolicyEnforcer>>,
