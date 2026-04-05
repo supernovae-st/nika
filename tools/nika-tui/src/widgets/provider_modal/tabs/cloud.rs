@@ -106,9 +106,9 @@ impl ProviderInfo {
                         context_k: 128,
                     },
                     ModelInfo {
-                        id: "gpt-4-turbo",
-                        name: "GPT-4 Turbo",
-                        context_k: 128,
+                        id: "gpt-4.1",
+                        name: "GPT-4.1",
+                        context_k: 1000,
                     },
                     ModelInfo {
                         id: "o1",
@@ -225,13 +225,13 @@ impl ProviderInfo {
                         context_k: 1000,
                     },
                     ModelInfo {
-                        id: "gemini-1.5-pro",
-                        name: "1.5 Pro",
-                        context_k: 2000,
+                        id: "gemini-2.5-pro",
+                        name: "2.5 Pro",
+                        context_k: 1000,
                     },
                     ModelInfo {
-                        id: "gemini-1.5-flash",
-                        name: "1.5 Flash",
+                        id: "gemini-2.5-flash",
+                        name: "2.5 Flash",
                         context_k: 1000,
                     },
                 ],
