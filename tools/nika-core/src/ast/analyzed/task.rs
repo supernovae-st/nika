@@ -71,6 +71,9 @@ pub struct AnalyzedTask {
     /// Retry configuration
     pub retry: Option<AnalyzedRetry>,
 
+    /// On-error fallback configuration (fires after all retries exhausted)
+    pub on_error: Option<AnalyzedOnError>,
+
     /// Decompose modifier for runtime DAG expansion
     pub decompose: Option<DecomposeSpec>,
 
@@ -505,6 +508,26 @@ impl Default for AnalyzedRetry {
     }
 }
 
+/// On-error fallback configuration (analyzed).
+#[derive(Debug, Clone)]
+pub struct AnalyzedOnError {
+    /// The recovery action to take.
+    pub action: OnErrorAction,
+    /// Span of the on_error: block (for diagnostics).
+    pub span: Span,
+}
+
+/// What to do when a task fails after retries.
+#[derive(Debug, Clone)]
+pub enum OnErrorAction {
+    /// Swallow the failure: store null as output, mark task succeeded.
+    Ignore,
+    /// Re-execute with a different provider (single attempt).
+    RetryWithProvider { provider: crate::ProviderName },
+    /// Execute a different task's action as the recovery path.
+    Fallback { task_id: TaskId },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -544,6 +567,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,

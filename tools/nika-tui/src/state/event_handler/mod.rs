@@ -510,6 +510,7 @@ impl TuiState {
             | EventKind::ForEachItemFailed { .. }
             | EventKind::TaskCancelled { .. }
             | EventKind::FallbackChainExhausted { .. }
+            | EventKind::TaskFallbackTriggered { .. }
             | EventKind::RateLimitDelay { .. }
             | EventKind::TemplateResolutionFailed { .. }
             | EventKind::SchemaLoadFailed { .. }

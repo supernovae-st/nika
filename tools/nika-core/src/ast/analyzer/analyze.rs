@@ -16,8 +16,9 @@ use super::suggestions::find_similar;
 use crate::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedContextFile, AnalyzedExecAction, AnalyzedFetchAction,
     AnalyzedForEach, AnalyzedIncludeSpec, AnalyzedInferAction, AnalyzedInvokeAction,
-    AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction,
-    AnalyzedWorkflow, HttpMethod, McpFromSource, McpTransport, OutputFormat, TaskId, TaskTable,
+    AnalyzedMcpServer, AnalyzedOnError, AnalyzedOutput, AnalyzedRetry, AnalyzedTask,
+    AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod, McpFromSource, McpTransport, OnErrorAction,
+    OutputFormat, TaskId, TaskTable,
 };
 use crate::ast::raw::{
     RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTask,
@@ -751,6 +752,7 @@ fn analyze_task(
             .as_ref()
             .map(|f| analyze_for_each(&f.value, f.span)),
         retry: raw.retry.as_ref().map(|r| analyze_retry(&r.value, r.span)),
+        on_error: None, // Resolved below after task_table lookups
         decompose: raw.decompose.as_ref().map(|d| d.value.clone()),
         concurrency: raw.concurrency.as_ref().map(|s| s.value),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value),
@@ -937,6 +939,64 @@ fn analyze_task(
                     suggestion.as_deref(),
                 ));
             }
+        }
+    }
+
+    // Resolve on_error: fallback configuration
+    if let Some(ref on_error_raw) = raw.on_error {
+        let value = &on_error_raw.value;
+        let span = on_error_raw.span;
+
+        if let Some(serde_json::Value::Bool(true)) = value.get("ignore") {
+            task.on_error = Some(AnalyzedOnError {
+                action: OnErrorAction::Ignore,
+                span,
+            });
+        } else if let Some(serde_json::Value::String(provider_str)) =
+            value.get("retry_with_provider")
+        {
+            let provider = crate::ProviderName::parse(provider_str);
+            task.on_error = Some(AnalyzedOnError {
+                action: OnErrorAction::RetryWithProvider { provider },
+                span,
+            });
+        } else if let Some(serde_json::Value::String(fallback_name)) = value.get("fallback") {
+            if let Some(fallback_id) = task_table.get_id(fallback_name) {
+                task.on_error = Some(AnalyzedOnError {
+                    action: OnErrorAction::Fallback {
+                        task_id: fallback_id,
+                    },
+                    span,
+                });
+            } else if !ctx.is_included_task(fallback_name) {
+                let all_names: Vec<&str> = all_task_names.iter().map(|s| s.as_str()).collect();
+                let suggestion = find_similar(fallback_name, &all_names, 0.6);
+                ctx.add_error(AnalyzeError {
+                    kind: AnalyzeErrorKind::UnknownOnErrorFallback,
+                    span,
+                    message: format!(
+                        "on_error fallback references unknown task '{}'",
+                        fallback_name
+                    ),
+                    suggestion: suggestion.map(|s| format!("did you mean '{}'?", s)),
+                    note: Some(
+                        "The fallback task must be defined in the same workflow".to_string(),
+                    ),
+                });
+            }
+        } else {
+            ctx.add_error(AnalyzeError {
+                kind: AnalyzeErrorKind::InvalidValue,
+                span,
+                message: "on_error: must contain exactly one of: ignore, retry_with_provider, \
+                          or fallback"
+                    .to_string(),
+                suggestion: Some(
+                    "Example: on_error: { ignore: true } or on_error: { fallback: task_id }"
+                        .to_string(),
+                ),
+                note: None,
+            });
         }
     }
 

@@ -1064,6 +1064,21 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+
+    // ═══════════════════════════════════════════
+    // ON_ERROR FALLBACK
+    // ═══════════════════════════════════════════
+    /// Task-level on_error: fallback was triggered after primary execution + retries failed.
+    TaskFallbackTriggered {
+        task_id: Arc<str>,
+        /// Which on_error action fired: "ignore", "retry_with_provider", or "fallback"
+        action: String,
+        /// For retry_with_provider: the provider name. For fallback: the fallback task id.
+        target: String,
+        /// Whether the fallback itself succeeded.
+        success: bool,
+    },
+
     // DIAGNOSTICS (S6 telemetry)
     // ═══════════════════════════════════════════
     /// Template binding resolution failed before task execution.
@@ -1157,6 +1172,7 @@ impl EventKind {
             | Self::ForEachItemFailed { task_id, .. }
             | Self::TaskCancelled { task_id, .. }
             | Self::FallbackChainExhausted { task_id, .. }
+            | Self::TaskFallbackTriggered { task_id, .. }
             | Self::TemplateResolutionFailed { task_id, .. }
             | Self::RateLimitDelay { task_id, .. }
             | Self::SchemaLoadFailed { task_id, .. }

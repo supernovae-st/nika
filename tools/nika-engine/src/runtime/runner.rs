@@ -21,7 +21,7 @@ use tracing::{debug, info, instrument};
 use crate::media::CasStore;
 
 use crate::ast::analyzed::{
-    AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
+    AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, OnErrorAction,
     OutputFormat as AnalyzedOutputFormat,
 };
 use crate::ast::lower::{lower_action, lower_mcp_servers_with_resolver, lower_output};
@@ -1119,6 +1119,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         workflow_artifacts: Option<ArtifactsConfig>,
         base_path: PathBuf,
         workflow_base_url: Option<String>,
+        is_fallback_execution: bool,
     ) -> IterationResult {
         let start = Instant::now();
 
@@ -1501,13 +1502,152 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 Err(e) => {
                     // Drain any orphaned media refs (defense-in-depth)
                     let _ = datastore.take_media(&task_id);
+
+                    // Emit TaskFailed for the PRIMARY action (always, even if on_error fires)
                     event_log.emit(EventKind::TaskFailed {
                         task_id: Arc::clone(&task_id),
                         error: e.to_string(),
                         duration_ms: duration.as_millis() as u64,
                         error_code: Some(e.code().to_string()),
                     });
-                    TaskResult::failed(e.to_string(), duration)
+
+                    // ── on_error: fallback routing ──
+                    if !is_fallback_execution {
+                        if let Some(ref on_error) = task.on_error {
+                            match &on_error.action {
+                                OnErrorAction::Ignore => {
+                                    event_log.emit(EventKind::TaskFallbackTriggered {
+                                        task_id: Arc::clone(&task_id),
+                                        action: "ignore".into(),
+                                        target: String::new(),
+                                        success: true,
+                                    });
+                                    TaskResult::success(Value::Null, duration)
+                                }
+
+                                OnErrorAction::RetryWithProvider { provider } => {
+                                    let fb_action = lower_action(
+                                        &task.action,
+                                        &Some(provider.clone()),
+                                        &task.model.clone().or(effective_model.clone()),
+                                        &None,
+                                        &resolved_base_url,
+                                        &None,
+                                    );
+                                    let fb_result = executor
+                                        .execute(
+                                            &task_id,
+                                            &fb_action,
+                                            &bindings,
+                                            &datastore,
+                                            effective_output.as_ref(),
+                                        )
+                                        .await;
+                                    let fb_success = fb_result.is_ok();
+                                    event_log.emit(EventKind::TaskFallbackTriggered {
+                                        task_id: Arc::clone(&task_id),
+                                        action: "retry_with_provider".into(),
+                                        target: provider.as_str().to_string(),
+                                        success: fb_success,
+                                    });
+                                    match fb_result {
+                                        Ok(output) => {
+                                            make_task_result(
+                                                output,
+                                                effective_output.as_ref(),
+                                                duration,
+                                            )
+                                            .await
+                                        }
+                                        Err(fb_err) => TaskResult::failed(
+                                            format!(
+                                                "Primary: {}; Fallback({}): {}",
+                                                e,
+                                                provider.as_str(),
+                                                fb_err
+                                            ),
+                                            duration,
+                                        ),
+                                    }
+                                }
+
+                                OnErrorAction::Fallback {
+                                    task_id: fb_task_id,
+                                } => {
+                                    let fb_task = executor
+                                        .workflow_tasks()
+                                        .iter()
+                                        .find(|t| t.id == *fb_task_id);
+
+                                    if let Some(fb_task) = fb_task {
+                                        let fb_provider_chain = fb_task
+                                            .routing
+                                            .as_ref()
+                                            .filter(|r| r.fallback.len() > 1)
+                                            .map(|r| {
+                                                r.fallback
+                                                    .iter()
+                                                    .map(|s| nika_core::ProviderName::parse(s))
+                                                    .collect()
+                                            });
+                                        let fb_action = lower_action(
+                                            &fb_task.action,
+                                            &fb_task.provider,
+                                            &fb_task.model,
+                                            &None,
+                                            &fb_task.base_url,
+                                            &fb_provider_chain,
+                                        );
+                                        let fb_result = executor
+                                            .execute(
+                                                &task_id,
+                                                &fb_action,
+                                                &bindings,
+                                                &datastore,
+                                                effective_output.as_ref(),
+                                            )
+                                            .await;
+                                        let fb_success = fb_result.is_ok();
+                                        event_log.emit(EventKind::TaskFallbackTriggered {
+                                            task_id: Arc::clone(&task_id),
+                                            action: "fallback".into(),
+                                            target: fb_task.name.clone(),
+                                            success: fb_success,
+                                        });
+                                        match fb_result {
+                                            Ok(output) => {
+                                                make_task_result(
+                                                    output,
+                                                    effective_output.as_ref(),
+                                                    duration,
+                                                )
+                                                .await
+                                            }
+                                            Err(fb_err) => TaskResult::failed(
+                                                format!(
+                                                    "Primary: {}; Fallback({}): {}",
+                                                    e, fb_task.name, fb_err
+                                                ),
+                                                duration,
+                                            ),
+                                        }
+                                    } else {
+                                        TaskResult::failed(
+                                            format!(
+                                                "on_error fallback task not found: {:?}",
+                                                fb_task_id
+                                            ),
+                                            duration,
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            TaskResult::failed(e.to_string(), duration)
+                        }
+                    } else {
+                        TaskResult::failed(e.to_string(), duration)
+                    }
                 }
             }
         };
@@ -1840,6 +1980,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .collect();
             renderer.init_tasks(&task_ids, &task_deps);
         }
+
+        // Wire workflow tasks into executor for on_error: fallback lookups.
+        self.executor = self
+            .executor
+            .clone()
+            .with_workflow_tasks(self.workflow.tasks.clone());
 
         // Pending task indices — shrinks as tasks complete, so get_ready_tasks()
         // only checks remaining tasks instead of rescanning the full task list.
@@ -2439,6 +2585,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         workflow_artifacts,
                                         artifact_base_path,
                                         workflow_base_url,
+                                        false, // not a fallback execution
                                     ),
                                 )
                                 .catch_unwind()
@@ -2561,6 +2708,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             workflow_artifacts,
                             artifact_base_path,
                             workflow_base_url,
+                            false, // not a fallback execution
                         ))
                         .catch_unwind()
                         .await
@@ -3249,6 +3397,7 @@ mod tests {
                 span: Span::dummy(),
             }),
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -3404,6 +3553,7 @@ mod tests {
                     output: None,
                     for_each: None,
                     retry: None,
+                    on_error: None,
                     decompose: None,
                     concurrency: None,
                     fail_fast: None,
@@ -4119,6 +4269,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -4170,6 +4321,7 @@ mod tests {
                 span: Span::dummy(),
             }),
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -5120,6 +5272,7 @@ mod tests {
             output,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -5165,6 +5318,7 @@ mod tests {
             }),
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -6464,6 +6618,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -6515,6 +6670,7 @@ mod tests {
                 span: Span::dummy(),
             }),
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -6776,6 +6932,7 @@ mod tests {
                 span: Span::dummy(),
             }),
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -6818,6 +6975,7 @@ mod tests {
                 span: Span::dummy(),
             }),
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -7079,6 +7237,7 @@ mod tests {
                 backoff: Some(2.0),
                 span: Span::dummy(),
             }),
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -7195,6 +7354,7 @@ mod tests {
                 backoff: None,
                 span: Span::dummy(),
             }),
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -7302,6 +7462,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -7490,6 +7651,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -7521,6 +7683,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -7671,6 +7834,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,

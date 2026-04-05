@@ -1830,6 +1830,7 @@ fn validate_task_keys(
         "fail_fast",
         "timeout",
         "when",
+        "on_error",
         "skills",
         // 5 verb keys
         "infer",
@@ -2035,6 +2036,16 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let context_budget = get_u32_field(file_id, map, "context_budget")?;
     let when = get_string_field(file_id, map, "when")?;
 
+    // Parse on_error: config (task-level fallback routing)
+    let on_error = match map.get_node("on_error") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            let value = node_to_json(node);
+            Some(Spanned::new(value, span))
+        }
+        None => None,
+    };
+
     // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
     let standalone_concurrency = if for_each.is_none() {
         get_u32_field(file_id, map, "concurrency")?
@@ -2071,6 +2082,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         record,
         context_budget,
         when,
+        on_error,
     };
 
     Ok(Spanned::new(task, span))

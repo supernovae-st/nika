@@ -1492,6 +1492,33 @@ impl CliRenderer {
                 );
             }
 
+            // on_error: fallback triggered
+            EventKind::TaskFallbackTriggered {
+                task_id,
+                action,
+                target,
+                success,
+            } => {
+                let icon = if *success {
+                    "↩".yellow()
+                } else {
+                    "✗".red()
+                };
+                let detail = if target.is_empty() {
+                    action.to_string()
+                } else {
+                    format!("{}({})", action, target)
+                };
+                println!(
+                    "{} {} {}: on_error {} → {}",
+                    self.ts(),
+                    icon,
+                    task_id,
+                    detail,
+                    if *success { "recovered" } else { "failed" }
+                );
+            }
+
             // ═══════════════════════════════════════
             // SECURITY
             // ═══════════════════════════════════════

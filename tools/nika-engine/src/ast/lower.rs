@@ -684,6 +684,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             output,
             for_each,
             retry: unlower_retry(&task.action),
+            on_error: None,
             decompose: task.decompose.clone(),
             concurrency: task
                 .concurrency
@@ -998,6 +999,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,
@@ -1062,6 +1064,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,

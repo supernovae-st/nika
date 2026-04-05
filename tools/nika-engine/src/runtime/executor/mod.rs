@@ -113,6 +113,8 @@ pub struct TaskExecutor {
     cookie_jar: Arc<reqwest_cookie_store::CookieStoreRwLock>,
     /// HTTP response cache for ETag / If-Modified-Since conditional requests.
     fetch_cache: Arc<crate::runtime::fetch_cache::FetchCache>,
+    /// Workflow task list for on_error: fallback lookups.
+    workflow_tasks: Arc<Vec<nika_core::ast::analyzed::AnalyzedTask>>,
 }
 
 impl TaskExecutor {
@@ -272,6 +274,7 @@ impl TaskExecutor {
             domain_rate_limiter,
             cookie_jar,
             fetch_cache,
+            workflow_tasks: Arc::new(Vec::new()),
         })
     }
 
@@ -434,6 +437,20 @@ impl TaskExecutor {
     /// Look up a resolved agent preset by name.
     pub fn get_preset(&self, name: &str) -> Option<&crate::runtime::resolver::ResolvedAgent> {
         self.resolved_agents.get(name)
+    }
+
+    /// Set workflow tasks for on_error: fallback lookups.
+    pub fn with_workflow_tasks(
+        mut self,
+        tasks: Vec<nika_core::ast::analyzed::AnalyzedTask>,
+    ) -> Self {
+        self.workflow_tasks = Arc::new(tasks);
+        self
+    }
+
+    /// Access workflow tasks (for on_error: fallback resolution at runtime).
+    pub fn workflow_tasks(&self) -> &[nika_core::ast::analyzed::AnalyzedTask] {
+        &self.workflow_tasks
     }
 
     /// Inject a mock MCP client for testing

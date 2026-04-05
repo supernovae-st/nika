@@ -63,8 +63,8 @@ mod workflow;
 pub use ids::{TaskId, TaskTable};
 pub use task::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
-    AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedOutput, AnalyzedRetry, AnalyzedTask,
-    AnalyzedTaskAction, HttpMethod, OutputFormat,
+    AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedOnError, AnalyzedOutput, AnalyzedRetry,
+    AnalyzedTask, AnalyzedTaskAction, HttpMethod, OnErrorAction, OutputFormat,
 };
 pub use workflow::{
     AnalyzedContextFile, AnalyzedIncludeSpec, AnalyzedMcpServer, AnalyzedWorkflow, McpFromSource,
@@ -97,6 +97,7 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            on_error: None,
             decompose: None,
             concurrency: None,
             fail_fast: None,

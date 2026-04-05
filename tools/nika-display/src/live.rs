@@ -1617,6 +1617,33 @@ impl LiveRenderer {
                 ));
             }
 
+            // on_error: fallback triggered
+            EventKind::TaskFallbackTriggered {
+                task_id,
+                action,
+                target,
+                success,
+            } => {
+                let icon = if *success {
+                    "↩".yellow()
+                } else {
+                    "✗".red()
+                };
+                let detail = if target.is_empty() {
+                    action.to_string()
+                } else {
+                    format!("{}({})", action, target)
+                };
+                self.log(&format!(
+                    "{} {} {}: on_error {} → {}",
+                    self.ts(),
+                    icon,
+                    task_id,
+                    detail,
+                    if *success { "recovered" } else { "failed" }
+                ));
+            }
+
             // S6 diagnostics
             EventKind::TemplateResolutionFailed { task_id, error, .. } => {
                 self.log(&format!(

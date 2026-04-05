@@ -179,6 +179,8 @@ pub enum AnalyzeErrorKind {
     InvalidBinding,
     /// NIKA-034: model: required when infer/agent verb is used
     MissingModel,
+    /// NIKA-290: on_error: fallback references a task that does not exist
+    UnknownOnErrorFallback,
 }
 
 impl AnalyzeErrorKind {
@@ -205,6 +207,7 @@ impl AnalyzeErrorKind {
             Self::UnsupportedFeature => "NIKA-149",
             Self::InvalidBinding => "NIKA-151",
             Self::MissingModel => "NIKA-034",
+            Self::UnknownOnErrorFallback => "NIKA-290",
         }
     }
 }
