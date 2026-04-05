@@ -65,9 +65,12 @@ pub struct StatusResponse {
 #[derive(Serialize, JsonSchema)]
 pub struct JobListResponse {
     pub jobs: Vec<StatusResponse>,
-    pub total: usize,
+    /// Number of jobs in this response (page size, not total count).
+    pub count: usize,
     pub limit: i64,
     pub offset: i64,
+    /// True if more results exist beyond this page.
+    pub has_more: bool,
 }
 
 /// Query parameters for `GET /v1/jobs`.
@@ -314,13 +317,21 @@ pub async fn cancel_job(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// `POST /v1/batch/run` -- Submit multiple workflows for execution.
+///
+/// Two-pass: validates ALL requests first, then submits. No partial failures.
 pub async fn batch_run(
     State(state): State<AppState>,
     Json(requests): Json<Vec<RunRequest>>,
 ) -> Result<Json<Vec<RunResponse>>, ServeError> {
     let max_batch = std::env::var("NIKA_SERVE_BATCH_MAX")
         .ok()
-        .and_then(|s| s.parse().ok())
+        .and_then(|s| {
+            let parsed = s.parse::<usize>();
+            if parsed.is_err() {
+                tracing::warn!(value = %s, "invalid NIKA_SERVE_BATCH_MAX, using default");
+            }
+            parsed.ok()
+        })
         .unwrap_or(MAX_BATCH_SIZE);
 
     if requests.is_empty() {
@@ -334,14 +345,60 @@ pub async fn batch_run(
         )));
     }
 
+    // Pass 1: validate ALL requests before submitting any
+    let canonical_base = state
+        .config
+        .workflows_dir
+        .canonicalize()
+        .map_err(|e| ServeError::Config(format!("workflows_dir canonicalize: {e}")))?;
+
+    for (i, req) in requests.iter().enumerate() {
+        validate_workflow_path(&req.workflow)
+            .map_err(|e| ServeError::InvalidWorkflow(format!("batch[{}]: {}", i, e)))?;
+        let full_path = state.config.workflows_dir.join(&req.workflow);
+        let canonical = full_path.canonicalize().map_err(|_| {
+            ServeError::InvalidWorkflow(format!(
+                "batch[{}]: workflow not found: {}",
+                i, req.workflow
+            ))
+        })?;
+        if !canonical.starts_with(&canonical_base) {
+            return Err(ServeError::InvalidWorkflow(format!(
+                "batch[{}]: path traversal rejected",
+                i
+            )));
+        }
+    }
+
+    // Check queue capacity for the entire batch
+    let max_queued = state.config.max_concurrent * 3;
+    let current = state.active_jobs.load(std::sync::atomic::Ordering::Relaxed);
+    if current + requests.len() > max_queued {
+        return Err(ServeError::QueueFull(current));
+    }
+
+    // Pass 2: submit all (validation already passed)
     let mut responses = Vec::with_capacity(requests.len());
     for req in requests {
-        // Reuse the same validation + submission logic
         let resp = run_workflow(State(state.clone()), Json(req)).await?;
         responses.push(resp.0);
     }
 
     Ok(Json(responses))
+}
+
+/// Validate a tag key: alphanumeric + underscore, 1-128 chars.
+fn validate_tag_key(key: &str) -> Result<(), ServeError> {
+    if key.is_empty()
+        || key.len() > 128
+        || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(ServeError::InvalidWorkflow(format!(
+            "invalid tag key: '{}' (must be alphanumeric/underscore, 1-128 chars)",
+            key
+        )));
+    }
+    Ok(())
 }
 
 /// `GET /v1/jobs` -- List jobs with optional filtering.
@@ -351,14 +408,19 @@ pub async fn list_jobs(
 ) -> Result<Json<JobListResponse>, ServeError> {
     let state_filter = query.state.as_deref().map(nika_storage::JobState::parse);
 
-    let tag_filter = query.tag.as_deref().and_then(|t| {
+    let tag_filter = if let Some(ref t) = query.tag {
         let parts: Vec<&str> = t.splitn(2, ':').collect();
         if parts.len() == 2 {
+            validate_tag_key(parts[0])?;
             Some((parts[0].to_string(), parts[1].to_string()))
         } else {
-            None
+            return Err(ServeError::InvalidWorkflow(
+                "tag filter must be key:value format (e.g. tag=env:staging)".into(),
+            ));
         }
-    });
+    } else {
+        None
+    };
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0);
@@ -367,20 +429,25 @@ pub async fn list_jobs(
         state: state_filter,
         workflow: query.workflow,
         tag: tag_filter,
-        limit: Some(limit),
+        limit: Some(limit + 1), // fetch one extra to detect has_more
         offset: Some(offset),
     };
 
-    let jobs = state.storage.list_jobs_filtered(filter).await?;
-    let total = jobs.len();
+    let mut jobs = state.storage.list_jobs_filtered(filter).await?;
+    let has_more = jobs.len() as i64 > limit;
+    if has_more {
+        jobs.truncate(limit as usize);
+    }
+    let count = jobs.len();
 
     let job_responses: Vec<StatusResponse> = jobs.into_iter().map(job_to_status_response).collect();
 
     Ok(Json(JobListResponse {
         jobs: job_responses,
-        total,
+        count,
         limit,
         offset,
+        has_more,
     }))
 }
 
