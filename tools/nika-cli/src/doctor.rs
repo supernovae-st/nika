@@ -186,7 +186,7 @@ fn check_vault_health() -> DiagnosticCheck {
         Err(e) => DiagnosticCheck::fail(
             "Vault",
             format!("Vault cannot be decrypted: {e}"),
-            "Run 'nika provider vault-reset' to start fresh, or set NIKA_VAULT_PASSPHRASE",
+            "Set NIKA_VAULT_PASSPHRASE or delete ~/.nika/secrets/vault.enc to start fresh",
         ),
     }
 }

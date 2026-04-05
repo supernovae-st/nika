@@ -546,7 +546,7 @@ impl NikaVault {
                 "decrypt failed: {e}. \
                  The vault was created with a different passphrase or machine. \
                  Fix: (1) set NIKA_VAULT_PASSPHRASE to the original passphrase, \
-                 (2) run `nika vault reset` to start fresh, or \
+                 (2) delete ~/.nika/secrets/vault.enc to start fresh, or \
                  (3) use env vars (e.g. ANTHROPIC_API_KEY) instead."
             ))
         })?;
