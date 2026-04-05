@@ -206,7 +206,6 @@ Snapshot drift accepted (2 snapshots: improved error messages).
 ```
 type(scope): concise description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

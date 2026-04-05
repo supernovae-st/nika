@@ -171,7 +171,6 @@ Look for `bool` flags that could be type-state patterns (e.g., `loading: bool` �
 - Pre-commit hook uses git stash/pop — stage ALL related files in one `git add`
 - Commits: `type(scope): desc` with both co-authors:
   ```
-  Co-Authored-By: Claude <noreply@anthropic.com>
   Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   ```
 - 1 logical change = 1 commit (but file moves can batch)

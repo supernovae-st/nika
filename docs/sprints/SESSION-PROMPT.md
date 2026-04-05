@@ -45,7 +45,6 @@ cat docs/sprints/README.md
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 1 fix = 1 commit. Granulaire. Push quand le sprint est complet + tests verts.

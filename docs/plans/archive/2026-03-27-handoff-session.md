@@ -177,7 +177,6 @@ Read handoff → Read v3 plan → Execute task-by-task → Verify → Push
 ```
 type(scope): concise description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

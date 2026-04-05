@@ -348,8 +348,7 @@ Add guardrails to InferParams and AgentParams.
 Add completion and limits to AgentParams.
 Add resource to InvokeParams.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>"
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
 ---
@@ -515,8 +514,7 @@ Parse them in parse_agent_action via serde deserialization.
 Carry through AnalyzedAgentAction in analyze_agent.
 Forward in lower_agent instead of hardcoding None/empty.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>"
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
 ---
@@ -685,8 +683,7 @@ git commit -m "test(gates): add gate examples for guardrails, completion, limits
 
 7 new gate examples covering features that were missing test coverage.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>"
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
 ---
@@ -765,8 +762,7 @@ Expected: All pass.
 git add tools/nika/src/ast/raw/parser.rs tools/nika/src/ast/lower.rs
 git commit -m "test(ast): add unit tests for agent guardrails/completion/limits pipeline
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>"
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
 ---

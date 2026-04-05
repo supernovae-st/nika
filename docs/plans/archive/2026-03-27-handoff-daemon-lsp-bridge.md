@@ -200,7 +200,6 @@ cd editors/vscode && npm run compile             # Extension builds
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

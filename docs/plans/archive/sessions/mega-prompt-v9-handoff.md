@@ -379,7 +379,6 @@ type(scope): description concise
 
 Détails optionnels.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

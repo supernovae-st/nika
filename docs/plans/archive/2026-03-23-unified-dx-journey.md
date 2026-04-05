@@ -431,7 +431,6 @@ New module handles Phase 1 of unified init: detects editors/AI tools,
 installs extensions/rules/completions automatically. Tracks state via
 ~/.nika/machine.toml. No questions asked — detect and install.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -480,7 +479,6 @@ nika init now runs machine setup automatically before project wizard.
 Phase 1 (machine) skipped if ~/.nika/machine.toml exists and version matches.
 Removed setup_editors/setup_ai questions — machine setup handles this silently.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -540,7 +538,6 @@ git commit -m "feat(doctor): add --fix flag to auto-repair machine setup
 nika doctor --fix runs machine auto-setup to fix missing extensions,
 AI rules, and completions. Suggests re-running doctor to verify.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -615,7 +612,6 @@ Bare nika now shows:
 - No project: compact command reference (init/run/doctor/help)
 - Has project: help (or TUI when compiled)
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

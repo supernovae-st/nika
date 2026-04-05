@@ -312,7 +312,6 @@ Claude/Gemini/Mistral still use tool injection.
 
 Fixes NIKA-061 failures when provider: openai with structured: blocks.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -466,7 +465,6 @@ Renamed: import_loader.rs → include_loader.rs
 Renamed: expand_imports() → expand_include()
 Updated: ~45 tests, 10 source files
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -554,7 +552,6 @@ git commit -m "fix(runtime): resolve templates in model: field for infer + agent
 model: '{{inputs.deep_model}}' now resolves to the actual model name.
 Previously, the literal template string was passed to the provider.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -646,7 +643,6 @@ without extended thinking. Users can write provider-agnostic workflows
 with extended_thinking: true — it activates on Claude, silently
 degrades on OpenAI/Gemini/etc.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -724,7 +720,6 @@ Each layer attempt now emits events with layer number, success/fail,
 error details, and output preview. NIKA-061 error message includes
 attempt count, layer statuses, and actionable suggestion.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

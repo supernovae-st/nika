@@ -1274,56 +1274,48 @@ Lance **3 agents en parallèle** :
 ```
 feat(daemon): add LSP query protocol — ListProviderStatus, EstimateCost, GetWorkflowHistory, GetDaemonCapabilities
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 feat(lsp): create daemon bridge with graceful degradation
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 feat(lsp): wire daemon data into completions, hover, inlay hints, code lens, diagnostics
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 feat(lsp): event subscription for live updates
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 feat(lsp-core): rename handler for task ID refactoring
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 feat(lsp): last-valid-AST caching for broken YAML resilience
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 feat(extension): status bar + output channel + 7 new snippets
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ```
 test(lsp): daemon bridge tests + e2e daemon-powered tests
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

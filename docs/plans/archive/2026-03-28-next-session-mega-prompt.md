@@ -49,7 +49,6 @@ Pour CHAQUE fix:
 ```
 fix(scope): description concise
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

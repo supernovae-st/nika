@@ -358,8 +358,7 @@ git push && git push --tags
 2. TDD: test FAIL → fix → test PASS → full suite → commit
 3. 1 fix = 1 commit (jamais de batch non-relie)
 4. Co-authors TOUJOURS:
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   Co-Authored-By: Nika <nika@supernovae.studio>
+   Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 5. git push apres 2-3 commits
 6. cargo clippy --workspace -- -D warnings → ZERO
 7. JAMAIS commiter du code qui ne compile pas
@@ -373,8 +372,7 @@ git push && git push --tags
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 Types: feat, fix, refactor, test, perf, docs, chore, ci, style

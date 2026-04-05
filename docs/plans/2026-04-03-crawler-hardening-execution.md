@@ -77,7 +77,6 @@ Expected: PASS (fields added but not yet used — no compile errors).
 git add nika-engine/src/runtime/executor/mod.rs
 git commit -m "feat(fetch): add robots_cache + domain_rate_limiter fields to TaskExecutor
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -241,7 +240,6 @@ async fn wiremock_fetch_no_robots_txt_allows_all() {
 git add nika-engine/src/runtime/executor/tests_wiremock.rs
 git commit -m "test(fetch): add robots.txt wiremock tests (RED for blocked case)
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -329,7 +327,6 @@ Robots check after SSRF validation, before HTTP request.
 Rate limiting per-domain via governor token bucket.
 Both are always-on (10 req/s default).
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -381,7 +378,6 @@ Expected: PASS (Default handles the remaining test sites).
 git add nika-core/src/ast/raw/action.rs nika-core/src/ast/raw/parser.rs
 git commit -m "feat(ast): add session and cache fields to RawFetchAction
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -441,7 +437,6 @@ Expected: PASS.
 git add -A  # All modified files
 git commit -m "feat(ast): add session and cache to AnalyzedFetchAction + analyzer
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -507,7 +502,6 @@ Expected: 9695+ pass, 0 fail (all existing tests still pass with `session: None,
 git add -A
 git commit -m "feat(ast): add session and cache to FetchParams + lowering
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -650,7 +644,6 @@ Expected: FAIL — cookie jar not yet integrated into fetch.rs.
 git add nika-engine/src/runtime/executor/tests_wiremock.rs
 git commit -m "test(fetch): add cookie session wiremock tests (RED)
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -740,7 +733,6 @@ Shared CookieStoreRwLock in TaskExecutor, wired into reqwest
 client builder when session: true. Cookies persist across
 fetch tasks within the same workflow run.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -861,7 +853,6 @@ Expected: FAIL — cache not wired into fetch.rs.
 git add nika-engine/src/runtime/executor/tests_wiremock.rs
 git commit -m "test(fetch): add ETag cache wiremock tests (RED)
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1000,7 +991,6 @@ FetchCache stores response body + ETag + Last-Modified per URL.
 On repeat fetch with cache: true, sends If-None-Match header.
 304 responses return cached body without re-downloading.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1167,7 +1157,6 @@ Expected: Should PASS if the existing for_each implementation correctly handles 
 git add nika-engine/src/runtime/runner.rs
 git commit -m "test(runtime): verify PartialSuccess for_each preserves order with nulls (BUG-040)
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1313,7 +1302,6 @@ Verifies: content_hash determinism, unique_urls with non-URLs,
 starts_with/ends_with/contains type errors, aggregate non-numeric
 handling, json_query BUG-037 empty result.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1392,7 +1380,6 @@ Find the `response` field definition and update:
 git add nika-engine/schemas/nika-workflow.schema.json
 git commit -m "docs(schema): add slim response mode, session and cache fetch fields
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

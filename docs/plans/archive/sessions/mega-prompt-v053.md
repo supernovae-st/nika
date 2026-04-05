@@ -451,7 +451,6 @@ git push && git push --tags
 2. TDD: test FAIL → fix → PASS → suite → commit
 3. 1 fix = 1 commit (sauf si vraiment couple)
 4. Co-authors:
-   Co-Authored-By: Claude <noreply@anthropic.com>
    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 5. Push toutes les 2-3 commits
 6. clippy ZERO warnings (--all-targets --all-features)

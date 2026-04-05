@@ -436,7 +436,6 @@ Check if `nika-engine/schemas/nika-workflow.schema.json` and `nika/schemas/nika-
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

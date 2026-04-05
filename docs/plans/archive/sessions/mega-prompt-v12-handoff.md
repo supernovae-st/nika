@@ -359,8 +359,7 @@ TESTS
 COMMITS
   4. 1 fix = 1 commit (jamais de batch non-relie)
   5. Co-authors TOUJOURS:
-     Co-Authored-By: Claude <noreply@anthropic.com>
-     Co-Authored-By: Nika <nika@supernovae.studio>
+     Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   6. git push apres 2-3 commits
   7. cargo clippy --workspace -- -D warnings -> ZERO warnings
 

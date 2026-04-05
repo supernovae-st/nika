@@ -186,7 +186,6 @@ Il importe: `use nika::display::{hint, status_line, tree_connector, StatusIcon};
 - Scopes: tui, ast, runtime, mcp, provider, dag, event, cli, daemon
 - TOUJOURS les 2 Co-Authored-By:
   ```
-  Co-Authored-By: Claude <noreply@anthropic.com>
   Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   ```
 - `cargo fmt -p <crate>` AVANT `git add`

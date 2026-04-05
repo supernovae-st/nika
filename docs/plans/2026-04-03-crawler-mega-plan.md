@@ -18,7 +18,6 @@ VERIFY:   cargo fmt --all --check && cargo clippy --workspace --all-targets -- -
 
 ### Co-author lines (every commit)
 ```
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

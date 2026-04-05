@@ -543,7 +543,6 @@ git push && git push --tags
 4. 1 fix = 1 commit (sauf si vraiment couple)
 5. Conventional commits: type(scope): description
 6. Co-authors OBLIGATOIRES:
-   Co-Authored-By: Claude <noreply@anthropic.com>
    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 7. Push toutes les 2-3 commits
 8. Si bloque 3x sur le meme probleme → skip + note dans CHANGELOG

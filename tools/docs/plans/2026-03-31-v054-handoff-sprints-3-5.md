@@ -395,8 +395,7 @@ Working directory: /Users/thibaut/dev/supernovae/nika/tools
 - ALWAYS `cargo test --workspace --lib` (--lib to avoid keychain)
 - 1 fix = 1 commit, conventional commits: `fix(scope): description`
 - Co-authors on every commit:
-  Co-Authored-By: Claude <noreply@anthropic.com>
-  Co-Authored-By: Nika <nika@supernovae.studio>
+  Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 - Read files before editing. Understand before modifying.
 - If a fix is risky or unclear, skip it and document why in the handoff.
 - Push after each sprint completes.

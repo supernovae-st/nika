@@ -85,7 +85,6 @@ cargo clippy --workspace        ← doit etre clean
 - **Commit format :** `fix(serve): description courte`
 - **Co-authors :**
   ```
-  Co-Authored-By: Claude <noreply@anthropic.com>
   Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   ```
 

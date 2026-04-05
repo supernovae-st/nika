@@ -140,7 +140,6 @@ feat(mcp): read .mcp.json (Claude Code convention) for project MCP servers
 Follow the emerging convention used by Claude Code and Cursor.
 .mcp.json at project root > .nika/mcp.yaml (legacy) > ~/.nika/mcp.yaml (global).
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
@@ -170,7 +169,6 @@ Any hits = update them.
 ```
 docs: final sweep — verify all references use nika.toml, update AGENTS.md template
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
@@ -188,7 +186,6 @@ Use these skills:
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

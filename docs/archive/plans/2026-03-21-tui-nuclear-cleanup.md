@@ -52,7 +52,6 @@ git commit -m "fix(tui): wire animation frame to StatusBar
 - StatusBar.frame was never set, causing frozen spinners
 - Now receives state.frame for connecting/phase animations
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -101,7 +100,6 @@ git commit -m "fix(tui): use real MCP connection state in StatusBar
 - Now uses connected_count() for real connection state
 - Shows Connecting when servers configured but not yet connected
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -160,7 +158,6 @@ git commit -m "fix(tui): show view-specific context in Header
 - Command: current provider/model name
 - Control: 'Settings'
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -215,7 +212,6 @@ git commit -m "feat(tui): wire ContextAssembled data to MissionControl
 - context_items now populated from ContextAssembled events
 - MissionControl shows loaded/excluded context sources
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -306,7 +302,6 @@ git commit -m "refactor(tui): remove 7 dead widget files
 - VerbIndicator: never rendered
 - InfoPanel, TaskFlowPanel, TaskListPanel: never rendered
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -431,7 +426,6 @@ git commit -m "feat(tui): use catppuccin crate for Mocha palette
 - Ensures exact color match with official Catppuccin spec
 - Intro particles use catppuccin accents
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

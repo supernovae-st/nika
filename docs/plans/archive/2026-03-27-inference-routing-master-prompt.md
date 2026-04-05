@@ -115,7 +115,6 @@ If a test fails, FIX IT before moving on. Never skip failing tests.
 ```
 type(scope): concise description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

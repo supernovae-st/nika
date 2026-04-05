@@ -237,7 +237,6 @@ chore: bump to v0.66.0 + CHANGELOG
 
 Co-Author lines on every commit:
 ```
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

@@ -16,8 +16,7 @@ Tu es charge de fixer 5 bugs critiques dans le moteur Nika (v0.49.0). Chaque bug
 
 **Git workflow:** 1 fix = 1 commit. Format: `type(scope): description`. Co-authors obligatoires:
 ```
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 **Skills a utiliser:** `@rust-core`, `@test-driven-development`, `@spn-powers:executing-plans`

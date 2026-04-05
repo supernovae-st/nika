@@ -3094,7 +3094,6 @@ Question → Research → Skills → Test → Code → Verify → Commit
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

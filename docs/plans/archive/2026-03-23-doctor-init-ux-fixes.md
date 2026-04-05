@@ -192,7 +192,6 @@ git commit -m "fix(doctor): add sectioned output (Core, Editor & LSP, AI, Enviro
 Groups checks into 4 sections with headers. Adds 'Next steps' footer
 pointing users to nika setup. Includes section field in JSON output.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -312,7 +311,6 @@ AI Rules and Agent Skills now clearly show which scope they're installed at.
 Warns when project-level skills exist but user-level are missing (invisible
 to AI agents like Claude Code).
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -416,7 +414,6 @@ Replaces cfg!() compile-time check with runtime verification:
 2. Probes nika lsp --help to verify LSP actually works
 Fails loudly if PATH is missing instead of false-positive pass.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -512,7 +509,6 @@ git commit -m "fix(doctor): replace MCP connectivity stub with real check
 Checks npx availability and scans for MCP-enabled workflows. No longer
 returns a fake PASS. Reports actual MCP readiness.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -615,7 +611,6 @@ After mode/permission selection, wizard now asks:
 - Install AI coding rules? (Claude/Cursor/Copilot) → runs nika setup ai
 Both default to yes. Skipped in --yes mode.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -678,7 +673,6 @@ When warnings or failures exist, shows:
   2. nika setup → configure editors + AI tools
   3. nika doctor → verify everything works
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -702,7 +696,6 @@ cargo clippy -p nika-cli -- -D warnings
 git add -A
 git commit -m "fix: clippy + test fixes for doctor/init UX batch
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

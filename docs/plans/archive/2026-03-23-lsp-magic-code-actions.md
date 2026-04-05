@@ -456,7 +456,6 @@ Adds code_actions_with_diagnostics() supporting NIKA-140 (unknown task
 with fuzzy match), NIKA-141 (duplicate → rename), NIKA-142 (schema fix),
 NIKA-145 (missing field), NIKA-034 (missing model with provider-aware default).
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -581,7 +580,6 @@ git commit -m "feat(lsp): wire diagnostic-linked code actions in nika-lsp backen
 Converts LSP Diagnostics to DiagnosticInfo and passes them through to
 code_actions_with_diagnostics for NIKA-140/141/142/145/034 quick fixes.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -771,7 +769,6 @@ git commit -m "feat(lsp): add CodeLens handler to nika-lsp-core
 Ported from nika-engine embedded LSP. Shows Run, Validate, and task count
 badges. Protocol-agnostic pure function.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -845,7 +842,6 @@ git commit -m "feat(lsp): wire CodeLens in nika-lsp backend
 Registers code_lens_provider capability. Shows Run/Validate/TaskCount
 lenses on schema:, workflow:, and tasks: lines.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1197,7 +1193,6 @@ git commit -m "feat(lsp): add InlayHints handler to nika-lsp-core
 Ports 5 hints from embedded LSP (timeout, bindings, depends_on, max_turns,
 concurrency) and adds model cost annotation showing provider + $/M pricing.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1265,7 +1260,6 @@ git commit -m "feat(lsp): wire InlayHints in nika-lsp backend
 Registers inlay_hint_provider. Shows timeout units, binding sources,
 dep counts, iteration counts, concurrency labels, and model cost.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1312,7 +1306,6 @@ git commit -m "feat(vscode): register nika.showTasks command for CodeLens
 
 The task count CodeLens now focuses the Outline panel when clicked.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1350,7 +1343,6 @@ cargo test --workspace --lib
 git add -A
 git commit -m "fix(lsp): clippy + test fixes for code actions batch
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

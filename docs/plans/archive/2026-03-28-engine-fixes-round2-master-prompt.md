@@ -514,6 +514,5 @@ nika run main.nika.yaml \
 ## CO-AUTHORS
 
 ```
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```

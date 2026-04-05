@@ -27,7 +27,6 @@ cargo test --workspace --lib 2>&1 | tail -10
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 - **1 fix = 1 commit** — never batch unrelated fixes

@@ -52,7 +52,6 @@ Smoke:      41 pass, 1 security issue (G06), 1 skip (media-thumbnail feature)
 1. **TDD** — test failing d'abord, fix, verify
 2. **1 fix = 1 commit** — `type(scope): description` + co-authors :
    ```
-   Co-Authored-By: Claude <noreply@anthropic.com>
    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
    ```
 3. **`cargo test --workspace --lib`** DOIT passer apres CHAQUE fix

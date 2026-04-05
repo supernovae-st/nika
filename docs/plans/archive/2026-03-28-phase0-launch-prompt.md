@@ -32,7 +32,6 @@ Tu vas implémenter Phase 0: Stabilize (v0.50) — réparer ce qui est cassé, d
 ## Co-author lines (OBLIGATOIRE sur chaque commit)
 
 ```
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

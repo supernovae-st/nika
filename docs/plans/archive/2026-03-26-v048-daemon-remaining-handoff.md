@@ -442,7 +442,7 @@ cargo clippy --all-targets --all-features       # Zero warnings
 - NIKA-160-164: Reserved for nika-core ParseErrorKind
 - nika-core is ZERO I/O
 - nika-daemon does NOT depend on nika-engine
-- Co-authors: `Claude <noreply@anthropic.com>` + `Nika 🦋 <nika@supernovae.studio>`
+- Co-author: `Nika 🦋 <nika@supernovae.studio>`
 - 1 fix = 1 commit, push every 3-5 commits
 - AGPL-3.0 license on all crates
 

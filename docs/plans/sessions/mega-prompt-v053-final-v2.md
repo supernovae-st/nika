@@ -359,7 +359,6 @@ Quand task a `structured:`, generer JSON valide depuis schema.
 2. cargo clippy --workspace --all-targets --all-features -- -D warnings
 3. TDD: test ROUGE → fix → test VERT → commit
 4. 1 fix = 1 commit
-5. Co-Authored-By: Claude <noreply@anthropic.com>
    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 6. Push toutes les 2-3 commits
 7. JAMAIS marquer done sans test

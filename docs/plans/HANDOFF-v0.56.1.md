@@ -17,7 +17,6 @@ Tu fixes tout ce qui est cassé dans la CI et le repo après la release v0.56.0.
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 4. **Ne touche PAS** au code non concerné par le fix

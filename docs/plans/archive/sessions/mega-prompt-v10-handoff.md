@@ -292,7 +292,6 @@ Logique: DX d'abord (impact immédiat sur tous les utilisateurs AI), puis runtim
 6. cargo clippy --workspace -- -D warnings → 0 warnings
 7. git commit: type(scope): description
 8. Co-authors TOUJOURS:
-   Co-Authored-By: Claude <noreply@anthropic.com>
    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 9. git push après 2-3 commits
 10. Update progress.md

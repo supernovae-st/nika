@@ -410,7 +410,7 @@ Idempotency:
 
 if [ -d ".nika" ] && ! grep -q "Co-Authored-By: Nika" "$1"; then
   echo "" >> "$1"
-  echo "Co-Authored-By: Nika <nika@supernovae.studio>" >> "$1"
+  echo "Co-Authored-By: Nika 🦋 <nika@supernovae.studio>" >> "$1"
 fi
 ```
 
@@ -699,7 +699,7 @@ Run `nika ui` for the interactive terminal UI.
 # Nika: auto-add co-author line (installed by `nika init`)
 if ! grep -q "Co-Authored-By: Nika" "$1"; then
   echo "" >> "$1"
-  echo "Co-Authored-By: Nika <nika@supernovae.studio>" >> "$1"
+  echo "Co-Authored-By: Nika 🦋 <nika@supernovae.studio>" >> "$1"
 fi
 ```
 

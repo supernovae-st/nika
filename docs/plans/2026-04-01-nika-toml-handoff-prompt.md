@@ -26,7 +26,6 @@ Use these superpowers skills IN ORDER:
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 Types: feat, fix, refactor. Scopes: runtime, cli, tui, serve.
@@ -328,7 +327,6 @@ Replace .nika/config.toml with nika.toml at project root.
 Discovery: nika.toml (primary) > .nika/ (legacy fallback) > defaults.
 Merge: CLI flags > env vars > nika.toml > ~/.nika/config.toml > defaults.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

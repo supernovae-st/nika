@@ -35,7 +35,6 @@ H100 GPU:        51.159.153.241 (UP, Qwen3.5-27B)
 6. Lire le code AVANT de modifier
 
 ```
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 

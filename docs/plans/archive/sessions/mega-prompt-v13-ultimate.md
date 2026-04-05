@@ -507,8 +507,7 @@ type(scope): description concise
 
 Details optionnels.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 **Types**: `feat`, `fix`, `refactor`, `test`, `perf`, `docs`, `chore`, `ci`

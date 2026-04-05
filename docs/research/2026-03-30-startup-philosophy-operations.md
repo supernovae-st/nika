@@ -307,8 +307,7 @@ Fixes executor panic when include chains form cycles.
 
 closes ENG-123
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ### GitHub Action: Auto-Link PRs to Linear Issues

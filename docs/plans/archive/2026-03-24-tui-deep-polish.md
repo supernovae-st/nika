@@ -332,7 +332,6 @@ The content hash cache in `render_dag.rs:119-128` should handle this.
 - `cargo test -p nika-tui --lib` before EVERY commit (must stay at 2091+, ideally grow)
 - Commits: `type(scope): desc` with both co-authors:
   ```
-  Co-Authored-By: Claude <noreply@anthropic.com>
   Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   ```
 - 1 logical change = 1 commit

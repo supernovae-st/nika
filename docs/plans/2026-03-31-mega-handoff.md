@@ -116,7 +116,6 @@ Quality > Speed | Research > Assumption | Question > Code | Test > Implement | V
 ```
 type(scope): concise description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 **Types**: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `style`

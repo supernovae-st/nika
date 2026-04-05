@@ -233,8 +233,7 @@ type(scope): concise description
 
 [optional body]
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ### Types

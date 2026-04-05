@@ -322,7 +322,6 @@ git add tools/nika-engine/src/provider/endpoints.rs tools/nika-engine/src/provid
 # If Cargo.toml changed: git add tools/nika-engine/Cargo.toml
 git commit -m "feat(provider): add CustomEndpointConfig and URL validation for OpenAI-compatible servers
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -454,7 +453,6 @@ Expected: All tests PASS (existing + new).
 git add tools/nika-engine/src/config.rs
 git commit -m "feat(config): add endpoints field to NikaConfig for custom OpenAI-compatible servers
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -506,7 +504,6 @@ Expected: All existing error tests PASS. No new tests needed — these variants 
 git add tools/nika-engine/src/error_domains.rs
 git commit -m "feat(error): add NIKA-035 (endpoint not found) and NIKA-036 (endpoint connection failed)
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -551,7 +548,6 @@ Expected: Some tests may fail due to Default trait or struct initialization. Fix
 git add tools/nika-core/src/ast/raw/workflow.rs tools/nika-core/src/ast/raw/task.rs
 git commit -m "feat(ast): add base_url field to RawWorkflow and RawTask
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -607,7 +603,6 @@ Expected: PASS. The parser already handles `Option<Spanned<String>>` gracefully 
 git add tools/nika-core/src/ast/raw/parser.rs
 git commit -m "feat(parser): parse base_url field from workflow and task YAML
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -661,7 +656,6 @@ Expected: PASS.
 git add tools/nika-core/src/ast/analyzed/workflow.rs tools/nika-core/src/ast/analyzed/task.rs tools/nika-core/src/ast/analyzer/analyze.rs
 git commit -m "feat(analyzer): thread base_url from Raw to Analyzed AST
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -714,7 +708,6 @@ Expected: All 8400+ tests PASS.
 git add -A  # Multiple files likely touched
 git commit -m "feat(ast): thread base_url through lower phase into InferParams and AgentParams
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -836,7 +829,6 @@ Expected: PASS. Fix any missing match arms.
 git add tools/nika-engine/src/provider/rig.rs
 git commit -m "feat(provider): add OpenAiCompat variant to RigProvider for custom endpoints
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -935,7 +927,6 @@ Expected: PASS.
 git add tools/nika-engine/src/provider/rig.rs
 git commit -m "feat(provider): add from_name_with_endpoints() for custom endpoint resolution
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1048,7 +1039,6 @@ git add tools/nika-engine/src/runtime/executor/mod.rs
 # Add any other files touched (call sites of with_policy)
 git commit -m "feat(executor): wire CustomEndpointMap into TaskExecutor and get_rig_provider
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1125,7 +1115,6 @@ Expected: PASS. No behavior change for existing workflows (base_url is None).
 git add tools/nika-engine/src/runtime/executor/infer.rs
 git commit -m "feat(infer): resolve inline base_url to transient OpenAiCompat provider
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1199,7 +1188,6 @@ Expected: All 8400+ tests PASS.
 git add tools/nika-engine/src/runtime/executor/agent.rs tools/nika-engine/src/runtime/rig_agent_loop/ tools/nika-engine/src/runtime/runner.rs
 git commit -m "feat(agent): support base_url in agent loop + wire config endpoints into runner
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1272,7 +1260,6 @@ Expected: Shows existing providers + any configured endpoints.
 git add tools/nika-cli/src/provider.rs
 git commit -m "feat(cli): show custom endpoints in nika provider list
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1338,7 +1325,6 @@ Expected: All PASS.
 git add tools/nika-engine/src/provider/endpoints.rs
 git commit -m "test(provider): add end-to-end test for custom endpoint → provider resolution
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 
@@ -1418,7 +1404,6 @@ export NIKA_ENDPOINT_H100_KEY="sk-new-key"
 git add tools/nika/CLAUDE.md
 git commit -m "docs(nika): add custom endpoints documentation
 
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>"
 ```
 

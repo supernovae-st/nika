@@ -37,8 +37,7 @@ For EACH fix in the handoff:
 ```
 type(scope): description
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 Types: `fix`, `test`, `ci`

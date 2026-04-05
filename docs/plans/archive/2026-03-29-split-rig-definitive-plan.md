@@ -385,6 +385,5 @@ tool.rs defines NikaMcpTool
 6. refactor(provider): clean up rig/mod.rs imports after split
 
 Each commit ends with:
-Co-Authored-By: Claude <noreply@anthropic.com>
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```

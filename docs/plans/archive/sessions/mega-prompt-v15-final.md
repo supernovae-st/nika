@@ -861,8 +861,7 @@ chore(release): tag v0.52.0
 2. TDD: test FAIL → fix → PASS → suite → commit
 3. 1 fix = 1 commit
 4. Co-authors:
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   Co-Authored-By: Nika <nika@supernovae.studio>
+   Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 5. Push toutes les 2-3 commits
 6. clippy ZERO warnings
 7. Si bloque 3x → skip + note dans progress.md
