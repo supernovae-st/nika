@@ -496,6 +496,10 @@ jobs:
             chmod +x "$NIKA_BIN"
             echo "Using nika binary: $NIKA_BIN"
 
+            # Gather diff stats for AI analysis
+            DIFF_STAT=$(git diff --stat "${PREV_TAG}..HEAD" 2>/dev/null | tail -1 || echo "unknown")
+            RELEASE_DATE=$(date +%Y-%m-%d)
+
             "$NIKA_BIN" run .github/release-notes.nika.yaml \
               --input version="$VERSION" \
               --input prev_tag="$PREV_TAG" \
@@ -507,6 +511,8 @@ jobs:
               --input transform_count="63" \
               --input provider_count="14" \
               --input crate_count="$CRATE_COUNT" \
+              --input diff_stat="$DIFF_STAT" \
+              --input date="$RELEASE_DATE" \
               -y --no-interactive 2>/dev/null || true
 
             if [ -f ".nika/artifacts/release-notes.md" ]; then

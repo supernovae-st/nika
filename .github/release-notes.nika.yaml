@@ -35,6 +35,13 @@ inputs:
   crate_count:
     type: string
     description: "Number of workspace crates"
+  diff_stat:
+    type: string
+    description: "Output of git diff --stat (files changed, insertions, deletions)"
+  date:
+    type: string
+    description: "Release date (YYYY-MM-DD)"
+    default: "2026-04-05"
 
 artifacts:
   dir: ./output
@@ -48,19 +55,31 @@ tasks:
     with:
       changelog: $inputs.changelog
       commits: $inputs.commit_log
+      diff_stat: $inputs.diff_stat
     infer:
       prompt: |
-        You are analyzing a software release for Nika, a YAML workflow engine for AI.
+        You are analyzing a software release for Nika, a semantic YAML workflow engine for AI.
+        Nika uses schema "nika/workflow@0.12" with 5 verbs: infer, exec, fetch, invoke, agent.
 
-        Here is the CHANGELOG entry:
+        Here is the CHANGELOG entry for this version:
         {{with.changelog}}
 
         Here are the raw commit messages:
         {{with.commits}}
 
-        Categorize every change into one of these groups: features, fixes, security,
-        refactoring, docs, chore. Each item should have a short title and a one-line
-        description. Include everything — don't skip minor items.
+        Here is the diff stat (files changed):
+        {{with.diff_stat}}
+
+        Categorize every change into these groups. For each item provide:
+        - A short title (feature name or fix summary)
+        - A one-line description explaining what it does and WHY it matters
+        - A severity level for fixes/security: critical, high, medium, low
+
+        Also detect any BREAKING CHANGES — these are commits with "BREAKING:" in the message,
+        "!" after the conventional commit type (e.g. "feat!:"), or changes that modify public API,
+        remove features, or change default behavior.
+
+        Include everything — don't skip minor items. Be precise about what changed.
       temperature: 0.2
     structured:
       schema:
@@ -114,7 +133,26 @@ tasks:
                 title: { type: string }
                 description: { type: string }
               required: [title, description]
-        required: [features, fixes, security, refactoring, docs, chore]
+          breaking_changes:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                migration: { type: string }
+              required: [title, description, migration]
+          stats:
+            type: object
+            properties:
+              total_changes: { type: number }
+              feature_count: { type: number }
+              fix_count: { type: number }
+              security_count: { type: number }
+              is_milestone: { type: boolean }
+              milestone_reason: { type: string }
+            required: [total_changes, feature_count, fix_count, security_count, is_milestone]
+        required: [features, fixes, security, refactoring, docs, chore, breaking_changes, stats]
       max_retries: 2
       enable_repair: true
 
@@ -237,12 +275,15 @@ tasks:
       transform_count: $inputs.transform_count
       provider_count: $inputs.provider_count
       crate_count: $inputs.crate_count
+      date: $inputs.date
       codename: $generate_codename
       pitch: $generate_pitch
       highlights: $generate_highlights
       feature_sections: $generate_feature_sections
       fixes: $categorize.fixes
       security: $categorize.security
+      breaking: $categorize.breaking_changes
+      stats: $categorize.stats
     infer:
       prompt: |
         Assemble the final release notes for Nika v{{with.version}} using EXACTLY this
@@ -250,15 +291,13 @@ tasks:
 
         Do NOT rewrite or paraphrase the provided content — use it verbatim.
         Do NOT add content that wasn't provided.
-        Today's date is 2026-04-04. Format it as YYYY-MM-DD.
-
         Here is the template to fill:
 
         ---BEGIN TEMPLATE---
 
         ## 🦋 Nika {{with.version}} — {{with.codename | trim}}
 
-        > **Inference as Code** · YYYY-MM-DD · {{with.commit_count}} commits
+        > **Inference as Code** · {{with.date}} · {{with.commit_count}} commits
 
         | 🧪 Tests | 🔧 Builtins | 📦 Transforms | 🌐 Providers | 🦀 Crates |
         |:---------:|:-----------:|:-------------:|:------------:|:---------:|
@@ -284,10 +323,27 @@ tasks:
 
         ---
 
+        [IF BREAKING CHANGES EXIST, ADD THIS SECTION:]
+        ### ⚠️ Breaking Changes
+
+        > [!WARNING]
+        > This release includes breaking changes. Review before upgrading.
+
+        [FOR EACH: - **title** — description. Migration: migration_hint]
+        {{with.breaking | to_json}}
+
+        ---
+
         [IF SECURITY ITEMS EXIST, ADD THIS SECTION:]
         ### 🔐 Security
 
+        <details>
+        <summary><strong>N security fixes</strong> (click to expand)</summary>
+
+        [FORMAT AS TABLE: | Fix | Severity | Description |]
         {{with.security | to_json}}
+
+        </details>
 
         ---
 
@@ -323,7 +379,7 @@ tasks:
         ---END TEMPLATE---
 
         IMPORTANT RULES:
-        - Replace YYYY-MM-DD with today's date (2026-04-04)
+        - For the breaking changes section: if the array is empty, OMIT the entire section
         - For the security section: if the security array is empty, OMIT the entire section
         - For the fixes section: count the fixes and replace "N fixes" with the actual count
         - Format each fix as a markdown bullet: - **title** — description
