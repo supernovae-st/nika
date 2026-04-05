@@ -15,6 +15,9 @@ use std::time::Duration;
 use nika_daemon::{daemon_socket_path, DaemonClient, DaemonRequest, DaemonResponse};
 use nika_engine::error::NikaError;
 
+// Re-export for schedule card display
+use chrono::Utc;
+
 /// Schedule management actions.
 #[derive(Subcommand)]
 pub enum ScheduleAction {
@@ -145,11 +148,7 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
 
             match resp {
                 DaemonResponse::ScheduleDetail { schedule } => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&schedule)
-                            .unwrap_or_else(|e| format!("(serialize error: {e})"))
-                    );
+                    render_schedule_card(&schedule);
                 }
                 DaemonResponse::Error { code, message } => {
                     eprintln!("{} [{code}] {message}", "✗".red().bold());
@@ -230,4 +229,120 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
 
 fn sched_err(e: nika_daemon::DaemonError) -> NikaError {
     NikaError::Execution(format!("schedule: {e}"))
+}
+
+/// Render a detailed schedule card with box-drawing characters.
+fn render_schedule_card(sched: &serde_json::Value) {
+    let name = sched["name"].as_str().unwrap_or("-");
+    let workflow = sched["workflow"].as_str().unwrap_or("-");
+    let cron = sched["cron_expr"].as_str().unwrap_or("-");
+    let tz = sched["timezone"].as_str().unwrap_or("UTC");
+    let paused = sched["paused"].as_bool().unwrap_or(false);
+    let source = sched["source"].as_str().unwrap_or("cli");
+    let overlap = sched["overlap"].as_str().unwrap_or("skip");
+    let run_count = sched["run_count"].as_u64().unwrap_or(0);
+    let last_run = sched["last_run_at"].as_str().unwrap_or("-");
+
+    let status = if paused {
+        "⏸ Paused".yellow().to_string()
+    } else {
+        "● Active".green().to_string()
+    };
+
+    // Try to describe cron in human-readable form
+    let human = hron::Schedule::explain_cron(cron).unwrap_or_else(|_| cron.to_string());
+
+    println!();
+    println!(
+        "  ╭─ {} ─────────────────────────────────────────────╮",
+        name.bold()
+    );
+    println!("  │                                                       │");
+    println!("  │  Workflow   {:<42} │", workflow);
+    println!("  │  Schedule   {:<42} │", human);
+    println!("  │  Cron       {:<42} │", cron);
+    println!("  │  Timezone   {:<42} │", tz);
+    println!("  │  Status     {:<42} │", status);
+    println!("  │  Source     {:<42} │", source);
+    println!("  │  Overlap    {:<42} │", overlap);
+    println!("  │  Runs       {:<42} │", run_count);
+    println!("  │  Last run   {:<42} │", last_run);
+    println!("  │                                                       │");
+
+    // Next 5 runs
+    if let Ok(parsed_cron) = cron.parse::<croner::Cron>() {
+        let now = Utc::now();
+        let mut next_runs: Vec<chrono::DateTime<Utc>> = Vec::new();
+        let mut from = now;
+        for _ in 0..5 {
+            match parsed_cron.find_next_occurrence(&from, false) {
+                Ok(next) => {
+                    next_runs.push(next);
+                    from = next;
+                }
+                Err(_) => break,
+            }
+        }
+        if !next_runs.is_empty() {
+            println!("  ├─────────────────────────────────────────────────────┤");
+            println!("  │  {:<53} │", "Next 5 runs".bold());
+            for (i, run) in next_runs.iter().enumerate() {
+                let formatted = run.format("%a %d %b %H:%M").to_string();
+                let relative = humanize_duration((*run - now).num_seconds());
+                println!("  │   {}.  {:<22} {:<24} │", i + 1, formatted, relative);
+            }
+            println!("  │                                                       │");
+        }
+    }
+
+    println!("  ╰─────────────────────────────────────────────────────╯");
+    println!();
+    println!("  Actions:");
+    println!("    nika schedule trigger {name}     Run now");
+    if paused {
+        println!("    nika schedule resume {name}      Resume");
+    } else {
+        println!("    nika schedule pause {name}       Pause");
+    }
+    println!("    nika schedule remove {name}      Delete");
+    println!();
+}
+
+/// Convert seconds to a human-readable relative time string.
+fn humanize_duration(seconds: i64) -> String {
+    if seconds < 60 {
+        format!("in {seconds}s")
+    } else if seconds < 3600 {
+        format!("in {}m", seconds / 60)
+    } else if seconds < 86400 {
+        let h = seconds / 3600;
+        let m = (seconds % 3600) / 60;
+        if m == 0 {
+            format!("in {h}h")
+        } else {
+            format!("in {h}h {m}m")
+        }
+    } else {
+        let d = seconds / 86400;
+        let h = (seconds % 86400) / 3600;
+        if h == 0 {
+            format!("in {d}d")
+        } else {
+            format!("in {d}d {h}h")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_humanize_duration() {
+        assert_eq!(humanize_duration(30), "in 30s");
+        assert_eq!(humanize_duration(90), "in 1m");
+        assert_eq!(humanize_duration(3600), "in 1h");
+        assert_eq!(humanize_duration(5400), "in 1h 30m");
+        assert_eq!(humanize_duration(90000), "in 1d 1h");
+    }
 }

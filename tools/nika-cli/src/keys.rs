@@ -933,7 +933,8 @@ pub fn handle_keys_list(json: bool, verbose: bool) -> Result<(), NikaError> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Execute `nika keys set [name]`.
-async fn handle_keys_set(
+/// Also used by `nika setup` wizard to delegate key storage.
+pub(crate) async fn handle_keys_set(
     name: Option<String>,
     stdin: bool,
     no_test: bool,
@@ -991,6 +992,16 @@ fn pick_provider_interactive() -> Result<String, NikaError> {
     Ok(selected)
 }
 
+/// Prompt for API key with console URL hint.
+fn prompt_for_key(provider: &Provider) -> Result<String, NikaError> {
+    if let Some(url) = console_url(provider.id) {
+        cliclack::note("Get your key at", url).map_err(io_err)?;
+    }
+    cliclack::password(format!("{}:", provider.env_var))
+        .interact()
+        .map_err(io_err)
+}
+
 /// Set a key for a known provider (interactive cliclack flow).
 async fn set_known_provider(
     vault: &nika_vault::NikaVault,
@@ -1010,13 +1021,30 @@ async fn set_known_provider(
         // Interactive cliclack flow
         cliclack::intro(format!("nika keys set \u{2014} {}", provider.name)).map_err(io_err)?;
 
-        if let Some(url) = console_url(provider.id) {
-            cliclack::note("Get your key at", url).map_err(io_err)?;
+        // UX #9: detect existing env var — offer to save to vault
+        let from_env = std::env::var(provider.env_var)
+            .ok()
+            .filter(|v| !v.is_empty());
+        if let Some(ref env_val) = from_env {
+            let masked = mask_key_pretty(env_val);
+            eprintln!(
+                "  {} Found {} in environment: {}",
+                "\u{1F4A1}".dimmed(),
+                provider.env_var.bold(),
+                masked.dimmed()
+            );
+            let save = cliclack::confirm("Save to vault for persistence?")
+                .initial_value(true)
+                .interact()
+                .map_err(io_err)?;
+            if save {
+                env_val.clone()
+            } else {
+                prompt_for_key(provider)?
+            }
+        } else {
+            prompt_for_key(provider)?
         }
-
-        cliclack::password(format!("{}:", provider.env_var))
-            .interact()
-            .map_err(io_err)?
     };
 
     if key_value.is_empty() {

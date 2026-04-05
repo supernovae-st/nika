@@ -660,20 +660,47 @@ mod tests {
         // Tools that require runtime context (not in base router)
         let context_dependent: std::collections::HashSet<&str> = [
             // File tools (need ToolContext)
-            "read", "write", "edit", "glob", "grep",
+            "read",
+            "write",
+            "edit",
+            "glob",
+            "grep",
             // Introspection tools (need DAG/EventLog)
-            "dag_info", "task_status", "threads", "orchestrate",
+            "dag_info",
+            "task_status",
+            "threads",
+            "orchestrate",
             // Cost/Records (need EventLog/Datastore)
-            "cost", "records",
+            "cost",
+            "records",
             // Media always-on (need MediaToolContext)
-            "import", "decode", "dimensions", "thumbhash", "dominant_color",
+            "import",
+            "decode",
+            "dimensions",
+            "thumbhash",
+            "dominant_color",
             // Media core
-            "thumbnail", "convert", "strip",
+            "thumbnail",
+            "convert",
+            "strip",
             // Media opt-in
-            "metadata", "optimize", "svg_render", "chart", "phash", "compare",
-            "pdf_extract", "provenance", "verify", "qr_validate", "quality",
-            "html_to_md", "css_select", "extract_metadata", "extract_links",
-            "readability", "pipeline",
+            "metadata",
+            "optimize",
+            "svg_render",
+            "chart",
+            "phash",
+            "compare",
+            "pdf_extract",
+            "provenance",
+            "verify",
+            "qr_validate",
+            "quality",
+            "html_to_md",
+            "css_select",
+            "extract_metadata",
+            "extract_links",
+            "readability",
+            "pipeline",
         ]
         .into_iter()
         .collect();

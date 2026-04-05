@@ -122,7 +122,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
     // ── Inject custom vault keys into the SecretStore ───────────────────
     //
-    // Keys stored with "custom:" prefix (e.g. `nika vault set custom:ELEVENLABS_API_KEY`)
+    // Keys stored with "custom:" prefix (e.g. `nika keys set ELEVENLABS_API_KEY`)
     // are NOT LLM providers, so the KNOWN_PROVIDERS loop above skips them.
     // We inject them here so `$env.ELEVENLABS_API_KEY` bindings work at runtime.
     inject_custom_vault_keys(&backend);

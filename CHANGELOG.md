@@ -7,10 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.69.x — TRANSFORMS + CLI + SERVE V4                               ║
-║  63 transforms | 62 tools | eval framework | serve batch + tags            ║
+║  NIKA v0.72.x — SCHEDULE + KEYS + AST HARDENING                           ║
+║  63 transforms | 62 tools | cron scheduling | unified key management       ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.72.0] — 2026-04-06
+
+### Added
+- **`nika every` + `nika schedule`** — Cron-based workflow scheduling via daemon. Create, list, enable/disable, delete scheduled runs.
+- **`schedule:` field in workflow YAML** — Declare cron schedules directly in workflow files. Parsed and validated at AST level.
+- **Storage V5** — `schedules` table with CronSchedule CRUD operations.
+- **`nika keys check`** — Real provider connection test (not just env var presence).
+- **Did-you-mean errors** for old `provider`/`vault` commands — guides migration to `nika keys`.
+
+### Fixed
+- **AST validation hardening** — 12 fixes:
+  - Validate `extract: selector`/`jsonpath` require `selector:` field at check time
+  - Validate temperature range [0.0, 2.0]
+  - Detect nested templates with NIKA-074 error
+  - Hint about `extract: article` fields in transform type errors
+  - Suppress model warning when provider is explicitly set
+  - Warn when task-level LLM fields are ignored with full form `infer:`
+  - Warn when `for_each` has >3 items without explicit concurrency
+  - Did-you-mean suggestions extended to providers and transforms
+- **`nika lint` L031** — New rule: `for_each` without explicit `concurrency:` info.
+- **Course fixes** — Provider setup → API key setup, remove unnecessary quotes, rename json_query → api_jsonpath.
+- **Remove references** to deleted `vault-reset` command.
+
+### Changed
+- **`nika keys`** replaces `nika vault` + `nika provider` — Unified key management. Old `vault.rs` deleted.
+- **AST analyzer refactored** — Merged provider validation into main task loop, extracted `check_model_name()` helper (DRY), removed duplicate `for_each` concurrency check.
+- **Compile-time guard** for builtins catalog — ensures catalog stays in sync.
+
+### Documentation
+- Updated Language Bible with validation improvements.
+- Removed `enable_extractor` references, fixed structured output layer numbering.
 
 ## [0.70.0] — 2026-04-05
 

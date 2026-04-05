@@ -356,6 +356,9 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
     }
 
+    // 4c. Validate template references (G4, G5, G6)
+    validate_template_refs(raw, &mut ctx);
+
     // 5. Detect cyclic dependencies (requires building a lightweight dep graph)
     detect_cycles_from_raw(&raw.tasks.value, &task_table, &mut ctx);
 
@@ -787,6 +790,203 @@ fn check_agent_infer_fields(agent: &RawAgentAction, ctx: &mut AnalyzerContext) {
                  The budget will be ignored without extended_thinking: true."
                     .to_string(),
             ));
+        }
+    }
+}
+
+/// Extract template references for a given namespace from a string.
+///
+/// Scans for `{{...namespace.key...}}` patterns and returns the first-level key.
+/// Example: `"Hello {{inputs.topic}} and {{inputs.locale | upper}}"` with `"inputs"`
+///          → `["topic", "locale"]`
+fn extract_template_refs<'a>(text: &'a str, namespace: &str) -> Vec<&'a str> {
+    let prefix = format!("{}.", namespace);
+    let mut refs = Vec::new();
+    let bytes = text.as_bytes();
+    let mut pos = 0;
+    while pos + 1 < bytes.len() {
+        if bytes[pos] == b'{' && bytes[pos + 1] == b'{' {
+            if let Some(end_offset) = text[pos..].find("}}") {
+                let inner = &text[pos + 2..pos + end_offset];
+                let trimmed = inner.trim_start();
+                if let Some(ns_pos) = trimmed.find(prefix.as_str()) {
+                    let key_start = ns_pos + prefix.len();
+                    let key_end = trimmed[key_start..]
+                        .find(|c: char| !c.is_alphanumeric() && c != '_')
+                        .map(|p| key_start + p)
+                        .unwrap_or(trimmed.len());
+                    if key_end > key_start {
+                        let key = &trimmed[key_start..key_end];
+                        if !refs.contains(&key) {
+                            refs.push(key);
+                        }
+                    }
+                }
+                pos += end_offset + 2;
+            } else {
+                break;
+            }
+        } else {
+            pos += 1;
+        }
+    }
+    refs
+}
+
+/// Collect all template-bearing strings from a raw task and its action.
+fn collect_raw_task_templates(task: &RawTask) -> Vec<(&str, Span)> {
+    let mut templates = Vec::new();
+
+    if let Some(ref when) = task.when {
+        templates.push((when.value.as_str(), when.span));
+    }
+
+    if let Some(ref action) = task.action {
+        match action {
+            RawTaskAction::Infer(ref infer) => {
+                templates.push((infer.value.prompt.value.as_str(), infer.value.prompt.span));
+                if let Some(ref sys) = infer.value.system {
+                    templates.push((sys.value.as_str(), sys.span));
+                }
+                if let Some(ref content) = infer.value.content {
+                    for part in &content.value {
+                        if let crate::ast::content::RawContentPart::Text { ref text } = part {
+                            templates.push((text.value.as_str(), text.span));
+                        }
+                    }
+                }
+            }
+            RawTaskAction::Agent(ref agent) => {
+                templates.push((agent.value.prompt.value.as_str(), agent.value.prompt.span));
+                if let Some(ref sys) = agent.value.system {
+                    templates.push((sys.value.as_str(), sys.span));
+                }
+            }
+            RawTaskAction::Exec(ref exec) => {
+                templates.push((exec.value.command.value.as_str(), exec.value.command.span));
+            }
+            RawTaskAction::Fetch(ref fetch) => {
+                templates.push((fetch.value.url.value.as_str(), fetch.value.url.span));
+                if let Some(ref body) = fetch.value.body {
+                    templates.push((body.value.as_str(), body.span));
+                }
+            }
+            RawTaskAction::Invoke(_) => {}
+        }
+    }
+
+    templates
+}
+
+/// Validate template references against declared inputs, context files, and with bindings.
+///
+/// - G5: Warn when `{{inputs.X}}` references X not declared in `inputs:`.
+/// - G6: Warn when `{{context.X}}` references X not declared in `context: files:`.
+/// - G4: Warn when vision content text parts reference `{{with.X}}` not in `with:`.
+fn validate_template_refs(raw: &RawWorkflow, ctx: &mut AnalyzerContext) {
+    let input_keys: Vec<String> = raw
+        .inputs
+        .as_ref()
+        .map(|inputs| inputs.value.keys().map(|k| k.value.clone()).collect())
+        .unwrap_or_default();
+
+    let context_aliases: Vec<String> = raw
+        .context
+        .as_ref()
+        .and_then(|c| c.value.files.as_ref())
+        .map(|files| files.keys().map(|k| k.value.clone()).collect())
+        .unwrap_or_default();
+
+    for raw_task in &raw.tasks.value {
+        let task = &raw_task.value;
+        let templates = collect_raw_task_templates(task);
+
+        // G5: inputs.X references
+        for (text, span) in &templates {
+            for key in extract_template_refs(text, "inputs") {
+                if !input_keys.iter().any(|k| k == key) {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidBinding,
+                        *span,
+                        format!(
+                            "Task '{}' references {{{{inputs.{}}}}} but '{}' is not declared \
+                             in the workflow inputs: block.{}",
+                            task.id.value,
+                            key,
+                            key,
+                            if input_keys.is_empty() {
+                                " No inputs are declared.".to_string()
+                            } else {
+                                format!(" Declared inputs: {}", input_keys.join(", "))
+                            }
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // G6: context.X references
+        for (text, span) in &templates {
+            for key in extract_template_refs(text, "context") {
+                if !context_aliases.iter().any(|a| a == key) {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidBinding,
+                        *span,
+                        format!(
+                            "Task '{}' references {{{{context.{}}}}} but '{}' is not declared \
+                             in the workflow context: files: block.{}",
+                            task.id.value,
+                            key,
+                            key,
+                            if context_aliases.is_empty() {
+                                " No context files are declared.".to_string()
+                            } else {
+                                format!(" Declared context files: {}", context_aliases.join(", "))
+                            }
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // G4: with.X references in vision content text parts
+        if let Some(RawTaskAction::Infer(ref infer)) = task.action {
+            if let Some(ref content) = infer.value.content {
+                let with_aliases: Vec<String> = task
+                    .with_refs
+                    .as_ref()
+                    .map(|w| w.value.keys().map(|k| k.value.clone()).collect())
+                    .unwrap_or_default();
+
+                for part in &content.value {
+                    if let crate::ast::content::RawContentPart::Text { ref text } = part {
+                        for key in extract_template_refs(&text.value, "with") {
+                            if !with_aliases.iter().any(|a| a == key) {
+                                ctx.add_warning(AnalyzeError::new(
+                                    AnalyzeErrorKind::InvalidBinding,
+                                    text.span,
+                                    format!(
+                                        "Task '{}' vision content references \
+                                         {{{{with.{}}}}} but '{}' is not declared in \
+                                         the task's with: block.{}",
+                                        task.id.value,
+                                        key,
+                                        key,
+                                        if with_aliases.is_empty() {
+                                            " No with: bindings are declared.".to_string()
+                                        } else {
+                                            format!(
+                                                " Declared bindings: {}",
+                                                with_aliases.join(", ")
+                                            )
+                                        }
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -4776,5 +4976,329 @@ tasks:
             "provider alias should not error, got: {:?}",
             provider_errors
         );
+    }
+
+    // ====================================================================
+    // G5: Validate {{inputs.*}} refs against declared inputs
+    // ====================================================================
+
+    #[test]
+    fn test_validate_inputs_ref_undeclared_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+inputs:
+  topic: "AI"
+tasks:
+  - id: gen
+    infer: "Research {{inputs.topic}} and {{inputs.locale}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("inputs.locale")
+                    && w.message.contains("not declared")),
+            "undeclared inputs.locale should warn, got warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_inputs_ref_declared_no_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+inputs:
+  topic: "AI"
+tasks:
+  - id: gen
+    infer: "Research {{inputs.topic}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let input_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("inputs.") && w.message.contains("not declared"))
+            .collect();
+        assert!(
+            input_warnings.is_empty(),
+            "declared input should not warn, got: {:?}",
+            input_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_inputs_ref_no_inputs_block_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer: "Research {{inputs.topic}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("inputs.topic")
+                    && w.message.contains("No inputs are declared")),
+            "inputs ref without inputs: block should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_inputs_ref_with_transform_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+inputs:
+  topic: "AI"
+tasks:
+  - id: gen
+    infer: "Research {{inputs.missing_key | upper}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("inputs.missing_key")),
+            "inputs ref with transform should still warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    // ====================================================================
+    // G6: Validate {{context.*}} refs against declared context files
+    // ====================================================================
+
+    #[test]
+    fn test_validate_context_ref_undeclared_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+context:
+  files:
+    readme: ./README.md
+tasks:
+  - id: gen
+    infer: "Summarize {{context.readme}} and {{context.changelog}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("context.changelog")
+                    && w.message.contains("not declared")),
+            "undeclared context.changelog should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_context_ref_declared_no_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+context:
+  files:
+    readme: ./README.md
+tasks:
+  - id: gen
+    infer: "Summarize {{context.readme}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let ctx_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("context.") && w.message.contains("not declared"))
+            .collect();
+        assert!(
+            ctx_warnings.is_empty(),
+            "declared context should not warn, got: {:?}",
+            ctx_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_context_ref_no_context_block_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer: "Summarize {{context.readme}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("context.readme")
+                    && w.message.contains("No context files are declared")),
+            "context ref without context: block should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    // ====================================================================
+    // G4: Validate vision content with.X refs against with: block
+    // ====================================================================
+
+    #[test]
+    fn test_validate_vision_content_with_ref_undeclared_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: analyze
+    with:
+      img: $import_step
+    infer:
+      prompt: "Describe"
+      content:
+        - type: image
+          source: "{{with.img.hash}}"
+        - type: text
+          text: "Describe {{with.unknown_alias}} in detail"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("with.unknown_alias")
+                    && w.message.contains("vision content")),
+            "undeclared with ref in vision content should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_vision_content_with_ref_declared_no_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: analyze
+    with:
+      img: $import_step
+      caption: $caption_step
+    infer:
+      prompt: "Describe"
+      content:
+        - type: image
+          source: "{{with.img.hash}}"
+        - type: text
+          text: "Caption context: {{with.caption}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let vision_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("vision content") && w.message.contains("not declared"))
+            .collect();
+        assert!(
+            vision_warnings.is_empty(),
+            "declared with refs in vision content should not warn, got: {:?}",
+            vision_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_vision_content_no_with_block_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: analyze
+    infer:
+      prompt: "Describe"
+      content:
+        - type: text
+          text: "Analyze {{with.data}}"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("with.data")
+                    && w.message.contains("No with: bindings")),
+            "with ref in vision content without with: block should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    // ====================================================================
+    // extract_template_refs unit tests
+    // ====================================================================
+
+    #[test]
+    fn test_extract_template_refs_basic() {
+        let refs = extract_template_refs("Hello {{inputs.topic}}", "inputs");
+        assert_eq!(refs, vec!["topic"]);
+    }
+
+    #[test]
+    fn test_extract_template_refs_multiple() {
+        let refs =
+            extract_template_refs("{{inputs.a}} and {{inputs.b}} and {{inputs.a}}", "inputs");
+        assert_eq!(refs, vec!["a", "b"]); // deduped
+    }
+
+    #[test]
+    fn test_extract_template_refs_with_transform() {
+        let refs = extract_template_refs("{{inputs.name | upper | trim}}", "inputs");
+        assert_eq!(refs, vec!["name"]);
+    }
+
+    #[test]
+    fn test_extract_template_refs_with_whitespace() {
+        let refs = extract_template_refs("{{ inputs.topic }}", "inputs");
+        assert_eq!(refs, vec!["topic"]);
+    }
+
+    #[test]
+    fn test_extract_template_refs_ignores_other_namespace() {
+        let refs = extract_template_refs("{{with.data}} and {{inputs.topic}}", "inputs");
+        assert_eq!(refs, vec!["topic"]);
+    }
+
+    #[test]
+    fn test_extract_template_refs_nested_path() {
+        let refs = extract_template_refs("{{with.data.nested.field}}", "with");
+        assert_eq!(refs, vec!["data"]); // only first-level key
+    }
+
+    #[test]
+    fn test_extract_template_refs_no_match() {
+        let refs = extract_template_refs("Hello world, no templates", "inputs");
+        assert!(refs.is_empty());
     }
 }

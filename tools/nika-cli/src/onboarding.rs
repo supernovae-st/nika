@@ -6,8 +6,6 @@ use std::io::IsTerminal;
 use nika_engine::display::{hint, StatusIcon};
 use nika_engine::error::NikaError;
 
-use super::provider::detect_provider_from_key;
-
 const ONBOARDING_PROVIDERS: &[(&str, &str)] = &[
     ("anthropic", "Claude — best for reasoning, code, analysis"),
     ("openai", "GPT-4o, o3 — versatile, large ecosystem"),
@@ -150,92 +148,13 @@ pub async fn run_onboarding_wizard() -> Result<bool, NikaError> {
         return Ok(true);
     }
 
-    let api_key: String = cliclack::password(format!("Paste your {} API key:", provider))
-        .mask('•')
-        .interact()
-        .map_err(|e| {
-            NikaError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Interrupted,
-                format!("Cancelled: {e}"),
-            ))
-        })?;
-
-    if api_key.is_empty() {
-        cliclack::outro(
-            "No key entered. You can always run: nika setup"
-                .dimmed()
-                .to_string(),
-        )
-        .ok();
-        return Ok(false);
-    }
-
-    if let Some(detected) = detect_provider_from_key(&api_key) {
-        if detected != provider {
-            let _ = cliclack::note(
-                "Key prefix mismatch",
-                format!("Key looks like {detected}, but you selected {provider}."),
-            );
-        }
-    }
-
-    use nika_engine::secrets::validate_key_format;
-    if let Err(e) = validate_key_format(&provider, &api_key) {
-        cliclack::outro(format!("{} Invalid key format: {e}", StatusIcon::Fail)).ok();
-        return Ok(false);
-    }
-
-    // Store key in NikaVault (encrypted file-based storage)
-    let nika_home = nika_home_dir();
-    let vault = nika_vault::NikaVault::new(&nika_home.join("secrets"));
-    vault
-        .set(&provider, &api_key)
-        .map_err(|e| NikaError::ConfigError {
-            reason: format!("Failed to store key in vault: {e}"),
-        })?;
+    // Delegate to keys module — single code path for key management
+    // (handles password prompt, validation, vault, env injection, connection test)
+    super::keys::handle_keys_set(Some(provider.clone()), false, false, false).await?;
 
     // Mark onboarding as done — prevents the wizard from looping
     mark_onboarding_done();
 
-    use nika_engine::core::provider_to_env_var;
-    let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-    nika_engine::secrets::inject_secret_to_env(env_var, &api_key);
-
-    let do_test: bool = cliclack::confirm("Test connection?")
-        .initial_value(true)
-        .interact()
-        .unwrap_or(false);
-
-    if do_test {
-        let spinner = cliclack::spinner();
-        spinner.start(format!("Testing {provider}..."));
-        use nika_engine::provider::rig::RigProvider;
-        let prov = match provider.as_str() {
-            "anthropic" => RigProvider::claude(),
-            "openai" => RigProvider::openai(),
-            "mistral" => RigProvider::mistral(),
-            "groq" => RigProvider::groq(),
-            "deepseek" => RigProvider::deepseek(),
-            "gemini" => RigProvider::gemini(),
-            "xai" => RigProvider::xai(),
-            _ => {
-                spinner.stop(format!("{} Unknown provider", StatusIcon::Fail));
-                cliclack::outro("Key stored. Run your command again.").ok();
-                return Ok(true);
-            }
-        };
-        match prov.infer("Say 'OK' if you can hear me.", None, None).await {
-            Ok(_) => spinner.stop(format!("{} Connection successful!", StatusIcon::Ok)),
-            Err(e) => spinner.stop(format!("{} Connection failed: {e}", StatusIcon::Fail)),
-        }
-    }
-
-    cliclack::outro(format!(
-        "{} {} configured! You're ready to go.",
-        StatusIcon::Ok,
-        provider.bold()
-    ))
-    .ok();
     Ok(true)
 }
 
