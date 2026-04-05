@@ -821,22 +821,62 @@ pub fn extract_with_refs(template: &str) -> Vec<String> {
     aliases
 }
 
-/// Validate that all template alias references exist in declared aliases
+/// Validate that all template alias references exist in declared aliases,
+/// and that all inline transforms are valid.
 pub fn validate_with_refs(
     template: &str,
     declared_aliases: &FxHashSet<String>,
     task_id: &str,
 ) -> Result<(), NikaError> {
-    for alias in extract_with_refs(template) {
-        if !declared_aliases.contains(&alias) {
-            let candidates: Vec<&str> = declared_aliases.iter().map(|s| s.as_str()).collect();
-            let suggestion =
-                nika_core::ast::analyzer::suggestions::find_similar(&alias, &candidates, 0.6);
-            return Err(NikaError::UnknownAlias {
-                alias,
-                task_id: task_id.to_string(),
-                suggestion,
-            });
+    if !template.contains("{{") {
+        return Ok(());
+    }
+    for cap in TEMPLATE_RE.captures_iter(template) {
+        let content = &cap[1];
+        if let Ok(expr) = parse_template_expr(content) {
+            // Extract alias and transforms from any variant
+            let (alias_opt, transforms) = match &expr {
+                TemplateExpr::Alias { path, transforms } => {
+                    let alias = path.split('.').next().unwrap().to_string();
+                    (Some(alias), transforms.as_slice())
+                }
+                TemplateExpr::Context { transforms, .. }
+                | TemplateExpr::Input { transforms, .. }
+                | TemplateExpr::Skills { transforms, .. } => (None, transforms.as_slice()),
+            };
+
+            // Validate alias reference
+            if let Some(ref alias) = alias_opt {
+                if !declared_aliases.contains(alias) {
+                    let candidates: Vec<&str> =
+                        declared_aliases.iter().map(|s| s.as_str()).collect();
+                    let suggestion = nika_core::ast::analyzer::suggestions::find_similar(
+                        alias,
+                        &candidates,
+                        0.6,
+                    );
+                    return Err(NikaError::UnknownAlias {
+                        alias: alias.clone(),
+                        task_id: task_id.to_string(),
+                        suggestion,
+                    });
+                }
+            }
+
+            // Validate inline transforms
+            for transform in transforms {
+                if let Err(e) =
+                    nika_core::binding::TransformExpr::parse(transform)
+                {
+                    return Err(NikaError::TemplateParse {
+                        position: 0,
+                        details: format!(
+                            "invalid transform '{}' in task '{}': {}",
+                            transform, task_id, e
+                        ),
+                    });
+                }
+            }
         }
     }
     Ok(())
@@ -3665,6 +3705,34 @@ mod v028_template_tests {
         let declared: FxHashSet<String> = FxHashSet::default();
         let result = validate_with_refs("{{inputs.locale}}", &declared, "task1");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_refs_valid_inline_transforms() {
+        let declared: FxHashSet<String> = ["data"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs("{{data | upper | trim}}", &declared, "task1");
+        assert!(result.is_ok(), "valid transforms should pass: {:?}", result);
+    }
+
+    #[test]
+    fn validate_refs_invalid_inline_transform() {
+        let declared: FxHashSet<String> = ["data"].iter().map(|s| s.to_string()).collect();
+        let result = validate_with_refs("{{data | bogus_transform}}", &declared, "task1");
+        assert!(result.is_err(), "invalid transform should fail");
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("bogus_transform"),
+            "error should mention the invalid transform, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn validate_refs_invalid_transform_on_inputs() {
+        let declared: FxHashSet<String> = FxHashSet::default();
+        let result = validate_with_refs("{{inputs.locale | bogus}}", &declared, "task1");
+        assert!(result.is_err(), "invalid transform on inputs should fail");
     }
 
     // ═════════════════════════════════════════════════════════════════════════
