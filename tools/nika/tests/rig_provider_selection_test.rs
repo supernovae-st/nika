@@ -269,7 +269,7 @@ async fn test_run_auto_both_keys_prefers_claude() {
 
 /// Test: Explicit provider "claude" in params uses Claude even when only OpenAI key exists.
 ///
-/// Note: When explicit provider is set, run_auto() calls run_claude() directly.
+/// Note: When explicit provider is set, run_auto() delegates to run().
 /// With a fake Anthropic key set, it will try Claude and fail authentication.
 #[tokio::test]
 #[serial_test::serial]

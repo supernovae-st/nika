@@ -54,7 +54,7 @@ async fn test_extended_thinking_captures_tokens() {
     .expect("Agent creation should succeed");
 
     // Act
-    let result = agent.run_claude().await;
+    let result = agent.run().await;
 
     // Assert - execution should succeed
     assert!(
@@ -158,7 +158,7 @@ async fn test_standard_mode_captures_tokens() {
     .expect("Agent creation should succeed");
 
     // Act
-    let result = agent.run_claude().await;
+    let result = agent.run().await;
 
     // Assert
     assert!(result.is_ok(), "Agent execution should succeed");
@@ -312,7 +312,7 @@ async fn test_openai_standard_mode_captures_tokens() {
     .expect("Agent creation should succeed");
 
     // Act
-    let result = agent.run_openai().await;
+    let result = agent.run().await;
 
     // Assert
     assert!(result.is_ok(), "Agent execution should succeed");

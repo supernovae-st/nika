@@ -316,8 +316,8 @@ async fn test_chat_continue_without_api_key_returns_error() {
 async fn test_chat_continue_claude_updates_history() {
     let mut agent_loop = create_agent_loop("You are a helpful assistant.");
 
-    // First turn via run_claude
-    let result1 = agent_loop.run_claude().await;
+    // First turn
+    let result1 = agent_loop.run().await;
     assert!(result1.is_ok(), "First turn should succeed: {:?}", result1);
 
     // Extract response and add to history
@@ -349,7 +349,7 @@ async fn test_chat_continue_claude_multi_turn() {
     let mut agent_loop = create_agent_loop("Answer briefly.");
 
     // First turn
-    let r1 = agent_loop.run_claude().await.unwrap();
+    let r1 = agent_loop.run().await.unwrap();
     let resp1 = r1.final_output["response"].as_str().unwrap_or("");
     agent_loop.add_to_history("Answer briefly.", resp1);
 
@@ -400,7 +400,7 @@ async fn test_chat_continue_emits_events() {
     .unwrap();
 
     // Run initial turn
-    let _ = agent_loop.run_claude().await;
+    let _ = agent_loop.run().await;
 
     // Clear events from first turn
     let initial_events = event_log.events().len();
@@ -426,7 +426,7 @@ async fn test_chat_continue_openai_multi_turn() {
     let mut agent_loop = create_agent_loop("Answer briefly.");
 
     // First turn
-    let r1 = agent_loop.run_openai().await.unwrap();
+    let r1 = agent_loop.run().await.unwrap();
     let resp1 = r1.final_output["response"].as_str().unwrap_or("");
     agent_loop.add_to_history("Answer briefly.", resp1);
 

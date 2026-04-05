@@ -127,7 +127,7 @@ async fn test_integration_claude_agent_simple() {
     )
     .expect("Failed to create agent");
 
-    let result = agent.run_claude().await;
+    let result = agent.run().await;
 
     assert!(result.is_ok(), "Agent run should succeed: {:?}", result);
     let agent_result = result.unwrap();
@@ -168,7 +168,7 @@ async fn test_integration_claude_extended_thinking() {
     )
     .expect("Failed to create agent");
 
-    let result = agent.run_claude().await;
+    let result = agent.run().await;
 
     assert!(result.is_ok(), "Extended thinking should succeed");
 
@@ -209,7 +209,7 @@ async fn test_integration_claude_token_tracking() {
     )
     .expect("Failed to create agent");
 
-    let _ = agent.run_claude().await;
+    let _ = agent.run().await;
 
     // Check for token metadata in events
     let events = log.events();
@@ -268,7 +268,7 @@ async fn test_integration_openai_agent_simple() {
     )
     .expect("Failed to create agent");
 
-    let result = agent.run_openai().await;
+    let result = agent.run().await;
 
     assert!(result.is_ok(), "Agent run should succeed: {:?}", result);
     let agent_result = result.unwrap();

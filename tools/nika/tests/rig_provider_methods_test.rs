@@ -170,7 +170,7 @@ fn test_agent_loop_creation_for_deepseek_valid() {
 async fn test_run_mistral_completes_successfully() {
     let mut agent_loop = create_agent_loop("Say 'hello' and nothing else.");
 
-    let result = agent_loop.run_mistral().await;
+    let result = agent_loop.run().await;
 
     assert!(
         result.is_ok(),
@@ -188,7 +188,7 @@ async fn test_run_mistral_with_custom_model() {
     let mut agent_loop =
         create_agent_loop_with_model("Say 'hello' and nothing else.", "mistral-small-latest");
 
-    let result = agent_loop.run_mistral().await;
+    let result = agent_loop.run().await;
 
     assert!(
         result.is_ok(),
@@ -220,7 +220,7 @@ async fn test_run_mistral_emits_events() {
     )
     .unwrap();
 
-    let _ = agent_loop.run_mistral().await;
+    let _ = agent_loop.run().await;
 
     let events = event_log.events();
     assert!(!events.is_empty(), "Should emit events");
@@ -235,7 +235,7 @@ async fn test_run_mistral_emits_events() {
 async fn test_run_groq_completes_successfully() {
     let mut agent_loop = create_agent_loop("Say 'hello' and nothing else.");
 
-    let result = agent_loop.run_groq().await;
+    let result = agent_loop.run().await;
 
     assert!(
         result.is_ok(),
@@ -253,7 +253,7 @@ async fn test_run_groq_with_custom_model() {
     let mut agent_loop =
         create_agent_loop_with_model("Say 'hello' and nothing else.", "mixtral-8x7b-32768");
 
-    let result = agent_loop.run_groq().await;
+    let result = agent_loop.run().await;
 
     assert!(
         result.is_ok(),
@@ -285,7 +285,7 @@ async fn test_run_groq_emits_events() {
     )
     .unwrap();
 
-    let _ = agent_loop.run_groq().await;
+    let _ = agent_loop.run().await;
 
     let events = event_log.events();
     assert!(!events.is_empty(), "Should emit events");
@@ -300,7 +300,7 @@ async fn test_run_groq_emits_events() {
 async fn test_run_deepseek_completes_successfully() {
     let mut agent_loop = create_agent_loop("Say 'hello' and nothing else.");
 
-    let result = agent_loop.run_deepseek().await;
+    let result = agent_loop.run().await;
 
     assert!(
         result.is_ok(),
@@ -318,7 +318,7 @@ async fn test_run_deepseek_with_custom_model() {
     let mut agent_loop =
         create_agent_loop_with_model("Say 'hello' and nothing else.", "deepseek-coder");
 
-    let result = agent_loop.run_deepseek().await;
+    let result = agent_loop.run().await;
 
     assert!(
         result.is_ok(),
@@ -350,7 +350,7 @@ async fn test_run_deepseek_emits_events() {
     )
     .unwrap();
 
-    let _ = agent_loop.run_deepseek().await;
+    let _ = agent_loop.run().await;
 
     let events = event_log.events();
     assert!(!events.is_empty(), "Should emit events");
