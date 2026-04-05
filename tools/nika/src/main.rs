@@ -449,6 +449,39 @@ enum Commands {
         file: String,
     },
 
+    /// Evaluate workflow quality against a dataset of assertions
+    ///
+    /// Runs a workflow multiple times with different inputs, validates
+    /// each output against expected assertions, and reports PASS/FAIL.
+    ///
+    /// Dataset format: JSON array of {inputs, expected: {tasks: {task_id: assertions}}}.
+    /// Assertions: output_contains, output_min_words, output_max_words, output_matches_schema.
+    #[command(next_help_heading = "WORKFLOWS", visible_alias = "e")]
+    Eval {
+        /// Path to .nika.yaml workflow file
+        file: String,
+
+        /// Dataset file: JSON array with inputs + expected assertions
+        #[arg(long, value_name = "FILE")]
+        dataset: String,
+
+        /// Override provider (default: mock for safety)
+        #[arg(short = 'P', long)]
+        provider: Option<String>,
+
+        /// Output format: text | json
+        #[arg(long, default_value = "text")]
+        format: String,
+
+        /// Fail on first assertion failure
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Skip cost confirmation
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+
     /// Explain a workflow in human-readable format
     ///
     /// Parse the YAML, analyze the DAG, and print a summary: task count,
@@ -1498,6 +1531,27 @@ async fn main() {
 
         Some(Commands::Lint { file }) => cli::lint::handle_lint_command(&file, quiet).await,
 
+        Some(Commands::Eval {
+            file,
+            dataset,
+            provider,
+            format,
+            fail_fast,
+            yes,
+        }) => {
+            eval_workflow(
+                &file,
+                &dataset,
+                provider.as_deref(),
+                &format,
+                fail_fast,
+                yes,
+                quiet,
+                detail,
+            )
+            .await
+        }
+
         Some(Commands::Explain { file }) => explain_workflow(&file).await,
 
         Some(Commands::Bench {
@@ -1848,8 +1902,8 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         #[cfg(unix)]
         Some(Commands::Daemon { .. }) => false,
         // Everything else: headless, non-interactive, scriptable, or machine-internal.
-        // Run, Check, Infer, Fetch, Invoke, Agent, Bench, Serve, Lint, Lsp, Completion,
-        // Provider, Model, Config, Trace, Workflow, Pkg, Media, etc.
+        // Run, Check, Infer, Fetch, Invoke, Agent, Bench, Serve, Lint, Eval, Lsp,
+        // Completion, Provider, Model, Config, Trace, Workflow, Pkg, Media, etc.
         _ => true,
     }
 }
@@ -3328,6 +3382,125 @@ async fn test_workflow(
     }
 
     result
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn eval_workflow(
+    file: &str,
+    dataset_path: &str,
+    provider_override: Option<&str>,
+    format: &str,
+    fail_fast: bool,
+    skip_confirm: bool,
+    quiet: bool,
+    detail: nika::display::DetailLevel,
+) -> Result<(), NikaError> {
+    use cli::eval;
+    use colored::Colorize;
+
+    let entries = eval::load_dataset(dataset_path)?;
+
+    if !quiet {
+        eprintln!(
+            "  {} {} entries from {}",
+            "Eval:".cyan(),
+            entries.len(),
+            dataset_path
+        );
+    }
+
+    // Default to mock provider for safety (no accidental API costs)
+    let provider = provider_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "mock".to_string());
+
+    let mut results = Vec::with_capacity(entries.len());
+
+    for (i, entry) in entries.iter().enumerate() {
+        let start = std::time::Instant::now();
+        let cli_inputs = eval::inputs_to_cli_args(&entry.inputs);
+
+        // Create temp file for output capture
+        let capture_dir = std::env::temp_dir();
+        let capture_path = capture_dir.join(format!("nika-eval-{}-{i}.json", std::process::id()));
+        let capture_str = capture_path.to_string_lossy().to_string();
+
+        // Run workflow with output capture
+        let run_result = run_workflow(
+            file,
+            Some(provider.clone()),
+            None,
+            &cli_inputs,
+            None,
+            false,
+            Some(&capture_str),
+            None,
+            None,
+            skip_confirm || provider == "mock",
+            true, // quiet — suppress per-run output
+            detail,
+            true, // no-live
+            "deny",
+            false,
+        )
+        .await;
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        match run_result {
+            Ok(()) => {
+                // Read captured output
+                let captured: std::collections::HashMap<String, serde_json::Value> =
+                    if let Ok(raw) = tokio::fs::read_to_string(&capture_path).await {
+                        serde_json::from_str(&raw).unwrap_or_default()
+                    } else {
+                        std::collections::HashMap::new()
+                    };
+                let _ = tokio::fs::remove_file(&capture_path).await;
+
+                let failures = eval::validate_entry(&captured, &entry.expected);
+                let passed = failures.is_empty();
+
+                if !quiet && !passed {
+                    eprintln!("  {} entry #{i}", "FAIL".red().bold());
+                    for f in &failures {
+                        eprintln!("    {f}");
+                    }
+                } else if !quiet {
+                    eprintln!("  {} entry #{i} ({}ms)", "PASS".green(), duration_ms);
+                }
+
+                results.push(eval::EvalResult {
+                    entry_index: i,
+                    passed,
+                    failures,
+                    duration_ms,
+                });
+
+                if !passed && fail_fast {
+                    break;
+                }
+            }
+            Err(e) => {
+                let _ = tokio::fs::remove_file(&capture_path).await;
+
+                if !quiet {
+                    eprintln!("  {} entry #{i} — {e}", "FAIL".red().bold());
+                }
+                results.push(eval::EvalResult {
+                    entry_index: i,
+                    passed: false,
+                    failures: vec![format!("workflow execution failed: {e}")],
+                    duration_ms,
+                });
+                if fail_fast {
+                    break;
+                }
+            }
+        }
+    }
+
+    eval::finalize(results, format, quiet)
 }
 
 async fn explain_workflow(file: &str) -> Result<(), NikaError> {
