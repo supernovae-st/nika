@@ -112,7 +112,30 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     // 2.5. Collect include prefixes (tasks with these prefixes are resolved post-analysis)
     collect_include_prefixes(raw, &mut ctx);
 
-    // 2b. Validate model is specified when LLM verbs are used
+    // 2b. Validate workflow-level model name is recognized
+    if let Some(ref wf_model) = raw.model {
+        if !wf_model.value.contains('/')
+            && ModelResolver::infer_provider_from_model(&wf_model.value).is_none()
+        {
+            let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
+                .iter()
+                .any(|(_, m)| *m == wf_model.value.as_str());
+            if !is_known_default {
+                ctx.add_warning(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    wf_model.span,
+                    format!(
+                        "model '{}' is not a recognized model name. \
+                         Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
+                         Custom models should use 'org/model' format.",
+                        wf_model.value
+                    ),
+                ));
+            }
+        }
+    }
+
+    // 2c. Validate model is specified when LLM verbs are used
     let has_workflow_model = raw.model.is_some();
     let workflow_provider = raw
         .provider
@@ -171,6 +194,29 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                             "model '{}' is typically used with provider '{}', \
                              but task '{}' specifies provider '{}'",
                             task_model.value, inferred, task.id.value, task_provider.value
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // Check task-level model name is recognized
+        if let Some(ref task_model) = task.model {
+            if !task_model.value.contains('/')
+                && ModelResolver::infer_provider_from_model(&task_model.value).is_none()
+            {
+                let is_known_default = crate::catalogs::resolver::PROVIDER_DEFAULTS
+                    .iter()
+                    .any(|(_, m)| *m == task_model.value.as_str());
+                if !is_known_default {
+                    ctx.add_warning(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        task_model.span,
+                        format!(
+                            "model '{}' is not a recognized model name. \
+                             Known prefixes: claude, gpt, gemini, mistral, deepseek, grok. \
+                             Custom models should use 'org/model' format.",
+                            task_model.value
                         ),
                     ));
                 }
@@ -3914,6 +3960,109 @@ tasks:
         assert!(
             task.when.is_none(),
             "when: should be None when not specified"
+        );
+    }
+
+    // ====================================================================
+    // M1: Model name validation
+    // ====================================================================
+
+    #[test]
+    fn test_validate_unknown_model_warns() {
+        let mut task = make_raw_task("gen");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("hello".to_string(), make_span(0, 5)),
+                ..Default::default()
+            },
+            make_span(0, 20),
+        )));
+        task.model = Some(Spanned::new(
+            "typo-model".to_string(),
+            make_span(0, 10),
+        ));
+        task.provider = Some(Spanned::new("mock".to_string(), make_span(0, 4)));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        assert!(
+            result.warnings.iter().any(|w| w.message.contains("not a recognized model")),
+            "unknown model should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_custom_org_model_no_warning() {
+        let mut task = make_raw_task("gen");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("hello".to_string(), make_span(0, 5)),
+                ..Default::default()
+            },
+            make_span(0, 20),
+        )));
+        task.model = Some(Spanned::new(
+            "org/custom-model".to_string(),
+            make_span(0, 16),
+        ));
+        task.provider = Some(Spanned::new("mock".to_string(), make_span(0, 4)));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let model_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("not a recognized model"))
+            .collect();
+        assert!(
+            model_warnings.is_empty(),
+            "org/model format should not warn, got: {:?}",
+            model_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_known_model_no_warning() {
+        let mut task = make_raw_task("gen");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("hello".to_string(), make_span(0, 5)),
+                ..Default::default()
+            },
+            make_span(0, 20),
+        )));
+        task.model = Some(Spanned::new(
+            "claude-sonnet-4-6".to_string(),
+            make_span(0, 17),
+        ));
+        task.provider = Some(Spanned::new("anthropic".to_string(), make_span(0, 9)));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let model_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("not a recognized model"))
+            .collect();
+        assert!(
+            model_warnings.is_empty(),
+            "known model should not warn, got: {:?}",
+            model_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_workflow_level_unknown_model_warns() {
+        let task = make_raw_task("step1");
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        raw.model = Some(Spanned::new("bogus-model".to_string(), make_span(0, 11)));
+
+        let result = validate(&raw);
+        assert!(
+            result.warnings.iter().any(|w| w.message.contains("not a recognized model")),
+            "workflow-level unknown model should warn, got: {:?}",
+            result.warnings
         );
     }
 }
