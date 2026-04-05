@@ -1939,114 +1939,7 @@ impl RigProvider {
         }
 
         match self {
-            RigProvider::Claude(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    true,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::OpenAI(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Mistral(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Groq(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::DeepSeek(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Gemini(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::XAi(client) => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::OpenAiCompat { client, .. } => {
-                let stream_start = Instant::now();
-                let mut stream = build_request_with_options!(client);
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Mock => {
-                unreachable!("mock provider generates responses in executor, not via RigProvider")
-            }
-            // Native provider - uses infer_stream() with options for true streaming
+            // Native provider — dedicated non-rig-core streaming path with options
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 use futures::StreamExt;
@@ -2095,6 +1988,23 @@ impl RigProvider {
                     .map(|s| s.len() as u64)
                     .sum::<u64>()
                     .div_ceil(4);
+            }
+            // All rig-core providers
+            _ => {
+                let is_anthropic = self.is_anthropic();
+                dispatch_rig!(self, |client| {
+                    let stream_start = Instant::now();
+                    let mut stream = build_request_with_options!(client);
+                    consume_rig_stream(
+                        &mut stream,
+                        &tx,
+                        &mut response_parts,
+                        &mut result,
+                        is_anthropic,
+                        stream_start,
+                    )
+                    .await?;
+                });
             }
         }
 
