@@ -78,10 +78,10 @@ tasks:
       timeout: 30
       headers:
         User-Agent: "Nika-Workflow-Engine/0.37.0"
-      retry:
-        max_attempts: 3
-        delay_ms: 1000
-        backoff: 2.0
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+      backoff: 2.0
     artifact:
       path: discovery/all-links.json
       format: json
@@ -226,10 +226,10 @@ tasks:
       timeout: 30
       headers:
         User-Agent: "Nika-Workflow-Engine/0.37.0"
-      retry:
-        max_attempts: 2
-        delay_ms: 1000
-        backoff: 2.0
+    retry:
+      max_attempts: 2
+      delay_ms: 1000
+      backoff: 2.0
     artifact:
       path: "raw/{{with.edition.code}}-content.md"
 
@@ -484,10 +484,10 @@ tasks:
       url: "https://picsum.photos/800/400.jpg"
       response: binary
       timeout: 15
-      retry:
-        max_attempts: 2
-        delay_ms: 500
-        backoff: 2.0
+    retry:
+      max_attempts: 2
+      delay_ms: 500
+      backoff: 2.0
     artifact:
       path: media/hero-original.jpg
       format: binary
