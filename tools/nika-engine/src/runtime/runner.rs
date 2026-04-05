@@ -256,6 +256,17 @@ pub struct Runner {
 /// Maximum concurrent tasks (regular + for_each) in a single workflow run.
 const MAX_CONCURRENT_TASKS: usize = 64;
 
+/// State produced by [`Runner::init_run`] and consumed by the DAG loop and finalize phases.
+///
+/// Extracted so that `run()` reads as init → loop → finalize glue.
+struct InitResult {
+    base_path: PathBuf,
+    #[allow(dead_code)]
+    total_tasks: usize,
+    cached_depths: Option<std::collections::HashMap<String, usize>>,
+    pending_indices: Vec<usize>,
+}
+
 impl Runner {
     /// Create a Runner without policy enforcement.
     ///
@@ -1595,27 +1606,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         });
     }
 
-    /// Main execution loop
-    #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
-    pub async fn run(&mut self) -> Result<String, NikaError> {
-        let workflow_start = Instant::now();
-        info!("Starting workflow execution");
-
-        // Check for cancellation before starting
-        if self.cancel_token.is_cancelled() {
-            let duration = workflow_start.elapsed();
-            self.event_log.emit(EventKind::WorkflowAborted {
-                reason: "Workflow cancelled before start".to_string(),
-                duration_ms: duration.as_millis() as u64,
-                running_tasks: vec![],
-            });
-            self.write_trace();
-            return Err(ExecutionError::Cancelled {
-                phase: "before start".to_string(),
-            }
-            .into());
-        }
-
+    /// Phase 1 of `run()`: load context/inputs/skills, resolve agents,
+    /// emit WorkflowStarted, compute DAG layers, set up CLI renderer.
+    ///
+    /// Returns [`InitResult`] carrying local state the DAG loop and
+    /// finalize phase need. The RAII lockfile guard stays in `run()`
+    /// so it outlives both phases.
+    async fn init_run(&mut self) -> Result<InitResult, NikaError> {
         // P-ORCHESTRATE: Emit OrchestratorStarted when goal is present
         if let Some(ref goal) = self.workflow.goal {
             let orch_config = self.workflow.orchestrate.as_ref();
@@ -1634,15 +1631,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Set workspace root for CAS media store path resolution
         self.datastore.set_workspace_root(base_path.clone());
-
-        // RAII lockfile: auto-removed on all exit paths (normal, error, panic)
-        let _lockfile_guard = LockfileGuard::create(
-            base_path
-                .join(".nika")
-                .join("media")
-                .join("store")
-                .join(".nika-run.lock"),
-        );
 
         if !self.workflow.context_files.is_empty() {
             let loaded_context =
@@ -1714,7 +1702,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
 
         let total_tasks = self.workflow.tasks.len();
-        let mut _completed = 0;
 
         // EMIT: WorkflowStarted
         self.event_log.emit(EventKind::WorkflowStarted {
@@ -1744,7 +1731,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // PERF(M2): Compute DAG layers ONCE, reuse for both display and summary.
         // compute_layers() is O(N²) worst-case; previously called twice with identical inputs.
-        let cached_depths = if total_tasks > 1 {
+        // Converted to owned strings so InitResult can outlive the borrow of self.workflow.
+        let cached_depths: Option<std::collections::HashMap<String, usize>> = if total_tasks > 1 {
             let nodes: Vec<&str> = self
                 .workflow
                 .tasks
@@ -1764,7 +1752,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     })
                 })
                 .collect();
-            Some(crate::dag::flow::compute_layers(&nodes, &edges))
+            let layers = crate::dag::flow::compute_layers(&nodes, &edges);
+            Some(layers.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
         } else {
             None
         };
@@ -1839,7 +1828,51 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Pending task indices — shrinks as tasks complete, so get_ready_tasks()
         // only checks remaining tasks instead of rescanning the full task list.
-        let mut pending_indices: Vec<usize> = (0..self.workflow.tasks.len()).collect();
+        let pending_indices: Vec<usize> = (0..self.workflow.tasks.len()).collect();
+
+        Ok(InitResult {
+            base_path,
+            total_tasks,
+            cached_depths,
+            pending_indices,
+        })
+    }
+
+    /// Main execution loop
+    #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
+    pub async fn run(&mut self) -> Result<String, NikaError> {
+        let workflow_start = Instant::now();
+        info!("Starting workflow execution");
+
+        // Check for cancellation before starting
+        if self.cancel_token.is_cancelled() {
+            let duration = workflow_start.elapsed();
+            self.event_log.emit(EventKind::WorkflowAborted {
+                reason: "Workflow cancelled before start".to_string(),
+                duration_ms: duration.as_millis() as u64,
+                running_tasks: vec![],
+            });
+            self.write_trace();
+            return Err(ExecutionError::Cancelled {
+                phase: "before start".to_string(),
+            }
+            .into());
+        }
+
+        // Phase 1: Initialize — context, inputs, skills, agents, DAG layers, renderer
+        let mut init = self.init_run().await?;
+
+        // RAII lockfile: auto-removed on all exit paths (normal, error, panic).
+        // Must outlive both the DAG loop and finalize, so it stays here in run().
+        let _lockfile_guard = LockfileGuard::create(
+            init.base_path
+                .join(".nika")
+                .join("media")
+                .join("store")
+                .join(".nika-run.lock"),
+        );
+
+        let mut _completed = 0;
 
         loop {
             // Check for cancellation at start of each loop iteration
@@ -1901,7 +1934,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             let mut renderer = self.cli_renderer.take();
 
-            let ready = self.get_ready_tasks(&mut pending_indices);
+            let ready = self.get_ready_tasks(&mut init.pending_indices);
 
             // Check for completion or deadlock
             if ready.is_empty() {
@@ -2005,7 +2038,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             // Prepare artifact config for all tasks in this batch
             let workflow_artifacts = self.workflow.artifacts.clone();
-            let artifact_base_path = base_path.clone();
+            let artifact_base_path = init.base_path.clone();
             let workflow_base_url = self.workflow.base_url.clone();
 
             for task in ready {
@@ -2867,7 +2900,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Write artifact manifest if configured
         if let Some(ref artifacts_config) = self.workflow.artifacts {
-            write_artifact_manifest(&self.event_log, artifacts_config, &base_path);
+            write_artifact_manifest(&self.event_log, artifacts_config, &init.base_path);
         }
 
         // Get final output
@@ -2927,7 +2960,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         });
 
         // GC: remove CAS media files older than 30 days and emit MediaCleanup
-        let cas_store = CasStore::workspace_default(&base_path);
+        let cas_store = CasStore::workspace_default(&init.base_path);
         let gc = cas_store.clean_older_than(std::time::Duration::from_secs(30 * 24 * 3600));
         if gc.removed > 0 || gc.bytes_freed > 0 {
             tracing::debug!(
@@ -3010,8 +3043,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 });
             // PERF(M2): Reuse cached_depths from earlier computation
             let task_count = self.workflow.tasks.len();
-            let parallel_count = if let Some(ref depths) = cached_depths {
-                let max_layer = depths.values().copied().max().unwrap_or(0);
+            let parallel_count = if let Some(ref depths) = init.cached_depths {
+                let max_layer: usize = depths.values().copied().max().unwrap_or(0);
                 let mut layers: Vec<Vec<&str>> = vec![Vec::new(); max_layer + 1];
                 for task in &self.workflow.tasks {
                     if let Some(&layer) = depths.get(task.name.as_str()) {
