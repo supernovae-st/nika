@@ -216,7 +216,16 @@ impl TaskExecutor {
                         domain = %domain,
                         "fetch: acquiring domain rate limit"
                     );
+                    let rl_start = std::time::Instant::now();
                     limiter.acquire(domain).await;
+                    let delay_ms = rl_start.elapsed().as_millis() as u64;
+                    if delay_ms > 50 {
+                        self.event_log.emit(EventKind::RateLimitDelay {
+                            task_id: Arc::clone(task_id),
+                            domain: domain.to_string(),
+                            delay_ms,
+                        });
+                    }
                 }
             }
         }
