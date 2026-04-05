@@ -201,6 +201,32 @@ impl std::fmt::Debug for RigProvider {
 ///
 /// IMPORTANT: the `$body` expression may be `.await`-ed inside the macro.
 /// Rust macros expand before type checking, so each arm gets its own
+/// monomorphized async block. Streams must be consumed INSIDE `$body`
+/// because the stream type is not `Send` across arms.
+macro_rules! dispatch_rig {
+    ($self:expr, |$client:ident| $body:expr) => {
+        match $self {
+            RigProvider::Claude($client) => $body,
+            RigProvider::OpenAI($client) => $body,
+            RigProvider::Mistral($client) => $body,
+            RigProvider::Groq($client) => $body,
+            RigProvider::DeepSeek($client) => $body,
+            RigProvider::Gemini($client) => $body,
+            RigProvider::XAi($client) => $body,
+            RigProvider::OpenAiCompat {
+                client: $client, ..
+            } => $body,
+            RigProvider::Mock => {
+                unreachable!("mock provider generates responses in executor, not via RigProvider")
+            }
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => {
+                unreachable!("native uses a dedicated non-rig-core path")
+            }
+        }
+    };
+}
+
 impl RigProvider {
     /// Create a RigProvider by name or alias, with env var validation.
     ///
@@ -1736,178 +1762,7 @@ impl RigProvider {
         let mut result = StreamResult::default();
 
         match self {
-            RigProvider::Claude(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    true,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::OpenAI(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Mistral(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Groq(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::DeepSeek(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Gemini(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::XAi(client) => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            RigProvider::Mock => {
-                unreachable!("mock provider generates responses in executor, not via RigProvider")
-            }
-            RigProvider::OpenAiCompat { client, .. } => {
-                let model = client.completion_model(model_id);
-                let request = model
-                    .completion_request(prompt)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                let stream_start = Instant::now();
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(
-                    &mut stream,
-                    &tx,
-                    &mut response_parts,
-                    &mut result,
-                    false,
-                    stream_start,
-                )
-                .await?;
-            }
-            // Native provider - uses infer_stream() for true token-by-token streaming
+            // Native provider — dedicated non-rig-core streaming path
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 use futures::StreamExt;
@@ -1946,6 +1801,31 @@ impl RigProvider {
                     .map(|s| s.len() as u64)
                     .sum::<u64>()
                     .div_ceil(4);
+            }
+            // All rig-core providers (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi, OpenAiCompat)
+            _ => {
+                let is_anthropic = self.is_anthropic();
+                dispatch_rig!(self, |client| {
+                    let model = client.completion_model(model_id);
+                    let request = model
+                        .completion_request(prompt)
+                        .max_tokens(effective_max_tokens)
+                        .build();
+                    let stream_start = Instant::now();
+                    let mut stream = model
+                        .stream(request)
+                        .await
+                        .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+                    consume_rig_stream(
+                        &mut stream,
+                        &tx,
+                        &mut response_parts,
+                        &mut result,
+                        is_anthropic,
+                        stream_start,
+                    )
+                    .await?;
+                });
             }
         }
 
