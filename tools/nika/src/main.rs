@@ -477,6 +477,10 @@ enum Commands {
         #[arg(long)]
         fail_fast: bool,
 
+        /// Run N entries in parallel (default: 1 = sequential)
+        #[arg(long, default_value = "1")]
+        parallel: usize,
+
         /// Skip cost confirmation
         #[arg(short = 'y', long)]
         yes: bool,
@@ -1537,6 +1541,7 @@ async fn main() {
             provider,
             format,
             fail_fast,
+            parallel,
             yes,
         }) => {
             eval_workflow(
@@ -1545,6 +1550,7 @@ async fn main() {
                 provider.as_deref(),
                 &format,
                 fail_fast,
+                parallel,
                 yes,
                 quiet,
                 detail,
@@ -3391,6 +3397,7 @@ async fn eval_workflow(
     provider_override: Option<&str>,
     format: &str,
     fail_fast: bool,
+    parallel: usize,
     skip_confirm: bool,
     quiet: bool,
     detail: nika::display::DetailLevel,
@@ -3399,13 +3406,19 @@ async fn eval_workflow(
     use colored::Colorize;
 
     let entries = eval::load_dataset(dataset_path)?;
+    let concurrency = parallel.max(1).min(entries.len());
 
     if !quiet {
         eprintln!(
-            "  {} {} entries from {}",
+            "  {} {} entries from {}{}",
             "Eval:".cyan(),
             entries.len(),
-            dataset_path
+            dataset_path,
+            if concurrency > 1 {
+                format!(" (parallel: {concurrency})")
+            } else {
+                String::new()
+            }
         );
     }
 
@@ -3415,8 +3428,10 @@ async fn eval_workflow(
         .unwrap_or_else(|| "mock".to_string());
 
     let mut results = Vec::with_capacity(entries.len());
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
 
     for (i, entry) in entries.iter().enumerate() {
+        let _permit = semaphore.acquire().await.unwrap();
         let start = std::time::Instant::now();
         let cli_inputs = eval::inputs_to_cli_args(&entry.inputs);
 

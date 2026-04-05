@@ -261,7 +261,10 @@ pub async fn handle_lint_command(file: &str, quiet: bool) -> Result<(), NikaErro
         });
     }
 
-    let workflow = result.value.unwrap();
+    let workflow = result.value.ok_or_else(|| NikaError::BuiltinToolError {
+        tool: "lint".into(),
+        reason: "Internal error: analyzer produced no value".into(),
+    })?;
     let findings = lint_workflow(&workflow);
 
     let warnings = findings

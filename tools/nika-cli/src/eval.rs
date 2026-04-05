@@ -169,6 +169,23 @@ pub fn validate_task_output(
                         }
                     }
                 }
+                // Warn about schema keywords we don't validate
+                let ignored: Vec<&str> = schema
+                    .as_object()
+                    .map(|obj| {
+                        obj.keys()
+                            .filter(|k| !matches!(k.as_str(), "type" | "required"))
+                            .map(|k| k.as_str())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !ignored.is_empty() {
+                    failures.push(format!(
+                        "{}: output_matches_schema ignores keywords: {} — use structured: for full validation",
+                        task_id,
+                        ignored.join(", ")
+                    ));
+                }
             }
             Err(_) => {
                 failures.push(format!(
@@ -506,6 +523,26 @@ mod tests {
         let failures = validate_task_output("t1", &output, &assertions);
         assert_eq!(failures.len(), 1);
         assert!(failures[0].contains("not valid JSON"));
+    }
+
+    #[test]
+    fn output_matches_schema_warns_on_ignored_keywords() {
+        let assertions = TaskAssertions {
+            output_contains: None,
+            output_min_words: None,
+            output_max_words: None,
+            output_matches_schema: Some(json!({
+                "type": "object",
+                "required": ["score"],
+                "properties": { "score": { "type": "number", "minimum": 0 } }
+            })),
+        };
+        let output = json!(r#"{"score": 42}"#);
+        let failures = validate_task_output("t1", &output, &assertions);
+        assert!(
+            failures.iter().any(|f| f.contains("ignores keywords")),
+            "Should warn about 'properties': {failures:?}"
+        );
     }
 
     #[test]
