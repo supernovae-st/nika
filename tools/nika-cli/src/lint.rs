@@ -110,6 +110,18 @@ pub fn lint_workflow(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
                     });
                 }
             }
+
+            // L031: for_each without explicit concurrency
+            if fe.concurrency.is_none() {
+                findings.push(LintFinding {
+                    severity: Severity::Info,
+                    rule: "L031",
+                    task_id: Some(task.name.clone()),
+                    message: "for_each without explicit concurrency: — default is sequential \
+                              (concurrency: 1). Consider adding concurrency: N for parallel."
+                        .into(),
+                });
+            }
         }
 
         // L050: agent without explicit max_turns check (info)
@@ -815,5 +827,37 @@ mod tests {
         make_task(&mut wf, "step2", AnalyzedTaskAction::default());
         let findings = lint_workflow(&wf);
         assert!(!has_rule(&findings, "L090"));
+    }
+
+    // ── L031: for_each without concurrency ─────────────────────────
+
+    #[test]
+    fn l031_fires_when_no_concurrency() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = make_task(&mut wf, "batch", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
+            items: "$data".into(),
+            as_var: "item".into(),
+            concurrency: None,
+            fail_fast: true,
+            span: Span::dummy(),
+        });
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L031", "batch"), "L031 should fire");
+    }
+
+    #[test]
+    fn l031_silent_with_concurrency() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = make_task(&mut wf, "batch", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
+            items: "$data".into(),
+            as_var: "item".into(),
+            concurrency: Some(5),
+            fail_fast: true,
+            span: Span::dummy(),
+        });
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L031", "batch"), "L031 should NOT fire with concurrency");
     }
 }
