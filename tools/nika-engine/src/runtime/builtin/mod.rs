@@ -1,7 +1,7 @@
-//! Builtin Tools Module — 61 nika:* tools across 6 tiers
+//! Builtin Tools Module — 60 nika:* tools across 6 tiers
 //!
 //! **Core (7):** sleep, log, emit, assert, prompt, run, complete
-//! **Data (13):** json_merge, set_diff, zip, json_query†, map, filter, group_by,
+//! **Data (12):** json_merge, set_diff, zip, map, filter, group_by,
 //!   chunk, token_count, enrich, jq, tree_data, inject
 //! **Data Sprint 2 (6):** json_verify, yaml_validate, locale_lookup, aggregate,
 //!   json_flatten, json_unflatten
@@ -11,8 +11,6 @@
 //!   strip, metadata, optimize, svg_render, chart, phash, compare, pdf_extract,
 //!   provenance, verify, qr_validate, quality, css_select, extract_metadata,
 //!   extract_links, html_to_md, readability, pipeline
-//!
-//! † json_query is deprecated — use jq instead
 //!
 //! # Architecture
 //!
@@ -57,8 +55,8 @@ pub use complete::{
 };
 pub use cost::CostTool;
 pub use data::{
-    ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonMergeTool,
-    JsonQueryTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
+    ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonMergeTool, MapTool,
+    SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
 };
 pub use emit::EmitTool;
 pub use fetch_tool::FetchTool;

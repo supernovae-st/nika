@@ -1,4 +1,4 @@
-//! JQ tools: jq (via jaq-core), json_query (deprecated)
+//! JQ tool via jaq-core (full jq stdlib)
 
 use super::super::BuiltinTool;
 use crate::error::NikaError;
@@ -6,82 +6,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
-
-pub struct JsonQueryTool;
-
-#[derive(Debug, Deserialize)]
-struct JsonQueryParams {
-    /// Data to query
-    data: Value,
-    /// JSONPath expression (e.g., "$..url", "$.items[0].name")
-    query: String,
-}
-
-impl BuiltinTool for JsonQueryTool {
-    fn name(&self) -> &'static str {
-        "json_query"
-    }
-
-    fn description(&self) -> &'static str {
-        "Query JSON data using JSONPath expressions (e.g., '$..url', '$.items[0].name')"
-    }
-
-    fn parameters_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "required": ["data", "query"],
-            "properties": {
-                "data": {
-                    "description": "JSON data to query"
-                },
-                "query": {
-                    "type": "string",
-                    "description": "JSONPath expression (e.g., '$..url', '$.items[*].name')"
-                }
-            },
-            "additionalProperties": false
-        })
-    }
-
-    fn call<'a>(
-        &'a self,
-        args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
-        Box::pin(async move {
-            tracing::warn!("nika:json_query is deprecated — use nika:jq instead");
-
-            let params: JsonQueryParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
-                    tool: "nika:json_query".into(),
-                    reason: format!("Invalid parameters: {e}"),
-                })?;
-
-            // Use nika-engine's JSONPath implementation
-            let results =
-                crate::binding::jsonpath::query(&params.data, &params.query).map_err(|e| {
-                    NikaError::BuiltinToolError {
-                        tool: "nika:json_query".into(),
-                        reason: format!("JSONPath query failed: {e}"),
-                    }
-                })?;
-
-            // BUG-037: Convert null (no matches) to empty array for tool output.
-            // The shared jsonpath::query() returns null for no matches, which is
-            // correct for the binding system ($task.result ?? "fallback"). But for
-            // the tool, empty array is more useful and composable.
-            let output = if results.is_null() {
-                Value::Array(vec![])
-            } else {
-                results
-            };
-
-            serde_json::to_string(&output).map_err(|e| NikaError::BuiltinToolError {
-                tool: "nika:json_query".into(),
-                reason: format!("Serialization failed: {e}"),
-            })
-        })
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // nika:jq — Full jq stdlib via jaq-core
@@ -156,49 +80,6 @@ impl BuiltinTool for JqTool {
 mod tests {
     use super::*;
     use serde_json::{json, Value};
-
-    // ── json_query ──────────────────────────────────────────────
-    #[tokio::test]
-    async fn json_query_recursive_descent() {
-        let tool = JsonQueryTool;
-        let data = json!({
-            "pages": [
-                {"links": [{"url": "/a"}, {"url": "/b"}]},
-                {"links": [{"url": "/c"}]}
-            ]
-        });
-        let result = tool
-            .call(serde_json::json!({"data": data, "query": "$..url"}).to_string())
-            .await
-            .unwrap();
-        let parsed: Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(parsed, json!(["/a", "/b", "/c"]));
-    }
-
-    #[tokio::test]
-    async fn json_query_array_index() {
-        let tool = JsonQueryTool;
-        let data = json!({"items": ["a", "b", "c"]});
-        let result = tool
-            .call(serde_json::json!({"data": data, "query": "$.items[1]"}).to_string())
-            .await
-            .unwrap();
-        let parsed: Value = serde_json::from_str(&result).unwrap();
-        // Single match returns the value directly (not wrapped in array)
-        assert_eq!(parsed, json!("b"));
-    }
-
-    #[tokio::test]
-    async fn json_query_no_match_returns_empty_array() {
-        let tool = JsonQueryTool;
-        let data = json!({"items": [{"name": "a"}]});
-        let result = tool
-            .call(serde_json::json!({"data": data, "query": "$..nonexistent"}).to_string())
-            .await
-            .unwrap();
-        let parsed: Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(parsed, json!([]));
-    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // nika:jq tests

@@ -4,7 +4,7 @@
 //! - `merge` — json_merge, set_diff, zip
 //! - `transform` — map, filter, enrich
 //! - `aggregate` — group_by, tree_data
-//! - `jq` — jq (full jq stdlib), json_query (deprecated)
+//! - `jq` — jq (full jq stdlib via jaq-core)
 //! - `text` — chunk, token_count
 //! - `io` — inject (template marker replacement)
 
@@ -17,7 +17,7 @@ mod transform;
 
 pub use aggregate::{GroupByTool, TreeDataTool};
 pub use io::InjectTool;
-pub use jq::{JqTool, JsonQueryTool};
+pub use jq::JqTool;
 pub use merge::{JsonMergeTool, SetDiffTool, ZipTool};
 pub use text::{ChunkTool, TokenCountTool};
 pub use transform::{EnrichTool, FilterTool, MapTool};
