@@ -2935,8 +2935,7 @@ mod tests {
     fn test_error_codes_have_nika_prefix() {
         let errors: Vec<NikaError> = vec![
             NikaError::ParseError { details: "x".into() },
-            NikaError::SchemaValidation { details: "x".into() },
-            NikaError::DagCycle { details: "x".into() },
+            NikaError::CycleDetected { cycle: "a→b→a".into() },
             NikaError::Execution("x".into()),
             NikaError::WorkflowTimeout { duration_secs: 1, running_tasks: vec![] },
             NikaError::ValidationError { reason: "x".into() },
