@@ -1,6 +1,6 @@
 # Nika Architecture
 
-Schema `nika/workflow@0.12` | v0.52.0 | 12 crates | 8,888+ tests
+Schema `nika/workflow@0.12` | v0.71.0 | 17 crates | 10,000+ tests
 
 ---
 
@@ -64,6 +64,11 @@ Schema `nika/workflow@0.12` | v0.52.0 | 12 crates | 8,888+ tests
 | `nika-init` | ~21k | Project scaffolding |
 | `nika-lsp-core` | ~9k | LSP intelligence |
 | `nika-lsp` | ~2.5k | LSP binary |
+| `nika-display` | ~12k | CLI display renderers |
+| `nika-sdk` | ~3k | Rust SDK |
+| `nika-serve` | ~4k | HTTP server |
+| `nika-storage` | ~1k | Storage abstraction |
+| `nika-vault` | ~1.2k | Encrypted credential store |
 
 ---
 
@@ -117,7 +122,7 @@ Raw → Analyzed → Lower   (never skip phases)
 | `xai` | `XAI_API_KEY` | grok-3 |
 | `native` | (none) | Local GGUF via mistral.rs |
 
-All cloud providers route through `rig-core 0.32`. Native uses `mistral.rs` for local GGUF inference and `NativeModelKind::VisionHf` for vision models.
+All cloud providers route through `rig-core 0.33`. Native uses `mistral.rs` for local GGUF inference and `NativeModelKind::VisionHf` for vision models.
 
 ---
 
@@ -185,7 +190,7 @@ Built on `ratatui`. ~86k lines across ~40+ widgets. Event loop driven by `crosst
 | Crate | Version | Purpose |
 |:------|:--------|:--------|
 | `tokio` | 1.49 | Async runtime |
-| `rig-core` | 0.32 | LLM provider abstraction |
+| `rig-core` | 0.33 | LLM provider abstraction |
 | `rmcp` | 0.16 | MCP protocol (stdio transport) |
 | `ratatui` | 0.30 | Terminal UI framework |
 | `serde-saphyr` | — | YAML parsing with bomb protection |
