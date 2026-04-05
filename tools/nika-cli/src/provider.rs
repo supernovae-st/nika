@@ -7,54 +7,16 @@ use std::io::IsTerminal;
 use nika_engine::display::{hint, status_line, tree_connector, StatusIcon};
 use nika_engine::error::NikaError;
 
-/// Provider management actions
+/// Provider management actions (read-only catalog).
+///
+/// Key management moved to `nika keys`. Use:
+///   nika keys set <provider>    — store an API key
+///   nika keys remove <provider> — delete a key
+///   nika keys check             — test all keys
 #[derive(Subcommand)]
 pub enum ProviderAction {
-    /// List all providers and their status
+    /// List all providers, models, and pricing
     List,
-
-    /// Set API key for a provider (stored in encrypted vault)
-    ///
-    /// Prefer interactive mode (no key argument) — the key is masked during input.
-    /// Passing the key as an argument exposes it in the process list (ps aux).
-    Set {
-        /// Provider name (anthropic, openai, mistral, groq, deepseek, gemini, xai)
-        provider: Option<String>,
-        /// API key — prefer interactive mode (omit this to enter with hidden input)
-        #[arg(hide = true)]
-        key: Option<String>,
-        /// Read API key from stdin (for automation: echo $KEY | nika keys set openai --stdin)
-        #[arg(long)]
-        stdin: bool,
-        /// Read API key from a named environment variable (e.g. --key-env OPENAI_API_KEY)
-        #[arg(long)]
-        key_env: Option<String>,
-        /// Skip connection test after storing
-        #[arg(long)]
-        no_test: bool,
-    },
-
-    /// Get API key for a provider (masked for security)
-    Get {
-        /// Provider name
-        provider: String,
-    },
-
-    /// Delete API key for a provider
-    Delete {
-        /// Provider name
-        provider: String,
-    },
-
-    /// Migrate API keys from environment variables to vault
-    Migrate,
-
-    /// Reset the encrypted vault (deletes all stored keys)
-    ///
-    /// Use when the vault is corrupted or was created with a different passphrase.
-    /// After reset, re-add your API keys with `nika keys set <provider>`.
-    #[command(name = "vault-reset")]
-    VaultReset,
 
     /// Test connection to a provider
     Test {
@@ -90,23 +52,7 @@ fn llm_provider_ids() -> Vec<&'static str> {
         .collect()
 }
 
-const PROVIDER_DESCRIPTIONS: &[(&str, &str)] = &[
-    ("anthropic", "Claude — recommended for reasoning & code"),
-    ("openai", "GPT-4o, GPT-4.1, o3, o4-mini"),
-    ("mistral", "Mistral Large, Small, Codestral"),
-    ("groq", "Llama 4, Mixtral — ultra-fast inference"),
-    ("deepseek", "DeepSeek Chat, Reasoner — budget-friendly"),
-    ("gemini", "Gemini 2.5 Pro, Flash — large context"),
-    ("xai", "Grok 3 — real-time knowledge"),
-];
 
-fn provider_description(id: &str) -> &'static str {
-    PROVIDER_DESCRIPTIONS
-        .iter()
-        .find(|(p, _)| *p == id)
-        .map(|(_, d)| *d)
-        .unwrap_or("")
-}
 
 /// Top models per provider for `provider list` display.
 fn top_models_for_provider(provider: &str) -> &'static str {
@@ -152,7 +98,7 @@ pub async fn handle_provider_command(
     _quiet: bool,
 ) -> Result<(), NikaError> {
     use nika_engine::core::provider_to_env_var;
-    use nika_engine::secrets::{mask_api_key, migrate_env_to_vault, validate_key_format};
+    use nika_engine::secrets::mask_api_key;
     use secrecy::ExposeSecret;
 
     let all_providers = llm_provider_ids();
@@ -393,337 +339,6 @@ pub async fn handle_provider_command(
             Ok(())
         }
 
-        ProviderAction::Set {
-            provider,
-            key,
-            stdin,
-            key_env,
-            no_test,
-        } => {
-            let is_tty = std::io::stdin().is_terminal();
-            let provider = match provider {
-                Some(p) => {
-                    if !all_providers.contains(&p.as_str()) {
-                        return Err(NikaError::ValidationError {
-                            reason: format!(
-                                "Unknown provider '{}'. Valid: {}",
-                                p,
-                                all_providers.join(", ")
-                            ),
-                        });
-                    }
-                    p
-                }
-                None if is_tty => {
-                    let items: Vec<(String, String, String)> = all_providers
-                        .iter()
-                        .map(|&p| {
-                            (
-                                p.to_string(),
-                                p.to_string(),
-                                provider_description(p).to_string(),
-                            )
-                        })
-                        .collect();
-                    cliclack::select("Which provider?")
-                        .items(
-                            &items
-                                .iter()
-                                .map(|(v, l, h)| (v.as_str(), l.as_str(), h.as_str()))
-                                .collect::<Vec<_>>(),
-                        )
-                        .interact()
-                        .map_err(|e| {
-                            NikaError::IoError(std::io::Error::new(
-                                std::io::ErrorKind::Interrupted,
-                                format!("Cancelled: {e}"),
-                            ))
-                        })?
-                        .to_string()
-                }
-                None => {
-                    return Err(NikaError::ValidationError {
-                        reason: "Provider name required in non-interactive mode".into(),
-                    })
-                }
-            };
-            let api_key = if stdin {
-                // --stdin: read key from piped input (safe for automation)
-                use std::io::Read;
-                let mut buf = String::new();
-                std::io::stdin()
-                    .read_to_string(&mut buf)
-                    .map_err(NikaError::IoError)?;
-                let trimmed = buf.trim().to_string();
-                if trimmed.is_empty() {
-                    return Err(NikaError::ValidationError {
-                        reason: "No key received on stdin".into(),
-                    });
-                }
-                trimmed
-            } else if let Some(env_name) = key_env {
-                // --key-env: read from a named env var (safe for CI/Docker)
-                std::env::var(&env_name).map_err(|_| NikaError::ValidationError {
-                    reason: format!("Environment variable '{}' not set", env_name),
-                })?
-            } else {
-                match key {
-                    Some(k) => {
-                        eprintln!(
-                            "  {} API key passed as argument — visible in process list (ps aux)",
-                            StatusIcon::Warn
-                        );
-                        eprintln!(
-                            "{}",
-                            hint("Prefer: nika keys set (interactive, masked input)")
-                        );
-                        k
-                    }
-                    None if is_tty => cliclack::password(format!("Paste your {provider} API key:"))
-                        .mask('•')
-                        .interact()
-                        .map_err(|e| {
-                            NikaError::IoError(std::io::Error::new(
-                                std::io::ErrorKind::Interrupted,
-                                format!("Cancelled: {e}"),
-                            ))
-                        })?,
-                    None => {
-                        return Err(NikaError::ValidationError {
-                            reason: "API key required. Use --stdin, --key-env, or interactive mode"
-                                .into(),
-                        })
-                    }
-                }
-            };
-            if let Some(detected) = detect_provider_from_key(&api_key) {
-                if detected != provider {
-                    println!(
-                        "  {} Key prefix suggests {} but storing as {}",
-                        StatusIcon::Warn,
-                        detected.cyan(),
-                        provider.cyan()
-                    );
-                }
-            }
-            if let Err(e) = validate_key_format(&provider, &api_key) {
-                return Err(NikaError::ValidationError { reason: e });
-            }
-            // Try daemon IPC first (faster)
-            #[cfg(unix)]
-            {
-                let sock = nika_daemon::daemon_socket_path();
-                if sock.exists() {
-                    let client = nika_daemon::DaemonClient::new(&sock);
-                    if client.set_secret(&provider, &api_key).await.is_ok() {
-                        let env_var_name =
-                            provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                        nika_engine::secrets::inject_secret_to_env(env_var_name, &api_key);
-                        println!(
-                            "  {} API key for {} stored via daemon",
-                            StatusIcon::Ok,
-                            provider.bold()
-                        );
-                        crate::onboarding::mark_onboarding_done();
-                        // CLI-10: Warn if env var will override
-                        if std::env::var(env_var_name).is_ok_and(|v| !v.is_empty() && v != api_key)
-                        {
-                            println!(
-                                "  {} {} found in environment — it will override the daemon key",
-                                StatusIcon::Warn,
-                                env_var_name.bold()
-                            );
-                            println!("{}", hint(&format!("Remove it: unset {env_var_name}")));
-                        }
-                        if !no_test
-                            && is_tty
-                            && cliclack::confirm("Test connection now?")
-                                .initial_value(true)
-                                .interact()
-                                .unwrap_or(false)
-                        {
-                            let _ = test_provider_connection(&provider).await;
-                        }
-                        println!();
-                        println!(
-                            "{}",
-                            hint(&format!("Try it:  nika infer \"hello\" -p {provider}"))
-                        );
-                        println!("{}", hint("Status:  nika provider list"));
-                        return Ok(());
-                    }
-                    // Fall through to direct vault
-                }
-            }
-            {
-                let vault = get_vault();
-                vault
-                    .set(&provider, &api_key)
-                    .map_err(|e| NikaError::ConfigError {
-                        reason: format!("Failed to store key: {e}"),
-                    })?;
-            }
-            println!(
-                "  {} API key for {} stored in encrypted vault",
-                StatusIcon::Ok,
-                provider.bold()
-            );
-            crate::onboarding::mark_onboarding_done();
-            // CLI-10: Warn if env var will override vault key
-            let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-            if std::env::var(env_var).is_ok_and(|v| !v.is_empty()) {
-                println!(
-                    "  {} {} found in environment — it will override the vault key at runtime",
-                    StatusIcon::Warn,
-                    env_var.bold()
-                );
-                println!("{}", hint(&format!("Remove it: unset {env_var}")));
-            }
-            if !no_test
-                && is_tty
-                && cliclack::confirm("Test connection now?")
-                    .initial_value(true)
-                    .interact()
-                    .unwrap_or(false)
-            {
-                let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-                nika_engine::secrets::inject_secret_to_env(env_var, &api_key);
-                let _ = test_provider_connection(&provider).await;
-            }
-            println!();
-            println!(
-                "{}",
-                hint(&format!("Try it:  nika infer \"hello\" -p {provider}"))
-            );
-            println!("{}", hint("Status:  nika provider list"));
-            Ok(())
-        }
-
-        ProviderAction::Get { provider } => {
-            let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
-            // Check env var first
-            match std::env::var(env_var) {
-                Ok(key) if !key.is_empty() => {
-                    println!(
-                        "  {} {}: {} {}",
-                        StatusIcon::Ok,
-                        provider.bold(),
-                        mask_api_key(&key),
-                        "(env)".dimmed()
-                    );
-                }
-                _ => {
-                    // Check vault
-                    let vault = get_vault();
-                    match vault.get(&provider) {
-                        // SAFETY: expose_secret() feeds directly into mask_api_key()
-                        // which redacts the key (e.g. "sk-ant...7f3d"). No cleartext logged.
-                        Ok(Some(secret)) => println!(
-                            "  {} {}: {} {}",
-                            StatusIcon::Ok,
-                            provider.bold(),
-                            mask_api_key(secret.expose_secret()),
-                            "(vault)".dimmed()
-                        ),
-                        _ => {
-                            println!(
-                                "{}",
-                                status_line(
-                                    StatusIcon::Fail,
-                                    &format!("{provider}: not configured")
-                                )
-                            );
-                            println!("{}", hint(&format!("nika keys set {provider}")));
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
-
-        ProviderAction::Delete { provider } => {
-            // Try daemon IPC first
-            #[cfg(unix)]
-            {
-                let sock = nika_daemon::daemon_socket_path();
-                if sock.exists() {
-                    let client = nika_daemon::DaemonClient::new(&sock);
-                    if client.delete_secret(&provider).await.is_ok() {
-                        println!(
-                            "  {} API key for {} deleted via daemon",
-                            StatusIcon::Ok,
-                            provider.bold()
-                        );
-                        return Ok(());
-                    }
-                    // Fall through to direct vault
-                }
-            }
-            {
-                let vault = get_vault();
-                match vault.delete(&provider) {
-                    Ok(_) => println!(
-                        "  {} API key for {} deleted from vault",
-                        StatusIcon::Ok,
-                        provider.bold()
-                    ),
-                    Err(e) => {
-                        return Err(NikaError::ConfigError {
-                            reason: format!("Failed to delete key: {e}"),
-                        })
-                    }
-                }
-            }
-            Ok(())
-        }
-
-        ProviderAction::Migrate => {
-            println!(
-                "{}",
-                "Migrating API keys from environment variables...".cyan()
-            );
-            let report = migrate_env_to_vault();
-            println!();
-            println!("{}", report.summary());
-            if report.migrated > 0 {
-                crate::onboarding::mark_onboarding_done();
-            }
-            println!();
-            println!(
-                "{}",
-                hint("Vault keys persist across reboots. Env vars don't.")
-            );
-            println!("{}", hint("Status:  nika provider list"));
-            Ok(())
-        }
-
-        ProviderAction::VaultReset => {
-            let vault = get_vault();
-            // Check if vault exists
-            if !vault.exists() {
-                println!("  {} No vault found — nothing to reset", StatusIcon::Info);
-                return Ok(());
-            }
-            // Confirm with user
-            if std::io::stdin().is_terminal() {
-                let confirm: bool =
-                    cliclack::confirm("This will delete ALL stored API keys. Continue?")
-                        .initial_value(false)
-                        .interact()
-                        .unwrap_or(false);
-                if !confirm {
-                    println!("  {} Cancelled", StatusIcon::Info);
-                    return Ok(());
-                }
-            }
-            vault.reset().map_err(|e| NikaError::ConfigError {
-                reason: format!("Failed to reset vault: {e}"),
-            })?;
-            println!("  {} Vault reset — all stored keys deleted", StatusIcon::Ok);
-            println!("{}", hint("Re-add your keys: nika keys set <provider>"));
-            Ok(())
-        }
-
         ProviderAction::Test { provider, quiet } => {
             if quiet {
                 // Quiet mode: no output, exit code only
@@ -849,14 +464,6 @@ mod tests {
     #[test]
     fn detect_empty_key() {
         assert_eq!(detect_provider_from_key(""), None);
-    }
-    #[test]
-    fn provider_description_known() {
-        assert!(provider_description("anthropic").contains("Claude"));
-    }
-    #[test]
-    fn provider_description_unknown() {
-        assert!(provider_description("nonexistent").is_empty());
     }
     #[test]
     fn llm_provider_ids_includes_all_seven() {

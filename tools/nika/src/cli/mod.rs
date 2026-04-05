@@ -16,6 +16,7 @@ pub use nika_cli::eval;
 pub use nika_cli::init;
 #[cfg(unix)]
 pub use nika_cli::jobs;
+pub use nika_cli::keys;
 pub use nika_cli::lint;
 pub use nika_cli::machine;
 pub use nika_cli::mcp;
@@ -30,7 +31,6 @@ pub use nika_cli::showcase;
 pub use nika_cli::switch;
 pub use nika_cli::tools_cmd;
 pub use nika_cli::trace;
-pub use nika_cli::vault;
 pub use nika_cli::verbs;
 pub use nika_cli::workflow;
 

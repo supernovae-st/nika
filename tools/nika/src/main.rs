@@ -573,18 +573,24 @@ enum Commands {
         action: cli::trace::TraceAction,
     },
 
-    /// Manage LLM provider API keys
+    /// Manage API keys and secrets
+    #[command(next_help_heading = "MODELS & PROVIDERS", visible_alias = "k")]
+    Keys {
+        #[command(subcommand)]
+        action: Option<cli::keys::KeysAction>,
+        /// Output as JSON (for bare `nika keys --json`)
+        #[arg(long, global = true)]
+        json: bool,
+        /// Show all details
+        #[arg(long, short, global = true)]
+        verbose: bool,
+    },
+
+    /// Manage LLM provider catalog (models, pricing, testing)
     #[command(next_help_heading = "MODELS & PROVIDERS")]
     Provider {
         #[command(subcommand)]
         action: cli::provider::ProviderAction,
-    },
-
-    /// Manage encrypted credential vault (multi-field, import/export)
-    #[command(next_help_heading = "SYSTEM")]
-    Vault {
-        #[command(subcommand)]
-        action: cli::vault::VaultAction,
     },
 
     /// Manage MCP server connections
@@ -1633,11 +1639,15 @@ async fn main() {
             }
         }
 
+        Some(Commands::Keys {
+            action,
+            json,
+            verbose,
+        }) => cli::keys::handle_keys_command(action, json, verbose, quiet).await,
+
         Some(Commands::Provider { action }) => {
             cli::provider::handle_provider_command(action, quiet).await
         }
-
-        Some(Commands::Vault { action }) => cli::vault::handle_vault_command(action, quiet).await,
 
         Some(Commands::Tools { action }) => {
             cli::tools_cmd::handle_tools_command(action);
