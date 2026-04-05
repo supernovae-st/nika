@@ -187,7 +187,7 @@ fn find_closest_provider(name: &str) -> Option<&'static str> {
     let mut best: Option<(&str, usize)> = None;
     for p in KNOWN_PROVIDERS.iter() {
         let dist = levenshtein(&lower, p.id);
-        if dist > 0 && dist <= 2 && (best.is_none() || dist < best.unwrap().1) {
+        if dist > 0 && dist <= 2 && best.is_none_or(|(_, d)| dist < d) {
             best = Some((p.id, dist));
         }
     }
@@ -965,6 +965,12 @@ pub(crate) async fn handle_keys_set(
         }
     };
 
+    if name.trim().is_empty() {
+        return Err(NikaError::IoError(std::io::Error::other(
+            "key name cannot be empty",
+        )));
+    }
+
     match classify_name(&name) {
         KeyKind::KnownProvider(provider) => {
             set_known_provider(&vault, provider, stdin, no_test, quiet).await
@@ -1361,7 +1367,7 @@ async fn handle_keys_check(provider: Option<String>, quiet: bool) -> Result<(), 
                     passed += 1;
                     total_ms += latency_ms;
                     let is_fast = latency_ms < 100;
-                    if fastest.is_none() || latency_ms < fastest.unwrap().1 {
+                    if fastest.is_none_or(|(_, ms)| latency_ms < ms) {
                         fastest = Some((provider.id, latency_ms));
                     }
                     if !quiet {

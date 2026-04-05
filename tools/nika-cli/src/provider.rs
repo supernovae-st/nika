@@ -378,7 +378,9 @@ pub async fn handle_provider_command(
                 "nika keys set <provider>".cyan()
             );
             eprintln!("  Key management moved to: {}", "nika keys".bold());
-            std::process::exit(1);
+            Err(NikaError::ConfigError {
+                reason: "Command moved to: nika keys".to_string(),
+            })
         }
         ProviderAction::Get { .. } => {
             eprintln!(
@@ -387,7 +389,9 @@ pub async fn handle_provider_command(
                 "nika keys".cyan()
             );
             eprintln!("  Key management moved to: {}", "nika keys".bold());
-            std::process::exit(1);
+            Err(NikaError::ConfigError {
+                reason: "Command moved to: nika keys".to_string(),
+            })
         }
         ProviderAction::Migrate | ProviderAction::VaultReset => {
             eprintln!(
@@ -395,7 +399,9 @@ pub async fn handle_provider_command(
                 "\u{2717}".red().bold(),
                 "nika keys".cyan()
             );
-            std::process::exit(1);
+            Err(NikaError::ConfigError {
+                reason: "Command moved to: nika keys".to_string(),
+            })
         }
     }
 }
