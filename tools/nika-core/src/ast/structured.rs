@@ -244,10 +244,6 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                         "from_example" => {
                             from_example = Some(map.next_value()?);
                         }
-                        // enable_extractor: accepted for backward compat but ignored (L1 was never implemented)
-                        "enable_extractor" => {
-                            let _: serde_json::Value = map.next_value()?;
-                        }
                         "enable_tool_injection" => {
                             enable_tool_injection = Some(map.next_value()?);
                         }
@@ -378,13 +374,11 @@ repair_model: claude-sonnet-4-6
     fn parse_all_layer_toggles() {
         let yaml = r#"
 schema: ./test.json
-enable_extractor: false
 enable_tool_injection: false
 enable_retry: true
 enable_repair: false
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
-        // enable_extractor is silently ignored (L1 was never implemented)
         assert_eq!(spec.enable_tool_injection, Some(false));
         assert_eq!(spec.enable_retry, Some(true));
         assert_eq!(spec.enable_repair, Some(false));
