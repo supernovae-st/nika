@@ -439,6 +439,16 @@ enum Commands {
         inputs: Vec<String>,
     },
 
+    /// Lint a workflow for best practices (beyond syntax validation)
+    ///
+    /// Checks for: missing descriptions, unused tasks, missing retry,
+    /// high concurrency, hardcoded secrets, missing timeouts.
+    #[command(next_help_heading = "WORKFLOWS", visible_alias = "l")]
+    Lint {
+        /// Path to .nika.yaml file
+        file: String,
+    },
+
     /// Explain a workflow in human-readable format
     ///
     /// Parse the YAML, analyze the DAG, and print a summary: task count,
@@ -1485,6 +1495,8 @@ async fn main() {
             )
             .await
         }
+
+        Some(Commands::Lint { file }) => cli::lint::handle_lint_command(&file, quiet).await,
 
         Some(Commands::Explain { file }) => explain_workflow(&file).await,
 

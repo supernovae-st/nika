@@ -33,6 +33,7 @@ pub mod media;
 pub mod schema;
 pub mod workflow;
 
+pub mod lint;
 pub mod machine;
 pub mod new_cmd;
 pub mod onboarding;

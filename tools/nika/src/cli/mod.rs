@@ -15,6 +15,7 @@ pub use nika_cli::doctor;
 pub use nika_cli::init;
 #[cfg(unix)]
 pub use nika_cli::jobs;
+pub use nika_cli::lint;
 pub use nika_cli::machine;
 pub use nika_cli::mcp;
 pub use nika_cli::media;
