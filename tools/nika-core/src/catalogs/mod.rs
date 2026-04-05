@@ -6,7 +6,9 @@
 //! - [`providers`] -- 19 known providers (LLM, MCP, Local)
 //! - [`models`] -- 15+ curated models for native inference (mistral.rs)
 //! - [`mcp_aliases`] -- 100 MCP server short-name aliases
+//! - [`builtins`] -- 61 known nika:* builtin tool names
 
+pub mod builtins;
 pub mod cost;
 pub mod lsp_types;
 pub mod mcp_aliases;
@@ -15,6 +17,7 @@ pub mod providers;
 pub mod resolver;
 
 // Re-export main types for convenient access
+pub use builtins::{is_known_builtin, KNOWN_BUILTIN_TOOLS};
 pub use cost::{
     estimate_cost, find_pricing, model_cost_label, CostEstimate, ModelPricing, KNOWN_PRICING,
 };

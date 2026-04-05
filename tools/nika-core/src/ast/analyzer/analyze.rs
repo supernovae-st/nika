@@ -222,6 +222,34 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                 }
             }
         }
+
+        // Check invoke: nika:xxx tool names are valid builtins
+        if let Some(RawTaskAction::Invoke(ref invoke)) = task.action {
+            if let Some(ref tool) = invoke.value.tool {
+                if let Some(suffix) = tool.value.strip_prefix("nika:") {
+                    if !crate::catalogs::builtins::is_known_builtin(suffix) {
+                        let candidates: Vec<&str> =
+                            crate::catalogs::builtins::KNOWN_BUILTIN_TOOLS.to_vec();
+                        let suggestion = find_similar(suffix, &candidates, 0.7);
+                        let mut err = AnalyzeError::new(
+                            AnalyzeErrorKind::InvalidValue,
+                            tool.span,
+                            format!(
+                                "unknown builtin tool 'nika:{}'. \
+                                 There are {} registered nika:* tools.",
+                                suffix,
+                                candidates.len()
+                            ),
+                        );
+                        if let Some(ref similar) = suggestion {
+                            err =
+                                err.with_suggestion(format!("did you mean 'nika:{}'?", similar));
+                        }
+                        ctx.errors.push(err);
+                    }
+                }
+            }
+        }
     }
 
     // 3. Build task table (detect duplicates)
@@ -4063,6 +4091,113 @@ tasks:
             result.warnings.iter().any(|w| w.message.contains("not a recognized model")),
             "workflow-level unknown model should warn, got: {:?}",
             result.warnings
+        );
+    }
+
+    // ====================================================================
+    // M2: Builtin tool name validation
+    // ====================================================================
+
+    #[test]
+    fn test_validate_unknown_builtin_tool_is_error() {
+        use crate::ast::raw::RawInvokeAction;
+
+        let mut task = make_raw_task("call");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Some(Spanned::new("nika:typo_tool".to_string(), make_span(0, 14))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        )));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        assert!(
+            result.errors.iter().any(|e| e.message.contains("unknown builtin tool")),
+            "unknown nika: tool should error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_unknown_builtin_tool_suggests_similar() {
+        use crate::ast::raw::RawInvokeAction;
+
+        let mut task = make_raw_task("call");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Some(Spanned::new("nika:slepe".to_string(), make_span(0, 10))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        )));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let err = result
+            .errors
+            .iter()
+            .find(|e| e.message.contains("unknown builtin tool"))
+            .expect("should have unknown tool error");
+        assert!(
+            err.suggestion.as_ref().is_some_and(|s| s.contains("sleep")),
+            "should suggest 'sleep' for 'slepe', got: {:?}",
+            err.suggestion
+        );
+    }
+
+    #[test]
+    fn test_validate_known_builtin_tool_no_error() {
+        use crate::ast::raw::RawInvokeAction;
+
+        let mut task = make_raw_task("call");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Some(Spanned::new("nika:jq".to_string(), make_span(0, 7))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        )));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let tool_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("unknown builtin tool"))
+            .collect();
+        assert!(
+            tool_errors.is_empty(),
+            "known builtin should not error, got: {:?}",
+            tool_errors
+        );
+    }
+
+    #[test]
+    fn test_validate_mcp_tool_not_checked_as_builtin() {
+        use crate::ast::raw::RawInvokeAction;
+
+        let mut task = make_raw_task("call");
+        task.action = Some(RawTaskAction::Invoke(Spanned::new(
+            RawInvokeAction {
+                tool: Some(Spanned::new("novanet::search".to_string(), make_span(0, 15))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        )));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        let tool_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("unknown builtin tool"))
+            .collect();
+        assert!(
+            tool_errors.is_empty(),
+            "MCP tool should not be checked as builtin, got: {:?}",
+            tool_errors
         );
     }
 }
