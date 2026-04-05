@@ -272,9 +272,8 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
             if let Some(ref tool) = invoke.value.tool {
                 if let Some(suffix) = tool.value.strip_prefix("nika:") {
                     if !crate::catalogs::builtins::is_known_builtin(suffix) {
-                        let candidates: Vec<&str> =
-                            crate::catalogs::builtins::KNOWN_BUILTIN_TOOLS.to_vec();
-                        let suggestion = find_similar(suffix, &candidates, 0.7);
+                        let builtins = crate::catalogs::builtins::KNOWN_BUILTIN_TOOLS;
+                        let suggestion = find_similar(suffix, builtins, 0.7);
                         let mut err = AnalyzeError::new(
                             AnalyzeErrorKind::InvalidValue,
                             tool.span,
@@ -282,7 +281,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                                 "unknown builtin tool 'nika:{}'. \
                                  There are {} registered nika:* tools.",
                                 suffix,
-                                candidates.len()
+                                builtins.len()
                             ),
                         );
                         if let Some(ref similar) = suggestion {
