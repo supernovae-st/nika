@@ -51,6 +51,13 @@ pub mod common {
         "deepseek",
         "gemini",
         "xai",
+        "openrouter",
+        "together",
+        "fireworks",
+        "cerebras",
+        "sambanova",
+        "cohere",
+        "ai21",
     ];
 
     /// All known providers (LLM + MCP) for reference
@@ -62,6 +69,13 @@ pub mod common {
         "deepseek",
         "gemini",
         "xai",
+        "openrouter",
+        "together",
+        "fireworks",
+        "cerebras",
+        "sambanova",
+        "cohere",
+        "ai21",
         "neo4j",
         "github",
         "slack",

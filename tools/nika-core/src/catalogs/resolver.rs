@@ -11,6 +11,7 @@ use crate::catalogs::providers::find_provider;
 /// Every consumer (RigProvider::default_model, TUI routing, cost tracking)
 /// must use this table instead of hardcoding model names.
 pub static PROVIDER_DEFAULTS: &[(&str, &str)] = &[
+    // rig-core providers
     ("anthropic", "claude-sonnet-4-6"),
     ("openai", "gpt-4o"),
     ("mistral", "mistral-large-latest"),
@@ -18,6 +19,15 @@ pub static PROVIDER_DEFAULTS: &[(&str, &str)] = &[
     ("deepseek", "deepseek-chat"),
     ("gemini", "gemini-2.0-flash"),
     ("xai", "grok-3-fast"),
+    // OpenAI-compat providers
+    ("openrouter", "anthropic/claude-sonnet-4-6"),
+    ("together", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+    ("fireworks", "accounts/fireworks/models/llama-v3p3-70b-instruct"),
+    ("cerebras", "llama-3.3-70b"),
+    ("sambanova", "Meta-Llama-3.3-70B-Instruct"),
+    ("cohere", "command-r-plus"),
+    ("ai21", "jamba-1.5-large"),
+    // Local
     ("native", "native-model"),
     ("mock", "mock-model"),
 ];
@@ -307,6 +317,13 @@ mod tests {
             "deepseek",
             "gemini",
             "xai",
+            "openrouter",
+            "together",
+            "fireworks",
+            "cerebras",
+            "sambanova",
+            "cohere",
+            "ai21",
             "native",
             "mock",
         ] {

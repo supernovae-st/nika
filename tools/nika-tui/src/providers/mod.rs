@@ -89,8 +89,8 @@ mod tests {
     fn test_llm_providers_count() {
         let count = llm_providers().len();
         assert_eq!(
-            count, 7,
-            "Expected 7 LLM providers (anthropic, openai, mistral, groq, deepseek, gemini, xai)"
+            count, 14,
+            "Expected 14 LLM providers (7 rig-core + 7 OpenAI-compat)"
         );
     }
 
@@ -113,8 +113,8 @@ mod tests {
     fn test_all_providers_count() {
         let count = KNOWN_PROVIDERS.len();
         assert_eq!(
-            count, 20,
-            "Expected 20 total providers (7 LLM + 11 MCP + 2 Local)"
+            count, 27,
+            "Expected 27 total providers (14 LLM + 11 MCP + 2 Local)"
         );
     }
 

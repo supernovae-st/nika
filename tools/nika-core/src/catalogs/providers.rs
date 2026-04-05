@@ -58,13 +58,14 @@ impl Provider {
     }
 }
 
-/// All known providers (19 total).
+/// All known providers (27 total).
 ///
 /// ## Categories
 ///
-/// - **LLM (7)**: anthropic, openai, mistral, groq, deepseek, gemini, xai
+/// - **LLM rig-core (7)**: anthropic, openai, mistral, groq, deepseek, gemini, xai
+/// - **LLM OpenAI-compat (7)**: openrouter, together, fireworks, cerebras, sambanova, cohere, ai21
 /// - **MCP (11)**: neo4j, github, slack, perplexity, firecrawl, supadata, dataforseo, ahrefs, postgres, filesystem, memory
-/// - **Local (1)**: native (mistral.rs)
+/// - **Local (2)**: native (mistral.rs), mock
 pub static KNOWN_PROVIDERS: &[Provider] = &[
     // =============================================================================
     // LLM PROVIDERS (7)
@@ -138,6 +139,79 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         category: ProviderCategory::Llm,
         requires_key: true,
         description: "Grok models (Grok-3, Grok-4)",
+    },
+    // =============================================================================
+    // OPENAI-COMPAT LLM PROVIDERS (7) — zero Rust code, config-driven
+    // =============================================================================
+    Provider {
+        id: "openrouter",
+        name: "OpenRouter",
+        aliases: &["or"],
+        env_var: "OPENROUTER_API_KEY",
+        key_prefix: Some("sk-or-"),
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "200+ models via unified gateway",
+    },
+    Provider {
+        id: "together",
+        name: "Together AI",
+        aliases: &["together-ai"],
+        env_var: "TOGETHER_API_KEY",
+        key_prefix: None,
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "Open-source models (Llama, Mixtral, Qwen)",
+    },
+    Provider {
+        id: "fireworks",
+        name: "Fireworks AI",
+        aliases: &["fw"],
+        env_var: "FIREWORKS_API_KEY",
+        key_prefix: Some("fw_"),
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "Fast inference for open-source models",
+    },
+    Provider {
+        id: "cerebras",
+        name: "Cerebras",
+        aliases: &[],
+        env_var: "CEREBRAS_API_KEY",
+        key_prefix: Some("csk-"),
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "Wafer-scale inference (2000+ tok/sec)",
+    },
+    Provider {
+        id: "sambanova",
+        name: "SambaNova",
+        aliases: &["samba"],
+        env_var: "SAMBANOVA_API_KEY",
+        key_prefix: None,
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "RDU-accelerated inference",
+    },
+    Provider {
+        id: "cohere",
+        name: "Cohere",
+        aliases: &["command-r"],
+        env_var: "COHERE_API_KEY",
+        key_prefix: None,
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "Command R+ and Embed models",
+    },
+    Provider {
+        id: "ai21",
+        name: "AI21 Labs",
+        aliases: &["jamba"],
+        env_var: "AI21_API_KEY",
+        key_prefix: None,
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "Jamba models (SSM-Transformer hybrid)",
     },
     // =============================================================================
     // MCP PROVIDERS (11)
@@ -368,8 +442,8 @@ mod tests {
 
     #[test]
     fn test_known_providers_count() {
-        // 7 LLM + 11 MCP + 1 Local + 1 Mock = 20 total
-        assert_eq!(KNOWN_PROVIDERS.len(), 20);
+        // 14 LLM + 11 MCP + 2 Local = 27 total
+        assert_eq!(KNOWN_PROVIDERS.len(), 27);
     }
 
     #[test]
@@ -378,7 +452,7 @@ mod tests {
         let mcp = providers_by_category(ProviderCategory::Mcp);
         let local = providers_by_category(ProviderCategory::Local);
 
-        assert_eq!(llm.len(), 7);
+        assert_eq!(llm.len(), 14); // 7 rig-core + 7 OpenAI-compat
         assert_eq!(mcp.len(), 11);
         assert_eq!(local.len(), 2); // native + mock
     }
@@ -420,6 +494,30 @@ mod tests {
         // "local" -> native
         let p = find_provider("local").unwrap();
         assert_eq!(p.id, "native");
+
+        // "or" -> openrouter
+        let p = find_provider("or").unwrap();
+        assert_eq!(p.id, "openrouter");
+
+        // "together-ai" -> together
+        let p = find_provider("together-ai").unwrap();
+        assert_eq!(p.id, "together");
+
+        // "fw" -> fireworks
+        let p = find_provider("fw").unwrap();
+        assert_eq!(p.id, "fireworks");
+
+        // "samba" -> sambanova
+        let p = find_provider("samba").unwrap();
+        assert_eq!(p.id, "sambanova");
+
+        // "command-r" -> cohere
+        let p = find_provider("command-r").unwrap();
+        assert_eq!(p.id, "cohere");
+
+        // "jamba" -> ai21
+        let p = find_provider("jamba").unwrap();
+        assert_eq!(p.id, "ai21");
 
         // case-insensitive
         let p = find_provider("Claude").unwrap();

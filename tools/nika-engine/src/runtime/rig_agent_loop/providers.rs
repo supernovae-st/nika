@@ -168,7 +168,7 @@ impl RigAgentLoop {
             let resolved = crate::core::find_provider(provider_name.as_str()).ok_or_else(|| {
                 NikaError::AgentValidationError {
                     reason: format!(
-                        "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', or 'xai'.",
+                        "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', 'xai', or any OpenAI-compat provider for infer: tasks.",
                         provider_name
                     ),
                 }

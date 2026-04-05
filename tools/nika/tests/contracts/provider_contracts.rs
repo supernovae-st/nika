@@ -258,7 +258,15 @@ fn contract_env_var_fallback_for_all_providers() {
         ("deepseek", "DEEPSEEK_API_KEY"),
         ("gemini", "GEMINI_API_KEY"),
         ("xai", "XAI_API_KEY"),
-        // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+        // OpenAI-compatible providers
+        ("openrouter", "OPENROUTER_API_KEY"),
+        ("together", "TOGETHER_API_KEY"),
+        ("fireworks", "FIREWORKS_API_KEY"),
+        ("cerebras", "CEREBRAS_API_KEY"),
+        ("sambanova", "SAMBANOVA_API_KEY"),
+        ("cohere", "COHERE_API_KEY"),
+        ("ai21", "AI21_API_KEY"),
+        // MCP providers
         ("neo4j", "NEO4J_PASSWORD"),
         ("github", "GITHUB_TOKEN"),
         ("slack", "SLACK_TOKEN"),
@@ -267,7 +275,7 @@ fn contract_env_var_fallback_for_all_providers() {
         ("supadata", "SUPADATA_API_KEY"),
     ];
 
-    // Verify the mapping is complete (13 providers: 7 LLM + 6 MCP)
+    // Verify the mapping is complete (20 providers: 14 LLM + 6 MCP)
     assert_eq!(
         env_var_mapping.len(),
         KNOWN_PROVIDERS.len(),

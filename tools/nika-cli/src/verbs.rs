@@ -51,6 +51,13 @@ pub fn detect_provider() -> Option<String> {
         "mistral",
         "groq",
         "deepseek",
+        "openrouter",
+        "together",
+        "fireworks",
+        "cerebras",
+        "sambanova",
+        "cohere",
+        "ai21",
     ];
     for provider in &vault_providers {
         if let Ok(Some(secret)) = vault.get(provider) {
