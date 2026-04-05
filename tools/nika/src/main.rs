@@ -766,6 +766,21 @@ enum Commands {
     #[command(hide = true)]
     Cosmic,
 
+    /// Show environment: version, providers, MCP, paths, config
+    #[command(next_help_heading = "SYSTEM")]
+    Env,
+
+    /// Visualize workflow DAG (shortcut for `nika workflow graph`)
+    #[command(next_help_heading = "WORKFLOWS")]
+    Graph {
+        /// Path to .nika.yaml file
+        file: String,
+
+        /// Output format: ascii, dot, mermaid
+        #[arg(long, default_value = "ascii")]
+        format: String,
+    },
+
     /// Start Language Server Protocol server
     ///
     /// Provides IDE integration for .nika.yaml workflow files:
@@ -791,6 +806,64 @@ enum Commands {
 // ═══════════════════════════════════════════════════════════════════════════
 // FEATURES
 // ═══════════════════════════════════════════════════════════════════════════
+
+async fn print_env_info(_quiet: bool) {
+    use colored::Colorize;
+
+    println!("{}", "Nika Environment".magenta().bold());
+    println!();
+
+    // Version
+    println!("  {} nika {}", "Version:".cyan(), long_version());
+
+    // Channel
+    println!("  {} {}", "Channel:".cyan(), env!("NIKA_BUILD_CHANNEL"));
+
+    // Paths
+    println!();
+    println!(
+        "  {} {}",
+        "CWD:".cyan(),
+        std::env::current_dir().unwrap_or_default().display()
+    );
+    if let Ok(project) =
+        cli::config::find_project_root_from(&std::env::current_dir().unwrap_or_default())
+    {
+        println!("  {} {}", "Project:".cyan(), project.root.display());
+    }
+    println!(
+        "  {} {}",
+        "Home:".cyan(),
+        std::env::var("HOME")
+            .map(|h| format!("{}/.nika", h))
+            .unwrap_or_else(|_| "unknown".to_string())
+    );
+
+    // API key status
+    println!();
+    println!("  {}", "Providers:".cyan());
+    let providers = [
+        ("ANTHROPIC_API_KEY", "anthropic"),
+        ("OPENAI_API_KEY", "openai"),
+        ("MISTRAL_API_KEY", "mistral"),
+        ("GROQ_API_KEY", "groq"),
+        ("DEEPSEEK_API_KEY", "deepseek"),
+        ("GEMINI_API_KEY", "gemini"),
+        ("XAI_API_KEY", "xai"),
+    ];
+    for (env_var, name) in &providers {
+        let status = if std::env::var(env_var).is_ok() {
+            "configured".green().to_string()
+        } else {
+            "not set".dimmed().to_string()
+        };
+        println!("    {} {}", format!("{name}:").bold(), status);
+    }
+
+    // Features summary
+    println!();
+    println!("  {} 58 transforms, 62 tools", "Engine:".cyan());
+}
 
 fn print_features() {
     use colored::Colorize;
@@ -1506,6 +1579,23 @@ async fn main() {
             Ok(())
         }
 
+        Some(Commands::Env) => {
+            print_env_info(quiet).await;
+            Ok(())
+        }
+
+        Some(Commands::Graph { file, format }) => {
+            cli::workflow::handle_workflow_command(
+                cli::workflow::WorkflowAction::Graph {
+                    file: PathBuf::from(&file),
+                    format,
+                    output: None,
+                },
+                quiet,
+            )
+            .await
+        }
+
         Some(Commands::Cosmic) => {
             cli::help::print_cosmic();
             Ok(())
@@ -1735,6 +1825,10 @@ fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
         Some(Commands::Version) => false,
         // Test: runs with mock provider, no setup needed.
         Some(Commands::Test { .. }) => false,
+        // Env: just print info, no setup needed.
+        Some(Commands::Env) => false,
+        // Graph: just print DAG, no setup needed.
+        Some(Commands::Graph { .. }) => false,
         // New: creating a workflow — user-facing, benefits from setup.
         Some(Commands::New { .. }) => false,
         // Daemon: `nika daemon start` is the post-install entry point
