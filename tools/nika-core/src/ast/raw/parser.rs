@@ -631,22 +631,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
 
             let guardrails = parse_guardrails_field(file, m)?;
 
-            // Detect commonly misplaced keys inside infer: block
-            let misplaced_keys: Vec<&str> = ["provider", "model", "base_url"]
-                .iter()
-                .filter(|k| m.get_node(k).is_some())
-                .copied()
-                .collect();
-            if !misplaced_keys.is_empty() {
-                return Err(ParseError {
-                    kind: ParseErrorKind::UnknownField,
-                    span,
-                    message: format!(
-                        "{} must be set at task level, not inside the infer: block",
-                        misplaced_keys.join(", ")
-                    ),
-                });
-            }
+            validate_verb_keys(file, m, "infer", false)?;
 
             Ok(RawInferAction {
                 prompt,
@@ -792,6 +777,8 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
                 message: "exec action requires 'command' field".to_string(),
             })?;
 
+            validate_verb_keys(file, m, "exec", false)?;
+
             Ok(RawExecAction {
                 command,
                 shell: get_bool_field(file, m, "shell")?,
@@ -839,6 +826,8 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
     let extract = get_string_field(file, m, "extract")?;
     let selector = get_string_field(file, m, "selector")?;
 
+    validate_verb_keys(file, m, "fetch", false)?;
+
     Ok(RawFetchAction {
         url,
         method: get_string_field(file, m, "method")?,
@@ -885,6 +874,8 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         });
     }
 
+    validate_verb_keys(file, m, "invoke", false)?;
+
     Ok(RawInvokeAction {
         tool,
         resource,
@@ -918,6 +909,8 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         span,
         message: "agent action requires 'prompt' field".to_string(),
     })?;
+
+    validate_verb_keys(file, m, "agent", true)?;
 
     Ok(RawAgentAction {
         prompt,
@@ -1798,6 +1791,65 @@ fn parse_tasks(
     }
 }
 
+/// Task-level fields that should NOT appear inside verb blocks.
+/// When found inside a verb mapping, we emit NIKA-163 with a hint.
+const TASK_LEVEL_FIELDS: &[&str] = &[
+    "retry",
+    "structured",
+    "artifact",
+    "when",
+    "on_error",
+    "routing",
+    "depends_on",
+    "for_each",
+    "concurrency",
+    "fail_fast",
+    "context_budget",
+    "record",
+    "log",
+    "output",
+    "decompose",
+    "preset",
+];
+
+/// Validate that a verb mapping does not contain misplaced task-level fields.
+///
+/// Also detects `model:`, `provider:`, and `base_url:` in non-agent verb blocks
+/// (these are valid inside `agent:` but not `infer:`/`exec:`/`fetch:`/`invoke:`).
+fn validate_verb_keys(
+    file_id: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+    verb_name: &str,
+    is_agent: bool,
+) -> Result<(), ParseError> {
+    for (key, _) in map.iter() {
+        let k = key.as_str();
+        if TASK_LEVEL_FIELDS.contains(&k) {
+            let span = marked_span_to_span(file_id, key.span());
+            return Err(ParseError {
+                kind: ParseErrorKind::UnknownField,
+                span,
+                message: format!(
+                    "'{}' is a task-level field — move it outside the {}: block",
+                    k, verb_name
+                ),
+            });
+        }
+        if !is_agent && matches!(k, "model" | "provider" | "base_url") {
+            let span = marked_span_to_span(file_id, key.span());
+            return Err(ParseError {
+                kind: ParseErrorKind::UnknownField,
+                span,
+                message: format!(
+                    "{} must be set at task level, not inside the {}: block",
+                    k, verb_name
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Validate that a task mapping contains only known keys.
 ///
 /// Called after `parse_action()` succeeds (verb is present) to catch typos like
@@ -1831,7 +1883,7 @@ fn validate_task_keys(
         "timeout",
         "when",
         "on_error",
-        "skills",
+        // skills: only valid in workflow header or agent: blocks (not task level)
         // 5 verb keys
         "infer",
         "exec",
@@ -3942,5 +3994,130 @@ tasks:
         // Should not trigger size limit (valid YAML, under 2 MiB)
         let result = parse(SIMPLE_WORKFLOW, file_id);
         assert!(result.is_ok());
+    }
+
+    // ── validate_verb_keys tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_retry_inside_fetch_is_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    fetch:
+      url: "https://example.com"
+      retry:
+        max_attempts: 3
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("task-level field"),
+            "Expected task-level hint: {}",
+            err.message
+        );
+        assert!(err.message.contains("fetch"), "{}", err.message);
+    }
+
+    #[test]
+    fn test_structured_inside_infer_is_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    infer:
+      prompt: "hello"
+      structured:
+        schema:
+          type: object
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("task-level field"),
+            "Expected task-level hint: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_skills_at_task_level_is_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    skills:
+      - tone
+    infer: "hello"
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::UnknownField);
+    }
+
+    #[test]
+    fn test_model_inside_fetch_is_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    fetch:
+      url: "https://example.com"
+      model: gpt-4o
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(err.message.contains("task level"), "{}", err.message);
+    }
+
+    #[test]
+    fn test_when_inside_invoke_is_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    invoke:
+      tool: "nika:sleep"
+      params:
+        duration: "1s"
+      when: "true"
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("task-level field"),
+            "Expected task-level hint: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_retry_inside_exec_is_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    exec:
+      command: "echo hello"
+      retry:
+        max_attempts: 3
+"#;
+        let err = parse(yaml, FileId(0)).unwrap_err();
+        assert!(
+            err.message.contains("task-level field"),
+            "Expected task-level hint: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn test_correct_task_level_retry_still_works() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    retry:
+      max_attempts: 3
+      delay_ms: 1000
+    fetch:
+      url: "https://example.com"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "Parse failed: {:?}", result.err());
     }
 }
