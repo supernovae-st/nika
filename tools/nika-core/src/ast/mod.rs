@@ -73,7 +73,7 @@ pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use orchestrate::OrchestrateConfig;
 pub use output::{OutputFormat, OutputPolicy, SchemaRef};
 pub use record::RecordSpec;
-pub use routing::{RoutingConfig, RoutingStrategy};
+pub use routing::RoutingConfig;
 pub use schema::SchemaVersion;
 pub use structured::StructuredOutputSpec;
 

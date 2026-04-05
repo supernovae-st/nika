@@ -961,7 +961,6 @@ tasks:
 schema: nika/workflow@0.12
 routing:
   fallback: [groq, claude, openai]
-  strategy: cost
 tasks:
   - id: step1
     infer: "Hello"
@@ -980,7 +979,6 @@ tasks:
   - id: step1
     routing:
       fallback: [openai, anthropic]
-      strategy: latency
     infer: "Hello"
 "#;
         let result2 = validator.validate_yaml(yaml2);
@@ -989,25 +987,6 @@ tasks:
             "Task-level routing should pass: {:?}",
             result2
         );
-    }
-
-    // ========================================================================
-    // Test: Invalid routing strategy fails
-    // ========================================================================
-    #[test]
-    fn test_invalid_routing_strategy_fails() {
-        let validator = WorkflowSchemaValidator::new().unwrap();
-        let yaml = r#"
-schema: nika/workflow@0.12
-routing:
-  fallback: [groq, claude]
-  strategy: invalid
-tasks:
-  - id: step1
-    infer: "Hello"
-"#;
-        let result = validator.validate_yaml(yaml);
-        assert!(result.is_err(), "Invalid routing strategy should fail");
     }
 }
 
