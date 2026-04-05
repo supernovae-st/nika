@@ -137,7 +137,7 @@ pub enum TransformOp {
     MinBy(String),
     /// Maximum by field: `max_by("score")`
     MaxBy(String),
-    /// Sum of numeric array: `sum` (alias for add on numbers)
+    /// Sum of numeric array: `sum` (numbers only — use `add` for string/array concat)
     Sum,
     /// Average of numeric array: `avg`
     Avg,
@@ -1214,6 +1214,7 @@ impl TransformOp {
                 Value::Array(arr) => {
                     let mut best: Option<&Value> = None;
                     let mut best_val: Option<f64> = None;
+                    let mut skipped = 0u32;
                     for item in arr {
                         if let Some(fv) = navigate_dot_path(item, field) {
                             if let Some(n) = fv.as_f64() {
@@ -1221,8 +1222,19 @@ impl TransformOp {
                                     best = Some(item);
                                     best_val = Some(n);
                                 }
+                            } else {
+                                skipped += 1;
                             }
+                        } else {
+                            skipped += 1;
                         }
+                    }
+                    if skipped > 0 {
+                        tracing::debug!(
+                            "min_by('{}'): skipped {} item(s) with missing or non-numeric field",
+                            field,
+                            skipped
+                        );
                     }
                     Ok(best.cloned().unwrap_or(Value::Null))
                 }
@@ -1234,6 +1246,7 @@ impl TransformOp {
                 Value::Array(arr) => {
                     let mut best: Option<&Value> = None;
                     let mut best_val: Option<f64> = None;
+                    let mut skipped = 0u32;
                     for item in arr {
                         if let Some(fv) = navigate_dot_path(item, field) {
                             if let Some(n) = fv.as_f64() {
@@ -1241,17 +1254,43 @@ impl TransformOp {
                                     best = Some(item);
                                     best_val = Some(n);
                                 }
+                            } else {
+                                skipped += 1;
                             }
+                        } else {
+                            skipped += 1;
                         }
+                    }
+                    if skipped > 0 {
+                        tracing::debug!(
+                            "max_by('{}'): skipped {} item(s) with missing or non-numeric field",
+                            field,
+                            skipped
+                        );
                     }
                     Ok(best.cloned().unwrap_or(Value::Null))
                 }
                 _ => Err(type_mismatch("max_by", "array", value)),
             },
-            TransformOp::Sum => {
-                // Alias for add on numeric arrays
-                TransformOp::Add.apply(value)
-            }
+            TransformOp::Sum => match value {
+                // Numeric-only sum (unlike `add` which also concats strings/arrays)
+                Value::Null => Ok(Value::Null),
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
+                Value::Array(arr) => {
+                    let mut sum = 0.0_f64;
+                    for item in arr {
+                        match item {
+                            Value::Number(n) => {
+                                sum += n.as_f64().unwrap_or(0.0);
+                            }
+                            Value::Null => {} // skip nulls
+                            _ => return Err(type_mismatch("sum", "array of numbers", item)),
+                        }
+                    }
+                    Ok(f64_to_json_number(sum))
+                }
+                _ => Err(type_mismatch("sum", "array of numbers", value)),
+            },
             TransformOp::Avg => match value {
                 Value::Null => Ok(Value::Null),
                 Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
@@ -4752,9 +4791,42 @@ mod tests {
     // ── sum / avg ───────────────────────────────────────────
 
     #[test]
-    fn sum_is_add_alias() {
+    fn sum_numeric_only() {
         let val = json!([10, 20, 30]);
         assert_eq!(TransformOp::Sum.apply(&val).unwrap(), json!(60));
+    }
+
+    #[test]
+    fn sum_rejects_strings() {
+        // sum is numeric-only (unlike add which also concats strings)
+        let val = json!(["a", "b", "c"]);
+        assert!(TransformOp::Sum.apply(&val).is_err());
+    }
+
+    #[test]
+    fn sum_rejects_arrays() {
+        // sum is numeric-only (unlike add which also concats arrays)
+        let val = json!([[1], [2], [3]]);
+        assert!(TransformOp::Sum.apply(&val).is_err());
+    }
+
+    #[test]
+    fn sum_null_and_empty() {
+        assert_eq!(TransformOp::Sum.apply(&Value::Null).unwrap(), Value::Null);
+        assert_eq!(TransformOp::Sum.apply(&json!([])).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn sum_with_nulls_skips_them() {
+        let val = json!([10, null, 20]);
+        assert_eq!(TransformOp::Sum.apply(&val).unwrap(), json!(30));
+    }
+
+    #[test]
+    fn add_still_concats_strings() {
+        // add retains its polymorphic behavior
+        let val = json!(["hello", " ", "world"]);
+        assert_eq!(TransformOp::Add.apply(&val).unwrap(), json!("hello world"));
     }
 
     #[test]
