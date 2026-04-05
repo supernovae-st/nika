@@ -1075,6 +1075,27 @@ fn analyze_task(
     // Analyze output config
     if let Some(ref output) = raw.output {
         task.output = Some(analyze_output(&output.value, ctx));
+
+        // Reject output: { format: json } without schema on LLM verbs — use structured: instead
+        let is_llm_verb = raw.action.as_ref().is_some_and(|a| {
+            matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_))
+        });
+        let format_is_json = output
+            .value
+            .format
+            .as_ref()
+            .is_some_and(|f| f.value.eq_ignore_ascii_case("json"));
+        let has_schema = output.value.schema.is_some() || output.value.schema_ref.is_some();
+        let has_structured = raw.structured.is_some();
+        if is_llm_verb && format_is_json && !has_schema && !has_structured {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                output.span,
+                "output: { format: json } without a schema does not validate JSON — \
+                 use structured: { schema: ... } for guaranteed valid JSON output"
+                    .to_string(),
+            ));
+        }
     }
 
     Some(task)
