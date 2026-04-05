@@ -280,6 +280,14 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
 
         // for_each concurrency hints are handled by lint L031 — not duplicated here.
+
+        // Validate infer-specific fields
+        if let Some(RawTaskAction::Infer(ref infer)) = task.action {
+            check_infer_fields(&infer.value, &mut ctx);
+        }
+        if let Some(RawTaskAction::Agent(ref agent)) = task.action {
+            check_agent_infer_fields(&agent.value, &mut ctx);
+        }
     }
 
     // 3. Build task table (detect duplicates)
@@ -698,6 +706,68 @@ fn check_model_name(model: &Spanned<String>, ctx: &mut AnalyzerContext) {
                      Custom models should use 'org/model' format.",
                     model.value
                 ),
+            ));
+        }
+    }
+}
+
+/// Validate infer-specific fields (temperature, thinking_budget).
+fn check_infer_fields(infer: &RawInferAction, ctx: &mut AnalyzerContext) {
+    if let Some(ref temp) = infer.temperature {
+        if temp.value < 0.0 || temp.value > 2.0 {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                temp.span,
+                format!(
+                    "temperature: {} is outside the valid range [0.0, 2.0]. \
+                     Most providers reject values outside this range.",
+                    temp.value
+                ),
+            ));
+        }
+    }
+
+    if let Some(ref budget) = infer.thinking_budget {
+        if !infer.extended_thinking.as_ref().is_some_and(|s| s.value) {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                budget.span,
+                "thinking_budget: is set but extended_thinking: true is missing. \
+                 The budget will be ignored without extended_thinking: true."
+                    .to_string(),
+            ));
+        }
+    }
+}
+
+/// Validate agent-specific infer fields (temperature, thinking_budget).
+fn check_agent_infer_fields(agent: &RawAgentAction, ctx: &mut AnalyzerContext) {
+    if let Some(ref temp) = agent.temperature {
+        if temp.value < 0.0 || temp.value > 2.0 {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                temp.span,
+                format!(
+                    "temperature: {} is outside the valid range [0.0, 2.0]. \
+                     Most providers reject values outside this range.",
+                    temp.value
+                ),
+            ));
+        }
+    }
+
+    if let Some(ref budget) = agent.thinking_budget {
+        if !agent
+            .extended_thinking
+            .as_ref()
+            .is_some_and(|s| s.value)
+        {
+            ctx.add_warning(AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                budget.span,
+                "thinking_budget: is set but extended_thinking: true is missing. \
+                 The budget will be ignored without extended_thinking: true."
+                    .to_string(),
             ));
         }
     }
@@ -4320,6 +4390,142 @@ tasks:
     }
 
     // M4: for_each concurrency hints are handled by lint L031 — not duplicated in analyzer.
+
+    // ====================================================================
+    // G1: Temperature range validation
+    // ====================================================================
+
+    #[test]
+    fn test_validate_temperature_out_of_range_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer:
+      prompt: "hello"
+      temperature: 5.0
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("temperature") && w.message.contains("outside")),
+            "temperature 5.0 should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_temperature_negative_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer:
+      prompt: "hello"
+      temperature: -1.0
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("temperature") && w.message.contains("outside")),
+            "negative temperature should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_temperature_valid_no_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer:
+      prompt: "hello"
+      temperature: 0.7
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let temp_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("temperature") && w.message.contains("outside"))
+            .collect();
+        assert!(
+            temp_warnings.is_empty(),
+            "valid temperature should not warn, got: {:?}",
+            temp_warnings
+        );
+    }
+
+    // ====================================================================
+    // G2: thinking_budget without extended_thinking
+    // ====================================================================
+
+    #[test]
+    fn test_validate_thinking_budget_without_extended_thinking_warns() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer:
+      prompt: "hello"
+      thinking_budget: 10000
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("thinking_budget")
+                    && w.message.contains("extended_thinking")),
+            "thinking_budget without extended_thinking should warn, got: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_thinking_budget_with_extended_thinking_no_warning() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+tasks:
+  - id: gen
+    infer:
+      prompt: "hello"
+      extended_thinking: true
+      thinking_budget: 10000
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let thinking_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| {
+                w.message.contains("thinking_budget") && w.message.contains("extended_thinking")
+            })
+            .collect();
+        assert!(
+            thinking_warnings.is_empty(),
+            "thinking_budget with extended_thinking should not warn, got: {:?}",
+            thinking_warnings
+        );
+    }
 
     // ====================================================================
     // M5: Misplaced LLM fields warning
