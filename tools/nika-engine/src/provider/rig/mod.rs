@@ -193,6 +193,14 @@ impl std::fmt::Debug for RigProvider {
     }
 }
 
+/// Dispatch to the rig-core client for all standard providers.
+///
+/// Reduces 7+ identical match arms to 1. The body expression gets the
+/// extracted client binding `$client`. Mock and Native are NOT dispatched
+/// through this macro — they have custom paths.
+///
+/// IMPORTANT: the `$body` expression may be `.await`-ed inside the macro.
+/// Rust macros expand before type checking, so each arm gets its own
 impl RigProvider {
     /// Create a RigProvider by name or alias, with env var validation.
     ///
@@ -1655,6 +1663,23 @@ impl RigProvider {
                 | RigProvider::DeepSeek(_)
                 | RigProvider::XAi(_)
         )
+    }
+
+    /// True only for Anthropic/Claude — controls `is_anthropic` param in
+    /// `consume_rig_stream` (thinking block capture, stop_reason mapping).
+    pub fn is_anthropic(&self) -> bool {
+        matches!(self, RigProvider::Claude(_))
+    }
+
+    /// True if this provider supports vision/multimodal content.
+    /// Used to give an early, clear error before attempting the call.
+    pub fn supports_vision(&self) -> bool {
+        !matches!(self, RigProvider::DeepSeek(_) | RigProvider::Mock)
+    }
+
+    /// True if extended thinking (chain-of-thought) is supported.
+    pub fn supports_thinking(&self) -> bool {
+        matches!(self, RigProvider::Claude(_))
     }
 
     /// Stream text completion with real-time token updates
