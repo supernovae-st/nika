@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 /// Current schema version.
-const SCHEMA_VERSION: u32 = 3;
+const SCHEMA_VERSION: u32 = 4;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR TYPES
@@ -63,6 +63,8 @@ pub struct Job {
     pub output: Option<String>,
     pub retry_count: u32,
     pub max_retries: u32,
+    /// JSON-serialized key-value tags for job metadata (e.g. `{"env":"staging"}`).
+    pub tags: Option<String>,
 }
 
 /// Job state.
@@ -117,6 +119,17 @@ pub struct Checkpoint {
     pub created_at: String,
 }
 
+/// Filter criteria for listing jobs.
+#[derive(Debug, Clone, Default)]
+pub struct JobFilter {
+    pub state: Option<JobState>,
+    pub workflow: Option<String>,
+    /// Filter by tag key=value (matches JSON `tags` column via LIKE).
+    pub tag: Option<(String, String)>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 /// An artifact produced by a job.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct JobArtifact {
@@ -167,6 +180,10 @@ enum DbCommand {
     },
     ListJobsForWorkflow {
         workflow: String,
+        reply: oneshot::Sender<StorageResult<Vec<Job>>>,
+    },
+    ListJobsFiltered {
+        filter: JobFilter,
         reply: oneshot::Sender<StorageResult<Vec<Job>>>,
     },
     ResetStaleRunning {
@@ -353,8 +370,28 @@ impl Storage {
     // CONVENIENCE METHODS
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// List jobs with filtering (state, workflow, tag, limit, offset).
+    pub async fn list_jobs_filtered(&self, filter: JobFilter) -> StorageResult<Vec<Job>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::ListJobsFiltered { filter, reply })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
     /// Create a new pending job.
     pub async fn create_job(&self, id: &str, workflow: &str) -> StorageResult<()> {
+        self.create_job_with_tags(id, workflow, None).await
+    }
+
+    /// Create a new pending job with optional tags.
+    pub async fn create_job_with_tags(
+        &self,
+        id: &str,
+        workflow: &str,
+        tags: Option<String>,
+    ) -> StorageResult<()> {
         self.insert_job(Job {
             id: id.to_string(),
             name: None,
@@ -369,6 +406,7 @@ impl Storage {
             output: None,
             retry_count: 0,
             max_retries: 0,
+            tags,
         })
         .await
     }
@@ -559,6 +597,9 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
             DbCommand::ListJobsForWorkflow { workflow, reply } => {
                 let _ = reply.send(do_list_jobs_for_workflow(&conn, &workflow));
             }
+            DbCommand::ListJobsFiltered { filter, reply } => {
+                let _ = reply.send(do_list_jobs_filtered(&conn, &filter));
+            }
             DbCommand::ResetStaleRunning { reason, reply } => {
                 let _ = reply.send(do_reset_stale_running(&conn, &reason));
             }
@@ -678,6 +719,12 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
         .map_err(|e| StorageError::Other(format!("create checkpoints table: {e}")))?;
     }
 
+    // V4: tags column on jobs
+    if version < 4 {
+        conn.execute_batch("ALTER TABLE jobs ADD COLUMN tags TEXT;")
+            .map_err(|e| StorageError::Other(format!("add tags column: {e}")))?;
+    }
+
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|e| StorageError::Other(format!("set user_version: {e}")))?;
 
@@ -691,8 +738,8 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
 
 fn do_insert_job(conn: &Connection, job: &Job) -> StorageResult<()> {
     conn.execute(
-        "INSERT INTO jobs (id, name, workflow, args, cron, state, created_at, retry_count, max_retries)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO jobs (id, name, workflow, args, cron, state, created_at, retry_count, max_retries, tags)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             job.id,
             job.name,
@@ -703,21 +750,17 @@ fn do_insert_job(conn: &Connection, job: &Job) -> StorageResult<()> {
             job.created_at,
             job.retry_count,
             job.max_retries,
+            job.tags,
         ],
     )?;
     Ok(())
 }
 
 fn do_get_job(conn: &Connection, id: &str) -> StorageResult<Option<Job>> {
-    conn.query_row(
-        "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
-                exit_code, output, retry_count, max_retries
-         FROM jobs WHERE id = ?1",
-        params![id],
-        row_to_job,
-    )
-    .optional()
-    .map_err(StorageError::from)
+    let sql = format!("SELECT {} FROM jobs WHERE id = ?1", JOB_COLUMNS);
+    conn.query_row(&sql, params![id], row_to_job)
+        .optional()
+        .map_err(StorageError::from)
 }
 
 /// Maximum rows returned by list_jobs (prevents unbounded allocation on large tables).
@@ -727,26 +770,22 @@ fn do_list_jobs(conn: &Connection, state: Option<&JobState>) -> StorageResult<Ve
     let mut jobs = Vec::new();
 
     if let Some(state) = state {
-        let mut stmt = conn.prepare_cached(
-            "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
-                    exit_code, output, retry_count, max_retries
-             FROM jobs WHERE state = ?1 ORDER BY created_at DESC LIMIT ?2",
-        )?;
-
+        let sql = format!(
+            "SELECT {} FROM jobs WHERE state = ?1 ORDER BY created_at DESC LIMIT ?2",
+            JOB_COLUMNS
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![state.as_str(), MAX_JOB_LIST], row_to_job)?;
-
         for row in rows {
             jobs.push(row?);
         }
     } else {
-        let mut stmt = conn.prepare_cached(
-            "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
-                    exit_code, output, retry_count, max_retries
-             FROM jobs ORDER BY created_at DESC LIMIT ?1",
-        )?;
-
+        let sql = format!(
+            "SELECT {} FROM jobs ORDER BY created_at DESC LIMIT ?1",
+            JOB_COLUMNS
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![MAX_JOB_LIST], row_to_job)?;
-
         for row in rows {
             jobs.push(row?);
         }
@@ -834,13 +873,62 @@ fn do_increment_retry(conn: &Connection, id: &str) -> StorageResult<u32> {
 }
 
 fn do_list_jobs_for_workflow(conn: &Connection, workflow: &str) -> StorageResult<Vec<Job>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT id, name, workflow, args, cron, state, created_at, started_at, completed_at,
-                exit_code, output, retry_count, max_retries
-         FROM jobs WHERE workflow = ?1 ORDER BY created_at DESC LIMIT 10",
-    )?;
-
+    let sql = format!(
+        "SELECT {} FROM jobs WHERE workflow = ?1 ORDER BY created_at DESC LIMIT 10",
+        JOB_COLUMNS
+    );
+    let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(params![workflow], row_to_job)?;
+
+    let mut jobs = Vec::new();
+    for row in rows {
+        jobs.push(row?);
+    }
+    Ok(jobs)
+}
+
+fn do_list_jobs_filtered(conn: &Connection, filter: &JobFilter) -> StorageResult<Vec<Job>> {
+    let mut conditions = Vec::new();
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(ref state) = filter.state {
+        conditions.push(format!("state = ?{}", param_values.len() + 1));
+        param_values.push(Box::new(state.as_str().to_string()));
+    }
+    if let Some(ref workflow) = filter.workflow {
+        conditions.push(format!("workflow = ?{}", param_values.len() + 1));
+        param_values.push(Box::new(workflow.clone()));
+    }
+    if let Some((ref key, ref val)) = filter.tag {
+        // Match JSON tag: tags column contains '{"key":"val"...}'
+        // Use json_extract for exact match
+        conditions.push(format!(
+            "json_extract(tags, ?{}) = ?{}",
+            param_values.len() + 1,
+            param_values.len() + 2
+        ));
+        param_values.push(Box::new(format!("$.{key}")));
+        param_values.push(Box::new(val.clone()));
+    }
+
+    let where_clause = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", conditions.join(" AND "))
+    };
+
+    let limit = filter.limit.unwrap_or(100).min(MAX_JOB_LIST);
+    let offset = filter.offset.unwrap_or(0);
+
+    let sql = format!(
+        "SELECT {} FROM jobs{} ORDER BY created_at DESC LIMIT {} OFFSET {}",
+        JOB_COLUMNS, where_clause, limit, offset
+    );
+
+    let params: Vec<&dyn rusqlite::types::ToSql> =
+        param_values.iter().map(|p| p.as_ref()).collect();
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params.as_slice(), row_to_job)?;
 
     let mut jobs = Vec::new();
     for row in rows {
@@ -992,6 +1080,9 @@ fn do_delete_old_jobs(conn: &Connection, max_age_secs: u64) -> StorageResult<u64
     Ok(deleted as u64)
 }
 
+/// Column list for all SELECT queries — keep in sync with row_to_job.
+const JOB_COLUMNS: &str = "id, name, workflow, args, cron, state, created_at, started_at, completed_at, exit_code, output, retry_count, max_retries, tags";
+
 fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {
     Ok(Job {
         id: row.get(0)?,
@@ -1007,6 +1098,7 @@ fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<Job> {
         output: row.get(10)?,
         retry_count: row.get(11)?,
         max_retries: row.get(12)?,
+        tags: row.get(13)?,
     })
 }
 
@@ -1033,6 +1125,7 @@ mod tests {
             output: None,
             retry_count: 0,
             max_retries: 0,
+            tags: None,
         }
     }
 
@@ -1466,5 +1559,146 @@ mod tests {
 
         let err = StorageError::Other("disk full".into());
         assert_eq!(err.to_string(), "storage error: disk full");
+    }
+
+    // ── V4: tags + filtered listing ─────────────────────────────
+
+    #[tokio::test]
+    async fn create_job_with_tags_stores_and_retrieves() {
+        let storage = Storage::open_memory().unwrap();
+        let tags = serde_json::json!({"env": "staging", "team": "platform"}).to_string();
+        storage
+            .create_job_with_tags("j1", "test.nika.yaml", Some(tags.clone()))
+            .await
+            .unwrap();
+
+        let job = storage.get_job("j1").await.unwrap().unwrap();
+        assert_eq!(job.tags, Some(tags));
+    }
+
+    #[tokio::test]
+    async fn create_job_without_tags_is_null() {
+        let storage = Storage::open_memory().unwrap();
+        storage.create_job("j1", "test.nika.yaml").await.unwrap();
+
+        let job = storage.get_job("j1").await.unwrap().unwrap();
+        assert!(job.tags.is_none());
+    }
+
+    #[tokio::test]
+    async fn list_jobs_filtered_by_state() {
+        let storage = Storage::open_memory().unwrap();
+        storage.create_job("j1", "a.nika.yaml").await.unwrap();
+        storage.create_job("j2", "b.nika.yaml").await.unwrap();
+        storage
+            .update_state("j1", JobState::Running, None, None)
+            .await
+            .unwrap();
+
+        let running = storage
+            .list_jobs_filtered(JobFilter {
+                state: Some(JobState::Running),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(running.len(), 1);
+        assert_eq!(running[0].id, "j1");
+    }
+
+    #[tokio::test]
+    async fn list_jobs_filtered_by_workflow() {
+        let storage = Storage::open_memory().unwrap();
+        storage.create_job("j1", "a.nika.yaml").await.unwrap();
+        storage.create_job("j2", "b.nika.yaml").await.unwrap();
+        storage.create_job("j3", "a.nika.yaml").await.unwrap();
+
+        let a_jobs = storage
+            .list_jobs_filtered(JobFilter {
+                workflow: Some("a.nika.yaml".into()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(a_jobs.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn list_jobs_filtered_by_tag() {
+        let storage = Storage::open_memory().unwrap();
+        let tags_staging = serde_json::json!({"env": "staging"}).to_string();
+        let tags_prod = serde_json::json!({"env": "prod"}).to_string();
+
+        storage
+            .create_job_with_tags("j1", "a.nika.yaml", Some(tags_staging))
+            .await
+            .unwrap();
+        storage
+            .create_job_with_tags("j2", "b.nika.yaml", Some(tags_prod))
+            .await
+            .unwrap();
+        storage.create_job("j3", "c.nika.yaml").await.unwrap(); // no tags
+
+        let staging = storage
+            .list_jobs_filtered(JobFilter {
+                tag: Some(("env".into(), "staging".into())),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(staging.len(), 1);
+        assert_eq!(staging[0].id, "j1");
+    }
+
+    #[tokio::test]
+    async fn list_jobs_filtered_with_limit_offset() {
+        let storage = Storage::open_memory().unwrap();
+        for i in 0..10 {
+            storage
+                .create_job(&format!("j{i}"), "test.nika.yaml")
+                .await
+                .unwrap();
+        }
+
+        let page = storage
+            .list_jobs_filtered(JobFilter {
+                limit: Some(3),
+                offset: Some(2),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn list_jobs_filtered_combined() {
+        let storage = Storage::open_memory().unwrap();
+        let tags = serde_json::json!({"env": "staging"}).to_string();
+
+        storage
+            .create_job_with_tags("j1", "a.nika.yaml", Some(tags.clone()))
+            .await
+            .unwrap();
+        storage
+            .create_job_with_tags("j2", "b.nika.yaml", Some(tags.clone()))
+            .await
+            .unwrap();
+        storage
+            .create_job_with_tags("j3", "a.nika.yaml", None)
+            .await
+            .unwrap();
+
+        // Filter: workflow=a AND tag env=staging
+        let results = storage
+            .list_jobs_filtered(JobFilter {
+                workflow: Some("a.nika.yaml".into()),
+                tag: Some(("env".into(), "staging".into())),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, "j1");
     }
 }
