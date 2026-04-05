@@ -26,6 +26,32 @@ pub enum ProviderAction {
         #[arg(short, long)]
         quiet: bool,
     },
+
+    // ── v0: did-you-mean redirects for old commands ────────────────────
+    /// Moved to `nika keys set`
+    #[command(hide = true)]
+    Set {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        _args: Vec<String>,
+    },
+    /// Moved to `nika keys remove`
+    #[command(hide = true)]
+    Delete {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        _args: Vec<String>,
+    },
+    /// Moved to `nika keys`
+    #[command(hide = true)]
+    Get {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        _args: Vec<String>,
+    },
+    /// Moved to `nika keys`
+    #[command(hide = true)]
+    Migrate,
+    /// Moved to `nika keys`
+    #[command(hide = true, name = "vault-reset")]
+    VaultReset,
 }
 
 const KEY_PREFIXES: &[(&str, &str)] = &[
@@ -355,6 +381,34 @@ pub async fn handle_provider_command(
                 test_provider_connection(&provider).await?;
             }
             Ok(())
+        }
+
+        // v0: redirect old commands to nika keys
+        ProviderAction::Set { .. } | ProviderAction::Delete { .. } => {
+            eprintln!(
+                "  {} Did you mean? {}",
+                "\u{2717}".red().bold(),
+                "nika keys set <provider>".cyan()
+            );
+            eprintln!("  Key management moved to: {}", "nika keys".bold());
+            std::process::exit(1);
+        }
+        ProviderAction::Get { .. } => {
+            eprintln!(
+                "  {} Did you mean? {}",
+                "\u{2717}".red().bold(),
+                "nika keys".cyan()
+            );
+            eprintln!("  Key management moved to: {}", "nika keys".bold());
+            std::process::exit(1);
+        }
+        ProviderAction::Migrate | ProviderAction::VaultReset => {
+            eprintln!(
+                "  {} This command was removed. Use: {}",
+                "\u{2717}".red().bold(),
+                "nika keys".cyan()
+            );
+            std::process::exit(1);
         }
     }
 }

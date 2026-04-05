@@ -600,6 +600,13 @@ enum Commands {
         action: cli::mcp::McpAction,
     },
 
+    /// (moved to `nika keys`)
+    #[command(hide = true)]
+    Vault {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        _args: Vec<String>,
+    },
+
     /// Clean project runtime state (traces, cache, media orphans)
     #[command(next_help_heading = "PROJECT")]
     Clean {
@@ -1660,6 +1667,16 @@ async fn main() {
 
         Some(Commands::Provider { action }) => {
             cli::provider::handle_provider_command(action, quiet).await
+        }
+
+        Some(Commands::Vault { .. }) => {
+            eprintln!(
+                "  {} Did you mean? {}",
+                "\u{2717}".red().bold(),
+                "nika keys".cyan()
+            );
+            eprintln!("  Vault commands moved to: {}", "nika keys".bold());
+            std::process::exit(1);
         }
 
         Some(Commands::Tools { action }) => {
