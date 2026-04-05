@@ -1,0 +1,384 @@
+schema: "nika/workflow@0.12"
+workflow: release-notes
+description: "Generate keynote-style release notes for GitHub releases"
+provider: anthropic
+model: claude-sonnet-4-20250514
+
+inputs:
+  version:
+    type: string
+    description: "Version number (e.g. 0.70.0)"
+  prev_tag:
+    type: string
+    description: "Previous tag for comparison (e.g. v0.69.0)"
+  changelog:
+    type: string
+    description: "Raw CHANGELOG.md entry for this version"
+  commit_log:
+    type: string
+    description: "Git log output (commit messages)"
+  commit_count:
+    type: string
+    description: "Number of commits"
+  test_count:
+    type: string
+    description: "Number of tests"
+  tool_count:
+    type: string
+    description: "Number of builtin tools"
+  transform_count:
+    type: string
+    description: "Number of transforms"
+  provider_count:
+    type: string
+    description: "Number of providers"
+  crate_count:
+    type: string
+    description: "Number of workspace crates"
+
+artifacts:
+  dir: ./output
+  format: markdown
+
+tasks:
+  # ─────────────────────────────────────────────────────────
+  # Task 1: Categorize commits into semantic groups
+  # ─────────────────────────────────────────────────────────
+  - id: categorize
+    with:
+      changelog: $inputs.changelog
+      commits: $inputs.commit_log
+    infer:
+      prompt: |
+        You are analyzing a software release for Nika, a YAML workflow engine for AI.
+
+        Here is the CHANGELOG entry:
+        {{with.changelog}}
+
+        Here are the raw commit messages:
+        {{with.commits}}
+
+        Categorize every change into one of these groups: features, fixes, security,
+        refactoring, docs, chore. Each item should have a short title and a one-line
+        description. Include everything — don't skip minor items.
+      temperature: 0.2
+    structured:
+      schema:
+        type: object
+        properties:
+          features:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+          fixes:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+          security:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+          refactoring:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+          docs:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+          chore:
+            type: array
+            items:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+              required: [title, description]
+        required: [features, fixes, security, refactoring, docs, chore]
+      max_retries: 2
+      enable_repair: true
+
+  # ─────────────────────────────────────────────────────────
+  # Task 2: Generate a release codename
+  # ─────────────────────────────────────────────────────────
+  - id: generate_codename
+    depends_on: [categorize]
+    with:
+      categories: $categorize
+    infer:
+      prompt: |
+        Based on these categorized changes for a software release, come up with a
+        short codename (2-3 words max) that captures the essence of this release.
+
+        The codename should be evocative and memorable — like a chapter title.
+        Examples: "Grand Nettoyage", "SDK Launch", "The Mega Sprint",
+        "Security Patch", "Feature Freeze", "Transform Storm", "Eval Engine".
+
+        Changes:
+        {{with.categories | to_json}}
+
+        Reply with ONLY the codename, nothing else.
+      temperature: 0.8
+      max_tokens: 30
+
+  # ─────────────────────────────────────────────────────────
+  # Task 3: Write a compelling 30-second pitch
+  # ─────────────────────────────────────────────────────────
+  - id: generate_pitch
+    depends_on: [categorize]
+    with:
+      categories: $categorize
+      version: $inputs.version
+    infer:
+      prompt: |
+        You're writing the opening paragraph for the release notes of Nika v{{with.version}},
+        a YAML workflow engine for AI ("Inference as Code").
+
+        Here are the categorized changes:
+        {{with.categories | to_json}}
+
+        Write a "This Release in 30 Seconds" paragraph. One paragraph, 3-5 sentences.
+        Be technical but enthusiastic. Explain WHY this release matters to developers,
+        not just what changed. Think of it as the elevator pitch for this version.
+
+        Do not use bullet points — write flowing prose. Do not start with "This release"
+        or "Nika v{{with.version}}". Start with what's exciting.
+      temperature: 0.7
+      max_tokens: 300
+
+  # ─────────────────────────────────────────────────────────
+  # Task 4: Pick top highlights
+  # ─────────────────────────────────────────────────────────
+  - id: generate_highlights
+    depends_on: [categorize]
+    with:
+      features: $categorize.features
+    infer:
+      prompt: |
+        From these features of a new Nika release (a YAML workflow engine for AI),
+        pick the top 3-5 most impactful ones and write a highlight bullet for each.
+
+        Features:
+        {{with.features | to_json}}
+
+        Format each as:
+        - **Feature Name** — one-line description of what it does and why it matters
+
+        Only output the bullet list, nothing else. Pick the ones that would matter most
+        to a developer evaluating whether to upgrade.
+      temperature: 0.5
+      max_tokens: 500
+
+  # ─────────────────────────────────────────────────────────
+  # Task 5: Write detailed feature sections
+  # ─────────────────────────────────────────────────────────
+  - id: generate_feature_sections
+    depends_on: [categorize]
+    with:
+      features: $categorize.features
+      version: $inputs.version
+    infer:
+      prompt: |
+        Write detailed feature sections for the major features in Nika v{{with.version}}
+        (a YAML workflow engine — schema "nika/workflow@0.12", extension .nika.yaml).
+
+        Features:
+        {{with.features | to_json}}
+
+        For each major feature (skip trivial items), write a section with:
+        1. An emoji + title as a ### heading
+        2. 2-3 sentences explaining the problem it solves and how it works
+        3. A YAML code example showing how to use it (if applicable)
+        4. A tip or important note (prefixed with "> ")
+
+        Use these emojis contextually: new capability, performance boost, developer experience,
+        infrastructure, security. Keep the tone professional but warm.
+
+        Output only the markdown sections, no intro or outro.
+      temperature: 0.6
+      max_tokens: 3000
+
+  # ─────────────────────────────────────────────────────────
+  # Task 6: Assemble final release notes
+  # ─────────────────────────────────────────────────────────
+  - id: format_release_notes
+    depends_on:
+      - categorize
+      - generate_codename
+      - generate_pitch
+      - generate_highlights
+      - generate_feature_sections
+    with:
+      version: $inputs.version
+      prev_tag: $inputs.prev_tag
+      commit_count: $inputs.commit_count
+      test_count: $inputs.test_count
+      tool_count: $inputs.tool_count
+      transform_count: $inputs.transform_count
+      provider_count: $inputs.provider_count
+      crate_count: $inputs.crate_count
+      codename: $generate_codename
+      pitch: $generate_pitch
+      highlights: $generate_highlights
+      feature_sections: $generate_feature_sections
+      fixes: $categorize.fixes
+      security: $categorize.security
+    infer:
+      prompt: |
+        Assemble the final release notes for Nika v{{with.version}} using EXACTLY this
+        template structure. Fill in every placeholder with the provided data.
+
+        Do NOT rewrite or paraphrase the provided content — use it verbatim.
+        Do NOT add content that wasn't provided.
+        Today's date is 2026-04-04. Format it as YYYY-MM-DD.
+
+        Here is the template to fill:
+
+        ---BEGIN TEMPLATE---
+
+        ## 🦋 Nika {{with.version}} — {{with.codename | trim}}
+
+        > **Inference as Code** · YYYY-MM-DD · {{with.commit_count}} commits
+
+        | 🧪 Tests | 🔧 Builtins | 📦 Transforms | 🌐 Providers | 🦀 Crates |
+        |:---------:|:-----------:|:-------------:|:------------:|:---------:|
+        | **{{with.test_count}}** | **{{with.tool_count}}** | **{{with.transform_count}}** | **{{with.provider_count}}** | **{{with.crate_count}}** |
+
+        > ✧ infer · ⎈ exec · ☄ fetch · ⊛ invoke · ❋ agent
+
+        ---
+
+        ### ✨ This Release in 30 Seconds
+
+        {{with.pitch | trim}}
+
+        ---
+
+        ### 🔑 Highlights
+
+        {{with.highlights | trim}}
+
+        ---
+
+        {{with.feature_sections | trim}}
+
+        ---
+
+        [IF SECURITY ITEMS EXIST, ADD THIS SECTION:]
+        ### 🔐 Security
+
+        {{with.security | to_json}}
+
+        ---
+
+        ### 🐛 Also Fixed
+
+        <details>
+        <summary><strong>N fixes</strong> (click to expand)</summary>
+
+        [FORMAT EACH FIX AS: - **title** — description]
+        {{with.fixes | to_json}}
+
+        </details>
+
+        ---
+
+        ### 📦 Install
+
+        | | Method | Command |
+        |---|--------|---------|
+        | 🚀 | **Quick** | `curl -fsSL https://raw.githubusercontent.com/supernovae-st/nika/main/install.sh \| sh` |
+        | 🍺 | **Homebrew** | `brew install supernovae-st/tap/nika` |
+        | 📦 | **npm** | `npx @supernovae-st/nika` |
+        | 🦀 | **Cargo** | `cargo install nika` |
+        | 🐳 | **Docker** | `docker run --rm ghcr.io/supernovae-st/nika:{{with.version}}` |
+        | 💻 | **VS Code** | Search "Nika" or `ext install supernovae.nika-lang` |
+
+        ---
+
+        Made with 💜 by [SuperNovae Studio](https://supernovae.studio) · AGPL-3.0
+
+        **Full Changelog**: https://github.com/supernovae-st/nika/compare/{{with.prev_tag}}...v{{with.version}}
+
+        ---END TEMPLATE---
+
+        IMPORTANT RULES:
+        - Replace YYYY-MM-DD with today's date (2026-04-04)
+        - For the security section: if the security array is empty, OMIT the entire section
+        - For the fixes section: count the fixes and replace "N fixes" with the actual count
+        - Format each fix as a markdown bullet: - **title** — description
+        - The install table must use the exact version number {{with.version}}
+        - Output ONLY the final markdown, no commentary
+      temperature: 0.2
+      max_tokens: 4000
+    artifact:
+      path: release-notes.md
+      format: markdown
+
+  # ─────────────────────────────────────────────────────────
+  # Task 7: Generate Telegram announcement (HTML)
+  # ─────────────────────────────────────────────────────────
+  - id: generate_telegram
+    depends_on:
+      - generate_codename
+      - generate_highlights
+      - categorize
+    with:
+      version: $inputs.version
+      codename: $generate_codename
+      highlights: $generate_highlights
+      test_count: $inputs.test_count
+      tool_count: $inputs.tool_count
+      transform_count: $inputs.transform_count
+      feature_count: $categorize.features
+      fix_count: $categorize.fixes
+    infer:
+      prompt: |
+        Write a Telegram announcement message in HTML format for Nika v{{with.version}}.
+        Nika is a YAML workflow engine for AI — "Inference as Code".
+
+        Codename: {{with.codename | trim}}
+        Tests: {{with.test_count}} | Tools: {{with.tool_count}} | Transforms: {{with.transform_count}}
+        Features: {{with.feature_count | length}} new | Fixes: {{with.fix_count | length}}
+
+        Top highlights:
+        {{with.highlights | trim}}
+
+        Format rules for Telegram HTML:
+        - Use <b> for bold, <i> for italic, <code> for code
+        - Use <a href="url">text</a> for links
+        - Line breaks with newlines (no <br> or <p>)
+        - Keep it under 20 lines total
+        - Start with the butterfly emoji and version + codename on the first line
+        - Add a stats line with the numbers
+        - List top 3 highlights as bullet points (use the dot character)
+        - End with a link to the GitHub release page:
+          https://github.com/supernovae-st/nika/releases/tag/v{{with.version}}
+        - Tone: concise, professional, a bit playful
+
+        Output ONLY the HTML message body, no wrapping tags, no commentary.
+      temperature: 0.6
+      max_tokens: 500
+    artifact:
+      path: telegram-message.html
+      format: text

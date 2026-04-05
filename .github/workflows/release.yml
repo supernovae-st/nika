@@ -429,6 +429,8 @@ jobs:
     needs: [build, docker-publish]
     if: ${{ !inputs.dry_run && !cancelled() }}
     runs-on: ubuntu-latest
+    outputs:
+      ai_telegram_msg: ${{ steps.ai_notes.outputs.telegram_msg }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -454,7 +456,78 @@ jobs:
           TAG: ${{ env.RELEASE_TAG }}
         run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
-      - name: Generate release notes
+      - name: Generate AI release notes
+        id: ai_notes
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.0")
+          COMMIT_COUNT=$(git log --oneline "${PREV_TAG}..HEAD" | wc -l | tr -d ' ')
+          COMMIT_LOG=$(git log --oneline "${PREV_TAG}..HEAD" --pretty="- %s" | head -30)
+          CRATE_COUNT=$(ls -d tools/nika-*/Cargo.toml tools/nika/Cargo.toml 2>/dev/null | wc -l | tr -d ' ')
+          TEST_COUNT=$(grep -r "#\[test\]" tools/ --include="*.rs" 2>/dev/null | wc -l | tr -d ' ')
+
+          # Extract CHANGELOG entry
+          CHANGELOG_NOTES=""
+          for f in "CHANGELOG.md" "tools/nika/CHANGELOG.md"; do
+            if [ -f "$f" ]; then
+              CHANGELOG_NOTES=$(awk -v ver="${VERSION}" '
+                /^## \[/ { if (index($0, "[" ver "]")) { found=1; next } else if (found) { exit } }
+                found { print }
+              ' "$f" || true)
+              [ -n "$CHANGELOG_NOTES" ] && break
+            fi
+          done
+
+          # Extract nika binary from release tarball
+          NIKA_BIN=""
+          TARBALL=$(ls release-assets/nika-linux-x64-*.tar.gz 2>/dev/null | head -1)
+          if [ -n "$TARBALL" ]; then
+            mkdir -p /tmp/nika-extract
+            tar -xzf "$TARBALL" -C /tmp/nika-extract --strip-components=1
+            if [ -f "/tmp/nika-extract/nika" ]; then
+              NIKA_BIN="/tmp/nika-extract/nika"
+            fi
+          fi
+
+          if [ -n "$NIKA_BIN" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
+            chmod +x "$NIKA_BIN"
+            echo "Using nika binary: $NIKA_BIN"
+
+            "$NIKA_BIN" run .github/release-notes.nika.yaml \
+              --input version="$VERSION" \
+              --input prev_tag="$PREV_TAG" \
+              --input changelog="$CHANGELOG_NOTES" \
+              --input commit_log="$COMMIT_LOG" \
+              --input commit_count="$COMMIT_COUNT" \
+              --input test_count="$TEST_COUNT" \
+              --input tool_count="62" \
+              --input transform_count="63" \
+              --input provider_count="14" \
+              --input crate_count="$CRATE_COUNT" \
+              -y --no-interactive 2>/dev/null || true
+
+            if [ -f ".nika/artifacts/release-notes.md" ]; then
+              cp .nika/artifacts/release-notes.md release-notes.md
+              echo "ai_success=true" >> $GITHUB_OUTPUT
+              echo "AI release notes generated successfully"
+            fi
+
+            if [ -f ".nika/artifacts/telegram-message.html" ]; then
+              TELEGRAM_MSG=$(cat .nika/artifacts/telegram-message.html)
+              DELIMITER=$(openssl rand -hex 8)
+              echo "telegram_msg<<${DELIMITER}" >> $GITHUB_OUTPUT
+              echo "$TELEGRAM_MSG" >> $GITHUB_OUTPUT
+              echo "${DELIMITER}" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Skipping AI notes: nika_bin=${NIKA_BIN:-not found}, api_key=${ANTHROPIC_API_KEY:+set}"
+          fi
+
+      - name: Generate release notes (fallback)
+        if: steps.ai_notes.outputs.ai_success != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -467,12 +540,15 @@ jobs:
 
           # What's Changed: prefer CHANGELOG, fallback to git log
           CHANGELOG_NOTES=""
-          if [ -f "tools/nika/CHANGELOG.md" ]; then
-            CHANGELOG_NOTES=$(awk -v ver="${VERSION}" '
-              /^## \[/ { if (index($0, "[" ver "]")) { found=1; next } else if (found) { exit } }
-              found { print }
-            ' tools/nika/CHANGELOG.md || true)
-          fi
+          for f in "CHANGELOG.md" "tools/nika/CHANGELOG.md"; do
+            if [ -f "$f" ]; then
+              CHANGELOG_NOTES=$(awk -v ver="${VERSION}" '
+                /^## \[/ { if (index($0, "[" ver "]")) { found=1; next } else if (found) { exit } }
+                found { print }
+              ' "$f" || true)
+              [ -n "$CHANGELOG_NOTES" ] && break
+            fi
+          done
           if [ -z "$CHANGELOG_NOTES" ]; then
             CHANGELOG_NOTES=$(git log --oneline "${PREV_TAG}..HEAD" --pretty="- %s" 2>/dev/null | head -20 || echo "- Initial release")
           fi
@@ -564,11 +640,22 @@ jobs:
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Detect codename from AI release notes
+        id: codename
+        if: steps.ai_notes.outputs.ai_success == 'true'
+        run: |
+          # Extract codename from first heading: "## 🦋 Nika v0.65.1 — Codename Here"
+          CODENAME=$(head -5 release-notes.md | grep -oP '(?<=— ).*' | head -1 | sed 's/ *$//')
+          if [ -n "$CODENAME" ]; then
+            echo "value=${CODENAME}" >> $GITHUB_OUTPUT
+            echo "Detected codename: ${CODENAME}"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: "🦋 Nika ${{ steps.version.outputs.version }}"
+          name: "🦋 Nika ${{ steps.version.outputs.version }}${{ steps.codename.outputs.value && format(' — {0}', steps.codename.outputs.value) || '' }}"
           body_path: release-notes.md
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           files: release-assets/*
@@ -1407,8 +1494,18 @@ jobs:
           echo "success_count=${SUCCESS}" >> $GITHUB_OUTPUT
           echo "total_count=${TOTAL}" >> $GITHUB_OUTPUT
 
-      - name: "Telegram: single release notification"
-        if: env.HAS_TELEGRAM == 'true'
+      - name: "Telegram: AI-enhanced notification"
+        if: env.HAS_TELEGRAM == 'true' && needs.release.outputs.ai_telegram_msg != ''
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: html
+          disable_web_page_preview: true
+          message: ${{ needs.release.outputs.ai_telegram_msg }}
+
+      - name: "Telegram: Release notification (fallback)"
+        if: env.HAS_TELEGRAM == 'true' && needs.release.outputs.ai_telegram_msg == ''
         uses: appleboy/telegram-action@v1.0.0
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -1418,29 +1515,17 @@ jobs:
           message: |
             🦋 <b>Nika ${{ steps.stats.outputs.version }}</b> — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} ✅
 
-            ${{ needs.release.result == 'success' && '✅' || '❌' }} GitHub Release
-            ${{ needs.docker-publish.result == 'success' && '✅' || '❌' }} Docker
-            ${{ needs.update-homebrew.result == 'success' && '✅' || needs.update-homebrew.result == 'skipped' && '⏭️' || '⚠️' }} Homebrew
-            ${{ needs.vscode-publish.result == 'success' && '✅' || '❌' }} VS Code + Open VSX
-            ${{ needs.npm-publish.result == 'success' && '✅' || '❌' }} npm
-            ${{ needs.crates-publish.result == 'success' && '✅' || '❌' }} crates.io
-            ${{ needs.update-scoop.result == 'success' && '✅' || needs.update-scoop.result == 'skipped' && '⏭️' || '⚠️' }} Scoop
-            ${{ needs.update-aur.result == 'success' && '✅' || needs.update-aur.result == 'skipped' && '⏭️' || '⚠️' }} AUR
+            📊 <b>Stats</b>
+            🧪 ${{ steps.stats.outputs.test_count }}+ tests · 🦀 ${{ steps.stats.outputs.crate_count }} crates · 🔐 Signed + Notarized
 
-            <b>Changes:</b>
+            📋 <b>What's New</b>
             ${{ steps.stats.outputs.changelog }}
 
-            🧪 ${{ steps.stats.outputs.test_count }}+ tests | 🦀 ${{ steps.stats.outputs.crate_count }} crates | 🔐 signed
-            <a href="https://github.com/supernovae-st/nika/releases/tag/${{ env.RELEASE_TAG }}">View release</a>
-            🐳 Docker SBOM + multi-arch
-            📦 ${{ steps.stats.outputs.npm_count }} npm platform packages
+            ${{ needs.release.result == 'success' && '✅' || '❌' }} GitHub · ${{ needs.docker-publish.result == 'success' && '✅' || '❌' }} Docker · ${{ needs.update-homebrew.result == 'success' && '✅' || needs.update-homebrew.result == 'skipped' && '⏭️' || '⚠️' }} Homebrew · ${{ needs.vscode-publish.result == 'success' && '✅' || '❌' }} VS Code · ${{ needs.npm-publish.result == 'success' && '✅' || '❌' }} npm · ${{ needs.crates-publish.result == 'success' && '✅' || '❌' }} Cargo
 
-      - name: "Message 4: One-liner"
-        if: env.HAS_TELEGRAM == 'true'
-        uses: appleboy/telegram-action@v1.0.0
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          format: html
-          disable_web_page_preview: true
-          message: 🦋 <b>Nika ${{ steps.stats.outputs.version }}</b> — ${{ steps.stats.outputs.success_count }}/${{ steps.stats.outputs.total_count }} ✅ | <code>brew install supernovae-st/tap/nika</code> | <code>npx @supernovae-st/nika</code> | <code>cargo install nika</code>
+            📦 <b>Install</b>
+            <code>brew install supernovae-st/tap/nika</code>
+            <code>npx @supernovae-st/nika</code>
+            <code>cargo install nika</code>
+
+            🔗 <a href="https://github.com/supernovae-st/nika/releases/tag/${{ env.RELEASE_TAG }}">View Release</a> · <a href="https://github.com/supernovae-st/nika/compare/${{ steps.stats.outputs.prev_tag }}...${{ env.RELEASE_TAG }}">Full Diff</a>
