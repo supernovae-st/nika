@@ -54,16 +54,10 @@ pub enum ProviderAction {
     VaultReset,
 }
 
-const KEY_PREFIXES: &[(&str, &str)] = &[
-    ("sk-ant-", "anthropic"),
-    ("sk-proj-", "openai"),
-    ("sk-svcacct-", "openai"),
-    ("gsk_", "groq"),
-    ("xai-", "xai"),
-];
-
+/// Detect provider from a pasted API key prefix.
+/// Delegates to the canonical KEY_PREFIXES in keys.rs.
 pub fn detect_provider_from_key(key: &str) -> Option<&'static str> {
-    KEY_PREFIXES
+    crate::keys::KEY_PREFIXES
         .iter()
         .find(|(prefix, _)| key.starts_with(prefix))
         .map(|(_, provider)| *provider)

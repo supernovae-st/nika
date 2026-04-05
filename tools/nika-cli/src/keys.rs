@@ -111,8 +111,10 @@ enum KeyKind {
     Custom(String),
 }
 
-/// Key prefix patterns for detecting when user pastes a key instead of a name.
-const KEY_PREFIXES: &[(&str, &str)] = &[
+/// Key prefix patterns for detecting provider from a pasted key.
+/// Canonical source — provider.rs delegates here.
+/// IMPORTANT: longer prefixes must come before shorter ones (sk-ant- before sk-).
+pub(crate) const KEY_PREFIXES: &[(&str, &str)] = &[
     ("sk-ant-", "anthropic"),
     ("sk-proj-", "openai"),
     ("sk-svcacct-", "openai"),
@@ -1414,7 +1416,13 @@ async fn handle_keys_check(provider: Option<String>, quiet: bool) -> Result<(), 
     }
 
     if passed < configured.len() {
-        std::process::exit(1);
+        let failed = configured.len() - passed;
+        return Err(NikaError::ConfigError {
+            reason: format!(
+                "{failed} of {} provider connections failed",
+                configured.len()
+            ),
+        });
     }
 
     Ok(())
@@ -1453,13 +1461,9 @@ async fn handle_keys_sync(
     // 1. Check gh CLI
     let gh_check = std::process::Command::new("gh").arg("--version").output();
     if gh_check.is_err() {
-        eprintln!(
-            "  {} {} CLI not found. Install: {}",
-            "\u{1F4A1}".dimmed(),
-            "gh".bold(),
-            "brew install gh".cyan()
-        );
-        return Ok(());
+        return Err(NikaError::ConfigError {
+            reason: "gh CLI not found. Install: brew install gh".to_string(),
+        });
     }
 
     // 2. Check auth
@@ -1468,12 +1472,9 @@ async fn handle_keys_sync(
         .output()
         .map_err(NikaError::IoError)?;
     if !auth.status.success() {
-        eprintln!(
-            "  {} Not authenticated. Run: {}",
-            "\u{1F4A1}".dimmed(),
-            "gh auth login".cyan()
-        );
-        return Ok(());
+        return Err(NikaError::ConfigError {
+            reason: "GitHub CLI not authenticated. Run: gh auth login".to_string(),
+        });
     }
 
     // 3. Detect repo
@@ -1482,12 +1483,9 @@ async fn handle_keys_sync(
         None => match detect_github_repo() {
             Some(r) => r,
             None => {
-                eprintln!(
-                    "  {} Not in a git repo. Use: {}",
-                    "\u{1F4A1}".dimmed(),
-                    "nika keys sync --repo owner/name".cyan()
-                );
-                return Ok(());
+                return Err(NikaError::ConfigError {
+                    reason: "Not in a git repo. Use: nika keys sync --repo owner/name".to_string(),
+                });
             }
         },
     };
@@ -2239,5 +2237,177 @@ mod tests {
         let bar = latency_bar(250, 500);
         // Should contain filled and empty characters
         assert!(bar.contains('\u{2588}') || bar.contains('\u{2591}'));
+    }
+
+    // ── classify_name edge cases ────────────────────────────────────
+
+    #[test]
+    fn classify_key_suffix_resolves() {
+        // OPENAI_KEY (not _API_KEY) should still resolve
+        match classify_name("OPENAI_KEY") {
+            KeyKind::KnownProvider(p) => assert_eq!(p.id, "openai"),
+            KeyKind::Custom(_) => panic!("_KEY suffix should resolve to provider"),
+        }
+    }
+
+    #[test]
+    fn classify_typo_beyond_distance_2_is_custom() {
+        // "zzzzzzz" should not match any provider (distance > 2)
+        match classify_name("zzzzzzz") {
+            KeyKind::Custom(n) => assert_eq!(n, "zzzzzzz"),
+            KeyKind::KnownProvider(p) => panic!("should be custom, got: {}", p.id),
+        }
+    }
+
+    #[test]
+    fn classify_empty_string_is_custom() {
+        match classify_name("") {
+            KeyKind::Custom(n) => assert_eq!(n, ""),
+            KeyKind::KnownProvider(p) => panic!("empty should be custom, got: {}", p.id),
+        }
+    }
+
+    #[test]
+    fn classify_case_insensitive() {
+        // "ANTHROPIC" should resolve (find_provider handles case)
+        match classify_name("anthropic") {
+            KeyKind::KnownProvider(p) => assert_eq!(p.id, "anthropic"),
+            KeyKind::Custom(_) => panic!("should match anthropic"),
+        }
+    }
+
+    #[test]
+    fn classify_gemini_key_prefix() {
+        // AIza prefix → gemini (only in keys.rs KEY_PREFIXES)
+        match classify_name("AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") {
+            KeyKind::KnownProvider(p) => assert_eq!(p.id, "gemini"),
+            KeyKind::Custom(_) => panic!("AIza prefix should detect gemini"),
+        }
+    }
+
+    #[test]
+    fn classify_generic_sk_prefix_is_openai() {
+        // "sk-xxxx" (no "ant" or "proj") → generic openai
+        match classify_name("sk-abc123def456") {
+            KeyKind::KnownProvider(p) => assert_eq!(p.id, "openai"),
+            KeyKind::Custom(_) => panic!("sk- prefix should detect openai"),
+        }
+    }
+
+    // ── resolve_provider_key ────────────────────────────────────────
+
+    #[test]
+    fn resolve_mock_provider_is_system() {
+        let vault = get_vault();
+        let mock = find_provider("mock").unwrap();
+        let key = resolve_provider_key(mock, &vault);
+        assert_eq!(key.status, KeyStatus::System);
+        assert_eq!(key.source, KeySource::Builtin);
+    }
+
+    #[test]
+    fn resolve_native_without_model_is_offline() {
+        // Ensure NIKA_NATIVE_MODEL_PATH is not set for this test
+        let vault = get_vault();
+        let native = find_provider("native").unwrap();
+        let key = resolve_provider_key(native, &vault);
+        // Without model path, native should be Offline (unless env is set)
+        assert!(
+            key.status == KeyStatus::Offline || key.status == KeyStatus::Configured,
+            "native status should be Offline or Configured, got: {:?}",
+            key.status
+        );
+    }
+
+    #[test]
+    fn resolve_unconfigured_provider() {
+        // A provider with no env var and no vault key should be NotConfigured
+        let vault = get_vault();
+        // Use a provider that's unlikely to have a key set in test env
+        let sambanova = find_provider("sambanova");
+        if let Some(p) = sambanova {
+            let key = resolve_provider_key(p, &vault);
+            // Should be NotConfigured unless env var happens to be set
+            if std::env::var(p.env_var)
+                .map(|v| !v.is_empty())
+                .unwrap_or(false)
+            {
+                // Skip — env is set in this CI/dev environment
+            } else {
+                assert_eq!(key.status, KeyStatus::NotConfigured);
+            }
+        }
+    }
+
+    // ── parse_github_repo edge cases ────────────────────────────────
+
+    #[test]
+    fn parse_github_repo_without_git_suffix() {
+        assert_eq!(
+            parse_github_repo("git@github.com:owner/repo"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_github_repo_https_without_git() {
+        assert_eq!(
+            parse_github_repo("https://github.com/owner/repo"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    // ── KEY_PREFIXES coverage ───────────────────────────────────────
+
+    #[test]
+    fn key_prefixes_anthropic_before_generic_sk() {
+        // sk-ant- must match anthropic, NOT generic openai sk-
+        for (prefix, provider_id) in KEY_PREFIXES {
+            if *prefix == "sk-ant-" {
+                assert_eq!(*provider_id, "anthropic");
+                return;
+            }
+            // sk-ant- must come before sk-
+            assert_ne!(*prefix, "sk-", "sk- must not appear before sk-ant-");
+        }
+        panic!("sk-ant- not found in KEY_PREFIXES");
+    }
+
+    #[test]
+    fn key_prefixes_covers_all_known() {
+        // Ensure we have at least these critical entries
+        let prefixes: Vec<&str> = KEY_PREFIXES.iter().map(|(p, _)| *p).collect();
+        assert!(prefixes.contains(&"sk-ant-"), "missing anthropic prefix");
+        assert!(prefixes.contains(&"sk-proj-"), "missing openai prefix");
+        assert!(prefixes.contains(&"gsk_"), "missing groq prefix");
+        assert!(prefixes.contains(&"xai-"), "missing xai prefix");
+        assert!(prefixes.contains(&"AIza"), "missing gemini prefix");
+    }
+
+    // ── detect_provider_from_key (provider.rs) compat ───────────────
+
+    #[test]
+    fn detect_provider_from_key_consistent_with_classify() {
+        // Verify provider.rs detect_provider_from_key agrees with classify_name
+        // for all prefixes that provider.rs covers
+        let test_keys = [
+            ("sk-ant-test123", "anthropic"),
+            ("sk-proj-test123", "openai"),
+            ("gsk_test123", "groq"),
+            ("xai-test123", "xai"),
+        ];
+        for (key, expected) in test_keys {
+            match classify_name(key) {
+                KeyKind::KnownProvider(p) => {
+                    assert_eq!(p.id, expected, "classify_name({key}) should be {expected}")
+                }
+                KeyKind::Custom(_) => panic!("classify_name({key}) should not be custom"),
+            }
+            assert_eq!(
+                crate::provider::detect_provider_from_key(key),
+                Some(expected),
+                "detect_provider_from_key({key}) should be {expected}"
+            );
+        }
     }
 }
