@@ -1410,9 +1410,139 @@ impl CliRenderer {
                 }
             }
 
-            // Remaining events (WorkflowCompleted/Failed, WorkflowPaused/Resumed, etc.)
-            // are either handled by summary or intentionally not rendered per-event.
-            _ => {}
+            // ═══════════════════════════════════════
+            // ORCHESTRATOR EVENTS
+            // ═══════════════════════════════════════
+            EventKind::OrchestratorStarted {
+                goal, max_rounds, ..
+            } => {
+                println!(
+                    "{} {} Orchestrator started (max {max_rounds} rounds): {goal}",
+                    self.ts(),
+                    "⚡".cyan(),
+                );
+            }
+            EventKind::OrchestratorRound {
+                round,
+                records_count,
+                cost_usd,
+            } => {
+                println!(
+                    "{} {} Round {round}: {records_count} records, ${cost_usd:.4}",
+                    self.ts(),
+                    "↻".cyan(),
+                );
+            }
+            EventKind::OrchestratorSubWorkflow {
+                round, task_count, ..
+            } => {
+                if self.detail.show_sub_events() {
+                    println!("  ⎋ Round {round}: sub-workflow ({task_count} tasks)");
+                }
+            }
+            EventKind::OrchestratorCompleted {
+                rounds,
+                total_cost_usd,
+                confidence,
+            } => {
+                println!(
+                    "{} {} Orchestrator done: {rounds} rounds, ${total_cost_usd:.4}, confidence={confidence:.2}",
+                    self.ts(),
+                    "✓".green().bold(),
+                );
+            }
+            EventKind::OrchestratorFailed { round, reason } => {
+                println!(
+                    "{} {} Orchestrator failed at round {round}: {reason}",
+                    self.ts(),
+                    "✗".red().bold(),
+                );
+            }
+
+            // ═══════════════════════════════════════
+            // PROVIDER EVENTS
+            // ═══════════════════════════════════════
+            EventKind::ProviderFallback {
+                task_id,
+                from,
+                to,
+                reason,
+            } => {
+                println!(
+                    "{} {} {}: {} → {} ({})",
+                    self.ts(),
+                    "⟳".yellow(),
+                    task_id,
+                    from,
+                    to,
+                    reason
+                );
+            }
+            EventKind::FallbackChainExhausted {
+                task_id,
+                last_error,
+                ..
+            } => {
+                println!(
+                    "{} {} {}: all providers exhausted: {}",
+                    self.ts(),
+                    "✗".red().bold(),
+                    task_id,
+                    last_error
+                );
+            }
+
+            // ═══════════════════════════════════════
+            // SECURITY
+            // ═══════════════════════════════════════
+            EventKind::SecurityScanFinding {
+                task_id,
+                pattern,
+                description,
+            } => {
+                println!(
+                    "{} {} {}: security scan: [{}] {}",
+                    self.ts(),
+                    "⚠".yellow().bold(),
+                    task_id,
+                    pattern,
+                    description
+                );
+            }
+
+            // ═══════════════════════════════════════
+            // TASK LIFECYCLE
+            // ═══════════════════════════════════════
+            EventKind::TaskCancelled { task_id, reason } => {
+                println!(
+                    "{} {} {}: cancelled: {}",
+                    self.ts(),
+                    "⊘".dimmed(),
+                    task_id,
+                    reason
+                );
+            }
+
+            // ═══════════════════════════════════════
+            // INTENTIONAL NO-OPS
+            // ═══════════════════════════════════════
+            // Explicit arms prevent new EventKind variants from being silently swallowed.
+            // If you add a new variant to EventKind, you MUST add an arm here.
+
+            // WorkflowCompleted/Failed — handled by render_summary(), not per-event
+            EventKind::WorkflowCompleted { .. } | EventKind::WorkflowFailed { .. } => {}
+            // StreamingDelta — only relevant for animated live display, not append mode
+            EventKind::StreamingDelta { .. } => {}
+            // PresetApplied — debug-level agent preset info
+            EventKind::PresetApplied { .. } => {}
+            // BindingVaultResolved — debug-level credential resolution
+            EventKind::BindingVaultResolved { .. } => {}
+            // StructuredOutputTimeout — surfaced via retry/failure events
+            EventKind::StructuredOutputTimeout { .. } => {}
+            // ForEachItem events — tracked by parent ForEachCompleted
+            EventKind::ForEachItemStarted { .. }
+            | EventKind::ForEachItemCompleted { .. }
+            | EventKind::ForEachItemFailed { .. } => {}
         }
     }
 
