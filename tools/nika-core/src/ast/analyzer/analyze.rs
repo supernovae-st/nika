@@ -288,6 +288,28 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         if let Some(RawTaskAction::Agent(ref agent)) = task.action {
             check_agent_infer_fields(&agent.value, &mut ctx);
         }
+
+        // Validate fetch extract modes that require selector:
+        if let Some(RawTaskAction::Fetch(ref fetch)) = task.action {
+            if let Some(ref extract) = fetch.value.extract {
+                let mode = extract.value.as_str();
+                if (mode == "selector" || mode == "jsonpath") && fetch.value.selector.is_none() {
+                    ctx.add_error(AnalyzeError::new(
+                        AnalyzeErrorKind::MissingField,
+                        extract.span,
+                        format!(
+                            "extract: {} requires a selector: field. {}",
+                            mode,
+                            if mode == "jsonpath" {
+                                "Add selector: with a JSONPath expression (e.g. $.data[0].name)"
+                            } else {
+                                "Add selector: with a CSS selector (e.g. main article)"
+                            }
+                        ),
+                    ));
+                }
+            }
+        }
     }
 
     // 3. Build task table (detect duplicates)
@@ -4524,6 +4546,103 @@ tasks:
             thinking_warnings.is_empty(),
             "thinking_budget with extended_thinking should not warn, got: {:?}",
             thinking_warnings
+        );
+    }
+
+    // ====================================================================
+    // G3: Extract modes requiring selector
+    // ====================================================================
+
+    #[test]
+    fn test_validate_extract_selector_without_selector_errors() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: scrape
+    fetch:
+      url: "https://example.com"
+      extract: selector
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("extract: selector requires a selector:")),
+            "extract: selector without selector: should error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_extract_jsonpath_without_selector_errors() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: api
+    fetch:
+      url: "https://api.example.com/data"
+      extract: jsonpath
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("extract: jsonpath requires a selector:")),
+            "extract: jsonpath without selector: should error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_validate_extract_selector_with_selector_no_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: scrape
+    fetch:
+      url: "https://example.com"
+      extract: selector
+      selector: "main article"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let selector_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("requires a selector"))
+            .collect();
+        assert!(
+            selector_errors.is_empty(),
+            "extract: selector with selector: should not error, got: {:?}",
+            selector_errors
+        );
+    }
+
+    #[test]
+    fn test_validate_extract_markdown_no_selector_no_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: scrape
+    fetch:
+      url: "https://example.com"
+      extract: markdown
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = validate(&raw);
+        let selector_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| e.message.contains("requires a selector"))
+            .collect();
+        assert!(
+            selector_errors.is_empty(),
+            "extract: markdown should not require selector, got: {:?}",
+            selector_errors
         );
     }
 
