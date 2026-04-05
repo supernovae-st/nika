@@ -377,6 +377,55 @@ fn count_workflow_files(dir: &std::path::Path) -> usize {
     count
 }
 
+/// Scan workflow files for `schedule:` field (header-only, fast).
+/// Returns (total_with_schedule, active_count, paused_count).
+fn scan_scheduled_workflows(dir: &std::path::Path) -> (usize, usize, usize) {
+    let mut total = 0;
+    let mut active = 0;
+    let mut paused = 0;
+
+    for path in collect_workflow_paths(dir) {
+        // Read only the first 50 lines (header-only scan)
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let header: String = content.lines().take(50).collect::<Vec<_>>().join("\n");
+        if header.contains("schedule:") {
+            total += 1;
+            if header.contains("paused: true") {
+                paused += 1;
+            } else {
+                active += 1;
+            }
+        }
+    }
+    (total, active, paused)
+}
+
+/// Collect all .nika.yaml paths recursively.
+fn collect_workflow_paths(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut paths = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return paths;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            continue;
+        };
+        if name_str.starts_with('.') {
+            continue;
+        }
+        let ft = entry.file_type();
+        if ft.as_ref().is_ok_and(|t| t.is_dir()) {
+            paths.extend(collect_workflow_paths(&entry.path()));
+        } else if name_str.ends_with(".nika.yaml") || name_str.ends_with(".nika.yml") {
+            paths.push(entry.path());
+        }
+    }
+    paths
+}
+
 /// Print a structured startup banner to stderr.
 fn print_startup_banner(config: &ServeConfig) {
     use nika_engine::core::{provider_to_env_var, ProviderCategory, KNOWN_PROVIDERS};
@@ -430,7 +479,24 @@ fn print_startup_banner(config: &ServeConfig) {
         config.job_timeout_secs
     );
     eprintln!("  \u{251c}\u{2500}\u{2500} Auth         Bearer token ({token_len} chars)");
-    eprintln!("  \u{2514}\u{2500}\u{2500} Providers    {providers_str}");
+    eprintln!("  \u{251c}\u{2500}\u{2500} Providers    {providers_str}");
+
+    // Scan for scheduled workflows
+    let (sched_total, sched_active, sched_paused) = scan_scheduled_workflows(&config.workflows_dir);
+    if sched_total > 0 {
+        let details = if sched_paused > 0 {
+            format!("{sched_active} active, {sched_paused} paused")
+        } else {
+            format!("{sched_active} active")
+        };
+        eprintln!(
+            "  \u{2514}\u{2500}\u{2500} Scheduled    {sched_total} workflow{} ({details})",
+            if sched_total == 1 { "" } else { "s" }
+        );
+    } else {
+        eprintln!("  \u{2514}\u{2500}\u{2500} Scheduled    none");
+    }
+
     eprintln!();
     eprintln!("  Ready. Ctrl+C to stop.");
     eprintln!();
@@ -847,5 +913,34 @@ mod tests {
             count, 3,
             "should find 3 workflows recursively, skipping hidden dirs"
         );
+    }
+
+    #[test]
+    fn scan_discovers_scheduled_workflows() {
+        let dir = tempfile::TempDir::new().unwrap();
+
+        // Workflow with schedule (active)
+        std::fs::write(
+            dir.path().join("daily.nika.yaml"),
+            "schema: \"nika/workflow@0.12\"\nschedule: \"@daily\"\ntasks:\n  - id: run\n    infer: hello\n",
+        ).unwrap();
+
+        // Workflow with schedule (paused)
+        std::fs::write(
+            dir.path().join("paused.nika.yaml"),
+            "schema: \"nika/workflow@0.12\"\nschedule:\n  cron: \"0 9 * * *\"\n  paused: true\ntasks:\n  - id: run\n    infer: hello\n",
+        ).unwrap();
+
+        // Workflow without schedule
+        std::fs::write(
+            dir.path().join("normal.nika.yaml"),
+            "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: run\n    infer: hello\n",
+        )
+        .unwrap();
+
+        let (total, active, paused) = scan_scheduled_workflows(dir.path());
+        assert_eq!(total, 2, "should find 2 scheduled workflows");
+        assert_eq!(active, 1, "1 active");
+        assert_eq!(paused, 1, "1 paused");
     }
 }

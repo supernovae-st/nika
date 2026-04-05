@@ -5000,8 +5000,7 @@ tasks:
             result
                 .warnings
                 .iter()
-                .any(|w| w.message.contains("inputs.locale")
-                    && w.message.contains("not declared")),
+                .any(|w| w.message.contains("inputs.locale") && w.message.contains("not declared")),
             "undeclared inputs.locale should warn, got warnings: {:?}",
             result.warnings
         );
