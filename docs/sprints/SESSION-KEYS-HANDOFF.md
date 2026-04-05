@@ -367,6 +367,185 @@ assert 'summary' in data
 nika provider set anthropic 2>&1 | grep -q "Did you mean"
 ```
 
+## Règles CRITIQUES
+
+### Co-author (ABSOLU)
+```
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+```
+JAMAIS Claude, JAMAIS Anthropic. Voir `feedback_no_claude_coauthor.md` en mémoire.
+
+### v0 Philosophy
+- ZERO backward compat, ZERO aliases, ZERO dead code
+- MAIS : smart UX (did you mean, typo, guidance) = TOUJOURS
+- La commande ne MARCHE PAS mais elle GUIDE
+- Supprimer `provider set/delete` du enum clap, pas juste cacher
+
+### Commit Format
+```
+type(scope): description
+
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+```
+Types: feat, fix, refactor, docs, test, chore. Scope: cli, engine, vault, core, display.
+
+### Test Commands
+```bash
+cargo test -p nika-cli --lib -- keys    # keys tests only
+cargo test --workspace --lib             # ALWAYS --lib (no keychain popups)
+cargo clippy --workspace -- -D warnings  # zero warnings policy
+```
+
+### Skills/Agents à utiliser
+- `spn-rust:rust-pro` pour l'implémentation Rust
+- `test-driven-development` skill — test AVANT code
+- `verification-before-completion` — vérifier AVANT de dire "done"
+
+## Design System Complet
+
+Référence : `docs/design-system.md` (723 lignes, source of truth)
+
+### Typography
+- **UPPERCASE** : category headers (INFERENCE, SEARCH, CUSTOM, LOCAL)
+- **bold** : noms de providers, titres de sections, compteurs
+- **normal** : descriptions, valeurs masquées
+- **dim** : tree connectors (┈┈┈), hints (💡), métadonnées, séparateurs
+
+### Séparateurs
+- `┈┈┈` (dashed, U+2508) pour les sections — PAS `───` (solid)
+- Choix validé : plus léger, plus élégant, style constellation
+
+### Terminal Width Adaptation
+- `< 60 cols` : compact (status + name + source only)
+- `60-100 cols` : standard (+ masked key + models)
+- `> 100 cols` : full (+ latency si dispo)
+Utiliser `terminal_size::terminal_size()` existant dans nika-display.
+
+## Steve Jobs / Jony Ive Insights (appliqués)
+
+1. **Résumer le PROBLÈME, pas le succès** : "2 not set: deepseek, xai" au lieu de "5/7 configured"
+2. **Auto-test** : paste → save → test automatique (pas "Test? Y/n")
+3. **Une seule question** dans le flow set : "Sync to GitHub? Y/n" (le reste est auto)
+4. **Source provenance = sacré** : vault/env/daemon toujours visible, jamais collapsed
+5. **`·` (dim dot) pas `✗` (red cross)** pour non-configuré — c'est pas une erreur, c'est un choix
+6. **Catégories = overhead si <5 keys** — mais on les garde car elles enseignent la structure
+
+## $env Integration (résolution exacte)
+
+```
+Ordre de résolution pour $env.VAR :
+1. SecretStore (DashMap, peuplé depuis vault/daemon au boot)
+2. OS environment variable (export)
+3. .env file (dotenvy)
+```
+
+Pour les LLM providers : les 3 sources marchent.
+Pour les custom keys : UNIQUEMENT env var ou .env (SAUF si P0-1 fix est actif → vault custom aussi).
+
+### $vault.SERVICE.FIELD
+Syntaxe qui accède au vault multi-field directement dans les workflows.
+```yaml
+with:
+  stripe_key: $vault.stripe.secret_key
+```
+P0-2 fix (FAIT) : le vault est maintenant wired dans RunContext.
+
+## Catégories — Mapping Exact
+
+```rust
+fn categorize_provider(p: &Provider) -> KeyCategory {
+    match p.id {
+        // Inference (14 LLM)
+        "anthropic" | "openai" | "mistral" | "groq" | "deepseek" |
+        "gemini" | "xai" | "openrouter" | "together" | "fireworks" |
+        "cerebras" | "sambanova" | "cohere" | "ai21" => Inference,
+
+        // Search (4 discovery)
+        "perplexity" | "firecrawl" | "ahrefs" | "dataforseo" => Search,
+
+        // Local (2 always available)
+        "mock" | "native" => Local,
+
+        // Everything else (MCP, custom) → Custom
+        _ => Custom,
+    }
+}
+```
+
+MCP servers (neo4j, github, slack, etc.) → catégorie CUSTOM (MCP est caché, c'est un détail technique).
+
+## Multi-Field Credentials
+
+Le vault supporte `VaultEntry::Credential { fields: BTreeMap }`.
+Exemple : Stripe avec secret_key + webhook_secret.
+
+Pour `nika keys set stripe` :
+- Pas encore implémenté dans keys set (Phase future)
+- Accès via `$vault.stripe.secret_key` dans les workflows
+- `nika keys list` montre "stripe (2 fields)" avec vault source
+- `nika vault` reste disponible pour la gestion avancée multi-field
+
+## Docker / CI / VPS
+
+### Docker (pas de TTY)
+```bash
+echo "sk-ant-..." | nika keys set anthropic --stdin --no-test
+```
+`--stdin` + `--no-test` = mode non-interactif complet.
+
+### GitHub Actions CI
+Les clés sont en `${{ secrets.ANTHROPIC_API_KEY }}` → injectées comme env vars au runtime.
+Pas besoin de vault en CI — l'env var est prioritaire.
+
+### VPS
+```bash
+export NIKA_VAULT_PASSPHRASE="my-secure-passphrase"
+nika keys set anthropic --stdin < /path/to/key.txt
+```
+Sans passphrase : utilise machine fingerprint (machine-id + username).
+
+## MCP Key Discovery
+
+`.mcp.json` contient des `env:` fields spécifiant les env vars requis par chaque MCP server.
+`nika keys list` devrait parser `.mcp.json` pour montrer quels MCP servers ont besoin de clés.
+→ Phase future, pas dans l'implémentation initiale.
+
+## Blocker Détaillé : WIP on_error
+
+```bash
+git stash list
+# stash@{0}: WIP on_error tests
+# stash@{1}: WIP on_error feature + s7
+# stash@{2}: ...
+```
+
+Le WIP `on_error` ajoute un champ `on_error: Option<OnErrorAction>` aux structs FetchParams et task structs.
+C'est d'une session précédente (Grand Nettoyage S7). Les test files et le code source sont stashés.
+
+**Pour continuer l'implémentation keys** :
+1. S'assurer que le stash est toujours là
+2. NE PAS pop le stash
+3. Travailler uniquement dans `nika-cli/src/keys.rs` et `nika/src/main.rs`
+4. Les tests `cargo test -p nika-cli --lib` passent car ils ne touchent pas nika-engine
+
+## cliclack Primitives (pour keys set)
+
+```rust
+use cliclack::{intro, outro, password, confirm, select, spinner, note, log};
+
+// Flow:
+intro("nika keys set — anthropic")?;             // Header stylé
+note("Get your key", "https://...")?;             // Info box
+let key = password("ANTHROPIC_API_KEY:").interact()?;  // Masked input
+let s = spinner();
+s.start("Saving to vault...");
+vault.set("anthropic", &key)?;
+s.stop("✓ Saved");
+note("Models available", "Sonnet 4, Haiku, Opus")?;  // Success info
+if confirm("Sync to GitHub CI?").interact()? { ... }
+outro("✓ anthropic configured")?;                 // Footer stylé
+```
+
 ## Vérification finale
 
 - [ ] `cargo test --workspace --lib` passe
