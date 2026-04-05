@@ -1551,9 +1551,20 @@ impl TaskExecutor {
                     let cas_read = self.cas.read(&resolved_source);
                     let image_data = tokio::select! {
                         result = cas_read => {
-                            result.map_err(|e| ProviderError::ApiError {
-                                message: format!("Vision: CAS read '{}': {}", resolved_source, e),
-                            })?
+                            match result {
+                                Ok(data) => data,
+                                Err(e) => {
+                                    self.event_log.emit(EventKind::VisionContentFailed {
+                                        task_id: Arc::clone(task_id),
+                                        source: resolved_source.clone(),
+                                        stage: "cas_read".to_string(),
+                                        error: e.to_string(),
+                                    });
+                                    return Err(ProviderError::ApiError {
+                                        message: format!("Vision: CAS read '{}': {}", resolved_source, e),
+                                    }.into());
+                                }
+                            }
                         }
                         _ = self.cancel_token.cancelled() => {
                             return Err(NikaError::TaskCancelled {
@@ -1578,6 +1589,12 @@ impl TaskExecutor {
                     let media_type = detect_image_media_type(&image_data);
                     // Bug 39: reject unsupported formats with clear error
                     if media_type.is_none() {
+                        self.event_log.emit(EventKind::VisionContentFailed {
+                            task_id: Arc::clone(task_id),
+                            source: resolved_source.clone(),
+                            stage: "unsupported_format".to_string(),
+                            error: "Supported: PNG, JPEG, GIF, WebP".to_string(),
+                        });
                         return Err(NikaError::ValidationError {
                             reason: format!(
                                 "Vision image has unsupported format (CAS: {}). Supported: PNG, JPEG, GIF, WebP",
