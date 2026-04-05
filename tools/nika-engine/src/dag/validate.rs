@@ -307,6 +307,14 @@ fn extract_task_templates(action: &TaskAction) -> Vec<String> {
             if let Some(ref system) = infer.system {
                 templates.push(system.clone());
             }
+            // Vision content: text parts may contain templates
+            if let Some(ref parts) = infer.content {
+                for part in parts {
+                    if let crate::ast::content::ContentPart::Text { text } = part {
+                        templates.push(text.clone());
+                    }
+                }
+            }
         }
         TaskAction::Exec { exec } => {
             templates.push(exec.command.clone());
@@ -1287,6 +1295,37 @@ mod tests {
         assert!(
             templates.contains(&"{{with.secret}}".to_string()),
             "exec.env values should be extracted: {:?}",
+            templates,
+        );
+    }
+
+    #[test]
+    fn extract_templates_infer_includes_content_text_parts() {
+        use crate::ast::content::ContentPart;
+        let action = crate::ast::TaskAction::Infer {
+            infer: crate::ast::InferParams {
+                prompt: "Describe this image".to_string(),
+                content: Some(vec![
+                    ContentPart::Image {
+                        source: "blake3:abc123".to_string(),
+                        detail: Default::default(),
+                    },
+                    ContentPart::Text {
+                        text: "What do you see in {{with.context}}?".to_string(),
+                    },
+                ]),
+                ..Default::default()
+            },
+        };
+        let templates = extract_task_templates(&action);
+        assert!(
+            templates.contains(&"Describe this image".to_string()),
+            "infer.prompt should be extracted: {:?}",
+            templates,
+        );
+        assert!(
+            templates.contains(&"What do you see in {{with.context}}?".to_string()),
+            "content text parts should be extracted: {:?}",
             templates,
         );
     }

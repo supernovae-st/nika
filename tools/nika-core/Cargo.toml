@@ -30,6 +30,9 @@ jaq-core = { workspace = true }
 jaq-std = { workspace = true }
 jaq-json = { workspace = true }
 lru = { workspace = true }
+croner = { workspace = true }
+hron = { workspace = true }
+chrono-tz = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

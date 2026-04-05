@@ -60,6 +60,7 @@ pub mod orchestrate;
 pub mod output;
 pub mod record;
 pub mod routing;
+pub mod schedule;
 pub mod structured;
 
 // Re-export key types for convenient access
