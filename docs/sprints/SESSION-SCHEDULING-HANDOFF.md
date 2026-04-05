@@ -297,6 +297,35 @@ schedule:                              # full form
 - Daemon down: "Saved but won't fire. Start: nika daemon start"
 - Auto-pause: "5 failures → auto-pause. 2 more to go."
 
+### Timeline View (`nika schedule list --timeline`)
+- 24h horizontal timeline with fire markers per workflow
+- Density bar: ▁▂▃▄▅ (green→yellow→red) showing load per hour
+- Overlap warnings: "3 workflows at 08:00 — consider staggering"
+- Footer: runs/day, est. cost/day, peak hour
+
+### Aliases
+- `nika schedules` = `nika schedule list` (plural = list, like `git stashes`)
+- `nika schedule ls` / `nika schedule rm` shortcuts
+
+### Why `nika every` = Create Only (Devil's Advocate Resolution)
+`nika every list` would be ambiguous: list schedules or schedule "list.nika.yaml"?
+Solution: `nika every` = create/wizard ONLY. Management → `nika schedule`.
+Eliminates ALL parsing ambiguity while keeping the wow one-liner.
+
+### Emotional Micro-copy
+| Context | Line |
+|---------|------|
+| First schedule | "Your first schedule! Welcome to automation. 🦋" |
+| Daily | "See you tomorrow at {time}! 🦋" |
+| After test run | "Looks good! Next automatic run: {time}." |
+| Pause | "Paused. Resume: nika schedule resume {name}" |
+| Remove | "Removed. {N} historical runs preserved in traces." |
+
+### Auto-Pause on Repeated Failures
+- After 5 consecutive failures → auto-pause schedule
+- Show countdown: "Auto-pause in 2 more failures"
+- Failing schedule detail shows "What's wrong?" + numbered fix suggestions
+
 ### Error Codes
 | Code | Meaning |
 |------|---------|

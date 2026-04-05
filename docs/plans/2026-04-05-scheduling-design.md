@@ -404,7 +404,40 @@ $ nika every 6h report.nika.yaml
   ╰─────────────────────────────────────────────────────────────────────────╯
 ```
 
-### 5. Color Semantics
+### 5. Timeline View (`nika schedule list --timeline`)
+
+```
+  ╭─ 24h Overview ──────────────────────────────────────────────────────╮
+  │                                                                      │
+  │        0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 ... │
+  │        ┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──  │
+  │                                                                      │
+  │  data  ◆     ◆     ◆     ◆     ◆     ◆     ◆     ◆     ◆     ◆    │
+  │  check ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  │
+  │  report                        ◆                                     │
+  │        ┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──┼──  │
+  │  load  ▁  ▁  ▂  ▁  ▃  ▁  ▂  ▁  ▅  ▂  ▃  ▁  ▂  ▁  ▂  ▁  ▂  ▁    │
+  │                                                                      │
+  │  ⚠ 08:00–09:00: 3 workflows overlap — consider staggering           │
+  │                                                                      │
+  ├──────────────────────────────────────────────────────────────────────┤
+  │  3 schedules · 26 runs/day · est. $0.78/day · peak: 08:00 (3 runs) │
+  ╰──────────────────────────────────────────────────────────────────────╯
+```
+
+### 6. Aliases & Devil's Advocate Resolution
+
+**Aliases:**
+- `nika schedules` = `nika schedule list` (plural = list, like `git stashes`)
+- `nika schedule ls` = `nika schedule list`
+- `nika schedule rm` = `nika schedule remove`
+
+**Why `nika every` = create only (devil's advocate resolution):**
+- `nika every list` would be ambiguous (list schedules or schedule "list.nika.yaml"?)
+- Solution: `nika every` = create/wizard ONLY. All management → `nika schedule`.
+- This eliminates ALL parsing ambiguity while keeping the wow one-liner.
+
+### 7. Color Semantics
 
 ```
   Bold Green      ✓  success, active, confirm
