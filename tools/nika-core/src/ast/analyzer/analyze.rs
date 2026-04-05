@@ -141,9 +141,18 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
             ctx.errors.push(err);
         }
     }
-    // Check task-level providers
+    // 2c. Validate task-level fields (provider, model, invoke, for_each, misplaced LLM fields)
+    let has_workflow_model = raw.model.is_some();
+    let workflow_provider = raw
+        .provider
+        .as_ref()
+        .map(|p| p.value.as_str())
+        .unwrap_or("");
     for raw_task in &raw.tasks.value {
-        if let Some(ref task_provider) = raw_task.value.provider {
+        let task = &raw_task.value;
+
+        // Check task-level provider name is recognized
+        if let Some(ref task_provider) = task.provider {
             if crate::catalogs::find_provider(&task_provider.value).is_none() {
                 let suggestion = find_similar(&task_provider.value, &all_provider_names, 0.7);
                 let mut err = AnalyzeError::new(
@@ -157,17 +166,7 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                 ctx.errors.push(err);
             }
         }
-    }
 
-    // 2c. Validate model is specified when LLM verbs are used
-    let has_workflow_model = raw.model.is_some();
-    let workflow_provider = raw
-        .provider
-        .as_ref()
-        .map(|p| p.value.as_str())
-        .unwrap_or("");
-    for raw_task in &raw.tasks.value {
-        let task = &raw_task.value;
         let uses_llm = task
             .action
             .as_ref()
