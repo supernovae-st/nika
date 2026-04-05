@@ -35,7 +35,7 @@
 //!     ..Default::default()
 //! };
 //! let mut agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_clients)?;
-//! let result = agent.run_claude().await?;
+//! let result = agent.run().await?;
 //! ```
 
 pub mod cost;

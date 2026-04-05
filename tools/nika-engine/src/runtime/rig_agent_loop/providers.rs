@@ -1,8 +1,7 @@
-//! Provider-specific execution methods
+//! Provider execution methods
 //!
-//! Contains: run_mock, run_claude, run_openai, run_auto,
-//! run_mistral, run_groq, run_deepseek, run_gemini, run_xai,
-//! and the generic provider implementation with retry logic.
+//! Contains: run_mock, run (unified entry point), run_auto (auto-detect),
+//! run_claude_with_thinking, and the generic run_agent_loop with retry logic.
 
 use std::sync::Arc;
 
@@ -86,34 +85,34 @@ impl RigAgentLoop {
         })
     }
 
-    /// Run the agent loop with the real Claude provider
+    /// Unified entry point — dispatches to the right rig-core client.
     ///
-    /// This method uses rig-core's AgentBuilder for actual execution.
-    /// Requires ANTHROPIC_API_KEY environment variable to be set.
-    ///
-    /// Includes confidence retry loop and guardrail retry loop, matching
-    /// the generic provider path behavior.
-    ///
-    /// # Note
-    /// This method takes `&mut self` because tools are consumed (moved to rig's AgentBuilder).
-    /// The agent loop is designed for single-use execution.
-    ///
-    /// ## Extended Thinking
-    /// When `extended_thinking: true` is set in AgentParams, this method uses
-    /// the streaming API to capture Claude's reasoning process. The thinking
-    /// is stored in `AgentTurnMetadata.thinking` for observability.
-    ///
-    /// ## Token Tracking
-    /// - Without tools: Uses streaming API for accurate token tracking
-    /// - With tools: Falls back to agent.prompt() (tokens will be 0)
-    /// - With extended_thinking: Uses dedicated streaming path
-    pub async fn run_claude(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        // Extended thinking: separate path (single-turn, no tools, no retry)
+    /// Replaces run_claude/run_openai/run_mistral/run_groq/run_deepseek/run_gemini/run_xai.
+    /// Extended thinking intercept stays in run_claude_with_thinking.
+    pub async fn run(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        // Extended thinking: Anthropic-only, completely separate path
         if self.params.extended_thinking == Some(true) {
             return self.run_claude_with_thinking().await;
         }
 
-        let client = anthropic::Client::from_env();
+        let provider_ref = self
+            .params
+            .provider
+            .as_ref()
+            .ok_or_else(|| NikaError::AgentValidationError {
+                reason: "provider is required for agent: tasks".to_string(),
+            })?;
+        let provider_str = provider_ref.as_str();
+
+        let resolved = crate::core::find_provider(provider_str).ok_or_else(|| {
+            NikaError::AgentValidationError {
+                reason: format!(
+                    "Unknown provider: '{}'. Use a cloud provider for agent: tasks.",
+                    provider_str
+                ),
+            }
+        })?;
+
         let model_name = self
             .params
             .model
@@ -122,31 +121,54 @@ impl RigAgentLoop {
                 reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
             })?;
 
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::Claude),
-        )
-        .await
-    }
-
-    /// Run the agent loop with the OpenAI provider (thin wrapper)
-    pub async fn run_openai(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let client = openai::Client::from_env();
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (NIKA-034)".to_string(),
-            })?;
-
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::OpenAI),
-        )
-        .await
+        use crate::provider::cost::ProviderKind;
+        match resolved.id {
+            "anthropic" => {
+                let client = anthropic::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::Claude))
+                    .await
+            }
+            "openai" => {
+                let client = openai::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::OpenAI))
+                    .await
+            }
+            "mistral" => {
+                let client = rig::providers::mistral::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::Mistral))
+                    .await
+            }
+            "groq" => {
+                let client = rig::providers::groq::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::Groq))
+                    .await
+            }
+            "deepseek" => {
+                let client = rig::providers::deepseek::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::DeepSeek))
+                    .await
+            }
+            "gemini" => {
+                let client = rig::providers::gemini::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::Gemini))
+                    .await
+            }
+            "xai" => {
+                let client = rig::providers::xai::Client::from_env();
+                self.run_agent_loop(client, &model_name, Some(ProviderKind::XAi))
+                    .await
+            }
+            "native" => Err(NikaError::AgentValidationError {
+                reason: "Provider 'native' is not supported for agent: tasks. Use a cloud provider."
+                    .to_string(),
+            }),
+            _ => Err(NikaError::AgentValidationError {
+                reason: format!(
+                    "Provider '{}' is not supported for agent: tasks.",
+                    resolved.id
+                ),
+            }),
+        }
     }
 
     /// Run the agent loop with the best available provider
@@ -163,147 +185,23 @@ impl RigAgentLoop {
     /// # Note
     /// This is the recommended method for production use.
     pub async fn run_auto(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        // Check explicit provider from params
-        if let Some(ref provider_name) = self.params.provider {
-            let resolved = crate::core::find_provider(provider_name.as_str()).ok_or_else(|| {
-                NikaError::AgentValidationError {
-                    reason: format!(
-                        "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', 'xai', or any OpenAI-compat provider for infer: tasks.",
-                        provider_name
-                    ),
-                }
-            })?;
-            return match resolved.id {
-                "anthropic" => self.run_claude().await,
-                "openai" => self.run_openai().await,
-                "mistral" => self.run_mistral().await,
-                "groq" => self.run_groq().await,
-                "deepseek" => self.run_deepseek().await,
-                "gemini" => self.run_gemini().await,
-                "xai" => self.run_xai().await,
-                "native" => Err(NikaError::AgentValidationError {
-                    reason: "Provider 'native' is not supported for agent: tasks. Native inference (mistral.rs) is only available for infer: tasks. Use a cloud provider (claude, openai, mistral, groq, deepseek, gemini, xai) for agent tasks.".to_string(),
-                }),
-                _ => Err(NikaError::AgentValidationError {
-                    reason: format!("Provider '{}' is not supported for agent: tasks.", resolved.id),
-                }),
-            };
+        // If provider is explicitly set, delegate directly
+        if self.params.provider.is_some() {
+            return self.run().await;
         }
 
         // Auto-detect: iterate KNOWN_PROVIDERS in priority order (LLM category only)
         use crate::core::providers::{ProviderCategory, KNOWN_PROVIDERS};
         for p in KNOWN_PROVIDERS.iter() {
             if p.category == ProviderCategory::Llm && crate::secrets::has_provider_key(p) {
-                return match p.id {
-                    "anthropic" => self.run_claude().await,
-                    "openai" => self.run_openai().await,
-                    "mistral" => self.run_mistral().await,
-                    "groq" => self.run_groq().await,
-                    "deepseek" => self.run_deepseek().await,
-                    "gemini" => self.run_gemini().await,
-                    "xai" => self.run_xai().await,
-                    _ => continue,
-                };
+                self.params.provider = Some(nika_core::ProviderName::parse(p.id));
+                return self.run().await;
             }
         }
 
         Err(NikaError::AgentValidationError {
             reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.".to_string(),
         })
-    }
-
-    // =========================================================================
-    // Additional Provider Methods
-    // =========================================================================
-
-    /// Run with Mistral provider (requires MISTRAL_API_KEY)
-    pub async fn run_mistral(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (provider: mistral)".to_string(),
-            })?;
-        let client = rig::providers::mistral::Client::from_env();
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::Mistral),
-        )
-        .await
-    }
-
-    /// Run with Groq provider (requires GROQ_API_KEY)
-    pub async fn run_groq(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (provider: groq)".to_string(),
-            })?;
-        let client = rig::providers::groq::Client::from_env();
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::Groq),
-        )
-        .await
-    }
-
-    /// Run with DeepSeek provider (requires DEEPSEEK_API_KEY)
-    pub async fn run_deepseek(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (provider: deepseek)".to_string(),
-            })?;
-        let client = rig::providers::deepseek::Client::from_env();
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::DeepSeek),
-        )
-        .await
-    }
-
-    /// Run with Gemini provider (requires GEMINI_API_KEY)
-    pub async fn run_gemini(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (provider: gemini)".to_string(),
-            })?;
-        let client = rig::providers::gemini::Client::from_env();
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::Gemini),
-        )
-        .await
-    }
-
-    /// Run with xAI provider (requires XAI_API_KEY)
-    pub async fn run_xai(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .ok_or_else(|| NikaError::ValidationError {
-                reason: "model field is required for LLM verbs (provider: xai)".to_string(),
-            })?;
-        let client = rig::providers::xai::Client::from_env();
-        self.run_agent_loop(
-            client,
-            &model_name,
-            Some(crate::provider::cost::ProviderKind::XAi),
-        )
-        .await
     }
 
     /// Generic provider runner implementation

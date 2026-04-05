@@ -69,7 +69,7 @@ use crate::tools::{
 /// let mut agent = RigAgentLoop::new(...)?;
 ///
 /// // First turn
-/// let result = agent.run_claude().await?;
+/// let result = agent.run().await?;
 ///
 /// // Continue conversation with history
 /// agent.add_to_history("What's the capital of France?", &result.final_output.to_string());

@@ -2185,8 +2185,8 @@ async fn test_run_groq_errors_on_missing_model() {
     )
     .unwrap();
 
-    let result = agent.run_groq().await;
-    assert!(result.is_err(), "run_groq() must error when model is None");
+    let result = agent.run().await;
+    assert!(result.is_err(), "run() must error when model is None");
     let err = result.unwrap_err().to_string();
     assert!(
         err.contains("model field is required"),
@@ -2215,11 +2215,8 @@ async fn test_run_mistral_errors_on_missing_model() {
     )
     .unwrap();
 
-    let result = agent.run_mistral().await;
-    assert!(
-        result.is_err(),
-        "run_mistral() must error when model is None"
-    );
+    let result = agent.run().await;
+    assert!(result.is_err(), "run() must error when model is None");
 }
 
 /// run_deepseek() must error when params.model is None.
@@ -2243,11 +2240,8 @@ async fn test_run_deepseek_errors_on_missing_model() {
     )
     .unwrap();
 
-    let result = agent.run_deepseek().await;
-    assert!(
-        result.is_err(),
-        "run_deepseek() must error when model is None"
-    );
+    let result = agent.run().await;
+    assert!(result.is_err(), "run() must error when model is None");
 }
 
 /// run_gemini() must error when params.model is None.
@@ -2271,11 +2265,8 @@ async fn test_run_gemini_errors_on_missing_model() {
     )
     .unwrap();
 
-    let result = agent.run_gemini().await;
-    assert!(
-        result.is_err(),
-        "run_gemini() must error when model is None"
-    );
+    let result = agent.run().await;
+    assert!(result.is_err(), "run() must error when model is None");
 }
 
 /// run_xai() must error when params.model is None.
@@ -2299,6 +2290,6 @@ async fn test_run_xai_errors_on_missing_model() {
     )
     .unwrap();
 
-    let result = agent.run_xai().await;
-    assert!(result.is_err(), "run_xai() must error when model is None");
+    let result = agent.run().await;
+    assert!(result.is_err(), "run() must error when model is None");
 }

@@ -333,15 +333,15 @@ impl TaskExecutor {
         let start = std::time::Instant::now();
 
         // Run agent with appropriate provider
-        // mock provider uses run_mock(), real providers use run_auto() which dispatches
-        // based on AgentParams.provider (claude/openai)
+        // mock provider uses run_mock(), real providers use run() which dispatches
+        // based on AgentParams.provider
         let result = if provider_name.as_str() == "mock" {
             agent_loop.run_mock().await?
         } else {
-            // Use run_auto() which dispatches to run_claude() or run_openai()
+            // Use run() which dispatches to the right rig-core client
             // based on the provider field we just set.
             // Wrap in catch_unwind to convert rig-core panics to NikaErrors.
-            let run_future = agent_loop.run_auto();
+            let run_future = agent_loop.run();
             match std::panic::AssertUnwindSafe(run_future)
                 .catch_unwind()
                 .await

@@ -77,7 +77,7 @@ impl RigAgentLoop {
     /// # Example
     /// ```rust,ignore
     /// // First turn
-    /// let result1 = agent.run_claude().await?;
+    /// let result1 = agent.run().await?;
     /// agent.add_to_history("Initial prompt", &extract_text(&result1));
     ///
     /// // Continue conversation
@@ -85,134 +85,54 @@ impl RigAgentLoop {
     /// // History now contains both turns
     /// ```
     pub async fn chat_continue(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
-        // Use configured provider first, fallback to env-var auto-detection
-        let provider = self.params.provider.as_ref().map(|p| p.as_str());
-        match provider {
-            Some(name) => {
-                // Resolve alias to canonical provider ID via core catalog
-                let resolved = crate::core::find_provider(name).ok_or_else(|| {
-                    NikaError::AgentValidationError {
-                        reason: format!(
-                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', or 'xai'.",
-                            name
-                        ),
-                    }
-                })?;
-                match resolved.id {
-                    "anthropic" => self.chat_continue_claude(prompt).await,
-                    "openai" => self.chat_continue_openai(prompt).await,
-                    "mistral" => self.chat_continue_mistral(prompt).await,
-                    "groq" => self.chat_continue_groq(prompt).await,
-                    "deepseek" => self.chat_continue_deepseek(prompt).await,
-                    "gemini" => self.chat_continue_gemini(prompt).await,
-                    "xai" => self.chat_continue_xai(prompt).await,
-                    other => Err(NikaError::AgentValidationError {
-                        reason: format!("Provider '{}' is not supported for chat_continue.", other),
-                    }),
+        // Resolve provider — explicit or auto-detected
+        let provider_id = if let Some(ref p) = self.params.provider {
+            let resolved = crate::core::find_provider(p.as_str()).ok_or_else(|| {
+                NikaError::AgentValidationError {
+                    reason: format!(
+                        "Unknown provider: '{}'. Use a cloud provider for chat_continue.",
+                        p.as_str()
+                    ),
+                }
+            })?;
+            resolved.id
+        } else {
+            // Auto-detect from env vars via catalog priority order
+            use crate::core::providers::{ProviderCategory, KNOWN_PROVIDERS};
+            let mut found = None;
+            for p in KNOWN_PROVIDERS.iter() {
+                if p.category == ProviderCategory::Llm && crate::secrets::has_provider_key(p) {
+                    found = Some(p.id);
+                    break;
                 }
             }
-            None => {
-                // Auto-detect: check env vars in priority order
-                let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
+            found.ok_or_else(|| NikaError::AgentValidationError {
+                reason: "chat_continue requires a configured provider or an API key in the environment".to_string(),
+            })?
+        };
 
-                if has_key("ANTHROPIC_API_KEY") {
-                    return self.chat_continue_claude(prompt).await;
-                }
-                if has_key("OPENAI_API_KEY") {
-                    return self.chat_continue_openai(prompt).await;
-                }
-                if has_key("MISTRAL_API_KEY") {
-                    return self.chat_continue_mistral(prompt).await;
-                }
-                if has_key("GROQ_API_KEY") {
-                    return self.chat_continue_groq(prompt).await;
-                }
-                if has_key("DEEPSEEK_API_KEY") {
-                    return self.chat_continue_deepseek(prompt).await;
-                }
-                if has_key("GEMINI_API_KEY") {
-                    return self.chat_continue_gemini(prompt).await;
-                }
-                if has_key("XAI_API_KEY") {
-                    return self.chat_continue_xai(prompt).await;
-                }
-                Err(NikaError::AgentValidationError {
-                    reason: "chat_continue requires a configured provider or one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or XAI_API_KEY".to_string(),
-                })
-            }
+        let model_name = self.resolve_model_name()?;
+
+        // Dispatch to the right client — each arm creates a model and calls chat_continue_with_model
+        macro_rules! dispatch_chat {
+            ($client:expr) => {{
+                let model = $client.completion_model(&model_name);
+                self.chat_continue_with_model(prompt, model, &model_name).await
+            }};
         }
-    }
 
-    // =========================================================================
-    // Provider-specific chat_continue wrappers
-    // =========================================================================
-    //
-    // Each wrapper creates a provider client and delegates to the generic
-    // `chat_continue_with_model()`. Adding a new provider requires only
-    // a 4-line wrapper + a match arm in `chat_continue()`.
-
-    async fn chat_continue_claude(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = anthropic::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
-    }
-
-    async fn chat_continue_openai(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = openai::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
-    }
-
-    async fn chat_continue_mistral(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = rig::providers::mistral::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
-    }
-
-    async fn chat_continue_groq(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = rig::providers::groq::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
-    }
-
-    async fn chat_continue_deepseek(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = rig::providers::deepseek::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
-    }
-
-    async fn chat_continue_gemini(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = rig::providers::gemini::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
-    }
-
-    async fn chat_continue_xai(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self.resolve_model_name()?;
-        let model = rig::providers::xai::Client::from_env().completion_model(&model_name);
-        self.chat_continue_with_model(prompt, model, &model_name)
-            .await
+        match provider_id {
+            "anthropic" => dispatch_chat!(anthropic::Client::from_env()),
+            "openai" => dispatch_chat!(openai::Client::from_env()),
+            "mistral" => dispatch_chat!(rig::providers::mistral::Client::from_env()),
+            "groq" => dispatch_chat!(rig::providers::groq::Client::from_env()),
+            "deepseek" => dispatch_chat!(rig::providers::deepseek::Client::from_env()),
+            "gemini" => dispatch_chat!(rig::providers::gemini::Client::from_env()),
+            "xai" => dispatch_chat!(rig::providers::xai::Client::from_env()),
+            other => Err(NikaError::AgentValidationError {
+                reason: format!("Provider '{}' is not supported for chat_continue.", other),
+            }),
+        }
     }
 
     // =========================================================================
@@ -241,7 +161,7 @@ impl RigAgentLoop {
     /// token costs, and checks guardrails.
     ///
     /// **Note:** Token tracking uses char-based estimation (Chat trait returns
-    /// only String, no usage metadata). Use `run_claude()` / `run_openai()` etc.
+    /// only String, no usage metadata). Use `run()` for single-turn requests
     /// for single-turn requests with full streaming token tracking.
     async fn chat_continue_with_model<M: CompletionModel>(
         &mut self,
