@@ -269,13 +269,21 @@ fn contract_env_var_fallback_for_all_providers() {
         // MCP providers
         ("neo4j", "NEO4J_PASSWORD"),
         ("github", "GITHUB_TOKEN"),
-        ("slack", "SLACK_TOKEN"),
+        ("slack", "SLACK_BOT_TOKEN"),
         ("perplexity", "PERPLEXITY_API_KEY"),
         ("firecrawl", "FIRECRAWL_API_KEY"),
         ("supadata", "SUPADATA_API_KEY"),
+        ("dataforseo", "DATAFORSEO_API_KEY"),
+        ("ahrefs", "AHREFS_API_KEY"),
+        ("postgres", "POSTGRES_URL"),
+        ("filesystem", "FILESYSTEM_ALLOWED_PATHS"),
+        ("memory", "MEMORY_STORAGE_PATH"),
+        // Local providers
+        ("native", "NIKA_NATIVE_MODEL_PATH"),
+        ("mock", ""),
     ];
 
-    // Verify the mapping is complete (20 providers: 14 LLM + 6 MCP)
+    // Verify the mapping is complete (27 providers: 14 LLM + 11 MCP + 2 Local)
     assert_eq!(
         env_var_mapping.len(),
         KNOWN_PROVIDERS.len(),

@@ -704,6 +704,7 @@ pub(crate) fn sensitive_env_vars() -> Vec<&'static str> {
         "GH_TOKEN",
         "GITLAB_TOKEN",
         "SLACK_TOKEN",
+        "SLACK_BOT_TOKEN",
         "SLACK_WEBHOOK_URL",
         "STRIPE_SECRET_KEY",
         "TWILIO_AUTH_TOKEN",

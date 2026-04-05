@@ -60,8 +60,9 @@ pub mod common {
         "ai21",
     ];
 
-    /// All known providers (LLM + MCP) for reference
+    /// All known providers (14 LLM + 11 MCP + 2 Local = 27 total)
     pub const KNOWN_PROVIDERS: &[&str] = &[
+        // LLM rig-core (7)
         "anthropic",
         "openai",
         "mistral",
@@ -69,6 +70,7 @@ pub mod common {
         "deepseek",
         "gemini",
         "xai",
+        // LLM OpenAI-compat (7)
         "openrouter",
         "together",
         "fireworks",
@@ -76,12 +78,21 @@ pub mod common {
         "sambanova",
         "cohere",
         "ai21",
+        // MCP (11)
         "neo4j",
         "github",
         "slack",
         "perplexity",
         "firecrawl",
         "supadata",
+        "dataforseo",
+        "ahrefs",
+        "postgres",
+        "filesystem",
+        "memory",
+        // Local (2)
+        "native",
+        "mock",
     ];
 
     /// Known MCP aliases count
