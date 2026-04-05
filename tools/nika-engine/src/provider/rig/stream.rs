@@ -177,7 +177,7 @@ impl StreamResult {
 pub(crate) async fn consume_rig_stream<R>(
     stream: &mut rig::streaming::StreamingCompletionResponse<R>,
     tx: &mpsc::Sender<StreamChunk>,
-    response_parts: &mut Vec<String>,
+    response_buf: &mut String,
     result: &mut StreamResult,
     capture_thinking: bool,
     stream_start: Instant,
@@ -207,7 +207,7 @@ where
                     if result.ttft_ms.is_none() {
                         result.ttft_ms = Some(stream_start.elapsed().as_millis() as u64);
                     }
-                    response_parts.push(text.text.clone());
+                    response_buf.push_str(&text.text);
                     let _ = tx.try_send(StreamChunk::Token(text.text));
                 }
                 StreamedAssistantContent::ReasoningDelta { reasoning, .. } if capture_thinking => {

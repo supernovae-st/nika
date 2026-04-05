@@ -1034,7 +1034,7 @@ impl RigProvider {
             })?,
         };
 
-        let mut response_parts: Vec<String> = Vec::new();
+        let mut response_buf = String::with_capacity(4096);
         let mut result = StreamResult::default();
 
         macro_rules! vision_stream {
@@ -1053,7 +1053,7 @@ impl RigProvider {
                 consume_rig_stream(
                     &mut stream,
                     &tx,
-                    &mut response_parts,
+                    &mut response_buf,
                     &mut result,
                     $is_anthropic,
                     stream_start,
@@ -1106,7 +1106,7 @@ impl RigProvider {
             duration_ms: effective_timeout.as_millis() as u64,
         })??;
 
-        result.text = response_parts.join("");
+        result.text = response_buf;
         Ok(result)
     }
 
@@ -1612,7 +1612,7 @@ impl RigProvider {
     ) -> Result<StreamResult, RigInferError> {
         let model_id = model.unwrap_or_else(|| self.default_model());
         let effective_max_tokens = max_tokens.unwrap_or(8192);
-        let mut response_parts: Vec<String> = Vec::new();
+        let mut response_buf = String::with_capacity(4096);
         let mut result = StreamResult::default();
 
         match self {
@@ -1637,7 +1637,7 @@ impl RigProvider {
                 while let Some(result) = stream.next().await {
                     match result {
                         Ok(token) => {
-                            response_parts.push(token.clone());
+                            response_buf.push_str(&token);
                             let _ = tx.try_send(StreamChunk::Token(token));
                         }
                         Err(e) => {
@@ -1650,11 +1650,7 @@ impl RigProvider {
                 // Post-hoc token estimation (chars/4 heuristic — native
                 // streaming doesn't return usage metadata).
                 result.input_tokens = (prompt.len() as u64).div_ceil(4);
-                result.output_tokens = response_parts
-                    .iter()
-                    .map(|s| s.len() as u64)
-                    .sum::<u64>()
-                    .div_ceil(4);
+                result.output_tokens = (response_buf.len() as u64).div_ceil(4);
             }
             // All rig-core providers (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi, OpenAiCompat)
             _ => {
@@ -1673,7 +1669,7 @@ impl RigProvider {
                     consume_rig_stream(
                         &mut stream,
                         &tx,
-                        &mut response_parts,
+                        &mut response_buf,
                         &mut result,
                         is_anthropic,
                         stream_start,
@@ -1683,13 +1679,12 @@ impl RigProvider {
             }
         }
 
-        let complete_response = response_parts.concat();
-        let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
+        let _ = tx.try_send(StreamChunk::Done(response_buf.clone()));
 
         // Fallback: if stream ended without Final event, estimate tokens
-        if result.input_tokens == 0 && result.output_tokens == 0 && !complete_response.is_empty() {
+        if result.input_tokens == 0 && result.output_tokens == 0 && !response_buf.is_empty() {
             result.input_tokens = (prompt.len() as u64).div_ceil(4);
-            result.output_tokens = (complete_response.len() as u64).div_ceil(4);
+            result.output_tokens = (response_buf.len() as u64).div_ceil(4);
         }
 
         // Send metrics after Done - use try_send to avoid blocking
@@ -1698,7 +1693,7 @@ impl RigProvider {
             output_tokens: result.output_tokens,
         });
 
-        result.text = complete_response;
+        result.text = response_buf;
         Ok(result)
     }
 
@@ -1751,7 +1746,7 @@ impl RigProvider {
             .as_deref()
             .unwrap_or_else(|| self.default_model());
         let max_tokens = options.max_tokens.unwrap_or(8192).max(16);
-        let mut response_parts: Vec<String> = Vec::new();
+        let mut response_buf = String::with_capacity(4096);
         let mut result = StreamResult::default();
 
         // Strip temperature for reasoning models (BUG 5 / NIKA-031)
@@ -1824,7 +1819,7 @@ impl RigProvider {
                 while let Some(result) = stream.next().await {
                     match result {
                         Ok(token) => {
-                            response_parts.push(token.clone());
+                            response_buf.push_str(&token);
                             let _ = tx.try_send(StreamChunk::Token(token));
                         }
                         Err(e) => {
@@ -1837,11 +1832,7 @@ impl RigProvider {
                 // Post-hoc token estimation (chars/4 heuristic — native
                 // streaming doesn't return usage metadata).
                 result.input_tokens = (native_prompt.len() as u64).div_ceil(4);
-                result.output_tokens = response_parts
-                    .iter()
-                    .map(|s| s.len() as u64)
-                    .sum::<u64>()
-                    .div_ceil(4);
+                result.output_tokens = (response_buf.len() as u64).div_ceil(4);
             }
             // All rig-core providers
             _ => {
@@ -1852,7 +1843,7 @@ impl RigProvider {
                     consume_rig_stream(
                         &mut stream,
                         &tx,
-                        &mut response_parts,
+                        &mut response_buf,
                         &mut result,
                         is_anthropic,
                         stream_start,
@@ -1862,13 +1853,12 @@ impl RigProvider {
             }
         }
 
-        let complete_response = response_parts.concat();
-        let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
+        let _ = tx.try_send(StreamChunk::Done(response_buf.clone()));
 
         // Fallback: if stream ended without Final event, estimate tokens
-        if result.input_tokens == 0 && result.output_tokens == 0 && !complete_response.is_empty() {
+        if result.input_tokens == 0 && result.output_tokens == 0 && !response_buf.is_empty() {
             result.input_tokens = (prompt.len() as u64).div_ceil(4);
-            result.output_tokens = (complete_response.len() as u64).div_ceil(4);
+            result.output_tokens = (response_buf.len() as u64).div_ceil(4);
         }
 
         let _ = tx.try_send(StreamChunk::Metrics {
@@ -1876,7 +1866,7 @@ impl RigProvider {
             output_tokens: result.output_tokens,
         });
 
-        result.text = complete_response;
+        result.text = response_buf;
         Ok(result)
     }
 }
