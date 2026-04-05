@@ -80,9 +80,29 @@ impl TaskExecutor {
         infer.validate()?;
 
         // Resolve {{with.alias}} templates in prompt and system prompt (Bug 1)
-        let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
+        let mut prompt = match template_resolve(&infer.prompt, bindings, datastore) {
+            Ok(resolved) => resolved.into_owned(),
+            Err(e) => {
+                self.event_log.emit(EventKind::TemplateResolutionFailed {
+                    task_id: Arc::clone(task_id),
+                    template: infer.prompt.clone(),
+                    error: e.to_string(),
+                });
+                return Err(e);
+            }
+        };
         let resolved_system = match &infer.system {
-            Some(sys) => Some(template_resolve(sys, bindings, datastore)?.into_owned()),
+            Some(sys) => match template_resolve(sys, bindings, datastore) {
+                Ok(resolved) => Some(resolved.into_owned()),
+                Err(e) => {
+                    self.event_log.emit(EventKind::TemplateResolutionFailed {
+                        task_id: Arc::clone(task_id),
+                        template: sys.clone(),
+                        error: e.to_string(),
+                    });
+                    return Err(e);
+                }
+            },
             None => None,
         };
 
@@ -155,15 +175,38 @@ impl TaskExecutor {
                     path.clone()
                 };
                 Self::validate_schema_path(&resolved_path)?;
-                let content = tokio::fs::read_to_string(&resolved_path)
-                    .await
-                    .map_err(|e| NikaError::SchemaFailed {
-                        details: format!("Failed to read from_example '{}': {}", resolved_path, e),
-                    })?;
-                let value: Value =
-                    serde_json::from_str(&content).map_err(|e| NikaError::SchemaFailed {
-                        details: format!("Invalid JSON in from_example '{}': {}", resolved_path, e),
-                    })?;
+                let content = match tokio::fs::read_to_string(&resolved_path).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        self.event_log.emit(EventKind::SchemaLoadFailed {
+                            task_id: Arc::clone(task_id),
+                            schema_path: resolved_path.clone(),
+                            error: e.to_string(),
+                        });
+                        return Err(NikaError::SchemaFailed {
+                            details: format!(
+                                "Failed to read from_example '{}': {}",
+                                resolved_path, e
+                            ),
+                        });
+                    }
+                };
+                let value: Value = match serde_json::from_str(&content) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        self.event_log.emit(EventKind::SchemaLoadFailed {
+                            task_id: Arc::clone(task_id),
+                            schema_path: resolved_path.clone(),
+                            error: e.to_string(),
+                        });
+                        return Err(NikaError::SchemaFailed {
+                            details: format!(
+                                "Invalid JSON in from_example '{}': {}",
+                                resolved_path, e
+                            ),
+                        });
+                    }
+                };
                 Some(value)
             } else {
                 None
@@ -178,6 +221,11 @@ impl TaskExecutor {
             if let Some(SchemaRef::File(ref path)) = policy.schema {
                 Self::validate_schema_path(path)?;
                 if policy.is_structured() && !tokio::fs::try_exists(path).await.unwrap_or(false) {
+                    self.event_log.emit(EventKind::SchemaLoadFailed {
+                        task_id: Arc::clone(task_id),
+                        schema_path: path.clone(),
+                        error: "file does not exist".to_string(),
+                    });
                     return Err(NikaError::SchemaFailed {
                         details: format!("Schema file '{}' does not exist", path,),
                     });
