@@ -3,14 +3,15 @@
 //! Pipeline transforms applied to binding values.
 //! Transforms are chained with `|` pipes: `sort | unique | first(3)`
 //!
-//! # Categories (58 transforms)
+//! # Categories (63 transforms)
 //!
 //! | Category | Ops |
 //! |----------|-----|
 //! | String | `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `replace(A, B)`, `truncate(N)` |
 //! | Collection | `length`, `first`, `last`, `first(N)`, `last(N)`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact` |
 //! | Data | `pluck(F)`, `where(F, [op], V)`, `pick(F…)`, `omit(F…)`, `sort_by(F)`, `group_by(F)`, `merge`, `merge(obj)` |
-//! | Aggregation | `add`, `min`, `max` |
+//! | Aggregation | `add`, `min`, `max`, `min_by(F)`, `max_by(F)`, `sum`, `avg` |
+//! | Introspection | `has(K)` |
 //! | Regex | `regex(P)` |
 //! | Type conversion | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json` |
 //! | Numeric | `round(N)`, `abs`, `ceil`, `floor` |
@@ -132,6 +133,18 @@ pub enum TransformOp {
     Min,
     /// Maximum of numeric array: `max`
     Max,
+    /// Minimum by field: `min_by("score")`
+    MinBy(String),
+    /// Maximum by field: `max_by("score")`
+    MaxBy(String),
+    /// Sum of numeric array: `sum` (alias for add on numbers)
+    Sum,
+    /// Average of numeric array: `avg`
+    Avg,
+
+    // -- Introspection --
+    /// Check if object has key: `has("name")`
+    Has(String),
 
     // -- Logic --
     /// Boolean negation: `not`
@@ -1099,11 +1112,7 @@ impl TransformOp {
                                     }
                                     Value::Null => {} // skip nulls
                                     _ => {
-                                        return Err(type_mismatch(
-                                            "add",
-                                            "array of numbers",
-                                            item,
-                                        ))
+                                        return Err(type_mismatch("add", "array of numbers", item))
                                     }
                                 }
                             }
@@ -1128,11 +1137,7 @@ impl TransformOp {
                                     Value::String(s) => result.push_str(s),
                                     Value::Null => {} // skip nulls
                                     _ => {
-                                        return Err(type_mismatch(
-                                            "add",
-                                            "array of strings",
-                                            item,
-                                        ))
+                                        return Err(type_mismatch("add", "array of strings", item))
                                     }
                                 }
                             }
@@ -1145,13 +1150,7 @@ impl TransformOp {
                                 match item {
                                     Value::Array(inner) => result.extend(inner.iter().cloned()),
                                     Value::Null => {} // skip nulls
-                                    _ => {
-                                        return Err(type_mismatch(
-                                            "add",
-                                            "array of arrays",
-                                            item,
-                                        ))
-                                    }
+                                    _ => return Err(type_mismatch("add", "array of arrays", item)),
                                 }
                             }
                             Ok(Value::Array(result))
@@ -1184,7 +1183,9 @@ impl TransformOp {
                         }
                     }
                     match min_val {
-                        Some(v) if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 => {
+                        Some(v)
+                            if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 =>
+                        {
                             Ok(Value::Number((v as i64).into()))
                         }
                         Some(v) => Ok(Value::Number(
@@ -1214,7 +1215,9 @@ impl TransformOp {
                         }
                     }
                     match max_val {
-                        Some(v) if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 => {
+                        Some(v)
+                            if v.fract() == 0.0 && v >= i64::MIN as f64 && v <= i64::MAX as f64 =>
+                        {
                             Ok(Value::Number((v as i64).into()))
                         }
                         Some(v) => Ok(Value::Number(
@@ -1224,6 +1227,84 @@ impl TransformOp {
                     }
                 }
                 _ => Err(type_mismatch("max", "array", value)),
+            },
+
+            TransformOp::MinBy(field) => match value {
+                Value::Null => Ok(Value::Null),
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
+                Value::Array(arr) => {
+                    let mut best: Option<&Value> = None;
+                    let mut best_val: Option<f64> = None;
+                    for item in arr {
+                        if let Some(fv) = navigate_dot_path(item, field) {
+                            if let Some(n) = fv.as_f64() {
+                                if best_val.is_none() || n < best_val.unwrap() {
+                                    best = Some(item);
+                                    best_val = Some(n);
+                                }
+                            }
+                        }
+                    }
+                    Ok(best.cloned().unwrap_or(Value::Null))
+                }
+                _ => Err(type_mismatch("min_by", "array", value)),
+            },
+            TransformOp::MaxBy(field) => match value {
+                Value::Null => Ok(Value::Null),
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
+                Value::Array(arr) => {
+                    let mut best: Option<&Value> = None;
+                    let mut best_val: Option<f64> = None;
+                    for item in arr {
+                        if let Some(fv) = navigate_dot_path(item, field) {
+                            if let Some(n) = fv.as_f64() {
+                                if best_val.is_none() || n > best_val.unwrap() {
+                                    best = Some(item);
+                                    best_val = Some(n);
+                                }
+                            }
+                        }
+                    }
+                    Ok(best.cloned().unwrap_or(Value::Null))
+                }
+                _ => Err(type_mismatch("max_by", "array", value)),
+            },
+            TransformOp::Sum => {
+                // Alias for add on numeric arrays
+                TransformOp::Add.apply(value)
+            }
+            TransformOp::Avg => match value {
+                Value::Null => Ok(Value::Null),
+                Value::Array(arr) if arr.is_empty() => Ok(Value::Null),
+                Value::Array(arr) => {
+                    let mut sum = 0.0_f64;
+                    let mut count = 0u64;
+                    for item in arr {
+                        match item {
+                            Value::Number(n) => {
+                                sum += n.as_f64().unwrap_or(0.0);
+                                count += 1;
+                            }
+                            Value::Null => {} // skip
+                            _ => return Err(type_mismatch("avg", "array of numbers", item)),
+                        }
+                    }
+                    if count == 0 {
+                        return Ok(Value::Null);
+                    }
+                    let avg = sum / count as f64;
+                    Ok(Value::Number(
+                        serde_json::Number::from_f64(avg).unwrap_or_else(|| (avg as i64).into()),
+                    ))
+                }
+                _ => Err(type_mismatch("avg", "array", value)),
+            },
+
+            // ── Introspection ─────────────────────────────────────────
+            TransformOp::Has(key) => match value {
+                Value::Null => Ok(Value::Null),
+                Value::Object(map) => Ok(Value::Bool(map.contains_key(key.as_str()))),
+                _ => Err(type_mismatch("has", "object", value)),
             },
 
             // ── Logic ─────────────────────────────────────────────────
@@ -1670,6 +1751,18 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
                 let text = strip_quotes(arg);
                 Ok(TransformOp::Contains(text.to_string()))
             }
+            "min_by" => {
+                let field = strip_quotes(arg);
+                Ok(TransformOp::MinBy(field.to_string()))
+            }
+            "max_by" => {
+                let field = strip_quotes(arg);
+                Ok(TransformOp::MaxBy(field.to_string()))
+            }
+            "has" => {
+                let key = strip_quotes(arg);
+                Ok(TransformOp::Has(key.to_string()))
+            }
             "replace" => {
                 let parts = split_parametric_args(arg);
                 if parts.len() != 2 {
@@ -1742,6 +1835,8 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "add" => Ok(TransformOp::Add),
             "min" => Ok(TransformOp::Min),
             "max" => Ok(TransformOp::Max),
+            "sum" => Ok(TransformOp::Sum),
+            "avg" => Ok(TransformOp::Avg),
             "not" => Ok(TransformOp::Not),
             _ => Err(TransformParseError {
                 input: full_input.to_string(),
@@ -1990,6 +2085,11 @@ impl fmt::Display for TransformOp {
             TransformOp::Add => write!(f, "add"),
             TransformOp::Min => write!(f, "min"),
             TransformOp::Max => write!(f, "max"),
+            TransformOp::MinBy(f_name) => write!(f, "min_by('{}')", f_name),
+            TransformOp::MaxBy(f_name) => write!(f, "max_by('{}')", f_name),
+            TransformOp::Sum => write!(f, "sum"),
+            TransformOp::Avg => write!(f, "avg"),
+            TransformOp::Has(key) => write!(f, "has('{}')", key),
             TransformOp::Not => write!(f, "not"),
             TransformOp::Jq(expr) => write!(f, "jq('{}')", expr),
         }
@@ -4528,18 +4628,12 @@ mod tests {
 
     #[test]
     fn not_true() {
-        assert_eq!(
-            TransformOp::Not.apply(&json!(true)).unwrap(),
-            json!(false)
-        );
+        assert_eq!(TransformOp::Not.apply(&json!(true)).unwrap(), json!(false));
     }
 
     #[test]
     fn not_false() {
-        assert_eq!(
-            TransformOp::Not.apply(&json!(false)).unwrap(),
-            json!(true)
-        );
+        assert_eq!(TransformOp::Not.apply(&json!(false)).unwrap(), json!(true));
     }
 
     #[test]
@@ -4557,10 +4651,22 @@ mod tests {
 
     #[test]
     fn parse_add_min_max_not() {
-        assert_eq!(TransformExpr::parse("add").unwrap().ops[0], TransformOp::Add);
-        assert_eq!(TransformExpr::parse("min").unwrap().ops[0], TransformOp::Min);
-        assert_eq!(TransformExpr::parse("max").unwrap().ops[0], TransformOp::Max);
-        assert_eq!(TransformExpr::parse("not").unwrap().ops[0], TransformOp::Not);
+        assert_eq!(
+            TransformExpr::parse("add").unwrap().ops[0],
+            TransformOp::Add
+        );
+        assert_eq!(
+            TransformExpr::parse("min").unwrap().ops[0],
+            TransformOp::Min
+        );
+        assert_eq!(
+            TransformExpr::parse("max").unwrap().ops[0],
+            TransformOp::Max
+        );
+        assert_eq!(
+            TransformExpr::parse("not").unwrap().ops[0],
+            TransformOp::Not
+        );
     }
 
     #[test]
@@ -4598,6 +4704,156 @@ mod tests {
             TransformOp::Replace("a".into(), "b".into()).to_string(),
             "replace('a', 'b')"
         );
+        assert_eq!(TransformOp::Sum.to_string(), "sum");
+        assert_eq!(TransformOp::Avg.to_string(), "avg");
+        assert_eq!(
+            TransformOp::MinBy("score".into()).to_string(),
+            "min_by('score')"
+        );
+        assert_eq!(
+            TransformOp::MaxBy("score".into()).to_string(),
+            "max_by('score')"
+        );
+        assert_eq!(TransformOp::Has("name".into()).to_string(), "has('name')");
+    }
+
+    // ── min_by / max_by ─────────────────────────────────────
+
+    #[test]
+    fn min_by_basic() {
+        let val = json!([{"name": "a", "score": 30}, {"name": "b", "score": 10}, {"name": "c", "score": 20}]);
+        let result = TransformOp::MinBy("score".into()).apply(&val).unwrap();
+        assert_eq!(result["name"], json!("b"));
+        assert_eq!(result["score"], json!(10));
+    }
+
+    #[test]
+    fn max_by_basic() {
+        let val = json!([{"name": "a", "score": 30}, {"name": "b", "score": 10}]);
+        let result = TransformOp::MaxBy("score".into()).apply(&val).unwrap();
+        assert_eq!(result["name"], json!("a"));
+    }
+
+    #[test]
+    fn min_by_empty_array() {
+        assert_eq!(
+            TransformOp::MinBy("x".into()).apply(&json!([])).unwrap(),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn max_by_null_propagates() {
+        assert_eq!(
+            TransformOp::MaxBy("x".into()).apply(&Value::Null).unwrap(),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn min_by_dot_path() {
+        let val = json!([{"meta": {"score": 5}}, {"meta": {"score": 2}}]);
+        let result = TransformOp::MinBy("meta.score".into()).apply(&val).unwrap();
+        assert_eq!(result["meta"]["score"], json!(2));
+    }
+
+    // ── sum / avg ───────────────────────────────────────────
+
+    #[test]
+    fn sum_is_add_alias() {
+        let val = json!([10, 20, 30]);
+        assert_eq!(TransformOp::Sum.apply(&val).unwrap(), json!(60));
+    }
+
+    #[test]
+    fn avg_basic() {
+        let val = json!([10, 20, 30]);
+        let result = TransformOp::Avg.apply(&val).unwrap();
+        assert_eq!(result.as_f64().unwrap(), 20.0);
+    }
+
+    #[test]
+    fn avg_with_nulls() {
+        let val = json!([10, null, 20]);
+        let result = TransformOp::Avg.apply(&val).unwrap();
+        assert_eq!(result.as_f64().unwrap(), 15.0); // only 2 numbers
+    }
+
+    #[test]
+    fn avg_empty_array() {
+        assert_eq!(TransformOp::Avg.apply(&json!([])).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn avg_null_propagates() {
+        assert_eq!(TransformOp::Avg.apply(&Value::Null).unwrap(), Value::Null);
+    }
+
+    // ── has ─────────────────────────────────────────────────
+
+    #[test]
+    fn has_key_present() {
+        let val = json!({"name": "Alice", "age": 30});
+        assert_eq!(
+            TransformOp::Has("name".into()).apply(&val).unwrap(),
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn has_key_absent() {
+        let val = json!({"name": "Alice"});
+        assert_eq!(
+            TransformOp::Has("age".into()).apply(&val).unwrap(),
+            json!(false)
+        );
+    }
+
+    #[test]
+    fn has_null_propagates() {
+        assert_eq!(
+            TransformOp::Has("x".into()).apply(&Value::Null).unwrap(),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn has_non_object_fails() {
+        assert!(TransformOp::Has("x".into()).apply(&json!([1, 2])).is_err());
+    }
+
+    // ── parsing ─────────────────────────────────────────────
+
+    #[test]
+    fn parse_new_s6_transforms() {
+        assert_eq!(
+            TransformExpr::parse("sum").unwrap().ops[0],
+            TransformOp::Sum
+        );
+        assert_eq!(
+            TransformExpr::parse("avg").unwrap().ops[0],
+            TransformOp::Avg
+        );
+        assert_eq!(
+            TransformExpr::parse("min_by('score')").unwrap().ops[0],
+            TransformOp::MinBy("score".into())
+        );
+        assert_eq!(
+            TransformExpr::parse("max_by('score')").unwrap().ops[0],
+            TransformOp::MaxBy("score".into())
+        );
+        assert_eq!(
+            TransformExpr::parse("has('name')").unwrap().ops[0],
+            TransformOp::Has("name".into())
+        );
+    }
+
+    #[test]
+    fn chain_pluck_avg() {
+        let val = json!([{"score": 10}, {"score": 20}, {"score": 30}]);
+        let expr = TransformExpr::parse("pluck('score') | avg").unwrap();
+        let result = expr.apply(&val).unwrap();
+        assert_eq!(result.as_f64().unwrap(), 20.0);
     }
 }
 
