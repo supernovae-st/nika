@@ -489,10 +489,131 @@ pub async fn run_cron_scheduler(service: JobService) {
 }
 
 async fn fire_due_cron_jobs(service: &JobService) -> DaemonResult<()> {
+    // ── New path: fire from first-class schedules table (V5+) ────────
+    let schedules = service.storage.list_schedules(true).await?;
+
+    if !schedules.is_empty() {
+        return fire_from_schedules_table(service, &schedules).await;
+    }
+
+    // ── Legacy fallback: scan jobs table for cron column ─────────────
+    // Kept until all users migrate from `nika job submit --cron` to `nika every`.
+    fire_from_jobs_table_legacy(service).await
+}
+
+/// Fire due jobs from first-class schedules (V5+).
+async fn fire_from_schedules_table(
+    service: &JobService,
+    schedules: &[nika_storage::CronSchedule],
+) -> DaemonResult<()> {
+    let now = chrono::Utc::now();
+
+    for sched in schedules {
+        // Check if next_run_at has passed
+        let is_due = match &sched.next_run_at {
+            Some(next_str) => match chrono::DateTime::parse_from_rfc3339(next_str) {
+                Ok(next) => next <= now,
+                Err(_) => {
+                    warn!(
+                        schedule = %sched.name,
+                        next_run_at = %next_str,
+                        "invalid next_run_at — recomputing"
+                    );
+                    true
+                }
+            },
+            None => true, // Not yet computed — treat as due to bootstrap
+        };
+
+        if !is_due {
+            continue;
+        }
+
+        // Overlap protection: skip if a job for this workflow is pending/running
+        if sched.overlap == "skip" {
+            let active_jobs = service
+                .storage
+                .list_jobs_for_workflow(&sched.workflow)
+                .await?;
+            let already_active = active_jobs.iter().any(|j| {
+                j.state == nika_storage::JobState::Pending
+                    || j.state == nika_storage::JobState::Running
+            });
+            if already_active {
+                debug!(
+                    schedule = %sched.name,
+                    workflow = %sched.workflow,
+                    "skipping — active job exists (overlap: skip)"
+                );
+                continue;
+            }
+        }
+
+        // Fire: submit a new job
+        match service
+            .submit(
+                &sched.workflow,
+                Some(&sched.name),
+                None,
+                Some(&sched.cron_expr),
+                0,
+            )
+            .await
+        {
+            Ok(job_id) => {
+                info!(
+                    schedule = %sched.name,
+                    job_id = %job_id,
+                    workflow = %sched.workflow,
+                    cron = %sched.cron_expr,
+                    "schedule fired"
+                );
+
+                // Recompute next_run_at from NOW (prevents drift)
+                let cron: croner::Cron = match sched.cron_expr.parse() {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+                let next_run = cron
+                    .find_next_occurrence(&now, false)
+                    .ok()
+                    .map(|dt| dt.to_rfc3339());
+
+                if let Err(e) = service
+                    .storage
+                    .update_schedule_after_fire(
+                        &sched.id,
+                        &now.to_rfc3339(),
+                        next_run.as_deref(),
+                        &job_id,
+                    )
+                    .await
+                {
+                    warn!(
+                        schedule = %sched.name,
+                        error = %e,
+                        "failed to update schedule after fire"
+                    );
+                }
+            }
+            Err(e) => {
+                warn!(
+                    schedule = %sched.name,
+                    workflow = %sched.workflow,
+                    error = %e,
+                    "failed to fire scheduled job"
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Legacy fallback: scan jobs table for cron column.
+async fn fire_from_jobs_table_legacy(service: &JobService) -> DaemonResult<()> {
     let all_jobs = service.storage.list_jobs(None).await?;
 
-    // Deduplicate cron schedules: one entry per (workflow, cron_expr) pair.
-    // Keep the most recently submitted job as the template.
     let mut seen = std::collections::HashSet::new();
     let templates: Vec<_> = all_jobs
         .iter()
@@ -505,13 +626,11 @@ async fn fire_due_cron_jobs(service: &JobService) -> DaemonResult<()> {
     }
 
     let now = chrono::Utc::now();
-    // Window: did this cron expression fire at any second in the past minute?
     let window_start = now - chrono::Duration::seconds(60);
 
     for job in templates {
         let cron_expr = job.cron.as_deref().unwrap_or_default();
 
-        // Skip if a job for this workflow is already pending or running.
         let already_active = all_jobs.iter().any(|j| {
             j.workflow == job.workflow
                 && (j.state == JobState::Pending || j.state == JobState::Running)
@@ -520,7 +639,6 @@ async fn fire_due_cron_jobs(service: &JobService) -> DaemonResult<()> {
             continue;
         }
 
-        // Parse and check if due in the past minute.
         let cron: croner::Cron = match cron_expr.parse() {
             Ok(c) => c,
             Err(e) => {
@@ -546,10 +664,10 @@ async fn fire_due_cron_jobs(service: &JobService) -> DaemonResult<()> {
                 .await
             {
                 Ok(id) => {
-                    info!(job_id = %id, workflow = %job.workflow, cron = %cron_expr, "cron job fired")
+                    info!(job_id = %id, workflow = %job.workflow, cron = %cron_expr, "legacy cron job fired")
                 }
                 Err(e) => {
-                    warn!(workflow = %job.workflow, cron = %cron_expr, error = %e, "failed to fire cron job")
+                    warn!(workflow = %job.workflow, cron = %cron_expr, error = %e, "failed to fire legacy cron job")
                 }
             }
         }
