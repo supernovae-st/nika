@@ -11,6 +11,12 @@ use nika_engine::ast::analyzed::{AnalyzedTaskAction, AnalyzedWorkflow};
 use nika_engine::error::NikaError;
 use std::path::Path;
 
+#[cfg(test)]
+use nika_engine::ast::analyzed::{
+    AnalyzedFetchAction, AnalyzedForEach, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedRetry,
+    AnalyzedTask, TaskId,
+};
+
 /// Lint severity
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
@@ -118,24 +124,30 @@ pub fn lint_workflow(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
     }
 
     // L060: unused tasks (not referenced by downstream)
-    // Compare by TaskId since depends_on/implicit_deps use interned IDs
+    // A task is "unused" if no other task consumes its output (depends_on/implicit_deps).
+    // Exempt terminal nodes: tasks that have upstream deps but no downstream consumers
+    // are natural workflow outputs. Orphans (no upstream AND no downstream) are flagged.
     if workflow.tasks.len() > 1 {
-        let last_id = workflow.tasks.last().map(|t| t.id);
         for task in &workflow.tasks {
-            if Some(task.id) == last_id {
-                continue;
-            }
             let is_referenced = workflow.tasks.iter().any(|other| {
                 other.depends_on.contains(&task.id) || other.implicit_deps.contains(&task.id)
             });
-            if !is_referenced {
-                findings.push(LintFinding {
-                    severity: Severity::Warning,
-                    rule: "L060",
-                    task_id: Some(task.name.clone()),
-                    message: "Task output is never consumed by downstream tasks".into(),
-                });
+            if is_referenced {
+                continue;
             }
+            // Not referenced. If the task has upstream deps, it's a terminal node
+            // (end of a chain) — exempt as a natural workflow output.
+            let has_upstream = !task.depends_on.is_empty() || !task.implicit_deps.is_empty();
+            if has_upstream {
+                continue;
+            }
+            // No upstream, no downstream = orphan (disconnected from DAG). Flag it.
+            findings.push(LintFinding {
+                severity: Severity::Warning,
+                rule: "L060",
+                task_id: Some(task.name.clone()),
+                message: "Task output is never consumed by downstream tasks".into(),
+            });
         }
     }
 
@@ -231,4 +243,369 @@ pub async fn handle_lint_command(file: &str, quiet: bool) -> Result<(), NikaErro
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_core::binding::WithSpec;
+    use nika_core::source::Span;
+
+    /// Helper: create a minimal task with the given action
+    fn make_task(
+        workflow: &mut AnalyzedWorkflow,
+        name: &str,
+        action: AnalyzedTaskAction,
+    ) -> TaskId {
+        let id = workflow.task_table.insert(name);
+        workflow.tasks.push(AnalyzedTask {
+            id,
+            name: name.to_string(),
+            description: None,
+            action,
+            provider: None,
+            model: None,
+            base_url: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            record: None,
+            context_budget: None,
+            preset: None,
+            routing: None,
+            when: None,
+            span: Span::dummy(),
+        });
+        id
+    }
+
+    fn has_rule(findings: &[LintFinding], rule: &str) -> bool {
+        findings.iter().any(|f| f.rule == rule)
+    }
+
+    fn has_rule_for(findings: &[LintFinding], rule: &str, task: &str) -> bool {
+        findings
+            .iter()
+            .any(|f| f.rule == rule && f.task_id.as_deref() == Some(task))
+    }
+
+    // ── L001: missing workflow description ──────────────────────
+
+    #[test]
+    fn l001_fires_when_no_description() {
+        let mut wf = AnalyzedWorkflow::default();
+        wf.description = None;
+        make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(has_rule(&findings, "L001"), "L001 should fire");
+    }
+
+    #[test]
+    fn l001_silent_when_description_present() {
+        let mut wf = AnalyzedWorkflow::default();
+        wf.description = Some("A good workflow".into());
+        make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule(&findings, "L001"), "L001 should NOT fire");
+    }
+
+    // ── L002: missing workflow name ─────────────────────────────
+
+    #[test]
+    fn l002_fires_when_no_name() {
+        let mut wf = AnalyzedWorkflow::default();
+        wf.name = None;
+        make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(has_rule(&findings, "L002"), "L002 should fire");
+    }
+
+    #[test]
+    fn l002_silent_when_name_present() {
+        let mut wf = AnalyzedWorkflow::default();
+        wf.name = Some("my-workflow".into());
+        make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule(&findings, "L002"), "L002 should NOT fire");
+    }
+
+    // ── L010: missing task description ──────────────────────────
+
+    #[test]
+    fn l010_fires_on_task_without_description() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L010", "t1"));
+    }
+
+    #[test]
+    fn l010_silent_when_task_has_description() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        wf.tasks
+            .iter_mut()
+            .find(|t| t.id == id)
+            .unwrap()
+            .description = Some("Does something".into());
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L010", "t1"));
+    }
+
+    // ── L020: fetch/invoke without retry ────────────────────────
+
+    #[test]
+    fn l020_fires_on_fetch_without_retry() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(
+            &mut wf,
+            "scrape",
+            AnalyzedTaskAction::Fetch(AnalyzedFetchAction::default()),
+        );
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L020", "scrape"));
+    }
+
+    #[test]
+    fn l020_fires_on_invoke_without_retry() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(
+            &mut wf,
+            "call_tool",
+            AnalyzedTaskAction::Invoke(AnalyzedInvokeAction::default()),
+        );
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L020", "call_tool"));
+    }
+
+    #[test]
+    fn l020_silent_when_retry_present() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = make_task(
+            &mut wf,
+            "scrape",
+            AnalyzedTaskAction::Fetch(AnalyzedFetchAction::default()),
+        );
+        wf.tasks.iter_mut().find(|t| t.id == id).unwrap().retry = Some(AnalyzedRetry {
+            max_attempts: 3,
+            delay_ms: 1000,
+            backoff: None,
+            span: Span::dummy(),
+        });
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L020", "scrape"));
+    }
+
+    #[test]
+    fn l020_silent_on_infer_without_retry() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(
+            &mut wf,
+            "gen",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+        );
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L020", "gen"));
+    }
+
+    // ── L030: high concurrency ──────────────────────────────────
+
+    #[test]
+    fn l030_fires_on_concurrency_above_10() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = make_task(&mut wf, "batch", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
+            items: "$data".into(),
+            as_var: "item".into(),
+            concurrency: Some(15),
+            fail_fast: true,
+            span: Span::dummy(),
+        });
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L030", "batch"));
+    }
+
+    #[test]
+    fn l030_silent_on_concurrency_5() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = make_task(&mut wf, "batch", AnalyzedTaskAction::default());
+        wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
+            items: "$data".into(),
+            as_var: "item".into(),
+            concurrency: Some(5),
+            fail_fast: true,
+            span: Span::dummy(),
+        });
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L030", "batch"));
+    }
+
+    // ── L050: agent task info ───────────────────────────────────
+
+    #[test]
+    fn l050_fires_on_agent_task() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(
+            &mut wf,
+            "assistant",
+            AnalyzedTaskAction::Agent(Box::default()),
+        );
+        let findings = lint_workflow(&wf);
+        assert!(has_rule_for(&findings, "L050", "assistant"));
+    }
+
+    // ── L060: unused task ───────────────────────────────────────
+
+    #[test]
+    fn l060_fires_on_disconnected_tasks() {
+        let mut wf = AnalyzedWorkflow::default();
+        let _id1 = make_task(&mut wf, "orphan_a", AnalyzedTaskAction::default());
+        let _id2 = make_task(&mut wf, "orphan_b", AnalyzedTaskAction::default());
+        // Neither depends on the other → both are orphans
+        let findings = lint_workflow(&wf);
+        assert!(
+            has_rule_for(&findings, "L060", "orphan_a"),
+            "L060 should fire on disconnected task"
+        );
+        assert!(
+            has_rule_for(&findings, "L060", "orphan_b"),
+            "L060 should fire on disconnected task"
+        );
+    }
+
+    #[test]
+    fn l060_silent_when_task_is_referenced() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "step1", AnalyzedTaskAction::default());
+        let _id2 = make_task(&mut wf, "step2", AnalyzedTaskAction::default());
+        // step2 depends_on step1 → step1 is used
+        wf.tasks
+            .iter_mut()
+            .find(|t| t.name == "step2")
+            .unwrap()
+            .depends_on = vec![id1];
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule_for(&findings, "L060", "step1"));
+    }
+
+    #[test]
+    fn l060_exempts_all_leaf_nodes() {
+        // After fix: ALL leaf nodes (no downstream) are exempt, not just the last.
+        // In a fan-out pattern, both leaf tasks should be exempt.
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "root", AnalyzedTaskAction::default());
+        let _id2 = make_task(&mut wf, "leaf_a", AnalyzedTaskAction::default());
+        let _id3 = make_task(&mut wf, "leaf_b", AnalyzedTaskAction::default());
+        // leaf_a and leaf_b both depend on root
+        for name in ["leaf_a", "leaf_b"] {
+            wf.tasks
+                .iter_mut()
+                .find(|t| t.name == name)
+                .unwrap()
+                .depends_on = vec![id1];
+        }
+        let findings = lint_workflow(&wf);
+        // Neither leaf should trigger L060 — they're natural terminal nodes
+        assert!(!has_rule_for(&findings, "L060", "leaf_a"));
+        assert!(!has_rule_for(&findings, "L060", "leaf_b"));
+        // root IS referenced, so it shouldn't fire either
+        assert!(!has_rule_for(&findings, "L060", "root"));
+    }
+
+    #[test]
+    fn l060_fires_on_orphan_even_if_last() {
+        // Orphan task (no deps in, no deps out) should be flagged even if last.
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "step1", AnalyzedTaskAction::default());
+        let _id2 = make_task(&mut wf, "step2", AnalyzedTaskAction::default());
+        let _id3 = make_task(&mut wf, "orphan_last", AnalyzedTaskAction::default());
+        // step2 depends on step1. orphan_last is isolated.
+        wf.tasks
+            .iter_mut()
+            .find(|t| t.name == "step2")
+            .unwrap()
+            .depends_on = vec![id1];
+        let findings = lint_workflow(&wf);
+        // orphan_last is unreferenced AND has no deps → L060 should fire
+        assert!(
+            has_rule_for(&findings, "L060", "orphan_last"),
+            "L060 should fire on orphan task even if last"
+        );
+    }
+
+    // ── L070: single-task workflow ──────────────────────────────
+
+    #[test]
+    fn l070_fires_on_single_task_workflow() {
+        let mut wf = AnalyzedWorkflow::default();
+        make_task(&mut wf, "only", AnalyzedTaskAction::default());
+        let findings = lint_workflow(&wf);
+        assert!(has_rule(&findings, "L070"));
+    }
+
+    #[test]
+    fn l070_silent_on_multi_task_workflow() {
+        let mut wf = AnalyzedWorkflow::default();
+        let id1 = make_task(&mut wf, "t1", AnalyzedTaskAction::default());
+        let _id2 = make_task(&mut wf, "t2", AnalyzedTaskAction::default());
+        wf.tasks
+            .iter_mut()
+            .find(|t| t.name == "t2")
+            .unwrap()
+            .depends_on = vec![id1];
+        let findings = lint_workflow(&wf);
+        assert!(!has_rule(&findings, "L070"));
+    }
+
+    // ── Clean workflow (no findings) ────────────────────────────
+
+    #[test]
+    fn clean_workflow_produces_no_warnings() {
+        let mut wf = AnalyzedWorkflow::default();
+        wf.name = Some("good-workflow".into());
+        wf.description = Some("A well-formed workflow".into());
+
+        let id1 = make_task(
+            &mut wf,
+            "fetch_data",
+            AnalyzedTaskAction::Fetch(AnalyzedFetchAction::default()),
+        );
+        // Give it description + retry
+        {
+            let t = wf.tasks.iter_mut().find(|t| t.id == id1).unwrap();
+            t.description = Some("Fetches data".into());
+            t.retry = Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 1000,
+                backoff: None,
+                span: Span::dummy(),
+            });
+        }
+
+        let _id2 = make_task(&mut wf, "process", AnalyzedTaskAction::default());
+        {
+            let t = wf.tasks.iter_mut().find(|t| t.name == "process").unwrap();
+            t.description = Some("Processes data".into());
+            t.depends_on = vec![id1]; // references fetch_data
+        }
+
+        let findings = lint_workflow(&wf);
+        let warnings: Vec<_> = findings
+            .iter()
+            .filter(|f| f.severity == Severity::Warning)
+            .collect();
+        assert!(
+            warnings.is_empty(),
+            "Expected 0 warnings, got: {warnings:?}"
+        );
+    }
 }
