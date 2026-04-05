@@ -193,6 +193,42 @@ impl std::fmt::Debug for RigProvider {
     }
 }
 
+/// Static registry of OpenAI-compatible cloud providers.
+///
+/// Adding a new provider = 1 line here + 1 catalog entry in nika-core.
+/// Zero Rust code needed for the provider itself.
+///
+/// (provider_id, base_url, env_var_key)
+static OPENAI_COMPAT_PROVIDERS: &[(&str, &str, &str)] = &[
+    (
+        "openrouter",
+        "https://openrouter.ai/api/v1",
+        "OPENROUTER_API_KEY",
+    ),
+    (
+        "together",
+        "https://api.together.xyz/v1",
+        "TOGETHER_API_KEY",
+    ),
+    (
+        "fireworks",
+        "https://api.fireworks.ai/inference/v1",
+        "FIREWORKS_API_KEY",
+    ),
+    ("cerebras", "https://api.cerebras.ai/v1", "CEREBRAS_API_KEY"),
+    (
+        "sambanova",
+        "https://api.sambanova.ai/v1",
+        "SAMBANOVA_API_KEY",
+    ),
+    (
+        "cohere",
+        "https://api.cohere.com/compatibility/v1",
+        "COHERE_API_KEY",
+    ),
+    ("ai21", "https://api.ai21.com/studio/v1", "AI21_API_KEY"),
+];
+
 /// Dispatch to the rig-core client for all standard providers.
 ///
 /// Reduces 7+ identical match arms to 1. The body expression gets the
@@ -261,91 +297,24 @@ impl RigProvider {
             "mock" => Ok(Self::Mock),
             #[cfg(feature = "native-inference")]
             "native" => Ok(Self::native()),
-            // OpenAI-compatible providers — zero rig-core code, config-driven
-            "openrouter" => {
-                let key =
-                    crate::secrets::store::resolve_env("OPENROUTER_API_KEY").ok_or_else(|| {
+            // OpenAI-compatible providers — config-driven via static table
+            _ => {
+                if let Some(&(id, base_url, env_var)) =
+                    OPENAI_COMPAT_PROVIDERS.iter().find(|(id, _, _)| *id == provider.id)
+                {
+                    let key = crate::secrets::store::resolve_env(env_var).ok_or_else(|| {
                         ProviderError::MissingApiKey {
-                            provider: "openrouter".into(),
+                            provider: id.into(),
                         }
                     })?;
-                Self::openai_compat(
-                    "openrouter",
-                    "https://openrouter.ai/api/v1",
-                    &key,
-                    None,
-                    300,
-                )
-            }
-            "together" => {
-                let key =
-                    crate::secrets::store::resolve_env("TOGETHER_API_KEY").ok_or_else(|| {
-                        ProviderError::MissingApiKey {
-                            provider: "together".into(),
-                        }
-                    })?;
-                Self::openai_compat("together", "https://api.together.xyz/v1", &key, None, 300)
-            }
-            "fireworks" => {
-                let key =
-                    crate::secrets::store::resolve_env("FIREWORKS_API_KEY").ok_or_else(|| {
-                        ProviderError::MissingApiKey {
-                            provider: "fireworks".into(),
-                        }
-                    })?;
-                Self::openai_compat(
-                    "fireworks",
-                    "https://api.fireworks.ai/inference/v1",
-                    &key,
-                    None,
-                    300,
-                )
-            }
-            "cerebras" => {
-                let key =
-                    crate::secrets::store::resolve_env("CEREBRAS_API_KEY").ok_or_else(|| {
-                        ProviderError::MissingApiKey {
-                            provider: "cerebras".into(),
-                        }
-                    })?;
-                Self::openai_compat("cerebras", "https://api.cerebras.ai/v1", &key, None, 300)
-            }
-            "sambanova" => {
-                let key =
-                    crate::secrets::store::resolve_env("SAMBANOVA_API_KEY").ok_or_else(|| {
-                        ProviderError::MissingApiKey {
-                            provider: "sambanova".into(),
-                        }
-                    })?;
-                Self::openai_compat("sambanova", "https://api.sambanova.ai/v1", &key, None, 300)
-            }
-            "cohere" => {
-                let key =
-                    crate::secrets::store::resolve_env("COHERE_API_KEY").ok_or_else(|| {
-                        ProviderError::MissingApiKey {
-                            provider: "cohere".into(),
-                        }
-                    })?;
-                Self::openai_compat(
-                    "cohere",
-                    "https://api.cohere.com/compatibility/v1",
-                    &key,
-                    None,
-                    300,
-                )
-            }
-            "ai21" => {
-                let key = crate::secrets::store::resolve_env("AI21_API_KEY").ok_or_else(|| {
-                    ProviderError::MissingApiKey {
-                        provider: "ai21".into(),
+                    Self::openai_compat(id, base_url, &key, None, 300)
+                } else {
+                    Err(ProviderError::NotConfigured {
+                        provider: name.to_string(),
                     }
-                })?;
-                Self::openai_compat("ai21", "https://api.ai21.com/studio/v1", &key, None, 300)
+                    .into())
+                }
             }
-            _ => Err(ProviderError::NotConfigured {
-                provider: name.to_string(),
-            }
-            .into()),
         }
     }
 
@@ -439,52 +408,19 @@ impl RigProvider {
                     }
                     .into()
                 }),
-            // OpenAI-compatible providers
-            "openrouter" => Self::openai_compat(
-                "openrouter",
-                "https://openrouter.ai/api/v1",
-                api_key,
-                None,
-                300,
-            ),
-            "together" => Self::openai_compat(
-                "together",
-                "https://api.together.xyz/v1",
-                api_key,
-                None,
-                300,
-            ),
-            "fireworks" => Self::openai_compat(
-                "fireworks",
-                "https://api.fireworks.ai/inference/v1",
-                api_key,
-                None,
-                300,
-            ),
-            "cerebras" => {
-                Self::openai_compat("cerebras", "https://api.cerebras.ai/v1", api_key, None, 300)
+            // OpenAI-compatible providers — config-driven via static table
+            _ => {
+                if let Some(&(id, base_url, _)) =
+                    OPENAI_COMPAT_PROVIDERS.iter().find(|(id, _, _)| *id == provider.id)
+                {
+                    Self::openai_compat(id, base_url, api_key, None, 300)
+                } else {
+                    Err(ProviderError::NotConfigured {
+                        provider: name.to_string(),
+                    }
+                    .into())
+                }
             }
-            "sambanova" => Self::openai_compat(
-                "sambanova",
-                "https://api.sambanova.ai/v1",
-                api_key,
-                None,
-                300,
-            ),
-            "cohere" => Self::openai_compat(
-                "cohere",
-                "https://api.cohere.com/compatibility/v1",
-                api_key,
-                None,
-                300,
-            ),
-            "ai21" => {
-                Self::openai_compat("ai21", "https://api.ai21.com/studio/v1", api_key, None, 300)
-            }
-            _ => Err(ProviderError::NotConfigured {
-                provider: name.to_string(),
-            }
-            .into()),
         }
     }
 
