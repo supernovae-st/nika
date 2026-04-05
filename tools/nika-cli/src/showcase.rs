@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_substitute_placeholders() {
-        let content = "provider: \"{{PROVIDER}}\"\nmodel: \"{{MODEL}}\"\n";
+        let content = "provider: {{PROVIDER}}\nmodel: {{MODEL}}\n";
         let result = substitute_placeholders(content);
         assert!(
             !result.contains("{{PROVIDER}}"),

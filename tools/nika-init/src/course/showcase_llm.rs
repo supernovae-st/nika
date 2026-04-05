@@ -179,8 +179,8 @@ const BLOG_POST_GENERATOR: &str = r##"# Blog Post Generator
 # Researches a topic online, generates an outline, writes each section
 # in parallel, then assembles the final post with intro and conclusion.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   topic:
@@ -258,8 +258,8 @@ const EMAIL_DRAFT_GENERATOR: &str = r##"# Email Draft Generator
 # Three-pass email writing: draft, self-review with scoring, then polish + summary.
 # Produces professional emails with the right tone for any context.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   context:
@@ -345,8 +345,8 @@ const SOCIAL_MEDIA_CALENDAR: &str = r##"# Social Media Content Calendar
 # Generates a week of social media content across platforms,
 # with optimized copy for each platform's format and audience.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   brand:
@@ -436,8 +436,8 @@ const PRODUCT_DESCRIPTION_WRITER: &str = r##"# Product Description Writer
 # Generates platform-optimized product descriptions for multiple
 # marketplaces from a single feature list.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   product:
@@ -523,8 +523,8 @@ const STARTUP_PITCH_GENERATOR: &str = r##"# Startup Pitch Generator
 # Builds a complete pitch deck narrative through market research,
 # problem validation, solution design, and business model analysis.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   idea:
@@ -627,8 +627,8 @@ const CODE_REVIEW_ASSISTANT: &str = r##"# Code Review Assistant
 # Captures the current git diff, analyzes code quality, security, and
 # performance, then produces a structured report with recommendations.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: git_diff
@@ -693,8 +693,8 @@ const RELEASE_NOTES_GENERATOR: &str = r##"# Release Notes Generator
 # Reads recent git history, categorizes commits by type,
 # and generates user-friendly release notes with highlights.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: git_history
@@ -768,8 +768,8 @@ const TECHNICAL_RFC_WRITER: &str = r##"# Technical RFC Writer
 # Guides creation of a complete RFC through four phases:
 # problem analysis, solution design, alternatives, and assembly.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   problem:
@@ -866,8 +866,8 @@ const API_DOCS_GENERATOR: &str = r##"# API Documentation Generator
 # Fetches an API spec, generates human-friendly docs with examples,
 # error guides, and a quickstart tutorial.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: fetch_spec
@@ -951,8 +951,8 @@ const VULNERABILITY_SCANNER_REPORT: &str = r##"# Vulnerability Scanner Report
 # Runs security audit commands, analyzes and prioritizes findings
 # with CVSS-like scoring, generates executive security report.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: cargo_audit
@@ -1025,8 +1025,8 @@ const COMPETITIVE_ANALYSIS: &str = r##"# Competitive Analysis
 # Scrapes multiple competitor websites, extracts key info from each,
 # then synthesizes a comparison matrix with strategic recommendations.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: scrape_vercel
@@ -1111,8 +1111,8 @@ const SEO_CONTENT_OPTIMIZER: &str = r##"# SEO Content Optimizer
 # Fetches a webpage's metadata, content, and links, then performs
 # a comprehensive SEO audit with scores and recommendations.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   url:
@@ -1201,8 +1201,8 @@ const DATA_ANALYSIS_REPORT: &str = r##"# Data Analysis Report
 # Generates sample business data, computes statistics via shell,
 # then uses an LLM to extract insights and build an executive report.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: generate_data
@@ -1291,8 +1291,8 @@ const CUSTOMER_FEEDBACK_ANALYZER: &str = r##"# Customer Feedback Analyzer
 # Processes customer feedback, categorizes by sentiment and topic,
 # aggregates NPS metrics, generates actionable insights report.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   feedback:
@@ -1395,8 +1395,8 @@ const KNOWLEDGE_BASE_BUILDER: &str = r##"# Knowledge Base Builder
 # Scrapes documentation, extracts Q&A pairs, organizes into a
 # structured FAQ, and generates chatbot training data.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 tasks:
   - id: scrape_docs
@@ -1492,8 +1492,8 @@ const MEETING_NOTES_PROCESSOR: &str = r##"# Meeting Notes Processor
 # Takes raw meeting notes, extracts key decisions and action items,
 # then generates a structured follow-up email.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   notes:
@@ -1581,8 +1581,8 @@ const INTERVIEW_QUESTION_GENERATOR: &str = r##"# Interview Question Generator
 # Analyzes a job role, generates targeted questions across categories
 # in parallel, then assembles a complete interview guide.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   role:
@@ -1673,8 +1673,8 @@ const SPRINT_RETROSPECTIVE: &str = r##"# Sprint Retrospective Generator
 # Analyzes sprint data, produces structured insights with action items,
 # and generates a facilitation-ready retro document.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   sprint_data:
@@ -1772,8 +1772,8 @@ const TRANSLATION_PIPELINE: &str = r##"# Translation Pipeline
 # Prepares source text, translates into 5 languages in parallel
 # with cultural adaptation, then runs a quality review.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   content:
@@ -1864,8 +1864,8 @@ const CONTENT_LOCALIZATION: &str = r##"# Content Localization Pipeline
 # Creates marketing copy then localizes for 4 international markets,
 # adapting language, cultural references, and compliance notes.
 schema: "nika/workflow@0.12"
-provider: "{{PROVIDER}}"
-model: "{{MODEL}}"
+provider: {{PROVIDER}}
+model: {{MODEL}}
 
 inputs:
   product_name:
@@ -1993,7 +1993,7 @@ mod tests {
     fn test_showcase_llm_all_have_provider() {
         for w in SHOWCASE_LLM {
             assert!(
-                w.content.contains("provider: \"{{PROVIDER}}\""),
+                w.content.contains("provider: {{PROVIDER}}"),
                 "Workflow '{}' must have provider placeholder",
                 w.name
             );
@@ -2004,7 +2004,7 @@ mod tests {
     fn test_showcase_llm_all_have_model() {
         for w in SHOWCASE_LLM {
             assert!(
-                w.content.contains("model: \"{{MODEL}}\""),
+                w.content.contains("model: {{MODEL}}"),
                 "Workflow '{}' must have model placeholder",
                 w.name
             );
