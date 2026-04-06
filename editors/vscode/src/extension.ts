@@ -461,6 +461,10 @@ function isCursor(): boolean {
   return env.appName === 'Cursor' || env.uriScheme === 'cursor';
 }
 
+function isWindsurf(): boolean {
+  return env.appName === 'Windsurf' || env.uriScheme === 'windsurf';
+}
+
 async function ensureCursorMcpConfig(): Promise<void> {
   const folder = workspace.workspaceFolders?.[0];
   if (!folder) { return; }
@@ -572,6 +576,51 @@ async function ensureVscodeMcpConfig(): Promise<void> {
   log('INFO', 'Auto-generated .vscode/mcp.json for VS Code MCP integration');
 }
 
+async function ensureWindsurfMcpConfig(): Promise<void> {
+  // Windsurf uses a global config at ~/.codeium/windsurf/mcp_config.json
+  const homeDir = process.env.HOME ?? process.env.USERPROFILE;
+  if (!homeDir) { return; }
+
+  const configDir = path.join(homeDir, '.codeium', 'windsurf');
+  const configPath = path.join(configDir, 'mcp_config.json');
+
+  if (fs.existsSync(configPath)) {
+    // Check if nika is already configured
+    try {
+      const existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (existing?.mcpServers?.nika) { return; }
+    } catch {
+      // Malformed JSON — don't overwrite
+      return;
+    }
+  }
+
+  const nikaPath = resolvedServerPath ?? 'nika';
+  const mcpConfig = {
+    mcpServers: {
+      nika: {
+        command: nikaPath,
+        args: ['mcp', 'serve', '--stdio'],
+      },
+    },
+  };
+
+  try {
+    fs.mkdirSync(configDir, { recursive: true });
+    if (fs.existsSync(configPath)) {
+      // Merge into existing config
+      const existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      existing.mcpServers = { ...existing.mcpServers, nika: mcpConfig.mcpServers.nika };
+      fs.writeFileSync(configPath, JSON.stringify(existing, null, 2));
+    } else {
+      fs.writeFileSync(configPath, JSON.stringify(mcpConfig, null, 2));
+    }
+    log('INFO', 'Auto-configured Windsurf MCP at ~/.codeium/windsurf/mcp_config.json');
+  } catch (err) {
+    log('WARN', `Failed to configure Windsurf MCP: ${err}`);
+  }
+}
+
 function startClient(context: ExtensionContext, overridePath?: string): void {
   const config = workspace.getConfiguration('nika');
   const serverPath = overridePath ?? getNikaPath();
@@ -617,6 +666,8 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
     if (isCursor()) {
       ensureCursorMcpConfig();
       ensureCursorRules();
+    } else if (isWindsurf()) {
+      ensureWindsurfMcpConfig();
     } else {
       ensureVscodeMcpConfig();
     }
