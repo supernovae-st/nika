@@ -450,15 +450,9 @@ fn extract_schedule_value(header: &str) -> Option<serde_json::Value> {
                     let k = key.trim();
                     let v = value.trim().trim_matches('"').trim_matches('\'');
                     if k == "paused" {
-                        obj.insert(
-                            k.to_string(),
-                            serde_json::Value::Bool(v == "true"),
-                        );
+                        obj.insert(k.to_string(), serde_json::Value::Bool(v == "true"));
                     } else if !v.is_empty() {
-                        obj.insert(
-                            k.to_string(),
-                            serde_json::Value::String(v.to_string()),
-                        );
+                        obj.insert(k.to_string(), serde_json::Value::String(v.to_string()));
                     }
                 }
             }

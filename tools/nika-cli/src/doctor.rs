@@ -224,7 +224,7 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
                 any_configured = true;
             }
             KeyStatus::System | KeyStatus::Offline => {} // skip local providers
-            KeyStatus::NotConfigured => {}                // report below
+            KeyStatus::NotConfigured => {}               // report below
         }
     }
 

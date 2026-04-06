@@ -78,12 +78,8 @@ impl Executor {
                 )
                 .await?;
                 // Scan output directory for artifacts written during execution.
-                let artifacts =
-                    scan_artifacts_dir(&ctx.config.workflows_dir, start_time).await;
-                Ok(ExecutionResult {
-                    output,
-                    artifacts,
-                })
+                let artifacts = scan_artifacts_dir(&ctx.config.workflows_dir, start_time).await;
+                Ok(ExecutionResult { output, artifacts })
             }
             Self::Embedded => {
                 run_embedded(

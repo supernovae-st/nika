@@ -228,10 +228,18 @@ async fn interactive_wizard(args: EveryArgs, quiet: bool) -> Result<(), NikaErro
         .items(&[
             ("2h".to_string(), "Every 2 hours", "12 runs/day"),
             ("6h".to_string(), "Every 6 hours", "4 runs/day"),
-            ("daily".to_string(), "Every day", "Most popular — 80% of schedules"),
+            (
+                "daily".to_string(),
+                "Every day",
+                "Most popular — 80% of schedules",
+            ),
             ("weekday".to_string(), "Every weekday", "Mon–Fri"),
             ("weekly".to_string(), "Every week", "Once a week"),
-            ("custom".to_string(), "Type it yourself", "Cron or natural language"),
+            (
+                "custom".to_string(),
+                "Type it yourself",
+                "Cron or natural language",
+            ),
         ])
         .interact()
         .map_err(wiz_err)?;
@@ -288,17 +296,16 @@ async fn interactive_wizard(args: EveryArgs, quiet: bool) -> Result<(), NikaErro
         }
         duration => {
             // "2h", "6h" etc
-            let cron = duration_to_cron(duration).ok_or_else(|| {
-                NikaError::Execution(format!("invalid duration: {duration}"))
-            })?;
+            let cron = duration_to_cron(duration)
+                .ok_or_else(|| NikaError::Execution(format!("invalid duration: {duration}")))?;
             (cron, "UTC".to_string())
         }
     };
 
     // Validate cron
-    cron_expr.parse::<croner::Cron>().map_err(|e| {
-        NikaError::Execution(format!("invalid cron expression: {e}"))
-    })?;
+    cron_expr
+        .parse::<croner::Cron>()
+        .map_err(|e| NikaError::Execution(format!("invalid cron expression: {e}")))?;
 
     let name = args
         .name
@@ -408,7 +415,11 @@ fn pick_timezone() -> Result<String, NikaError> {
         if tz != "UTC" {
             items.insert(
                 0,
-                (tz.clone(), Box::leak(format!("{tz} (detected)").into_boxed_str()), ""),
+                (
+                    tz.clone(),
+                    Box::leak(format!("{tz} (detected)").into_boxed_str()),
+                    "",
+                ),
             );
         }
     }
@@ -430,9 +441,8 @@ fn pick_timezone() -> Result<String, NikaError> {
             .interact()
             .map_err(wiz_err)?;
         // Validate
-        tz.parse::<chrono_tz::Tz>().map_err(|_| {
-            NikaError::Execution(format!("invalid timezone '{tz}'"))
-        })?;
+        tz.parse::<chrono_tz::Tz>()
+            .map_err(|_| NikaError::Execution(format!("invalid timezone '{tz}'")))?;
         Ok(tz)
     } else {
         Ok(selected)
@@ -472,16 +482,14 @@ fn parse_hhmm(s: &str) -> Result<(u32, u32), NikaError> {
             "invalid time format '{s}' — use HH:MM (e.g. 09:00)"
         )));
     }
-    let h: u32 = parts[0].parse().map_err(|_| {
-        NikaError::Execution(format!("invalid hour in '{s}'"))
-    })?;
-    let m: u32 = parts[1].parse().map_err(|_| {
-        NikaError::Execution(format!("invalid minute in '{s}'"))
-    })?;
+    let h: u32 = parts[0]
+        .parse()
+        .map_err(|_| NikaError::Execution(format!("invalid hour in '{s}'")))?;
+    let m: u32 = parts[1]
+        .parse()
+        .map_err(|_| NikaError::Execution(format!("invalid minute in '{s}'")))?;
     if h > 23 {
-        return Err(NikaError::Execution(format!(
-            "hour must be 0–23, got {h}"
-        )));
+        return Err(NikaError::Execution(format!("hour must be 0–23, got {h}")));
     }
     if m > 59 {
         return Err(NikaError::Execution(format!(
@@ -671,7 +679,10 @@ mod tests {
     #[test]
     fn test_runs_per_day_hourly() {
         let rpd = runs_per_day("0 * * * *").unwrap();
-        assert!((rpd - 24.0).abs() < 1.0, "hourly should be ~24/day, got {rpd}");
+        assert!(
+            (rpd - 24.0).abs() < 1.0,
+            "hourly should be ~24/day, got {rpd}"
+        );
     }
 
     #[test]
@@ -683,20 +694,29 @@ mod tests {
     #[test]
     fn test_runs_per_day_every_6h() {
         let rpd = runs_per_day("0 */6 * * *").unwrap();
-        assert!((rpd - 4.0).abs() < 1.0, "every 6h should be ~4/day, got {rpd}");
+        assert!(
+            (rpd - 4.0).abs() < 1.0,
+            "every 6h should be ~4/day, got {rpd}"
+        );
     }
 
     #[test]
     fn test_format_run_estimate_daily() {
         let est = format_run_estimate("0 9 * * *").unwrap();
-        assert!(est.contains("1 runs/day"), "expected daily estimate, got: {est}");
+        assert!(
+            est.contains("1 runs/day"),
+            "expected daily estimate, got: {est}"
+        );
     }
 
     #[test]
     fn test_format_run_estimate_weekly() {
         // weekly = Monday at 9:00
         let est = format_run_estimate("0 9 * * 1").unwrap();
-        assert!(est.contains("runs/week"), "expected weekly estimate, got: {est}");
+        assert!(
+            est.contains("runs/week"),
+            "expected weekly estimate, got: {est}"
+        );
     }
 
     // ── parse_hhmm boundary tests ────────────────────────────────────

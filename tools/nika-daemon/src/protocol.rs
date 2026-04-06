@@ -807,11 +807,21 @@ mod tests {
                 overlap: Some("skip".into()),
                 inputs_json: None,
             },
-            DaemonRequest::ScheduleList { enabled_only: false },
-            DaemonRequest::ScheduleGet { name: "daily-report".into() },
-            DaemonRequest::SchedulePause { name: "daily-report".into() },
-            DaemonRequest::ScheduleResume { name: "daily-report".into() },
-            DaemonRequest::ScheduleDelete { name: "daily-report".into() },
+            DaemonRequest::ScheduleList {
+                enabled_only: false,
+            },
+            DaemonRequest::ScheduleGet {
+                name: "daily-report".into(),
+            },
+            DaemonRequest::SchedulePause {
+                name: "daily-report".into(),
+            },
+            DaemonRequest::ScheduleResume {
+                name: "daily-report".into(),
+            },
+            DaemonRequest::ScheduleDelete {
+                name: "daily-report".into(),
+            },
         ];
         for req in requests {
             let json = serde_json::to_string(&req).unwrap();

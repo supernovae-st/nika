@@ -175,9 +175,7 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
 
         ScheduleAction::Show { name } => {
             let resp = client
-                .send(DaemonRequest::ScheduleGet {
-                    name: name.clone(),
-                })
+                .send(DaemonRequest::ScheduleGet { name: name.clone() })
                 .await
                 .map_err(sched_err)?;
 

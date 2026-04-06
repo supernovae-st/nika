@@ -545,10 +545,8 @@ async fn fire_from_schedules_table(
         }
 
         // Overlap protection based on policy
-        let policy: nika_core::ast::schedule::OverlapPolicy = sched
-            .overlap
-            .parse()
-            .unwrap_or_default();
+        let policy: nika_core::ast::schedule::OverlapPolicy =
+            sched.overlap.parse().unwrap_or_default();
 
         let active_jobs = service
             .storage
@@ -573,8 +571,7 @@ async fn fire_from_schedules_table(
                     // Advance next_run_at even on skip to prevent burst re-fire
                     // on every subsequent 60s tick while the job is active.
                     if let Ok(cron) = sched.cron_expr.parse::<croner::Cron>() {
-                        let tz: chrono_tz::Tz =
-                            sched.timezone.parse().unwrap_or(chrono_tz::UTC);
+                        let tz: chrono_tz::Tz = sched.timezone.parse().unwrap_or(chrono_tz::UTC);
                         let now_tz = now.with_timezone(&tz);
                         let next = cron
                             .find_next_occurrence(&now_tz, false)
