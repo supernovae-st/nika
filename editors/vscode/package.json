@@ -32,6 +32,27 @@
   "extensionKind": ["workspace"],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "nika",
+          "title": "Nika",
+          "icon": "./icons/nika-dark.svg"
+        }
+      ]
+    },
+    "views": {
+      "nika": [
+        {
+          "id": "nikaWorkflows",
+          "name": "Workflows"
+        },
+        {
+          "id": "nikaProviders",
+          "name": "Providers"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "nika",

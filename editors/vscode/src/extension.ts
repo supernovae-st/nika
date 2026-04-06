@@ -21,6 +21,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as zlib from 'zlib';
 import { IncomingMessage } from 'http';
+import { WorkflowTreeProvider } from './workflowTree';
 
 let client: LanguageClient | undefined;
 let statusBarItem: import('vscode').StatusBarItem | undefined;
@@ -745,6 +746,15 @@ export function activate(context: ExtensionContext): void {
 
   log('INFO', `Nika extension v${context.extension.packageJSON.version} activating`);
   log('INFO', `Platform: ${process.platform}/${process.arch}`);
+
+  // Sidebar tree view — workflow explorer
+  const workflowTree = new WorkflowTreeProvider();
+  window.registerTreeDataProvider('nikaWorkflows', workflowTree);
+  const watcher = workspace.createFileSystemWatcher('**/*.nika.yaml');
+  watcher.onDidCreate(() => workflowTree.refresh());
+  watcher.onDidDelete(() => workflowTree.refresh());
+  watcher.onDidChange(() => workflowTree.refresh());
+  context.subscriptions.push(watcher);
 
   // Register all commands SYNCHRONOUSLY before any async work.
   // This prevents the race condition where Cursor's Code Lens fires
