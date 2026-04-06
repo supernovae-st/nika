@@ -3083,15 +3083,20 @@ async fn run_workflow(
     }
 
     // Merge endpoints: project nika.toml wins, user config.toml fills gaps
-    let mut all_endpoints = config.endpoints.clone();
+    let mut all_endpoints = std::collections::HashMap::new();
+    // Project-level endpoints go first (win on conflict)
     if let Ok(project) =
         cli::config::find_project_root_from(&std::env::current_dir().unwrap_or_default())
     {
         if let Some(bootstrap) = cli::config::load_project_config(&project.root) {
-            for (name, ep) in bootstrap.endpoints {
-                all_endpoints.entry(name).or_insert(ep);
-            }
+            all_endpoints = bootstrap.endpoints;
         }
+    }
+    // User-level endpoints fill gaps (don't override project)
+    for (name, ep) in &config.endpoints {
+        all_endpoints
+            .entry(name.clone())
+            .or_insert_with(|| ep.clone());
     }
     if !all_endpoints.is_empty() {
         if let Ok(resolved) = nika::provider::endpoints::resolve_endpoints(&all_endpoints) {

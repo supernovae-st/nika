@@ -141,6 +141,30 @@ impl TaskExecutor {
             None => None,
         };
 
+        // Parse slash syntax: model: "groq/llama-3.3-70b" → provider=groq, model=llama-3.3-70b
+        let (resolved_provider, resolved_model) = if resolved_provider.is_none() {
+            if let Some(ref model_str) = resolved_model {
+                if let Some(slash_pos) = model_str.find('/') {
+                    let prefix = &model_str[..slash_pos];
+                    let rest = &model_str[slash_pos + 1..];
+                    if !rest.is_empty() && !prefix.is_empty() {
+                        (
+                            Some(nika_core::ProviderName::parse(prefix)),
+                            Some(rest.to_string()),
+                        )
+                    } else {
+                        (resolved_provider, resolved_model)
+                    }
+                } else {
+                    (resolved_provider, resolved_model)
+                }
+            } else {
+                (resolved_provider, resolved_model)
+            }
+        } else {
+            (resolved_provider, resolved_model)
+        };
+
         // Build provider chain: explicit chain > single provider > workflow default
         let effective_chain: Vec<String> = if let Some(ref chain) = resolved_agent.provider_chain {
             chain.iter().map(|p| p.to_string()).collect()
