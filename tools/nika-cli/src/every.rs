@@ -567,7 +567,7 @@ fn auto_name(workflow: &str, cron_expr: &str) -> String {
 pub fn runs_per_day(cron_expr: &str) -> Option<f64> {
     let parsed = cron_expr.parse::<croner::Cron>().ok()?;
     let now = chrono::Utc::now();
-    let window_end = now + chrono::Duration::hours(48);
+    let window_end = now + chrono::Duration::hours(168); // 7-day window for weekly crons
     let mut count = 0u32;
     let mut from = now;
     loop {
@@ -582,7 +582,7 @@ pub fn runs_per_day(cron_expr: &str) -> Option<f64> {
     if count == 0 {
         return None;
     }
-    Some(count as f64 / 2.0) // 48h sample → divide by 2 for daily rate
+    Some(count as f64 / 7.0) // 7-day sample → divide by 7 for daily rate
 }
 
 /// Format a run frequency estimate for display.
