@@ -247,7 +247,6 @@ impl DaemonBridge {
             _ => None,
         }
     }
-
 }
 
 // ── DaemonProvider trait implementation ─────────────────────────────────

@@ -28,7 +28,9 @@ pub fn configure(api: TransformOpenApi) -> TransformOpenApi {
             SecurityScheme::Http {
                 scheme: "bearer".into(),
                 bearer_format: Some("token".into()),
-                description: Some("API token (nk_* from `nika token add` or NIKA_SERVE_TOKEN)".into()),
+                description: Some(
+                    "API token (nk_* from `nika token add` or NIKA_SERVE_TOKEN)".into(),
+                ),
                 extensions: Default::default(),
             },
         )

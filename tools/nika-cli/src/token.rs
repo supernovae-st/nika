@@ -138,13 +138,12 @@ async fn cmd_add(
     let is_tty = std::io::stdout().is_terminal();
     if is_tty {
         eprintln!();
-        eprintln!(
-            "  {} Token '{}' created",
-            StatusIcon::Ok,
-            name.cyan()
-        );
+        eprintln!("  {} Token '{}' created", StatusIcon::Ok, name.cyan());
         eprintln!();
-        eprintln!("  {}", "Save this token now — it cannot be retrieved later:".yellow());
+        eprintln!(
+            "  {}",
+            "Save this token now — it cannot be retrieved later:".yellow()
+        );
         eprintln!();
     }
     // Print raw token to stdout (safe for piping)
@@ -228,10 +227,7 @@ async fn cmd_list(json: bool, db: Option<&str>) -> Result<(), NikaError> {
             nika_storage::Role::Operator => "operator".green().to_string(),
         };
 
-        let last_used = token
-            .last_used_at
-            .as_deref()
-            .unwrap_or("never");
+        let last_used = token.last_used_at.as_deref().unwrap_or("never");
 
         eprintln!(
             "  {} {}  {}  last used: {}",
@@ -278,11 +274,7 @@ async fn cmd_revoke(name: &str, db: Option<&str>) -> Result<(), NikaError> {
 
     // Always return the same response shape (prevent enumeration — AD-10)
     eprintln!();
-    eprintln!(
-        "  {} Token '{}' revoked",
-        StatusIcon::Ok,
-        name.cyan()
-    );
+    eprintln!("  {} Token '{}' revoked", StatusIcon::Ok, name.cyan());
     eprintln!(
         "  {} Active requests may continue for up to 60s (cache TTL)",
         StatusIcon::Info

@@ -221,10 +221,7 @@ impl ProviderChecker {
         }
         #[cfg(not(feature = "native-inference"))]
         {
-            Err(
-                "Native inference not available in this build"
-                    .to_string(),
-            )
+            Err("Native inference not available in this build".to_string())
         }
     }
 }

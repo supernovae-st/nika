@@ -26,9 +26,9 @@ pub mod metrics;
 pub mod openapi;
 pub mod rate_limit;
 pub mod request_id;
-pub mod token_store;
 pub mod routes;
 pub mod state;
+pub mod token_store;
 pub mod webhook;
 pub mod worker;
 

@@ -219,9 +219,7 @@ mod serde_bytes_hex {
         let hex = String::deserialize(d)?;
         (0..hex.len())
             .step_by(2)
-            .map(|i| {
-                u8::from_str_radix(&hex[i..i + 2], 16).map_err(serde::de::Error::custom)
-            })
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).map_err(serde::de::Error::custom))
             .collect()
     }
 }
@@ -2672,7 +2670,11 @@ mod tests {
 
         storage.insert_token(entry).await.unwrap();
 
-        let got = storage.get_token_by_name("ci-deploy").await.unwrap().unwrap();
+        let got = storage
+            .get_token_by_name("ci-deploy")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(got.id, "t1");
         assert_eq!(got.name, "ci-deploy");
         assert_eq!(got.role, Role::Operator);
@@ -2722,7 +2724,10 @@ mod tests {
     #[tokio::test]
     async fn token_revoke_idempotent() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_token(make_token("t1", "revoke-me")).await.unwrap();
+        storage
+            .insert_token(make_token("t1", "revoke-me"))
+            .await
+            .unwrap();
 
         storage.revoke_token("t1").await.unwrap();
 
@@ -2738,15 +2743,26 @@ mod tests {
     #[tokio::test]
     async fn token_touch_updates_last_used() {
         let storage = Storage::open_memory().unwrap();
-        storage.insert_token(make_token("t1", "touch-me")).await.unwrap();
+        storage
+            .insert_token(make_token("t1", "touch-me"))
+            .await
+            .unwrap();
 
         // Initially no last_used_at
-        let before = storage.get_token_by_name("touch-me").await.unwrap().unwrap();
+        let before = storage
+            .get_token_by_name("touch-me")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(before.last_used_at.is_none());
 
         storage.touch_token("t1").await.unwrap();
 
-        let after = storage.get_token_by_name("touch-me").await.unwrap().unwrap();
+        let after = storage
+            .get_token_by_name("touch-me")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(after.last_used_at.is_some());
     }
 
@@ -2765,7 +2781,11 @@ mod tests {
         assert_eq!(storage.count_tokens().await.unwrap(), 2);
 
         storage.revoke_token("t1").await.unwrap();
-        assert_eq!(storage.count_tokens().await.unwrap(), 1, "revoked tokens excluded");
+        assert_eq!(
+            storage.count_tokens().await.unwrap(),
+            1,
+            "revoked tokens excluded"
+        );
     }
 
     #[tokio::test]

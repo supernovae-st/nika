@@ -7,10 +7,10 @@ use rmcp::handler::server::router::prompt::PromptRouter;
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, ListPromptsResult, PromptMessage,
-    PromptMessageRole, ServerCapabilities, ServerInfo,
+    CallToolResult, Content, GetPromptResult, ListPromptsResult, PromptMessage, PromptMessageRole,
+    ServerCapabilities, ServerInfo,
 };
-use rmcp::{tool, tool_router, ServerHandler, RoleServer};
+use rmcp::{tool, tool_router, RoleServer, ServerHandler};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::process::Command as TokioCommand;
@@ -251,7 +251,11 @@ impl NikaMcpServer {
 
         let content = match std::fs::read_to_string(&canonical) {
             Ok(c) => c,
-            Err(e) => return Ok(CallToolResult::error(vec![Content::text(format!("Cannot read file: {e}"))])),
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Cannot read file: {e}"
+                ))]))
+            }
         };
 
         // Parse with nika-core AST for correct handling of all YAML patterns
@@ -455,10 +459,7 @@ Key rules:
 
     /// Generate a single Nika task block ready to paste into a workflow.
     #[rmcp::prompt(description = "Generate a single Nika task for a specific verb")]
-    fn add_task(
-        &self,
-        Parameters(params): Parameters<AddTaskPromptParams>,
-    ) -> Vec<PromptMessage> {
+    fn add_task(&self, Parameters(params): Parameters<AddTaskPromptParams>) -> Vec<PromptMessage> {
         let content = format!(
             "Generate a single Nika task using the '{}' verb that does: {}\n\n\
             Return ONLY the YAML task block (starting with `- id:`).\n\
@@ -507,9 +508,14 @@ impl ServerHandler for NikaMcpServer {
         &self,
         _request: Option<rmcp::model::PaginatedRequestParams>,
         _context: rmcp::service::RequestContext<RoleServer>,
-    ) -> impl std::future::Future<Output = Result<rmcp::model::ListToolsResult, rmcp::ErrorData>> + Send + '_ {
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ListToolsResult, rmcp::ErrorData>>
+           + Send
+           + '_ {
         let tools = self.tool_router.list_all();
-        std::future::ready(Ok(rmcp::model::ListToolsResult { tools, ..Default::default() }))
+        std::future::ready(Ok(rmcp::model::ListToolsResult {
+            tools,
+            ..Default::default()
+        }))
     }
 
     async fn call_tool(
@@ -526,9 +532,13 @@ impl ServerHandler for NikaMcpServer {
         &self,
         _request: Option<rmcp::model::PaginatedRequestParams>,
         _context: rmcp::service::RequestContext<RoleServer>,
-    ) -> impl std::future::Future<Output = Result<ListPromptsResult, rmcp::ErrorData>> + Send + '_ {
+    ) -> impl std::future::Future<Output = Result<ListPromptsResult, rmcp::ErrorData>> + Send + '_
+    {
         let prompts = self.prompt_router.list_all();
-        std::future::ready(Ok(ListPromptsResult { prompts, ..Default::default() }))
+        std::future::ready(Ok(ListPromptsResult {
+            prompts,
+            ..Default::default()
+        }))
     }
 
     async fn get_prompt(
@@ -810,8 +820,14 @@ mod tests {
             .unwrap();
         let text = format!("{:?}", result);
         assert!(text.contains("infer"), "Default verb should be infer");
-        assert!(text.contains("anthropic"), "Default provider should be anthropic");
-        assert!(text.contains("Summarize the research"), "Should contain description");
+        assert!(
+            text.contains("anthropic"),
+            "Default provider should be anthropic"
+        );
+        assert!(
+            text.contains("Summarize the research"),
+            "Should contain description"
+        );
     }
 
     #[tokio::test]
@@ -875,7 +891,10 @@ mod tests {
             .await
             .unwrap();
         let text = format!("{:?}", result);
-        assert!(text.contains("Unknown verb"), "Should warn about unknown verb");
+        assert!(
+            text.contains("Unknown verb"),
+            "Should warn about unknown verb"
+        );
     }
 
     // ─── Error Fix Tests ─────────────────────────────────────────────────
@@ -891,10 +910,16 @@ mod tests {
             .await
             .unwrap();
         let text = format!("{:?}", result);
-        assert!(text.contains("Template"), "NIKA-041 should mention template");
+        assert!(
+            text.contains("Template"),
+            "NIKA-041 should mention template"
+        );
         assert!(text.contains("with:"), "Should mention with: block");
         // Verify no double prefix
-        assert!(!text.contains("NIKA-041: NIKA-041"), "Should not double prefix");
+        assert!(
+            !text.contains("NIKA-041: NIKA-041"),
+            "Should not double prefix"
+        );
     }
 
     #[tokio::test]
@@ -908,7 +933,10 @@ mod tests {
             .await
             .unwrap();
         let text = format!("{:?}", result);
-        assert!(text.contains("nika check"), "Fallback should suggest nika check");
+        assert!(
+            text.contains("nika check"),
+            "Fallback should suggest nika check"
+        );
     }
 
     // ─── Prompt Tests ────────────────────────────────────────────────────
@@ -919,7 +947,10 @@ mod tests {
         let prompts = server.prompt_router.list_all();
         assert_eq!(prompts.len(), 3, "Should have 3 prompts");
         let names: Vec<&str> = prompts.iter().map(|p| p.name.as_str()).collect();
-        assert!(names.contains(&"create_workflow"), "Missing create_workflow prompt");
+        assert!(
+            names.contains(&"create_workflow"),
+            "Missing create_workflow prompt"
+        );
         assert!(names.contains(&"add_task"), "Missing add_task prompt");
         assert!(names.contains(&"fix_error"), "Missing fix_error prompt");
     }
@@ -928,11 +959,24 @@ mod tests {
     fn test_tools_registered() {
         let server = NikaMcpServer::new();
         let tools = server.tool_router.list_all();
-        assert!(tools.len() >= 7, "Should have at least 7 tools, got {}", tools.len());
+        assert!(
+            tools.len() >= 7,
+            "Should have at least 7 tools, got {}",
+            tools.len()
+        );
         let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
         assert!(names.contains(&"nika_check"), "Missing nika_check tool");
-        assert!(names.contains(&"nika_generate_task"), "Missing nika_generate_task tool");
-        assert!(names.contains(&"nika_dag_visualization"), "Missing nika_dag_visualization tool");
-        assert!(names.contains(&"nika_error_fix"), "Missing nika_error_fix tool");
+        assert!(
+            names.contains(&"nika_generate_task"),
+            "Missing nika_generate_task tool"
+        );
+        assert!(
+            names.contains(&"nika_dag_visualization"),
+            "Missing nika_dag_visualization tool"
+        );
+        assert!(
+            names.contains(&"nika_error_fix"),
+            "Missing nika_error_fix tool"
+        );
     }
 }

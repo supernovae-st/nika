@@ -1,0 +1,52 @@
+{
+  "name": "nika-vscode",
+  "displayName": "Nika",
+  "description": "Nika workflow engine — DAG visualization, language support, execution",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "supernovae-studio",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Visualization", "Programming Languages"],
+  "activationEvents": [
+    "onLanguage:yaml",
+    "workspaceContains:**/*.nika.yaml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "nika.showDag",
+        "title": "Show DAG",
+        "category": "Nika"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "build:extension": "node esbuild.mjs --extension",
+    "build:webview": "node esbuild.mjs --webview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ --ext .ts"
+  },
+  "dependencies": {
+    "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
+    "d3-transition": "^3.0.1",
+    "d3-zoom": "^3.0.0",
+    "elkjs": "^0.9.3"
+  },
+  "devDependencies": {
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-shape": "^3.1.8",
+    "@types/d3-transition": "^3.0.9",
+    "@types/d3-zoom": "^3.0.8",
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.4.0"
+  }
+}

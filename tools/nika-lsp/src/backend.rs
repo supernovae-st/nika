@@ -20,13 +20,13 @@ use tower_lsp_server::{Client, LanguageServer};
 
 use crate::ast_integration;
 use crate::completion::{get_completion_context, CompletionContext};
-use async_trait::async_trait;
 #[cfg(unix)]
 use crate::daemon_bridge::DaemonBridge;
-use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
-use nika_daemon::provider::DaemonProvider;
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
+use async_trait::async_trait;
+use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
+use nika_daemon::provider::DaemonProvider;
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};
 use nika_lsp_core::handlers::code_action::DiagnosticInfo;
 
@@ -81,7 +81,10 @@ impl DaemonProvider for RwLockDaemonProvider {
             guard.as_ref().filter(|b| b.is_connected()).cloned()
         };
         match bridge {
-            Some(b) => b.estimate_cost(provider, model, input_tokens, output_tokens).await,
+            Some(b) => {
+                b.estimate_cost(provider, model, input_tokens, output_tokens)
+                    .await
+            }
             None => None,
         }
     }
@@ -144,8 +147,7 @@ impl NikaBackend {
             Arc::new(RwLockDaemonProvider(bridge_holder))
         };
         #[cfg(not(unix))]
-        let daemon: Arc<dyn DaemonProvider> =
-            Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
+        let daemon: Arc<dyn DaemonProvider> = Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
 
         Self::init(client, daemon)
     }
@@ -208,20 +210,15 @@ impl NikaBackend {
     ///
     /// Returns the DAG graph data for the webview panel.
     /// Parses the workflow AST and extracts nodes (tasks) and edges (dependencies).
-    pub async fn workflow_graph(
-        &self,
-        params: serde_json::Value,
-    ) -> Result<serde_json::Value> {
+    pub async fn workflow_graph(&self, params: serde_json::Value) -> Result<serde_json::Value> {
         let uri_str = params
             .get("uri")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                tower_lsp_server::jsonrpc::Error::invalid_params("missing uri")
-            })?;
+            .ok_or_else(|| tower_lsp_server::jsonrpc::Error::invalid_params("missing uri"))?;
 
-        let uri: Uri = uri_str.parse().map_err(|_| {
-            tower_lsp_server::jsonrpc::Error::invalid_params("invalid uri")
-        })?;
+        let uri: Uri = uri_str
+            .parse()
+            .map_err(|_| tower_lsp_server::jsonrpc::Error::invalid_params("invalid uri"))?;
 
         let content = match self.documents.get(&uri) {
             Some(doc) => doc.content().to_string(),
@@ -268,10 +265,7 @@ pub(crate) fn extract_workflow_graph(content: &str) -> serde_json::Value {
                     let val = binding.value.as_str();
                     if let Some(ref_id) = val.strip_prefix('$') {
                         let base_id = ref_id.split('.').next().unwrap_or(ref_id);
-                        if base_id != "env"
-                            && base_id != "inputs"
-                            && !dep_ids.contains(&base_id)
-                        {
+                        if base_id != "env" && base_id != "inputs" && !dep_ids.contains(&base_id) {
                             edges.push(serde_json::json!({
                                 "id": format!("{}->{}:data", base_id, t.id.value),
                                 "source": base_id,
@@ -533,7 +527,11 @@ impl LanguageServer for NikaBackend {
         // Get daemon provider status for enriched completions
         let daemon_providers = {
             let status = self.daemon.provider_status().await;
-            if status.is_empty() { None } else { Some(status) }
+            if status.is_empty() {
+                None
+            } else {
+                Some(status)
+            }
         };
         let items = nika_lsp_core::handlers::completion::completions(
             &text,
@@ -1230,7 +1228,12 @@ tasks:
 "#;
         let graph = extract_workflow_graph(yaml);
         let nodes = graph["nodes"].as_array().unwrap();
-        assert_eq!(nodes.len(), 2, "graph: {}", serde_json::to_string_pretty(&graph).unwrap());
+        assert_eq!(
+            nodes.len(),
+            2,
+            "graph: {}",
+            serde_json::to_string_pretty(&graph).unwrap()
+        );
         assert_eq!(nodes[0]["verb"], "infer");
         assert_eq!(nodes[1]["verb"], "infer");
     }

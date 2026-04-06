@@ -130,7 +130,9 @@ mod tests {
     #[tokio::test]
     async fn embedded_estimate_cost_unknown_model() {
         let p = EmbeddedDaemonProvider::new();
-        let cost = p.estimate_cost("fake", "nonexistent-model", 1000, 500).await;
+        let cost = p
+            .estimate_cost("fake", "nonexistent-model", 1000, 500)
+            .await;
         assert!(cost.is_none(), "Should return None for unknown model");
     }
 

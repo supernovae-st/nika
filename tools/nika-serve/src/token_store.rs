@@ -26,13 +26,9 @@ pub struct Principal {
 pub enum AuthMode {
     /// Legacy single-token mode (backward compatible with NIKA_SERVE_TOKEN).
     /// The hash is pre-computed BLAKE3 of the env var token.
-    Legacy {
-        expected_hash: [u8; 32],
-    },
+    Legacy { expected_hash: [u8; 32] },
     /// Multi-key mode with named tokens from SQLite.
-    MultiKey {
-        store: TokenStore,
-    },
+    MultiKey { store: TokenStore },
 }
 
 impl AuthMode {

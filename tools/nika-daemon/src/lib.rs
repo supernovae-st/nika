@@ -20,13 +20,13 @@
 pub mod client;
 pub mod error;
 pub mod events;
-pub mod provider;
-pub mod provider_embedded;
 #[cfg(unix)]
 pub mod install;
 #[cfg(unix)]
 pub mod lifecycle;
 pub mod protocol;
+pub mod provider;
+pub mod provider_embedded;
 #[cfg(unix)]
 pub mod server;
 pub mod services;
