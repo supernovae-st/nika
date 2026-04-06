@@ -25,6 +25,7 @@ import { IncomingMessage } from 'http';
 let client: LanguageClient | undefined;
 let statusBarItem: import('vscode').StatusBarItem | undefined;
 let outputChannel: import('vscode').OutputChannel | undefined;
+let resolvedServerPath: string | undefined;
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/supernovae-st/nika/releases/latest';
 const GITHUB_INSTALL_URL = 'https://github.com/supernovae-st/nika#installation';
@@ -675,7 +676,7 @@ export function activate(context: ExtensionContext): void {
         await client.stop();
         client = undefined;
       }
-      startClient(context);
+      startClient(context, resolvedServerPath);
       window.showInformationMessage('Nika language server restarted.');
     }),
   );
@@ -688,6 +689,7 @@ export function activate(context: ExtensionContext): void {
   const cachedBinary = path.join(storagePath, isWindows ? 'nika.exe' : 'nika');
 
   const tryStartWithBinary = (binaryPath: string): void => {
+    resolvedServerPath = binaryPath;
     startClient(context, binaryPath);
   };
 
@@ -707,6 +709,7 @@ export function activate(context: ExtensionContext): void {
   execFile(configPath, ['--version'], { timeout: 5000 }, async (pathError) => {
     if (!pathError) {
       // Binary found in PATH (or configured path) — use it directly.
+      resolvedServerPath = configPath;
       startClient(context);
       return;
     }
