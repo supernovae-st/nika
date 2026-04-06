@@ -37,6 +37,11 @@ nika-core = { workspace = true }
 nika-init = { workspace = true }
 nika-mcp = { workspace = true }
 nika-vault = { workspace = true }
+nika-storage = { workspace = true }
+
+# Crypto
+blake3 = { workspace = true }
+getrandom = { workspace = true }
 
 # CLI
 clap = { workspace = true }
@@ -77,6 +82,9 @@ hron = { workspace = true }
 
 # Workflow discovery
 glob = { workspace = true }
+
+# UUID for token IDs
+uuid = { workspace = true }
 
 # Timezone detection
 chrono-tz = { workspace = true }

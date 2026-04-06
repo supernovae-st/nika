@@ -593,6 +593,13 @@ enum Commands {
         action: cli::provider::ProviderAction,
     },
 
+    /// Manage serve API tokens (multi-tenant auth)
+    #[command(next_help_heading = "SYSTEM")]
+    Token {
+        #[command(subcommand)]
+        action: cli::token::TokenAction,
+    },
+
     /// Manage MCP server connections
     #[command(next_help_heading = "MODELS & PROVIDERS")]
     Mcp {
@@ -1668,6 +1675,8 @@ async fn main() {
         Some(Commands::Provider { action }) => {
             cli::provider::handle_provider_command(action, quiet).await
         }
+
+        Some(Commands::Token { action }) => cli::token::run(action).await,
 
         Some(Commands::Vault { .. }) => {
             eprintln!(
