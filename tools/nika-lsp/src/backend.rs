@@ -15,6 +15,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tokio::sync::mpsc;
 use tower_lsp_server::jsonrpc::Result;
+use tower_lsp_server::ls_types::notification::Notification;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{Client, LanguageServer};
 
@@ -38,6 +39,34 @@ pub struct ValidationRequest {
 /// Notification that a document parsed successfully (for AST cache).
 struct ParseSuccessNotification {
     uri: Uri,
+}
+
+// ─── Custom LSP Notifications ───────────────────────────────────────────────
+
+/// Parameters for `nika/executionEvent` server→client notification.
+///
+/// Sent when a workflow task changes state during execution.
+/// The VS Code extension uses this to update the DAG webview in real-time.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ExecutionEventParams {
+    /// Task ID from the workflow
+    pub task_id: String,
+    /// New status: "pending", "running", "success", "failed", "skipped"
+    pub status: String,
+    /// Duration in milliseconds (if completed)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+}
+
+/// Custom notification: `nika/executionEvent`
+///
+/// Server→client notification for live DAG updates during workflow execution.
+/// Actual emission requires in-process engine execution (post-launch feature).
+pub enum ExecutionEventNotification {}
+
+impl Notification for ExecutionEventNotification {
+    type Params = ExecutionEventParams;
+    const METHOD: &'static str = "nika/executionEvent";
 }
 
 /// The Nika LSP backend.
