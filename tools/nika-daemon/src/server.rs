@@ -902,14 +902,12 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
                     ),
                 };
             }
-            // Validate overlap policy
+            // Validate overlap policy via typed enum
             let overlap_str = overlap.unwrap_or_else(|| "skip".to_string());
-            if !["skip", "queue", "replace"].contains(&overlap_str.as_str()) {
+            if let Err(e) = overlap_str.parse::<nika_core::ast::schedule::OverlapPolicy>() {
                 return DaemonResponse::Error {
                     code: "NIKA-281".into(),
-                    message: format!(
-                        "invalid overlap '{overlap_str}' — must be skip, queue, or replace"
-                    ),
+                    message: e,
                 };
             }
 

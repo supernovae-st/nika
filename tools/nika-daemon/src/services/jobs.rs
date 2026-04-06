@@ -530,7 +530,7 @@ async fn fire_from_schedules_table(
         }
 
         // Overlap protection: skip if a job for this workflow is pending/running
-        if sched.overlap == "skip" {
+        if sched.overlap == nika_core::ast::schedule::OverlapPolicy::Skip.to_string() {
             let active_jobs = service
                 .storage
                 .list_jobs_for_workflow(&sched.workflow)

@@ -35,7 +35,7 @@ pub struct EveryArgs {
 
     /// Overlap policy: skip, queue, replace
     #[arg(long, default_value = "skip")]
-    pub overlap: String,
+    pub overlap: nika_core::ast::schedule::OverlapPolicy,
 
     /// Preview only, don't create
     #[arg(long)]
@@ -117,7 +117,7 @@ pub async fn handle_every_command(args: EveryArgs, quiet: bool) -> Result<(), Ni
             cron_expr: cron_expr.clone(),
             timezone: Some(args.tz),
             source: Some("cli".to_string()),
-            overlap: Some(args.overlap),
+            overlap: Some(args.overlap.to_string()),
             inputs_json: None,
         })
         .await

@@ -14,6 +14,78 @@
 //! ```
 
 use crate::source::Span;
+use std::fmt;
+use std::str::FromStr;
+
+/// What to do when a new run would overlap an active one.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OverlapPolicy {
+    /// Skip the run if one is already active (default).
+    #[default]
+    Skip,
+    /// Queue the run to start after the active one finishes.
+    Queue,
+    /// Cancel the active run and start fresh.
+    Replace,
+}
+
+impl fmt::Display for OverlapPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Skip => write!(f, "skip"),
+            Self::Queue => write!(f, "queue"),
+            Self::Replace => write!(f, "replace"),
+        }
+    }
+}
+
+impl FromStr for OverlapPolicy {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "skip" => Ok(Self::Skip),
+            "queue" => Ok(Self::Queue),
+            "replace" => Ok(Self::Replace),
+            other => Err(format!(
+                "invalid overlap policy '{other}' — must be skip, queue, or replace"
+            )),
+        }
+    }
+}
+
+/// How a schedule was created.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScheduleSource {
+    /// Created via `nika every` CLI.
+    #[default]
+    Cli,
+    /// Declared in workflow YAML `schedule:` field.
+    Yaml,
+}
+
+impl fmt::Display for ScheduleSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cli => write!(f, "cli"),
+            Self::Yaml => write!(f, "yaml"),
+        }
+    }
+}
+
+impl FromStr for ScheduleSource {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "cli" => Ok(Self::Cli),
+            "yaml" => Ok(Self::Yaml),
+            other => Err(format!(
+                "invalid schedule source '{other}' — must be cli or yaml"
+            )),
+        }
+    }
+}
 
 /// Parsed and validated schedule configuration.
 #[derive(Debug, Clone)]
@@ -24,8 +96,8 @@ pub struct ScheduleConfig {
     pub timezone: Option<String>,
     /// Original human-readable string (for display). None if raw cron.
     pub human: Option<String>,
-    /// Overlap policy: "skip" (default), "queue", "replace".
-    pub overlap: String,
+    /// Overlap policy.
+    pub overlap: OverlapPolicy,
     /// Start paused?
     pub paused: bool,
     /// Span for diagnostics.
@@ -61,17 +133,11 @@ pub fn parse_schedule_value(
                 validate_timezone(tz)?;
             }
 
-            let overlap = map
+            let overlap: OverlapPolicy = map
                 .get("overlap")
                 .and_then(|v| v.as_str())
                 .unwrap_or("skip")
-                .to_string();
-            if !["skip", "queue", "replace"].contains(&overlap.as_str()) {
-                return Err(format!(
-                    "invalid overlap policy '{}' — must be skip, queue, or replace",
-                    overlap
-                ));
-            }
+                .parse()?;
 
             let paused = map.get("paused").and_then(|v| v.as_bool()).unwrap_or(false);
 
@@ -97,7 +163,7 @@ fn parse_schedule_string(s: &str, span: Span) -> Result<ScheduleConfig, String> 
             cron: trimmed.to_string(),
             timezone: None,
             human: Some(trimmed.to_string()),
-            overlap: "skip".to_string(),
+            overlap: OverlapPolicy::Skip,
             paused: false,
             span,
         });
@@ -116,7 +182,7 @@ fn parse_schedule_string(s: &str, span: Span) -> Result<ScheduleConfig, String> 
                 cron,
                 timezone: tz,
                 human: Some(trimmed.to_string()),
-                overlap: "skip".to_string(),
+                overlap: OverlapPolicy::Skip,
                 paused: false,
                 span,
             });
@@ -131,7 +197,7 @@ fn parse_schedule_string(s: &str, span: Span) -> Result<ScheduleConfig, String> 
             cron,
             timezone: None,
             human: Some(format!("every {trimmed}")),
-            overlap: "skip".to_string(),
+            overlap: OverlapPolicy::Skip,
             paused: false,
             span,
         });
@@ -143,7 +209,7 @@ fn parse_schedule_string(s: &str, span: Span) -> Result<ScheduleConfig, String> 
         cron: trimmed.to_string(),
         timezone: None,
         human: None,
-        overlap: "skip".to_string(),
+        overlap: OverlapPolicy::Skip,
         paused: false,
         span,
     })
@@ -245,7 +311,7 @@ mod tests {
         let config = parse_schedule_value(&val, test_span()).unwrap();
         assert_eq!(config.cron, "0 9 * * 1-5");
         assert_eq!(config.timezone.as_deref(), Some("Europe/Paris"));
-        assert_eq!(config.overlap, "queue");
+        assert_eq!(config.overlap, OverlapPolicy::Queue);
     }
 
     #[test]
@@ -323,6 +389,25 @@ mod tests {
         let val = serde_json::json!("@daily");
         let config = parse_schedule_value(&val, test_span()).unwrap();
         assert_eq!(config.cron, "@daily");
+    }
+
+    #[test]
+    fn overlap_policy_roundtrip() {
+        assert_eq!("skip".parse::<OverlapPolicy>().unwrap(), OverlapPolicy::Skip);
+        assert_eq!("queue".parse::<OverlapPolicy>().unwrap(), OverlapPolicy::Queue);
+        assert_eq!("replace".parse::<OverlapPolicy>().unwrap(), OverlapPolicy::Replace);
+        assert!("invalid".parse::<OverlapPolicy>().is_err());
+        assert_eq!(OverlapPolicy::Skip.to_string(), "skip");
+        assert_eq!(OverlapPolicy::default(), OverlapPolicy::Skip);
+    }
+
+    #[test]
+    fn schedule_source_roundtrip() {
+        assert_eq!("cli".parse::<ScheduleSource>().unwrap(), ScheduleSource::Cli);
+        assert_eq!("yaml".parse::<ScheduleSource>().unwrap(), ScheduleSource::Yaml);
+        assert!("api".parse::<ScheduleSource>().is_err());
+        assert_eq!(ScheduleSource::Cli.to_string(), "cli");
+        assert_eq!(ScheduleSource::default(), ScheduleSource::Cli);
     }
 
     #[test]
