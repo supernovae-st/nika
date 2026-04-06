@@ -4,8 +4,8 @@
 //!
 //! **Core (7):** sleep, log, emit, assert, prompt, run, complete
 //! **File (5):** read, write, edit, glob, grep (requires ToolContext)
-//! **Data (12):** jq, tree_data, inject, map, filter, group_by, enrich,
-//!   json_merge, set_diff, zip, chunk, token_count
+//! **Data (13):** jq, tree_data, inject, map, filter, group_by, enrich,
+//!   json_merge, json_diff, set_diff, zip, chunk, token_count
 //! **Sprint2 (6):** json_verify, yaml_validate, locale_lookup, aggregate,
 //!   json_flatten, json_unflatten
 //! **Media (N):** import, dimensions, thumbhash, dominant_color, pipeline, ...
@@ -56,10 +56,10 @@ impl BuiltinToolRouter {
         tools.insert("run", Arc::new(RunTool));
         tools.insert("complete", Arc::new(CompleteTool));
 
-        // Register 12 data processing tools (split into builtin/data/)
+        // Register 13 data processing tools (split into builtin/data/)
         use super::data::{
-            ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonMergeTool,
-            MapTool, SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
+            ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
+            JsonMergeTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
         };
         tools.insert("json_merge", Arc::new(JsonMergeTool));
         tools.insert("set_diff", Arc::new(SetDiffTool));
@@ -73,6 +73,7 @@ impl BuiltinToolRouter {
         tools.insert("jq", Arc::new(JqTool));
         tools.insert("tree_data", Arc::new(TreeDataTool));
         tools.insert("inject", Arc::new(InjectTool));
+        tools.insert("json_diff", Arc::new(JsonDiffTool));
 
         // Register 6 Sprint 2 data tools
         use super::{
@@ -327,7 +328,8 @@ mod tests {
         assert!(router.has_tool("json_unflatten"));
         assert!(router.has_tool("jq"));
         assert!(router.has_tool("tree_data"));
-        assert_eq!(router.tool_names().len(), 25); // 7 core + 12 data + 6 sprint2
+        assert!(router.has_tool("json_diff"));
+        assert_eq!(router.tool_names().len(), 27); // 7 core + 14 data + 6 sprint2
     }
 
     #[test]
@@ -356,7 +358,7 @@ mod tests {
         assert!(router.has_tool("glob"));
         assert!(router.has_tool("grep"));
 
-        assert_eq!(router.tool_names().len(), 30); // 7 core + 12 data + 6 sprint2 + 5 file
+        assert_eq!(router.tool_names().len(), 31); // 7 core + 13 data + 6 sprint2 + 5 file
     }
 
     #[test]
@@ -440,8 +442,8 @@ mod tests {
     #[test]
     fn test_router_default() {
         let router = BuiltinToolRouter::default();
-        // Default router has 7 core + 12 data + 6 sprint2 tools
-        assert_eq!(router.tool_names().len(), 25);
+        // Default router has 7 core + 13 data + 6 sprint2 tools
+        assert_eq!(router.tool_names().len(), 26);
     }
 
     #[tokio::test]
@@ -821,11 +823,11 @@ mod tests {
             );
         }
 
-        // Verify expected tool count: 7 core + 5 file + 12 data + 6 sprint2 = 30
+        // Verify expected tool count: 7 core + 5 file + 13 data + 6 sprint2 = 31
         assert_eq!(
             router.tool_names().len(),
-            30,
-            "Expected 30 tools (7 core + 5 file + 12 data + 6 sprint2), got {}",
+            31,
+            "Expected 31 tools (7 core + 5 file + 13 data + 6 sprint2), got {}",
             router.tool_names().len()
         );
     }

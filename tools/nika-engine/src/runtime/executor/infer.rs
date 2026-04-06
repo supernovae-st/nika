@@ -494,33 +494,8 @@ impl TaskExecutor {
             return Ok(mock_response_str);
         }
 
-        // Resolve templates in base_url (e.g. {{inputs.api_endpoint}})
-        let resolved_base_url = match &infer.base_url {
-            Some(url) => Some(template_resolve(url, bindings, datastore)?.into_owned()),
-            None => None,
-        };
-
-        // Resolve provider: inline base_url -> cached endpoint -> catalog
-        let provider = if let Some(ref base_url) = resolved_base_url {
-            // Transient provider — not cached (inline URLs are one-off overrides)
-            let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
-                tracing::debug!(
-                    task_id = %task_id,
-                    base_url = %base_url,
-                    "OPENAI_API_KEY not set for custom endpoint, using placeholder key"
-                );
-                "no-key".to_string()
-            });
-            RigProvider::openai_compat(
-                &format!("{}@inline", provider_name),
-                base_url,
-                &api_key,
-                resolved_model.as_deref(),
-                300, // inline base_url uses default timeout
-            )?
-        } else {
-            self.get_rig_provider(provider_name)?
-        };
+        // Resolve provider from endpoint catalog or named endpoint
+        let provider = self.get_rig_provider(provider_name)?;
 
         // Resolve model once via ModelResolver (task > workflow > provider default)
         let resolved_m = ModelResolver::resolve(
@@ -553,7 +528,7 @@ impl TaskExecutor {
             provider: provider.name().to_string(),
             model: model_id.clone(),
             prompt_len: prompt.len(),
-            endpoint_url: resolved_base_url.clone(),
+            endpoint_url: None,
         });
 
         // POLICY CHECK: token budget (atomic reserve to prevent TOCTOU with concurrent for_each).

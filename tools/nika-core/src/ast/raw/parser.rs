@@ -1853,6 +1853,18 @@ fn validate_verb_keys(
                 ),
             });
         }
+        if k == "base_url" {
+            let span = marked_span_to_span(file_id, key.span());
+            return Err(ParseError {
+                kind: ParseErrorKind::UnknownField,
+                span,
+                message: "base_url: is removed. Configure custom endpoints in nika.toml:\n  \
+                          [endpoints.my-server]\n  \
+                          base_url = \"http://...\"\n  \
+                          Then use: provider: my-server"
+                    .to_string(),
+            });
+        }
     }
     Ok(())
 }
@@ -1922,6 +1934,9 @@ fn validate_task_keys(
                 "use" => Some("did you mean 'with'?"),
                 "max_retries" => {
                     Some("did you mean 'retry: { max_attempts: N }'? (max_retries is only valid inside structured:)")
+                }
+                "base_url" => {
+                    Some("base_url: is removed — configure endpoints in nika.toml [endpoints.*] instead")
                 }
                 _ => None,
             };

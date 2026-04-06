@@ -218,10 +218,6 @@ pub struct AgentParams {
     #[serde(default)]
     pub limits: Option<crate::ast::limits::LimitsConfig>,
 
-    /// Base URL for OpenAI-compatible endpoint override.
-    #[serde(default)]
-    pub base_url: Option<String>,
-
     /// Provider fallback chain: try providers in order until one succeeds.
     /// Set from `provider: [groq, anthropic]` or `routing.fallback`.
     #[serde(default)]

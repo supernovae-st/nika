@@ -77,9 +77,6 @@ pub struct InferParams {
     pub content: Option<Vec<crate::ast::content::ContentPart>>,
     /// Guardrails for validating infer output
     pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
-    /// Base URL for OpenAI-compatible endpoint override.
-    /// Resolved precedence: task base_url > workflow base_url > config endpoint > env var.
-    pub base_url: Option<String>,
     /// Provider fallback chain: try providers in order until one succeeds.
     /// Set from `provider: [groq, anthropic]` or `routing.fallback`.
     pub provider_chain: Option<Vec<ProviderName>>,
@@ -133,7 +130,6 @@ impl<'de> Deserialize<'de> for InferParams {
                 thinking_budget: None,
                 content: None,
                 guardrails: Vec::new(),
-                base_url: None,
                 provider_chain: None,
             }),
             InferParamsHelper::Full {
@@ -160,7 +156,6 @@ impl<'de> Deserialize<'de> for InferParams {
                 thinking_budget,
                 content,
                 guardrails,
-                base_url: None,
                 provider_chain: None,
             }),
         }

@@ -231,7 +231,6 @@ fn lower_infer(
             .content
             .map(|parts| parts.into_iter().map(Into::into).collect()),
         guardrails: infer.guardrails,
-        base_url: None,
         provider_chain,
     }
 }
@@ -331,7 +330,6 @@ fn lower_agent(
         completion: agent.completion,
         guardrails: agent.guardrails,
         limits: agent.limits,
-        base_url: None,
         provider_chain,
     }
 }
