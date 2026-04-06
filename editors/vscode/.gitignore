@@ -1,3 +1,5 @@
 *.vsix
 node_modules/
 out/
+vitest.config.js
+vitest.config.js.map
