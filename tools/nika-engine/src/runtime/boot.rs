@@ -169,6 +169,11 @@ pub struct BootstrapConfig {
     pub trace: TraceConfig,
     #[serde(default)]
     pub policy: PolicyConfig,
+    /// Named custom endpoints for OpenAI-compatible servers.
+    /// Project-level endpoints from nika.toml, merged with user-level config.
+    #[serde(default)]
+    pub endpoints:
+        std::collections::HashMap<String, crate::provider::endpoints::CustomEndpointConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -636,6 +641,11 @@ impl BootSequence {
         }
         if project.tools.working_dir.is_none() {
             project.tools.working_dir = user.tools.working_dir.clone();
+        }
+
+        // Endpoints: user-level fills gaps, project-level wins on conflict
+        for (name, ep) in &user.endpoints {
+            project.endpoints.entry(name.clone()).or_insert_with(|| ep.clone());
         }
     }
 

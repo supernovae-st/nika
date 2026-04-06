@@ -3082,8 +3082,19 @@ async fn run_workflow(
         }
     }
 
-    if !config.endpoints.is_empty() {
-        if let Ok(resolved) = nika::provider::endpoints::resolve_endpoints(&config.endpoints) {
+    // Merge endpoints: project nika.toml wins, user config.toml fills gaps
+    let mut all_endpoints = config.endpoints.clone();
+    if let Ok(project) =
+        cli::config::find_project_root_from(&std::env::current_dir().unwrap_or_default())
+    {
+        if let Some(bootstrap) = cli::config::load_project_config(&project.root) {
+            for (name, ep) in bootstrap.endpoints {
+                all_endpoints.entry(name).or_insert(ep);
+            }
+        }
+    }
+    if !all_endpoints.is_empty() {
+        if let Ok(resolved) = nika::provider::endpoints::resolve_endpoints(&all_endpoints) {
             runner.with_custom_endpoints(resolved);
         }
     }
