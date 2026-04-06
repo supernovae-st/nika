@@ -205,7 +205,6 @@ structured:
   max_retries: 3                  # Retry with feedback on validation failure
   enable_repair: true             # Use LLM to fix complex violations
   repair_model: claude-sonnet-4-6 # Model for repair (default: same as task)
-  enable_extractor: true          # Rust-level type extraction
   enable_tool_injection: true     # Inject schema as a tool for provider-side enforcement
   enable_retry: true              # Enable retry with validation errors
 ```
