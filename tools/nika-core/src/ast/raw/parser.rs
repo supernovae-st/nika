@@ -1883,7 +1883,7 @@ fn validate_task_keys(
         "timeout",
         "when",
         "on_error",
-        // skills: only valid in workflow header or agent: blocks (not task level)
+        "guardrails",
         // 5 verb keys
         "infer",
         "exec",
@@ -2009,7 +2009,27 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     };
 
     // Parse all task fields
-    let action = parse_action(file_id, map)?;
+    let mut action = parse_action(file_id, map)?;
+
+    // Merge task-level guardrails: into the infer action.
+    // This enables `guardrails:` as a sibling of shorthand `infer: "string"`.
+    if map.get_node("guardrails").is_some() {
+        let task_guardrails = parse_guardrails_field(file_id, map)?;
+        if !task_guardrails.is_empty() {
+            match &mut action {
+                Some(RawTaskAction::Infer(infer)) => {
+                    if infer.guardrails.is_empty() {
+                        infer.guardrails = task_guardrails;
+                    }
+                    // If infer already has guardrails (full form), task-level is ignored
+                }
+                Some(RawTaskAction::Agent(_)) => {
+                    // Agent tasks already support guardrails inside the verb block
+                }
+                _ => {}
+            }
+        }
+    }
 
     // `agent: <string>` (scalar) is a preset reference — merge into preset field.
     // This is ergonomic sugar: `agent: think` ≡ `preset: think`.

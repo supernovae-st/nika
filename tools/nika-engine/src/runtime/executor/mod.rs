@@ -90,8 +90,13 @@ pub struct TaskExecutor {
     /// Workflow-level skills mapping (alias -> file path)
     /// Arc-wrapped to avoid cloning the map for each spawned task.
     skills_map: Arc<std::collections::HashMap<String, String>>,
-    /// Base directory for resolving relative skill paths
+    /// Base directory for resolving relative skill paths and exec cwd security
     workflow_base_dir: std::path::PathBuf,
+    /// Base directory for resolving skill file paths (always project root).
+    /// Separate from `workflow_base_dir` because skills resolve from the project root
+    /// (consistent with context: files: and nika:read), while workflow_base_dir
+    /// is the workflow file's parent (used for exec cwd security).
+    skills_base_dir: std::path::PathBuf,
     /// Project root directory (parent of nika.toml), used by working_dir_mode "project"
     project_root: Option<std::path::PathBuf>,
     /// Working directory mode from `[tools] working_dir` in nika.toml.
@@ -265,7 +270,8 @@ impl TaskExecutor {
             tool_ctx,
             skill_injector: Arc::new(SkillInjector::new()),
             skills_map: Arc::new(std::collections::HashMap::new()),
-            workflow_base_dir: working_dir,
+            workflow_base_dir: working_dir.clone(),
+            skills_base_dir: working_dir,
             project_root: None,
             working_dir_mode: None,
             custom_endpoints: Arc::new(custom_endpoints.unwrap_or_default()),
@@ -359,12 +365,10 @@ impl TaskExecutor {
         base_dir: std::path::PathBuf,
     ) -> Self {
         self.skills_map = Arc::new(skills_map);
-        // Only set workflow_base_dir if not already set via with_base_path()
-        // (with_base_path uses the workflow file directory which is more specific)
-        let working_dir = std::env::current_dir().unwrap_or_default();
-        if self.workflow_base_dir == working_dir {
-            self.workflow_base_dir = base_dir;
-        }
+        // Skills always resolve from project root (base_dir), consistent with
+        // context: files:, nika:read, and all other file operations.
+        // workflow_base_dir is kept separate for exec cwd security boundaries.
+        self.skills_base_dir = base_dir;
         self
     }
 
@@ -648,6 +652,28 @@ impl TaskExecutor {
         let mut errors: Vec<(String, String)> = Vec::new();
 
         for (idx, provider_name) in fallback_chain.iter().enumerate() {
+            // Skip providers without API keys — avoids wasting time and masking
+            // the real error with a misleading NIKA-032 "missing API key".
+            if let Some(provider_info) = nika_core::catalogs::find_provider(provider_name) {
+                if provider_info.requires_key
+                    && !crate::secrets::has_provider_key(provider_info)
+                {
+                    tracing::debug!(
+                        task_id = %task_id,
+                        provider = %provider_name,
+                        "Skipping provider in fallback chain: no API key configured"
+                    );
+                    errors.push((
+                        provider_name.clone(),
+                        format!(
+                            "[NIKA-032] Missing API key for provider '{}' (skipped)",
+                            provider_name
+                        ),
+                    ));
+                    continue;
+                }
+            }
+
             // Override the provider for this attempt
             let mut action_clone = action.clone();
             match &mut action_clone {
@@ -690,9 +716,11 @@ impl TaskExecutor {
             }
         }
 
-        // Build detailed error message with per-provider failures
-        let last_error = errors
-            .last()
+        // Report the FIRST meaningful error, not the last — the first failure
+        // in the chain is usually the real cause (e.g. NIKA-061 schema error),
+        // while later failures may be secondary (e.g. NIKA-032 missing key).
+        let first_error = errors
+            .first()
             .map(|(_, e)| e.clone())
             .unwrap_or_else(|| "unknown".to_string());
         let details: Vec<String> = errors.iter().map(|(p, e)| format!("{p}: {e}")).collect();
@@ -706,12 +734,12 @@ impl TaskExecutor {
         self.event_log.emit(EventKind::FallbackChainExhausted {
             task_id: Arc::clone(task_id),
             providers_tried: fallback_chain.clone(),
-            last_error: last_error.clone(),
+            last_error: first_error.clone(),
         });
 
         Err(NikaError::FallbackChainExhausted {
             providers: fallback_chain.join(", "),
-            last_error,
+            last_error: first_error,
         })
     }
 

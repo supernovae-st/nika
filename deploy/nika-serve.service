@@ -1,9 +1,13 @@
 # Nika Serve — systemd service
 #
+# IMPORTANT: WorkingDirectory MUST point to your project root (where nika.toml lives).
+# All relative paths in workflows (skills/, config/, output/) resolve from this directory.
+# Without it, nika serve runs from $HOME and all relative paths fail with NIKA-208.
+#
 # Install:
-#   sudo cp deploy/nika-serve.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now nika-serve
+#   1. Copy this file:     sudo cp deploy/nika-serve.service /etc/systemd/system/
+#   2. Edit paths below:   sudo systemctl edit nika-serve  (or edit the file directly)
+#   3. Reload + enable:    sudo systemctl daemon-reload && sudo systemctl enable --now nika-serve
 #
 # Logs:
 #   journalctl -u nika-serve -f
@@ -11,7 +15,7 @@
 # Required env vars in EnvironmentFile:
 #   NIKA_SERVE_TOKEN=<64-char hex token>
 #   ANTHROPIC_API_KEY=sk-ant-...
-#   # (optional) NIKA_VAULT_PASSPHRASE=...
+#   # (optional) OPENAI_API_KEY, XAI_API_KEY, NIKA_VAULT_PASSPHRASE
 
 [Unit]
 Description=Nika Workflow Engine — HTTP API Server
@@ -23,7 +27,10 @@ Wants=network-online.target
 Type=simple
 User=nika
 Group=nika
+
+# ⚠ EDIT THIS: must be your project root (where nika.toml lives)
 WorkingDirectory=/home/nika/nk-jungo
+
 EnvironmentFile=/home/nika/.nika/.env
 ExecStart=/home/nika/.nika/bin/nika serve
 Restart=on-failure
@@ -34,7 +41,7 @@ TimeoutStopSec=30
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/nika/.nika /home/nika/nk-jungo/.nika /home/nika/nk-jungo/artifacts
+ReadWritePaths=/home/nika/.nika /home/nika/nk-jungo/.nika /home/nika/nk-jungo/output
 PrivateTmp=yes
 
 # Resource limits

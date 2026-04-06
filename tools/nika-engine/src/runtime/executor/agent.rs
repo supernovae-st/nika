@@ -36,15 +36,21 @@ impl TaskExecutor {
             template_resolve(&agent.prompt, bindings, datastore)?.into_owned();
 
         // Pre-read file-based from_example for prompt injection
+        // Template-resolve path first (e.g. from_example: "cache/{{inputs.locale}}.json")
         let cached_example = if let Some(policy) = output_policy {
             if let Some(crate::ast::output::SchemaRef::File(ref path)) = policy.from_example {
-                match tokio::fs::read_to_string(path).await {
+                let resolved_path = if path.contains("{{") {
+                    template_resolve(path, bindings, datastore)?.into_owned()
+                } else {
+                    path.clone()
+                };
+                match tokio::fs::read_to_string(&resolved_path).await {
                     Ok(content) => match serde_json::from_str(&content) {
                         Ok(value) => Some(value),
                         Err(e) => {
                             warn!(
                                 task_id = %task_id,
-                                path = %path,
+                                path = %resolved_path,
                                 error = %e,
                                 "from_example file contains invalid JSON, ignoring"
                             );
@@ -52,7 +58,7 @@ impl TaskExecutor {
                         }
                     },
                     Err(e) => {
-                        debug!(task_id = %task_id, "Failed to pre-read from_example '{}': {}", path, e);
+                        debug!(task_id = %task_id, "Failed to pre-read from_example '{}': {}", resolved_path, e);
                         None
                     }
                 }
@@ -280,7 +286,7 @@ impl TaskExecutor {
             agent_loop.with_skills(
                 Arc::clone(&self.skill_injector),
                 (*self.skills_map).clone(),
-                self.workflow_base_dir.clone(),
+                self.skills_base_dir.clone(),
             )
         } else {
             agent_loop

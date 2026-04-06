@@ -681,7 +681,13 @@ jobs:
     steps:
       - name: Extract version
         id: version
-        run: echo "version=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          if [ -z "$VERSION" ] || ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::Invalid version '$VERSION' from RELEASE_TAG='$RELEASE_TAG'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Skip if no token
         if: env.HAS_HOMEBREW_TOKEN != 'true'

@@ -67,6 +67,7 @@ impl Executor {
     ) -> Result<ExecutionResult, String> {
         match self {
             Self::Subprocess => {
+                let start_time = std::time::SystemTime::now();
                 let output = crate::worker::run_subprocess(
                     &ctx.config,
                     workflow,
@@ -76,10 +77,12 @@ impl Executor {
                     &ctx.job_id,
                 )
                 .await?;
-                // Subprocess mode: no artifact metadata available
+                // Scan output directory for artifacts written during execution.
+                let artifacts =
+                    scan_artifacts_dir(&ctx.config.workflows_dir, start_time).await;
                 Ok(ExecutionResult {
                     output,
-                    artifacts: vec![],
+                    artifacts,
                 })
             }
             Self::Embedded => {
@@ -135,6 +138,87 @@ fn extract_artifacts(runner: &nika_engine::runtime::Runner) -> Vec<ArtifactInfo>
 
 /// Execute a workflow in-process using nika-engine Runner.
 ///
+/// Scan the artifacts output directory for files written after `since`.
+///
+/// Used by the Subprocess executor to discover artifacts that the child process
+/// wrote to disk. The embedded executor uses event log extraction instead.
+/// Scans `output/` (default artifacts dir) relative to `base_dir`.
+async fn scan_artifacts_dir(
+    base_dir: &std::path::Path,
+    since: std::time::SystemTime,
+) -> Vec<ArtifactInfo> {
+    let output_dir = base_dir.join("output");
+    if !output_dir.is_dir() {
+        return vec![];
+    }
+    let mut artifacts = Vec::new();
+    if let Err(e) = scan_dir_recursive(&output_dir, &output_dir, since, &mut artifacts) {
+        tracing::warn!(
+            dir = %output_dir.display(),
+            error = %e,
+            "Failed to scan artifacts directory"
+        );
+    }
+    artifacts
+}
+
+/// Recursively scan a directory for files modified after `since`.
+fn scan_dir_recursive(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    since: std::time::SystemTime,
+    out: &mut Vec<ArtifactInfo>,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            if path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+            {
+                continue;
+            }
+            scan_dir_recursive(root, &path, since, out)?;
+        } else if path.is_file() {
+            let meta = entry.metadata()?;
+            let modified = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
+            if modified >= since {
+                if path.file_name().is_some_and(|n| n == "artifacts.json") {
+                    continue;
+                }
+                let rel_path = path
+                    .strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| rel_path.clone());
+                let format = match path.extension().and_then(|e| e.to_str()) {
+                    Some("json") => "json",
+                    Some("txt") => "text",
+                    Some("md") => "markdown",
+                    Some("yaml" | "yml") => "yaml",
+                    Some("html") => "html",
+                    _ => "binary",
+                }
+                .to_string();
+                out.push(ArtifactInfo {
+                    task_id: String::new(),
+                    name,
+                    path: rel_path,
+                    size: meta.len(),
+                    format,
+                    checksum: None,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Parses the workflow YAML, creates a Runner, and executes within the
 /// current process. Supports graceful cancellation via the shutdown signal.
 /// If `event_bus` is provided, forwards task-level events to SSE clients.

@@ -1782,14 +1782,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Set workspace root for CAS media store path resolution
         self.datastore.set_workspace_root(base_path.clone());
 
-        if !self.workflow.context_files.is_empty() {
-            let loaded_context =
-                load_context_analyzed(&self.workflow.context_files, &base_path).await?;
-            self.datastore.set_context(loaded_context);
-            debug!("Loaded {} context files", self.workflow.context_files.len());
-        }
-
-        // Load inputs if workflow has inputs
+        // Load inputs BEFORE context files so that {{inputs.*}} templates
+        // in context file paths can be resolved (BUG-5 fix).
         if !self.workflow.inputs.is_empty() {
             let inputs_map: rustc_hash::FxHashMap<String, serde_json::Value> = self
                 .workflow
@@ -1799,6 +1793,26 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .collect();
             self.datastore.set_inputs(inputs_map);
             debug!("Loaded {} input parameters", self.workflow.inputs.len());
+        }
+
+        if !self.workflow.context_files.is_empty() {
+            // Resolve {{inputs.*}} templates in context file paths before loading.
+            let mut resolved_files = self.workflow.context_files.clone();
+            for cf in &mut resolved_files {
+                if cf.path.contains("{{") {
+                    let empty_with = rustc_hash::FxHashMap::default();
+                    cf.path = crate::binding::template_resolve_with(
+                        &cf.path,
+                        &empty_with,
+                        &self.datastore,
+                    )?
+                    .into_owned();
+                }
+            }
+            let loaded_context =
+                load_context_analyzed(&resolved_files, &base_path).await?;
+            self.datastore.set_context(loaded_context);
+            debug!("Loaded {} context files", self.workflow.context_files.len());
         }
 
         // Resolve agents

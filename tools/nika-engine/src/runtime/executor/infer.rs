@@ -14,6 +14,7 @@ use nika_core::catalogs::ModelResolver;
 use crate::provider::rig::RigProvider;
 
 use crate::ast::output::{OutputPolicy, SchemaRef};
+use crate::ast::structured::StructuredOutputSpec;
 use crate::ast::InferParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
@@ -117,7 +118,7 @@ impl TaskExecutor {
                     resolved_system.as_deref(),
                     &all_skills,
                     &self.skills_map,
-                    &self.workflow_base_dir,
+                    &self.skills_base_dir,
                 )
                 .await?;
             if injected.is_empty() {
@@ -583,6 +584,7 @@ impl TaskExecutor {
             if let Some(policy) = output_policy {
                 if policy.is_structured() {
                     if let Some(spec) = policy.to_structured_spec() {
+                        let spec = resolve_from_example_in_spec(spec, &cached_example);
                         let infer_callback = Self::make_infer_callback(&provider, None);
                         let mut engine = StructuredOutputEngine::new(
                             spec.clone(),
@@ -764,6 +766,7 @@ impl TaskExecutor {
                             provider_name,
                             &resolved_system,
                             &mut token_reservation,
+                            &cached_example,
                         )
                         .await?
                     } else {
@@ -791,6 +794,7 @@ impl TaskExecutor {
                                     provider_name,
                                     &resolved_system,
                                     &mut token_reservation,
+                                    &cached_example,
                                 )
                                 .await?
                             {
@@ -1026,6 +1030,7 @@ impl TaskExecutor {
         if let Some(policy) = output_policy {
             if policy.is_structured() {
                 if let Some(spec) = policy.to_structured_spec() {
+                    let spec = resolve_from_example_in_spec(spec, &cached_example);
                     debug!(
                         task_id = %task_id,
                         "Validating structured output via StructuredOutputEngine (Layers 1-3)"
@@ -1117,6 +1122,7 @@ impl TaskExecutor {
         provider_name: &str,
         resolved_system: &Option<String>,
         token_reservation: &mut crate::runtime::policy::TokenReservation,
+        cached_example: &Option<Value>,
     ) -> Result<(bool, Option<String>), NikaError> {
         if !provider.supports_native_structured_output() {
             return Ok((false, None));
@@ -1145,6 +1151,7 @@ impl TaskExecutor {
             Ok(stream_result) => {
                 // Validate through StructuredOutputEngine as safety net
                 if let Some(spec) = policy.to_structured_spec() {
+                    let spec = resolve_from_example_in_spec(spec, cached_example);
                     let mut engine =
                         StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
                             .with_infer_callback(l0_infer_callback.clone())
@@ -1294,6 +1301,7 @@ impl TaskExecutor {
         provider_name: &str,
         resolved_system: &Option<String>,
         token_reservation: &mut crate::runtime::policy::TokenReservation,
+        cached_example: &Option<Value>,
     ) -> Result<Option<String>, NikaError> {
         let submit_tool = crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value.clone());
         let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
@@ -1331,6 +1339,7 @@ impl TaskExecutor {
 
                 // Still validate through the engine as safety net
                 if let Some(spec) = policy.to_structured_spec() {
+                    let spec = resolve_from_example_in_spec(spec, cached_example);
                     let mut engine =
                         StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
                             .with_infer_callback(l0_infer_callback.clone())
@@ -1872,6 +1881,19 @@ impl TaskExecutor {
 
         Ok(())
     }
+}
+
+/// Replace a file-based `from_example` with the already-loaded inline value.
+/// This prevents `StructuredOutputEngine` from re-reading the file using a
+/// potentially unresolved template path (BUG-1: from_example template resolution).
+fn resolve_from_example_in_spec(
+    mut spec: StructuredOutputSpec,
+    cached_example: &Option<Value>,
+) -> StructuredOutputSpec {
+    if let Some(ref example) = cached_example {
+        spec.from_example = Some(SchemaRef::Inline(example.clone()));
+    }
+    spec
 }
 
 #[cfg(test)]
