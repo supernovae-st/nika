@@ -1131,8 +1131,11 @@ fn do_increment_retry(conn: &Connection, id: &str) -> StorageResult<u32> {
 }
 
 fn do_list_jobs_for_workflow(conn: &Connection, workflow: &str) -> StorageResult<Vec<Job>> {
+    // Raised from LIMIT 10 to LIMIT 100 to prevent overlap detection blind spots
+    // when history depth exceeds the limit. Also used by GetWorkflowHistory for
+    // history dots, so we return all states (not just pending/running).
     let sql = format!(
-        "SELECT {} FROM jobs WHERE workflow = ?1 ORDER BY created_at DESC LIMIT 10",
+        "SELECT {} FROM jobs WHERE workflow = ?1 ORDER BY created_at DESC LIMIT 100",
         JOB_COLUMNS
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -1474,9 +1477,11 @@ fn do_update_schedule_after_fire(
     last_job_id: &str,
 ) -> StorageResult<()> {
     let now = chrono::Utc::now().to_rfc3339();
+    // TOCTOU guard: only update if no concurrent tick already fired (last_run_at < ours)
     let affected = conn.execute(
         "UPDATE schedules SET last_run_at = ?1, next_run_at = ?2, last_job_id = ?3, \
-         run_count = run_count + 1, updated_at = ?4 WHERE id = ?5",
+         run_count = run_count + 1, updated_at = ?4 \
+         WHERE id = ?5 AND (last_run_at IS NULL OR last_run_at < ?1)",
         params![last_run_at, next_run_at, last_job_id, now, id],
     )?;
     if affected == 0 {
@@ -2283,5 +2288,61 @@ mod tests {
             .unwrap();
         let sched = storage.get_schedule("s1").await.unwrap().unwrap();
         assert_eq!(sched.name, "daily");
+    }
+
+    #[tokio::test]
+    async fn schedule_update_cron() {
+        let storage = Storage::open_memory().unwrap();
+
+        // Insert a schedule with initial cron and fire it once to set run_count=1
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+        storage
+            .update_schedule_after_fire(
+                "s1",
+                "2026-04-06T09:00:00+00:00",
+                Some("2026-04-07T09:00:00+00:00"),
+                "job-1",
+            )
+            .await
+            .unwrap();
+
+        // Verify initial state: run_count = 1, cron = "0 9 * * *", paused = false
+        let before = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert_eq!(before.run_count, 1);
+        assert_eq!(before.cron_expr, "0 9 * * *");
+        assert!(!before.paused);
+
+        // Update cron expression, next_run_at, and pause the schedule
+        storage
+            .update_schedule_cron(
+                "s1",
+                "0 12 * * 1-5",
+                Some("2026-04-07T12:00:00+00:00"),
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Verify: cron changed, paused changed, run_count preserved
+        let after = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert_eq!(after.cron_expr, "0 12 * * 1-5", "cron should be updated");
+        assert_eq!(
+            after.next_run_at.as_deref(),
+            Some("2026-04-07T12:00:00+00:00"),
+            "next_run_at should be updated"
+        );
+        assert!(after.paused, "schedule should now be paused");
+        assert_eq!(
+            after.run_count, 1,
+            "run_count should be preserved (not reset)"
+        );
+        assert_eq!(
+            after.last_job_id.as_deref(),
+            Some("job-1"),
+            "last_job_id should be preserved"
+        );
     }
 }

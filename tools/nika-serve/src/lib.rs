@@ -471,7 +471,8 @@ async fn reconcile_yaml_schedules(
             }
         };
 
-        // Derive name from workflow path relative to workflows_dir
+        // Derive name from workflow path relative to workflows_dir.
+        // Use "::" as separator to avoid collision between "a/b.nika.yaml" and "a-b.nika.yaml".
         let rel = path
             .strip_prefix(workflows_dir)
             .unwrap_or(&path)
@@ -480,9 +481,10 @@ async fn reconcile_yaml_schedules(
         let name = rel
             .trim_end_matches(".nika.yaml")
             .trim_end_matches(".nika.yml")
-            .replace('/', "-");
+            .replace('/', "::");
 
-        let paused = header.contains("paused: true");
+        // Use config.paused from the parser (not raw text scan which can false-positive on comments)
+        let paused = config.paused;
         yaml_schedules.insert(name.clone(), (config.cron.clone(), paused));
 
         // Rule 1 & 2: check DB

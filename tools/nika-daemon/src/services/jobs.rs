@@ -199,9 +199,24 @@ impl JobService {
         // J2: kill child on drop (prevents orphans on timeout or panic)
         cmd.kill_on_drop(true);
 
-        let child = cmd
+        let mut child = cmd
             .spawn()
             .map_err(|e| DaemonError::Lifecycle(format!("failed to spawn nika run: {e}")))?;
+
+        // Write inputs to stdin before handing child to the monitor task.
+        // Must happen before wait_for_child to avoid deadlock (child blocks on stdin read).
+        if let Some(ref args_json) = job.args {
+            if let Some(stdin) = child.stdin.take() {
+                let data = args_json.clone().into_bytes();
+                tokio::spawn(async move {
+                    use tokio::io::AsyncWriteExt;
+                    let mut stdin = stdin;
+                    let _ = stdin.write_all(&data).await;
+                    let _ = stdin.shutdown().await;
+                    // stdin dropped here → sends EOF to child
+                });
+            }
+        }
 
         let child_pid = child.id().unwrap_or(0);
         debug!(job_id, child_pid, "job process spawned");
@@ -595,13 +610,15 @@ async fn fire_from_schedules_table(
                     "schedule fired"
                 );
 
-                // Recompute next_run_at from NOW (prevents drift)
+                // Recompute next_run_at from NOW (respect timezone, prevents drift)
                 let cron: croner::Cron = match sched.cron_expr.parse() {
                     Ok(c) => c,
                     Err(_) => continue,
                 };
+                let tz: chrono_tz::Tz = sched.timezone.parse().unwrap_or(chrono_tz::UTC);
+                let now_tz = now.with_timezone(&tz);
                 let next_run = cron
-                    .find_next_occurrence(&now, false)
+                    .find_next_occurrence(&now_tz, false)
                     .ok()
                     .map(|dt| dt.to_rfc3339());
 
@@ -851,5 +868,71 @@ mod tests {
 
         // Should NOT fire a new job — the existing one is still running.
         assert_eq!(after, before, "should not double-fire while job is running");
+    }
+
+    #[tokio::test]
+    async fn cron_fire_replaces_active_job() {
+        let svc = setup().await;
+        let now = chrono::Utc::now();
+        let past = (now - chrono::Duration::minutes(5)).to_rfc3339();
+
+        // Insert a first-class schedule with overlap="replace" and a past next_run_at
+        let schedule = nika_storage::CronSchedule {
+            id: "sched-replace".to_string(),
+            name: "replacer".to_string(),
+            workflow: "replace.nika.yaml".to_string(),
+            cron_expr: "* * * * *".to_string(),
+            timezone: "UTC".to_string(),
+            paused: false,
+            source: "cli".to_string(),
+            overlap: "replace".to_string(),
+            inputs_json: None,
+            last_run_at: None,
+            next_run_at: Some(past),
+            run_count: 0,
+            last_job_id: None,
+            created_at: now.to_rfc3339(),
+            updated_at: now.to_rfc3339(),
+        };
+        svc.storage.insert_schedule(schedule).await.unwrap();
+
+        // Insert a running job directly via storage (avoid spawning a real child process)
+        let old_id = "old-running-job";
+        svc.storage
+            .create_job(old_id, "replace.nika.yaml")
+            .await
+            .unwrap();
+        svc.storage
+            .update_state(old_id, JobState::Running, None, None)
+            .await
+            .unwrap();
+        svc.running.lock().await.insert(old_id.to_string(), 0);
+
+        // Fire schedules — overlap:replace should cancel the running job and submit a new one
+        // submit() will spawn a real process; it may fail but the cancel + insert happen first
+        let _ = fire_due_cron_jobs(&svc).await;
+
+        // Verify the old job was cancelled
+        let old_job = svc.get_job(old_id).await.unwrap().unwrap();
+        assert_eq!(
+            old_job.state,
+            JobState::Cancelled,
+            "overlap:replace should cancel the active job"
+        );
+
+        // Verify a new job was created for the same workflow
+        let all_jobs = svc
+            .storage
+            .list_jobs_for_workflow("replace.nika.yaml")
+            .await
+            .unwrap();
+        let new_jobs: Vec<_> = all_jobs
+            .iter()
+            .filter(|j| j.id != old_id)
+            .collect();
+        assert!(
+            !new_jobs.is_empty(),
+            "overlap:replace should have submitted a new job after cancelling the old one"
+        );
     }
 }

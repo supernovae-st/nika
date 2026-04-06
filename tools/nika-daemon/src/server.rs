@@ -911,13 +911,17 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
                 };
             }
 
-            // Compute initial next_run_at
+            // Compute initial next_run_at (respect timezone)
             let now = chrono::Utc::now();
             let parsed_cron: croner::Cron = cron_expr.parse().unwrap(); // already validated
-            let next_run_at = parsed_cron
-                .find_next_occurrence(&now, false)
-                .ok()
-                .map(|dt| dt.to_rfc3339());
+            let next_run_at = {
+                let tz: chrono_tz::Tz = tz_str.parse().unwrap_or(chrono_tz::UTC);
+                let now_tz = now.with_timezone(&tz);
+                parsed_cron
+                    .find_next_occurrence(&now_tz, false)
+                    .ok()
+                    .map(|dt| dt.to_rfc3339())
+            };
 
             let id = uuid::Uuid::new_v4().to_string();
             let schedule = nika_storage::CronSchedule {
