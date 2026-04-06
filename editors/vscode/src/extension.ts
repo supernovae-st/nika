@@ -965,6 +965,10 @@ export function activate(context: ExtensionContext): void {
 }
 
 export function deactivate(): Thenable<void> | undefined {
+  if (statusPollInterval !== undefined) {
+    clearInterval(statusPollInterval);
+    statusPollInterval = undefined;
+  }
   if (!client) {
     return undefined;
   }
