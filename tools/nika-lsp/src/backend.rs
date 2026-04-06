@@ -48,6 +48,7 @@ struct ParseSuccessNotification {
 /// Sent when a workflow task changes state during execution.
 /// The VS Code extension uses this to update the DAG webview in real-time.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)] // Defined now, emission wired post-launch
 pub struct ExecutionEventParams {
     /// Task ID from the workflow
     pub task_id: String,
@@ -62,6 +63,7 @@ pub struct ExecutionEventParams {
 ///
 /// Server→client notification for live DAG updates during workflow execution.
 /// Actual emission requires in-process engine execution (post-launch feature).
+#[allow(dead_code)] // Defined now, emission wired post-launch
 pub enum ExecutionEventNotification {}
 
 impl Notification for ExecutionEventNotification {
@@ -1281,5 +1283,36 @@ tasks:
         let l0 = nodes[0]["line"].as_u64().unwrap();
         let l1 = nodes[1]["line"].as_u64().unwrap();
         assert!(l0 < l1, "second task on later line: {l0} < {l1}");
+    }
+
+    // ── ExecutionEventNotification tests ───────────────────────────────
+
+    #[test]
+    fn execution_event_method_is_correct() {
+        assert_eq!(ExecutionEventNotification::METHOD, "nika/executionEvent");
+    }
+
+    #[test]
+    fn execution_event_params_serialize() {
+        let params = ExecutionEventParams {
+            task_id: "scrape".into(),
+            status: "running".into(),
+            duration_ms: None,
+        };
+        let json = serde_json::to_value(&params).unwrap();
+        assert_eq!(json["task_id"], "scrape");
+        assert_eq!(json["status"], "running");
+        assert!(json.get("duration_ms").is_none());
+    }
+
+    #[test]
+    fn execution_event_params_with_duration() {
+        let params = ExecutionEventParams {
+            task_id: "generate".into(),
+            status: "success".into(),
+            duration_ms: Some(1234),
+        };
+        let json = serde_json::to_value(&params).unwrap();
+        assert_eq!(json["duration_ms"], 1234);
     }
 }
