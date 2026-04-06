@@ -73,11 +73,11 @@ impl DaemonProvider for DisconnectedProvider {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Contract test — verifies any DaemonProvider impl behaves correctly.
-    async fn verify_provider_contract(p: &dyn DaemonProvider) {
+    pub(crate) async fn verify_provider_contract_ext(p: &dyn DaemonProvider) {
         // is_connected returns consistent state
         let _connected = p.is_connected();
 
@@ -99,7 +99,7 @@ mod tests {
     #[tokio::test]
     async fn disconnected_provider_satisfies_contract() {
         let p = DisconnectedProvider;
-        verify_provider_contract(&p).await;
+        verify_provider_contract_ext(&p).await;
         assert!(!p.is_connected());
         assert!(p.provider_status().await.is_empty());
     }
