@@ -718,4 +718,115 @@ mod tests {
             );
         }
     }
+
+    /// Guard: every tool registered in with_file_tools router exists in the catalog.
+    ///
+    /// This catches the case where a new tool is added to the router (core, data,
+    /// sprint2, or file) but not to KNOWN_BUILTIN_TOOLS in nika-core.
+    #[test]
+    fn builtins_catalog_covers_router_tools() {
+        let (_temp, ctx) = setup_test_context();
+        let router = BuiltinToolRouter::with_file_tools(ctx);
+        let router_names: Vec<&str> = router.tool_names();
+
+        for name in &router_names {
+            assert!(
+                nika_core::catalogs::builtins::is_known_builtin(name),
+                "Router tool '{}' missing from KNOWN_BUILTIN_TOOLS in nika-core — \
+                 add it to nika-core/src/catalogs/builtins.rs",
+                name
+            );
+        }
+
+        // Sanity: file tools must be present (they are context-dependent)
+        assert!(
+            router_names.contains(&"read"),
+            "with_file_tools router must include 'read'"
+        );
+        assert!(
+            router_names.contains(&"write"),
+            "with_file_tools router must include 'write'"
+        );
+    }
+
+    /// Guard: explicit category-by-category check that known tools exist in the router.
+    ///
+    /// Unlike builtins_catalog_matches_router (which uses an allowlist for context-dependent
+    /// tools), this test explicitly names every tool we expect and verifies the router has
+    /// it. If a tool is removed from the router, this test fails loudly.
+    #[test]
+    fn builtins_catalog_core_in_router() {
+        let (_temp, ctx) = setup_test_context();
+        let router = BuiltinToolRouter::with_file_tools(ctx);
+
+        // Core (7)
+        let core_tools = [
+            "sleep", "log", "emit", "assert", "prompt", "run", "complete",
+        ];
+        for name in &core_tools {
+            assert!(
+                router.has_tool(name),
+                "Core tool '{}' missing from router",
+                name
+            );
+        }
+
+        // File (5)
+        let file_tools = ["read", "write", "edit", "glob", "grep"];
+        for name in &file_tools {
+            assert!(
+                router.has_tool(name),
+                "File tool '{}' missing from router",
+                name
+            );
+        }
+
+        // Data (12)
+        let data_tools = [
+            "json_merge",
+            "set_diff",
+            "zip",
+            "map",
+            "filter",
+            "group_by",
+            "chunk",
+            "token_count",
+            "enrich",
+            "jq",
+            "tree_data",
+            "inject",
+        ];
+        for name in &data_tools {
+            assert!(
+                router.has_tool(name),
+                "Data tool '{}' missing from router",
+                name
+            );
+        }
+
+        // Sprint 2 (6)
+        let sprint2_tools = [
+            "json_verify",
+            "yaml_validate",
+            "locale_lookup",
+            "aggregate",
+            "json_flatten",
+            "json_unflatten",
+        ];
+        for name in &sprint2_tools {
+            assert!(
+                router.has_tool(name),
+                "Sprint2 tool '{}' missing from router",
+                name
+            );
+        }
+
+        // Verify expected tool count: 7 core + 5 file + 12 data + 6 sprint2 = 30
+        assert_eq!(
+            router.tool_names().len(),
+            30,
+            "Expected 30 tools (7 core + 5 file + 12 data + 6 sprint2), got {}",
+            router.tool_names().len()
+        );
+    }
 }
