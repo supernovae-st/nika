@@ -177,7 +177,7 @@ pub fn find_task_by_id(content: &str, task_id: &str) -> Option<TaskDefinition> {
 /// Convert a byte span to line and column numbers.
 ///
 /// Returns (line, column) as 0-indexed values.
-fn span_to_line_col(content: &str, span: &Span) -> (u32, u32) {
+pub(crate) fn span_to_line_col(content: &str, span: &Span) -> (u32, u32) {
     let mut line = 0u32;
     let mut col = 0u32;
     let mut current_offset = 0usize;

@@ -51,6 +51,7 @@ async fn main() {
 
     let (service, socket) = LspService::build(backend::NikaBackend::new)
         .custom_method("nika/daemonStatus", backend::NikaBackend::daemon_status)
+        .custom_method("nika/workflowGraph", backend::NikaBackend::workflow_graph)
         .finish();
 
     Server::new(stdin, stdout, socket).serve(service).await;

@@ -186,6 +186,106 @@ impl NikaBackend {
             "watch_active": caps.as_ref().map(|c| c.watch_active),
         }))
     }
+
+    /// Custom request handler: nika/workflowGraph
+    ///
+    /// Returns the DAG graph data for the webview panel.
+    /// Parses the workflow AST and extracts nodes (tasks) and edges (dependencies).
+    pub async fn workflow_graph(
+        &self,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        use nika_core::ast::raw::RawTaskAction;
+
+        let uri_str = params
+            .get("uri")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                tower_lsp_server::jsonrpc::Error::invalid_params("missing uri")
+            })?;
+
+        let uri: Uri = uri_str.parse().map_err(|_| {
+            tower_lsp_server::jsonrpc::Error::invalid_params("invalid uri")
+        })?;
+
+        let content = match self.documents.get(&uri) {
+            Some(doc) => doc.content().to_string(),
+            None => return Ok(serde_json::json!({ "workflowName": "", "nodes": [], "edges": [] })),
+        };
+
+        let parsed = crate::ast_integration::parse_workflow(&content);
+        let mut nodes = Vec::new();
+        let mut edges = Vec::new();
+
+        if let Some(ref workflow) = parsed.workflow {
+            for task in &workflow.tasks.value {
+                let t = &task.value;
+                let verb = match &t.action {
+                    Some(RawTaskAction::Infer(_)) => "infer",
+                    Some(RawTaskAction::Exec(_)) => "exec",
+                    Some(RawTaskAction::Fetch(_)) => "fetch",
+                    Some(RawTaskAction::Invoke(_)) => "invoke",
+                    Some(RawTaskAction::Agent(_)) => "agent",
+                    None => "unknown",
+                };
+                let (line, _col) =
+                    crate::ast_integration::span_to_line_col(&content, &task.span);
+
+                nodes.push(serde_json::json!({
+                    "id": t.id.value,
+                    "label": t.id.value,
+                    "verb": verb,
+                    "status": "pending",
+                    "dependsOn": t.depends_on_ids(),
+                    "line": line,
+                }));
+
+                // Explicit depends_on edges
+                for dep in t.depends_on_ids() {
+                    edges.push(serde_json::json!({
+                        "id": format!("{}->{}", dep, t.id.value),
+                        "source": dep,
+                        "target": t.id.value,
+                        "isDataEdge": false,
+                    }));
+                }
+
+                // Implicit data edges from with: bindings ($task_ref)
+                if let Some(ref with_refs) = t.with_refs {
+                    for (_alias, binding) in &with_refs.value {
+                        let val = binding.value.as_str();
+                        if let Some(ref_id) = val.strip_prefix('$') {
+                            let base_id = ref_id.split('.').next().unwrap_or(ref_id);
+                            if base_id != "env"
+                                && base_id != "inputs"
+                                && !t.depends_on_ids().contains(&base_id)
+                            {
+                                edges.push(serde_json::json!({
+                                    "id": format!("{}->{}:data", base_id, t.id.value),
+                                    "source": base_id,
+                                    "target": t.id.value,
+                                    "isDataEdge": true,
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let workflow_name = parsed
+            .workflow
+            .as_ref()
+            .and_then(|w| w.workflow.as_ref())
+            .map(|s| s.value.as_str())
+            .unwrap_or("workflow");
+
+        Ok(serde_json::json!({
+            "workflowName": workflow_name,
+            "nodes": nodes,
+            "edges": edges,
+        }))
+    }
 }
 
 /// Background worker that processes validation requests.
