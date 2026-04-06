@@ -6,6 +6,7 @@ import {
   Uri,
   ProgressLocation,
   env,
+  StatusBarAlignment,
 } from 'vscode';
 import {
   LanguageClient,
@@ -588,11 +589,7 @@ export function activate(context: ExtensionContext): void {
   context.subscriptions.push(outputChannel);
 
   // Status bar item
-  statusBarItem = window.createStatusBarItem(
-    // @ts-ignore -- StatusBarAlignment.Left is 1
-    1, // vscode.StatusBarAlignment.Left
-    100,
-  );
+  statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
   statusBarItem.command = 'nika.showOutput';
   statusBarItem.text = '$(zap) Nika: Starting...';
   statusBarItem.tooltip = 'Nika Language Server';
