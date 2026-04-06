@@ -222,8 +222,8 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
         }
 
         // Check task-level model name is recognized
-        // Only warn when no explicit provider on this task.
-        if task.provider.is_none() {
+        // Only warn when no explicit provider on this task or inherited from workflow.
+        if task.provider.is_none() && raw.provider.is_none() {
             if let Some(ref task_model) = task.model {
                 check_model_name(task_model, &mut ctx);
             }
@@ -4494,6 +4494,67 @@ tasks:
             model_warnings.is_empty(),
             "workflow-level model with explicit provider should not warn, got: {:?}",
             model_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_model_with_inherited_workflow_provider_no_warning() {
+        // Task has model: llama-3.1-8b-instant but NO task-level provider.
+        // Workflow has provider: groq → model is served by groq, no warning.
+        let mut task = make_raw_task("gen");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("hello".to_string(), make_span(0, 5)),
+                ..Default::default()
+            },
+            make_span(0, 20),
+        )));
+        task.model = Some(Spanned::new(
+            "llama-3.1-8b-instant".to_string(),
+            make_span(0, 20),
+        ));
+        // No task.provider — inherited from workflow
+
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        raw.provider = Some(Spanned::new("groq".to_string(), make_span(0, 4)));
+
+        let result = validate(&raw);
+        let model_warnings: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.message.contains("not a recognized model"))
+            .collect();
+        assert!(
+            model_warnings.is_empty(),
+            "inherited workflow provider should suppress task model warning, got: {:?}",
+            model_warnings
+        );
+    }
+
+    #[test]
+    fn test_validate_model_without_any_provider_warns() {
+        // Task has exotic model, no task-level provider, no workflow-level provider.
+        // Should warn about unrecognized model.
+        let mut task = make_raw_task("gen");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("hello".to_string(), make_span(0, 5)),
+                ..Default::default()
+            },
+            make_span(0, 20),
+        )));
+        task.model = Some(Spanned::new("exotic-llm-v99".to_string(), make_span(0, 14)));
+        // No task.provider, no workflow provider
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = validate(&raw);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("not a recognized model")),
+            "no provider anywhere should warn about exotic model, got: {:?}",
+            result.warnings
         );
     }
 
