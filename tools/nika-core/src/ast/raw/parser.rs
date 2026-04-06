@@ -1439,6 +1439,15 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         None => None,
     };
 
+    // Parse schedule configuration (recurring execution)
+    workflow.schedule = match map.get_node("schedule") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            Some(Spanned::new(node_to_json(node), span))
+        }
+        None => None,
+    };
+
     // Parse global workflow timeout
     workflow.max_duration_secs = get_u64_field(file_id, map, "max_duration_secs")?;
 
@@ -1465,6 +1474,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "skills",
         "orchestrate",
         "routing",
+        "schedule",
         "max_duration_secs",
         "tasks",
     ];

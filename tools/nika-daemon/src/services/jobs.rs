@@ -529,32 +529,58 @@ async fn fire_from_schedules_table(
             continue;
         }
 
-        // Overlap protection: skip if a job for this workflow is pending/running
-        if sched.overlap == nika_core::ast::schedule::OverlapPolicy::Skip.to_string() {
-            let active_jobs = service
-                .storage
-                .list_jobs_for_workflow(&sched.workflow)
-                .await?;
-            let already_active = active_jobs.iter().any(|j| {
+        // Overlap protection based on policy
+        let policy: nika_core::ast::schedule::OverlapPolicy = sched
+            .overlap
+            .parse()
+            .unwrap_or_default();
+
+        let active_jobs = service
+            .storage
+            .list_jobs_for_workflow(&sched.workflow)
+            .await?;
+        let active: Vec<_> = active_jobs
+            .iter()
+            .filter(|j| {
                 j.state == nika_storage::JobState::Pending
                     || j.state == nika_storage::JobState::Running
-            });
-            if already_active {
-                debug!(
-                    schedule = %sched.name,
-                    workflow = %sched.workflow,
-                    "skipping — active job exists (overlap: skip)"
-                );
-                continue;
+            })
+            .collect();
+
+        match policy {
+            nika_core::ast::schedule::OverlapPolicy::Skip => {
+                if !active.is_empty() {
+                    debug!(
+                        schedule = %sched.name,
+                        workflow = %sched.workflow,
+                        "skipping — active job exists (overlap: skip)"
+                    );
+                    continue;
+                }
+            }
+            nika_core::ast::schedule::OverlapPolicy::Queue => {
+                // Fall through — submit alongside running jobs
+            }
+            nika_core::ast::schedule::OverlapPolicy::Replace => {
+                for j in &active {
+                    if let Err(e) = service.cancel(&j.id).await {
+                        warn!(
+                            schedule = %sched.name,
+                            job_id = %j.id,
+                            error = %e,
+                            "replace: cancel failed"
+                        );
+                    }
+                }
             }
         }
 
-        // Fire: submit a new job
+        // Fire: submit a new job (forward inputs_json if present)
         match service
             .submit(
                 &sched.workflow,
                 Some(&sched.name),
-                None,
+                sched.inputs_json.as_deref(),
                 Some(&sched.cron_expr),
                 0,
             )

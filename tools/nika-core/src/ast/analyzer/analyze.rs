@@ -452,7 +452,22 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     });
 
-    // 3c. Global workflow timeout (default: 3600s = 1h)
+    // 3c. Parse schedule configuration (recurring execution)
+    workflow.schedule = raw.schedule.as_ref().and_then(|s| {
+        match crate::ast::schedule::parse_schedule_value(&s.value, s.span) {
+            Ok(config) => Some(config),
+            Err(e) => {
+                ctx.add_error(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    s.span,
+                    format!("invalid schedule: {e}"),
+                ));
+                None
+            }
+        }
+    });
+
+    // 3d. Global workflow timeout (default: 3600s = 1h)
     workflow.max_duration_secs = raw
         .max_duration_secs
         .as_ref()

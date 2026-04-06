@@ -78,6 +78,9 @@ pub struct RawWorkflow {
     /// Routing configuration (fallback chains, smart routing).
     pub routing: Option<Spanned<serde_json::Value>>,
 
+    /// Schedule configuration for recurring execution.
+    pub schedule: Option<Spanned<serde_json::Value>>,
+
     /// Global workflow timeout in seconds (optional, default: 3600s = 1h).
     pub max_duration_secs: Option<Spanned<u64>>,
 

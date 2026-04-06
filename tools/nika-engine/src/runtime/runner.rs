@@ -3297,6 +3297,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         }
@@ -3446,6 +3447,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         }
@@ -3604,6 +3606,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         }
@@ -4370,6 +4373,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         }
@@ -6719,6 +6723,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         }
@@ -7024,6 +7029,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         };
@@ -7286,6 +7292,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         };
@@ -7403,6 +7410,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         };
@@ -7524,6 +7532,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         }
@@ -7756,6 +7765,7 @@ mod tests {
             skills_map: std::collections::HashMap::new(),
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         };
@@ -7883,6 +7893,7 @@ mod tests {
             include: vec![],
             orchestrate: None,
             routing: None,
+            schedule: None,
             max_duration_secs: 3600,
             span: Span::dummy(),
         };
