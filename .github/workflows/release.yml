@@ -922,7 +922,6 @@ jobs:
       - name: Warn if Open VSX PAT is missing
         if: env.HAS_OVSX_PAT != 'true'
         run: echo "::warning::OVSX_PAT secret is missing — Open VSX publish was SKIPPED."
-          fi
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Publish npm Packages (platform binaries + main wrapper)
