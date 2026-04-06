@@ -26,6 +26,7 @@ pub mod metrics;
 pub mod openapi;
 pub mod rate_limit;
 pub mod request_id;
+pub mod token_store;
 pub mod routes;
 pub mod state;
 pub mod webhook;
@@ -92,6 +93,27 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         info!("panic isolation enabled: workflow panics are caught at task boundary");
     }
 
+    // Determine auth mode: MultiKey if tokens exist in DB, else Legacy
+    let token_count = storage.count_tokens().await.unwrap_or(0);
+    let auth_mode = if token_count > 0 {
+        if std::env::var("NIKA_SERVE_TOKEN").is_ok() {
+            tracing::warn!(
+                "NIKA_SERVE_TOKEN is set but {} named tokens exist — using multi-key mode \
+                 (env var ignored)",
+                token_count
+            );
+        }
+        info!(count = token_count, "multi-key auth mode");
+        Arc::new(token_store::AuthMode::MultiKey {
+            store: token_store::TokenStore::new(storage.clone()),
+        })
+    } else {
+        info!("legacy auth mode (NIKA_SERVE_TOKEN)");
+        Arc::new(token_store::AuthMode::Legacy {
+            expected_hash: token_store::hash_token(&config.auth_token),
+        })
+    };
+
     let state = AppState {
         storage,
         config: Arc::new(config.clone()),
@@ -102,6 +124,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         active_jobs: Arc::new(AtomicUsize::new(0)),
         event_bus: events::EventBus::default(),
         webhook_config,
+        auth_mode: auth_mode.clone(),
     };
 
     // Install Prometheus metrics recorder
@@ -124,7 +147,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             rate_limit::rate_limit_middleware,
         ))
         .layer(middleware::from_fn_with_state(
-            state.clone(),
+            auth_mode.clone(),
             auth::require_auth,
         ))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB body limit
@@ -142,7 +165,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
             rate_limit::rate_limit_middleware,
         ))
         .layer(middleware::from_fn_with_state(
-            state.clone(),
+            auth_mode.clone(),
             auth::require_auth,
         ))
         .layer(middleware::from_fn(request_id::request_id_middleware))
@@ -153,7 +176,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Merge /metrics endpoint (behind auth — metrics can leak sensitive info)
     if let Some(handle) = metrics_handle {
         app = app.merge(routes::build_metrics_router(handle).layer(
-            middleware::from_fn_with_state(state.clone(), auth::require_auth),
+            middleware::from_fn_with_state(auth_mode.clone(), auth::require_auth),
         ));
     }
 
@@ -180,7 +203,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     info!(bind = %config.bind, max_concurrent = config.max_concurrent, "nika serve starting");
 
     // Startup banner (visible to the user, not just tracing logs)
-    print_startup_banner(&config);
+    print_startup_banner(&config, &auth_mode);
 
     // Reconcile YAML-declared schedules with DB on startup
     reconcile_yaml_schedules(&state.storage, &config.workflows_dir).await;
@@ -631,7 +654,7 @@ fn collect_workflow_paths(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 }
 
 /// Print a structured startup banner to stderr.
-fn print_startup_banner(config: &ServeConfig) {
+fn print_startup_banner(config: &ServeConfig, auth_mode: &token_store::AuthMode) {
     use nika_engine::core::{provider_to_env_var, ProviderCategory, KNOWN_PROVIDERS};
 
     let version = env!("CARGO_PKG_VERSION");
@@ -660,7 +683,7 @@ fn print_startup_banner(config: &ServeConfig) {
         .chain(missing.iter().take(3).map(|p| format!("{p} \u{2717}")))
         .collect::<Vec<_>>()
         .join("  ");
-    let token_len = config.auth_token.len();
+    let auth_desc = auth_mode.description();
 
     eprintln!();
     eprintln!("  \u{1f98b} Nika Serve v{version}");
@@ -682,7 +705,7 @@ fn print_startup_banner(config: &ServeConfig) {
         "  \u{251c}\u{2500}\u{2500} Timeout      {}s per job",
         config.job_timeout_secs
     );
-    eprintln!("  \u{251c}\u{2500}\u{2500} Auth         Bearer token ({token_len} chars)");
+    eprintln!("  \u{251c}\u{2500}\u{2500} Auth         {auth_desc}");
     eprintln!("  \u{251c}\u{2500}\u{2500} Providers    {providers_str}");
 
     // Scan for scheduled workflows
@@ -740,6 +763,10 @@ mod tests {
             working_dir_mode: None,
         };
 
+        let auth_mode = Arc::new(token_store::AuthMode::Legacy {
+            expected_hash: token_store::hash_token(&config.auth_token),
+        });
+
         let state = AppState {
             storage,
             config: Arc::new(config.clone()),
@@ -750,12 +777,13 @@ mod tests {
             active_jobs: Arc::new(AtomicUsize::new(0)),
             event_bus: events::EventBus::default(),
             webhook_config: None,
+            auth_mode: auth_mode.clone(),
         };
 
         let rl_state = rate_limit::new_rate_limiter();
         let app = routes::build_router(state.clone())
             .layer(middleware::from_fn_with_state(
-                state.clone(),
+                auth_mode,
                 auth::require_auth,
             ))
             .layer(middleware::from_fn_with_state(
@@ -936,6 +964,10 @@ mod tests {
             working_dir_mode: None,
         };
 
+        let auth_mode = Arc::new(token_store::AuthMode::Legacy {
+            expected_hash: token_store::hash_token(&config.auth_token),
+        });
+
         let state = AppState {
             storage,
             config: Arc::new(config),
@@ -946,12 +978,13 @@ mod tests {
             active_jobs: Arc::new(AtomicUsize::new(0)),
             event_bus: events::EventBus::default(),
             webhook_config: None,
+            auth_mode: auth_mode.clone(),
         };
 
         let rl_state = rate_limit::new_rate_limiter();
         let app = routes::build_router(state.clone())
             .layer(middleware::from_fn_with_state(
-                state.clone(),
+                auth_mode,
                 auth::require_auth,
             ))
             .layer(middleware::from_fn_with_state(

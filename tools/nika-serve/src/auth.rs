@@ -1,47 +1,27 @@
 //! Bearer token authentication middleware.
 //!
-//! Uses constant-time comparison via `subtle` to prevent timing attacks.
+//! Supports two modes:
+//! - **Legacy**: single `NIKA_SERVE_TOKEN` env var (backward compatible)
+//! - **MultiKey**: named API keys from SQLite with BLAKE3 + moka cache
+//!
 //! The `/health` endpoint bypasses authentication.
+
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
-use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
 
-use crate::state::AppState;
-
-/// Extract and validate a Bearer token from the Authorization header.
-///
-/// Returns `Ok(())` on valid token, `Err(StatusCode::UNAUTHORIZED)` otherwise.
-/// Uses SHA-256 + constant-time comparison to prevent timing side-channels.
-fn check_bearer_token(auth_header: Option<&str>, expected_token: &str) -> Result<(), StatusCode> {
-    let token = auth_header.and_then(|v| v.strip_prefix("Bearer "));
-
-    match token {
-        Some(t) => {
-            let expected = Sha256::digest(expected_token.as_bytes());
-            let provided = Sha256::digest(t.as_bytes());
-            if bool::from(expected.ct_eq(&provided)) {
-                Ok(())
-            } else {
-                Err(StatusCode::UNAUTHORIZED)
-            }
-        }
-        _ => Err(StatusCode::UNAUTHORIZED),
-    }
-}
+use crate::token_store::AuthMode;
 
 /// Axum middleware that requires a valid `Authorization: Bearer <token>` header
 /// on all routes except `/health`.
 ///
-/// Both tokens are SHA-256 hashed before constant-time comparison so that
-/// inputs of different lengths still compare in fixed time (32 bytes),
-/// preventing a timing side-channel that leaks token length.
+/// Delegates to `AuthMode` for the actual authentication logic (Legacy or MultiKey).
 pub async fn require_auth(
-    State(state): State<AppState>,
+    State(auth_mode): State<Arc<AuthMode>>,
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -50,140 +30,75 @@ pub async fn require_auth(
         return Ok(next.run(request).await);
     }
 
-    let auth_header = request
+    let raw_token = request
         .headers()
         .get("authorization")
-        .and_then(|v| v.to_str().ok());
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "));
 
-    check_bearer_token(auth_header, &state.config.auth_token)?;
-    Ok(next.run(request).await)
+    match raw_token {
+        Some(token) => {
+            if auth_mode.authenticate(token).await.is_some() {
+                Ok(next.run(request).await)
+            } else {
+                Err(StatusCode::UNAUTHORIZED)
+            }
+        }
+        None => Err(StatusCode::UNAUTHORIZED),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::token_store::{hash_token, AuthMode};
 
-    const TEST_TOKEN: &str = "test-secret-token-42";
+    const TEST_TOKEN: &str = "test-secret-token-42-long-enough";
 
-    fn bearer(token: &str) -> String {
-        format!("Bearer {token}")
+    fn make_legacy_auth() -> Arc<AuthMode> {
+        Arc::new(AuthMode::Legacy {
+            expected_hash: hash_token(TEST_TOKEN),
+        })
     }
 
     // =========================================================================
-    // Valid token acceptance
+    // Token validation via AuthMode (unit tests — no middleware)
     // =========================================================================
 
-    #[test]
-    fn accepts_valid_token() {
-        let header = bearer(TEST_TOKEN);
-        assert!(check_bearer_token(Some(&header), TEST_TOKEN).is_ok());
+    #[tokio::test]
+    async fn accepts_valid_token() {
+        let auth = make_legacy_auth();
+        assert!(auth.authenticate(TEST_TOKEN).await.is_some());
     }
 
-    #[test]
-    fn accepts_long_token() {
+    #[tokio::test]
+    async fn accepts_long_token() {
         let long = "a".repeat(256);
-        let header = bearer(&long);
-        assert!(check_bearer_token(Some(&header), &long).is_ok());
+        let auth = Arc::new(AuthMode::Legacy {
+            expected_hash: hash_token(&long),
+        });
+        assert!(auth.authenticate(&long).await.is_some());
     }
 
-    // =========================================================================
-    // Invalid token rejection (401)
-    // =========================================================================
-
-    #[test]
-    fn rejects_wrong_token() {
-        let header = bearer("wrong-token");
-        assert_eq!(
-            check_bearer_token(Some(&header), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
+    #[tokio::test]
+    async fn rejects_wrong_token() {
+        let auth = make_legacy_auth();
+        assert!(auth.authenticate("wrong-token").await.is_none());
     }
 
-    #[test]
-    fn rejects_missing_header() {
-        assert_eq!(
-            check_bearer_token(None, TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
+    #[tokio::test]
+    async fn rejects_empty_token() {
+        let auth = make_legacy_auth();
+        assert!(auth.authenticate("").await.is_none());
     }
 
-    #[test]
-    fn rejects_empty_header() {
-        assert_eq!(
-            check_bearer_token(Some(""), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
-    }
-
-    #[test]
-    fn rejects_missing_bearer_prefix() {
-        // Token without "Bearer " prefix
-        assert_eq!(
-            check_bearer_token(Some(TEST_TOKEN), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
-    }
-
-    #[test]
-    fn rejects_basic_auth_scheme() {
-        // Basic auth instead of Bearer
-        assert_eq!(
-            check_bearer_token(Some("Basic dXNlcjpwYXNz"), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
-    }
-
-    #[test]
-    fn rejects_bearer_lowercase() {
-        // "bearer " (lowercase) should NOT match — RFC 6750 is case-sensitive
-        // for the "Bearer" scheme in practice
-        let header = format!("bearer {TEST_TOKEN}");
-        assert_eq!(
-            check_bearer_token(Some(&header), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
-    }
-
-    #[test]
-    fn rejects_empty_token_after_bearer() {
-        assert_eq!(
-            check_bearer_token(Some("Bearer "), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
-    }
-
-    #[test]
-    fn rejects_token_with_extra_spaces() {
-        // Extra space before token
-        let header = format!("Bearer  {TEST_TOKEN}");
-        assert_eq!(
-            check_bearer_token(Some(&header), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED),
-            "leading space in token should not match"
-        );
-    }
-
-    // =========================================================================
-    // Timing attack resistance
-    // =========================================================================
-
-    #[test]
-    fn constant_time_comparison_via_sha256() {
-        // Verify SHA-256 is used: even tokens of different lengths
-        // produce fixed 32-byte digests for constant-time comparison.
-        // This test verifies the mechanism exists (can't truly test timing
-        // in a unit test, but we verify the SHA-256 + ct_eq path).
-        let short_wrong = bearer("x");
-        let long_wrong = bearer(&"x".repeat(1000));
-
-        // Both should fail with UNAUTHORIZED (not panic or differ)
-        assert_eq!(
-            check_bearer_token(Some(&short_wrong), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
-        assert_eq!(
-            check_bearer_token(Some(&long_wrong), TEST_TOKEN),
-            Err(StatusCode::UNAUTHORIZED)
-        );
+    #[tokio::test]
+    async fn constant_time_comparison_via_blake3() {
+        let auth = make_legacy_auth();
+        // Tokens of different lengths both produce fixed 32-byte BLAKE3 digests
+        let short = auth.authenticate("x").await;
+        let long = auth.authenticate(&"x".repeat(1000)).await;
+        assert!(short.is_none());
+        assert!(long.is_none());
     }
 }

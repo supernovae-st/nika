@@ -10,6 +10,7 @@ use tokio::task::JoinHandle;
 use crate::config::ServeConfig;
 use crate::events::EventBus;
 use crate::executor::Executor;
+use crate::token_store::AuthMode;
 
 /// Handle for a running worker, storing the task handle and subprocess PID.
 pub struct WorkerHandle {
@@ -53,4 +54,7 @@ pub struct AppState {
 
     /// Webhook configuration, loaded once at startup (BUG-8).
     pub webhook_config: Option<crate::webhook::WebhookConfig>,
+
+    /// Authentication mode (Legacy or MultiKey).
+    pub auth_mode: Arc<AuthMode>,
 }
