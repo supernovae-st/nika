@@ -813,10 +813,26 @@ jobs:
   # Publish VS Code Extension
   # ─────────────────────────────────────────────────────────────────────────────
   vscode-publish:
-    name: Publish VS Code Extension
+    name: Publish VS Code Extension (${{ matrix.vscode-target }})
     needs: release
     if: ${{ !inputs.dry_run && !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - vscode-target: darwin-arm64
+            artifact: nika-macos-arm64
+          - vscode-target: darwin-x64
+            artifact: nika-macos-x64
+          - vscode-target: linux-x64
+            artifact: nika-linux-x64
+          - vscode-target: linux-arm64
+            artifact: nika-linux-arm64
+          - vscode-target: win32-x64
+            artifact: nika-windows-x64
+          - vscode-target: universal
+            artifact: ''
     env:
       HAS_OVSX_PAT: ${{ secrets.OVSX_PAT != '' }}
       HAS_VSCE_PAT: ${{ secrets.VSCE_PAT != '' }}
@@ -844,7 +860,7 @@ jobs:
         id: version
         env:
           TAG: ${{ env.RELEASE_TAG }}
-        run: echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Sync version from tag
         env:
@@ -854,17 +870,34 @@ jobs:
       - name: Compile TypeScript
         run: npm run compile
 
-      - name: Package VSIX
+      - name: Download binary artifact
+        if: matrix.artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: editors/vscode/server/
+
+      - name: Make binary executable
+        if: matrix.artifact != '' && matrix.vscode-target != 'win32-x64'
+        run: chmod +x server/nika
+
+      - name: Package platform-specific VSIX
+        if: matrix.vscode-target != 'universal'
+        env:
+          TARGET: ${{ matrix.vscode-target }}
+        run: npx vsce package --no-git-tag-version --target "$TARGET"
+
+      - name: Package universal VSIX (no binary)
+        if: matrix.vscode-target == 'universal'
         run: npx vsce package --no-git-tag-version
 
       - name: Upload VSIX to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ env.RELEASE_TAG }}
         run: |
           gh release upload "$TAG" \
-            "nika-lang-${VERSION}.vsix" \
+            *.vsix \
             --repo "${{ github.repository }}" \
             --clobber
 
@@ -872,41 +905,23 @@ jobs:
         if: env.HAS_VSCE_PAT == 'true'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --no-git-tag-version -p "$VSCE_PAT"
+        run: npx vsce publish --no-git-tag-version --packagePath *.vsix -p "$VSCE_PAT"
         continue-on-error: true
 
       - name: Warn if VS Code Marketplace PAT is missing
         if: env.HAS_VSCE_PAT != 'true'
-        run: echo "::warning::VSCE_PAT secret is missing — VS Code Marketplace publish was SKIPPED. Extension will NOT be updated for users."
+        run: echo "::warning::VSCE_PAT secret is missing — VS Code Marketplace publish was SKIPPED."
 
       - name: Publish to Open VSX (VSCodium/Cursor/Gitpod)
         if: env.HAS_OVSX_PAT == 'true'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish --no-git-tag-version -p "$OVSX_PAT"
+        run: npx ovsx publish --no-git-tag-version --packagePath *.vsix -p "$OVSX_PAT"
         continue-on-error: true
 
       - name: Warn if Open VSX PAT is missing
         if: env.HAS_OVSX_PAT != 'true'
-        run: echo "::warning::OVSX_PAT secret is missing — Open VSX publish was SKIPPED (Cursor/VSCodium users won't get the update)."
-
-      - name: Verify extension version on Marketplace
-        if: env.HAS_VSCE_PAT == 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Waiting for marketplace propagation..."
-          sleep 10
-          PUBLISHED=$(npx vsce show supernovae.nika-lang --json 2>/dev/null | node -e "
-            let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
-              try { console.log(JSON.parse(d).versions[0].version); } catch { console.log('unknown'); }
-            })
-          " 2>/dev/null || echo "unknown")
-          echo "Published version: ${PUBLISHED} (expected: ${VERSION})"
-          if [ "${PUBLISHED}" = "${VERSION}" ]; then
-            echo "Extension v${VERSION} confirmed on Marketplace"
-          else
-            echo "::warning::Extension may not have propagated yet (found: ${PUBLISHED}, expected: ${VERSION}). Check manually."
+        run: echo "::warning::OVSX_PAT secret is missing — Open VSX publish was SKIPPED."
           fi
 
   # ─────────────────────────────────────────────────────────────────────────────
