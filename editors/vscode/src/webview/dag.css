@@ -317,22 +317,22 @@ body {
 
 .dag-node.verb-exec.status-success .node-bg,
 .dag-node.verb-exec.status-running .node-bg {
-  fill: color-mix(in srgb, var(--vscode-charts-orange, #d18616) 8%, var(--vscode-editor-background));
+  fill: color-mix(in srgb, var(--vscode-charts-green, #16a34a) 8%, var(--vscode-editor-background));
 }
 
 .dag-node.verb-fetch.status-success .node-bg,
 .dag-node.verb-fetch.status-running .node-bg {
-  fill: color-mix(in srgb, var(--vscode-charts-blue, #3794ff) 8%, var(--vscode-editor-background));
+  fill: color-mix(in srgb, var(--vscode-charts-blue, #0891b2) 8%, var(--vscode-editor-background));
 }
 
 .dag-node.verb-invoke.status-success .node-bg,
 .dag-node.verb-invoke.status-running .node-bg {
-  fill: color-mix(in srgb, var(--vscode-charts-yellow, #cca700) 8%, var(--vscode-editor-background));
+  fill: color-mix(in srgb, var(--vscode-charts-red, #db2778) 8%, var(--vscode-editor-background));
 }
 
 .dag-node.verb-agent.status-success .node-bg,
 .dag-node.verb-agent.status-running .node-bg {
-  fill: color-mix(in srgb, var(--vscode-charts-green, #89d185) 8%, var(--vscode-editor-background));
+  fill: color-mix(in srgb, var(--vscode-charts-orange, #d97306) 8%, var(--vscode-editor-background));
 }
 
 /* ─── High Contrast Theme Overrides ─────────────────────────────────────── */
