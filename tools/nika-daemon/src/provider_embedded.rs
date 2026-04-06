@@ -3,9 +3,10 @@
 //! For the LSP embedded mode: the LSP process IS the daemon.
 //! No Unix socket, no separate process. Zero config.
 //!
-//! MVP scope: provider status (env vars), cost estimation (static table),
-//! synthetic capabilities. No job tracking or vault in embedded mode.
+//! Provider status checks env vars first, then falls back to NikaVault.
+//! Cost estimation uses the static pricing table (no daemon IPC needed).
 
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -15,16 +16,18 @@ use nika_core::catalogs::lsp_types::{
 };
 use nika_core::catalogs::providers::{ProviderCategory, KNOWN_PROVIDERS};
 use nika_core::catalogs::{cost, CostEstimate};
+use nika_vault::NikaVault;
 
 use crate::provider::DaemonProvider;
 
 /// Daemon provider that runs services directly in the LSP process.
 ///
 /// Always connected (`is_connected() == true`).
-/// Provider status comes from env var checks (no vault).
+/// Provider status: env vars → NikaVault fallback.
 /// Cost estimation uses the static pricing table (no daemon IPC needed).
 pub struct EmbeddedDaemonProvider {
     started_at: Instant,
+    vault: OnceLock<Option<NikaVault>>,
 }
 
 impl EmbeddedDaemonProvider {
@@ -32,7 +35,24 @@ impl EmbeddedDaemonProvider {
         tracing::info!("EmbeddedDaemonProvider: running daemon services in-process");
         Self {
             started_at: Instant::now(),
+            vault: OnceLock::new(),
         }
+    }
+
+    /// Lazily initialize the vault. Returns `None` if secrets dir doesn't exist.
+    fn vault(&self) -> Option<&NikaVault> {
+        self.vault
+            .get_or_init(|| {
+                let secrets_dir = crate::daemon_dir().join("secrets");
+                if secrets_dir.exists() {
+                    tracing::debug!("EmbeddedDaemonProvider: vault at {}", secrets_dir.display());
+                    Some(NikaVault::new(&secrets_dir))
+                } else {
+                    tracing::debug!("EmbeddedDaemonProvider: no vault at {}", secrets_dir.display());
+                    None
+                }
+            })
+            .as_ref()
     }
 }
 
@@ -53,16 +73,22 @@ impl DaemonProvider for EmbeddedDaemonProvider {
             .iter()
             .filter(|p| p.category == ProviderCategory::Llm)
             .map(|p| {
-                let has_key = p.has_env_key();
+                let (has_key, source) = if p.has_env_key() {
+                    (true, KeySource::Env)
+                } else if self
+                    .vault()
+                    .and_then(|v| v.get(p.id).ok().flatten())
+                    .is_some()
+                {
+                    (true, KeySource::Vault)
+                } else {
+                    (false, KeySource::NotFound)
+                };
                 ProviderStatusInfo {
                     id: p.id.to_string(),
                     name: p.name.to_string(),
                     has_key,
-                    source: if has_key {
-                        KeySource::Env
-                    } else {
-                        KeySource::NotFound
-                    },
+                    source,
                     category: p.category,
                     env_var: p.env_var.to_string(),
                 }
@@ -149,6 +175,17 @@ mod tests {
     async fn embedded_workflow_history_empty() {
         let p = EmbeddedDaemonProvider::new();
         assert!(p.workflow_history("test.nika.yaml").await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn embedded_vault_lazy_init_no_panic() {
+        // Vault should be None if ~/.nika/daemon/secrets doesn't exist
+        // This test verifies no panic on missing vault directory
+        let p = EmbeddedDaemonProvider::new();
+        let status = p.provider_status().await;
+        assert!(!status.is_empty(), "Should list providers even without vault");
+        // Verify vault was initialized (even if None)
+        assert!(p.vault.get().is_some(), "OnceLock should be initialized after first call");
     }
 
     #[tokio::test]
