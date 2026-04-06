@@ -821,20 +821,43 @@ export function activate(context: ExtensionContext): void {
   watcher.onDidChange(() => workflowTree.refresh());
   context.subscriptions.push(watcher);
 
-  // DAG webview panel
+  // DAG webview panel — track the active workflow URI for node-click navigation
+  let dagWorkflowUri: Uri | undefined;
+
   const dagPanel = new DagPanel(
     context.extensionUri,
     (taskId) => {
-      // On node click — could open task in editor (future: line number from LSP)
-      log('INFO', `DAG node clicked: ${taskId}`);
+      // On node click: jump to the task's line in the editor
+      if (!dagWorkflowUri) { return; }
+      if (client?.isRunning()) {
+        client.sendRequest<{ nodes: Array<{ id: string; line: number }> }>(
+          'nika/workflowGraph',
+          { uri: dagWorkflowUri.toString() },
+        ).then((graph) => {
+          const node = graph.nodes.find((n) => n.id === taskId);
+          if (node) {
+            const pos = new Position(node.line, 0);
+            window.showTextDocument(dagWorkflowUri!, {
+              selection: new Range(pos, pos),
+              preview: false,
+            });
+          }
+        }).catch(() => {});
+      }
     },
   );
   activeDagPanel = dagPanel;
   context.subscriptions.push(dagPanel);
 
   // Register all commands SYNCHRONOUSLY before any async work.
-  // This prevents the race condition where Cursor's Code Lens fires
-  // before commands exist (commands must be available immediately).
+
+  // Command: Jump to task location (used by tree view and DAG panel)
+  context.subscriptions.push(
+    commands.registerCommand('nika.openTaskLocation', (uri: Uri, line: number) => {
+      const pos = new Position(line, 0);
+      window.showTextDocument(uri, { selection: new Range(pos, pos), preview: false });
+    }),
+  );
 
   // Command: Run current workflow
   context.subscriptions.push(
@@ -902,12 +925,15 @@ export function activate(context: ExtensionContext): void {
         window.showWarningMessage('Open a .nika.yaml file first.');
         return;
       }
+      // Track the workflow URI for node-click navigation
+      dagWorkflowUri = Uri.file(filePath);
+
       // Try to get graph data from LSP, otherwise show empty panel
       let graph: DagGraph | undefined;
       if (client?.isRunning()) {
         try {
           graph = await client.sendRequest<DagGraph>('nika/workflowGraph', {
-            uri: Uri.file(filePath).toString(),
+            uri: dagWorkflowUri.toString(),
           });
         } catch {
           log('WARN', 'LSP nika/workflowGraph not available, showing empty panel');
