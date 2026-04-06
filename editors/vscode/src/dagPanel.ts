@@ -114,33 +114,36 @@ export class DagPanel implements vscode.Disposable {
 
     this.panel.webview.html = this.getHtml(this.panel.webview);
 
-    // Listen for messages from the webview
-    this.panel.webview.onDidReceiveMessage(
-      (msg: WebviewToExtMessage) => this.handleMessage(msg),
-      null,
-      this.disposables,
+    // Register message listener BEFORE html assignment takes effect
+    this.disposables.push(
+      this.panel.webview.onDidReceiveMessage(
+        (msg: WebviewToExtMessage) => this.handleMessage(msg),
+      ),
     );
 
-    // Clean up on dispose
-    this.panel.onDidDispose(
-      () => {
-        this.panel = undefined;
-        this.disposables.forEach((d) => d.dispose());
-        this.disposables = [];
-      },
-      null,
-      this.disposables,
-    );
+    // Clean up on dispose — NOT tracked in this.disposables to avoid
+    // double-dispose: onDidDispose fires when panel closes, then we
+    // clean up all other disposables. If this listener were in the
+    // array, it would try to dispose itself during iteration.
+    this.panel.onDidDispose(() => {
+      this.panel = undefined;
+      const toDispose = this.disposables;
+      this.disposables = [];
+      toDispose.forEach((d) => d.dispose());
+    });
 
-    // Re-send graph when panel becomes visible again
-    this.panel.onDidChangeViewState(
-      (e) => {
-        if (e.webviewPanel.visible && this.currentGraph) {
+    // Re-send graph when panel becomes visible again (skip initial show)
+    let hasBeenHidden = false;
+    this.disposables.push(
+      this.panel.onDidChangeViewState((e) => {
+        if (!e.webviewPanel.visible) {
+          hasBeenHidden = true;
+          return;
+        }
+        if (hasBeenHidden && this.currentGraph) {
           this.postMessage({ kind: 'dag:load', graph: this.currentGraph });
         }
-      },
-      null,
-      this.disposables,
+      }),
     );
 
     // React to theme changes
@@ -198,10 +201,8 @@ export class DagPanel implements vscode.Disposable {
   }
 
   public dispose(): void {
+    // panel.dispose() triggers onDidDispose which cleans up all disposables
     this.panel?.dispose();
-    // Defensive cleanup for disposables not cleared by onDidDispose
-    this.disposables.forEach((d) => d.dispose());
-    this.disposables = [];
   }
 
   // ─── Internals ───────────────────────────────────────────────────────────
