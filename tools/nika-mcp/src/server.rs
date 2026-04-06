@@ -3,10 +3,14 @@
 //! Allows AI coding tools (Claude Code, Cursor, Copilot, etc.) to validate,
 //! run, and explore Nika workflows through MCP.
 
+use rmcp::handler::server::router::prompt::PromptRouter;
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content, ServerCapabilities, ServerInfo};
-use rmcp::{tool, tool_handler, tool_router, ServerHandler};
+use rmcp::model::{
+    CallToolResult, Content, GetPromptResult, ListPromptsResult, PromptMessage,
+    PromptMessageRole, ServerCapabilities, ServerInfo,
+};
+use rmcp::{tool, tool_router, ServerHandler, RoleServer};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::process::Command as TokioCommand;
@@ -16,6 +20,7 @@ use tokio::time::{timeout, Duration};
 #[derive(Clone)]
 pub struct NikaMcpServer {
     tool_router: ToolRouter<Self>,
+    prompt_router: PromptRouter<Self>,
 }
 
 impl Default for NikaMcpServer {
@@ -84,6 +89,7 @@ impl NikaMcpServer {
     pub fn new() -> Self {
         Self {
             tool_router: Self::tool_router(),
+            prompt_router: Self::prompt_router(),
         }
     }
 
@@ -391,19 +397,173 @@ impl NikaMcpServer {
     }
 }
 
-#[tool_handler]
+/// Prompt parameters for create-workflow
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateWorkflowPromptParams {
+    /// What the workflow should do
+    pub description: String,
+    /// Default provider (e.g., "anthropic")
+    #[serde(default)]
+    pub provider: Option<String>,
+}
+
+/// Prompt parameters for add-task
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AddTaskPromptParams {
+    /// Which verb to use (infer, exec, fetch, invoke, agent)
+    pub verb: String,
+    /// What the task should do
+    pub description: String,
+}
+
+/// Prompt parameters for fix-error
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FixErrorPromptParams {
+    /// NIKA-XXX error code
+    pub code: String,
+    /// The YAML content that has the error
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+#[rmcp::prompt_router]
+impl NikaMcpServer {
+    /// Generate a complete Nika workflow scaffold from a description.
+    #[rmcp::prompt(description = "Generate a complete Nika .nika.yaml workflow from a description")]
+    fn create_workflow(
+        &self,
+        Parameters(params): Parameters<CreateWorkflowPromptParams>,
+    ) -> Vec<PromptMessage> {
+        let provider = params.provider.as_deref().unwrap_or("anthropic");
+        let content = format!(
+            r#"Create a Nika workflow (.nika.yaml) that does the following:
+
+{}
+
+Use this template:
+
+```yaml
+schema: "nika/workflow@0.12"
+workflow: my-workflow
+description: "{}"
+provider: {}
+model: claude-sonnet-4-20250514
+
+tasks:
+  - id: step1
+    infer: |
+      <first task prompt>
+
+  - id: step2
+    depends_on: [step1]
+    with:
+      data: $step1
+    infer: |
+      <second task prompt using {{{{{{with.data}}}}}}>
+```
+
+Key rules:
+- Always start with schema: "nika/workflow@0.12"
+- Use with: {{ alias: $task_id }} for data bindings, then {{{{with.alias}}}}
+- depends_on is always an array: depends_on: [task_id]
+- 5 verbs: infer, exec, fetch, invoke, agent
+- timeout is in seconds, not milliseconds"#,
+            params.description, params.description, provider
+        );
+
+        vec![PromptMessage::new_text(PromptMessageRole::User, content)]
+    }
+
+    /// Generate a single Nika task block ready to paste into a workflow.
+    #[rmcp::prompt(description = "Generate a single Nika task for a specific verb")]
+    fn add_task(
+        &self,
+        Parameters(params): Parameters<AddTaskPromptParams>,
+    ) -> Vec<PromptMessage> {
+        let content = format!(
+            "Generate a single Nika task using the '{}' verb that does: {}\n\n\
+            Return ONLY the YAML task block (starting with `- id:`).\n\
+            Follow nika/workflow@0.12 schema. Use `with:` for data bindings.",
+            params.verb, params.description
+        );
+        vec![PromptMessage::new_text(PromptMessageRole::User, content)]
+    }
+
+    /// Suggest a fix for a NIKA-XXX error code.
+    #[rmcp::prompt(description = "Fix a NIKA-XXX error in a workflow")]
+    fn fix_error(
+        &self,
+        Parameters(params): Parameters<FixErrorPromptParams>,
+    ) -> Vec<PromptMessage> {
+        let context_hint = params
+            .context
+            .map(|c| format!("\n\nWorkflow content:\n```yaml\n{c}\n```"))
+            .unwrap_or_default();
+
+        let content = format!(
+            "Fix error {} in this Nika workflow.{}\n\n\
+            Return the corrected YAML. Explain what was wrong and how you fixed it.",
+            params.code, context_hint
+        );
+        vec![PromptMessage::new_text(PromptMessageRole::User, content)]
+    }
+}
+
 impl ServerHandler for NikaMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "Nika workflow engine MCP server. Validate, list, and explore .nika.yaml workflows."
+                "Nika workflow engine MCP server. Validate, list, explore, and generate .nika.yaml workflows."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
+                .enable_prompts()
                 .build(),
             ..Default::default()
         }
+    }
+
+    fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ListToolsResult, rmcp::ErrorData>> + Send + '_ {
+        let tools = self.tool_router.list_all();
+        std::future::ready(Ok(rmcp::model::ListToolsResult { tools, ..Default::default() }))
+    }
+
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParams,
+        context: rmcp::service::RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let tool_context =
+            rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        self.tool_router.call(tool_context).await
+    }
+
+    fn list_prompts(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListPromptsResult, rmcp::ErrorData>> + Send + '_ {
+        let prompts = self.prompt_router.list_all();
+        std::future::ready(Ok(ListPromptsResult { prompts, ..Default::default() }))
+    }
+
+    async fn get_prompt(
+        &self,
+        request: rmcp::model::GetPromptRequestParams,
+        context: rmcp::service::RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, rmcp::ErrorData> {
+        let prompt_context = rmcp::handler::server::prompt::PromptContext::new(
+            self,
+            request.name,
+            request.arguments,
+            context,
+        );
+        self.prompt_router.get_prompt(prompt_context).await
     }
 }
 
