@@ -190,10 +190,11 @@ VPS resilience: `~/.nika/daemon/nika-exe-path` stores the binary path so the dae
 
 Nika supports connecting to any OpenAI-compatible inference server (vLLM, TGI, Ollama, LiteLLM, SGLang).
 
-### Configuration (config.toml)
+### Configuration (nika.toml or config.toml)
 
 ```toml
-# ~/.config/nika/config.toml
+# In nika.toml (project-level, wins on conflict)
+# OR ~/.config/nika/config.toml (user-level)
 [endpoints.h100]
 base_url = "http://10.0.1.42:8000/v1"
 api_key = "sk-internal-token"
@@ -209,7 +210,7 @@ model = "llama3.2"
 
 ```yaml
 schema: "nika/workflow@0.12"
-provider: h100          # Named endpoint from config.toml
+provider: h100          # Named endpoint from nika.toml
 model: Qwen/Qwen3-8B
 
 tasks:
@@ -217,15 +218,20 @@ tasks:
     infer: "Hello from vLLM"
 ```
 
-### Inline base_url (one-off)
+### Slash syntax (shorthand)
 
 ```yaml
-- id: local
-  provider: openai
-  base_url: "http://localhost:11434/v1"
-  model: llama3.2
-  infer: "Hello from Ollama"
+# Equivalent to provider: groq + model: llama-3.3-70b
+model: groq/llama-3.3-70b
+
+# Nested model paths split on FIRST slash
+model: native/Qwen/Qwen3-8B   # provider=native, model=Qwen/Qwen3-8B
+
+# Named endpoint
+model: h100/Qwen/Qwen3-8B     # provider=h100, model=Qwen/Qwen3-8B
 ```
+
+**Note**: `base_url:` in workflow YAML is removed. Use named endpoints in nika.toml instead.
 
 ### Environment variable overrides
 
@@ -356,3 +362,5 @@ The `fetch:` verb supports `extract:` for HTML post-processing and `response:` f
 | GGUF model for native vision | GGUF is text-only — use `NativeModelKind::VisionHf` with HuggingFace model ID |
 | Skipping pre-read size check | Always check file size before reading into memory |
 | `nika:write` without `overwrite: true` on existing file | NIKA-215 (FileAlreadyExists). Pass `overwrite: true` param to replace. |
+| `base_url:` in workflow YAML | REMOVED. Use named endpoints in nika.toml `[endpoints.*]` instead |
+| `--features native-inference` | Bundled by default since v0.73. Just `cargo build`. |
