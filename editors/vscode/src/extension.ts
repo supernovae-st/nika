@@ -29,6 +29,7 @@ let statusBarItem: import('vscode').StatusBarItem | undefined;
 let outputChannel: import('vscode').OutputChannel | undefined;
 let resolvedServerPath: string | undefined;
 let statusPollInterval: ReturnType<typeof setInterval> | undefined;
+let activeDagPanel: import('./dagPanel').DagPanel | undefined;
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/supernovae-st/nika/releases/latest';
 const GITHUB_INSTALL_URL = 'https://github.com/supernovae-st/nika#installation';
@@ -620,6 +621,16 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
       ensureVscodeMcpConfig();
     }
 
+    // Forward execution events from LSP to DAG webview for live updates
+    if (client) {
+      client.onNotification('nika/executionEvent', (event: { taskId: string; status: string }) => {
+        log('INFO', `Execution event: ${event.taskId} → ${event.status}`);
+        if (activeDagPanel) {
+          activeDagPanel.updateTaskStatus(event.taskId, event.status as any);
+        }
+      });
+    }
+
     // Poll daemon status every 30s — clear previous interval to prevent accumulation
     if (statusPollInterval !== undefined) {
       clearInterval(statusPollInterval);
@@ -765,6 +776,7 @@ export function activate(context: ExtensionContext): void {
       log('INFO', `DAG node clicked: ${taskId}`);
     },
   );
+  activeDagPanel = dagPanel;
   context.subscriptions.push(dagPanel);
 
   // Register all commands SYNCHRONOUSLY before any async work.
