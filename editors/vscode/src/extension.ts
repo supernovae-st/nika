@@ -612,25 +612,25 @@ export function activate(context: ExtensionContext): void {
 
   // Command: Run current workflow
   context.subscriptions.push(
-    commands.registerCommand('nika.runWorkflow', () => {
-      const editor = window.activeTextEditor;
-      if (!editor || !editor.document.fileName.endsWith('.nika.yaml')) {
+    commands.registerCommand('nika.runWorkflow', (uri?: Uri) => {
+      const filePath = uri?.fsPath ?? window.activeTextEditor?.document.fileName;
+      if (!filePath?.endsWith('.nika.yaml')) {
         window.showWarningMessage('Open a .nika.yaml file first.');
         return;
       }
-      runNikaCommand('run', editor.document.fileName);
+      runNikaCommand('run', filePath);
     }),
   );
 
   // Command: Validate current workflow
   context.subscriptions.push(
-    commands.registerCommand('nika.checkWorkflow', () => {
-      const editor = window.activeTextEditor;
-      if (!editor || !editor.document.fileName.endsWith('.nika.yaml')) {
+    commands.registerCommand('nika.checkWorkflow', (uri?: Uri) => {
+      const filePath = uri?.fsPath ?? window.activeTextEditor?.document.fileName;
+      if (!filePath?.endsWith('.nika.yaml')) {
         window.showWarningMessage('Open a .nika.yaml file first.');
         return;
       }
-      runNikaCommand('check', editor.document.fileName);
+      runNikaCommand('check', filePath);
     }),
   );
 
