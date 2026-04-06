@@ -35,6 +35,9 @@ dashmap = { workspace = true }
 # Serialization
 serde_json = { workspace = true }
 
+# Async trait (for DaemonProvider impl)
+async-trait = { workspace = true }
+
 # Nika core (AST, catalogs, source types)
 nika-core = { workspace = true }
 

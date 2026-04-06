@@ -20,7 +20,10 @@ use tower_lsp_server::{Client, LanguageServer};
 
 use crate::ast_integration;
 use crate::completion::{get_completion_context, CompletionContext};
+use async_trait::async_trait;
 use crate::daemon_bridge::DaemonBridge;
+use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
+use nika_daemon::provider::DaemonProvider;
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};
@@ -38,6 +41,60 @@ struct ParseSuccessNotification {
     uri: Uri,
 }
 
+/// Adapter: delegates to a DaemonBridge behind an RwLock (supports reconnection).
+struct RwLockDaemonProvider(Arc<RwLock<Option<DaemonBridge>>>);
+
+#[async_trait]
+impl DaemonProvider for RwLockDaemonProvider {
+    fn is_connected(&self) -> bool {
+        // Non-blocking check: try_read to avoid deadlock in sync context
+        match self.0.try_read() {
+            Ok(guard) => guard.as_ref().is_some_and(|b| b.is_connected()),
+            Err(_) => false,
+        }
+    }
+
+    async fn provider_status(&self) -> Vec<ProviderStatusInfo> {
+        let guard = self.0.read().await;
+        match guard.as_ref() {
+            Some(bridge) if bridge.is_connected() => bridge.provider_status().await,
+            _ => Vec::new(),
+        }
+    }
+
+    async fn estimate_cost(
+        &self,
+        provider: &str,
+        model: &str,
+        input_tokens: u64,
+        output_tokens: u64,
+    ) -> Option<CostEstimate> {
+        let guard = self.0.read().await;
+        match guard.as_ref() {
+            Some(bridge) if bridge.is_connected() => {
+                bridge.estimate_cost(provider, model, input_tokens, output_tokens).await
+            }
+            _ => None,
+        }
+    }
+
+    async fn workflow_history(&self, workflow: &str) -> Vec<WorkflowRunInfo> {
+        let guard = self.0.read().await;
+        match guard.as_ref() {
+            Some(bridge) if bridge.is_connected() => bridge.workflow_history(workflow).await,
+            _ => Vec::new(),
+        }
+    }
+
+    async fn capabilities(&self) -> Option<DaemonCapabilities> {
+        let guard = self.0.read().await;
+        match guard.as_ref() {
+            Some(bridge) if bridge.is_connected() => bridge.capabilities().await,
+            _ => None,
+        }
+    }
+}
+
 /// The Nika LSP backend.
 pub struct NikaBackend {
     /// LSP client for sending notifications
@@ -48,8 +105,8 @@ pub struct NikaBackend {
     validation_tx: mpsc::Sender<ValidationRequest>,
     /// Delegated handler from nika-lsp-core
     handler: DefaultHandler,
-    /// Optional daemon connection (graceful degradation if not running)
-    daemon: Arc<RwLock<Option<DaemonBridge>>>,
+    /// Daemon provider (IPC to standalone daemon, or disconnected stub)
+    daemon: Arc<dyn DaemonProvider>,
     /// Channel for parse success notifications (AST cache)
     #[allow(dead_code)] // Held to keep the channel alive; receiver in AST cache updater
     parse_success_tx: mpsc::Sender<ParseSuccessNotification>,
@@ -61,19 +118,26 @@ impl NikaBackend {
         let (tx, rx) = mpsc::channel(100);
         let (parse_tx, parse_rx) = mpsc::channel::<ParseSuccessNotification>(32);
 
-        let daemon = Arc::new(RwLock::new(None));
-        let daemon_clone = daemon.clone();
+        // Daemon provider: try to connect, fall back to disconnected stub.
+        // On Unix: attempt IPC connection in background, reconnect on failure.
+        // On non-Unix: always disconnected (no daemon socket support).
+        let daemon: Arc<dyn DaemonProvider> = {
+            let bridge_holder: Arc<RwLock<Option<DaemonBridge>>> = Arc::new(RwLock::new(None));
+            let holder_clone = bridge_holder.clone();
 
-        // Spawn daemon connection attempt in background
-        tokio::spawn(async move {
             #[cfg(unix)]
-            if let Some(bridge) = DaemonBridge::try_connect().await {
-                *daemon_clone.write().await = Some(bridge);
+            {
+                tokio::spawn(async move {
+                    if let Some(bridge) = DaemonBridge::try_connect().await {
+                        *holder_clone.write().await = Some(bridge);
+                    }
+                });
+                DaemonBridge::spawn_reconnect_loop(bridge_holder.clone());
             }
-        });
 
-        // Spawn reconnect loop
-        DaemonBridge::spawn_reconnect_loop(daemon.clone());
+            // Wrap in a DaemonProvider that delegates through the RwLock
+            Arc::new(RwLockDaemonProvider(bridge_holder))
+        };
 
         let documents: DashMap<Uri, DocumentState> = DashMap::new();
         let documents_clone = documents.clone();
@@ -108,24 +172,19 @@ impl NikaBackend {
     ///
     /// Called by the VS Code extension to display daemon status in the status bar.
     pub async fn daemon_status(&self) -> Result<serde_json::Value> {
-        let guard: tokio::sync::RwLockReadGuard<'_, Option<DaemonBridge>> =
-            self.daemon.read().await;
-        match guard.as_ref() {
-            Some(bridge) if bridge.is_connected() => {
-                let caps: Option<nika_core::catalogs::DaemonCapabilities> =
-                    bridge.capabilities().await;
-                Ok(serde_json::json!({
-                    "connected": true,
-                    "version": caps.as_ref().map(|c| c.version.as_str()),
-                    "uptime_secs": caps.as_ref().map(|c| c.uptime_secs),
-                    "cache_entries": caps.as_ref().map(|c| c.cache_entries),
-                    "cache_hit_rate": caps.as_ref().map(|c| c.cache_hit_rate),
-                    "active_jobs": caps.as_ref().map(|c| c.active_jobs),
-                    "watch_active": caps.as_ref().map(|c| c.watch_active),
-                }))
-            }
-            _ => Ok(serde_json::json!({ "connected": false })),
+        if !self.daemon.is_connected() {
+            return Ok(serde_json::json!({ "connected": false }));
         }
+        let caps = self.daemon.capabilities().await;
+        Ok(serde_json::json!({
+            "connected": true,
+            "version": caps.as_ref().map(|c| c.version.as_str()),
+            "uptime_secs": caps.as_ref().map(|c| c.uptime_secs),
+            "cache_entries": caps.as_ref().map(|c| c.cache_entries),
+            "cache_hit_rate": caps.as_ref().map(|c| c.cache_hit_rate),
+            "active_jobs": caps.as_ref().map(|c| c.active_jobs),
+            "watch_active": caps.as_ref().map(|c| c.watch_active),
+        }))
     }
 }
 
@@ -362,11 +421,8 @@ impl LanguageServer for NikaBackend {
         let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
         // Get daemon provider status for enriched completions
         let daemon_providers = {
-            let guard = self.daemon.read().await;
-            match guard.as_ref() {
-                Some(bridge) if bridge.is_connected() => Some(bridge.provider_status().await),
-                _ => None,
-            }
+            let status = self.daemon.provider_status().await;
+            if status.is_empty() { None } else { Some(status) }
         };
         let items = nika_lsp_core::handlers::completion::completions(
             &text,
@@ -430,15 +486,9 @@ impl LanguageServer for NikaBackend {
 
         // Get workflow history from daemon for enriched hover
         let workflow_history = {
-            let guard = self.daemon.read().await;
-            match guard.as_ref() {
-                Some(bridge) if bridge.is_connected() => {
-                    let uri_str = uri.as_str();
-                    let filename = uri_str.rsplit('/').next().unwrap_or(uri_str);
-                    bridge.workflow_history(filename).await
-                }
-                _ => Vec::new(),
-            }
+            let uri_str = uri.as_str();
+            let filename = uri_str.rsplit('/').next().unwrap_or(uri_str);
+            self.daemon.workflow_history(filename).await
         };
         let daemon_hover = if !workflow_history.is_empty() {
             Some(nika_lsp_core::handlers::hover::DaemonHoverData {

@@ -4,12 +4,14 @@
 //! When connected, it provides live provider status, cost estimates,
 //! workflow history, and event subscriptions.
 
+use async_trait::async_trait;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
+use nika_daemon::provider::DaemonProvider;
 
 const CACHE_TTL: Duration = Duration::from_secs(60);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -245,6 +247,39 @@ impl DaemonBridge {
         }
     }
 
+}
+
+// ── DaemonProvider trait implementation ─────────────────────────────────
+#[async_trait]
+impl DaemonProvider for DaemonBridge {
+    fn is_connected(&self) -> bool {
+        self.connected.load(Ordering::Relaxed)
+    }
+
+    async fn provider_status(&self) -> Vec<ProviderStatusInfo> {
+        DaemonBridge::provider_status(self).await
+    }
+
+    async fn estimate_cost(
+        &self,
+        provider: &str,
+        model: &str,
+        input_tokens: u64,
+        output_tokens: u64,
+    ) -> Option<CostEstimate> {
+        DaemonBridge::estimate_cost(self, provider, model, input_tokens, output_tokens).await
+    }
+
+    async fn workflow_history(&self, workflow: &str) -> Vec<WorkflowRunInfo> {
+        DaemonBridge::workflow_history(self, workflow).await
+    }
+
+    async fn capabilities(&self) -> Option<DaemonCapabilities> {
+        DaemonBridge::capabilities(self).await
+    }
+}
+
+impl DaemonBridge {
     // Note: Event subscription (WatchTriggered, JobCompleted) requires raw socket streaming
     // which ConnectedClient::request() doesn't support. Live refresh is handled by:
     // - 30s daemon status poll in the VS Code extension (triggers code lens refresh)
