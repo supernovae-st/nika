@@ -196,12 +196,66 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
             }
         }
 
-        ScheduleAction::Trigger { name: _ } => {
-            return Err(NikaError::Execution(
-                "nika schedule trigger is not yet implemented.\n\
-                 Use 'nika run <workflow>' to run a workflow manually."
-                    .into(),
-            ));
+        ScheduleAction::Trigger { name } => {
+            // First, get the schedule to find its workflow
+            let resp = client
+                .send(DaemonRequest::ScheduleGet { name: name.clone() })
+                .await
+                .map_err(sched_err)?;
+
+            let workflow = match resp {
+                DaemonResponse::ScheduleDetail { ref schedule } => {
+                    schedule["workflow"].as_str().unwrap_or("").to_string()
+                }
+                DaemonResponse::Error { code, message } => {
+                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                    return Ok(());
+                }
+                _ => {
+                    eprintln!("{} unexpected response", "✗".red().bold());
+                    return Ok(());
+                }
+            };
+
+            if workflow.is_empty() {
+                eprintln!(
+                    "{} schedule '{}' has no workflow configured",
+                    "✗".red().bold(),
+                    name
+                );
+                return Ok(());
+            }
+
+            // Submit a job for this workflow
+            let resp = client
+                .send(DaemonRequest::JobSubmit {
+                    workflow: workflow.clone(),
+                    name: Some(format!("{name}-manual")),
+                    args: None,
+                    cron: None,
+                    max_retries: None,
+                })
+                .await
+                .map_err(sched_err)?;
+
+            match resp {
+                DaemonResponse::JobCreated { id } => {
+                    if !quiet {
+                        println!(
+                            "{} triggered {} → job {}",
+                            "✓".green().bold(),
+                            name.bold(),
+                            id.dimmed()
+                        );
+                        println!("  Workflow: {workflow}");
+                        println!("  Track:   nika trace show {id}");
+                    }
+                }
+                DaemonResponse::Error { code, message } => {
+                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                }
+                _ => eprintln!("{} unexpected response", "✗".red().bold()),
+            }
         }
 
         ScheduleAction::Remove { name } => {
