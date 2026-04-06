@@ -50,6 +50,35 @@ pub struct ErrorLookupParams {
     pub code: String,
 }
 
+/// Parameters for the nika_generate_task tool
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GenerateTaskParams {
+    /// Natural language description of what the task should do
+    pub description: String,
+    /// Which verb to use (infer, exec, fetch, invoke, agent)
+    #[serde(default)]
+    pub verb: Option<String>,
+    /// Provider to use (anthropic, openai, etc.)
+    #[serde(default)]
+    pub provider: Option<String>,
+}
+
+/// Parameters for the nika_dag_visualization tool
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DagVisualizationParams {
+    /// Path to a .nika.yaml workflow file
+    pub path: String,
+}
+
+/// Parameters for the nika_error_fix tool
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ErrorFixParams {
+    /// NIKA error code (e.g., "NIKA-041")
+    pub code: String,
+    /// The YAML content that has the error
+    pub content: String,
+}
+
 #[tool_router]
 impl NikaMcpServer {
     pub fn new() -> Self {
@@ -141,6 +170,180 @@ impl NikaMcpServer {
         Parameters(_params): Parameters<SchemaParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         Ok(CallToolResult::success(vec![Content::text(SCHEMA_REF)]))
+    }
+
+    /// Generate a valid Nika task from a natural language description.
+    #[tool(
+        name = "nika_generate_task",
+        description = "Generate a valid Nika YAML task from a natural language description. Returns a task block ready to paste into a .nika.yaml workflow."
+    )]
+    async fn generate_task(
+        &self,
+        Parameters(params): Parameters<GenerateTaskParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let verb = params.verb.as_deref().unwrap_or("infer");
+        let provider = params.provider.as_deref().unwrap_or("anthropic");
+
+        let task_id = params
+            .description
+            .split_whitespace()
+            .take(3)
+            .collect::<Vec<_>>()
+            .join("_")
+            .to_lowercase()
+            .replace(|c: char| !c.is_alphanumeric() && c != '_', "");
+
+        let yaml = match verb {
+            "infer" => format!(
+                "- id: {task_id}\n  provider: {provider}\n  infer: |\n    {desc}",
+                task_id = if task_id.is_empty() { "my_task" } else { &task_id },
+                desc = params.description,
+            ),
+            "exec" => format!(
+                "- id: {task_id}\n  exec:\n    command: \"# TODO: {desc}\"\n    shell: true",
+                task_id = if task_id.is_empty() { "my_task" } else { &task_id },
+                desc = params.description,
+            ),
+            "fetch" => format!(
+                "- id: {task_id}\n  fetch:\n    url: \"https://example.com\"\n    extract: article\n  # {desc}",
+                task_id = if task_id.is_empty() { "my_task" } else { &task_id },
+                desc = params.description,
+            ),
+            "invoke" => format!(
+                "- id: {task_id}\n  invoke:\n    tool: \"nika:log\"\n    params:\n      message: \"# TODO: {desc}\"",
+                task_id = if task_id.is_empty() { "my_task" } else { &task_id },
+                desc = params.description,
+            ),
+            "agent" => format!(
+                "- id: {task_id}\n  provider: {provider}\n  agent:\n    prompt: |\n      {desc}\n    max_turns: 5\n    completion:\n      mode: natural",
+                task_id = if task_id.is_empty() { "my_task" } else { &task_id },
+                desc = params.description,
+            ),
+            _ => format!(
+                "- id: {task_id}\n  # Unknown verb '{verb}'. Valid verbs: infer, exec, fetch, invoke, agent\n  infer: |\n    {desc}",
+                task_id = if task_id.is_empty() { "my_task" } else { &task_id },
+                desc = params.description,
+            ),
+        };
+
+        Ok(CallToolResult::success(vec![Content::text(yaml)]))
+    }
+
+    /// Generate a Mermaid DAG visualization of a Nika workflow.
+    #[tool(
+        name = "nika_dag_visualization",
+        description = "Generate a Mermaid graph visualization of a Nika workflow's task DAG. Returns Mermaid markdown that renders as a directed graph."
+    )]
+    async fn dag_visualization(
+        &self,
+        Parameters(params): Parameters<DagVisualizationParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let canonical = match validate_workflow_path(&params.path) {
+            Ok(p) => p,
+            Err(e) => return Ok(CallToolResult::error(vec![Content::text(e)])),
+        };
+
+        let content = match std::fs::read_to_string(&canonical) {
+            Ok(c) => c,
+            Err(e) => return Ok(CallToolResult::error(vec![Content::text(format!("Cannot read file: {e}"))])),
+        };
+
+        // Parse task IDs and dependencies from YAML
+        let mut tasks: Vec<(String, String)> = Vec::new(); // (id, verb)
+        let mut edges: Vec<(String, String)> = Vec::new(); // (from, to)
+        let mut current_id: Option<String> = None;
+
+        for line in content.lines() {
+            let trimmed = line.trim();
+
+            // Match task ID
+            if let Some(rest) = trimmed.strip_prefix("- id:") {
+                current_id = Some(rest.trim().to_string());
+            }
+
+            // Match verb
+            if let Some(ref id) = current_id {
+                for verb in &["infer", "exec", "fetch", "invoke", "agent"] {
+                    if trimmed.starts_with(&format!("{verb}:")) || trimmed.starts_with(&format!("{verb}: ")) {
+                        tasks.push((id.clone(), verb.to_string()));
+                        current_id = None;
+                        break;
+                    }
+                }
+            }
+
+            // Match depends_on
+            if trimmed.starts_with("depends_on:") {
+                if let Some(ref id) = current_id.as_ref().or(tasks.last().map(|t| &t.0)) {
+                    let deps_str = trimmed.strip_prefix("depends_on:").unwrap_or("").trim();
+                    // Parse [dep1, dep2] or single dep
+                    let deps_str = deps_str.trim_start_matches('[').trim_end_matches(']');
+                    for dep in deps_str.split(',') {
+                        let dep = dep.trim().trim_matches('"').trim_matches('\'');
+                        if !dep.is_empty() {
+                            edges.push((dep.to_string(), id.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut mermaid = String::from("graph TD\n");
+        for (id, verb) in &tasks {
+            let style = match verb.as_str() {
+                "infer" => ":::infer",
+                "exec" => ":::exec",
+                "fetch" => ":::fetch",
+                "invoke" => ":::invoke",
+                "agent" => ":::agent",
+                _ => "",
+            };
+            mermaid.push_str(&format!("    {id}[\"{id} ({verb})\"{style}]\n"));
+        }
+        for (from, to) in &edges {
+            mermaid.push_str(&format!("    {from} --> {to}\n"));
+        }
+        mermaid.push_str("\n    classDef infer fill:#7c3aed,color:white\n");
+        mermaid.push_str("    classDef exec fill:#16a34a,color:white\n");
+        mermaid.push_str("    classDef fetch fill:#0891b2,color:white\n");
+        mermaid.push_str("    classDef invoke fill:#db2778,color:white\n");
+        mermaid.push_str("    classDef agent fill:#d97306,color:white\n");
+
+        Ok(CallToolResult::success(vec![Content::text(mermaid)]))
+    }
+
+    /// Suggest a fix for a NIKA error code given the workflow content.
+    #[tool(
+        name = "nika_error_fix",
+        description = "Given a NIKA-XXX error code and the workflow YAML content, suggest a specific fix. Returns the corrected YAML or a targeted explanation."
+    )]
+    async fn error_fix(
+        &self,
+        Parameters(params): Parameters<ErrorFixParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let code = params.code.to_uppercase().replace("NIKA-", "");
+        let num: u32 = code.parse().unwrap_or(999);
+
+        let suggestion = match num {
+            10 => "NIKA-010: Schema validation. Ensure the first line is: schema: \"nika/workflow@0.12\"",
+            20 => "NIKA-020: DAG cycle detected. Check depends_on fields for circular references. Remove the cycle.",
+            26 => "NIKA-026: Upstream task failed. Check the task in depends_on — it must succeed for this task to run.",
+            41 => "NIKA-041: Template resolution error. Check that all {{with.alias}} references have matching entries in the task's `with:` block. Use $task_id (with $ prefix) in with: bindings.",
+            45 => "NIKA-045: Fetch error. Check the URL is valid and accessible. Private IP ranges are blocked by default (SSRF protection).",
+            53 => "NIKA-053: Blocked command. If using shell: true, ensure all {{with.*}} bindings use the | shell transform. Also check for $( ) command substitution which is blocked.",
+            71 => "NIKA-071: Unknown alias. The {{with.alias}} reference is not declared in the task's `with:` block. Add it: with: { alias: $source_task }",
+            72 => "NIKA-072: Null value at path. The binding resolved to null. Add a default: {{with.value | default(\"fallback\")}}",
+            100 => "NIKA-100: MCP connection error. Check that the MCP server is running and the tool name uses double colon: server::tool_name",
+            107 => "NIKA-107: MCP parameter validation failed. Check the tool's required params. Field is `params:` not `input:`.",
+            270 => "NIKA-270: Skill file not found. The file referenced in `skills:` does not exist. Check the path (resolves from project root).",
+            281 => "NIKA-281: Artifact write failed. Check the output path and permissions. Ensure artifacts.dir exists.",
+            300 => "NIKA-300: Structured output validation failed. The LLM output doesn't match the schema. Check required fields and types. Enable repair: enable_repair: true",
+            _ => "Run `nika check <file>` for detailed diagnostics with line numbers.",
+        };
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "NIKA-{num:03}: {suggestion}\n\nTo validate after fixing: `nika check <file>.nika.yaml`"
+        ))]))
     }
 
     /// Look up a NIKA error code and get its description and fix.
