@@ -458,6 +458,117 @@ function isCursor(): boolean {
   return env.appName === 'Cursor' || env.uriScheme === 'cursor';
 }
 
+async function ensureCursorMcpConfig(): Promise<void> {
+  const folder = workspace.workspaceFolders?.[0];
+  if (!folder) { return; }
+
+  const cursorDir = Uri.joinPath(folder.uri, '.cursor');
+  const mcpPath = Uri.joinPath(cursorDir, 'mcp.json');
+
+  try {
+    await workspace.fs.stat(mcpPath);
+    return; // Already exists — don't overwrite
+  } catch {
+    // File doesn't exist — create it
+  }
+
+  const nikaPath = resolvedServerPath ?? 'nika';
+  const mcpConfig = {
+    mcpServers: {
+      nika: {
+        command: nikaPath,
+        args: ['mcp', 'serve', '--stdio'],
+      },
+    },
+  };
+
+  await workspace.fs.createDirectory(cursorDir);
+  await workspace.fs.writeFile(mcpPath, Buffer.from(JSON.stringify(mcpConfig, null, 2)));
+  log('INFO', 'Auto-generated .cursor/mcp.json for Cursor MCP integration');
+}
+
+async function ensureCursorRules(): Promise<void> {
+  const folder = workspace.workspaceFolders?.[0];
+  if (!folder) { return; }
+
+  const rulesDir = Uri.joinPath(folder.uri, '.cursor', 'rules');
+  const rulePath = Uri.joinPath(rulesDir, 'nika.mdc');
+
+  try {
+    await workspace.fs.stat(rulePath);
+    return; // Already exists
+  } catch {
+    // Create
+  }
+
+  const content = [
+    '---',
+    'description: Nika workflow engine rules for AI assistance',
+    'globs: ["**/*.nika.yaml"]',
+    'alwaysApply: false',
+    '---',
+    '',
+    '# Nika Workflow Engine',
+    '',
+    'Schema: nika/workflow@0.12. Extension: .nika.yaml.',
+    '',
+    '## 5 Verbs',
+    '- infer: LLM generation',
+    '- exec: Shell command',
+    '- fetch: HTTP request',
+    '- invoke: MCP/builtin tool call',
+    '- agent: Multi-turn loop',
+    '',
+    '## Key Rules',
+    '- Bindings: with: { alias: $task_id } then {{with.alias}}',
+    '- Always start with schema: "nika/workflow@0.12"',
+    '- depends_on is always an array: depends_on: [task_id]',
+    '- for_each output is always an array',
+    '- shell: true requires | shell transform on bindings',
+    '- Secrets via $env.VAR_NAME, never hardcode',
+    '- timeout is always in seconds (not milliseconds)',
+    '',
+    '## Providers',
+    'anthropic, openai, mistral, groq, deepseek, gemini, xai, native, mock',
+    '',
+    'Refer to AGENTS.md for complete documentation.',
+  ].join('\n');
+
+  await workspace.fs.createDirectory(rulesDir);
+  await workspace.fs.writeFile(rulePath, Buffer.from(content));
+  log('INFO', 'Auto-generated .cursor/rules/nika.mdc');
+}
+
+async function ensureVscodeMcpConfig(): Promise<void> {
+  const folder = workspace.workspaceFolders?.[0];
+  if (!folder) { return; }
+
+  const vscodeDir = Uri.joinPath(folder.uri, '.vscode');
+  const mcpPath = Uri.joinPath(vscodeDir, 'mcp.json');
+
+  try {
+    await workspace.fs.stat(mcpPath);
+    return;
+  } catch {
+    // Create
+  }
+
+  const nikaPath = resolvedServerPath ?? 'nika';
+  const mcpConfig = {
+    servers: {
+      nika: {
+        type: 'stdio',
+        command: nikaPath,
+        args: ['mcp', 'serve', '--stdio'],
+      },
+    },
+  };
+
+  await workspace.fs.createDirectory(vscodeDir);
+  await workspace.fs.writeFile(mcpPath, Buffer.from(JSON.stringify(mcpConfig, null, 2)));
+  log('INFO', 'Auto-generated .vscode/mcp.json for VS Code MCP integration');
+}
+
 function startClient(context: ExtensionContext, overridePath?: string): void {
   const config = workspace.getConfiguration('nika');
   const serverPath = overridePath ?? getNikaPath();
@@ -498,6 +609,14 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
 
     // Check for version mismatch between extension and LSP server
     checkVersionMismatch(context);
+
+    // Auto-configure MCP for the current IDE
+    if (isCursor()) {
+      ensureCursorMcpConfig();
+      ensureCursorRules();
+    } else {
+      ensureVscodeMcpConfig();
+    }
 
     // Poll daemon status every 30s — clear previous interval to prevent accumulation
     if (statusPollInterval !== undefined) {
