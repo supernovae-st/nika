@@ -139,10 +139,22 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                             })
                             .unwrap_or_else(|| "-".into());
 
+                        // History dots from recent runs
+                        let dots = fetch_history_dots(&client, workflow, 10).await;
+                        let dots_str = if dots.is_empty() {
+                            String::new()
+                        } else {
+                            let summary = history_summary(&dots);
+                            format!("  {} {}", render_history_dots(&dots), summary.dimmed())
+                        };
+
                         println!(
                             "  {icon} {:<19} {:<8} {:<20} {:<14} {:<6} {:<16} {}",
                             name, status, cron, tz, run_count, freq, workflow,
                         );
+                        if run_count > 0 && !dots_str.is_empty() {
+                            println!("   {dots_str}");
+                        }
                     }
                     println!("\n  {} schedule(s)\n", schedules.len());
                 }
@@ -161,7 +173,9 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
 
             match resp {
                 DaemonResponse::ScheduleDetail { schedule } => {
-                    render_schedule_card(&schedule);
+                    let wf = schedule["workflow"].as_str().unwrap_or("");
+                    let dots = fetch_history_dots(&client, wf, 10).await;
+                    render_schedule_card(&schedule, &dots);
                 }
                 DaemonResponse::Error { code, message } => {
                     eprintln!("{} [{code}] {message}", "✗".red().bold());
@@ -298,8 +312,51 @@ fn sched_err(e: nika_daemon::DaemonError) -> NikaError {
     NikaError::Execution(format!("schedule: {e}"))
 }
 
+/// Fetch recent run statuses for a workflow via GetWorkflowHistory.
+async fn fetch_history_dots(
+    client: &nika_daemon::DaemonClient,
+    workflow: &str,
+    limit: usize,
+) -> Vec<String> {
+    let resp = client
+        .send(DaemonRequest::GetWorkflowHistory {
+            workflow: workflow.to_string(),
+        })
+        .await;
+    match resp {
+        Ok(DaemonResponse::WorkflowHistoryResult { runs }) => {
+            let start = runs.len().saturating_sub(limit);
+            runs[start..].iter().map(|r| r.state.clone()).collect()
+        }
+        _ => vec![],
+    }
+}
+
+/// Render job states as colored dot characters.
+pub fn render_history_dots(states: &[String]) -> String {
+    states
+        .iter()
+        .map(|s| match s.as_str() {
+            "completed" => "✓".green().to_string(),
+            "failed" => "✗".red().to_string(),
+            "cancelled" => "─".dimmed().to_string(),
+            "running" => "◆".cyan().to_string(),
+            "pending" => "○".dimmed().to_string(),
+            _ => "?".dimmed().to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+/// Summarize pass/fail from states.
+pub fn history_summary(states: &[String]) -> String {
+    let pass = states.iter().filter(|s| *s == "completed").count();
+    let total = states.len();
+    format!("{pass}/{total}")
+}
+
 /// Render a detailed schedule card with box-drawing characters.
-fn render_schedule_card(sched: &serde_json::Value) {
+fn render_schedule_card(sched: &serde_json::Value, history: &[String]) {
     let name = sched["name"].as_str().unwrap_or("-");
     let workflow = sched["workflow"].as_str().unwrap_or("-");
     let cron = sched["cron_expr"].as_str().unwrap_or("-");
@@ -336,6 +393,14 @@ fn render_schedule_card(sched: &serde_json::Value) {
     println!("  │  Last run   {:<42} │", last_run);
     if let Some(estimate) = format_run_estimate(cron) {
         println!("  │  Frequency  {:<42} │", estimate);
+    }
+    if !history.is_empty() {
+        let dots_line = format!(
+            "{}  {}",
+            render_history_dots(history),
+            history_summary(history)
+        );
+        println!("  │  History    {:<42} │", dots_line);
     }
     println!("  │                                                       │");
 
@@ -414,5 +479,41 @@ mod tests {
         assert_eq!(humanize_duration(3600), "in 1h");
         assert_eq!(humanize_duration(5400), "in 1h 30m");
         assert_eq!(humanize_duration(90000), "in 1d 1h");
+    }
+
+    #[test]
+    fn test_render_history_dots_mixed() {
+        let states: Vec<String> = vec![
+            "completed".into(),
+            "completed".into(),
+            "failed".into(),
+            "completed".into(),
+        ];
+        let dots = render_history_dots(&states);
+        assert!(dots.contains('✓'), "should contain ✓");
+        assert!(dots.contains('✗'), "should contain ✗");
+    }
+
+    #[test]
+    fn test_render_history_dots_empty() {
+        let dots = render_history_dots(&[]);
+        assert!(dots.is_empty());
+    }
+
+    #[test]
+    fn test_history_summary() {
+        let states: Vec<String> = vec![
+            "completed".into(),
+            "failed".into(),
+            "completed".into(),
+            "completed".into(),
+        ];
+        assert_eq!(history_summary(&states), "3/4");
+    }
+
+    #[test]
+    fn test_history_summary_all_pass() {
+        let states: Vec<String> = vec!["completed".into(), "completed".into()];
+        assert_eq!(history_summary(&states), "2/2");
     }
 }
