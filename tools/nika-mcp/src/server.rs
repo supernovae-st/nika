@@ -255,7 +255,7 @@ impl NikaMcpServer {
         };
 
         // Parse with nika-core AST for correct handling of all YAML patterns
-        use nika_core::ast::raw::{parse, RawTaskAction};
+        use nika_core::ast::raw::parse;
         use nika_core::source::FileId;
 
         let mut tasks: Vec<(String, String)> = Vec::new(); // (id, verb)
@@ -264,14 +264,7 @@ impl NikaMcpServer {
         if let Ok(workflow) = parse(&content, FileId(0)) {
             for task in &workflow.tasks.value {
                 let t = &task.value;
-                let verb = match &t.action {
-                    Some(RawTaskAction::Infer(_)) => "infer",
-                    Some(RawTaskAction::Exec(_)) => "exec",
-                    Some(RawTaskAction::Fetch(_)) => "fetch",
-                    Some(RawTaskAction::Invoke(_)) => "invoke",
-                    Some(RawTaskAction::Agent(_)) => "agent",
-                    None => "unknown",
-                };
+                let verb = t.action.as_ref().map_or("unknown", |a| a.verb_name());
                 tasks.push((t.id.value.clone(), verb.to_string()));
 
                 for dep in t.depends_on_ids() {

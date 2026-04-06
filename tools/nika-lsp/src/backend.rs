@@ -127,14 +127,8 @@ pub struct NikaBackend {
 }
 
 impl NikaBackend {
-    /// Create a new backend instance.
+    /// Create a new backend with IPC daemon connection (Unix) or embedded (other).
     pub fn new(client: Client) -> Self {
-        let (tx, rx) = mpsc::channel(100);
-        let (parse_tx, parse_rx) = mpsc::channel::<ParseSuccessNotification>(32);
-
-        // Daemon provider: try to connect, fall back to disconnected stub.
-        // On Unix: attempt IPC connection in background, reconnect on failure.
-        // On non-Unix: always use embedded provider (no daemon socket support).
         #[cfg(unix)]
         let daemon: Arc<dyn DaemonProvider> = {
             let bridge_holder: Arc<RwLock<Option<DaemonBridge>>> = Arc::new(RwLock::new(None));
@@ -153,42 +147,17 @@ impl NikaBackend {
         let daemon: Arc<dyn DaemonProvider> =
             Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
 
-        let documents: DashMap<Uri, DocumentState> = DashMap::new();
-        let documents_clone = documents.clone();
-        let worker_parse_tx = parse_tx.clone();
-
-        let backend = Self {
-            client: client.clone(),
-            documents,
-            validation_tx: tx,
-            handler: DefaultHandler::new(),
-            daemon,
-            parse_success_tx: parse_tx,
-        };
-
-        // Spawn validation worker (sends parse success for AST cache)
-        tokio::spawn(validation_worker(rx, client, worker_parse_tx));
-
-        // Spawn AST cache updater — marks documents valid on successful parse
-        tokio::spawn(async move {
-            let mut rx = parse_rx;
-            while let Some(notif) = rx.recv().await {
-                if let Some(mut doc) = documents_clone.get_mut(&notif.uri) {
-                    doc.mark_valid();
-                }
-            }
-        });
-
-        backend
+        Self::init(client, daemon)
     }
 
     /// Create a backend with embedded daemon (no separate process needed).
     pub fn new_embedded(client: Client) -> Self {
+        Self::init(client, Arc::new(nika_daemon::EmbeddedDaemonProvider::new()))
+    }
+
+    fn init(client: Client, daemon: Arc<dyn DaemonProvider>) -> Self {
         let (tx, rx) = mpsc::channel(100);
         let (parse_tx, parse_rx) = mpsc::channel::<ParseSuccessNotification>(32);
-
-        let daemon: Arc<dyn DaemonProvider> =
-            Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
 
         let documents: DashMap<Uri, DocumentState> = DashMap::new();
         let documents_clone = documents.clone();
@@ -265,8 +234,6 @@ impl NikaBackend {
 
 /// Extract DAG graph data from workflow content (pure function for testing).
 pub(crate) fn extract_workflow_graph(content: &str) -> serde_json::Value {
-    use nika_core::ast::raw::RawTaskAction;
-
     let parsed = crate::ast_integration::parse_workflow(content);
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
@@ -274,14 +241,7 @@ pub(crate) fn extract_workflow_graph(content: &str) -> serde_json::Value {
     if let Some(ref workflow) = parsed.workflow {
         for task in &workflow.tasks.value {
             let t = &task.value;
-            let verb = match &t.action {
-                Some(RawTaskAction::Infer(_)) => "infer",
-                Some(RawTaskAction::Exec(_)) => "exec",
-                Some(RawTaskAction::Fetch(_)) => "fetch",
-                Some(RawTaskAction::Invoke(_)) => "invoke",
-                Some(RawTaskAction::Agent(_)) => "agent",
-                None => "unknown",
-            };
+            let verb = t.action.as_ref().map_or("unknown", |a| a.verb_name());
             let (line, _col) = crate::ast_integration::span_to_line_col(content, &task.span);
             let dep_ids = t.depends_on_ids();
 

@@ -5754,6 +5754,7 @@ dependencies = [
 name = "nika-cli"
 version = "0.74.0"
 dependencies = [
+ "blake3",
  "chrono",
  "chrono-tz",
  "clap",
@@ -5762,6 +5763,7 @@ dependencies = [
  "croner",
  "dirs",
  "filetime",
+ "getrandom 0.3.4",
  "glob",
  "hron",
  "humantime",
@@ -5773,6 +5775,7 @@ dependencies = [
  "nika-engine",
  "nika-init",
  "nika-mcp",
+ "nika-storage",
  "nika-vault",
  "regex",
  "rustc-hash 2.1.2",
@@ -5783,6 +5786,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 0.8.23",
+ "uuid 1.23.0",
  "which",
  "xxhash-rust",
 ]
