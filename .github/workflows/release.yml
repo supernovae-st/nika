@@ -93,7 +93,19 @@ jobs:
             echo "::error::Tag ${TAG} does not match Cargo.toml version ${CARGO_VERSION}"
             exit 1
           fi
-          echo "Version coherence: OK"
+
+          # Cross-channel version sync
+          NPM_VERSION=$(node -p "require('./packages/npm/package.json').version" 2>/dev/null || echo "")
+          VSCODE_VERSION=$(node -p "require('./editors/vscode/package.json').version" 2>/dev/null || echo "")
+          if [ -n "$NPM_VERSION" ] && [ "$CARGO_VERSION" != "$NPM_VERSION" ]; then
+            echo "::error::npm version ${NPM_VERSION} != Cargo version ${CARGO_VERSION}. Run: ./scripts/sync-versions.sh"
+            exit 1
+          fi
+          if [ -n "$VSCODE_VERSION" ] && [ "$CARGO_VERSION" != "$VSCODE_VERSION" ]; then
+            echo "::error::vscode version ${VSCODE_VERSION} != Cargo version ${CARGO_VERSION}. Run: ./scripts/sync-versions.sh"
+            exit 1
+          fi
+          echo "Version coherence: OK (Cargo=${CARGO_VERSION}, npm=${NPM_VERSION:-n/a}, vscode=${VSCODE_VERSION:-n/a})"
 
       - name: Verify CHANGELOG has entry
         env:
@@ -872,14 +884,29 @@ jobs:
 
       - name: Download binary artifact
         if: matrix.artifact != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: editors/vscode/server/
 
-      - name: Make binary executable
+      - name: Extract binary from archive (Unix)
         if: matrix.artifact != '' && matrix.vscode-target != 'win32-x64'
-        run: chmod +x server/nika
+        run: |
+          cd server
+          tar -xzf *.tar.gz
+          mv */nika ./nika
+          rm -rf *.tar.gz *.sha256 */
+          chmod +x nika
+
+      - name: Extract binary from archive (Windows)
+        if: matrix.artifact != '' && matrix.vscode-target == 'win32-x64'
+        shell: pwsh
+        run: |
+          cd server
+          Expand-Archive -Path *.zip -DestinationPath .
+          Move-Item */nika.exe ./nika.exe
+          Remove-Item *.zip, *.sha256 -Force
+          Get-ChildItem -Directory | Remove-Item -Recurse -Force
 
       - name: Package platform-specific VSIX
         if: matrix.vscode-target != 'universal'
