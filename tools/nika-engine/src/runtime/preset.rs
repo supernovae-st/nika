@@ -88,7 +88,6 @@ mod tests {
                 thinking_budget: None,
                 content: None,
                 guardrails: vec![],
-                base_url: None,
                 provider_chain: None,
             },
         }
@@ -183,7 +182,6 @@ mod tests {
                 thinking_budget: None,
                 content: None,
                 guardrails: vec![],
-                base_url: None,
                 provider_chain: None,
             },
         };

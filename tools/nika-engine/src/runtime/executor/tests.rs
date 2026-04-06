@@ -1067,7 +1067,7 @@ async fn test_action_type_helper() {
             completion: None,
             guardrails: vec![],
             limits: None,
-            base_url: None,
+
             provider_chain: None,
         },
     };
@@ -2577,7 +2577,7 @@ async fn test_agent_provider_fallback_to_mock() {
             completion: None,
             guardrails: vec![],
             limits: None,
-            base_url: None,
+
             provider_chain: Some(vec![
                 nika_core::ProviderName::Custom("nonexistent_fake".to_string()),
                 nika_core::ProviderName::Mock,
@@ -2643,7 +2643,7 @@ async fn test_agent_provider_chain_all_fail() {
             completion: None,
             guardrails: vec![],
             limits: None,
-            base_url: None,
+
             provider_chain: Some(vec![
                 nika_core::ProviderName::Custom("fake_provider_1".to_string()),
                 nika_core::ProviderName::Custom("fake_provider_2".to_string()),
@@ -2704,7 +2704,7 @@ async fn test_agent_single_provider_mock() {
             completion: None,
             guardrails: vec![],
             limits: None,
-            base_url: None,
+
             provider_chain: None,
         },
     };

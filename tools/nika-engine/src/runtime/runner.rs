@@ -815,7 +815,6 @@ impl Runner {
                 .as_ref()
                 .map(|parts| parts.iter().cloned().map(Into::into).collect()),
             guardrails: Vec::new(),
-            base_url: None,
             provider_chain: None,
         };
 
@@ -1803,8 +1802,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .into_owned();
                 }
             }
-            let loaded_context =
-                load_context_analyzed(&resolved_files, &base_path).await?;
+            let loaded_context = load_context_analyzed(&resolved_files, &base_path).await?;
             self.datastore.set_context(loaded_context);
             debug!("Loaded {} context files", self.workflow.context_files.len());
         }
@@ -2920,7 +2918,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Calculate aggregate duration and success
                 let total_duration: std::time::Duration =
                     results.iter().map(|(_, r)| r.duration).sum();
-                let all_success = results.iter().all(|(_, r)| r.is_success());
+                // All usable = all iterations either succeeded or were skipped (no actual failures)
+                let all_success = results.iter().all(|(_, r)| r.is_usable());
 
                 // Merge media refs from all successful iterations
                 let merged_media: Vec<crate::media::MediaRef> = results
@@ -3549,7 +3548,7 @@ mod tests {
                     }),
                     provider: None,
                     model: None,
-        
+
                     with_spec: Default::default(),
                     depends_on,
                     implicit_deps: vec![],

@@ -134,7 +134,7 @@ impl TaskResult {
     pub fn is_usable(&self) -> bool {
         matches!(
             self.status,
-            TaskOutcome::Success | TaskOutcome::PartialSuccess { .. }
+            TaskOutcome::Success | TaskOutcome::PartialSuccess { .. } | TaskOutcome::Skipped { .. }
         )
     }
 
@@ -1815,6 +1815,60 @@ mod tests {
     fn test_record_missing_returns_none() {
         let ctx = RunContext::new();
         assert!(ctx.get_record("nonexistent").is_none());
+    }
+
+    // =========================================================================
+    // BUG-10: Skipped tasks must NOT block downstream
+    // =========================================================================
+
+    #[test]
+    fn skipped_task_is_usable() {
+        // BUG-10: is_usable() must return true for Skipped tasks.
+        // Skipped tasks (via when: false) produce null output but should
+        // NOT prevent downstream tasks from running.
+        let result = TaskResult::skipped("when: false");
+        assert!(
+            result.is_usable(),
+            "Skipped tasks must be usable by downstream tasks"
+        );
+    }
+
+    #[test]
+    fn skipped_task_is_completed_successfully() {
+        // BUG-10: is_completed_successfully() delegates to is_usable().
+        // Skipped tasks must return Some(true) so downstream tasks proceed.
+        let store = RunContext::new();
+        store.insert(Arc::from("gated"), TaskResult::skipped("when: false"));
+
+        assert_eq!(
+            store.is_completed_successfully("gated"),
+            Some(true),
+            "Skipped task must be treated as completed successfully"
+        );
+    }
+
+    #[test]
+    fn skipped_task_output_is_null() {
+        // Skipped tasks output Value::Null — downstream must use ?? or default()
+        let result = TaskResult::skipped("when: false");
+        assert_eq!(*result.output, Value::Null);
+    }
+
+    #[test]
+    fn skipped_task_is_not_failed() {
+        // Skipped is distinct from Failed — must not appear in is_failed()
+        let store = RunContext::new();
+        store.insert(Arc::from("skipped"), TaskResult::skipped("when: false"));
+
+        assert!(
+            !store.is_failed("skipped"),
+            "Skipped must not be treated as failed"
+        );
+        assert!(!store.is_dependency_failed("skipped"));
+        assert!(
+            !store.is_success("skipped"),
+            "Skipped is not strict success either"
+        );
     }
 
     #[test]
