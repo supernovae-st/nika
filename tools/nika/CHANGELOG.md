@@ -8,6 +8,73 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.74.0] — 2026-04-06
+
+### Added
+
+- **VS Code Extension Redesign** — Full IDE experience with DAG webview (ELK.js + D3.js), sidebar workflow tree, semantic tokens, inlay hints, code lens, keybindings (Cmd+Shift+R/K). Binary bundled in platform-specific VSIX (~18MB). MCP auto-config for Cursor, Windsurf, and VS Code.
+- **DaemonProvider trait** — Unified LSP/daemon interface. `EmbeddedDaemonProvider` for single-process IDE mode (`--embedded-daemon`). `IpcDaemonProvider` for standalone daemon. `DisconnectedProvider` stub for graceful degradation.
+- **3 MCP prompt templates** — `create_workflow`, `add_task`, `fix_error` for AI-assisted workflow authoring.
+- **3 new MCP tools** — `nika_generate_task` (description → YAML task), `nika_dag_visualization` (workflow → Mermaid DAG), `nika_error_fix` (NIKA-XXX → fix suggestion).
+- **`nika/workflowGraph` LSP request** — Custom request returning `{ nodes, edges }` JSON for DAG visualization.
+- **Execution event streaming** — LSP emits `nika/executionEvent` notifications for live DAG updates.
+- **Multi-tenant auth** — `nika token add/list/revoke` commands. `TokenStore` with BLAKE3 hashing + moka cache. `AuthMode::Legacy` + `AuthMode::MultiKey`. V6 storage migration with `serve_tokens` table.
+- **`NIKA_SERVE_TOKEN` optional** — When multi-key tokens exist, legacy token is no longer required.
+- **`nika:json_diff` tool** — Translation QA: compare two JSON objects, returns added/removed/changed/unchanged (63rd builtin).
+- **`| parse_yaml` transform** — Parse YAML strings into objects (64th transform).
+- **Slash syntax** — `model: groq/llama-3.3-70b` splits into provider + model at runtime. Named endpoints: `model: h100/Qwen/Qwen3-8B`.
+- **`[endpoints]` in nika.toml** — Named endpoint configuration with `base_url`, `api_key`, `model`, `timeout_secs`. Replaces `base_url:` in workflow YAML.
+- **Platform-specific VSIX** — CI builds 6 targets (darwin-arm64/x64, linux-x64/arm64, win32-x64, universal) with bundled nika binary.
+- **Version sync scripts** — `scripts/sync-versions.sh` and `scripts/bump-version.sh` for atomic cross-channel version bumps.
+- **CI version sync guard** — Release pipeline verifies npm + VS Code versions match Cargo.toml.
+- **vitest for extension** — 12 unit tests for workflow parser.
+
+### Fixed
+
+- **8 VS Code extension bugs** — Command registration race on Cursor, StatusBarAlignment enum, code lens URI arguments, binary path persistence, interval accumulation, Cursor marketplace fallback, path escaping, hidden LSP features.
+- **BUG-10** — Skipped tasks no longer block downstream execution.
+- **Disposable double-dispose** — DagPanel listener leak on panel close fixed. `onDidDispose` not tracked in disposables array.
+- **Cross-platform nika-daemon** — Made unconditional dependency (trait + embedded provider are platform-agnostic, only IPC bridge is Unix-specific).
+- **Click-to-task navigation** — Sidebar tree uses `showTextDocument` with `Range` instead of broken `vscode.open` selection.
+- **Verb accent colors** — exec=green (#16a34a), invoke=pink (#db2778), agent=amber (#d97306) per brand spec.
+- **Empty nikaProviders panel** — Removed unimplemented view declaration.
+- **Slash model parsing errors** — Better error messages for invalid slash syntax.
+- **7 schedule bugs** — stdin pipe, timezone, LIMIT 10, TOCTOU double-fire, inputs_json, reconciler collisions.
+
+### Changed
+
+- **LSP decoupled from nika-engine** — `nika-lsp` depends only on `nika-core` (compile 90s → 15s).
+- **`base_url:` removed from workflow YAML** — Use named endpoints in `nika.toml [endpoints.*]` instead.
+- **`native-inference` bundled by default** — No separate feature flag needed.
+- **`verb_name()` method** — Replaces duplicated `RawTaskAction` match blocks in LSP and MCP.
+- **npm packages synced** — All 6 npm packages updated from v0.46.1 to v0.74.0.
+
+### Removed
+
+- **`tools/nika-vscode/` scaffold** — DAG webview fully integrated into `editors/vscode/`.
+- **Dead `base_url` from `InferParams`** — Runtime deprecation error for any remaining usage.
+- **Model/provider mismatch warning** — Removed from analyzer (false positives with custom endpoints).
+
+---
+
+## [0.73.0] — 2026-04-06
+
+### Added
+
+- **Scheduling daemon** — Cron firing loop reads `schedules` table, checks overlap policy, submits jobs, advances `next_run_at`. `scan_scheduled_workflows()` startup discovery.
+- **24h timeline view** — `nika schedule list --timeline` shows visual timeline of schedule firings.
+- **History dots** — `nika schedule list` and `show` display recent run history as dot indicators.
+- **Frequency estimation** — Schedule card shows estimated cost per day/week/month.
+- **Catalog drift guard** — Test ensures router builtin tools match catalog declarations.
+
+### Fixed
+
+- **8 production bugs** from nk-jungo VPS deployment — `from_example:` path resolution, `skills:` path resolution from project root, `guardrails:` on infer shorthand, `context: files:` template paths, subprocess artifacts in API, fallback chain error reporting.
+- **Model warning** — Skip when workflow-level provider is set.
+- **Flaky cron test** — Extended sample window to 7 days for weekly schedules.
+
+---
+
 ## [0.72.0] — 2026-04-06
 
 ### Added
