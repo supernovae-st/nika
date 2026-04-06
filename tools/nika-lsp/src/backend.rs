@@ -232,8 +232,6 @@ impl NikaBackend {
         &self,
         params: serde_json::Value,
     ) -> Result<serde_json::Value> {
-        use nika_core::ast::raw::RawTaskAction;
-
         let uri_str = params
             .get("uri")
             .and_then(|v| v.as_str())
@@ -250,80 +248,84 @@ impl NikaBackend {
             None => return Ok(serde_json::json!({ "workflowName": "", "nodes": [], "edges": [] })),
         };
 
-        let parsed = crate::ast_integration::parse_workflow(&content);
-        let mut nodes = Vec::new();
-        let mut edges = Vec::new();
+        Ok(extract_workflow_graph(&content))
+    }
+}
 
-        if let Some(ref workflow) = parsed.workflow {
-            for task in &workflow.tasks.value {
-                let t = &task.value;
-                let verb = match &t.action {
-                    Some(RawTaskAction::Infer(_)) => "infer",
-                    Some(RawTaskAction::Exec(_)) => "exec",
-                    Some(RawTaskAction::Fetch(_)) => "fetch",
-                    Some(RawTaskAction::Invoke(_)) => "invoke",
-                    Some(RawTaskAction::Agent(_)) => "agent",
-                    None => "unknown",
-                };
-                let (line, _col) =
-                    crate::ast_integration::span_to_line_col(&content, &task.span);
-                let dep_ids = t.depends_on_ids();
+/// Extract DAG graph data from workflow content (pure function for testing).
+pub(crate) fn extract_workflow_graph(content: &str) -> serde_json::Value {
+    use nika_core::ast::raw::RawTaskAction;
 
-                nodes.push(serde_json::json!({
-                    "id": t.id.value,
-                    "label": t.id.value,
-                    "verb": verb,
-                    "status": "pending",
-                    "dependsOn": dep_ids,
-                    "line": line,
+    let parsed = crate::ast_integration::parse_workflow(content);
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+
+    if let Some(ref workflow) = parsed.workflow {
+        for task in &workflow.tasks.value {
+            let t = &task.value;
+            let verb = match &t.action {
+                Some(RawTaskAction::Infer(_)) => "infer",
+                Some(RawTaskAction::Exec(_)) => "exec",
+                Some(RawTaskAction::Fetch(_)) => "fetch",
+                Some(RawTaskAction::Invoke(_)) => "invoke",
+                Some(RawTaskAction::Agent(_)) => "agent",
+                None => "unknown",
+            };
+            let (line, _col) = crate::ast_integration::span_to_line_col(content, &task.span);
+            let dep_ids = t.depends_on_ids();
+
+            nodes.push(serde_json::json!({
+                "id": t.id.value,
+                "label": t.id.value,
+                "verb": verb,
+                "status": "pending",
+                "dependsOn": dep_ids,
+                "line": line,
+            }));
+
+            for dep in &dep_ids {
+                edges.push(serde_json::json!({
+                    "id": format!("{}->{}", dep, t.id.value),
+                    "source": dep,
+                    "target": t.id.value,
+                    "isDataEdge": false,
                 }));
+            }
 
-                // Explicit depends_on edges
-                for dep in &dep_ids {
-                    edges.push(serde_json::json!({
-                        "id": format!("{}->{}", dep, t.id.value),
-                        "source": dep,
-                        "target": t.id.value,
-                        "isDataEdge": false,
-                    }));
-                }
-
-                // Implicit data edges from with: bindings ($task_ref)
-                if let Some(ref with_refs) = t.with_refs {
-                    for (_alias, binding) in &with_refs.value {
-                        let val = binding.value.as_str();
-                        if let Some(ref_id) = val.strip_prefix('$') {
-                            let base_id = ref_id.split('.').next().unwrap_or(ref_id);
-                            if base_id != "env"
-                                && base_id != "inputs"
-                                && !dep_ids.contains(&base_id)
-                            {
-                                edges.push(serde_json::json!({
-                                    "id": format!("{}->{}:data", base_id, t.id.value),
-                                    "source": base_id,
-                                    "target": t.id.value,
-                                    "isDataEdge": true,
-                                }));
-                            }
+            if let Some(ref with_refs) = t.with_refs {
+                for (_alias, binding) in &with_refs.value {
+                    let val = binding.value.as_str();
+                    if let Some(ref_id) = val.strip_prefix('$') {
+                        let base_id = ref_id.split('.').next().unwrap_or(ref_id);
+                        if base_id != "env"
+                            && base_id != "inputs"
+                            && !dep_ids.contains(&base_id)
+                        {
+                            edges.push(serde_json::json!({
+                                "id": format!("{}->{}:data", base_id, t.id.value),
+                                "source": base_id,
+                                "target": t.id.value,
+                                "isDataEdge": true,
+                            }));
                         }
                     }
                 }
             }
         }
-
-        let workflow_name = parsed
-            .workflow
-            .as_ref()
-            .and_then(|w| w.workflow.as_ref())
-            .map(|s| s.value.as_str())
-            .unwrap_or("workflow");
-
-        Ok(serde_json::json!({
-            "workflowName": workflow_name,
-            "nodes": nodes,
-            "edges": edges,
-        }))
     }
+
+    let workflow_name = parsed
+        .workflow
+        .as_ref()
+        .and_then(|w| w.workflow.as_ref())
+        .map(|s| s.value.as_str())
+        .unwrap_or("workflow");
+
+    serde_json::json!({
+        "workflowName": workflow_name,
+        "nodes": nodes,
+        "edges": edges,
+    })
 }
 
 /// Background worker that processes validation requests.
@@ -1221,5 +1223,136 @@ mod tests {
         assert_eq!(extract_word_at_col("hello world", 6), "world");
         assert_eq!(extract_word_at_col("  step1", 4), "step1");
         assert_eq!(extract_word_at_col("use: my-task", 6), "my-task");
+    }
+
+    // ── workflow_graph tests ────────────────────────────────────────────
+
+    #[test]
+    fn workflow_graph_empty_content() {
+        let graph = extract_workflow_graph("");
+        assert_eq!(graph["nodes"].as_array().unwrap().len(), 0);
+        assert_eq!(graph["edges"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn workflow_graph_single_infer_task() {
+        let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: test\ntasks:\n  - id: hello\n    infer: \"Say hello\"\n";
+        let graph = extract_workflow_graph(yaml);
+        let nodes = graph["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0]["id"], "hello");
+        assert_eq!(nodes[0]["verb"], "infer");
+        assert_eq!(nodes[0]["status"], "pending");
+        assert!(graph["edges"].as_array().unwrap().is_empty());
+        assert_eq!(graph["workflowName"], "test");
+    }
+
+    #[test]
+    fn workflow_graph_multiple_tasks_with_verbs() {
+        // Use infer short-form which is known to parse correctly
+        let yaml = r#"schema: "nika/workflow@0.12"
+tasks:
+  - id: step1
+    infer: "first task"
+  - id: step2
+    infer: "second task"
+"#;
+        let graph = extract_workflow_graph(yaml);
+        let nodes = graph["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2, "graph: {}", serde_json::to_string_pretty(&graph).unwrap());
+        assert_eq!(nodes[0]["verb"], "infer");
+        assert_eq!(nodes[1]["verb"], "infer");
+    }
+
+    #[test]
+    fn workflow_graph_depends_on_creates_edges() {
+        let yaml = r#"schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "x"
+  - id: b
+    depends_on: [a]
+    infer: "y"
+"#;
+        let graph = extract_workflow_graph(yaml);
+        let edges = graph["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0]["source"], "a");
+        assert_eq!(edges[0]["target"], "b");
+        assert_eq!(edges[0]["isDataEdge"], false);
+    }
+
+    #[test]
+    fn workflow_graph_with_binding_creates_data_edge() {
+        let yaml = r#"schema: "nika/workflow@0.12"
+tasks:
+  - id: src
+    infer: "source data"
+  - id: dst
+    with:
+      data: $src
+    infer: "use data"
+"#;
+        let graph = extract_workflow_graph(yaml);
+        let edges = graph["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0]["source"], "src");
+        assert_eq!(edges[0]["target"], "dst");
+        assert_eq!(edges[0]["isDataEdge"], true);
+    }
+
+    #[test]
+    fn workflow_graph_ignores_env_and_inputs() {
+        let yaml = r#"schema: "nika/workflow@0.12"
+tasks:
+  - id: s
+    with:
+      k: $env.KEY
+      t: $inputs.topic
+    infer: "x"
+"#;
+        let graph = extract_workflow_graph(yaml);
+        assert!(graph["edges"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn workflow_graph_malformed_yaml_returns_empty() {
+        let graph = extract_workflow_graph("not: [valid: yaml: [[[");
+        assert_eq!(graph["nodes"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn workflow_graph_no_duplicate_edge_with_depends_on_and_with() {
+        let yaml = r#"schema: "nika/workflow@0.12"
+tasks:
+  - id: a
+    infer: "x"
+  - id: b
+    depends_on: [a]
+    with:
+      d: $a
+    infer: "y"
+"#;
+        let graph = extract_workflow_graph(yaml);
+        let edges = graph["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1, "should not duplicate edge");
+        assert_eq!(edges[0]["isDataEdge"], false);
+    }
+
+    #[test]
+    fn workflow_graph_line_ordering() {
+        let yaml = r#"schema: "nika/workflow@0.12"
+tasks:
+  - id: first
+    infer: "a"
+  - id: second
+    infer: "b"
+"#;
+        let graph = extract_workflow_graph(yaml);
+        let nodes = graph["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        let l0 = nodes[0]["line"].as_u64().unwrap();
+        let l1 = nodes[1]["line"].as_u64().unwrap();
+        assert!(l0 < l1, "second task on later line: {l0} < {l1}");
     }
 }
