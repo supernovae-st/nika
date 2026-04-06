@@ -39,7 +39,7 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   61 builtin tools (nika:*)
+│   ├── builtin/         #   63 builtin tools (nika:*)
 │   │   ├── data/        #   Data tools: jq, map, filter, enrich, merge, inject, etc.
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
