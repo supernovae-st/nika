@@ -54,8 +54,8 @@ tracing-subscriber = { workspace = true }
 # Template validation
 regex = { workspace = true }
 
-# Daemon client (unix only — daemon uses Unix sockets)
-[target.'cfg(unix)'.dependencies]
+# Daemon provider (trait + embedded mode are cross-platform,
+# IPC bridge uses Unix sockets via cfg(unix) in backend.rs)
 nika-daemon = { workspace = true }
 
 [dev-dependencies]
