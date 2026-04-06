@@ -21,6 +21,7 @@ use tower_lsp_server::{Client, LanguageServer};
 use crate::ast_integration;
 use crate::completion::{get_completion_context, CompletionContext};
 use async_trait::async_trait;
+#[cfg(unix)]
 use crate::daemon_bridge::DaemonBridge;
 use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
 use nika_daemon::provider::DaemonProvider;
@@ -42,8 +43,10 @@ struct ParseSuccessNotification {
 }
 
 /// Adapter: delegates to a DaemonBridge behind an RwLock (supports reconnection).
+#[cfg(unix)]
 struct RwLockDaemonProvider(Arc<RwLock<Option<DaemonBridge>>>);
 
+#[cfg(unix)]
 #[async_trait]
 impl DaemonProvider for RwLockDaemonProvider {
     fn is_connected(&self) -> bool {
@@ -120,24 +123,24 @@ impl NikaBackend {
 
         // Daemon provider: try to connect, fall back to disconnected stub.
         // On Unix: attempt IPC connection in background, reconnect on failure.
-        // On non-Unix: always disconnected (no daemon socket support).
+        // On non-Unix: always use embedded provider (no daemon socket support).
+        #[cfg(unix)]
         let daemon: Arc<dyn DaemonProvider> = {
             let bridge_holder: Arc<RwLock<Option<DaemonBridge>>> = Arc::new(RwLock::new(None));
             let holder_clone = bridge_holder.clone();
 
-            #[cfg(unix)]
-            {
-                tokio::spawn(async move {
-                    if let Some(bridge) = DaemonBridge::try_connect().await {
-                        *holder_clone.write().await = Some(bridge);
-                    }
-                });
-                DaemonBridge::spawn_reconnect_loop(bridge_holder.clone());
-            }
+            tokio::spawn(async move {
+                if let Some(bridge) = DaemonBridge::try_connect().await {
+                    *holder_clone.write().await = Some(bridge);
+                }
+            });
+            DaemonBridge::spawn_reconnect_loop(bridge_holder.clone());
 
-            // Wrap in a DaemonProvider that delegates through the RwLock
             Arc::new(RwLockDaemonProvider(bridge_holder))
         };
+        #[cfg(not(unix))]
+        let daemon: Arc<dyn DaemonProvider> =
+            Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
 
         let documents: DashMap<Uri, DocumentState> = DashMap::new();
         let documents_clone = documents.clone();
@@ -264,18 +267,19 @@ impl NikaBackend {
                 };
                 let (line, _col) =
                     crate::ast_integration::span_to_line_col(&content, &task.span);
+                let dep_ids = t.depends_on_ids();
 
                 nodes.push(serde_json::json!({
                     "id": t.id.value,
                     "label": t.id.value,
                     "verb": verb,
                     "status": "pending",
-                    "dependsOn": t.depends_on_ids(),
+                    "dependsOn": dep_ids,
                     "line": line,
                 }));
 
                 // Explicit depends_on edges
-                for dep in t.depends_on_ids() {
+                for dep in &dep_ids {
                     edges.push(serde_json::json!({
                         "id": format!("{}->{}", dep, t.id.value),
                         "source": dep,
@@ -292,7 +296,7 @@ impl NikaBackend {
                             let base_id = ref_id.split('.').next().unwrap_or(ref_id);
                             if base_id != "env"
                                 && base_id != "inputs"
-                                && !t.depends_on_ids().contains(&base_id)
+                                && !dep_ids.contains(&base_id)
                             {
                                 edges.push(serde_json::json!({
                                     "id": format!("{}->{}:data", base_id, t.id.value),

@@ -78,7 +78,7 @@ impl DaemonBridge {
             connected: Arc::new(AtomicBool::new(false)),
             providers_cache: Arc::new(RwLock::new(CachedProviders {
                 data: Vec::new(),
-                fetched_at: Instant::now(),
+                fetched_at: Instant::now() - CACHE_TTL, // force first refresh on connect
             })),
         }
     }
@@ -312,7 +312,8 @@ impl DaemonBridge {
                         delay = (delay * 2).min(RECONNECT_MAX);
                     }
                 } else {
-                    delay = RECONNECT_INITIAL;
+                    // Already connected — sleep longer before next health check
+                    delay = RECONNECT_MAX;
                 }
             }
         });
