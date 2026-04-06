@@ -286,28 +286,47 @@ impl DaemonBridge {
     // - File system watcher in clientOptions.synchronize (triggers revalidation)
     // True event streaming will be added when ConnectedClient supports it.
 
-    /// Spawn a background reconnection task.
-    pub fn spawn_reconnect_loop(bridge: Arc<RwLock<Option<DaemonBridge>>>) {
+    /// Reconnect to the daemon in-place, reusing this DaemonBridge instance.
+    /// Returns `true` if reconnection succeeded.
+    #[cfg(unix)]
+    pub async fn reconnect(&self) -> bool {
+        let daemon_client = nika_daemon::client::DaemonClient::default_path();
+        if !daemon_client.socket_exists() {
+            return false;
+        }
+
+        match tokio::time::timeout(REQUEST_TIMEOUT, daemon_client.connect()).await {
+            Ok(Ok(connected)) => {
+                *self.client.write().await = Some(connected);
+                self.connected.store(true, Ordering::Relaxed);
+                // Reset cache to force refresh on next provider_status() call
+                let mut cache = self.providers_cache.write().await;
+                cache.fetched_at = Instant::now() - CACHE_TTL;
+                tracing::info!("Reconnected to Nika daemon (in-place)");
+                true
+            }
+            Ok(Err(e)) => {
+                tracing::debug!("Daemon reconnection failed: {e}");
+                false
+            }
+            Err(_) => {
+                tracing::debug!("Daemon reconnection timed out");
+                false
+            }
+        }
+    }
+
+    /// Spawn a background reconnection task using the always-valid bridge.
+    pub fn spawn_reconnect_loop(bridge: Arc<DaemonBridge>) {
         #[cfg(unix)]
         tokio::spawn(async move {
             let mut delay = RECONNECT_INITIAL;
             loop {
                 tokio::time::sleep(delay).await;
 
-                let needs_reconnect = {
-                    let guard = bridge.read().await;
-                    match guard.as_ref() {
-                        Some(b) => !b.is_connected(),
-                        None => true,
-                    }
-                };
-
-                if needs_reconnect {
-                    if let Some(new_bridge) = DaemonBridge::try_connect().await {
-                        let mut guard = bridge.write().await;
-                        *guard = Some(new_bridge);
+                if !bridge.is_connected() {
+                    if bridge.reconnect().await {
                         delay = RECONNECT_INITIAL;
-                        tracing::info!("Reconnected to Nika daemon");
                     } else {
                         delay = (delay * 2).min(RECONNECT_MAX);
                     }

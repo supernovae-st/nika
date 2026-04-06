@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc;
 use tower_lsp_server::jsonrpc::Result;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{Client, LanguageServer};
@@ -24,8 +24,6 @@ use crate::completion::{get_completion_context, CompletionContext};
 use crate::daemon_bridge::DaemonBridge;
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
-use async_trait::async_trait;
-use nika_core::catalogs::{CostEstimate, DaemonCapabilities, ProviderStatusInfo, WorkflowRunInfo};
 use nika_daemon::provider::DaemonProvider;
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};
 use nika_lsp_core::handlers::code_action::DiagnosticInfo;
@@ -40,76 +38,6 @@ pub struct ValidationRequest {
 /// Notification that a document parsed successfully (for AST cache).
 struct ParseSuccessNotification {
     uri: Uri,
-}
-
-/// Adapter: delegates to a DaemonBridge behind an RwLock (supports reconnection).
-#[cfg(unix)]
-struct RwLockDaemonProvider(Arc<RwLock<Option<DaemonBridge>>>);
-
-#[cfg(unix)]
-#[async_trait]
-impl DaemonProvider for RwLockDaemonProvider {
-    fn is_connected(&self) -> bool {
-        // Non-blocking check: try_read to avoid deadlock in sync context
-        match self.0.try_read() {
-            Ok(guard) => guard.as_ref().is_some_and(|b| b.is_connected()),
-            Err(_) => false,
-        }
-    }
-
-    async fn provider_status(&self) -> Vec<ProviderStatusInfo> {
-        // Clone bridge and release lock BEFORE awaiting IPC (may take up to 5s)
-        let bridge = {
-            let guard = self.0.read().await;
-            guard.as_ref().filter(|b| b.is_connected()).cloned()
-        };
-        match bridge {
-            Some(b) => b.provider_status().await,
-            None => Vec::new(),
-        }
-    }
-
-    async fn estimate_cost(
-        &self,
-        provider: &str,
-        model: &str,
-        input_tokens: u64,
-        output_tokens: u64,
-    ) -> Option<CostEstimate> {
-        let bridge = {
-            let guard = self.0.read().await;
-            guard.as_ref().filter(|b| b.is_connected()).cloned()
-        };
-        match bridge {
-            Some(b) => {
-                b.estimate_cost(provider, model, input_tokens, output_tokens)
-                    .await
-            }
-            None => None,
-        }
-    }
-
-    async fn workflow_history(&self, workflow: &str) -> Vec<WorkflowRunInfo> {
-        let bridge = {
-            let guard = self.0.read().await;
-            guard.as_ref().filter(|b| b.is_connected()).cloned()
-        };
-        match bridge {
-            Some(b) => b.workflow_history(workflow).await,
-            None => Vec::new(),
-        }
-    }
-
-    async fn capabilities(&self) -> Option<DaemonCapabilities> {
-        let bridge = {
-            let guard = self.0.read().await;
-            guard.as_ref().filter(|b| b.is_connected()).cloned()
-        };
-        match bridge {
-            Some(b) => b.capabilities().await,
-            None => None,
-        }
-    }
 }
 
 /// The Nika LSP backend.
@@ -134,17 +62,13 @@ impl NikaBackend {
     pub fn new(client: Client) -> Self {
         #[cfg(unix)]
         let daemon: Arc<dyn DaemonProvider> = {
-            let bridge_holder: Arc<RwLock<Option<DaemonBridge>>> = Arc::new(RwLock::new(None));
-            let holder_clone = bridge_holder.clone();
-
+            let bridge = Arc::new(DaemonBridge::disconnected());
+            let b = bridge.clone();
             tokio::spawn(async move {
-                if let Some(bridge) = DaemonBridge::try_connect().await {
-                    *holder_clone.write().await = Some(bridge);
-                }
+                b.reconnect().await;
             });
-            DaemonBridge::spawn_reconnect_loop(bridge_holder.clone());
-
-            Arc::new(RwLockDaemonProvider(bridge_holder))
+            DaemonBridge::spawn_reconnect_loop(bridge.clone());
+            bridge
         };
         #[cfg(not(unix))]
         let daemon: Arc<dyn DaemonProvider> = Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
