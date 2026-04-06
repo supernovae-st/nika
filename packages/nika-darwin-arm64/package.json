@@ -1,14 +1,20 @@
 {
   "name": "@supernovae-st/nika-darwin-arm64",
-  "version": "0.46.1",
+  "version": "0.74.0",
   "description": "Nika binary for macOS ARM64 (Apple Silicon)",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "https://github.com/supernovae-st/nika.git"
   },
-  "os": ["darwin"],
-  "cpu": ["arm64"],
-  "files": ["nika"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "nika"
+  ],
   "preferUnplugged": true
 }
