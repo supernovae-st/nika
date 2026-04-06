@@ -96,7 +96,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     // Determine auth mode: MultiKey if tokens exist in DB, else Legacy
     let token_count = storage.count_tokens().await.unwrap_or(0);
     let auth_mode = if token_count > 0 {
-        if std::env::var("NIKA_SERVE_TOKEN").is_ok() {
+        if !config.auth_token.is_empty() {
             tracing::warn!(
                 "NIKA_SERVE_TOKEN is set but {} named tokens exist — using multi-key mode \
                  (env var ignored)",
@@ -107,6 +107,13 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
         Arc::new(token_store::AuthMode::MultiKey {
             store: token_store::TokenStore::new(storage.clone()),
         })
+    } else if config.auth_token.is_empty() {
+        return Err(ServeError::Config(
+            "No authentication configured. Either:\n  \
+             1. Set NIKA_SERVE_TOKEN (legacy mode), or\n  \
+             2. Create tokens with: nika token add <name>"
+                .into(),
+        ));
     } else {
         info!("legacy auth mode (NIKA_SERVE_TOKEN)");
         Arc::new(token_store::AuthMode::Legacy {

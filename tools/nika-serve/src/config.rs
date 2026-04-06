@@ -129,7 +129,7 @@ pub struct ServeConfig {
     /// Path to the SQLite database file for job persistence.
     pub db_path: PathBuf,
 
-    /// Bearer token for API authentication (constant-time comparison).
+    /// Bearer token for Legacy auth mode (empty when multi-key tokens exist in DB).
     pub auth_token: String,
 
     /// Optional CORS allowed origin (e.g. `https://jungo.supernovae.studio`).
@@ -162,7 +162,7 @@ impl ServeConfig {
     /// Build configuration from nika.toml `[serve]` section + environment variables.
     ///
     /// Merge: env vars > nika.toml `[serve]` > hardcoded defaults.
-    /// Required: `NIKA_SERVE_TOKEN` (always from env — secrets never in nika.toml)
+    /// `NIKA_SERVE_TOKEN` is optional when named tokens exist in the DB (multi-key mode).
     /// Optional: `NIKA_SERVE_BIND`, `NIKA_SERVE_WORKFLOWS`, `NIKA_SERVE_MAX_CONCURRENT`,
     ///           `NIKA_SERVE_TIMEOUT`, `NIKA_SERVE_DB`
     pub fn from_env() -> Result<Self, ServeError> {
@@ -170,11 +170,11 @@ impl ServeConfig {
         let discovery = load_nika_toml();
         let toml = discovery.serve;
 
-        // auth_token: always from env (secrets never in nika.toml)
-        let auth_token = std::env::var("NIKA_SERVE_TOKEN")
-            .map_err(|_| ServeError::Config("NIKA_SERVE_TOKEN must be set".into()))?;
+        // auth_token: from env if set. Validation deferred to run_server()
+        // which checks DB token count to determine if NIKA_SERVE_TOKEN is required.
+        let auth_token = std::env::var("NIKA_SERVE_TOKEN").unwrap_or_default();
 
-        if auth_token.len() < 32 {
+        if !auth_token.is_empty() && auth_token.len() < 32 {
             return Err(ServeError::Config(
                 "NIKA_SERVE_TOKEN must be at least 32 characters. \
                  Generate one with: openssl rand -hex 32"
