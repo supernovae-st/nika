@@ -51,19 +51,9 @@ class WorkflowTaskItem extends TreeItem {
     this.description = verb;
     this.tooltip = `${taskId} (${verb}) — line ${line + 1}`;
     this.command = {
-      command: 'vscode.open',
+      command: 'nika.openTaskLocation',
       title: 'Go to Task',
-      arguments: [
-        uri,
-        {
-          selection: {
-            startLineNumber: line + 1,
-            startColumn: 1,
-            endLineNumber: line + 1,
-            endColumn: 1,
-          },
-        },
-      ],
+      arguments: [uri, line],
     } as Command;
   }
 

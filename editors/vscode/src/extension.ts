@@ -4,6 +4,8 @@ import {
   ExtensionContext,
   window,
   Uri,
+  Position,
+  Range,
   ProgressLocation,
   env,
   StatusBarAlignment,
@@ -924,6 +926,12 @@ export function activate(context: ExtensionContext): void {
       }
       startClient(context, resolvedServerPath);
       window.showInformationMessage('Nika language server restarted.');
+    }),
+
+    commands.registerCommand('nika.openTaskLocation', async (uri: Uri, line: number) => {
+      const doc = await workspace.openTextDocument(uri);
+      const pos = new Position(line, 0);
+      await window.showTextDocument(doc, { selection: new Range(pos, pos) });
     }),
   );
 
