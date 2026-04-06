@@ -815,4 +815,145 @@ mod tests {
             "Invalid code should return Unknown"
         );
     }
+
+    // ─── Generate Task Tests ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_generate_task_infer_default() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .generate_task(Parameters(GenerateTaskParams {
+                description: "Summarize the research".to_string(),
+                verb: None,
+                provider: None,
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("infer"), "Default verb should be infer");
+        assert!(text.contains("anthropic"), "Default provider should be anthropic");
+        assert!(text.contains("Summarize the research"), "Should contain description");
+    }
+
+    #[tokio::test]
+    async fn test_generate_task_exec_verb() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .generate_task(Parameters(GenerateTaskParams {
+                description: "Run build".to_string(),
+                verb: Some("exec".to_string()),
+                provider: None,
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("exec:"), "Should generate exec verb");
+        assert!(text.contains("shell: true"), "Exec should have shell: true");
+    }
+
+    #[tokio::test]
+    async fn test_generate_task_fetch_verb() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .generate_task(Parameters(GenerateTaskParams {
+                description: "Fetch API data".to_string(),
+                verb: Some("fetch".to_string()),
+                provider: None,
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("fetch:"), "Should generate fetch verb");
+        assert!(text.contains("extract:"), "Fetch should have extract mode");
+    }
+
+    #[tokio::test]
+    async fn test_generate_task_agent_verb() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .generate_task(Parameters(GenerateTaskParams {
+                description: "Research topic".to_string(),
+                verb: Some("agent".to_string()),
+                provider: Some("openai".to_string()),
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("agent:"), "Should generate agent verb");
+        assert!(text.contains("max_turns:"), "Agent should have max_turns");
+        assert!(text.contains("openai"), "Should use specified provider");
+    }
+
+    #[tokio::test]
+    async fn test_generate_task_unknown_verb_falls_back() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .generate_task(Parameters(GenerateTaskParams {
+                description: "test".to_string(),
+                verb: Some("invalid_verb".to_string()),
+                provider: None,
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("Unknown verb"), "Should warn about unknown verb");
+    }
+
+    // ─── Error Fix Tests ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_error_fix_known_code() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .error_fix(Parameters(ErrorFixParams {
+                code: "NIKA-041".to_string(),
+                content: "invalid yaml".to_string(),
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("Template"), "NIKA-041 should mention template");
+        assert!(text.contains("with:"), "Should mention with: block");
+        // Verify no double prefix
+        assert!(!text.contains("NIKA-041: NIKA-041"), "Should not double prefix");
+    }
+
+    #[tokio::test]
+    async fn test_error_fix_unknown_code_fallback() {
+        let server = NikaMcpServer::new();
+        let result = server
+            .error_fix(Parameters(ErrorFixParams {
+                code: "NIKA-999".to_string(),
+                content: "yaml".to_string(),
+            }))
+            .await
+            .unwrap();
+        let text = format!("{:?}", result);
+        assert!(text.contains("nika check"), "Fallback should suggest nika check");
+    }
+
+    // ─── Prompt Tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_prompts_registered() {
+        let server = NikaMcpServer::new();
+        let prompts = server.prompt_router.list_all();
+        assert_eq!(prompts.len(), 3, "Should have 3 prompts");
+        let names: Vec<&str> = prompts.iter().map(|p| p.name.as_str()).collect();
+        assert!(names.contains(&"create_workflow"), "Missing create_workflow prompt");
+        assert!(names.contains(&"add_task"), "Missing add_task prompt");
+        assert!(names.contains(&"fix_error"), "Missing fix_error prompt");
+    }
+
+    #[test]
+    fn test_tools_registered() {
+        let server = NikaMcpServer::new();
+        let tools = server.tool_router.list_all();
+        assert!(tools.len() >= 7, "Should have at least 7 tools, got {}", tools.len());
+        let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+        assert!(names.contains(&"nika_check"), "Missing nika_check tool");
+        assert!(names.contains(&"nika_generate_task"), "Missing nika_generate_task tool");
+        assert!(names.contains(&"nika_dag_visualization"), "Missing nika_dag_visualization tool");
+        assert!(names.contains(&"nika_error_fix"), "Missing nika_error_fix tool");
+    }
 }
