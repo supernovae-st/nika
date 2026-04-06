@@ -44,12 +44,25 @@ async fn main() {
         .with_writer(std::io::stderr)
         .init();
 
-    tracing::info!("Starting Nika LSP server v{}", env!("CARGO_PKG_VERSION"));
+    let embedded = std::env::args().any(|a| a == "--embedded-daemon")
+        || std::env::var("NIKA_LSP_EMBEDDED_DAEMON").is_ok();
+
+    tracing::info!(
+        "Starting Nika LSP server v{} (embedded={})",
+        env!("CARGO_PKG_VERSION"),
+        embedded,
+    );
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::build(backend::NikaBackend::new)
+    let constructor: fn(tower_lsp_server::Client) -> backend::NikaBackend = if embedded {
+        backend::NikaBackend::new_embedded
+    } else {
+        backend::NikaBackend::new
+    };
+
+    let (service, socket) = LspService::build(constructor)
         .custom_method("nika/daemonStatus", backend::NikaBackend::daemon_status)
         .custom_method("nika/workflowGraph", backend::NikaBackend::workflow_graph)
         .finish();

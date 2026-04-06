@@ -168,6 +168,40 @@ impl NikaBackend {
         backend
     }
 
+    /// Create a backend with embedded daemon (no separate process needed).
+    pub fn new_embedded(client: Client) -> Self {
+        let (tx, rx) = mpsc::channel(100);
+        let (parse_tx, parse_rx) = mpsc::channel::<ParseSuccessNotification>(32);
+
+        let daemon: Arc<dyn DaemonProvider> =
+            Arc::new(nika_daemon::EmbeddedDaemonProvider::new());
+
+        let documents: DashMap<Uri, DocumentState> = DashMap::new();
+        let documents_clone = documents.clone();
+        let worker_parse_tx = parse_tx.clone();
+
+        let backend = Self {
+            client: client.clone(),
+            documents,
+            validation_tx: tx,
+            handler: DefaultHandler::new(),
+            daemon,
+            parse_success_tx: parse_tx,
+        };
+
+        tokio::spawn(validation_worker(rx, client, worker_parse_tx));
+        tokio::spawn(async move {
+            let mut rx = parse_rx;
+            while let Some(notif) = rx.recv().await {
+                if let Some(mut doc) = documents_clone.get_mut(&notif.uri) {
+                    doc.mark_valid();
+                }
+            }
+        });
+
+        backend
+    }
+
     /// Custom request handler: nika/daemonStatus
     ///
     /// Called by the VS Code extension to display daemon status in the status bar.
