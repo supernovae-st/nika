@@ -127,6 +127,11 @@
         "command": "nika.showOutput",
         "title": "Nika: Show Output",
         "icon": "$(output)"
+      },
+      {
+        "command": "nika.showDag",
+        "title": "Nika: Show Workflow DAG",
+        "icon": "$(type-hierarchy)"
       }
     ],
     "configuration": {
@@ -194,6 +199,11 @@
           "command": "nika.checkWorkflow",
           "when": "resourceLangId == 'nika'",
           "group": "navigation"
+        },
+        {
+          "command": "nika.showDag",
+          "when": "resourceLangId == 'nika'",
+          "group": "navigation"
         }
       ],
       "editor/context": [
@@ -226,18 +236,30 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && node esbuild.mjs",
+    "compile:ts": "tsc -p ./",
+    "compile:webview": "node esbuild.mjs",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "package": "vsce package"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
+    "d3-transition": "^3.0.1",
+    "d3-zoom": "^3.0.0",
+    "elkjs": "^0.9.3"
   },
   "devDependencies": {
     "@types/vscode": "^1.75.0",
     "@types/node": "^20.0.0",
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-shape": "^3.1.8",
+    "@types/d3-transition": "^3.0.9",
+    "@types/d3-zoom": "^3.0.8",
     "typescript": "^5.3.0",
+    "esbuild": "^0.24.0",
     "@vscode/vsce": "^2.22.0"
   }
 }

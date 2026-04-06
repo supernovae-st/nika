@@ -22,6 +22,7 @@ import * as crypto from 'crypto';
 import * as zlib from 'zlib';
 import { IncomingMessage } from 'http';
 import { WorkflowTreeProvider } from './workflowTree';
+import { DagPanel, DagGraph } from './dagPanel';
 
 let client: LanguageClient | undefined;
 let statusBarItem: import('vscode').StatusBarItem | undefined;
@@ -756,6 +757,16 @@ export function activate(context: ExtensionContext): void {
   watcher.onDidChange(() => workflowTree.refresh());
   context.subscriptions.push(watcher);
 
+  // DAG webview panel
+  const dagPanel = new DagPanel(
+    context.extensionUri,
+    (taskId) => {
+      // On node click — could open task in editor (future: line number from LSP)
+      log('INFO', `DAG node clicked: ${taskId}`);
+    },
+  );
+  context.subscriptions.push(dagPanel);
+
   // Register all commands SYNCHRONOUSLY before any async work.
   // This prevents the race condition where Cursor's Code Lens fires
   // before commands exist (commands must be available immediately).
@@ -815,6 +826,29 @@ export function activate(context: ExtensionContext): void {
   context.subscriptions.push(
     commands.registerCommand('nika.showTasks', () => {
       commands.executeCommand('workbench.action.focusOutline');
+    }),
+  );
+
+  // Command: Show DAG webview
+  context.subscriptions.push(
+    commands.registerCommand('nika.showDag', async (uri?: Uri) => {
+      const filePath = uri?.fsPath ?? window.activeTextEditor?.document.fileName;
+      if (!filePath?.endsWith('.nika.yaml')) {
+        window.showWarningMessage('Open a .nika.yaml file first.');
+        return;
+      }
+      // Try to get graph data from LSP, otherwise show empty panel
+      let graph: DagGraph | undefined;
+      if (client?.isRunning()) {
+        try {
+          graph = await client.sendRequest<DagGraph>('nika/workflowGraph', {
+            uri: Uri.file(filePath).toString(),
+          });
+        } catch {
+          log('WARN', 'LSP nika/workflowGraph not available, showing empty panel');
+        }
+      }
+      dagPanel.show(graph);
     }),
   );
 
