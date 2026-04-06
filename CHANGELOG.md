@@ -7,10 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.73.0 — PRODUCTION HARDENING (nk-jungo VPS)                       ║
-║  8 bug fixes | artifacts API | skills path | from_example templates        ║
+║  NIKA v0.74.0 — SCHEDULING COMPLETE + 7 BUG FIXES                         ║
+║  AST pipeline | overlap policies | serve reconciliation | timezone fix     ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.74.0] — 2026-04-06
+
+### Added
+- **`schedule:` wired into AST pipeline** — `nika check` now validates schedule expressions (cron, timezone, overlap). Invalid schedules produce NIKA-144 errors at analysis time.
+- **Overlap policies `queue` and `replace`** — `overlap: queue` allows concurrent runs. `overlap: replace` cancels the active job before firing. Previously only `skip` was functional.
+- **Serve reconciliation** — `nika serve` now upserts YAML-declared schedules into DB at startup + every 60s. 5 reconciliation rules: insert new, update changed cron, delete orphaned yaml-source, keep cli-source, sync paused state.
+- **`update_schedule_cron()` storage method** — Targeted cron/paused/next_run_at UPDATE preserving run history.
+- **Run frequency estimation** — `runs_per_day()` and `format_run_estimate()` show runs/day and runs/month in schedule card, list, and creation celebration.
+- **History dots (✓✗)** — `nika schedule list` and `nika schedule show` display colored run history dots with pass/fail summary.
+- **24h timeline view** — `nika schedule list --timeline` renders ASCII grid showing when schedules fire, with overlap warnings.
+- **Did-you-mean for schedule names** — Levenshtein-based fuzzy matching on NIKA-283 not-found errors suggests closest schedule name.
+- **Enhanced micro-copy** — "back in action!" on resume, "Historical runs preserved" on remove, resume/pause hints.
+
+### Fixed
+- **stdin pipe never written** — Scheduled jobs with `inputs_json` hung for 1h timeout. Now writes args to stdin before handing child to monitor task.
+- **Timezone ignored in `next_run_at`** — Schedule creation and fire recomputation always used UTC. Now applies `sched.timezone` via `chrono_tz` when computing next occurrence.
+- **`list_jobs_for_workflow` LIMIT 10** — Overlap detection missed active jobs when workflow had 10+ historical runs. Raised to LIMIT 100.
+- **TOCTOU double-fire guard** — `update_schedule_after_fire` now uses `WHERE last_run_at < ?1` to prevent concurrent ticks from double-firing.
+- **`inputs_json` forwarded to `submit()`** — Scheduled workflows now receive their configured inputs (was always `None`).
+- **Reconciler name collision** — `a/b.nika.yaml` vs `a-b.nika.yaml` no longer collide. Uses `::` separator.
+- **Reconciler `paused` source** — Uses `config.paused` from parser instead of raw header text scan (prevented false positives from comments).
+
+### Testing
+- Protocol roundtrip tests for 9 schedule variants (6 request + 3 response).
+- Boundary tests: `duration_to_cron` (0h/24h/0m/60m/0d/29d), `parse_hhmm`, `humanize_relative`.
+- E2E AST pipeline tests: valid cron, invalid cron, object form, unknown key regression.
+- Storage `update_schedule_cron` test preserving run history.
+- Overlap:replace integration test with cancel verification.
+- Levenshtein + `find_closest` tests.
+- Timeline slot tests (daily, hourly, every-2h, weekday, invalid, multiple-per-hour).
 
 ## [0.73.0] — 2026-04-06
 
