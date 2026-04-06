@@ -2,8 +2,8 @@
 //!
 //! Converts `AnalyzeError` to LSP `Diagnostic` for real-time error display.
 
-use nika_engine::ast::analyzer::{AnalyzeError, AnalyzeErrorKind};
-use nika_engine::source::{SourceRegistry, Span};
+use nika_core::ast::analyzer::{AnalyzeError, AnalyzeErrorKind};
+use nika_core::source::{SourceRegistry, Span};
 use tower_lsp_server::ls_types::{
     Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range, Uri,
 };
@@ -96,9 +96,9 @@ pub fn validate_document(
     uri: &Uri,
     daemon_providers: Option<&[nika_core::catalogs::ProviderStatusInfo]>,
 ) -> Vec<Diagnostic> {
-    use nika_engine::ast::analyzer::analyze;
-    use nika_engine::ast::raw;
-    use nika_engine::source::FileId;
+    use nika_core::ast::analyzer::analyze;
+    use nika_core::ast::raw;
+    use nika_core::source::FileId;
 
     use crate::template_validation::validate_templates;
 

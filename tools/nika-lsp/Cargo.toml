@@ -35,11 +35,8 @@ dashmap = { workspace = true }
 # Serialization
 serde_json = { workspace = true }
 
-# Nika core (catalogs, AST types)
+# Nika core (AST, catalogs, source types)
 nika-core = { workspace = true }
-
-# Nika engine (AST + source types)
-nika-engine = { workspace = true }
 
 # Protocol-agnostic LSP intelligence
 nika-lsp-core = { workspace = true }

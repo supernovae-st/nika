@@ -3,8 +3,8 @@
 //! Validates that `{{with.alias}}` template references in task prompts
 //! are defined in the task's `with:` block.
 
-use nika_engine::ast::analyzed::AnalyzedWorkflow;
-use nika_engine::ast::raw::{RawTaskAction, RawWorkflow};
+use nika_core::ast::analyzed::AnalyzedWorkflow;
+use nika_core::ast::raw::{RawTaskAction, RawWorkflow};
 use regex::Regex;
 use std::sync::LazyLock;
 use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, Range};
@@ -191,9 +191,9 @@ fn extract_prompts_from_action(action: &Option<RawTaskAction>) -> Vec<(String, u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_engine::ast::analyzer::analyze;
-    use nika_engine::ast::raw;
-    use nika_engine::source::FileId;
+    use nika_core::ast::analyzer::analyze;
+    use nika_core::ast::raw;
+    use nika_core::source::FileId;
 
     fn validate_yaml(content: &str) -> Vec<Diagnostic> {
         let doc = DocumentState::new(content.to_string(), 0);
