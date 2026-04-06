@@ -31,7 +31,7 @@ use super::verbs::{
 use super::TaskExecutor;
 use crate::error_domains::ProviderError;
 
-use crate::runtime::Runner;
+use crate::runtime::structured_retry;
 
 impl TaskExecutor {
     /// Build an [`InferCallback`] that calls `provider.infer()` with optional model override.
@@ -979,7 +979,7 @@ impl TaskExecutor {
                     break;
                 }
                 Err(e) => {
-                    if Runner::is_retryable(&e) && attempt + 1 < MAX_PROVIDER_ATTEMPTS {
+                    if structured_retry::is_retryable(&e) && attempt + 1 < MAX_PROVIDER_ATTEMPTS {
                         last_error = Some(e);
                         continue;
                     }

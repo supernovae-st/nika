@@ -10,7 +10,7 @@ use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
 use crate::ast::{AgentParams, ExecParams, FetchParams, InferParams, InvokeParams};
 use crate::event::EventKind;
-use crate::runtime::Runner;
+use crate::runtime::structured_retry;
 use crate::store::{RunContext, TaskResult};
 use base64::Engine;
 use serde_json::json;
@@ -2730,7 +2730,7 @@ fn test_is_retryable_500() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 500 Internal Server Error".to_string(),
     };
-    assert!(Runner::is_retryable(&err), "500 should be retryable");
+    assert!(structured_retry::is_retryable(&err), "500 should be retryable");
 }
 
 #[test]
@@ -2738,7 +2738,7 @@ fn test_is_retryable_502() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 502 Bad Gateway".to_string(),
     };
-    assert!(Runner::is_retryable(&err), "502 should be retryable");
+    assert!(structured_retry::is_retryable(&err), "502 should be retryable");
 }
 
 #[test]
@@ -2746,7 +2746,7 @@ fn test_is_retryable_503() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 503 Service Unavailable".to_string(),
     };
-    assert!(Runner::is_retryable(&err), "503 should be retryable");
+    assert!(structured_retry::is_retryable(&err), "503 should be retryable");
 }
 
 #[test]
@@ -2754,7 +2754,7 @@ fn test_is_retryable_429() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 429 Too Many Requests".to_string(),
     };
-    assert!(Runner::is_retryable(&err), "429 should be retryable");
+    assert!(structured_retry::is_retryable(&err), "429 should be retryable");
 }
 
 #[test]
@@ -2762,7 +2762,7 @@ fn test_is_retryable_timeout() {
     let err = NikaError::ProviderApiError {
         message: "request timed out after 30s".to_string(),
     };
-    assert!(Runner::is_retryable(&err), "timeout should be retryable");
+    assert!(structured_retry::is_retryable(&err), "timeout should be retryable");
 }
 
 #[test]
@@ -2771,7 +2771,7 @@ fn test_is_retryable_connection() {
         message: "connection refused".to_string(),
     };
     assert!(
-        Runner::is_retryable(&err),
+        structured_retry::is_retryable(&err),
         "connection error should be retryable"
     );
 }
@@ -2781,7 +2781,7 @@ fn test_is_not_retryable_401() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 401 Unauthorized".to_string(),
     };
-    assert!(!Runner::is_retryable(&err), "401 should NOT be retryable");
+    assert!(!structured_retry::is_retryable(&err), "401 should NOT be retryable");
 }
 
 #[test]
@@ -2789,7 +2789,7 @@ fn test_is_not_retryable_403() {
     let err = NikaError::ProviderApiError {
         message: "HTTP 403 Forbidden".to_string(),
     };
-    assert!(!Runner::is_retryable(&err), "403 should NOT be retryable");
+    assert!(!structured_retry::is_retryable(&err), "403 should NOT be retryable");
 }
 
 #[test]
@@ -2798,7 +2798,7 @@ fn test_is_not_retryable_invalid_api_key() {
         message: "Invalid API key provided".to_string(),
     };
     assert!(
-        !Runner::is_retryable(&err),
+        !structured_retry::is_retryable(&err),
         "invalid API key should NOT be retryable"
     );
 }

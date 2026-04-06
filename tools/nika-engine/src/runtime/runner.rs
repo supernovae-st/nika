@@ -20,13 +20,9 @@ use tracing::{debug, info, instrument};
 
 use crate::media::CasStore;
 
-use crate::ast::analyzed::{
-    AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, OnErrorAction,
-    OutputFormat as AnalyzedOutputFormat,
-};
+use crate::ast::analyzed::{AnalyzedOutput, AnalyzedTask, AnalyzedWorkflow, OnErrorAction};
 use crate::ast::lower::{lower_action, lower_mcp_servers_with_resolver, lower_output};
-use crate::ast::output::OutputPolicy;
-use crate::ast::{InferParams, TaskAction};
+use crate::ast::TaskAction;
 use crate::binding::ResolvedBindings;
 use crate::dag::Dag;
 use crate::error::NikaError;
@@ -39,9 +35,10 @@ use crate::util::{intern, DECOMPOSE_TIMEOUT};
 use super::artifact_processor::{process_task_artifacts, write_artifact_manifest};
 use super::context_loader::load_context_analyzed;
 use super::executor::TaskExecutor;
-use super::output::{extract_json, format_validation_errors, make_task_result};
+use super::output::{extract_json, make_task_result};
 use super::resolver::{resolve_assets_analyzed, ResolvedAssets};
 use super::structured_output::StructuredOutputEngine;
+use super::structured_retry::{execute_with_retry, get_retry_config, is_retryable};
 
 use crate::ast::artifact::ArtifactsConfig;
 use std::path::PathBuf;
@@ -769,327 +766,6 @@ impl Runner {
         warnings
     }
 
-    /// Check if a task qualifies for schema validation retry
-    ///
-    /// Returns Some((schema, max_retries, infer_params)) if:
-    /// - Task action is Infer
-    /// - Output format is JSON
-    /// - Output has inline schema
-    /// - structured.max_retries > 0
-    fn get_retry_config(task: &AnalyzedTask) -> Option<(Value, u8, InferParams)> {
-        // Must be an infer action
-        let infer_action = match &task.action {
-            AnalyzedTaskAction::Infer(infer) => infer,
-            _ => return None,
-        };
-
-        // Must have output with JSON format and inline schema
-        let output = task.output.as_ref()?;
-        if output.format != AnalyzedOutputFormat::Json {
-            return None;
-        }
-
-        // Must have inline schema
-        let schema = output.schema.as_ref()?.clone();
-
-        // max_retries comes from structured output spec, NOT from output policy
-        let structured = task.structured.as_ref()?;
-        let max_retries = structured.max_retries.unwrap_or(0);
-        if max_retries == 0 {
-            return None;
-        }
-
-        // Build InferParams directly from analyzed types
-        let infer_params = InferParams {
-            prompt: infer_action.prompt.clone(),
-            provider: task.provider.clone(),
-            model: task.model.clone(),
-            temperature: infer_action.temperature,
-            max_tokens: infer_action.max_tokens,
-            system: infer_action.system.clone(),
-            response_format: None,
-            extended_thinking: None,
-            thinking_budget: None,
-            content: infer_action
-                .content
-                .as_ref()
-                .map(|parts| parts.iter().cloned().map(Into::into).collect()),
-            guardrails: Vec::new(),
-            provider_chain: None,
-        };
-
-        Some((schema, max_retries, infer_params))
-    }
-
-    /// Execute an infer task with schema validation and retry loop
-    ///
-    /// When LLM output fails schema validation, builds a feedback prompt with:
-    /// - Original prompt
-    /// - Schema that must be matched
-    /// - Previous output
-    /// - Validation errors
-    ///
-    /// Retries up to max_retries times before failing.
-    #[allow(clippy::too_many_arguments)]
-    async fn execute_with_retry(
-        task_id: &Arc<str>,
-        original_infer: InferParams,
-        schema: &Value,
-        max_retries: u8,
-        bindings: &ResolvedBindings,
-        datastore: &RunContext,
-        executor: &TaskExecutor,
-        event_log: &EventLog,
-        start: Instant,
-        output_policy: Option<&OutputPolicy>,
-        routing: Option<&nika_core::ast::routing::RoutingConfig>,
-    ) -> TaskResult {
-        let mut current_infer = original_infer;
-        let original_prompt = current_infer.prompt.clone();
-        let mut attempts = 0u32;
-
-        // PERF: Compile JSON Schema validator ONCE before the retry loop.
-        // SECURITY: Fail-fast if the schema is invalid — don't waste LLM calls.
-        let compiled_validator = match jsonschema::validator_for(schema) {
-            Ok(v) => v,
-            Err(e) => {
-                let reason = format!("Invalid JSON Schema: {e}");
-                event_log.emit(EventKind::TaskFailed {
-                    task_id: Arc::clone(task_id),
-                    error: reason.clone(),
-                    error_code: Some("NIKA-300".to_string()),
-                    duration_ms: start.elapsed().as_millis() as u64,
-                });
-                return TaskResult::failed(reason, start.elapsed());
-            }
-        };
-
-        loop {
-            // Check cancellation before each retry attempt (avoids wasting LLM calls)
-            if executor.is_cancelled() {
-                let reason = "cancelled during structured output retry".to_string();
-                event_log.emit(EventKind::TaskFailed {
-                    task_id: Arc::clone(task_id),
-                    error: reason.clone(),
-                    error_code: Some("NIKA-097".to_string()),
-                    duration_ms: start.elapsed().as_millis() as u64,
-                });
-                return TaskResult::failed(reason, start.elapsed());
-            }
-            attempts += 1;
-
-            // Delay between structured output retry attempts to avoid rate limiting
-            if attempts > 1 {
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            }
-
-            // Create action for this attempt
-            let action = TaskAction::Infer {
-                infer: current_infer.clone(),
-            };
-
-            // Execute (with routing fallback if configured)
-            let result = executor
-                .execute_with_routing(
-                    task_id,
-                    &action,
-                    bindings,
-                    datastore,
-                    output_policy,
-                    routing,
-                )
-                .await;
-            let duration = start.elapsed();
-
-            match result {
-                Ok(output) => {
-                    // Try to extract JSON from output
-                    let json_value = match extract_json(&output) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            if attempts > u32::from(max_retries) {
-                                // Max retries exhausted
-                                event_log.emit(EventKind::TaskFailed {
-                                    task_id: Arc::clone(task_id),
-                                    error: format!(
-                                        "NIKA-060: Invalid JSON after {} attempts: {}",
-                                        attempts, e
-                                    ),
-                                    duration_ms: duration.as_millis() as u64,
-                                    error_code: Some("NIKA-060".to_string()),
-                                });
-                                // Drain orphaned media refs (defense-in-depth)
-                                let _ = datastore.take_media(task_id);
-                                return TaskResult::failed(
-                                    format!(
-                                        "NIKA-060: Invalid JSON output after {} attempts: {}",
-                                        attempts, e
-                                    ),
-                                    duration,
-                                );
-                            }
-
-                            // Build retry prompt with JSON parsing error
-                            tracing::debug!(
-                                task_id = %task_id,
-                                attempt = attempts,
-                                "JSON parsing failed, retrying"
-                            );
-                            current_infer.prompt = Self::build_retry_prompt(
-                                &original_prompt,
-                                schema,
-                                &output,
-                                &format!("JSON parsing failed: {}", e),
-                            );
-                            continue;
-                        }
-                    };
-
-                    // Validate against schema (using pre-compiled validator)
-                    let errors: Vec<_> = compiled_validator.iter_errors(&json_value).collect();
-                    if errors.is_empty() {
-                        // Validation passed — attach media from staging side-channel
-                        let media = datastore.take_media(task_id);
-                        event_log.emit(EventKind::TaskCompleted {
-                            task_id: Arc::clone(task_id),
-                            output: Arc::new(json_value.clone()),
-                            duration_ms: duration.as_millis() as u64,
-                        });
-                        return TaskResult::success(json_value, duration).with_media(media);
-                    }
-
-                    // Validation failed
-                    if attempts > u32::from(max_retries) {
-                        let error_feedback = format_validation_errors(&json_value, schema);
-                        event_log.emit(EventKind::TaskFailed {
-                            task_id: Arc::clone(task_id),
-                            error: format!(
-                                "Schema validation failed after {} attempts:\n{}",
-                                attempts, error_feedback
-                            ),
-                            duration_ms: duration.as_millis() as u64,
-                            error_code: Some("NIKA-061".to_string()),
-                        });
-                        // Drain orphaned media refs (defense-in-depth)
-                        let _ = datastore.take_media(task_id);
-                        return TaskResult::failed(
-                            format!(
-                                "NIKA-061: Schema validation failed after {} attempts:\n{}",
-                                attempts, error_feedback
-                            ),
-                            duration,
-                        );
-                    }
-
-                    // Build retry prompt with validation errors
-                    let error_feedback = format_validation_errors(&json_value, schema);
-                    tracing::debug!(
-                        task_id = %task_id,
-                        attempt = attempts,
-                        errors = %error_feedback,
-                        "Schema validation failed, retrying"
-                    );
-                    current_infer.prompt = Self::build_retry_prompt(
-                        &original_prompt,
-                        schema,
-                        &output,
-                        &error_feedback,
-                    );
-                }
-                Err(e) => {
-                    // Executor error (not validation error) - don't retry
-                    // Drain orphaned media refs (defense-in-depth)
-                    let _ = datastore.take_media(task_id);
-                    event_log.emit(EventKind::TaskFailed {
-                        task_id: Arc::clone(task_id),
-                        error: e.to_string(),
-                        duration_ms: duration.as_millis() as u64,
-                        error_code: Some(e.code().to_string()),
-                    });
-                    return TaskResult::failed(e.to_string(), duration);
-                }
-            }
-        }
-    }
-
-    /// Build a retry prompt with error feedback
-    fn build_retry_prompt(
-        original_prompt: &str,
-        schema: &Value,
-        previous_output: &str,
-        error_feedback: &str,
-    ) -> String {
-        format!(
-            r#"{original_prompt}
-
----
-RETRY: Your previous response did not match the required JSON schema.
-
-REQUIRED SCHEMA:
-{schema}
-
-YOUR PREVIOUS OUTPUT:
-{previous_output}
-
-VALIDATION ERRORS:
-{error_feedback}
-
-Please provide a corrected JSON response that strictly matches the schema."#,
-            original_prompt = original_prompt,
-            schema = serde_json::to_string_pretty(schema).unwrap_or_else(|_| schema.to_string()),
-            previous_output = previous_output,
-            error_feedback = error_feedback
-        )
-    }
-
-    /// Determine if an error is transient and worth retrying.
-    ///
-    /// Returns true for transient errors (429, 5xx, timeout, connection failures).
-    /// Returns false for permanent errors (401, 403, 404, validation, DAG, schema,
-    /// security, command-not-found, permission-denied).
-    ///
-    /// This is the single source of truth for retryability — used by both the
-    /// task-level retry loop (runner) and the provider-level retry loop (infer).
-    pub(crate) fn is_retryable(error: &NikaError) -> bool {
-        match error {
-            // Provider API errors: only retry transient HTTP failures
-            NikaError::ProviderApiError { message } => {
-                let m = message.to_lowercase();
-                // Permanent: auth failures, invalid model, bad request
-                let is_permanent = m.contains("401")
-                    || m.contains("403")
-                    || m.contains("404")
-                    || m.contains("unauthorized")
-                    || m.contains("forbidden")
-                    || m.contains("invalid api key")
-                    || m.contains("invalid_api_key")
-                    || m.contains("authentication");
-                !is_permanent
-            }
-            // Exec errors: only retry timeouts, not permanent failures
-            NikaError::ExecError { reason } => {
-                let r = reason.to_lowercase();
-                // Permanent: command not found, permission denied, bad cwd
-                let is_permanent = r.contains("not found")
-                    || r.contains("permission denied")
-                    || r.contains("no such file")
-                    || r.contains("cannot find")
-                    || r.contains("unbalanced quotes");
-                !is_permanent
-            }
-            // These are generally transient
-            NikaError::FetchError { .. }
-            | NikaError::Execution(_)
-            | NikaError::McpNotConnected { .. }
-            | NikaError::McpToolCallFailed { .. }
-            | NikaError::McpTimeout { .. }
-            | NikaError::Timeout { .. }
-            | NikaError::EndpointConnectionFailed { .. } => true,
-            // Everything else is permanent
-            _ => false,
-        }
-    }
-
     /// Execute a single task iteration (used for both regular tasks and for_each items)
     ///
     /// Bridge conversions (`lower_action`, `lower_output`) happen here at the
@@ -1300,11 +976,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         };
 
         // Check if task qualifies for schema validation retry
-        let retry_config = Self::get_retry_config(&task);
+        let retry_config = get_retry_config(&task);
 
         // Execute with retry loop if configured
         let mut task_result = if let Some((schema, max_retries, original_infer)) = retry_config {
-            Self::execute_with_retry(
+            execute_with_retry(
                 &task_id,
                 original_infer,
                 &schema,
@@ -1392,7 +1068,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             final_result = Some(Ok(output));
                             break;
                         }
-                        Err(e) if attempt < max_attempts && Self::is_retryable(&e) => {
+                        Err(e) if attempt < max_attempts && is_retryable(&e) => {
                             tracing::warn!(
                                 task_id = %task_id,
                                 attempt = attempt,
@@ -5339,7 +5015,7 @@ mod tests {
             span: Span::dummy(),
         };
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "Exec tasks should never qualify for retry"
         );
     }
@@ -5348,7 +5024,7 @@ mod tests {
     fn test_get_retry_config_none_for_no_output() {
         let task = make_infer_task("no_output", None, None);
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "No output means no retry"
         );
     }
@@ -5369,7 +5045,7 @@ mod tests {
             )),
         );
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "Text format should not qualify for retry"
         );
     }
@@ -5390,7 +5066,7 @@ mod tests {
             )),
         );
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "JSON without schema should not qualify"
         );
     }
@@ -5409,7 +5085,7 @@ mod tests {
             None, // No structured spec → no max_retries
         );
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "No structured spec means no retry"
         );
     }
@@ -5430,7 +5106,7 @@ mod tests {
             Some(structured),
         );
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "Zero retries means no retry"
         );
     }
@@ -5451,7 +5127,7 @@ mod tests {
             Some(structured),
         );
         assert!(
-            Runner::get_retry_config(&task).is_none(),
+            get_retry_config(&task).is_none(),
             "Default retries (None → 0) means no retry"
         );
     }
@@ -5472,7 +5148,7 @@ mod tests {
             }),
             Some(structured),
         );
-        let result = Runner::get_retry_config(&task);
+        let result = get_retry_config(&task);
         assert!(result.is_some(), "Valid config should return Some");
 
         let (ret_schema, max_retries, infer) = result.unwrap();
@@ -6451,7 +6127,7 @@ mod tests {
     #[test]
     fn audit_build_retry_prompt_includes_all_components() {
         let schema = json!({"type": "object", "required": ["name"]});
-        let prompt = Runner::build_retry_prompt(
+        let prompt = crate::runtime::structured_retry::build_retry_prompt(
             "Generate a user",
             &schema,
             r#"{"broken": true}"#,
@@ -7053,7 +6729,7 @@ mod tests {
             message: "429 Too Many Requests".to_string(),
         };
         assert!(
-            Runner::is_retryable(&err),
+            is_retryable(&err),
             "ProviderApiError should be retryable"
         );
     }
@@ -7063,7 +6739,7 @@ mod tests {
         let err = NikaError::ExecError {
             reason: "command timed out".to_string(),
         };
-        assert!(Runner::is_retryable(&err), "ExecError should be retryable");
+        assert!(is_retryable(&err), "ExecError should be retryable");
     }
 
     #[test]
@@ -7071,7 +6747,7 @@ mod tests {
         let err = NikaError::FetchError {
             reason: "connection reset".to_string(),
         };
-        assert!(Runner::is_retryable(&err), "FetchError should be retryable");
+        assert!(is_retryable(&err), "FetchError should be retryable");
     }
 
     #[test]
@@ -7080,7 +6756,7 @@ mod tests {
             name: "novanet".to_string(),
         };
         assert!(
-            Runner::is_retryable(&err),
+            is_retryable(&err),
             "McpNotConnected should be retryable"
         );
     }
@@ -7092,7 +6768,7 @@ mod tests {
             operation: "tool_call".to_string(),
             timeout_secs: 30,
         };
-        assert!(Runner::is_retryable(&err), "McpTimeout should be retryable");
+        assert!(is_retryable(&err), "McpTimeout should be retryable");
     }
 
     #[test]
@@ -7101,7 +6777,7 @@ mod tests {
             operation: "infer".to_string(),
             duration_ms: 300_000,
         };
-        assert!(Runner::is_retryable(&err), "Timeout should be retryable");
+        assert!(is_retryable(&err), "Timeout should be retryable");
     }
 
     #[test]
@@ -7111,7 +6787,7 @@ mod tests {
             reason: "connection refused".to_string(),
         };
         assert!(
-            Runner::is_retryable(&err),
+            is_retryable(&err),
             "EndpointConnectionFailed should be retryable"
         );
     }
@@ -7122,7 +6798,7 @@ mod tests {
             reason: "invalid schema".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "ValidationError should NOT be retryable"
         );
     }
@@ -7134,7 +6810,7 @@ mod tests {
             reason: "not found".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "TemplateError should NOT be retryable"
         );
     }
@@ -7145,7 +6821,7 @@ mod tests {
             cycle: "a -> b -> a".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "CycleDetected should NOT be retryable"
         );
     }
@@ -7156,7 +6832,7 @@ mod tests {
             provider: "openai".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "MissingApiKey should NOT be retryable"
         );
     }
@@ -7167,7 +6843,7 @@ mod tests {
             message: "401 Unauthorized: invalid API key".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "ProviderApiError 401 should NOT be retryable"
         );
     }
@@ -7178,7 +6854,7 @@ mod tests {
             message: "403 Forbidden: account suspended".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "ProviderApiError 403 should NOT be retryable"
         );
     }
@@ -7189,7 +6865,7 @@ mod tests {
             reason: "Failed to spawn command: No such file or directory".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "ExecError 'not found' should NOT be retryable"
         );
     }
@@ -7200,7 +6876,7 @@ mod tests {
             reason: "Failed to spawn command: Permission denied".to_string(),
         };
         assert!(
-            !Runner::is_retryable(&err),
+            !is_retryable(&err),
             "ExecError 'permission denied' should NOT be retryable"
         );
     }

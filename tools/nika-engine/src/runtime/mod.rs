@@ -57,6 +57,7 @@ pub mod security;
 mod skill_injector;
 pub mod spawn;
 pub mod structured_output;
+pub(crate) mod structured_retry;
 pub mod submit_tool;
 #[cfg(test)]
 mod tests_e2e_workflow;
