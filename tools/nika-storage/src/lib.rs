@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 /// Current schema version.
-const SCHEMA_VERSION: u32 = 5;
+const SCHEMA_VERSION: u32 = 6;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ERROR TYPES
@@ -164,6 +164,68 @@ pub struct JobArtifact {
     pub content_type: String,
 }
 
+/// A serve API token for multi-tenant authentication.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TokenEntry {
+    pub id: String,
+    pub name: String,
+    #[serde(with = "serde_bytes_hex")]
+    pub token_hash: Vec<u8>,
+    pub role: Role,
+    pub scope: String,
+    pub created_at: String,
+    pub expires_at: Option<String>,
+    pub last_used_at: Option<String>,
+    pub revoked: bool,
+}
+
+/// Token role for RBAC (L1: only Operator enforced).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Operator,
+    Viewer,
+    Admin,
+}
+
+impl Role {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Operator => "operator",
+            Self::Viewer => "viewer",
+            Self::Admin => "admin",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "viewer" => Self::Viewer,
+            "admin" => Self::Admin,
+            _ => Self::Operator,
+        }
+    }
+}
+
+/// Hex serialization for token_hash in JSON output.
+mod serde_bytes_hex {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        s.serialize_str(&hex)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let hex = String::deserialize(d)?;
+        (0..hex.len())
+            .step_by(2)
+            .map(|i| {
+                u8::from_str_radix(&hex[i..i + 2], 16).map_err(serde::de::Error::custom)
+            })
+            .collect()
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DATABASE COMMANDS (sent to the dedicated DB thread)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -278,6 +340,33 @@ enum DbCommand {
         next_run_at: Option<String>,
         paused: bool,
         reply: oneshot::Sender<StorageResult<()>>,
+    },
+    // ── Tokens ──────────────────────────────────────────────────────
+    InsertToken {
+        entry: TokenEntry,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    GetTokenByHash {
+        hash: Vec<u8>,
+        reply: oneshot::Sender<StorageResult<Option<TokenEntry>>>,
+    },
+    GetTokenByName {
+        name: String,
+        reply: oneshot::Sender<StorageResult<Option<TokenEntry>>>,
+    },
+    ListTokens {
+        reply: oneshot::Sender<StorageResult<Vec<TokenEntry>>>,
+    },
+    RevokeToken {
+        id: String,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    TouchToken {
+        id: String,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
+    CountTokens {
+        reply: oneshot::Sender<StorageResult<u64>>,
     },
 }
 
@@ -710,6 +799,83 @@ impl Storage {
             .map_err(|_| StorageError::ChannelClosed)?;
         rx.await.map_err(|_| StorageError::ChannelClosed)?
     }
+
+    // ── Token methods ─────────────────────────────────────────────────
+
+    pub async fn insert_token(&self, entry: TokenEntry) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::InsertToken { entry, reply })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn get_token_by_hash(&self, hash: &[u8]) -> StorageResult<Option<TokenEntry>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::GetTokenByHash {
+                hash: hash.to_vec(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn get_token_by_name(&self, name: &str) -> StorageResult<Option<TokenEntry>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::GetTokenByName {
+                name: name.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn list_tokens(&self) -> StorageResult<Vec<TokenEntry>> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::ListTokens { reply })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn revoke_token(&self, id: &str) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::RevokeToken {
+                id: id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn touch_token(&self, id: &str) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::TouchToken {
+                id: id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
+
+    pub async fn count_tokens(&self) -> StorageResult<u64> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::CountTokens { reply })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -865,6 +1031,28 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
                     paused,
                 ));
             }
+            // ── Tokens ──────────────────────────────────────────────────
+            DbCommand::InsertToken { entry, reply } => {
+                let _ = reply.send(do_insert_token(&conn, &entry));
+            }
+            DbCommand::GetTokenByHash { hash, reply } => {
+                let _ = reply.send(do_get_token_by_hash(&conn, &hash));
+            }
+            DbCommand::GetTokenByName { name, reply } => {
+                let _ = reply.send(do_get_token_by_name(&conn, &name));
+            }
+            DbCommand::ListTokens { reply } => {
+                let _ = reply.send(do_list_tokens(&conn));
+            }
+            DbCommand::RevokeToken { id, reply } => {
+                let _ = reply.send(do_revoke_token(&conn, &id));
+            }
+            DbCommand::TouchToken { id, reply } => {
+                let _ = reply.send(do_touch_token(&conn, &id));
+            }
+            DbCommand::CountTokens { reply } => {
+                let _ = reply.send(do_count_tokens(&conn));
+            }
         }
     }
     debug!("database thread shutting down");
@@ -981,6 +1169,26 @@ fn init_schema(conn: &Connection) -> StorageResult<()> {
             CREATE INDEX IF NOT EXISTS idx_schedules_workflow ON schedules(workflow);",
         )
         .map_err(|e| StorageError::Other(format!("create schedules table: {e}")))?;
+    }
+
+    // V6: serve_tokens (multi-tenant auth)
+    if version < 6 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS serve_tokens (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                token_hash BLOB NOT NULL UNIQUE,
+                role TEXT NOT NULL DEFAULT 'operator',
+                scope TEXT NOT NULL DEFAULT '*',
+                created_at TEXT NOT NULL,
+                expires_at TEXT,
+                last_used_at TEXT,
+                revoked INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_serve_tokens_hash ON serve_tokens(token_hash);
+            CREATE INDEX IF NOT EXISTS idx_serve_tokens_name ON serve_tokens(name);",
+        )
+        .map_err(|e| StorageError::Other(format!("create serve_tokens table: {e}")))?;
     }
 
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)
@@ -1507,6 +1715,101 @@ fn do_update_schedule_cron(
         return Err(StorageError::NotFound(id.to_string()));
     }
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKEN QUERIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn row_to_token(row: &rusqlite::Row) -> rusqlite::Result<TokenEntry> {
+    Ok(TokenEntry {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        token_hash: row.get(2)?,
+        role: Role::parse(row.get::<_, String>(3)?.as_str()),
+        scope: row.get(4)?,
+        created_at: row.get(5)?,
+        expires_at: row.get(6)?,
+        last_used_at: row.get(7)?,
+        revoked: row.get::<_, i32>(8)? != 0,
+    })
+}
+
+const TOKEN_COLUMNS: &str =
+    "id, name, token_hash, role, scope, created_at, expires_at, last_used_at, revoked";
+
+fn do_insert_token(conn: &Connection, entry: &TokenEntry) -> StorageResult<()> {
+    conn.execute(
+        "INSERT INTO serve_tokens (id, name, token_hash, role, scope, created_at, expires_at, revoked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            entry.id,
+            entry.name,
+            entry.token_hash,
+            entry.role.as_str(),
+            entry.scope,
+            entry.created_at,
+            entry.expires_at,
+            entry.revoked as i32,
+        ],
+    )?;
+    Ok(())
+}
+
+fn do_get_token_by_hash(conn: &Connection, hash: &[u8]) -> StorageResult<Option<TokenEntry>> {
+    let sql = format!("SELECT {TOKEN_COLUMNS} FROM serve_tokens WHERE token_hash = ?1");
+    conn.query_row(&sql, params![hash], row_to_token)
+        .optional()
+        .map_err(StorageError::from)
+}
+
+fn do_get_token_by_name(conn: &Connection, name: &str) -> StorageResult<Option<TokenEntry>> {
+    let sql = format!("SELECT {TOKEN_COLUMNS} FROM serve_tokens WHERE name = ?1");
+    conn.query_row(&sql, params![name], row_to_token)
+        .optional()
+        .map_err(StorageError::from)
+}
+
+fn do_list_tokens(conn: &Connection) -> StorageResult<Vec<TokenEntry>> {
+    let sql = format!(
+        "SELECT {TOKEN_COLUMNS} FROM serve_tokens WHERE revoked = 0 ORDER BY created_at DESC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([], row_to_token)?;
+    let mut tokens = Vec::new();
+    for row in rows {
+        tokens.push(row?);
+    }
+    Ok(tokens)
+}
+
+fn do_revoke_token(conn: &Connection, id: &str) -> StorageResult<()> {
+    let affected = conn.execute(
+        "UPDATE serve_tokens SET revoked = 1 WHERE id = ?1 AND revoked = 0",
+        params![id],
+    )?;
+    if affected == 0 {
+        return Err(StorageError::NotFound(id.to_string()));
+    }
+    Ok(())
+}
+
+fn do_touch_token(conn: &Connection, id: &str) -> StorageResult<()> {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE serve_tokens SET last_used_at = ?1 WHERE id = ?2",
+        params![now, id],
+    )?;
+    Ok(())
+}
+
+fn do_count_tokens(conn: &Connection) -> StorageResult<u64> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM serve_tokens WHERE revoked = 0",
+        [],
+        |row| row.get(0),
+    )?;
+    Ok(count as u64)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2344,5 +2647,171 @@ mod tests {
             Some("job-1"),
             "last_job_id should be preserved"
         );
+    }
+
+    // ── Token tests (V6) ─────────────────────────────────────────────
+
+    fn make_token(id: &str, name: &str) -> TokenEntry {
+        TokenEntry {
+            id: id.to_string(),
+            name: name.to_string(),
+            token_hash: vec![0xAB; 32], // fake 32-byte hash
+            role: Role::Operator,
+            scope: "*".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            expires_at: None,
+            last_used_at: None,
+            revoked: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn token_insert_and_get_by_name() {
+        let storage = Storage::open_memory().unwrap();
+        let entry = make_token("t1", "ci-deploy");
+
+        storage.insert_token(entry).await.unwrap();
+
+        let got = storage.get_token_by_name("ci-deploy").await.unwrap().unwrap();
+        assert_eq!(got.id, "t1");
+        assert_eq!(got.name, "ci-deploy");
+        assert_eq!(got.role, Role::Operator);
+        assert_eq!(got.scope, "*");
+        assert!(!got.revoked);
+    }
+
+    #[tokio::test]
+    async fn token_get_by_hash() {
+        let storage = Storage::open_memory().unwrap();
+        let hash = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let mut entry = make_token("t1", "lookup-test");
+        entry.token_hash = hash.clone();
+
+        storage.insert_token(entry).await.unwrap();
+
+        let got = storage.get_token_by_hash(&hash).await.unwrap().unwrap();
+        assert_eq!(got.id, "t1");
+
+        // Wrong hash returns None
+        let missing = storage.get_token_by_hash(&[0xFF; 4]).await.unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[tokio::test]
+    async fn token_list_excludes_revoked() {
+        let storage = Storage::open_memory().unwrap();
+
+        let mut t1 = make_token("t1", "active");
+        t1.token_hash = vec![1; 32];
+        let mut t2 = make_token("t2", "also-active");
+        t2.token_hash = vec![2; 32];
+        let mut t3 = make_token("t3", "will-revoke");
+        t3.token_hash = vec![3; 32];
+
+        storage.insert_token(t1).await.unwrap();
+        storage.insert_token(t2).await.unwrap();
+        storage.insert_token(t3).await.unwrap();
+
+        storage.revoke_token("t3").await.unwrap();
+
+        let list = storage.list_tokens().await.unwrap();
+        assert_eq!(list.len(), 2);
+        assert!(list.iter().all(|t| t.name != "will-revoke"));
+    }
+
+    #[tokio::test]
+    async fn token_revoke_idempotent() {
+        let storage = Storage::open_memory().unwrap();
+        storage.insert_token(make_token("t1", "revoke-me")).await.unwrap();
+
+        storage.revoke_token("t1").await.unwrap();
+
+        // Second revoke → NotFound (already revoked)
+        let err = storage.revoke_token("t1").await.unwrap_err();
+        assert!(matches!(err, StorageError::NotFound(_)));
+
+        // Revoke non-existent → NotFound
+        let err = storage.revoke_token("nope").await.unwrap_err();
+        assert!(matches!(err, StorageError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn token_touch_updates_last_used() {
+        let storage = Storage::open_memory().unwrap();
+        storage.insert_token(make_token("t1", "touch-me")).await.unwrap();
+
+        // Initially no last_used_at
+        let before = storage.get_token_by_name("touch-me").await.unwrap().unwrap();
+        assert!(before.last_used_at.is_none());
+
+        storage.touch_token("t1").await.unwrap();
+
+        let after = storage.get_token_by_name("touch-me").await.unwrap().unwrap();
+        assert!(after.last_used_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn token_count() {
+        let storage = Storage::open_memory().unwrap();
+        assert_eq!(storage.count_tokens().await.unwrap(), 0);
+
+        let mut t1 = make_token("t1", "a");
+        t1.token_hash = vec![1; 32];
+        let mut t2 = make_token("t2", "b");
+        t2.token_hash = vec![2; 32];
+
+        storage.insert_token(t1).await.unwrap();
+        storage.insert_token(t2).await.unwrap();
+        assert_eq!(storage.count_tokens().await.unwrap(), 2);
+
+        storage.revoke_token("t1").await.unwrap();
+        assert_eq!(storage.count_tokens().await.unwrap(), 1, "revoked tokens excluded");
+    }
+
+    #[tokio::test]
+    async fn token_name_unique() {
+        let storage = Storage::open_memory().unwrap();
+        storage.insert_token(make_token("t1", "ci")).await.unwrap();
+
+        let mut dup = make_token("t2", "ci");
+        dup.token_hash = vec![0xFF; 32];
+        let err = storage.insert_token(dup).await.unwrap_err();
+        assert!(matches!(err, StorageError::Sqlite(_)));
+    }
+
+    #[tokio::test]
+    async fn v6_migration_coexists_with_schedules_and_jobs() {
+        let storage = Storage::open_memory().unwrap();
+
+        // Jobs still work
+        storage.create_job("j1", "test.nika.yaml").await.unwrap();
+        let job = storage.get_job("j1").await.unwrap().unwrap();
+        assert_eq!(job.workflow, "test.nika.yaml");
+
+        // Schedules still work
+        storage
+            .insert_schedule(make_schedule("s1", "daily"))
+            .await
+            .unwrap();
+        let sched = storage.get_schedule("s1").await.unwrap().unwrap();
+        assert_eq!(sched.name, "daily");
+
+        // Tokens work (V6)
+        storage.insert_token(make_token("t1", "ci")).await.unwrap();
+        let token = storage.get_token_by_name("ci").await.unwrap().unwrap();
+        assert_eq!(token.id, "t1");
+
+        assert_eq!(storage.count_tokens().await.unwrap(), 1);
+    }
+
+    #[test]
+    fn role_parse_roundtrip() {
+        assert_eq!(Role::parse("operator"), Role::Operator);
+        assert_eq!(Role::parse("viewer"), Role::Viewer);
+        assert_eq!(Role::parse("admin"), Role::Admin);
+        assert_eq!(Role::parse("unknown"), Role::Operator); // default
+        assert_eq!(Role::Operator.as_str(), "operator");
+        assert_eq!(Role::Viewer.as_str(), "viewer");
+        assert_eq!(Role::Admin.as_str(), "admin");
     }
 }
