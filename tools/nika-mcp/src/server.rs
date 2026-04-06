@@ -254,42 +254,28 @@ impl NikaMcpServer {
             Err(e) => return Ok(CallToolResult::error(vec![Content::text(format!("Cannot read file: {e}"))])),
         };
 
-        // Parse task IDs and dependencies from YAML
+        // Parse with nika-core AST for correct handling of all YAML patterns
+        use nika_core::ast::raw::{parse, RawTaskAction};
+        use nika_core::source::FileId;
+
         let mut tasks: Vec<(String, String)> = Vec::new(); // (id, verb)
         let mut edges: Vec<(String, String)> = Vec::new(); // (from, to)
-        let mut current_id: Option<String> = None;
 
-        for line in content.lines() {
-            let trimmed = line.trim();
+        if let Ok(workflow) = parse(&content, FileId(0)) {
+            for task in &workflow.tasks.value {
+                let t = &task.value;
+                let verb = match &t.action {
+                    Some(RawTaskAction::Infer(_)) => "infer",
+                    Some(RawTaskAction::Exec(_)) => "exec",
+                    Some(RawTaskAction::Fetch(_)) => "fetch",
+                    Some(RawTaskAction::Invoke(_)) => "invoke",
+                    Some(RawTaskAction::Agent(_)) => "agent",
+                    None => "unknown",
+                };
+                tasks.push((t.id.value.clone(), verb.to_string()));
 
-            // Match task ID
-            if let Some(rest) = trimmed.strip_prefix("- id:") {
-                current_id = Some(rest.trim().to_string());
-            }
-
-            // Match verb
-            if let Some(ref id) = current_id {
-                for verb in &["infer", "exec", "fetch", "invoke", "agent"] {
-                    if trimmed.starts_with(&format!("{verb}:")) || trimmed.starts_with(&format!("{verb}: ")) {
-                        tasks.push((id.clone(), verb.to_string()));
-                        current_id = None;
-                        break;
-                    }
-                }
-            }
-
-            // Match depends_on
-            if trimmed.starts_with("depends_on:") {
-                if let Some(ref id) = current_id.as_ref().or(tasks.last().map(|t| &t.0)) {
-                    let deps_str = trimmed.strip_prefix("depends_on:").unwrap_or("").trim();
-                    // Parse [dep1, dep2] or single dep
-                    let deps_str = deps_str.trim_start_matches('[').trim_end_matches(']');
-                    for dep in deps_str.split(',') {
-                        let dep = dep.trim().trim_matches('"').trim_matches('\'');
-                        if !dep.is_empty() {
-                            edges.push((dep.to_string(), id.to_string()));
-                        }
-                    }
+                for dep in t.depends_on_ids() {
+                    edges.push((dep.to_string(), t.id.value.clone()));
                 }
             }
         }

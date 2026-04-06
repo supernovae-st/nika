@@ -22,6 +22,7 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 ///
 /// All methods return `Option<T>` or empty `Vec` — never panics, never blocks
 /// the LSP even if the daemon is down or slow.
+#[derive(Clone)]
 #[allow(dead_code)] // Methods used incrementally as LSP features are wired up
 pub struct DaemonBridge {
     #[cfg(unix)]

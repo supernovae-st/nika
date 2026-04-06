@@ -58,10 +58,14 @@ impl DaemonProvider for RwLockDaemonProvider {
     }
 
     async fn provider_status(&self) -> Vec<ProviderStatusInfo> {
-        let guard = self.0.read().await;
-        match guard.as_ref() {
-            Some(bridge) if bridge.is_connected() => bridge.provider_status().await,
-            _ => Vec::new(),
+        // Clone bridge and release lock BEFORE awaiting IPC (may take up to 5s)
+        let bridge = {
+            let guard = self.0.read().await;
+            guard.as_ref().filter(|b| b.is_connected()).cloned()
+        };
+        match bridge {
+            Some(b) => b.provider_status().await,
+            None => Vec::new(),
         }
     }
 
@@ -72,28 +76,35 @@ impl DaemonProvider for RwLockDaemonProvider {
         input_tokens: u64,
         output_tokens: u64,
     ) -> Option<CostEstimate> {
-        let guard = self.0.read().await;
-        match guard.as_ref() {
-            Some(bridge) if bridge.is_connected() => {
-                bridge.estimate_cost(provider, model, input_tokens, output_tokens).await
-            }
-            _ => None,
+        let bridge = {
+            let guard = self.0.read().await;
+            guard.as_ref().filter(|b| b.is_connected()).cloned()
+        };
+        match bridge {
+            Some(b) => b.estimate_cost(provider, model, input_tokens, output_tokens).await,
+            None => None,
         }
     }
 
     async fn workflow_history(&self, workflow: &str) -> Vec<WorkflowRunInfo> {
-        let guard = self.0.read().await;
-        match guard.as_ref() {
-            Some(bridge) if bridge.is_connected() => bridge.workflow_history(workflow).await,
-            _ => Vec::new(),
+        let bridge = {
+            let guard = self.0.read().await;
+            guard.as_ref().filter(|b| b.is_connected()).cloned()
+        };
+        match bridge {
+            Some(b) => b.workflow_history(workflow).await,
+            None => Vec::new(),
         }
     }
 
     async fn capabilities(&self) -> Option<DaemonCapabilities> {
-        let guard = self.0.read().await;
-        match guard.as_ref() {
-            Some(bridge) if bridge.is_connected() => bridge.capabilities().await,
-            _ => None,
+        let bridge = {
+            let guard = self.0.read().await;
+            guard.as_ref().filter(|b| b.is_connected()).cloned()
+        };
+        match bridge {
+            Some(b) => b.capabilities().await,
+            None => None,
         }
     }
 }
