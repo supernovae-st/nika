@@ -418,18 +418,55 @@ fn scan_scheduled_workflows(dir: &std::path::Path) -> (usize, usize, usize) {
 
 /// Extract the `schedule:` value from a workflow header as a JSON value.
 ///
-/// Handles both string form (`schedule: "@daily"`) and the first line of
-/// object form (extracts the string value after `schedule:`).
+/// Handles both string form (`schedule: "@daily"`) and object form:
+/// ```yaml
+/// schedule:
+///   cron: "0 9 * * 1-5"
+///   timezone: "Europe/Paris"
+///   overlap: queue
+/// ```
 fn extract_schedule_value(header: &str) -> Option<serde_json::Value> {
-    for line in header.lines() {
+    let lines: Vec<&str> = header.lines().collect();
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if let Some(rest) = trimmed.strip_prefix("schedule:") {
             let val = rest.trim().trim_matches('"').trim_matches('\'');
-            if val.is_empty() {
-                // Object form — not supported in quick scan, skip
-                return None;
+            if !val.is_empty() {
+                // String form: schedule: "@daily" or schedule: "0 9 * * *"
+                return Some(serde_json::Value::String(val.to_string()));
             }
-            return Some(serde_json::Value::String(val.to_string()));
+            // Object form: collect indented lines after "schedule:"
+            let mut obj = serde_json::Map::new();
+            for next_line in &lines[i + 1..] {
+                let next_trimmed = next_line.trim();
+                // Stop at next top-level key or empty line
+                if next_trimmed.is_empty()
+                    || (!next_line.starts_with(' ') && !next_line.starts_with('\t'))
+                {
+                    break;
+                }
+                // Parse "key: value" pairs
+                if let Some((key, value)) = next_trimmed.split_once(':') {
+                    let k = key.trim();
+                    let v = value.trim().trim_matches('"').trim_matches('\'');
+                    if k == "paused" {
+                        obj.insert(
+                            k.to_string(),
+                            serde_json::Value::Bool(v == "true"),
+                        );
+                    } else if !v.is_empty() {
+                        obj.insert(
+                            k.to_string(),
+                            serde_json::Value::String(v.to_string()),
+                        );
+                    }
+                }
+            }
+            if obj.contains_key("cron") {
+                return Some(serde_json::Value::Object(obj));
+            }
+            // Object form without cron: key — can't parse, skip
+            return None;
         }
     }
     None
