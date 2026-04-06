@@ -608,9 +608,17 @@ async fn reconcile_yaml_schedules(
 fn collect_workflow_paths(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut paths = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
+        tracing::warn!(dir = %dir.display(), "cannot read directory during workflow scan");
         return paths;
     };
-    for entry in entries.filter_map(|e| e.ok()) {
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(dir = %dir.display(), error = %e, "directory entry error during scan");
+                continue;
+            }
+        };
         let name = entry.file_name();
         let Some(name_str) = name.to_str() else {
             continue;

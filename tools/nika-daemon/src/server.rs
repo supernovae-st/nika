@@ -913,7 +913,15 @@ async fn route_request(request: DaemonRequest, state: &Arc<ServerState>) -> Daem
 
             // Compute initial next_run_at (respect timezone)
             let now = chrono::Utc::now();
-            let parsed_cron: croner::Cron = cron_expr.parse().unwrap(); // already validated
+            let parsed_cron: croner::Cron = match cron_expr.parse() {
+                Ok(c) => c,
+                Err(e) => {
+                    return DaemonResponse::Error {
+                        code: "NIKA-280".into(),
+                        message: format!("cron parse (post-validation): {e}"),
+                    };
+                }
+            };
             let next_run_at = {
                 let tz: chrono_tz::Tz = tz_str.parse().unwrap_or(chrono_tz::UTC);
                 let now_tz = now.with_timezone(&tz);

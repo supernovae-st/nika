@@ -570,6 +570,26 @@ async fn fire_from_schedules_table(
                         workflow = %sched.workflow,
                         "skipping — active job exists (overlap: skip)"
                     );
+                    // Advance next_run_at even on skip to prevent burst re-fire
+                    // on every subsequent 60s tick while the job is active.
+                    if let Ok(cron) = sched.cron_expr.parse::<croner::Cron>() {
+                        let tz: chrono_tz::Tz =
+                            sched.timezone.parse().unwrap_or(chrono_tz::UTC);
+                        let now_tz = now.with_timezone(&tz);
+                        let next = cron
+                            .find_next_occurrence(&now_tz, false)
+                            .ok()
+                            .map(|dt| dt.to_rfc3339());
+                        let _ = service
+                            .storage
+                            .update_schedule_after_fire(
+                                &sched.id,
+                                &now.to_rfc3339(),
+                                next.as_deref(),
+                                "",
+                            )
+                            .await;
+                    }
                     continue;
                 }
             }
