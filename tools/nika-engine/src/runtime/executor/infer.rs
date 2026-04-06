@@ -284,6 +284,21 @@ impl TaskExecutor {
             None => None,
         };
 
+        // Parse slash syntax: model: "groq/llama-3.3-70b" → provider=groq, model=llama-3.3-70b
+        let (resolved_provider, resolved_model) = if resolved_provider.is_none() {
+            if let Some(ref model_str) = resolved_model {
+                if let Some((ep, model)) = parse_model_slash(model_str) {
+                    (Some(ep.to_string()), Some(model.to_string()))
+                } else {
+                    (resolved_provider, resolved_model)
+                }
+            } else {
+                (resolved_provider, resolved_model)
+            }
+        } else {
+            (resolved_provider, resolved_model)
+        };
+
         // Build provider chain: explicit chain > single provider > auto-inferred > workflow default
         let effective_chain: Vec<String> = if let Some(ref chain) = infer.provider_chain {
             chain.iter().map(|p| p.to_string()).collect()
@@ -1896,6 +1911,19 @@ fn resolve_from_example_in_spec(
     spec
 }
 
+/// Parse slash syntax in model: field.
+/// `model: "groq/llama-3.3-70b"` → Some(("groq", "llama-3.3-70b"))
+/// Splits on FIRST slash only: `"native/Qwen/Qwen3-8B"` → Some(("native", "Qwen/Qwen3-8B"))
+fn parse_model_slash(model: &str) -> Option<(&str, &str)> {
+    let slash_pos = model.find('/')?;
+    let prefix = &model[..slash_pos];
+    let rest = &model[slash_pos + 1..];
+    if prefix.is_empty() || rest.is_empty() {
+        return None;
+    }
+    Some((prefix, rest))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1954,5 +1982,33 @@ mod tests {
         assert_eq!(estimate_tokens(400), 100);
         assert_eq!(estimate_tokens(0), 0);
         assert_eq!(estimate_tokens(3), 1); // rounds up
+    }
+
+    #[test]
+    fn test_parse_model_slash_basic() {
+        assert_eq!(
+            parse_model_slash("groq/llama-3.3-70b"),
+            Some(("groq", "llama-3.3-70b"))
+        );
+    }
+
+    #[test]
+    fn test_parse_model_slash_nested_path() {
+        // Split on FIRST slash: native/Qwen/Qwen3-8B → provider=native, model=Qwen/Qwen3-8B
+        assert_eq!(
+            parse_model_slash("native/Qwen/Qwen3-8B"),
+            Some(("native", "Qwen/Qwen3-8B"))
+        );
+    }
+
+    #[test]
+    fn test_parse_model_slash_no_slash() {
+        assert_eq!(parse_model_slash("claude-sonnet-4-6"), None);
+    }
+
+    #[test]
+    fn test_parse_model_slash_empty_parts() {
+        assert_eq!(parse_model_slash("/llama"), None); // empty prefix
+        assert_eq!(parse_model_slash("groq/"), None); // empty model
     }
 }
