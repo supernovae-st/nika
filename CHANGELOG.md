@@ -7,10 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.72.x — SCHEDULE + KEYS + AST HARDENING                           ║
-║  63 transforms | 62 tools | cron scheduling | unified key management       ║
+║  NIKA v0.73.0 — PRODUCTION HARDENING (nk-jungo VPS)                       ║
+║  8 bug fixes | artifacts API | skills path | from_example templates        ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.73.0] — 2026-04-06
+
+### Fixed
+- **`from_example:` template paths** — `{{inputs.*}}` templates now resolved before file I/O in all 4 StructuredOutputEngine paths + agent pre-read.
+- **`skills:` path resolution** — Skills now resolve from project root (new `skills_base_dir`), consistent with `context:`, `nika:read`, and all other file operations.
+- **`guardrails:` on infer tasks** — Task-level `guardrails:` field now accepted for shorthand `infer: "string"` (was only inside full-form infer block).
+- **`context: files:` template paths** — `{{inputs.*}}` templates now supported in context file paths. Inputs loaded before context files.
+- **Subprocess artifacts in API** — `nika serve` subprocess mode now scans output directory post-execution and registers artifacts in SQLite. `/v1/jobs/{id}/artifacts` returns real data.
+- **Fallback chain error reporting** — Skip providers without API keys instead of trying them. Report first meaningful error, not last.
+- **systemd service template** — Documented `WorkingDirectory` requirement. Updated `ReadWritePaths` to `output/`.
+- **Homebrew CI version guard** — Validate semver format before updating formula, prevents wrong version stamps.
 
 ## [0.72.0] — 2026-04-06
 
