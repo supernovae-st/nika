@@ -12,5 +12,6 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Node16"
   },
-  "exclude": ["node_modules", "out", "src/webview"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "out", "src/webview", "src/test"]
 }

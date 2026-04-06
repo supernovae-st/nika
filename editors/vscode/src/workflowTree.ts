@@ -10,6 +10,7 @@ import {
   Command,
 } from 'vscode';
 import * as fs from 'fs';
+import { parseWorkflowTasks } from './workflowParser';
 
 type WorkflowItem = WorkflowFileItem | WorkflowTaskItem;
 
@@ -76,40 +77,6 @@ class WorkflowTaskItem extends TreeItem {
       default: return new ThemeIcon('circle-outline');
     }
   }
-}
-
-const TASK_ID_REGEX = /^\s*-\s*id:\s*(\S+)/;
-const VERB_REGEX = /^\s+(infer|exec|fetch|invoke|agent)[\s:]/;
-
-function parseWorkflowTasks(content: string): { id: string; line: number; verb: string }[] {
-  const lines = content.split('\n');
-  const tasks: { id: string; line: number; verb: string }[] = [];
-  let currentTask: { id: string; line: number } | null = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const idMatch = lines[i].match(TASK_ID_REGEX);
-    if (idMatch) {
-      if (currentTask) {
-        tasks.push({ ...currentTask, verb: 'unknown' });
-      }
-      currentTask = { id: idMatch[1], line: i };
-      continue;
-    }
-
-    if (currentTask) {
-      const verbMatch = lines[i].match(VERB_REGEX);
-      if (verbMatch) {
-        tasks.push({ id: currentTask.id, line: currentTask.line, verb: verbMatch[1] });
-        currentTask = null;
-      }
-    }
-  }
-
-  if (currentTask) {
-    tasks.push({ ...currentTask, verb: 'unknown' });
-  }
-
-  return tasks;
 }
 
 export class WorkflowTreeProvider implements TreeDataProvider<WorkflowItem> {
