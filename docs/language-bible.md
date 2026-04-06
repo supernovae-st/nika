@@ -244,7 +244,7 @@ Ask any LLM to generate, analyze, summarize, translate, extract.
 ```
 
 **Where fields go:**
-- `model:`, `provider:`, `base_url:`, `preset:` → **task level**
+- `model:`, `provider:`, `preset:` → **task level** (slash syntax: `model: groq/llama-3.3-70b`)
 - `prompt:`, `system:`, `temperature:`, `max_tokens:` → **inside `infer:` block** (full form)
 - Short form only: `temperature:`, `max_tokens:`, `system:` can be at task level
 
@@ -960,18 +960,25 @@ infer: "Analyze: {{with.metadata | to_json}}"
 ### Custom endpoints (vLLM, Ollama, etc.)
 
 ```yaml
-# In workflow — inline
+# Slash syntax — provider inferred from prefix
 - id: local
-  provider: openai
-  base_url: "http://localhost:11434/v1"
-  model: llama3.2
+  model: ollama/llama3.2
   infer: "Hello from Ollama"
 
-# In config — named endpoint
-# ~/.config/nika/config.toml
-# [endpoints.h100]
-# base_url = "http://10.0.1.42:8000/v1"
-# model = "Qwen/Qwen3-8B"
+# Named endpoint from nika.toml
+- id: gpu
+  model: h100/Qwen/Qwen3-8B
+  infer: "Hello from vLLM"
+```
+
+```toml
+# nika.toml or ~/.config/nika/config.toml
+[endpoints.h100]
+base_url = "http://10.0.1.42:8000/v1"
+model = "Qwen/Qwen3-8B"
+
+[endpoints.ollama]
+base_url = "http://localhost:11434/v1"
 ```
 
 ### Model-per-task routing
@@ -1178,7 +1185,7 @@ Where each field goes — the definitive answer.
 |-------|-----------|-------------------|-------|
 | `model:` | Yes | No | NIKA-163 if inside infer: |
 | `provider:` | Yes | No | |
-| `base_url:` | Yes | No | |
+| `base_url:` | **Removed** | No | Use `[endpoints.*]` in nika.toml |
 | `preset:` | Yes | No | Works on infer: and agent: |
 | `retry:` | **Yes** | **No (NIKA-163 error)** | Misplaced field detected |
 | `structured:` | **Yes** | **No (NIKA-163 error)** | Misplaced field detected |
