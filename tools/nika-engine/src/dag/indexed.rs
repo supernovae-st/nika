@@ -307,7 +307,7 @@ mod tests {
                 action: AnalyzedTaskAction::default(),
                 provider: None,
                 model: None,
-    
+
                 with_spec: WithSpec::default(),
                 depends_on,
                 implicit_deps: Vec::new(),

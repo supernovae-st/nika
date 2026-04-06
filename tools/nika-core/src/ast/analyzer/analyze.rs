@@ -5437,10 +5437,7 @@ tasks:
         let sched = workflow.schedule.as_ref().expect("schedule should be Some");
         assert_eq!(sched.cron, "0 9 * * 1-5");
         assert_eq!(sched.timezone.as_deref(), Some("Europe/Paris"));
-        assert_eq!(
-            sched.overlap,
-            crate::ast::schedule::OverlapPolicy::Queue
-        );
+        assert_eq!(sched.overlap, crate::ast::schedule::OverlapPolicy::Queue);
     }
 
     #[test]

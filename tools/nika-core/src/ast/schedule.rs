@@ -393,9 +393,18 @@ mod tests {
 
     #[test]
     fn overlap_policy_roundtrip() {
-        assert_eq!("skip".parse::<OverlapPolicy>().unwrap(), OverlapPolicy::Skip);
-        assert_eq!("queue".parse::<OverlapPolicy>().unwrap(), OverlapPolicy::Queue);
-        assert_eq!("replace".parse::<OverlapPolicy>().unwrap(), OverlapPolicy::Replace);
+        assert_eq!(
+            "skip".parse::<OverlapPolicy>().unwrap(),
+            OverlapPolicy::Skip
+        );
+        assert_eq!(
+            "queue".parse::<OverlapPolicy>().unwrap(),
+            OverlapPolicy::Queue
+        );
+        assert_eq!(
+            "replace".parse::<OverlapPolicy>().unwrap(),
+            OverlapPolicy::Replace
+        );
         assert!("invalid".parse::<OverlapPolicy>().is_err());
         assert_eq!(OverlapPolicy::Skip.to_string(), "skip");
         assert_eq!(OverlapPolicy::default(), OverlapPolicy::Skip);
@@ -403,8 +412,14 @@ mod tests {
 
     #[test]
     fn schedule_source_roundtrip() {
-        assert_eq!("cli".parse::<ScheduleSource>().unwrap(), ScheduleSource::Cli);
-        assert_eq!("yaml".parse::<ScheduleSource>().unwrap(), ScheduleSource::Yaml);
+        assert_eq!(
+            "cli".parse::<ScheduleSource>().unwrap(),
+            ScheduleSource::Cli
+        );
+        assert_eq!(
+            "yaml".parse::<ScheduleSource>().unwrap(),
+            ScheduleSource::Yaml
+        );
         assert!("api".parse::<ScheduleSource>().is_err());
         assert_eq!(ScheduleSource::Cli.to_string(), "cli");
         assert_eq!(ScheduleSource::default(), ScheduleSource::Cli);

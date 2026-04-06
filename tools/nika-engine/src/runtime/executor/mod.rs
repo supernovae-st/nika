@@ -655,9 +655,7 @@ impl TaskExecutor {
             // Skip providers without API keys — avoids wasting time and masking
             // the real error with a misleading NIKA-032 "missing API key".
             if let Some(provider_info) = nika_core::catalogs::find_provider(provider_name) {
-                if provider_info.requires_key
-                    && !crate::secrets::has_provider_key(provider_info)
-                {
+                if provider_info.requires_key && !crate::secrets::has_provider_key(provider_info) {
                     tracing::debug!(
                         task_id = %task_id,
                         provider = %provider_name,

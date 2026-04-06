@@ -645,7 +645,10 @@ impl BootSequence {
 
         // Endpoints: user-level fills gaps, project-level wins on conflict
         for (name, ep) in &user.endpoints {
-            project.endpoints.entry(name.clone()).or_insert_with(|| ep.clone());
+            project
+                .endpoints
+                .entry(name.clone())
+                .or_insert_with(|| ep.clone());
         }
     }
 
