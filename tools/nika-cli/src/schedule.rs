@@ -18,7 +18,7 @@ use nika_engine::error::NikaError;
 use crate::every::format_run_estimate;
 
 // Re-export for schedule card display
-use chrono::Utc;
+use chrono::{Timelike, Utc};
 
 /// Schedule management actions.
 #[derive(Subcommand)]
@@ -29,6 +29,9 @@ pub enum ScheduleAction {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// Show 24h timeline view
+        #[arg(long)]
+        timeline: bool,
     },
 
     /// Show schedule details
@@ -73,7 +76,7 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
     }
 
     match action {
-        ScheduleAction::List { json } => {
+        ScheduleAction::List { json, timeline } => {
             let resp = client
                 .send(DaemonRequest::ScheduleList {
                     enabled_only: false,
@@ -100,6 +103,11 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                             println!("\n  Or explore interactively:");
                             println!("    nika every");
                         }
+                        return Ok(());
+                    }
+
+                    if timeline {
+                        render_timeline(&schedules);
                         return Ok(());
                     }
 
@@ -468,6 +476,208 @@ fn humanize_duration(seconds: i64) -> String {
     }
 }
 
+// ─── 24h Timeline ──────────────────────────────────────────────────────
+
+/// Compute which hour slots (0-23) a cron expression fires in during one day.
+///
+/// Uses a fixed reference date (2026-01-05, a Monday) to get deterministic
+/// results for tests. For real display we use today's date via `render_timeline`.
+#[cfg(test)]
+fn compute_hour_slots(cron_str: &str) -> [bool; 24] {
+    compute_hour_slots_for_date(
+        cron_str,
+        chrono::NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+    )
+}
+
+/// Compute hour slots for a specific date.
+fn compute_hour_slots_for_date(cron_str: &str, date: chrono::NaiveDate) -> [bool; 24] {
+    let mut slots = [false; 24];
+    let Ok(cron) = cron_str.parse::<croner::Cron>() else {
+        return slots;
+    };
+
+    // Start 1 second before midnight so find_next_occurrence (exclusive) can find 00:00
+    let before_day = date
+        .pred_opt()
+        .unwrap_or(date)
+        .and_hms_opt(23, 59, 59)
+        .unwrap();
+    let day_end = date.and_hms_opt(23, 59, 59).unwrap();
+    let from_utc =
+        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(before_day, chrono::Utc);
+    let to_utc = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(day_end, chrono::Utc);
+
+    let mut cursor = from_utc;
+    loop {
+        match cron.find_next_occurrence(&cursor, false) {
+            Ok(next) if next <= to_utc => {
+                let hour = next.hour() as usize;
+                if hour < 24 {
+                    slots[hour] = true;
+                }
+                cursor = next;
+            }
+            _ => break,
+        }
+    }
+    slots
+}
+
+/// Render a 24h ASCII timeline of when schedules fire.
+fn render_timeline(schedules: &[serde_json::Value]) {
+    let today = chrono::Utc::now().date_naive();
+
+    // Collect active schedules with their hour slots
+    let mut entries: Vec<(String, [bool; 24])> = Vec::new();
+
+    for sched in schedules {
+        let name = sched["name"].as_str().unwrap_or("-");
+        let cron_str = sched["cron_expr"].as_str().unwrap_or("-");
+        let paused = sched["paused"].as_bool().unwrap_or(false);
+        if paused {
+            continue;
+        }
+
+        let slots = compute_hour_slots_for_date(cron_str, today);
+
+        // Truncate long names for display alignment
+        let display_name = if name.len() > 8 {
+            format!("{}...", &name[..7])
+        } else {
+            name.to_string()
+        };
+        entries.push((display_name, slots));
+    }
+
+    if entries.is_empty() {
+        println!("  No active schedules for timeline.");
+        return;
+    }
+
+    // Compute max name width for alignment
+    let name_w = entries
+        .iter()
+        .map(|(n, _)| n.len())
+        .max()
+        .unwrap_or(6)
+        .max(6);
+
+    // Build the hours header: " 0  1  2  ... 23"
+    let hours_header: String = (0..19)
+        .map(|h| format!("{:>2}", h))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    // Box width: name column + 3 chars per hour (19 hours shown) + padding
+    // We show hours 0-18 on the header to match the design spec
+    let content_w = name_w + 2 + 19 * 3;
+    let box_w = content_w + 2; // +2 for "  " prefix inside box
+
+    println!();
+    let title = " 24h Overview ";
+    let dash_after = box_w.saturating_sub(title.len() + 1);
+    println!(
+        "  {}{}{}{}",
+        "\u{256d}\u{2500}".bold(),
+        title.bold(),
+        "\u{2500}".repeat(dash_after).bold(),
+        "\u{256e}".bold()
+    );
+
+    // Hours header
+    println!("  \u{2502}  {:>name_w$}  {} \u{2502}", "", hours_header);
+
+    // Tick line
+    let ticks: String = (0..19)
+        .map(|_| "\u{253c}\u{2500}\u{2500}")
+        .collect::<String>()
+        + "\u{253c}";
+    println!("  \u{2502}  {:>name_w$}  {}\u{2502}", "", ticks);
+
+    // Blank line
+    println!("  \u{2502}{}\u{2502}", " ".repeat(box_w));
+
+    // Per-schedule rows
+    let mut hour_counts = [0u32; 24];
+    for (name, slots) in &entries {
+        let dots: String = (0..19)
+            .map(|h| {
+                if slots[h] {
+                    hour_counts[h] += 1;
+                    format!(" {} ", "\u{25c6}".cyan())
+                } else {
+                    "   ".to_string()
+                }
+            })
+            .collect();
+        // Pad to box width
+        let row = format!("  {:>name_w$}{}", name.bold(), dots);
+        let visible_len = name_w + 2 + 19 * 3;
+        let pad = box_w.saturating_sub(visible_len);
+        println!("  \u{2502}{}{}\u{2502}", row, " ".repeat(pad));
+    }
+
+    // Also count hours 19-23 for the summary
+    for (_, slots) in &entries {
+        for h in 19..24 {
+            if slots[h] {
+                hour_counts[h] += 1;
+            }
+        }
+    }
+
+    // Blank line
+    println!("  \u{2502}{}\u{2502}", " ".repeat(box_w));
+
+    // Overlap warnings
+    let overlaps: Vec<(usize, u32)> = hour_counts
+        .iter()
+        .enumerate()
+        .filter(|(_, &c)| c > 1)
+        .map(|(h, &c)| (h, c))
+        .collect();
+
+    if !overlaps.is_empty() {
+        for (h, count) in &overlaps {
+            let msg = format!(
+                "  {} {:02}:00: {} workflows overlap \u{2014} consider staggering",
+                "\u{26a0}".yellow(),
+                h,
+                count
+            );
+            let pad = box_w.saturating_sub(msg.len() - 2); // color codes don't count
+                                                           // Use a rough estimate; just pad generously
+            println!("  \u{2502}{}{}\u{2502}", msg, " ".repeat(pad.min(40)));
+        }
+        println!("  \u{2502}{}\u{2502}", " ".repeat(box_w));
+    }
+
+    // Separator
+    println!("  \u{251c}{}\u{2524}", "\u{2500}".repeat(box_w));
+
+    // Summary line
+    let total_runs: u32 = hour_counts.iter().sum();
+    let peak = hour_counts
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, &c)| c)
+        .map(|(h, c)| format!("peak: {:02}:00 ({} runs)", h, c))
+        .unwrap_or_default();
+    let summary = format!(
+        "  {} schedules \u{00b7} {} runs/day \u{00b7} {}",
+        entries.len(),
+        total_runs,
+        peak
+    );
+    let pad = box_w.saturating_sub(summary.len());
+    println!("  \u{2502}{}{}\u{2502}", summary, " ".repeat(pad));
+
+    // Bottom border
+    println!("  \u{2570}{}\u{256f}", "\u{2500}".repeat(box_w));
+    println!();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,5 +725,140 @@ mod tests {
     fn test_history_summary_all_pass() {
         let states: Vec<String> = vec!["completed".into(), "completed".into()];
         assert_eq!(history_summary(&states), "2/2");
+    }
+
+    // ─── Timeline tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_compute_hour_slots_daily_at_9() {
+        // "0 9 * * *" fires at hour 9 every day
+        let slots = compute_hour_slots("0 9 * * *");
+        assert!(slots[9], "should fire at hour 9");
+        assert!(!slots[8], "should NOT fire at hour 8");
+        assert!(!slots[10], "should NOT fire at hour 10");
+        let count: usize = slots.iter().filter(|&&s| s).count();
+        assert_eq!(count, 1, "should fire exactly once per day");
+    }
+
+    #[test]
+    fn test_compute_hour_slots_every_2h() {
+        // "0 */2 * * *" fires every 2 hours: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22
+        let slots = compute_hour_slots("0 */2 * * *");
+        for h in (0..24).step_by(2) {
+            assert!(slots[h], "should fire at hour {h}");
+        }
+        for h in (1..24).step_by(2) {
+            assert!(!slots[h], "should NOT fire at hour {h}");
+        }
+        let count: usize = slots.iter().filter(|&&s| s).count();
+        assert_eq!(count, 12, "should fire 12 times per day");
+    }
+
+    #[test]
+    fn test_compute_hour_slots_hourly() {
+        // "0 * * * *" fires every hour
+        let slots = compute_hour_slots("0 * * * *");
+        for h in 0..24 {
+            assert!(slots[h], "should fire at hour {h}");
+        }
+    }
+
+    #[test]
+    fn test_compute_hour_slots_invalid_cron() {
+        let slots = compute_hour_slots("not-a-cron");
+        let count: usize = slots.iter().filter(|&&s| s).count();
+        assert_eq!(count, 0, "invalid cron should produce no slots");
+    }
+
+    #[test]
+    fn test_compute_hour_slots_weekday_only() {
+        // "0 9 * * 1-5" fires at 9 on weekdays only
+        // 2026-01-05 is a Monday, so it should fire
+        let monday = chrono::NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        let slots = compute_hour_slots_for_date("0 9 * * 1-5", monday);
+        assert!(slots[9], "should fire at 9 on Monday");
+
+        // 2026-01-04 is a Sunday, should NOT fire
+        let sunday = chrono::NaiveDate::from_ymd_opt(2026, 1, 4).unwrap();
+        let slots = compute_hour_slots_for_date("0 9 * * 1-5", sunday);
+        let count: usize = slots.iter().filter(|&&s| s).count();
+        assert_eq!(count, 0, "should not fire on Sunday");
+    }
+
+    #[test]
+    fn test_compute_hour_slots_multiple_fires_per_hour() {
+        // "*/15 9 * * *" fires at 9:00, 9:15, 9:30, 9:45 — but we only track hour 9
+        let slots = compute_hour_slots("*/15 9 * * *");
+        assert!(slots[9], "should fire at hour 9");
+        let count: usize = slots.iter().filter(|&&s| s).count();
+        assert_eq!(count, 1, "should only mark hour 9 (not multiple times)");
+    }
+
+    #[test]
+    fn test_render_timeline_no_panic_with_sample_data() {
+        let schedules = vec![
+            serde_json::json!({
+                "name": "daily-report",
+                "cron_expr": "0 9 * * *",
+                "paused": false,
+                "workflow": "report.nika.yaml"
+            }),
+            serde_json::json!({
+                "name": "hourly-check",
+                "cron_expr": "0 * * * *",
+                "paused": false,
+                "workflow": "check.nika.yaml"
+            }),
+        ];
+        // Should not panic
+        render_timeline(&schedules);
+    }
+
+    #[test]
+    fn test_render_timeline_skips_paused() {
+        let schedules = vec![
+            serde_json::json!({
+                "name": "active-one",
+                "cron_expr": "0 9 * * *",
+                "paused": false,
+                "workflow": "active.nika.yaml"
+            }),
+            serde_json::json!({
+                "name": "paused-one",
+                "cron_expr": "0 * * * *",
+                "paused": true,
+                "workflow": "paused.nika.yaml"
+            }),
+        ];
+        // Should not panic, paused schedule excluded from view
+        render_timeline(&schedules);
+    }
+
+    #[test]
+    fn test_render_timeline_empty() {
+        render_timeline(&[]);
+    }
+
+    #[test]
+    fn test_render_timeline_all_paused() {
+        let schedules = vec![serde_json::json!({
+            "name": "paused",
+            "cron_expr": "0 9 * * *",
+            "paused": true,
+            "workflow": "w.nika.yaml"
+        })];
+        render_timeline(&schedules);
+    }
+
+    #[test]
+    fn test_render_timeline_long_name_truncated() {
+        let schedules = vec![serde_json::json!({
+            "name": "very-long-schedule-name-here",
+            "cron_expr": "0 12 * * *",
+            "paused": false,
+            "workflow": "w.nika.yaml"
+        })];
+        // Should not panic; name should be truncated in display
+        render_timeline(&schedules);
     }
 }
