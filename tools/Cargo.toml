@@ -106,6 +106,7 @@ blake3 = { version = "1.8", features = ["mmap"] }
 # Concurrency
 dashmap = "6.1"
 parking_lot = "0.12"
+moka = { version = "0.12", features = ["sync"] }
 
 # Utilities
 lru = "0.12"
@@ -124,6 +125,7 @@ globset = "0.4"
 ignore = "0.4"
 base64 = "0.22"
 rand = "0.8"
+getrandom = "0.3"
 humantime = "2.1"
 dirs = "6"
 
