@@ -447,6 +447,17 @@ function getNikaPath(): string {
   return workspace.getConfiguration('nika').get<string>('server.path', 'nika');
 }
 
+/** Check for bundled binary in platform-specific VSIX (rust-analyzer pattern). */
+function findBundledBinary(context: ExtensionContext): string | null {
+  const binaryName = process.platform === 'win32' ? 'nika.exe' : 'nika';
+  const bundled = path.join(context.extensionPath, 'server', binaryName);
+  return fs.existsSync(bundled) ? bundled : null;
+}
+
+function isCursor(): boolean {
+  return env.appName === 'Cursor' || env.uriScheme === 'cursor';
+}
+
 function startClient(context: ExtensionContext, overridePath?: string): void {
   const config = workspace.getConfiguration('nika');
   const serverPath = overridePath ?? getNikaPath();
@@ -715,9 +726,24 @@ export function activate(context: ExtensionContext): void {
     startClient(context);
   };
 
+  // Discovery priority: 1. explicit config → 2. bundled binary → 3. PATH → 4. cached → 5. download
+  if (configPath !== 'nika') {
+    // User set an explicit path — use it directly
+    log('INFO', `Using configured binary: ${configPath}`);
+    tryStartWithBinary(configPath);
+    return;
+  }
+
+  const bundled = findBundledBinary(context);
+  if (bundled) {
+    log('INFO', `Using bundled binary: ${bundled}`);
+    tryStartWithBinary(bundled);
+    return;
+  }
+
   execFile(configPath, ['--version'], { timeout: 5000 }, async (pathError) => {
     if (!pathError) {
-      // Binary found in PATH (or configured path) — use it directly.
+      // Binary found in PATH — use it directly.
       resolvedServerPath = configPath;
       startClient(context);
       return;
