@@ -49,9 +49,6 @@ pub enum ProviderAction {
     /// Moved to `nika keys`
     #[command(hide = true)]
     Migrate,
-    /// Moved to `nika keys`
-    #[command(hide = true, name = "vault-reset")]
-    VaultReset,
 }
 
 /// Detect provider from a pasted API key prefix.
@@ -384,7 +381,7 @@ pub async fn handle_provider_command(
                 reason: "Command moved to: nika keys".to_string(),
             })
         }
-        ProviderAction::Migrate | ProviderAction::VaultReset => {
+        ProviderAction::Migrate => {
             eprintln!(
                 "  {} This command was removed. Use: {}",
                 "\u{2717}".red().bold(),
