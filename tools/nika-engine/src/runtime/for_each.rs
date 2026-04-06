@@ -25,8 +25,6 @@ pub(crate) enum ForEachResolution {
 
 /// Resolve a for_each items expression from any binding format into items.
 ///
-/// TODO: Wire into runner.rs to replace inline resolution block (next commit).
-///
 /// This is the unified entry point that replaces 4 separate branches in runner.rs.
 /// It handles `$task | transform`, `$alias.path`, `{{inputs.x}}`, `{{with.x}}`.
 ///
