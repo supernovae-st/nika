@@ -264,22 +264,25 @@ Removes 60-line adapter. One less layer of indirection.
 
 rmcp is pinned at 0.16. Latest is 1.3.0. BUT rig-core may also depend on rmcp.
 
-### Research Questions (agents investigating)
+### Agent Research Results (10-agent audit, complete)
 
-1. Does rig-core depend on rmcp? → Check Cargo.lock
-2. If yes, can nika-mcp use a different rmcp version? → Cargo allows duplicate versions
-3. What breaking changes in rmcp 1.x? → #[tool_handler] + #[prompt_handler] coexist natively
-4. Is the upgrade worth the risk before May 5? → Probably NO (too risky, current setup works)
+**VERDICT: DEFER** — rmcp upgrade is BLOCKED by rig-core dependency chain.
 
-### Decision Framework
+| Fact | Finding |
+|------|---------|
+| rmcp in Cargo.lock | 0.16.0 |
+| rmcp latest | 1.3.0 |
+| rig-core version | 0.33.0 (workspace pins this) |
+| rig-core latest | 0.34.0 |
+| Does rig-core use rmcp? | **YES** — direct dependency via `features = ["rmcp"]` |
+| Does rig-core 0.34 use rmcp 1.x? | **NO** — still pins 0.16 |
+| Can nika-mcp upgrade independently? | **NO** — Cargo enforces single version; build fails |
 
-- If rig-core pins rmcp 0.16 → **defer upgrade** (version conflict risk)
-- If rig-core doesn't use rmcp → **upgrade in Phase D** (safe)
-- If upgrade is safe but complex → **document migration plan for post-launch**
+**Breaking changes in rmcp 1.x**: Auth token signature, `#[non_exhaustive]` on types, new trait methods.
 
-### Expected Output
-- Decision: UPGRADE / DEFER / DOCUMENT
-- If DEFER: write `docs/plans/rmcp-1x-migration.md` with migration steps
+**Action**: Monitor rig-core releases. When rig-core moves to rmcp 1.x (estimated 2-4 weeks), upgrade both simultaneously. Current manual ServerHandler pattern works correctly with 0.16.
+
+**No document needed** — the verdict is simple: wait for rig-core, then upgrade.
 
 ---
 
