@@ -20,6 +20,7 @@
 pub mod client;
 pub mod error;
 pub mod events;
+pub mod provider;
 #[cfg(unix)]
 pub mod install;
 #[cfg(unix)]
@@ -34,6 +35,7 @@ pub mod storage;
 pub use client::{read_auth_token, ConnectedClient, DaemonClient};
 pub use error::{DaemonError, DaemonResult};
 pub use protocol::{DaemonRequest, DaemonResponse};
+pub use provider::{DaemonProvider, DisconnectedProvider};
 
 #[cfg(unix)]
 pub use server::{DaemonConfig, DaemonServer};

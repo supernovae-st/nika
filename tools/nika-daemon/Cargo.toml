@@ -28,6 +28,9 @@ serde_json = { workspace = true }
 # Secrets
 secrecy = { workspace = true }
 
+# Async trait (for dyn DaemonProvider object safety)
+async-trait = { workspace = true }
+
 # Errors
 thiserror = { workspace = true }
 
