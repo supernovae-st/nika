@@ -5992,6 +5992,7 @@ dependencies = [
  "pretty_assertions",
  "regex",
  "ropey",
+ "serde",
  "serde_json",
  "tokio",
  "tower-lsp-server",
