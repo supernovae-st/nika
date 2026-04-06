@@ -150,7 +150,18 @@ fn parse_schedule_string(s: &str, span: Span) -> Result<ScheduleConfig, String> 
 }
 
 /// Validate a cron expression using croner.
+///
+/// Rejects 6-field cron (with seconds) — Nika uses standard 5-field cron only.
 fn validate_cron(expr: &str) -> Result<(), String> {
+    if !expr.starts_with('@') {
+        let field_count = expr.split_whitespace().count();
+        if field_count != 5 {
+            return Err(format!(
+                "expected 5-field cron expression, got {field_count} fields. \
+                 Nika uses standard cron (minute hour day month weekday)."
+            ));
+        }
+    }
     expr.parse::<croner::Cron>()
         .map(|_| ())
         .map_err(|e| format!("invalid cron expression '{}': {}", expr, e))
@@ -239,7 +250,13 @@ mod tests {
 
     #[test]
     fn parse_invalid_cron() {
+        // "not a cron" has 3 fields → rejected by field count check
         let val = serde_json::json!("not a cron");
+        let err = parse_schedule_value(&val, test_span()).unwrap_err();
+        assert!(err.contains("5-field"), "got: {err}");
+
+        // 5 fields but invalid content → rejected by croner
+        let val = serde_json::json!("99 99 99 99 99");
         let err = parse_schedule_value(&val, test_span()).unwrap_err();
         assert!(err.contains("invalid cron"), "got: {err}");
     }
@@ -282,6 +299,30 @@ mod tests {
         }
         // If hron fails to parse, it falls through to cron which will fail —
         // that's OK, it means hron doesn't support this exact format
+    }
+
+    #[test]
+    fn reject_six_field_cron() {
+        let val = serde_json::json!("0 0 9 * * *");
+        let err = parse_schedule_value(&val, test_span()).unwrap_err();
+        assert!(
+            err.contains("5-field"),
+            "should mention 5-field requirement: {err}"
+        );
+    }
+
+    #[test]
+    fn accept_five_field_cron() {
+        let val = serde_json::json!("0 9 * * *");
+        let config = parse_schedule_value(&val, test_span()).unwrap();
+        assert_eq!(config.cron, "0 9 * * *");
+    }
+
+    #[test]
+    fn accept_preset_no_field_count_check() {
+        let val = serde_json::json!("@daily");
+        let config = parse_schedule_value(&val, test_span()).unwrap();
+        assert_eq!(config.cron, "@daily");
     }
 
     #[test]
