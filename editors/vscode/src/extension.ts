@@ -534,10 +534,11 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
 }
 
 function runNikaCommand(subcmd: string, filePath: string): void {
-  const nika = getNikaPath();
+  const nika = resolvedServerPath ?? getNikaPath();
+  const escaped = filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const terminal = window.createTerminal({ name: `Nika: ${subcmd}` });
   terminal.show();
-  terminal.sendText(`${nika} ${subcmd} "${filePath}"`);
+  terminal.sendText(`"${nika}" ${subcmd} "${escaped}"`);
 }
 
 function log(level: string, msg: string): void {
