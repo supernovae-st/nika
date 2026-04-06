@@ -1,6 +1,6 @@
 # Nika
 
-Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 63 transforms | 62 builtin tools | [QR Code AI](https://qrcode-ai.com)
+Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 64 transforms | 63 builtin tools | [QR Code AI](https://qrcode-ai.com)
 
 ## 5 Verbs
 
