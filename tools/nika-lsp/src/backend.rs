@@ -884,7 +884,7 @@ impl LanguageServer for NikaBackend {
                     command: Some(Command {
                         title: e.command.title(),
                         command: e.command.vscode_command().to_string(),
-                        arguments: None,
+                        arguments: Some(vec![serde_json::json!(uri.as_str())]),
                     }),
                     data: None,
                 }
