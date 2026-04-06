@@ -19,7 +19,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 - **31 pipe transforms**: String, array, numeric, type conversions — chainable in templates
 - **Record & compression**: Task output recording with LLM-based compression (v0.51+)
 - **Context budget**: Token-level control over task binding sizes (v0.51+)
-- **OpenAI-compatible endpoints**: Connect to vLLM, Ollama, TGI, LiteLLM via base_url
+- **OpenAI-compatible endpoints**: Connect to vLLM, Ollama, TGI, LiteLLM via named endpoints in nika.toml
 - **12-level learning course**: `nika init --course` with 44 progressive exercises
 - **115 showcase workflows**: Production-ready templates across domains
 

@@ -935,7 +935,7 @@ impl InferenceBackend for NativeRuntime {
 impl InferenceBackend for NativeRuntime {
     async fn load(&mut self, _model_path: PathBuf, _config: LoadConfig) -> Result<(), NativeError> {
         Err(NativeError::InvalidConfig(
-            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+            "Native inference not available in this build".to_string(),
         ))
     }
 
@@ -961,7 +961,7 @@ impl InferenceBackend for NativeRuntime {
         _options: ChatOptions,
     ) -> Result<ChatResponse, NativeError> {
         Err(NativeError::InvalidConfig(
-            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+            "Native inference not available in this build".to_string(),
         ))
     }
 
@@ -971,7 +971,7 @@ impl InferenceBackend for NativeRuntime {
         _options: ChatOptions,
     ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
         Err::<futures::stream::Empty<Result<String, NativeError>>, _>(NativeError::InvalidConfig(
-            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+            "Native inference not available in this build".to_string(),
         ))
     }
 
@@ -982,7 +982,7 @@ impl InferenceBackend for NativeRuntime {
         _options: ChatOptions,
     ) -> Result<ChatResponse, NativeError> {
         Err(NativeError::InvalidConfig(
-            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+            "Native inference not available in this build".to_string(),
         ))
     }
 
@@ -993,7 +993,7 @@ impl InferenceBackend for NativeRuntime {
         _options: ChatOptions,
     ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
         Err::<futures::stream::Empty<Result<String, NativeError>>, _>(NativeError::InvalidConfig(
-            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+            "Native inference not available in this build".to_string(),
         ))
     }
 }

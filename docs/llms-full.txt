@@ -247,8 +247,7 @@ Usage: `from: think` on any agent task.
 
   # Provider/model override
   provider: openai                  # Override (or array: [openai, claude] for fallback)
-  model: gpt-4o
-  base_url: "http://localhost:8000/v1"  # Custom OpenAI-compat endpoint (v0.50+)
+  model: gpt-4o                     # Or slash syntax: model: groq/llama-3.3-70b
   preset: think                     # Agent preset reference (v0.51+)
 
   # Data flow

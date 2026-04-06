@@ -280,7 +280,7 @@ Switch providers in one line. Same workflow, any AI.
 | **Native** | Any GGUF model locally via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) | -- |
 | **Mock** | Deterministic test responses -- no API calls, no keys | -- |
 
-Connect to any **OpenAI-compatible** endpoint (vLLM, Ollama, LiteLLM, SGLang) via `base_url:`.
+Connect to any **OpenAI-compatible** endpoint (vLLM, Ollama, LiteLLM, SGLang) via named endpoints in `nika.toml` or slash syntax: `model: myserver/llama-3.3-70b`.
 
 ### Structured Output -- 5-layer defense
 

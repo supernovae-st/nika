@@ -284,7 +284,7 @@ const SCHEMA_REF: &str = r#"# Nika Workflow Schema (v0.12)
 - agent: { prompt, system, tools, mcp, max_turns, max_tokens, token_budget, from, skills, guardrails, completion, limits, extended_thinking }
 
 ## Task Fields
-id, description, provider, model, base_url, preset, with, depends_on, output, for_each, as, concurrency, fail_fast, retry, timeout, structured, artifact, record, context_budget, routing, log
+id, description, provider, model, preset, with, depends_on, output, for_each, as, concurrency, fail_fast, retry, timeout, structured, artifact, record, context_budget, routing, log, on_error, when
 
 ## Workflow Fields
 schema, workflow, description, provider, model, inputs, context, include, mcp, agents, skills, artifacts, goal, orchestrate, log, tasks
