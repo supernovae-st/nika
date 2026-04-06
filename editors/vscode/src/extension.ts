@@ -26,6 +26,7 @@ let client: LanguageClient | undefined;
 let statusBarItem: import('vscode').StatusBarItem | undefined;
 let outputChannel: import('vscode').OutputChannel | undefined;
 let resolvedServerPath: string | undefined;
+let statusPollInterval: ReturnType<typeof setInterval> | undefined;
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/supernovae-st/nika/releases/latest';
 const GITHUB_INSTALL_URL = 'https://github.com/supernovae-st/nika#installation';
@@ -487,8 +488,11 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
     // Check for version mismatch between extension and LSP server
     checkVersionMismatch(context);
 
-    // Poll daemon status every 30s
-    const statusInterval = setInterval(async () => {
+    // Poll daemon status every 30s — clear previous interval to prevent accumulation
+    if (statusPollInterval !== undefined) {
+      clearInterval(statusPollInterval);
+    }
+    statusPollInterval = setInterval(async () => {
       if (!client || !client.isRunning()) {
         if (statusBarItem) {
           statusBarItem.text = '$(zap) Nika: LSP $(x)';
@@ -509,7 +513,6 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
         }
       }
     }, 30000);
-    context.subscriptions.push({ dispose: () => clearInterval(statusInterval) });
   }).catch((err: Error) => {
     log('ERROR', `LSP failed to start: ${err.message}`);
     if (statusBarItem) {
