@@ -8,8 +8,8 @@
 /// Categories:
 /// - Core (7): sleep, log, emit, assert, prompt, run, complete
 /// - File (5): read, write, edit, glob, grep
-/// - Data (12): jq, tree_data, inject, map, filter, group_by, enrich,
-///   json_merge, set_diff, zip, chunk, token_count
+/// - Data (13): jq, tree_data, inject, map, filter, group_by, enrich,
+///   json_merge, json_diff, set_diff, zip, chunk, token_count
 /// - Sprint 2 (6): json_verify, yaml_validate, locale_lookup, aggregate,
 ///   json_flatten, json_unflatten
 /// - Introspection (4): dag_info, task_status, threads, orchestrate
@@ -34,7 +34,7 @@ pub static KNOWN_BUILTIN_TOOLS: &[&str] = &[
     "edit",
     "glob",
     "grep",
-    // Data (12)
+    // Data (13)
     "jq",
     "tree_data",
     "inject",
@@ -43,6 +43,7 @@ pub static KNOWN_BUILTIN_TOOLS: &[&str] = &[
     "group_by",
     "enrich",
     "json_merge",
+    "json_diff",
     "set_diff",
     "zip",
     "chunk",
@@ -103,8 +104,8 @@ mod tests {
 
     #[test]
     fn test_known_builtins_count() {
-        // 7 + 5 + 12 + 6 + 4 + 2 + 5 + 3 + 17 = 61
-        assert_eq!(KNOWN_BUILTIN_TOOLS.len(), 61);
+        // 7 + 5 + 13 + 6 + 4 + 2 + 5 + 3 + 17 = 62
+        assert_eq!(KNOWN_BUILTIN_TOOLS.len(), 62);
     }
 
     #[test]

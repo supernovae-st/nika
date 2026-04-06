@@ -11,6 +11,7 @@
 mod aggregate;
 mod io;
 mod jq;
+mod json_diff;
 mod merge;
 mod text;
 mod transform;
@@ -18,6 +19,7 @@ mod transform;
 pub use aggregate::{GroupByTool, TreeDataTool};
 pub use io::InjectTool;
 pub use jq::JqTool;
+pub use json_diff::JsonDiffTool;
 pub use merge::{JsonMergeTool, SetDiffTool, ZipTool};
 pub use text::{ChunkTool, TokenCountTool};
 pub use transform::{EnrichTool, FilterTool, MapTool};
