@@ -5755,12 +5755,14 @@ name = "nika-cli"
 version = "0.73.0"
 dependencies = [
  "chrono",
+ "chrono-tz",
  "clap",
  "cliclack",
  "colored",
  "croner",
  "dirs",
  "filetime",
+ "glob",
  "hron",
  "humantime",
  "image",

@@ -153,6 +153,28 @@ pub fn print_phase(result: &PhaseResult) {
     }
 }
 
+/// Print analyzer warnings after all phases pass.
+///
+/// ```text
+///   ⚠ Warnings:
+///     model 'typo-model' is not a recognized model name (task: gen)
+///     temperature: 5.0 is outside the valid range [0.0, 2.0] (task: gen)
+/// ```
+pub fn print_check_warnings(warnings: &[String]) {
+    if warnings.is_empty() {
+        return;
+    }
+    println!();
+    println!(
+        "  {}  {}",
+        icons::warning(),
+        format!("{} warning(s):", warnings.len()).yellow().bold()
+    );
+    for w in warnings {
+        println!("     {} {}", "\u{2502}".dimmed(), w.yellow());
+    }
+}
+
 /// Print a skipped phase (dependency failed).
 ///
 /// ```text

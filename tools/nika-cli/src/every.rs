@@ -7,6 +7,7 @@
 
 use colored::Colorize;
 use nika_core::ast::schedule::duration_to_cron;
+use std::io::IsTerminal;
 use std::time::Duration;
 
 use nika_daemon::{daemon_socket_path, DaemonClient, DaemonRequest, DaemonResponse};
@@ -18,7 +19,7 @@ pub struct EveryArgs {
     /// Schedule expression and workflow path.
     /// Last argument is the workflow, everything before is the schedule.
     /// Examples: "6h report.nika.yaml", "day at 9:00 report.nika.yaml"
-    #[arg(trailing_var_arg = true, num_args = 1..)]
+    #[arg(trailing_var_arg = true, num_args = 0..)]
     pub args: Vec<String>,
 
     /// Raw cron expression (overrides positional schedule)
@@ -43,17 +44,19 @@ pub struct EveryArgs {
 }
 
 pub async fn handle_every_command(args: EveryArgs, quiet: bool) -> Result<(), NikaError> {
-    // Parse: last arg = workflow, rest = schedule expression
-    if args.args.is_empty() {
-        // TODO: interactive wizard (cliclack)
-        return Err(NikaError::Execution(
-            "Usage: nika every <schedule> <workflow.nika.yaml>\n\
-             Examples:\n  \
-             nika every 6h report.nika.yaml\n  \
-             nika every day at 9:00 report.nika.yaml\n  \
-             nika every --cron \"0 */6 * * *\" report.nika.yaml"
-                .into(),
-        ));
+    // Interactive wizard when no args and TTY
+    if args.args.is_empty() && args.cron.is_none() {
+        if !std::io::stdin().is_terminal() {
+            return Err(NikaError::Execution(
+                "Usage: nika every <schedule> <workflow.nika.yaml>\n\
+                 Examples:\n  \
+                 nika every 6h report.nika.yaml\n  \
+                 nika every day at 9:00 report.nika.yaml\n  \
+                 nika every --cron \"0 */6 * * *\" report.nika.yaml"
+                    .into(),
+            ));
+        }
+        return interactive_wizard(args, quiet).await;
     }
 
     let Some(workflow) = args.args.last().cloned() else {
@@ -178,6 +181,311 @@ pub async fn handle_every_command(args: EveryArgs, quiet: bool) -> Result<(), Ni
     }
 
     Ok(())
+}
+
+// ─── Interactive wizard ──────────────────────────────────────────────────
+
+/// Interactive cliclack wizard for `nika every` (no args).
+async fn interactive_wizard(args: EveryArgs, quiet: bool) -> Result<(), NikaError> {
+    cliclack::intro("nika every · Schedule a recurring workflow").map_err(wiz_err)?;
+
+    // Step 1: Discover workflows
+    let workflows = discover_workflows()?;
+    if workflows.is_empty() {
+        cliclack::outro("No .nika.yaml workflows found in current directory.").map_err(wiz_err)?;
+        return Ok(());
+    }
+
+    let workflow: String = if workflows.len() == 1 {
+        let w = workflows[0].clone();
+        eprintln!("  Auto-selected: {}", w.bold());
+        w
+    } else {
+        let items: Vec<(String, String, String)> = workflows
+            .iter()
+            .map(|w| (w.clone(), w.clone(), String::new()))
+            .collect();
+        cliclack::select("Which workflow?")
+            .items(
+                &items
+                    .iter()
+                    .map(|(id, label, hint)| (id.clone(), label.as_str(), hint.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .interact()
+            .map_err(wiz_err)?
+    };
+
+    // Step 2: Frequency
+    let freq: String = cliclack::select("How often?")
+        .items(&[
+            ("2h".to_string(), "Every 2 hours", "12 runs/day"),
+            ("6h".to_string(), "Every 6 hours", "4 runs/day"),
+            ("daily".to_string(), "Every day", "Most popular — 80% of schedules"),
+            ("weekday".to_string(), "Every weekday", "Mon–Fri"),
+            ("weekly".to_string(), "Every week", "Once a week"),
+            ("custom".to_string(), "Type it yourself", "Cron or natural language"),
+        ])
+        .interact()
+        .map_err(wiz_err)?;
+
+    // Step 3: Resolve to cron
+    let (cron_expr, tz) = match freq.as_str() {
+        "daily" => {
+            let time: String = cliclack::input("Time (24h format)")
+                .default_input("09:00")
+                .interact()
+                .map_err(wiz_err)?;
+            let (h, m) = parse_hhmm(&time)?;
+            let tz = pick_timezone()?;
+            (format!("{m} {h} * * *"), tz)
+        }
+        "weekday" => {
+            let time: String = cliclack::input("Time (24h format)")
+                .default_input("09:00")
+                .interact()
+                .map_err(wiz_err)?;
+            let (h, m) = parse_hhmm(&time)?;
+            let tz = pick_timezone()?;
+            (format!("{m} {h} * * 1-5"), tz)
+        }
+        "weekly" => {
+            let time: String = cliclack::input("Time (24h format)")
+                .default_input("09:00")
+                .interact()
+                .map_err(wiz_err)?;
+            let (h, m) = parse_hhmm(&time)?;
+            let day: String = cliclack::select("Which day?")
+                .items(&[
+                    ("1".to_string(), "Monday", ""),
+                    ("2".to_string(), "Tuesday", ""),
+                    ("3".to_string(), "Wednesday", ""),
+                    ("4".to_string(), "Thursday", ""),
+                    ("5".to_string(), "Friday", ""),
+                    ("6".to_string(), "Saturday", ""),
+                    ("0".to_string(), "Sunday", ""),
+                ])
+                .interact()
+                .map_err(wiz_err)?;
+            let tz = pick_timezone()?;
+            (format!("{m} {h} * * {day}"), tz)
+        }
+        "custom" => {
+            let expr: String = cliclack::input("Schedule expression")
+                .placeholder("0 9 * * * or every day at 9:00")
+                .interact()
+                .map_err(wiz_err)?;
+            let cron = resolve_schedule_expr(&expr)?;
+            let tz = pick_timezone()?;
+            (cron, tz)
+        }
+        duration => {
+            // "2h", "6h" etc
+            let cron = duration_to_cron(duration).ok_or_else(|| {
+                NikaError::Execution(format!("invalid duration: {duration}"))
+            })?;
+            (cron, "UTC".to_string())
+        }
+    };
+
+    // Validate cron
+    cron_expr.parse::<croner::Cron>().map_err(|e| {
+        NikaError::Execution(format!("invalid cron expression: {e}"))
+    })?;
+
+    let name = args
+        .name
+        .unwrap_or_else(|| auto_name(&workflow, &cron_expr));
+
+    // Step 4: Preview
+    eprintln!();
+    eprintln!("  {} Schedule preview", "◆".cyan());
+    eprintln!("  Name       {}", name.bold());
+    eprintln!("  Workflow   {}", workflow);
+    eprintln!("  Cron       {}", cron_expr);
+    eprintln!("  Timezone   {}", tz);
+
+    // Show next 5 runs in preview
+    if let Ok(parsed_cron) = cron_expr.parse::<croner::Cron>() {
+        let now = chrono::Utc::now();
+        let mut from = now;
+        eprintln!();
+        eprintln!("  {}", "Next 5 runs".bold());
+        for i in 0..5 {
+            match parsed_cron.find_next_occurrence(&from, false) {
+                Ok(next) => {
+                    let formatted = next.format("%a %d %b %H:%M").to_string();
+                    let rel = humanize_relative(next.signed_duration_since(now).num_seconds());
+                    eprintln!("   {}.  {:<22} {}", i + 1, formatted, rel.dimmed());
+                    from = next;
+                }
+                Err(_) => break,
+            }
+        }
+    }
+    eprintln!();
+
+    let confirm = cliclack::confirm("Create this schedule?")
+        .initial_value(true)
+        .interact()
+        .map_err(wiz_err)?;
+
+    if !confirm {
+        cliclack::outro("Cancelled.").map_err(wiz_err)?;
+        return Ok(());
+    }
+
+    // Step 5: Create via daemon
+    let client = DaemonClient::new(daemon_socket_path()).with_timeout(Duration::from_secs(10));
+    if !client.socket_exists() {
+        cliclack::outro("Daemon not running. Start with: nika daemon start").map_err(wiz_err)?;
+        return Ok(());
+    }
+
+    let resp = client
+        .send(DaemonRequest::ScheduleCreate {
+            name: name.clone(),
+            workflow: workflow.clone(),
+            cron_expr: cron_expr.clone(),
+            timezone: Some(tz),
+            source: Some("cli".to_string()),
+            overlap: Some(args.overlap.to_string()),
+            inputs_json: None,
+        })
+        .await
+        .map_err(|e| NikaError::Execution(format!("schedule: {e}")))?;
+
+    match resp {
+        DaemonResponse::ScheduleCreated { id: _, name } => {
+            if !quiet {
+                println!();
+                println!("  {} Cron valid: {}", "✓".green().bold(), cron_expr);
+                println!("  {} Registered: {}", "✓".green().bold(), name.bold());
+                println!("  {} {} is live! 🦋", "✓".green().bold(), name.bold());
+                println!();
+                println!("  View:     nika schedule show {name}");
+                println!("  Pause:    nika schedule pause {name}");
+                println!("  Trigger:  nika schedule trigger {name}");
+                println!("  All:      nika schedule list");
+                println!();
+            }
+        }
+        DaemonResponse::Error { code, message } => {
+            eprintln!("{} [{code}] {message}", "✗".red().bold());
+        }
+        _ => eprintln!("{} unexpected response", "✗".red().bold()),
+    }
+
+    Ok(())
+}
+
+/// Discover *.nika.yaml workflows in the current directory (recursive scan via glob).
+fn discover_workflows() -> Result<Vec<String>, NikaError> {
+    let mut found: Vec<String> = glob::glob("**/*.nika.yaml")
+        .map_err(|e| NikaError::Execution(format!("glob error: {e}")))?
+        .flatten()
+        .map(|p| p.display().to_string())
+        .collect();
+    found.sort();
+    found.dedup();
+    Ok(found)
+}
+
+/// Pick timezone interactively.
+fn pick_timezone() -> Result<String, NikaError> {
+    // Try to detect system timezone from TZ env or /etc/localtime
+    let detected = detect_system_tz();
+
+    let mut items = vec![("UTC".to_string(), "UTC", "")];
+    if let Some(ref tz) = detected {
+        if tz != "UTC" {
+            items.insert(
+                0,
+                (tz.clone(), Box::leak(format!("{tz} (detected)").into_boxed_str()), ""),
+            );
+        }
+    }
+    items.push(("__other__".to_string(), "Other...", "Type IANA name"));
+
+    let selected: String = cliclack::select("Timezone")
+        .items(
+            &items
+                .iter()
+                .map(|(id, label, hint)| (id.clone(), *label, *hint))
+                .collect::<Vec<_>>(),
+        )
+        .interact()
+        .map_err(wiz_err)?;
+
+    if selected == "__other__" {
+        let tz: String = cliclack::input("IANA timezone")
+            .placeholder("America/New_York")
+            .interact()
+            .map_err(wiz_err)?;
+        // Validate
+        tz.parse::<chrono_tz::Tz>().map_err(|_| {
+            NikaError::Execution(format!("invalid timezone '{tz}'"))
+        })?;
+        Ok(tz)
+    } else {
+        Ok(selected)
+    }
+}
+
+/// Detect system timezone from TZ env or /etc/localtime.
+fn detect_system_tz() -> Option<String> {
+    // 1. TZ environment variable
+    if let Ok(tz) = std::env::var("TZ") {
+        if !tz.is_empty() && tz.parse::<chrono_tz::Tz>().is_ok() {
+            return Some(tz);
+        }
+    }
+    // 2. Read /etc/localtime symlink target on macOS/Linux
+    #[cfg(unix)]
+    {
+        if let Ok(target) = std::fs::read_link("/etc/localtime") {
+            let path = target.display().to_string();
+            // /var/db/timezone/zoneinfo/Europe/Paris or /usr/share/zoneinfo/Europe/Paris
+            if let Some(idx) = path.find("zoneinfo/") {
+                let tz = &path[idx + 9..];
+                if tz.parse::<chrono_tz::Tz>().is_ok() {
+                    return Some(tz.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Parse "HH:MM" → (hour, minute).
+fn parse_hhmm(s: &str) -> Result<(u32, u32), NikaError> {
+    let parts: Vec<&str> = s.trim().split(':').collect();
+    if parts.len() != 2 {
+        return Err(NikaError::Execution(format!(
+            "invalid time format '{s}' — use HH:MM (e.g. 09:00)"
+        )));
+    }
+    let h: u32 = parts[0].parse().map_err(|_| {
+        NikaError::Execution(format!("invalid hour in '{s}'"))
+    })?;
+    let m: u32 = parts[1].parse().map_err(|_| {
+        NikaError::Execution(format!("invalid minute in '{s}'"))
+    })?;
+    if h > 23 {
+        return Err(NikaError::Execution(format!(
+            "hour must be 0–23, got {h}"
+        )));
+    }
+    if m > 59 {
+        return Err(NikaError::Execution(format!(
+            "minute must be 0–59, got {m}"
+        )));
+    }
+    Ok((h, m))
+}
+
+fn wiz_err(e: impl std::fmt::Display) -> NikaError {
+    NikaError::IoError(std::io::Error::other(e.to_string()))
 }
 
 /// Resolve a human schedule expression to a cron expression.

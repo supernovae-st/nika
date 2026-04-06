@@ -58,6 +58,11 @@ pub fn skipped() -> ColoredString {
     "\u{2298}".dimmed() // ⊘
 }
 
+/// Warning: small exclamation, bold yellow.
+pub fn warning() -> ColoredString {
+    "\u{26A0}".yellow().bold() // ⚠
+}
+
 // ── Subsystem Icons (all Narrow eaw=N) ──────────────────────────────────
 
 /// Provider subsystem: bowtie.

@@ -75,6 +75,12 @@ cliclack = { workspace = true }
 croner = { workspace = true }
 hron = { workspace = true }
 
+# Workflow discovery
+glob = { workspace = true }
+
+# Timezone detection
+chrono-tz = { workspace = true }
+
 [target.'cfg(unix)'.dependencies]
 nika-daemon = { workspace = true }
 

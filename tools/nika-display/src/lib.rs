@@ -36,8 +36,9 @@ pub use bench::{
     BenchProviderResult, BenchTaskTiming, Percentiles, QualityScore,
 };
 pub use check::{
-    print_check_header, print_check_summary, print_mcp_validation, print_phase,
-    print_phase_skipped, McpCallValidation, McpCheckResult, McpParamError, PhaseResult,
+    print_check_header, print_check_summary, print_check_warnings, print_mcp_validation,
+    print_phase, print_phase_skipped, McpCallValidation, McpCheckResult, McpParamError,
+    PhaseResult,
 };
 pub use cli_format::{
     hint, key_value, key_value_width, panel, panel_with_content, section_header,

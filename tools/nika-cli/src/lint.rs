@@ -263,6 +263,20 @@ pub async fn handle_lint_command(file: &str, quiet: bool) -> Result<(), NikaErro
     let include_raw = nika_engine::ast::expand_raw_include(raw, base_path)?;
     let result = nika_core::ast::analyzer::analyze(include_raw);
 
+    // Capture analyzer warnings before they're lost
+    let analyzer_warnings: Vec<String> = result
+        .warnings
+        .iter()
+        .map(|w| {
+            let code = w.kind.code();
+            if let Some(ref suggestion) = w.suggestion {
+                format!("[{}] {} ({})", code, w.message, suggestion)
+            } else {
+                format!("[{}] {}", code, w.message)
+            }
+        })
+        .collect();
+
     if !result.errors.is_empty() {
         for err in &result.errors {
             eprintln!("  {} {}", "error:".red().bold(), err.message);
@@ -279,7 +293,7 @@ pub async fn handle_lint_command(file: &str, quiet: bool) -> Result<(), NikaErro
     })?;
     let findings = lint_workflow(&workflow);
 
-    let warnings = findings
+    let lint_warnings = findings
         .iter()
         .filter(|f| f.severity == Severity::Warning)
         .count();
@@ -288,11 +302,37 @@ pub async fn handle_lint_command(file: &str, quiet: bool) -> Result<(), NikaErro
         .filter(|f| f.severity == Severity::Info)
         .count();
 
-    if findings.is_empty() {
+    // Display analyzer warnings first
+    if !analyzer_warnings.is_empty() && !quiet {
+        eprintln!(
+            "  {} {}",
+            "\u{26A0}".yellow().bold(),
+            format!("{} analyzer warning(s):", analyzer_warnings.len())
+                .yellow()
+                .bold()
+        );
+        for w in &analyzer_warnings {
+            eprintln!("     {} {}", "\u{2502}".dimmed(), w.yellow());
+        }
+        eprintln!();
+    }
+
+    if findings.is_empty() && analyzer_warnings.is_empty() {
         if !quiet {
             eprintln!(
                 "  {} {} — no lint issues found",
                 "CLEAN".green().bold(),
+                file
+            );
+        }
+    } else if findings.is_empty() {
+        // Only analyzer warnings, no lint findings
+        if !quiet {
+            eprintln!(
+                "  {} {} — no lint issues, {} analyzer warning(s) in {}",
+                "Lint:".cyan(),
+                0,
+                analyzer_warnings.len(),
                 file
             );
         }
@@ -309,7 +349,7 @@ pub async fn handle_lint_command(file: &str, quiet: bool) -> Result<(), NikaErro
             eprintln!(
                 "  {} {} warning(s), {} info(s) in {}",
                 "Lint:".cyan(),
-                warnings,
+                lint_warnings,
                 infos,
                 file
             );

@@ -3689,7 +3689,8 @@ async fn explain_workflow(file: &str) -> Result<(), NikaError> {
 
 async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     use nika::display::{
-        print_check_header, print_check_summary, print_phase, print_phase_skipped, PhaseResult,
+        print_check_header, print_check_summary, print_check_warnings, print_phase,
+        print_phase_skipped, PhaseResult,
     };
     use std::time::Instant;
 
@@ -3704,13 +3705,45 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     validator.validate_yaml(&yaml)?;
     let schema_elapsed = t.elapsed();
 
-    // Phase 2: Parse
+    // Phase 2: Parse (decomposed to capture analyzer warnings)
     let t = Instant::now();
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let workflow = parse_workflow_with_includes(&yaml, base_path)?;
+
+    let raw = nika::ast::raw::parse(&yaml, nika::source::FileId(0)).map_err(|e| {
+        NikaError::ParseError {
+            details: format!("[{}] {}", e.kind.code(), e.message),
+        }
+    })?;
+    let raw = nika::ast::expand_raw_include(raw, base_path)?;
+    let analyze_result = nika::ast::analyzer::analyze(raw);
+
+    // Capture warnings before into_result() drops them
+    let analyzer_warnings: Vec<String> = analyze_result
+        .warnings
+        .iter()
+        .map(|w| {
+            let code = w.kind.code();
+            if let Some(ref suggestion) = w.suggestion {
+                format!("[{}] {} ({})", code, w.message, suggestion)
+            } else {
+                format!("[{}] {}", code, w.message)
+            }
+        })
+        .collect();
+
+    let analyzed = analyze_result.into_result().map_err(|errors| {
+        let messages: Vec<String> = errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        NikaError::ValidationError {
+            reason: messages.join("; "),
+        }
+    })?;
+    let workflow = nika::ast::lower::lower(analyzed)?;
     let parse_elapsed = t.elapsed();
     let includes_elapsed = std::time::Duration::ZERO;
 
@@ -4027,6 +4060,9 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
             }
             depths.values().max().copied().unwrap_or(0) + 1
         };
+
+        // Analyzer warnings (surfaced from analyze phase)
+        print_check_warnings(&analyzer_warnings);
 
         // Summary footer
         println!();
