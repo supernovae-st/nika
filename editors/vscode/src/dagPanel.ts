@@ -107,6 +107,11 @@ export class DagPanel implements vscode.Disposable {
       dark: vscode.Uri.joinPath(this.extensionUri, 'media', 'dag-dark.svg'),
     };
 
+    // Store graph BEFORE setting HTML to avoid race with dag:ready
+    if (graph) {
+      this.currentGraph = graph;
+    }
+
     this.panel.webview.html = this.getHtml(this.panel.webview);
 
     // Listen for messages from the webview
@@ -145,10 +150,6 @@ export class DagPanel implements vscode.Disposable {
       }),
     );
 
-    if (graph) {
-      this.currentGraph = graph;
-      // Wait for webview 'dag:ready' before sending — see handleMessage
-    }
   }
 
   /** Load a new graph (replaces current) */
@@ -198,6 +199,9 @@ export class DagPanel implements vscode.Disposable {
 
   public dispose(): void {
     this.panel?.dispose();
+    // Defensive cleanup for disposables not cleared by onDidDispose
+    this.disposables.forEach((d) => d.dispose());
+    this.disposables = [];
   }
 
   // ─── Internals ───────────────────────────────────────────────────────────
