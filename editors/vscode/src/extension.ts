@@ -609,75 +609,9 @@ export function activate(context: ExtensionContext): void {
   log('INFO', `Nika extension v${context.extension.packageJSON.version} activating`);
   log('INFO', `Platform: ${process.platform}/${process.arch}`);
 
-  const configPath = getNikaPath();
-  const autoDownload = workspace.getConfiguration('nika').get<boolean>('server.autoDownload', true);
-
-  const storagePath = context.globalStorageUri.fsPath;
-  const isWindows = process.platform === 'win32';
-  const cachedBinary = path.join(storagePath, isWindows ? 'nika.exe' : 'nika');
-
-  const tryStartWithBinary = (binaryPath: string): void => {
-    startClient(context, binaryPath);
-  };
-
-  const fallbackToWarning = (reason: string): void => {
-    window.showWarningMessage(
-      `Nika binary not found (${reason}). Install: cargo install nika`,
-      'Open Install Guide',
-    ).then((choice) => {
-      if (choice === 'Open Install Guide') {
-        env.openExternal(Uri.parse(GITHUB_INSTALL_URL));
-      }
-    });
-    // Still attempt to start the client — it may fail gracefully if PATH is set later.
-    startClient(context);
-  };
-
-  execFile(configPath, ['--version'], { timeout: 5000 }, async (pathError) => {
-    if (!pathError) {
-      // Binary found in PATH (or configured path) — use it directly.
-      startClient(context);
-      return;
-    }
-
-    // Binary not found via PATH. Check cached binary first.
-    const cachedExists = fs.existsSync(cachedBinary);
-    if (cachedExists) {
-      const cachedWorks = await isBinaryWorking(cachedBinary);
-      if (cachedWorks) {
-        tryStartWithBinary(cachedBinary);
-        return;
-      }
-      // Cached binary is broken — delete and re-download.
-      fs.unlink(cachedBinary, () => undefined);
-    }
-
-    if (!autoDownload) {
-      fallbackToWarning('auto-download disabled');
-      return;
-    }
-
-    if (getArtifactName() === null) {
-      fallbackToWarning(`unsupported platform: ${process.platform}/${process.arch}`);
-      return;
-    }
-
-    try {
-      const downloadedPath = await downloadNikaBinary(storagePath);
-      if (downloadedPath && fs.existsSync(downloadedPath)) {
-        const works = await isBinaryWorking(downloadedPath);
-        if (works) {
-          window.showInformationMessage('Nika language server downloaded successfully.');
-          tryStartWithBinary(downloadedPath);
-          return;
-        }
-      }
-      fallbackToWarning('download succeeded but binary did not run');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      fallbackToWarning(`download failed: ${message}`);
-    }
-  });
+  // Register all commands SYNCHRONOUSLY before any async work.
+  // This prevents the race condition where Cursor's Code Lens fires
+  // before commands exist (commands must be available immediately).
 
   // Command: Run current workflow
   context.subscriptions.push(
@@ -748,6 +682,76 @@ export function activate(context: ExtensionContext): void {
       window.showInformationMessage('Nika language server restarted.');
     }),
   );
+
+  const configPath = getNikaPath();
+  const autoDownload = workspace.getConfiguration('nika').get<boolean>('server.autoDownload', true);
+
+  const storagePath = context.globalStorageUri.fsPath;
+  const isWindows = process.platform === 'win32';
+  const cachedBinary = path.join(storagePath, isWindows ? 'nika.exe' : 'nika');
+
+  const tryStartWithBinary = (binaryPath: string): void => {
+    startClient(context, binaryPath);
+  };
+
+  const fallbackToWarning = (reason: string): void => {
+    window.showWarningMessage(
+      `Nika binary not found (${reason}). Install: cargo install nika`,
+      'Open Install Guide',
+    ).then((choice) => {
+      if (choice === 'Open Install Guide') {
+        env.openExternal(Uri.parse(GITHUB_INSTALL_URL));
+      }
+    });
+    // Still attempt to start the client — it may fail gracefully if PATH is set later.
+    startClient(context);
+  };
+
+  execFile(configPath, ['--version'], { timeout: 5000 }, async (pathError) => {
+    if (!pathError) {
+      // Binary found in PATH (or configured path) — use it directly.
+      startClient(context);
+      return;
+    }
+
+    // Binary not found via PATH. Check cached binary first.
+    const cachedExists = fs.existsSync(cachedBinary);
+    if (cachedExists) {
+      const cachedWorks = await isBinaryWorking(cachedBinary);
+      if (cachedWorks) {
+        tryStartWithBinary(cachedBinary);
+        return;
+      }
+      // Cached binary is broken — delete and re-download.
+      fs.unlink(cachedBinary, () => undefined);
+    }
+
+    if (!autoDownload) {
+      fallbackToWarning('auto-download disabled');
+      return;
+    }
+
+    if (getArtifactName() === null) {
+      fallbackToWarning(`unsupported platform: ${process.platform}/${process.arch}`);
+      return;
+    }
+
+    try {
+      const downloadedPath = await downloadNikaBinary(storagePath);
+      if (downloadedPath && fs.existsSync(downloadedPath)) {
+        const works = await isBinaryWorking(downloadedPath);
+        if (works) {
+          window.showInformationMessage('Nika language server downloaded successfully.');
+          tryStartWithBinary(downloadedPath);
+          return;
+        }
+      }
+      fallbackToWarning('download succeeded but binary did not run');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      fallbackToWarning(`download failed: ${message}`);
+    }
+  });
 }
 
 export function deactivate(): Thenable<void> | undefined {
