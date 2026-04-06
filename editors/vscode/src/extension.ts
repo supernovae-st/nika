@@ -578,7 +578,7 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
 
   const serverOptions: ServerOptions = {
     command: serverPath,
-    args: ['lsp', ...extraArgs],
+    args: ['lsp', '--embedded-daemon', ...extraArgs],
     transport: TransportKind.stdio,
   };
 
@@ -605,7 +605,7 @@ function startClient(context: ExtensionContext, overridePath?: string): void {
   client.start().then(() => {
     log('INFO', 'Language server started successfully');
     if (statusBarItem) {
-      statusBarItem.text = '$(zap) Nika: LSP $(check)';
+      statusBarItem.text = '$(zap) Nika: Ready';
       statusBarItem.backgroundColor = undefined;
     }
 
