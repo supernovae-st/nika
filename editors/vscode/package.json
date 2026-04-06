@@ -29,6 +29,7 @@
     "workspaceContains:**/*.nika.yaml",
     "onLanguage:nika"
   ],
+  "extensionKind": ["workspace"],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
@@ -59,6 +60,20 @@
       {
         "language": "nika",
         "path": "./snippets/nika.code-snippets"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "nika",
+        "scopes": {
+          "keyword": ["keyword.control.nika"],
+          "macro": ["entity.name.function.verb.nika"],
+          "property": ["variable.other.property.nika"],
+          "variable": ["variable.other.template.nika"],
+          "function": ["entity.name.function.nika"],
+          "type": ["entity.name.type.nika"],
+          "comment": ["comment.nika"]
+        }
       }
     ],
     "commands": [
@@ -114,6 +129,16 @@
           "default": [],
           "description": "Extra arguments passed to the nika lsp command."
         },
+        "nika.inlayHints.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inlay hints (timeout annotations, model costs, binding labels)."
+        },
+        "nika.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show code lens actions (Run, Validate, task count, last run status)."
+        },
         "nika.trace.server": {
           "type": "string",
           "enum": [
@@ -162,7 +187,21 @@
           "group": "nika@2"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "nika.runWorkflow",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "resourceLangId == 'nika'"
+      },
+      {
+        "command": "nika.checkWorkflow",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "resourceLangId == 'nika'"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
