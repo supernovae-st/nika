@@ -272,6 +272,13 @@ enum DbCommand {
         last_job_id: String,
         reply: oneshot::Sender<StorageResult<()>>,
     },
+    UpdateScheduleCron {
+        id: String,
+        cron_expr: String,
+        next_run_at: Option<String>,
+        paused: bool,
+        reply: oneshot::Sender<StorageResult<()>>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -680,6 +687,29 @@ impl Storage {
             .map_err(|_| StorageError::ChannelClosed)?;
         rx.await.map_err(|_| StorageError::ChannelClosed)?
     }
+
+    /// Update a schedule's cron expression, next_run_at, and paused state.
+    /// Used by serve reconciliation when YAML changes.
+    pub async fn update_schedule_cron(
+        &self,
+        id: &str,
+        cron_expr: &str,
+        next_run_at: Option<&str>,
+        paused: bool,
+    ) -> StorageResult<()> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(DbCommand::UpdateScheduleCron {
+                id: id.to_string(),
+                cron_expr: cron_expr.to_string(),
+                next_run_at: next_run_at.map(|s| s.to_string()),
+                paused,
+                reply,
+            })
+            .await
+            .map_err(|_| StorageError::ChannelClosed)?;
+        rx.await.map_err(|_| StorageError::ChannelClosed)?
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -818,6 +848,21 @@ fn run_db_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
                     &last_run_at,
                     next_run_at.as_deref(),
                     &last_job_id,
+                ));
+            }
+            DbCommand::UpdateScheduleCron {
+                id,
+                cron_expr,
+                next_run_at,
+                paused,
+                reply,
+            } => {
+                let _ = reply.send(do_update_schedule_cron(
+                    &conn,
+                    &id,
+                    &cron_expr,
+                    next_run_at.as_deref(),
+                    paused,
                 ));
             }
         }
@@ -1433,6 +1478,25 @@ fn do_update_schedule_after_fire(
         "UPDATE schedules SET last_run_at = ?1, next_run_at = ?2, last_job_id = ?3, \
          run_count = run_count + 1, updated_at = ?4 WHERE id = ?5",
         params![last_run_at, next_run_at, last_job_id, now, id],
+    )?;
+    if affected == 0 {
+        return Err(StorageError::NotFound(id.to_string()));
+    }
+    Ok(())
+}
+
+fn do_update_schedule_cron(
+    conn: &Connection,
+    id: &str,
+    cron_expr: &str,
+    next_run_at: Option<&str>,
+    paused: bool,
+) -> StorageResult<()> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let affected = conn.execute(
+        "UPDATE schedules SET cron_expr = ?1, next_run_at = ?2, paused = ?3, \
+         updated_at = ?4 WHERE id = ?5",
+        params![cron_expr, next_run_at, paused as i32, now, id],
     )?;
     if affected == 0 {
         return Err(StorageError::NotFound(id.to_string()));

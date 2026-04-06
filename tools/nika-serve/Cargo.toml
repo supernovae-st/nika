@@ -10,9 +10,12 @@ description = "HTTP API server for Nika workflow engine"
 publish = true
 
 [dependencies]
+nika-core = { workspace = true }
 nika-engine = { workspace = true }
 nika-event = { workspace = true }
 nika-storage = { workspace = true }
+chrono = { workspace = true }
+croner = { workspace = true }
 
 axum = { workspace = true }
 aide = { workspace = true }
