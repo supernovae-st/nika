@@ -288,6 +288,20 @@ impl TaskExecutor {
         let (resolved_provider, resolved_model) = if resolved_provider.is_none() {
             if let Some(ref model_str) = resolved_model {
                 if let Some((ep, model)) = parse_model_slash(model_str) {
+                    // Check if prefix looks like a HuggingFace org (not a known provider)
+                    let is_known = crate::core::find_provider(ep).is_some()
+                        || self.custom_endpoints.contains_key(ep)
+                        || ep == "native"
+                        || ep == "mock";
+                    if !is_known {
+                        return Err(NikaError::ProviderNotConfigured {
+                            provider: format!(
+                                "'{}' (from model: '{}'). Did you mean 'native/{}'? \
+                                 Or define [endpoints.{}] in nika.toml",
+                                ep, model_str, model_str, ep
+                            ),
+                        });
+                    }
                     (Some(ep.to_string()), Some(model.to_string()))
                 } else {
                     (resolved_provider, resolved_model)
@@ -296,6 +310,21 @@ impl TaskExecutor {
                 (resolved_provider, resolved_model)
             }
         } else {
+            // Explicit provider set — if model also has slash, warn about ignored prefix
+            if let Some(ref model_str) = resolved_model {
+                if let Some((ep, _)) = parse_model_slash(model_str) {
+                    if let Some(ref prov) = resolved_provider {
+                        if ep != prov.as_str() {
+                            warn!(
+                                task_id = %task_id,
+                                "model '{}' contains provider prefix '{}' but explicit provider: '{}' is set — \
+                                 using '{}'. Remove provider: or fix the model prefix.",
+                                model_str, ep, prov, prov
+                            );
+                        }
+                    }
+                }
+            }
             (resolved_provider, resolved_model)
         };
 
