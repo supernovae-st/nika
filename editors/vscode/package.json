@@ -48,10 +48,6 @@
         {
           "id": "nikaWorkflows",
           "name": "Workflows"
-        },
-        {
-          "id": "nikaProviders",
-          "name": "Providers"
         }
       ]
     },
