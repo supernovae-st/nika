@@ -698,4 +698,59 @@ mod tests {
         let est = format_run_estimate("0 9 * * 1").unwrap();
         assert!(est.contains("runs/week"), "expected weekly estimate, got: {est}");
     }
+
+    // ── parse_hhmm boundary tests ────────────────────────────────────
+
+    #[test]
+    fn test_parse_hhmm_valid() {
+        assert_eq!(parse_hhmm("09:00").unwrap(), (9, 0));
+        assert_eq!(parse_hhmm("23:59").unwrap(), (23, 59));
+        assert_eq!(parse_hhmm("00:00").unwrap(), (0, 0));
+        assert_eq!(parse_hhmm("0:0").unwrap(), (0, 0));
+    }
+
+    #[test]
+    fn test_parse_hhmm_invalid_hour() {
+        assert!(parse_hhmm("24:00").is_err());
+        assert!(parse_hhmm("25:00").is_err());
+    }
+
+    #[test]
+    fn test_parse_hhmm_invalid_minute() {
+        assert!(parse_hhmm("12:60").is_err());
+        assert!(parse_hhmm("12:99").is_err());
+    }
+
+    #[test]
+    fn test_parse_hhmm_invalid_format() {
+        assert!(parse_hhmm("9").is_err());
+        assert!(parse_hhmm("9:00:00").is_err());
+        assert!(parse_hhmm("abc:00").is_err());
+    }
+
+    // ── humanize_relative tests ──────────────���───────────────────────
+
+    #[test]
+    fn test_humanize_relative() {
+        assert_eq!(humanize_relative(30), "in 30s");
+        assert_eq!(humanize_relative(90), "in 1m");
+        assert_eq!(humanize_relative(3600), "in 1h");
+        assert_eq!(humanize_relative(5400), "in 1h 30m");
+        assert_eq!(humanize_relative(86400), "in 1d");
+        assert_eq!(humanize_relative(90000), "in 1d 1h");
+    }
+
+    // ── auto_name more variants ──────────────────────────────────────
+
+    #[test]
+    fn test_auto_name_minute_interval() {
+        assert_eq!(auto_name("check.nika.yaml", "*/30 * * * *"), "check-30m");
+    }
+
+    #[test]
+    fn test_auto_name_presets() {
+        assert_eq!(auto_name("wf.nika.yaml", "@weekly"), "wf-weekly");
+        assert_eq!(auto_name("wf.nika.yaml", "@monthly"), "wf-monthly");
+        assert_eq!(auto_name("wf.nika.yaml", "@yearly"), "wf-yearly");
+    }
 }

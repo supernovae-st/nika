@@ -798,6 +798,20 @@ mod tests {
             DaemonRequest::Shutdown {
                 auth_token: Some("tok-shutdown".into()),
             },
+            DaemonRequest::ScheduleCreate {
+                name: "daily-report".into(),
+                workflow: "report.nika.yaml".into(),
+                cron_expr: "0 9 * * *".into(),
+                timezone: Some("Europe/Paris".into()),
+                source: Some("cli".into()),
+                overlap: Some("skip".into()),
+                inputs_json: None,
+            },
+            DaemonRequest::ScheduleList { enabled_only: false },
+            DaemonRequest::ScheduleGet { name: "daily-report".into() },
+            DaemonRequest::SchedulePause { name: "daily-report".into() },
+            DaemonRequest::ScheduleResume { name: "daily-report".into() },
+            DaemonRequest::ScheduleDelete { name: "daily-report".into() },
         ];
         for req in requests {
             let json = serde_json::to_string(&req).unwrap();
@@ -878,6 +892,16 @@ mod tests {
                 },
             },
             DaemonResponse::ShuttingDown,
+            DaemonResponse::ScheduleCreated {
+                id: "sched-001".into(),
+                name: "daily-report".into(),
+            },
+            DaemonResponse::ScheduleListResult {
+                schedules: vec![serde_json::json!({"name": "test", "workflow": "t.nika.yaml"})],
+            },
+            DaemonResponse::ScheduleDetail {
+                schedule: serde_json::json!({"name": "test", "cron_expr": "0 9 * * *"}),
+            },
         ];
         for resp in responses {
             let json = serde_json::to_string(&resp).unwrap();

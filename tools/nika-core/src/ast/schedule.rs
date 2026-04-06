@@ -419,4 +419,48 @@ mod tests {
         let err = parse_schedule_value(&val, test_span()).unwrap_err();
         assert!(err.contains("overlap"), "got: {err}");
     }
+
+    // ── duration_to_cron boundary tests ──────────────────────────────
+
+    #[test]
+    fn duration_hours_boundaries() {
+        assert!(duration_to_cron("0h").is_none(), "0h should be rejected");
+        assert!(duration_to_cron("24h").is_none(), "24h should be rejected");
+        assert_eq!(duration_to_cron("1h").unwrap(), "0 */1 * * *");
+        assert_eq!(duration_to_cron("23h").unwrap(), "0 */23 * * *");
+    }
+
+    #[test]
+    fn duration_minutes_boundaries() {
+        assert!(duration_to_cron("0m").is_none(), "0m should be rejected");
+        assert!(duration_to_cron("60m").is_none(), "60m should be rejected");
+        assert_eq!(duration_to_cron("1m").unwrap(), "*/1 * * * *");
+        assert_eq!(duration_to_cron("59m").unwrap(), "*/59 * * * *");
+    }
+
+    #[test]
+    fn duration_days_boundaries() {
+        assert!(duration_to_cron("0d").is_none(), "0d should be rejected");
+        assert!(duration_to_cron("29d").is_none(), "29d should be rejected");
+        assert_eq!(duration_to_cron("1d").unwrap(), "0 0 * * *");
+        assert_eq!(duration_to_cron("2d").unwrap(), "0 0 */2 * *");
+        assert_eq!(duration_to_cron("28d").unwrap(), "0 0 */28 * *");
+    }
+
+    #[test]
+    fn duration_invalid_suffix() {
+        assert!(duration_to_cron("5x").is_none());
+        assert!(duration_to_cron("abch").is_none());
+        assert!(duration_to_cron("").is_none());
+    }
+
+    #[test]
+    fn duration_all_presets() {
+        // Verify all @presets work through parse_schedule_value
+        for preset in &["@hourly", "@daily", "@weekly", "@monthly", "@yearly"] {
+            let val = serde_json::json!(preset);
+            let config = parse_schedule_value(&val, test_span()).unwrap();
+            assert_eq!(config.cron, *preset);
+        }
+    }
 }
