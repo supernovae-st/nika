@@ -69,6 +69,7 @@ pub enum TransformOp {
     ToBool,
     ToJson,
     ParseJson,
+    ParseYaml,
 
     // -- Numeric --
     Round(Option<u32>),
@@ -184,6 +185,7 @@ pub static KNOWN_TRANSFORM_NAMES: &[&str] = &[
     "to_bool",
     "to_json",
     "parse_json",
+    "parse_yaml",
     "round",
     "abs",
     "ceil",
@@ -644,6 +646,26 @@ impl TransformOp {
                 // Idempotent: already-parsed values pass through unchanged.
                 // This handles auto-parsed exec outputs where Nika converts
                 // JSON strings to values before transforms run.
+                Value::Array(_) | Value::Object(_) | Value::Number(_) | Value::Bool(_) => {
+                    Ok(value.clone())
+                }
+            },
+
+            TransformOp::ParseYaml => match value {
+                Value::Null => Err(TransformError::NullInput { op: "parse_yaml" }),
+                Value::String(s) => {
+                    // Strip markdown code blocks: ```yaml\n...\n``` or ```\n...\n```
+                    let cleaned = strip_markdown_code_block(s);
+                    let cleaned = strip_bom_and_control_chars(&cleaned);
+                    crate::serde_yaml::from_str::<Value>(&cleaned).map_err(|e| {
+                        TransformError::TypeMismatch {
+                            op: "parse_yaml",
+                            expected: "valid YAML string",
+                            got: format!("{} (input: \"{}\")", e, truncate(s, 80)),
+                        }
+                    })
+                }
+                // Idempotent: already-parsed values pass through unchanged.
                 Value::Array(_) | Value::Object(_) | Value::Number(_) | Value::Bool(_) => {
                     Ok(value.clone())
                 }
@@ -1920,6 +1942,7 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "to_bool" => Ok(TransformOp::ToBool),
             "to_json" => Ok(TransformOp::ToJson),
             "parse_json" => Ok(TransformOp::ParseJson),
+            "parse_yaml" => Ok(TransformOp::ParseYaml),
             "round" => Ok(TransformOp::Round(None)),
             "abs" => Ok(TransformOp::Abs),
             "ceil" => Ok(TransformOp::Ceil),
@@ -2168,6 +2191,7 @@ impl fmt::Display for TransformOp {
             TransformOp::ToBool => write!(f, "to_bool"),
             TransformOp::ToJson => write!(f, "to_json"),
             TransformOp::ParseJson => write!(f, "parse_json"),
+            TransformOp::ParseYaml => write!(f, "parse_yaml"),
             TransformOp::Round(None) => write!(f, "round"),
             TransformOp::Round(Some(d)) => write!(f, "round({})", d),
             TransformOp::Abs => write!(f, "abs"),
@@ -3384,6 +3408,90 @@ mod tests {
         let input = json!("  ```json\n  [\"a\", \"b\"]\n  ```  ");
         let result = TransformOp::ParseJson.apply(&input).unwrap();
         assert_eq!(result, json!(["a", "b"]));
+    }
+
+    // ── parse_yaml ───────────────────────────────────────────────
+
+    #[test]
+    fn parse_parse_yaml() {
+        let expr = TransformExpr::parse("parse_yaml").unwrap();
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::ParseYaml]);
+    }
+
+    #[test]
+    fn apply_parse_yaml_object() {
+        let yaml = json!("name: hello\ncount: 42\n");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result["name"], "hello");
+        assert_eq!(result["count"], 42);
+    }
+
+    #[test]
+    fn apply_parse_yaml_array() {
+        let yaml = json!("- one\n- two\n- three\n");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result, json!(["one", "two", "three"]));
+    }
+
+    #[test]
+    fn apply_parse_yaml_nested() {
+        let yaml = json!("locale: fr-FR\ncommunication:\n  formality: tu\n  tone: warm\n");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result["locale"], "fr-FR");
+        assert_eq!(result["communication"]["formality"], "tu");
+        assert_eq!(result["communication"]["tone"], "warm");
+    }
+
+    #[test]
+    fn apply_parse_yaml_strips_markdown_code_block() {
+        let yaml = json!("```yaml\nname: test\nvalue: 42\n```");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result["name"], "test");
+        assert_eq!(result["value"], 42);
+    }
+
+    #[test]
+    fn apply_parse_yaml_strips_yml_code_block() {
+        let yaml = json!("```yml\n- a\n- b\n```");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result, json!(["a", "b"]));
+    }
+
+    #[test]
+    fn apply_parse_yaml_unicode() {
+        let yaml = json!("fr: Café crème\nja: 東京タワー\nemoji: 🦋\n");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result["fr"], "Café crème");
+        assert_eq!(result["ja"], "東京タワー");
+        assert_eq!(result["emoji"], "🦋");
+    }
+
+    #[test]
+    fn apply_parse_yaml_null_fails() {
+        let err = TransformOp::ParseYaml.apply(&Value::Null).unwrap_err();
+        assert!(matches!(err, TransformError::NullInput { .. }));
+    }
+
+    #[test]
+    fn apply_parse_yaml_idempotent_on_object() {
+        let obj = json!({"key": "value"});
+        let result = TransformOp::ParseYaml.apply(&obj).unwrap();
+        assert_eq!(result, json!({"key": "value"}));
+    }
+
+    #[test]
+    fn apply_parse_yaml_invalid() {
+        let yaml = json!("{{invalid:\nyaml: [");
+        let err = TransformOp::ParseYaml.apply(&yaml).unwrap_err();
+        assert!(matches!(err, TransformError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn apply_parse_yaml_scalar_string() {
+        // Plain YAML string should parse to a string value
+        let yaml = json!("hello world");
+        let result = TransformOp::ParseYaml.apply(&yaml).unwrap();
+        assert_eq!(result, json!("hello world"));
     }
 
     #[test]
@@ -5118,6 +5226,7 @@ mod proptest_tests {
             Just("to_bool".into()),
             Just("to_json".into()),
             Just("parse_json".into()),
+            Just("parse_yaml".into()),
             Just("round".into()),
             Just("abs".into()),
             Just("ceil".into()),
@@ -5162,7 +5271,7 @@ mod proptest_tests {
                 Just("flatten".to_string()), Just("reverse".to_string()),
                 Just("sort".to_string()), Just("unique".to_string()),
                 Just("compact".to_string()), Just("to_number".to_string()),
-                Just("to_bool".to_string()), Just("parse_json".to_string()),
+                Just("to_bool".to_string()), Just("parse_json".to_string()), Just("parse_yaml".to_string()),
                 Just("round".to_string()), Just("abs".to_string()),
                 Just("ceil".to_string()), Just("floor".to_string()),
                 Just("join(',')".to_string()), Just("split(',')".to_string()),
