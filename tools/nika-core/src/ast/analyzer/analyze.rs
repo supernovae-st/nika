@@ -28,7 +28,6 @@ use crate::ast::schema::SchemaVersion;
 use crate::binding::{parse_with_entry, WithSpec};
 use crate::catalogs::ModelResolver;
 use crate::source::{Span, Spanned};
-use crate::ProviderName;
 
 /// Analyzer context - holds state during analysis.
 struct AnalyzerContext {
@@ -201,24 +200,6 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
                 ),
                 note: None,
             });
-        }
-
-        // Check model/provider compatibility — warn if model prefix doesn't match provider
-        if let (Some(ref task_model), Some(ref task_provider)) = (&task.model, &task.provider) {
-            if let Some(inferred) = ModelResolver::infer_provider_from_model(&task_model.value) {
-                let declared = ProviderName::parse(&task_provider.value);
-                if inferred != declared && declared != ProviderName::Mock {
-                    ctx.add_warning(AnalyzeError::new(
-                        AnalyzeErrorKind::InvalidValue,
-                        task_model.span,
-                        format!(
-                            "model '{}' is typically used with provider '{}', \
-                             but task '{}' specifies provider '{}'",
-                            task_model.value, inferred, task.id.value, task_provider.value
-                        ),
-                    ));
-                }
-            }
         }
 
         // Check task-level model name is recognized
@@ -5375,5 +5356,113 @@ tasks:
     fn test_extract_template_refs_no_match() {
         let refs = extract_template_refs("Hello world, no templates", "inputs");
         assert!(refs.is_empty());
+    }
+
+    // ====================================================================
+    // schedule: full AST pipeline tests
+    // ====================================================================
+
+    #[test]
+    fn schedule_valid_cron_parses() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+model: test
+schedule: "@daily"
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.is_empty(),
+            "Valid @daily schedule should parse without errors: {:?}",
+            result.errors
+        );
+
+        let workflow = result.value.unwrap();
+        let sched = workflow.schedule.as_ref().expect("schedule should be Some");
+        assert_eq!(sched.cron, "@daily");
+    }
+
+    #[test]
+    fn schedule_invalid_cron_produces_error() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+model: test
+schedule: "not-valid"
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            !result.errors.is_empty(),
+            "Invalid schedule should produce an error"
+        );
+        let err = &result.errors[0];
+        assert_eq!(
+            err.kind,
+            AnalyzeErrorKind::InvalidValue,
+            "Error kind should be InvalidValue (NIKA-144), got {:?}",
+            err.kind
+        );
+        assert!(
+            err.message.contains("invalid schedule"),
+            "Error message should contain 'invalid schedule', got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn schedule_object_form_parses() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+model: test
+schedule:
+  cron: "0 9 * * 1-5"
+  timezone: "Europe/Paris"
+  overlap: "queue"
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0)).unwrap();
+        let result = analyze(raw);
+        assert!(
+            result.errors.is_empty(),
+            "Object-form schedule should parse without errors: {:?}",
+            result.errors
+        );
+
+        let workflow = result.value.unwrap();
+        let sched = workflow.schedule.as_ref().expect("schedule should be Some");
+        assert_eq!(sched.cron, "0 9 * * 1-5");
+        assert_eq!(sched.timezone.as_deref(), Some("Europe/Paris"));
+        assert_eq!(
+            sched.overlap,
+            crate::ast::schedule::OverlapPolicy::Queue
+        );
+    }
+
+    #[test]
+    fn schedule_field_not_rejected_as_unknown_key() {
+        // Regression: ensure the raw parser does NOT emit NIKA-163 for schedule:
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+model: test
+schedule: "@daily"
+tasks:
+  - id: gen
+    infer: "hello"
+"#;
+        // Raw parse should succeed (schedule is in known_workflow_keys)
+        let raw = crate::ast::raw::parse(yaml, crate::source::FileId(0));
+        assert!(
+            raw.is_ok(),
+            "schedule: field should NOT be rejected as unknown key (NIKA-163): {:?}",
+            raw.err()
+        );
     }
 }

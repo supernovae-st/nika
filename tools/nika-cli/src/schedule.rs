@@ -175,7 +175,9 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
 
         ScheduleAction::Show { name } => {
             let resp = client
-                .send(DaemonRequest::ScheduleGet { name })
+                .send(DaemonRequest::ScheduleGet {
+                    name: name.clone(),
+                })
                 .await
                 .map_err(sched_err)?;
 
@@ -186,7 +188,7 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                     render_schedule_card(&schedule, &dots);
                 }
                 DaemonResponse::Error { code, message } => {
-                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                    handle_schedule_error(&client, &code, &message, &name).await;
                 }
                 _ => eprintln!("{} unexpected response", "✗".red().bold()),
             }
@@ -202,11 +204,11 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                 DaemonResponse::Ok => {
                     if !quiet {
                         println!("{} schedule {} paused", "✓".green().bold(), name.bold());
-                        println!("  Resume: nika schedule resume {}", name);
+                        println!("  Resume anytime: nika schedule resume {name}");
                     }
                 }
                 DaemonResponse::Error { code, message } => {
-                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                    handle_schedule_error(&client, &code, &message, &name).await;
                 }
                 _ => eprintln!("{} unexpected response", "✗".red().bold()),
             }
@@ -221,11 +223,16 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
             match resp {
                 DaemonResponse::Ok => {
                     if !quiet {
-                        println!("{} schedule {} resumed", "✓".green().bold(), name.bold());
+                        println!(
+                            "{} schedule {} back in action!",
+                            "✓".green().bold(),
+                            name.bold()
+                        );
+                        println!("  View: nika schedule show {name}");
                     }
                 }
                 DaemonResponse::Error { code, message } => {
-                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                    handle_schedule_error(&client, &code, &message, &name).await;
                 }
                 _ => eprintln!("{} unexpected response", "✗".red().bold()),
             }
@@ -243,7 +250,7 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                     schedule["workflow"].as_str().unwrap_or("").to_string()
                 }
                 DaemonResponse::Error { code, message } => {
-                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                    handle_schedule_error(&client, &code, &message, &name).await;
                     return Ok(());
                 }
                 _ => {
@@ -303,10 +310,11 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                 DaemonResponse::Ok => {
                     if !quiet {
                         println!("{} schedule {} removed", "✓".green().bold(), name.bold());
+                        println!("  Historical runs preserved in traces.");
                     }
                 }
                 DaemonResponse::Error { code, message } => {
-                    eprintln!("{} [{code}] {message}", "✗".red().bold());
+                    handle_schedule_error(&client, &code, &message, &name).await;
                 }
                 _ => eprintln!("{} unexpected response", "✗".red().bold()),
             }
@@ -318,6 +326,72 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
 
 fn sched_err(e: nika_daemon::DaemonError) -> NikaError {
     NikaError::Execution(format!("schedule: {e}"))
+}
+
+/// Handle schedule errors with did-you-mean suggestions.
+async fn handle_schedule_error(
+    client: &nika_daemon::DaemonClient,
+    code: &str,
+    message: &str,
+    name: &str,
+) {
+    eprintln!("{} [{code}] {message}", "✗".red().bold());
+
+    // Did-you-mean for not-found errors
+    if code == "NIKA-283" && message.contains("not found") {
+        if let Ok(DaemonResponse::ScheduleListResult { schedules }) = client
+            .send(DaemonRequest::ScheduleList {
+                enabled_only: false,
+            })
+            .await
+        {
+            let names: Vec<&str> = schedules
+                .iter()
+                .filter_map(|s| s["name"].as_str())
+                .collect();
+            if let Some(suggestion) = find_closest(name, &names) {
+                eprintln!();
+                eprintln!("  Did you mean {}?", suggestion.bold());
+                eprintln!("    nika schedule show {suggestion}");
+            } else if names.is_empty() {
+                eprintln!();
+                eprintln!("  No schedules exist yet. Create one:");
+                eprintln!("    nika every 6h workflow.nika.yaml");
+            }
+        }
+    }
+}
+
+/// Find the closest match using Levenshtein distance (simple impl).
+fn find_closest<'a>(input: &str, candidates: &[&'a str]) -> Option<&'a str> {
+    candidates
+        .iter()
+        .map(|c| (*c, levenshtein(input, c)))
+        .filter(|(_, d)| *d <= 3 && *d > 0) // max 3 edits, exclude exact match
+        .min_by_key(|(_, d)| *d)
+        .map(|(c, _)| c)
+}
+
+/// Simple Levenshtein distance.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut dp = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for (i, row) in dp.iter_mut().enumerate().take(a.len() + 1) {
+        row[0] = i;
+    }
+    for (j, val) in dp[0].iter_mut().enumerate().take(b.len() + 1) {
+        *val = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            dp[i][j] = (dp[i - 1][j] + 1)
+                .min(dp[i][j - 1] + 1)
+                .min(dp[i - 1][j - 1] + cost);
+        }
+    }
+    dp[a.len()][b.len()]
 }
 
 /// Fetch recent run statuses for a workflow via GetWorkflowHistory.
@@ -860,5 +934,46 @@ mod tests {
         })];
         // Should not panic; name should be truncated in display
         render_timeline(&schedules);
+    }
+
+    // ─── Did-you-mean tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_levenshtein_exact() {
+        assert_eq!(levenshtein("abc", "abc"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_one_edit() {
+        assert_eq!(levenshtein("abc", "adc"), 1); // substitution
+        assert_eq!(levenshtein("abc", "abcd"), 1); // insertion
+        assert_eq!(levenshtein("abc", "ab"), 1); // deletion
+    }
+
+    #[test]
+    fn test_levenshtein_empty() {
+        assert_eq!(levenshtein("", "abc"), 3);
+        assert_eq!(levenshtein("abc", ""), 3);
+    }
+
+    #[test]
+    fn test_find_closest_typo() {
+        let candidates = vec!["daily-report", "hourly-check", "weekly-sync"];
+        assert_eq!(
+            find_closest("daily-repost", &candidates),
+            Some("daily-report")
+        );
+    }
+
+    #[test]
+    fn test_find_closest_no_match() {
+        let candidates = vec!["daily-report"];
+        assert_eq!(find_closest("completely-different", &candidates), None);
+    }
+
+    #[test]
+    fn test_find_closest_empty() {
+        let candidates: Vec<&str> = vec![];
+        assert_eq!(find_closest("anything", &candidates), None);
     }
 }
