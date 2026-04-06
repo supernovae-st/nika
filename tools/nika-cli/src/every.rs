@@ -165,6 +165,13 @@ pub async fn handle_every_command(args: EveryArgs, quiet: bool) -> Result<(), Ni
                     }
                 }
 
+                // Run frequency estimate
+                if let Some(estimate) = format_run_estimate(&cron_expr) {
+                    println!();
+                    println!("  {}", "Frequency".bold());
+                    println!("    {estimate}");
+                }
+
                 println!();
                 println!("  {} {} is live! 🦋", "✓".green().bold(), name.bold());
                 println!();
@@ -556,6 +563,40 @@ fn auto_name(workflow: &str, cron_expr: &str) -> String {
     format!("{stem}-{freq}")
 }
 
+/// Estimate runs per day from a cron expression by sampling the next 48h of occurrences.
+pub fn runs_per_day(cron_expr: &str) -> Option<f64> {
+    let parsed = cron_expr.parse::<croner::Cron>().ok()?;
+    let now = chrono::Utc::now();
+    let window_end = now + chrono::Duration::hours(48);
+    let mut count = 0u32;
+    let mut from = now;
+    loop {
+        match parsed.find_next_occurrence(&from, false) {
+            Ok(next) if next < window_end => {
+                count += 1;
+                from = next;
+            }
+            _ => break,
+        }
+    }
+    if count == 0 {
+        return None;
+    }
+    Some(count as f64 / 2.0) // 48h sample → divide by 2 for daily rate
+}
+
+/// Format a run frequency estimate for display.
+pub fn format_run_estimate(cron_expr: &str) -> Option<String> {
+    let rpd = runs_per_day(cron_expr)?;
+    let rpm = rpd * 30.0;
+    if rpd >= 1.0 {
+        Some(format!("{:.0} runs/day · ~{:.0} runs/month", rpd, rpm))
+    } else {
+        let rpw = rpd * 7.0;
+        Some(format!("{:.1} runs/week · ~{:.0} runs/month", rpw, rpm))
+    }
+}
+
 /// Convert seconds to a human-readable relative time string.
 fn humanize_relative(seconds: i64) -> String {
     if seconds < 60 {
@@ -625,5 +666,36 @@ mod tests {
     #[test]
     fn test_resolve_invalid() {
         assert!(resolve_schedule_expr("not valid").is_err());
+    }
+
+    #[test]
+    fn test_runs_per_day_hourly() {
+        let rpd = runs_per_day("0 * * * *").unwrap();
+        assert!((rpd - 24.0).abs() < 1.0, "hourly should be ~24/day, got {rpd}");
+    }
+
+    #[test]
+    fn test_runs_per_day_daily() {
+        let rpd = runs_per_day("0 9 * * *").unwrap();
+        assert!((rpd - 1.0).abs() < 0.1, "daily should be ~1/day, got {rpd}");
+    }
+
+    #[test]
+    fn test_runs_per_day_every_6h() {
+        let rpd = runs_per_day("0 */6 * * *").unwrap();
+        assert!((rpd - 4.0).abs() < 1.0, "every 6h should be ~4/day, got {rpd}");
+    }
+
+    #[test]
+    fn test_format_run_estimate_daily() {
+        let est = format_run_estimate("0 9 * * *").unwrap();
+        assert!(est.contains("1 runs/day"), "expected daily estimate, got: {est}");
+    }
+
+    #[test]
+    fn test_format_run_estimate_weekly() {
+        // weekly = Monday at 9:00
+        let est = format_run_estimate("0 9 * * 1").unwrap();
+        assert!(est.contains("runs/week"), "expected weekly estimate, got: {est}");
     }
 }

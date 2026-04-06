@@ -15,6 +15,8 @@ use std::time::Duration;
 use nika_daemon::{daemon_socket_path, DaemonClient, DaemonRequest, DaemonResponse};
 use nika_engine::error::NikaError;
 
+use crate::every::format_run_estimate;
+
 // Re-export for schedule card display
 use chrono::Utc;
 
@@ -102,12 +104,13 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                     }
 
                     println!(
-                        "\n  {:<20} {:<8} {:<20} {:<14} {:<6} {}",
+                        "\n  {:<20} {:<8} {:<20} {:<14} {:<6} {:<16} {}",
                         "NAME".bold(),
                         "STATUS".bold(),
                         "CRON".bold(),
                         "TIMEZONE".bold(),
                         "RUNS".bold(),
+                        "FREQ".bold(),
                         "WORKFLOW".bold(),
                     );
 
@@ -126,9 +129,19 @@ pub async fn handle_schedule_command(action: ScheduleAction, quiet: bool) -> Res
                         };
                         let icon = if paused { "⏸" } else { "●" };
 
+                        let freq = crate::every::runs_per_day(cron)
+                            .map(|rpd| {
+                                if rpd >= 1.0 {
+                                    format!("{:.0}/day", rpd)
+                                } else {
+                                    format!("{:.1}/week", rpd * 7.0)
+                                }
+                            })
+                            .unwrap_or_else(|| "-".into());
+
                         println!(
-                            "  {icon} {:<19} {:<8} {:<20} {:<14} {:<6} {}",
-                            name, status, cron, tz, run_count, workflow,
+                            "  {icon} {:<19} {:<8} {:<20} {:<14} {:<6} {:<16} {}",
+                            name, status, cron, tz, run_count, freq, workflow,
                         );
                     }
                     println!("\n  {} schedule(s)\n", schedules.len());
@@ -321,6 +334,9 @@ fn render_schedule_card(sched: &serde_json::Value) {
     println!("  │  Overlap    {:<42} │", overlap);
     println!("  │  Runs       {:<42} │", run_count);
     println!("  │  Last run   {:<42} │", last_run);
+    if let Some(estimate) = format_run_estimate(cron) {
+        println!("  │  Frequency  {:<42} │", estimate);
+    }
     println!("  │                                                       │");
 
     // Next 5 runs
