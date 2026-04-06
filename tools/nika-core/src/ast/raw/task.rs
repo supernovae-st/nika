@@ -29,10 +29,6 @@ pub struct RawTask {
     /// Task-specific model override
     pub model: Option<Spanned<String>>,
 
-    /// Task-level base URL override for OpenAI-compatible endpoint.
-    /// Takes precedence over workflow-level base_url.
-    pub base_url: Option<Spanned<String>>,
-
     /// Agent preset reference from the workflow's `agents:` block.
     pub preset: Option<Spanned<String>>,
 

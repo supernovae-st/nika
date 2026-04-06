@@ -37,9 +37,6 @@ pub struct AnalyzedTask {
     /// Task-specific model override
     pub model: Option<String>,
 
-    /// Task-level base URL override for OpenAI-compatible endpoint
-    pub base_url: Option<String>,
-
     /// Agent preset reference from the workflow's `agents:` block
     pub preset: Option<String>,
 
@@ -559,7 +556,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: Some(ProviderName::OpenAI),
             model: Some("gpt-4o".to_string()),
-            base_url: None,
+
             preset: None,
             with_spec: crate::binding::WithSpec::default(),
             depends_on: Vec::new(),

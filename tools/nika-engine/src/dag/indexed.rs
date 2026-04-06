@@ -307,7 +307,7 @@ mod tests {
                 action: AnalyzedTaskAction::default(),
                 provider: None,
                 model: None,
-                base_url: None,
+    
                 with_spec: WithSpec::default(),
                 depends_on,
                 implicit_deps: Vec::new(),
@@ -493,7 +493,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: WithSpec::default(),
             depends_on: deps,
             implicit_deps: Vec::new(),
@@ -573,7 +573,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: WithSpec::default(),
             depends_on: Vec::new(),
             implicit_deps: Vec::new(),
@@ -603,7 +603,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: WithSpec::default(),
             depends_on: Vec::new(),
             implicit_deps: vec![id_src], // implicit dep
@@ -744,7 +744,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: WithSpec::default(),
             depends_on: deps,
             implicit_deps: Vec::new(),
@@ -800,7 +800,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: WithSpec::default(),
             depends_on: Vec::new(),
             implicit_deps: Vec::new(),
@@ -830,7 +830,7 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: WithSpec::default(),
             depends_on: vec![id_src],
             implicit_deps: vec![id_src], // duplicate!

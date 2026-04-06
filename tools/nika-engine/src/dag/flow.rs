@@ -696,7 +696,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on,
                 implicit_deps,
@@ -991,7 +991,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: Vec::new(),
                 implicit_deps: Vec::new(),
@@ -1020,7 +1020,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: Vec::new(),
                 implicit_deps: Vec::new(),
@@ -1048,7 +1048,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: Vec::new(),
                 implicit_deps: Vec::new(),
@@ -1233,7 +1233,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: vec![],
                 implicit_deps: vec![],
@@ -1261,7 +1261,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: vec![dangling_id], // dangling!
                 implicit_deps: vec![],
@@ -1320,7 +1320,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: vec![],
                 implicit_deps: vec![],
@@ -1348,7 +1348,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on: vec![],
                 implicit_deps: vec![dangling_id], // dangling!
@@ -1399,7 +1399,6 @@ mod tests {
             action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
             provider: None,
             model: None,
-            base_url: None,
             with_spec: WithSpec::default(),
             depends_on,
             implicit_deps: vec![],

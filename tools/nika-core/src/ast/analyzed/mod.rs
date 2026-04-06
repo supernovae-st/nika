@@ -90,7 +90,6 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
             with_spec: WithSpec::default(),
             depends_on: Vec::new(),
             implicit_deps: Vec::new(),

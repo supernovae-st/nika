@@ -1374,8 +1374,6 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     workflow.goal = get_string_field(file_id, map, "goal")?;
     workflow.provider = get_string_field(file_id, map, "provider")?;
     workflow.model = get_string_field(file_id, map, "model")?;
-    workflow.base_url = get_string_field(file_id, map, "base_url")?;
-
     // Parse MCP server configurations
     workflow.mcp = parse_mcp_config(file_id, map)?;
 
@@ -1462,7 +1460,6 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         "goal",
         "provider",
         "model",
-        "base_url",
         "mcp",
         "pkg",
         "context",
@@ -1824,7 +1821,7 @@ const TASK_LEVEL_FIELDS: &[&str] = &[
 
 /// Validate that a verb mapping does not contain misplaced task-level fields.
 ///
-/// Also detects `model:`, `provider:`, and `base_url:` in non-agent verb blocks
+/// Also detects `model:` and `provider:` in non-agent verb blocks
 /// (these are valid inside `agent:` but not `infer:`/`exec:`/`fetch:`/`invoke:`).
 fn validate_verb_keys(
     file_id: FileId,
@@ -1845,7 +1842,7 @@ fn validate_verb_keys(
                 ),
             });
         }
-        if !is_agent && matches!(k, "model" | "provider" | "base_url") {
+        if !is_agent && matches!(k, "model" | "provider") {
             let span = marked_span_to_span(file_id, key.span());
             return Err(ParseError {
                 kind: ParseErrorKind::UnknownField,
@@ -1873,7 +1870,6 @@ fn validate_task_keys(
         "description",
         "provider",
         "model",
-        "base_url",
         "preset",
         "with",
         "depends_on",
@@ -1977,7 +1973,6 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     // Extract optional fields
     let description = get_string_field(file_id, map, "description")?;
     let model = get_string_field(file_id, map, "model")?;
-    let base_url = get_string_field(file_id, map, "base_url")?;
     let preset = get_string_field(file_id, map, "preset")?;
 
     // Parse provider: string or array (fallback chain).
@@ -2175,7 +2170,6 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         description,
         provider,
         model,
-        base_url,
         preset,
         action,
         with_refs,

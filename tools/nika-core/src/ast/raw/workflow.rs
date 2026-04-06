@@ -31,10 +31,6 @@ pub struct RawWorkflow {
     /// Default model (e.g., "claude-sonnet-4-6")
     pub model: Option<Spanned<String>>,
 
-    /// Base URL for OpenAI-compatible endpoint (e.g., vLLM, Ollama).
-    /// When set, `provider: openai` will point to this URL instead of api.openai.com.
-    pub base_url: Option<Spanned<String>>,
-
     /// MCP server configuration
     pub mcp: Option<Spanned<RawMcpConfig>>,
 

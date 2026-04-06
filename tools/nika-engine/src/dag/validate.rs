@@ -431,7 +431,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec: WithSpec::default(),
                 depends_on,
                 implicit_deps,
@@ -510,7 +510,7 @@ mod tests {
                 action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
                 provider: None,
                 model: None,
-                base_url: None,
+
                 with_spec,
                 depends_on,
                 implicit_deps,

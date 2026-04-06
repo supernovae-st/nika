@@ -405,8 +405,6 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     workflow.goal = raw.goal.map(|s| s.value);
     workflow.provider = raw.provider.map(|s| crate::ProviderName::parse(&s.value));
     workflow.model = raw.model.map(|s| s.value);
-    workflow.base_url = raw.base_url.map(|s| s.value);
-
     // 3a. Parse orchestrate configuration (with bounds validation)
     workflow.orchestrate = raw.orchestrate.as_ref().and_then(|s| {
         match serde_json::from_value::<crate::ast::orchestrate::OrchestrateConfig>(s.value.clone())
@@ -1176,7 +1174,6 @@ fn analyze_task(
             .as_ref()
             .map(|s| crate::ProviderName::parse(&s.value)),
         model: raw.model.as_ref().map(|s| s.value.clone()),
-        base_url: raw.base_url.as_ref().map(|s| s.value.clone()),
         preset: raw.preset.as_ref().map(|s| s.value.clone()),
         with_spec: WithSpec::default(),
         depends_on: Vec::new(),

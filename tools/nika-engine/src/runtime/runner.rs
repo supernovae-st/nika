@@ -1118,7 +1118,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         for_each_binding: Option<(String, Value, usize)>,
         workflow_artifacts: Option<ArtifactsConfig>,
         base_path: PathBuf,
-        workflow_base_url: Option<String>,
         is_fallback_execution: bool,
     ) -> IterationResult {
         let start = Instant::now();
@@ -1252,8 +1251,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             (task.provider.clone(), task.model.clone())
         };
 
-        // Resolve base_url: task-level override takes precedence over workflow default
-        let resolved_base_url = task.base_url.clone().or(workflow_base_url);
         // Extract provider fallback chain from routing config
         let provider_chain: Option<Vec<nika_core::ProviderName>> = task
             .routing
@@ -1270,7 +1267,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             &effective_provider,
             &effective_model,
             &task.retry,
-            &resolved_base_url,
             &provider_chain,
         );
 
@@ -1531,7 +1527,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         &Some(provider.clone()),
                                         &task.model.clone().or(effective_model.clone()),
                                         &None,
-                                        &resolved_base_url,
                                         &None,
                                     );
                                     let fb_result = executor
@@ -1595,7 +1590,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             &fb_task.provider,
                                             &fb_task.model,
                                             &None,
-                                            &fb_task.base_url,
                                             &fb_provider_chain,
                                         );
                                         let fb_result = executor
@@ -2212,8 +2206,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Prepare artifact config for all tasks in this batch
             let workflow_artifacts = self.workflow.artifacts.clone();
             let artifact_base_path = init.base_path.clone();
-            let workflow_base_url = self.workflow.base_url.clone();
-
             for task in ready {
                 let task_id = intern(&task.name);
 
@@ -2478,8 +2470,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let for_each_total = items.len();
                             let workflow_artifacts = workflow_artifacts.clone();
                             let artifact_base_path = artifact_base_path.clone();
-                            let workflow_base_url = workflow_base_url.clone();
-
                             join_set.spawn(async move {
                                 // Check cancellation BEFORE acquiring semaphores
                                 if cancel.is_cancelled() {
@@ -2598,7 +2588,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         Some((var_name, item, idx)),
                                         workflow_artifacts,
                                         artifact_base_path,
-                                        workflow_base_url,
                                         false, // not a fallback execution
                                     ),
                                 )
@@ -2689,7 +2678,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let event_log = self.event_log.clone();
                     let workflow_artifacts = workflow_artifacts.clone();
                     let artifact_base_path = artifact_base_path.clone();
-                    let workflow_base_url = workflow_base_url.clone();
                     let global_semaphore = Arc::clone(&self.global_task_semaphore);
 
                     join_set.spawn(async move {
@@ -2721,7 +2709,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             None,
                             workflow_artifacts,
                             artifact_base_path,
-                            workflow_base_url,
                             false, // not a fallback execution
                         ))
                         .catch_unwind()
@@ -3284,7 +3271,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table: TaskTable::new(),
             tasks: vec![],
             mcp_servers: IndexMap::new(),
@@ -3399,7 +3386,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -3434,7 +3421,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![task],
             mcp_servers: IndexMap::new(),
@@ -3562,7 +3549,7 @@ mod tests {
                     }),
                     provider: None,
                     model: None,
-                    base_url: None,
+        
                     with_spec: Default::default(),
                     depends_on,
                     implicit_deps: vec![],
@@ -3593,7 +3580,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: analyzed_tasks,
             mcp_servers: IndexMap::new(),
@@ -4279,7 +4266,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -4325,7 +4312,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec,
             depends_on: vec![tid1],
             implicit_deps: vec![],
@@ -4360,7 +4347,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![step1, step2],
             mcp_servers: IndexMap::new(),
@@ -5283,7 +5270,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -5323,7 +5310,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -6629,7 +6616,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -6675,7 +6662,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec,
             depends_on: vec![tid1],
             implicit_deps: vec![],
@@ -6710,7 +6697,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![step1, step2],
             mcp_servers: IndexMap::new(),
@@ -6938,7 +6925,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -6981,7 +6968,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7016,7 +7003,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![failing_parent, passing_parent],
             mcp_servers: IndexMap::new(),
@@ -7245,7 +7232,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7279,7 +7266,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![task],
             mcp_servers: IndexMap::new(),
@@ -7363,7 +7350,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7397,7 +7384,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![task],
             mcp_servers: IndexMap::new(),
@@ -7477,7 +7464,7 @@ mod tests {
             }),
             provider: task_provider.map(nika_core::ProviderName::parse),
             model: task_model.map(|s| s.to_string()),
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7519,7 +7506,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![task],
             mcp_servers: IndexMap::new(),
@@ -7667,7 +7654,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7699,7 +7686,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7752,7 +7739,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![fast_task, deep_task],
             mcp_servers: IndexMap::new(),
@@ -7851,7 +7838,7 @@ mod tests {
             }),
             provider: None,
             model: None,
-            base_url: None,
+
             with_spec: Default::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -7880,7 +7867,7 @@ mod tests {
             goal: None,
             provider: Some(nika_core::ProviderName::Mock),
             model: None,
-            base_url: None,
+
             task_table,
             tasks: vec![task],
             mcp_servers: IndexMap::new(),

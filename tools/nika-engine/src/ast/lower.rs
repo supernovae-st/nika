@@ -45,7 +45,6 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         goal: _,
         provider,
         model,
-        base_url: _,
         task_table,
         tasks,
         mcp_servers,
@@ -126,7 +125,6 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         &task.provider,
         &task.model,
         &task.retry,
-        &task.base_url,
         &provider_chain,
     );
     let output = task.output.map(lower_output);
@@ -169,7 +167,6 @@ pub(crate) fn lower_action(
     provider: &Option<nika_core::ProviderName>,
     model: &Option<String>,
     retry: &Option<AnalyzedRetry>,
-    base_url: &Option<String>,
     provider_chain: &Option<Vec<nika_core::ProviderName>>,
 ) -> TaskAction {
     match action {
@@ -178,7 +175,6 @@ pub(crate) fn lower_action(
                 a.clone(),
                 provider.clone(),
                 model.clone(),
-                base_url.clone(),
                 provider_chain.clone(),
             ),
         },
@@ -196,7 +192,6 @@ pub(crate) fn lower_action(
                 a.as_ref().clone(),
                 provider.clone(),
                 model.clone(),
-                base_url.clone(),
                 provider_chain.clone(),
             ),
         },
@@ -207,7 +202,6 @@ fn lower_infer(
     infer: AnalyzedInferAction,
     provider: Option<nika_core::ProviderName>,
     model: Option<String>,
-    base_url: Option<String>,
     provider_chain: Option<Vec<nika_core::ProviderName>>,
 ) -> InferParams {
     use crate::ast::action::ResponseFormat;
@@ -237,7 +231,7 @@ fn lower_infer(
             .content
             .map(|parts| parts.into_iter().map(Into::into).collect()),
         guardrails: infer.guardrails,
-        base_url,
+        base_url: None,
         provider_chain,
     }
 }
@@ -293,7 +287,6 @@ fn lower_agent(
     agent: AnalyzedAgentAction,
     provider: Option<nika_core::ProviderName>,
     model: Option<String>,
-    base_url: Option<String>,
     provider_chain: Option<Vec<nika_core::ProviderName>>,
 ) -> AgentParams {
     // Parse tool_choice string to ToolChoice enum
@@ -338,7 +331,7 @@ fn lower_agent(
         completion: agent.completion,
         guardrails: agent.guardrails,
         limits: agent.limits,
-        base_url,
+        base_url: None,
         provider_chain,
     }
 }
@@ -678,7 +671,6 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             action,
             provider: task_provider,
             model: task_model,
-            base_url: None,
             with_spec,
             depends_on,
             implicit_deps: vec![],
@@ -736,7 +728,6 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         goal: None,
         provider: Some(workflow.provider),
         model: workflow.model,
-        base_url: None,
         task_table,
         tasks: analyzed_tasks,
         mcp_servers,
@@ -994,7 +985,6 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            base_url: None,
             with_spec: WithSpec::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -1059,7 +1049,6 @@ mod tests {
             }),
             provider: Some(nika_core::ProviderName::Mistral),
             model: Some("mistral-large".to_string()),
-            base_url: None,
             with_spec: WithSpec::default(),
             depends_on: vec![],
             implicit_deps: vec![],
@@ -2730,7 +2719,7 @@ mod tests {
                 limits: None,
                 span: Span::dummy(),
             };
-            let params = lower_agent(agent, None, None, None, None);
+            let params = lower_agent(agent, None, None, None);
             assert!(
                 params.tool_choice.is_some(),
                 "valid tool_choice '{}' should produce Some({})",
@@ -2768,7 +2757,7 @@ mod tests {
                 limits: None,
                 span: Span::dummy(),
             };
-            let params = lower_agent(agent, None, None, None, None);
+            let params = lower_agent(agent, None, None, None);
             assert!(
                 params.tool_choice.is_none(),
                 "invalid tool_choice '{}' should map to None, got {:?}",
