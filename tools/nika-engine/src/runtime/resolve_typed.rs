@@ -231,6 +231,9 @@ fn resolve_opt_f64_range(
     Some(Templatable::Value(v)) => Ok(Some(Templatable::Value(*v))),
     Some(Templatable::Template(tpl)) => {
       let resolved = resolve_template_str(tpl, bindings, ctx)?;
+      if resolved.trim().is_empty() {
+        return Ok(None); // missing input = field absent, use provider default
+      }
       let val = parse_f64(&resolved, name)?;
       if val < min || val > max {
         return Err(NikaError::BindingTypeMismatch {
@@ -255,6 +258,9 @@ fn resolve_opt_f64(
     Some(Templatable::Value(v)) => Ok(Some(Templatable::Value(*v))),
     Some(Templatable::Template(tpl)) => {
       let resolved = resolve_template_str(tpl, bindings, ctx)?;
+      if resolved.trim().is_empty() {
+        return Ok(None);
+      }
       let val = parse_f64(&resolved, name)?;
       Ok(Some(Templatable::Value(val)))
     }
@@ -406,11 +412,20 @@ fn resolve_templatable_u64(
 // ============================================================================
 
 fn parse_f64(s: &str, name: &str) -> Result<f64, NikaError> {
-  s.trim().parse::<f64>().map_err(|_| NikaError::BindingTypeMismatch {
+  let trimmed = s.trim();
+  let val = trimmed.parse::<f64>().map_err(|_| NikaError::BindingTypeMismatch {
     path: name.to_string(),
     expected: "number".to_string(),
-    actual: s.trim().to_string(),
-  })
+    actual: trimmed.to_string(),
+  })?;
+  if !val.is_finite() {
+    return Err(NikaError::BindingTypeMismatch {
+      path: name.to_string(),
+      expected: "finite number".to_string(),
+      actual: trimmed.to_string(),
+    });
+  }
+  Ok(val)
 }
 
 fn parse_u32(s: &str, name: &str) -> Result<u32, NikaError> {

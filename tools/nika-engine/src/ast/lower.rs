@@ -167,6 +167,9 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
 // Actions
 // ---------------------------------------------------------------------------
 
+/// PRECONDITION: `action` has been through `resolve_action_templates()`.
+/// All `Templatable` fields are guaranteed to be `Templatable::Value` variants.
+/// Similarly, `retry` should be pre-resolved via `resolve_retry()`.
 pub(crate) fn lower_action(
     action: &AnalyzedTaskAction,
     provider: &Option<nika_core::ProviderName>,

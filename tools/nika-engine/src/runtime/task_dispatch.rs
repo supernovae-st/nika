@@ -11,7 +11,7 @@ use std::time::Instant;
 use serde_json::Value;
 use tracing::{debug, info};
 
-use crate::ast::analyzed::{AnalyzedOutput, AnalyzedTask, OnErrorAction};
+use crate::ast::analyzed::{AnalyzedTask, OnErrorAction};
 use crate::ast::artifact::ArtifactsConfig;
 use crate::ast::lower::{lower_action, lower_output};
 use crate::ast::TaskAction;
@@ -152,14 +152,29 @@ pub(crate) async fn execute_task_iteration(
     }
 
     // Enforce context_budget if configured on this task
-    if let Some(budget) = crate::runtime::resolve_typed::resolve_task_u32(
+    let resolved_budget = match crate::runtime::resolve_typed::resolve_task_u32(
         &task.context_budget,
         &bindings,
         &datastore,
         "context_budget",
-    )
-    .unwrap_or(None)
-    {
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            let duration = start.elapsed();
+            event_log.emit(EventKind::TaskFailed {
+                task_id: Arc::clone(&task_id),
+                error: e.to_string(),
+                duration_ms: duration.as_millis() as u64,
+                error_code: Some(e.code().to_string()),
+            });
+            return IterationResult {
+                store_id: task_id,
+                result: TaskResult::failed(e.to_string(), duration),
+                for_each_info,
+            };
+        }
+    };
+    if let Some(budget) = resolved_budget {
         let budget_event =
             crate::binding::token_budget::enforce_budget(&mut bindings, budget, &task_id);
         event_log.emit(budget_event);
@@ -231,14 +246,28 @@ pub(crate) async fn execute_task_iteration(
                 .collect()
         });
     // Resolve retry templates before lowering (fetch tasks embed retry in lowered action)
-    let resolved_retry = task
+    let effective_retry_for_lower = match task
         .retry
         .as_ref()
         .map(|r| crate::runtime::resolve_typed::resolve_retry(r, &bindings, &datastore))
         .transpose()
-        .ok()
-        .flatten();
-    let effective_retry_for_lower = resolved_retry.or_else(|| task.retry.clone());
+    {
+        Ok(resolved) => resolved,
+        Err(e) => {
+            let duration = start.elapsed();
+            event_log.emit(EventKind::TaskFailed {
+                task_id: Arc::clone(&task_id),
+                error: e.to_string(),
+                duration_ms: duration.as_millis() as u64,
+                error_code: Some(e.code().to_string()),
+            });
+            return IterationResult {
+                store_id: task_id,
+                result: TaskResult::failed(e.to_string(), duration),
+                for_each_info,
+            };
+        }
+    };
     let mut lowered_action = lower_action(
         &resolved_action,
         &effective_provider,
@@ -262,21 +291,41 @@ pub(crate) async fn execute_task_iteration(
         }
     }
 
-    let lowered_output = task.output.as_ref().map(|o: &AnalyzedOutput| {
+    let lowered_output = if let Some(o) = task.output.as_ref() {
         // Resolve max_retries template before lowering
         let mut resolved_output = o.clone();
-        if let Some(ref mr) = o.max_retries {
-            if let Ok(Some(val)) = crate::runtime::resolve_typed::resolve_task_u32(
-                &Some(mr.clone()),
+        if o.max_retries.as_ref().is_some_and(|mr| mr.is_template()) {
+            match crate::runtime::resolve_typed::resolve_task_u32(
+                &o.max_retries,
                 &bindings,
                 &datastore,
                 "output.max_retries",
             ) {
-                resolved_output.max_retries = Some(nika_core::ast::templatable::Templatable::Value(val));
+                Ok(Some(val)) => {
+                    resolved_output.max_retries =
+                        Some(nika_core::ast::templatable::Templatable::Value(val));
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    let duration = start.elapsed();
+                    event_log.emit(EventKind::TaskFailed {
+                        task_id: Arc::clone(&task_id),
+                        error: e.to_string(),
+                        duration_ms: duration.as_millis() as u64,
+                        error_code: Some(e.code().to_string()),
+                    });
+                    return IterationResult {
+                        store_id: task_id,
+                        result: TaskResult::failed(e.to_string(), duration),
+                        for_each_info,
+                    };
+                }
             }
         }
-        lower_output(resolved_output)
-    });
+        Some(lower_output(resolved_output))
+    } else {
+        None
+    };
 
     // Bridge structured: config to OutputPolicy for executor Layer 0 dispatch.
     // If both output: and structured: are set, output: takes precedence (already lowered).
@@ -312,16 +361,12 @@ pub(crate) async fn execute_task_iteration(
         // Standard execution with optional task-level retry.
         // Fetch handles retry internally (HTTP 5xx backoff) — skip runner retry.
         let is_fetch = matches!(lowered_action, TaskAction::Fetch { .. });
-        let task_retry = if !is_fetch { task.retry.as_ref() } else { None };
-        // Resolve retry templates using bindings + datastore
-        let resolved_retry = task_retry
-            .map(|r| {
-                crate::runtime::resolve_typed::resolve_retry(r, &bindings, &datastore)
-            })
-            .transpose()
-            .ok()
-            .flatten();
-        let effective_retry = resolved_retry.as_ref().or(task_retry);
+        // Reuse resolved retry from pre-lowering (already error-checked above)
+        let effective_retry = if !is_fetch {
+            effective_retry_for_lower.as_ref()
+        } else {
+            None
+        };
         let max_attempts = effective_retry
             .map_or(1u32, |r| r.max_attempts.value().unwrap_or(3).max(1));
 
