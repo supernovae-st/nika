@@ -7,10 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.76.0 — LAUNCH READY                                              ║
-║  Auth L2/L3 + PostgreSQL + Hardening | 10,434 tests | 12 fixes            ║
+║  NIKA v0.77.0 — HARDENED                                                  ║
+║  Auth scope enforcement + PG hardening + 5 editors | 10,435 tests         ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.77.0] — 2026-04-07
+
+### Added
+- **5 editor integrations** — Zed (WASM, LSP + MCP Context Server), Neovim (Lua plugin, 6 keymaps), Helix (TOML + Tree-sitter), shared keyword database, sync automation
+- **Editor sync CI** — `.github/workflows/editor-sync.yml` validates keyword consistency on PRs
+
+### Fixed
+- Auth scope enforcement on all 10 endpoints (status, cancel, jobs, workflows, artifacts, events, batch, reload)
+- Batch scope pre-check in pass 1 (prevents orphaned jobs)
+- Scoped pagination loop — correct `has_more` and offset semantics for filtered tokens
+- Negative offset/limit clamped (prevents usize overflow and degenerate DB queries)
+- PostgreSQL: safe UNIQUE INDEX migration (dedup before index creation)
+- PostgreSQL: credential redaction in error messages
+- PostgreSQL: transactional `add_artifacts`, TLS warning, schema versioning
+- Real path traversal integration test (replaced no-op unit test)
+
+### Status
+- 10,435 tests GREEN, 547K LOC, 17 crates
+- 17 hardening commits since v0.76.0
+- 5 editor integrations committed
 
 ## [0.76.0] — 2026-04-07
 
