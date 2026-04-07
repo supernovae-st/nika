@@ -1659,4 +1659,29 @@ mod tests {
             .iter()
             .all(|j| j["workflow"].as_str().unwrap().starts_with("project-a/")));
     }
+
+    #[tokio::test]
+    async fn list_jobs_negative_offset_limit_returns_200() {
+        let (app, state, token, _dir) =
+            test_app_multikey("*", nika_storage::Role::Operator).await;
+
+        create_test_job(&state.storage, "test.nika.yaml").await;
+
+        // Negative offset and limit should be clamped, not cause 500
+        let req = Request::builder()
+            .method("GET")
+            .uri("/v1/jobs?limit=-5&offset=-10")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        // Clamped: limit=1, offset=0 → 1 job, has_more=false
+        assert_eq!(json["count"].as_u64().unwrap(), 1);
+    }
 }

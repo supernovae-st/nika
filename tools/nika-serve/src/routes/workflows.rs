@@ -477,8 +477,8 @@ pub async fn list_jobs(
         None
     };
 
-    let limit = query.limit.unwrap_or(50).min(100);
-    let offset = query.offset.unwrap_or(0);
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let offset = query.offset.unwrap_or(0).max(0);
 
     // When scope filtering is active, the DB doesn't know which rows pass the
     // scope filter. Two consequences:
