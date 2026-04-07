@@ -104,6 +104,14 @@ pub struct PostgresStorage {
 impl PostgresStorage {
     /// Connect to PostgreSQL and run schema migration.
     pub async fn connect(url: &str) -> StorageResult<Self> {
+        // Warn if TLS is not configured — production deployments should use sslmode=require
+        if !url.contains("sslmode") {
+            tracing::warn!(
+                "PostgreSQL URL has no sslmode parameter — connection is unencrypted. \
+                 Set sslmode=require for production."
+            );
+        }
+
         let pool = PgPoolOptions::new()
             .max_connections(10)
             .min_connections(2)
