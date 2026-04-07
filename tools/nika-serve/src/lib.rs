@@ -496,22 +496,21 @@ fn extract_schedule_value(header: &str) -> Option<serde_json::Value> {
     None
 }
 
-/// Reconcile YAML-declared schedules with the database.
-///
-/// Implements 5 rules:
-/// 1. YAML has schedule, DB doesn't → INSERT
-/// 2. YAML has schedule, DB cron differs → UPDATE
-/// 3. DB source="yaml", YAML removed → DELETE
-/// 4. DB source="cli", YAML removed → KEEP
-/// 5. YAML paused differs → update paused state
-async fn reconcile_yaml_schedules(
-    storage: &nika_storage::Storage,
-    workflows_dir: &std::path::Path,
-) {
-    use std::collections::HashMap;
+/// Parsed schedule entry from a YAML file (sync, no DB).
+struct YamlScheduleEntry {
+    name: String,
+    rel_path: String,
+    cron: String,
+    timezone: Option<String>,
+    paused: bool,
+    overlap: String,
+}
 
-    // Scan YAML files for schedule declarations
-    let mut yaml_schedules: HashMap<String, (String, bool)> = HashMap::new(); // name → (cron, paused)
+/// Scan workflow YAML files for schedule declarations (blocking I/O).
+///
+/// This is a pure sync function — safe to call from `spawn_blocking`.
+fn scan_yaml_schedule_entries(workflows_dir: &std::path::Path) -> Vec<YamlScheduleEntry> {
+    let mut entries = Vec::new();
     for path in collect_workflow_paths(workflows_dir) {
         let Ok(content) = std::fs::read_to_string(&path) else {
             continue;
@@ -532,8 +531,6 @@ async fn reconcile_yaml_schedules(
             }
         };
 
-        // Derive name from workflow path relative to workflows_dir.
-        // Use "::" as separator to avoid collision between "a/b.nika.yaml" and "a-b.nika.yaml".
         let rel = path
             .strip_prefix(workflows_dir)
             .unwrap_or(&path)
@@ -544,17 +541,55 @@ async fn reconcile_yaml_schedules(
             .trim_end_matches(".nika.yml")
             .replace('/', "::");
 
-        // Use config.paused from the parser (not raw text scan which can false-positive on comments)
-        let paused = config.paused;
-        yaml_schedules.insert(name.clone(), (config.cron.clone(), paused));
+        entries.push(YamlScheduleEntry {
+            name,
+            rel_path: rel,
+            cron: config.cron,
+            timezone: config.timezone,
+            paused: config.paused,
+            overlap: config.overlap.to_string(),
+        });
+    }
+    entries
+}
+
+/// Reconcile YAML-declared schedules with the database.
+///
+/// Implements 5 rules:
+/// 1. YAML has schedule, DB doesn't → INSERT
+/// 2. YAML has schedule, DB cron differs → UPDATE
+/// 3. DB source="yaml", YAML removed → DELETE
+/// 4. DB source="cli", YAML removed → KEEP
+/// 5. YAML paused differs → update paused state
+async fn reconcile_yaml_schedules(
+    storage: &nika_storage::Storage,
+    workflows_dir: &std::path::Path,
+) {
+    use std::collections::HashMap;
+
+    // Phase 1: blocking file scan off the async runtime
+    let dir = workflows_dir.to_path_buf();
+    let yaml_entries = tokio::task::spawn_blocking(move || scan_yaml_schedule_entries(&dir))
+        .await
+        .unwrap_or_default();
+
+    // Phase 2: async DB reconciliation
+    let mut yaml_schedules: HashMap<String, (String, bool)> = HashMap::new();
+    for entry in &yaml_entries {
+        yaml_schedules.insert(entry.name.clone(), (entry.cron.clone(), entry.paused));
+    }
+
+    for entry in &yaml_entries {
+        let name = &entry.name;
+        let config_cron = &entry.cron;
+        let paused = entry.paused;
 
         // Rule 1 & 2: check DB
-        match storage.get_schedule_by_name(&name).await {
+        match storage.get_schedule_by_name(name).await {
             Ok(Some(existing)) => {
                 // Rule 2: cron or paused changed → update
-                if existing.cron_expr != config.cron || existing.paused != paused {
-                    let next_run = config
-                        .cron
+                if existing.cron_expr != *config_cron || existing.paused != paused {
+                    let next_run = config_cron
                         .parse::<croner::Cron>()
                         .ok()
                         .and_then(|c| c.find_next_occurrence(&chrono::Utc::now(), false).ok())
@@ -562,7 +597,7 @@ async fn reconcile_yaml_schedules(
                     if let Err(e) = storage
                         .update_schedule_cron(
                             &existing.id,
-                            &config.cron,
+                            config_cron,
                             next_run.as_deref(),
                             paused,
                         )
@@ -570,7 +605,7 @@ async fn reconcile_yaml_schedules(
                     {
                         tracing::warn!(name = %name, error = %e, "reconcile: update failed");
                     } else {
-                        info!(name = %name, cron = %config.cron, "reconcile: updated schedule");
+                        info!(name = %name, cron = %config_cron, "reconcile: updated schedule");
                     }
                 }
             }
@@ -578,8 +613,7 @@ async fn reconcile_yaml_schedules(
                 // Rule 1: insert new schedule
                 let id = uuid::Uuid::new_v4().to_string();
                 let now = chrono::Utc::now();
-                let next_run = config
-                    .cron
+                let next_run = config_cron
                     .parse::<croner::Cron>()
                     .ok()
                     .and_then(|c| c.find_next_occurrence(&now, false).ok())
@@ -587,12 +621,15 @@ async fn reconcile_yaml_schedules(
                 let sched = nika_storage::CronSchedule {
                     id,
                     name: name.clone(),
-                    workflow: rel.clone(),
-                    cron_expr: config.cron.clone(),
-                    timezone: config.timezone.unwrap_or_else(|| "UTC".to_string()),
+                    workflow: entry.rel_path.clone(),
+                    cron_expr: config_cron.clone(),
+                    timezone: entry
+                        .timezone
+                        .clone()
+                        .unwrap_or_else(|| "UTC".to_string()),
                     paused,
                     source: "yaml".to_string(),
-                    overlap: config.overlap.to_string(),
+                    overlap: entry.overlap.clone(),
                     inputs_json: None,
                     last_run_at: None,
                     next_run_at: next_run,
@@ -604,7 +641,7 @@ async fn reconcile_yaml_schedules(
                 if let Err(e) = storage.insert_schedule(sched).await {
                     tracing::warn!(name = %name, error = %e, "reconcile: insert failed");
                 } else {
-                    info!(name = %name, cron = %config.cron, "reconcile: registered YAML schedule");
+                    info!(name = %name, cron = %config_cron, "reconcile: registered YAML schedule");
                 }
             }
             Err(e) => {
