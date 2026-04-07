@@ -683,6 +683,8 @@ mod tests {
             // Cost/Records (need EventLog/Datastore)
             "cost",
             "records",
+            // Agent (need PolicyEnforcer/EventLog)
+            "fetch",
             // Media always-on (need MediaToolContext)
             "import",
             "decode",

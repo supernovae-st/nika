@@ -14,6 +14,7 @@
 ///   json_flatten, json_unflatten
 /// - Introspection (4): dag_info, task_status, threads, orchestrate
 /// - Cost/Records (2): cost, records
+/// - Agent (1): fetch
 /// - Media always-on (5): import, decode, dimensions, thumbhash, dominant_color
 /// - Media core (3): thumbnail, convert, strip
 /// - Media opt-in (17): metadata, optimize, svg_render, chart, phash, compare,
@@ -63,6 +64,8 @@ pub static KNOWN_BUILTIN_TOOLS: &[&str] = &[
     // Cost / Records (2)
     "cost",
     "records",
+    // Agent (1)
+    "fetch",
     // Media always-on (5)
     "import",
     "decode",
@@ -104,8 +107,8 @@ mod tests {
 
     #[test]
     fn test_known_builtins_count() {
-        // 7 + 5 + 13 + 6 + 4 + 2 + 5 + 3 + 17 = 62
-        assert_eq!(KNOWN_BUILTIN_TOOLS.len(), 62);
+        // 7 + 5 + 13 + 6 + 4 + 2 + 1 + 5 + 3 + 17 = 63
+        assert_eq!(KNOWN_BUILTIN_TOOLS.len(), 63);
     }
 
     #[test]
