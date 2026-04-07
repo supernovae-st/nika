@@ -1934,6 +1934,7 @@ fn validate_task_keys(
         "fail_fast",
         "timeout",
         "when",
+        "trust",
         "on_error",
         "guardrails",
         // 5 verb keys
@@ -2163,6 +2164,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     // Parse context_budget: token limit for binding truncation
     let context_budget = get_u32_field(file_id, map, "context_budget")?;
     let when = get_string_field(file_id, map, "when")?;
+    let trust = get_string_field(file_id, map, "trust")?;
 
     // Parse on_error: config (task-level fallback routing)
     let on_error = match map.get_node("on_error") {
@@ -2236,6 +2238,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         record,
         context_budget,
         when,
+        trust,
         on_error,
         misplaced_llm_fields,
     };

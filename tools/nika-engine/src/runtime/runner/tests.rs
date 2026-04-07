@@ -180,6 +180,7 @@ fn create_for_each_workflow(
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -334,6 +335,7 @@ fn create_exec_workflow(tasks: Vec<(&str, &str)>, edges: Vec<(&str, &str)>) -> A
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             }
         })
@@ -1050,6 +1052,7 @@ fn create_two_step_for_each_workflow(
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -1102,6 +1105,7 @@ fn create_two_step_for_each_workflow(
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -2054,6 +2058,7 @@ fn make_infer_task(
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     }
 }
@@ -2102,6 +2107,7 @@ fn test_get_retry_config_none_for_exec_task() {
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
     assert!(
@@ -3396,6 +3402,7 @@ fn create_with_template_for_each_workflow(
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -3448,6 +3455,7 @@ fn create_with_template_for_each_workflow(
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -3711,6 +3719,7 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -3754,6 +3763,7 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -4002,6 +4012,7 @@ async fn test_exec_task_with_retry_runs_and_succeeds() {
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -4120,6 +4131,7 @@ async fn test_exec_task_with_retry_retries_on_failure() {
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -4229,6 +4241,7 @@ fn make_preset_workflow(
         preset: Some(preset_name.to_string()),
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -4419,6 +4432,7 @@ async fn test_multiple_tasks_different_presets() {
         preset: Some("speed".to_string()),
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -4451,6 +4465,7 @@ async fn test_multiple_tasks_different_presets() {
         preset: Some("think".to_string()),
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 
@@ -4603,6 +4618,7 @@ async fn test_record_shorthand_true_creates_record() {
         preset: None,
         routing: None,
         when: None,
+                trust_elevated: false,
         span: Span::dummy(),
     };
 

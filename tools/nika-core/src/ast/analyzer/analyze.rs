@@ -1298,6 +1298,21 @@ fn analyze_task(
             Some(s.value.clone())
         }),
         when: raw.when.as_ref().map(|s| s.value.clone()),
+        trust_elevated: match raw.trust.as_ref() {
+            Some(s) if s.value == "elevated" => true,
+            Some(s) => {
+                ctx.errors.push(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    s.span,
+                    format!(
+                        "invalid trust value '{}', expected 'elevated'",
+                        s.value
+                    ),
+                ));
+                false
+            }
+            None => false,
+        },
         span: raw.span,
     };
 

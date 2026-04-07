@@ -89,6 +89,9 @@ pub struct RawTask {
     /// If falsy (false, "false", "", null, 0), the task is skipped.
     pub when: Option<Spanned<String>>,
 
+    /// Nika Shield: trust elevation. Only valid value: "elevated".
+    pub trust: Option<Spanned<String>>,
+
     /// On-error fallback: `on_error: { ignore: true }` or `on_error: { fallback: task_id }`.
     pub on_error: Option<Spanned<serde_json::Value>>,
 

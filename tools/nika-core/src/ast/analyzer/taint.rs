@@ -509,6 +509,7 @@ mod tests {
             context_budget: None,
             routing: None,
             when: None,
+            trust_elevated: false,
             span: crate::source::Span::dummy(),
         }
     }

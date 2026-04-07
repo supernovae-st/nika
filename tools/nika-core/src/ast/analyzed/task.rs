@@ -103,6 +103,11 @@ pub struct AnalyzedTask {
     /// Template expression evaluated at runtime. If falsy, task is skipped.
     pub when: Option<String>,
 
+    /// Nika Shield: trust elevation flag.
+    /// When true, spotlighting and capability restrictions are bypassed for this task.
+    /// Only valid value in YAML: `trust: elevated`.
+    pub trust_elevated: bool,
+
     /// Span of the task
     pub span: Span,
 }
@@ -576,6 +581,7 @@ mod tests {
             context_budget: None,
             routing: None,
             when: None,
+            trust_elevated: false,
             span: Span::dummy(),
         };
 

@@ -712,6 +712,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             preset: task.preset.clone(),
             routing: None,
             when: None,
+                trust_elevated: false,
             span: Span::dummy(),
         });
     }
@@ -1024,6 +1025,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
+                trust_elevated: false,
             span: Span::dummy(),
         }
     }
@@ -1088,6 +1090,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
+                trust_elevated: false,
             description: None,
             span: Span::dummy(),
         });
