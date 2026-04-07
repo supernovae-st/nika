@@ -1821,6 +1821,7 @@ async fn main() {
                         .or_else(|| std::env::var("NIKA_SERVE_DB").ok())
                         .unwrap_or_else(|| ".nika/serve.db".into())
                         .into(),
+                    storage_url: std::env::var("NIKA_STORAGE_URL").ok(),
                     auth_token,
                     cors_origin: std::env::var("NIKA_SERVE_CORS_ORIGIN").ok(),
                     executor_mode: match std::env::var("NIKA_SERVE_EXECUTOR")

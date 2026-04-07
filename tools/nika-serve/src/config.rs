@@ -129,6 +129,11 @@ pub struct ServeConfig {
     /// Path to the SQLite database file for job persistence.
     pub db_path: PathBuf,
 
+    /// Optional PostgreSQL connection URL for multi-instance storage.
+    /// When set, overrides `db_path` (SQLite). Requires `postgres` feature.
+    /// Example: `postgresql://user:pass@host:5432/nika`
+    pub storage_url: Option<String>,
+
     /// Bearer token for Legacy auth mode (empty when multi-key tokens exist in DB).
     pub auth_token: String,
 
@@ -216,6 +221,8 @@ impl ServeConfig {
             .unwrap_or_else(|_| ".nika/serve.db".into())
             .into();
 
+        let storage_url = std::env::var("NIKA_STORAGE_URL").ok();
+
         let executor_raw =
             std::env::var("NIKA_SERVE_EXECUTOR").unwrap_or_else(|_| "embedded".into());
         let executor_mode = match executor_raw.as_str() {
@@ -261,6 +268,7 @@ impl ServeConfig {
             job_timeout_secs,
             max_output_bytes: 1024 * 1024, // 1 MB
             db_path,
+            storage_url,
             auth_token,
             cors_origin,
             executor_mode,

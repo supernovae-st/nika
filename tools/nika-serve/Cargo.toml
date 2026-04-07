@@ -9,6 +9,10 @@ rust-version.workspace = true
 description = "HTTP API server for Nika workflow engine"
 publish = true
 
+[features]
+default = []
+postgres = ["nika-storage/postgres"]
+
 [dependencies]
 nika-core = { workspace = true }
 nika-engine = { workspace = true }

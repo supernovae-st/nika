@@ -531,6 +531,7 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
+            storage_url: None,
             auth_token: "test-token-1234567890abcdef1234567".into(),
             cors_origin: None,
             executor_mode: crate::config::ExecutorMode::Embedded,

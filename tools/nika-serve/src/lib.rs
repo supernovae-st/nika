@@ -53,11 +53,34 @@ use crate::state::AppState;
 /// This is the main entry point called from `nika serve`.
 /// Blocks until the server receives a shutdown signal (SIGTERM/SIGINT).
 pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
-    // FIX-14: Prevent two nika serve instances sharing the same DB
-    let _db_lock = acquire_db_lock(&config.db_path)?;
+    // FIX-14: DB lock for SQLite (skipped for PostgreSQL which handles concurrency natively)
+    let _db_lock = if config.storage_url.is_none() {
+        Some(acquire_db_lock(&config.db_path)?)
+    } else {
+        None
+    };
 
-    // Open SQLite storage
-    let storage = nika_storage::Storage::open(&config.db_path)?;
+    // Open storage backend (PostgreSQL if URL set, otherwise SQLite)
+    let storage = if let Some(ref url) = config.storage_url {
+        #[cfg(feature = "postgres")]
+        {
+            info!(url = %url.split('@').last().unwrap_or("***"), "connecting to PostgreSQL");
+            nika_storage::Storage::connect_postgres(url)
+                .await
+                .map_err(|e| ServeError::Config(format!("PostgreSQL: {e}")))?
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = url;
+            return Err(ServeError::Config(
+                "NIKA_STORAGE_URL set but nika was built without the 'postgres' feature. \
+                 Rebuild with: cargo build --features postgres"
+                    .into(),
+            ));
+        }
+    } else {
+        nika_storage::Storage::open(&config.db_path)?
+    };
 
     // Reset any jobs stuck in "running" from a previous crash (ERRATA-10)
     let reset_count = storage.reset_stale_running("Server restarted").await?;
@@ -793,6 +816,7 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
+            storage_url: None,
             auth_token: "test-token-1234567890abcdef1234567".into(), // >=32 chars
             cors_origin: None,
             executor_mode: config::ExecutorMode::Embedded,
@@ -994,6 +1018,7 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
+            storage_url: None,
             auth_token: "test-token-1234567890abcdef1234567".into(),
             cors_origin: None,
             executor_mode: config::ExecutorMode::Embedded,
@@ -1258,6 +1283,7 @@ mod tests {
             job_timeout_secs: 60,
             max_output_bytes: 1024,
             db_path: std::path::PathBuf::from(":memory:"),
+            storage_url: None,
             auth_token: String::new(),
             cors_origin: None,
             executor_mode: config::ExecutorMode::Embedded,
