@@ -189,11 +189,4 @@ pub async fn download_artifact(
         .into_response())
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn path_traversal_rejected() {
-        assert!("../etc/passwd".contains(".."));
-        assert!("/etc/passwd".starts_with('/'));
-    }
-}
+// Integration tests for artifact endpoints are in lib.rs (test_app_multikey harness).

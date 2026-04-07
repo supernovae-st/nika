@@ -1684,4 +1684,23 @@ mod tests {
         // Clamped: limit=1, offset=0 → 1 job, has_more=false
         assert_eq!(json["count"].as_u64().unwrap(), 1);
     }
+
+    #[tokio::test]
+    async fn artifact_download_path_traversal_rejected() {
+        let (app, state, token, _dir) =
+            test_app_multikey("*", nika_storage::Role::Operator).await;
+
+        let job_id = create_test_job(&state.storage, "test.nika.yaml").await;
+
+        // Path traversal via URL-encoded ".." (%2e%2e) — reaches the handler
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("/v1/jobs/{job_id}/artifacts/%2e%2e%2fetc%2fpasswd"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // PathTraversal guard in handler checks for ".." in decoded name → 400
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
 }
