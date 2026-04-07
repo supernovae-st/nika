@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS job_artifacts (
     content_type TEXT NOT NULL DEFAULT 'text/plain'
 );
 CREATE INDEX IF NOT EXISTS idx_artifacts_job ON job_artifacts(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_unique ON job_artifacts(job_id, name);
 
 CREATE TABLE IF NOT EXISTS checkpoints (
     job_id TEXT NOT NULL,
