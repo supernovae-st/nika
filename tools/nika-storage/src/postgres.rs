@@ -461,6 +461,12 @@ impl PostgresStorage {
         job_id: &str,
         artifacts: &[JobArtifact],
     ) -> StorageResult<()> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| StorageError::Other(format!("add_artifacts begin: {e}")))?;
+
         for a in artifacts {
             query(
                 "INSERT INTO job_artifacts (job_id, name, path, size, format, checksum, content_type) \
@@ -476,10 +482,14 @@ impl PostgresStorage {
             .bind(&a.format)
             .bind(&a.checksum)
             .bind(&a.content_type)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(|e| StorageError::Other(format!("add_artifacts: {e}")))?;
         }
+
+        tx.commit()
+            .await
+            .map_err(|e| StorageError::Other(format!("add_artifacts commit: {e}")))?;
         Ok(())
     }
 
