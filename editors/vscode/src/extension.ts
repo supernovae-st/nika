@@ -111,7 +111,7 @@ export function activate(context: ExtensionContext): void {
 
   // Restore DAG panels across VS Code restarts
   context.subscriptions.push(
-    vscode.window.registerWebviewPanelSerializer(
+    window.registerWebviewPanelSerializer(
       DagPanel.viewType,
       new DagPanelSerializer(context.extensionUri),
     ),
