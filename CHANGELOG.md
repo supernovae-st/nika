@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.74.0 — SCHEDULING COMPLETE + 7 BUG FIXES                         ║
-║  AST pipeline | overlap policies | serve reconciliation | timezone fix     ║
+║  NIKA v0.75.0 — FINAL STABILIZATION                                       ║
+║  16 fixes | 10,411 tests | CI v8 | serve hardening | artifact collision    ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.75.0] — 2026-04-07
+
+See detailed changelog: [`tools/nika/CHANGELOG.md`](tools/nika/CHANGELOG.md)
 
 ## [0.74.0] — 2026-04-06
 
