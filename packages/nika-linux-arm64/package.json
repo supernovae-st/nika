@@ -1,6 +1,6 @@
 {
   "name": "@supernovae-st/nika-linux-arm64",
-  "version": "0.77.0",
+  "version": "0.78.0",
   "description": "Nika binary for Linux ARM64",
   "license": "AGPL-3.0-or-later",
   "repository": {
