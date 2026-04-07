@@ -278,17 +278,13 @@ impl PostgresStorage {
     // ═══════════════════════════════════════════════════════════════════
 
     pub async fn increment_retry(&self, id: &str) -> StorageResult<u32> {
-        query("UPDATE jobs SET retry_count = retry_count + 1 WHERE id = $1")
-            .bind(id)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| StorageError::Other(format!("increment_retry update: {e}")))?;
-
-        let row = query("SELECT retry_count FROM jobs WHERE id = $1")
-            .bind(id)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| StorageError::Other(format!("increment_retry select: {e}")))?;
+        let row = query(
+            "UPDATE jobs SET retry_count = retry_count + 1 WHERE id = $1 RETURNING retry_count",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| StorageError::Other(format!("increment_retry: {e}")))?;
 
         let count: i32 = row.get("retry_count");
         Ok(count as u32)
