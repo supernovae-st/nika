@@ -378,7 +378,13 @@ enum DbCommand {
 /// This avoids blocking the tokio runtime with synchronous SQLite calls.
 #[derive(Clone)]
 pub struct Storage {
-    tx: mpsc::Sender<DbCommand>,
+    inner: StorageInner,
+}
+
+/// Backend dispatch enum — currently only SQLite, prepared for PostgreSQL.
+#[derive(Clone)]
+enum StorageInner {
+    Sqlite { tx: mpsc::Sender<DbCommand> },
 }
 
 impl Storage {
@@ -399,7 +405,9 @@ impl Storage {
             })
             .map_err(|e| StorageError::Other(format!("failed to spawn DB thread: {e}")))?;
 
-        Ok(Self { tx })
+        Ok(Self {
+            inner: StorageInner::Sqlite { tx },
+        })
     }
 
     /// Open an in-memory database (for testing).
@@ -415,37 +423,48 @@ impl Storage {
             })
             .map_err(|e| StorageError::Other(format!("failed to spawn DB thread: {e}")))?;
 
-        Ok(Self { tx })
+        Ok(Self {
+            inner: StorageInner::Sqlite { tx },
+        })
     }
 
     pub async fn insert_job(&self, job: Job) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::InsertJob { job, reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::InsertJob { job, reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn get_job(&self, id: &str) -> StorageResult<Option<Job>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::GetJob {
-                id: id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::GetJob {
+                    id: id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn list_jobs(&self, state: Option<JobState>) -> StorageResult<Vec<Job>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ListJobs { state, reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ListJobs { state, reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn update_state(
@@ -455,64 +474,79 @@ impl Storage {
         exit_code: Option<i32>,
         output: Option<String>,
     ) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::UpdateState {
-                id: id.to_string(),
-                state,
-                exit_code,
-                output,
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::UpdateState {
+                    id: id.to_string(),
+                    state,
+                    exit_code,
+                    output,
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn add_history(&self, event: JobHistoryEvent) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::AddHistory { event, reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::AddHistory { event, reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn get_history(&self, job_id: &str) -> StorageResult<Vec<JobHistoryEvent>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::GetHistory {
-                job_id: job_id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::GetHistory {
+                    job_id: job_id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn increment_retry(&self, id: &str) -> StorageResult<u32> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::IncrementRetry {
-                id: id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::IncrementRetry {
+                    id: id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// List jobs for a specific workflow file, ordered by most recent first.
     pub async fn list_jobs_for_workflow(&self, workflow: &str) -> StorageResult<Vec<Job>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ListJobsForWorkflow {
-                workflow: workflow.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ListJobsForWorkflow {
+                    workflow: workflow.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -521,12 +555,15 @@ impl Storage {
 
     /// List jobs with filtering (state, workflow, tag, limit, offset).
     pub async fn list_jobs_filtered(&self, filter: JobFilter) -> StorageResult<Vec<Job>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ListJobsFiltered { filter, reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ListJobsFiltered { filter, reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Create a new pending job.
@@ -576,15 +613,18 @@ impl Storage {
     ///
     /// Returns the number of jobs that were reset.
     pub async fn reset_stale_running(&self, reason: &str) -> StorageResult<u64> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ResetStaleRunning {
-                reason: reason.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ResetStaleRunning {
+                    reason: reason.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Store artifacts produced by a job.
@@ -593,16 +633,19 @@ impl Storage {
         job_id: &str,
         artifacts: Vec<JobArtifact>,
     ) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::AddArtifacts {
-                job_id: job_id.to_string(),
-                artifacts,
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::AddArtifacts {
+                    job_id: job_id.to_string(),
+                    artifacts,
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Save a task checkpoint (upsert).
@@ -612,56 +655,68 @@ impl Storage {
         task_id: &str,
         output: &str,
     ) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::SaveCheckpoint {
-                job_id: job_id.to_string(),
-                task_id: task_id.to_string(),
-                output: output.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::SaveCheckpoint {
+                    job_id: job_id.to_string(),
+                    task_id: task_id.to_string(),
+                    output: output.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Load all checkpoints for a job.
     pub async fn load_checkpoints(&self, job_id: &str) -> StorageResult<Vec<Checkpoint>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::LoadCheckpoints {
-                job_id: job_id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::LoadCheckpoints {
+                    job_id: job_id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Delete all checkpoints for a job.
     pub async fn delete_checkpoints(&self, job_id: &str) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::DeleteCheckpoints {
-                job_id: job_id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::DeleteCheckpoints {
+                    job_id: job_id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// List artifacts for a job.
     pub async fn list_artifacts(&self, job_id: &str) -> StorageResult<Vec<JobArtifact>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ListArtifacts {
-                job_id: job_id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ListArtifacts {
+                    job_id: job_id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Delete completed/failed/cancelled jobs older than `max_age_secs`.
@@ -669,15 +724,18 @@ impl Storage {
     /// Also deletes associated job_history entries.
     /// Returns the number of jobs deleted.
     pub async fn delete_old_jobs(&self, max_age_secs: u64) -> StorageResult<u64> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::DeleteOldJobs {
-                max_age_secs,
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::DeleteOldJobs {
+                    max_age_secs,
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -685,73 +743,91 @@ impl Storage {
     // ═══════════════════════════════════════════════════════════════════
 
     pub async fn insert_schedule(&self, schedule: CronSchedule) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::InsertSchedule { schedule, reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::InsertSchedule { schedule, reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn get_schedule(&self, id: &str) -> StorageResult<Option<CronSchedule>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::GetSchedule {
-                id: id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::GetSchedule {
+                    id: id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn get_schedule_by_name(&self, name: &str) -> StorageResult<Option<CronSchedule>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::GetScheduleByName {
-                name: name.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::GetScheduleByName {
+                    name: name.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn list_schedules(&self, enabled_only: bool) -> StorageResult<Vec<CronSchedule>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ListSchedules {
-                enabled_only,
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ListSchedules {
+                    enabled_only,
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn update_schedule_enabled(&self, id: &str, enabled: bool) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::UpdateScheduleEnabled {
-                id: id.to_string(),
-                enabled,
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::UpdateScheduleEnabled {
+                    id: id.to_string(),
+                    enabled,
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn delete_schedule(&self, id: &str) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::DeleteSchedule {
-                id: id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::DeleteSchedule {
+                    id: id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn update_schedule_after_fire(
@@ -761,18 +837,21 @@ impl Storage {
         next_run_at: Option<&str>,
         last_job_id: &str,
     ) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::UpdateScheduleAfterFire {
-                id: id.to_string(),
-                last_run_at: last_run_at.to_string(),
-                next_run_at: next_run_at.map(|s| s.to_string()),
-                last_job_id: last_job_id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::UpdateScheduleAfterFire {
+                    id: id.to_string(),
+                    last_run_at: last_run_at.to_string(),
+                    next_run_at: next_run_at.map(|s| s.to_string()),
+                    last_job_id: last_job_id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     /// Update a schedule's cron expression, next_run_at, and paused state.
@@ -784,95 +863,119 @@ impl Storage {
         next_run_at: Option<&str>,
         paused: bool,
     ) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::UpdateScheduleCron {
-                id: id.to_string(),
-                cron_expr: cron_expr.to_string(),
-                next_run_at: next_run_at.map(|s| s.to_string()),
-                paused,
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::UpdateScheduleCron {
+                    id: id.to_string(),
+                    cron_expr: cron_expr.to_string(),
+                    next_run_at: next_run_at.map(|s| s.to_string()),
+                    paused,
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     // ── Token methods ─────────────────────────────────────────────────
 
     pub async fn insert_token(&self, entry: TokenEntry) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::InsertToken { entry, reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::InsertToken { entry, reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn get_token_by_hash(&self, hash: &[u8]) -> StorageResult<Option<TokenEntry>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::GetTokenByHash {
-                hash: hash.to_vec(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::GetTokenByHash {
+                    hash: hash.to_vec(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn get_token_by_name(&self, name: &str) -> StorageResult<Option<TokenEntry>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::GetTokenByName {
-                name: name.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::GetTokenByName {
+                    name: name.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn list_tokens(&self) -> StorageResult<Vec<TokenEntry>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::ListTokens { reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::ListTokens { reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn revoke_token(&self, id: &str) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::RevokeToken {
-                id: id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::RevokeToken {
+                    id: id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn touch_token(&self, id: &str) -> StorageResult<()> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::TouchToken {
-                id: id.to_string(),
-                reply,
-            })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::TouchToken {
+                    id: id.to_string(),
+                    reply,
+                })
+                .await
+                .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 
     pub async fn count_tokens(&self) -> StorageResult<u64> {
-        let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(DbCommand::CountTokens { reply })
-            .await
-            .map_err(|_| StorageError::ChannelClosed)?;
-        rx.await.map_err(|_| StorageError::ChannelClosed)?
+        match &self.inner {
+            StorageInner::Sqlite { tx } => {
+                let (reply, rx) = oneshot::channel();
+                tx.send(DbCommand::CountTokens { reply })
+                    .await
+                    .map_err(|_| StorageError::ChannelClosed)?;
+                rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+        }
     }
 }
 
