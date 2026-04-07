@@ -62,6 +62,9 @@ pub mod lsp;
 
 // ── Public API re-exports ────────────────────────────────────
 
+// Trust system (Nika Shield) — re-export from nika-core
+pub use nika_core::trust;
+
 // Source tracking
 pub use source::{ByteOffset, FileId, SourceFile, SourceRegistry, Span, Spanned};
 
