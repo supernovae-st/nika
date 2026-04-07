@@ -202,9 +202,10 @@ impl Role {
 
     pub fn parse(s: &str) -> Self {
         match s {
+            "operator" => Self::Operator,
             "viewer" => Self::Viewer,
             "admin" => Self::Admin,
-            _ => Self::Operator,
+            _ => Self::Viewer,
         }
     }
 }
@@ -3021,7 +3022,7 @@ mod tests {
         assert_eq!(Role::parse("operator"), Role::Operator);
         assert_eq!(Role::parse("viewer"), Role::Viewer);
         assert_eq!(Role::parse("admin"), Role::Admin);
-        assert_eq!(Role::parse("unknown"), Role::Operator); // default
+        assert_eq!(Role::parse("unknown"), Role::Viewer); // default: least privilege
         assert_eq!(Role::Operator.as_str(), "operator");
         assert_eq!(Role::Viewer.as_str(), "viewer");
         assert_eq!(Role::Admin.as_str(), "admin");
