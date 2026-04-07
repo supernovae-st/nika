@@ -88,7 +88,7 @@ include:                           # Include partial workflows (tasks merged int
 - **Inputs**: `{{inputs.param}}` for workflow parameters
 - **Context files**: `{{context.readme}}` for loaded file content
 
-## Pipe Transforms (38 available)
+## Pipe Transforms (64 available)
 
 **String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`
 **Array**: `first`, `last`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
@@ -247,7 +247,7 @@ Use `content:` array instead of `prompt:` for images:
 ```
 
 **Tool naming rules:**
-- `nika:tool_name` — 62 builtin tools (always available, no server needed)
+- `nika:tool_name` — 63 builtin tools (always available, no server needed)
 - `server::tool_name` — MCP server tools (double colon `::`, server must be running)
 - `mcp: server` + `tool: name` — split form (equivalent to `server::name`)
 - Short form for builtins: `invoke: "nika:thumbnail"`
@@ -379,18 +379,18 @@ Binary artifact (media pipeline):
     format: binary                     # Store raw CAS bytes directly
 ```
 
-## 62 Builtin Tools (nika:*)
+## 63 Builtin Tools (nika:*)
 
 **Core (7)**: `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`, `nika:complete`
 **File (5)**: `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
 **Introspection (6)**: `nika:dag_info`, `nika:task_status`, `nika:threads`, `nika:orchestrate`, `nika:cost`, `nika:records`
-**Data (13)**: `nika:json_merge`, `nika:set_diff`, `nika:zip`, `nika:map`, `nika:filter`, `nika:group_by`, `nika:chunk`, `nika:token_count`, `nika:enrich`, `nika:jq`, `nika:tree_data`, `nika:inject`, `nika:json_query`†
+**Data (13)**: `nika:json_merge`, `nika:json_diff`, `nika:set_diff`, `nika:zip`, `nika:map`, `nika:filter`, `nika:group_by`, `nika:chunk`, `nika:token_count`, `nika:enrich`, `nika:jq`, `nika:tree_data`, `nika:inject`
 **Data Sprint 2 (6)**: `nika:json_verify`, `nika:yaml_validate`, `nika:locale_lookup`, `nika:aggregate`, `nika:json_flatten`, `nika:json_unflatten`
 **Media always-on (5)**: `nika:import`, `nika:decode`, `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`
 **Media core (3)**: `nika:thumbnail`, `nika:convert`, `nika:strip`
 **Media opt-in (17)**: `nika:metadata`, `nika:optimize`, `nika:svg_render`, `nika:chart`, `nika:phash`, `nika:compare`, `nika:pdf_extract`, `nika:provenance`, `nika:verify`, `nika:qr_validate`, `nika:quality`, `nika:html_to_md`, `nika:css_select`, `nika:extract_metadata`, `nika:extract_links`, `nika:readability`, `nika:pipeline`
 
-† `nika:json_query` is deprecated — use `nika:jq` instead
+**Agent (1)**: `nika:fetch`
 
 ## Pipeline Patterns
 

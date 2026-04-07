@@ -3,7 +3,7 @@
 //! Pipeline transforms applied to binding values.
 //! Transforms are chained with `|` pipes: `sort | unique | first(3)`
 //!
-//! # Categories (63 transforms)
+//! # Categories (64 transforms)
 //!
 //! | Category | Ops |
 //! |----------|-----|

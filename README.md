@@ -310,7 +310,7 @@ tasks:
     infer: "First user: {{with.name | upper | trim}}"
 ```
 
-**63 pipe transforms**: `upper`, `lower`, `trim`, `join(",")`, `split(",")`, `sort`, `unique`, `flatten`, `first`, `last`, `length`, `to_json`, `parse_json`, `default("x")`, `pluck(field)`, `where(field, val)`, `sort_by(field)`, `pick(f1,f2)`, `omit(f1,f2)`, `jq(expr)`, `regex(pattern)`, and [40+ more](docs/transforms.md).
+**64 pipe transforms**: `upper`, `lower`, `trim`, `join(",")`, `split(",")`, `sort`, `unique`, `flatten`, `first`, `last`, `length`, `to_json`, `parse_json`, `parse_yaml`, `default("x")`, `pluck(field)`, `where(field, val)`, `sort_by(field)`, `pick(f1,f2)`, `omit(f1,f2)`, `jq(expr)`, `regex(pattern)`, and [40+ more](docs/transforms.md).
 
 **Parallel loops** with `for_each` + `concurrency`:
 
