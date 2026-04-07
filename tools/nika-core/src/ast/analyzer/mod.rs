@@ -54,6 +54,7 @@
 mod analyze;
 mod errors;
 pub mod suggestions;
+pub mod taint;
 
 pub use analyze::{analyze, validate};
 pub use errors::{
