@@ -357,6 +357,22 @@ default = "anthropic"
     // Cline: .clinerules
     write_if_absent(&root.join(".clinerules"), &rules::assemble_cline_rules())?;
 
+    // Amazon Q: .amazonq/rules/nika.rule.md
+    let amazonq_dir = root.join(".amazonq").join("rules");
+    fs::create_dir_all(&amazonq_dir).ok();
+    write_if_absent(
+        &amazonq_dir.join("nika.rule.md"),
+        &rules::assemble_amazonq_rules(),
+    )?;
+
+    // JetBrains AI: .aiassistant/rules/nika.md
+    let jetbrains_dir = root.join(".aiassistant").join("rules");
+    fs::create_dir_all(&jetbrains_dir).ok();
+    write_if_absent(
+        &jetbrains_dir.join("nika.md"),
+        &rules::assemble_jetbrains_rules(),
+    )?;
+
     // Claude Code: .claude/settings.json with hooks + permissions
     let claude_dir = root.join(".claude");
     fs::create_dir_all(&claude_dir).ok();

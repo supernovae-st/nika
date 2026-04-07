@@ -19,7 +19,7 @@ The prompt MUST be **natural language** — NEVER mention JSON or the schema in 
     repair_model: claude-haiku-4-5
 ```
 
-**5 layers**: L0 tool injection (provider-native) → L2 extract+validate → L3 retry with feedback → L4 LLM repair.
+**5 layers**: L0 tool injection (provider-native) → L1 rig extractor → L2 JSON validation → L3 retry with feedback → L4 LLM repair.
 
 Result: valid JSON matching the schema. Same result on ALL providers.
 

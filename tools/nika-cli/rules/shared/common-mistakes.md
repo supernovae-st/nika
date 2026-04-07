@@ -21,6 +21,7 @@
 | `echo {{with.val}}` with `shell: true` | `echo {{with.val \| shell}}` (NIKA-053) |
 | `provider: native` for vision | GGUF is text-only — use cloud provider |
 | `provider: deepseek` for vision | DeepSeek doesn't support vision |
+| `retry: { max_retries: N }` | `retry: { max_attempts: N }` — `max_retries` is for `structured:` only |
 
 ## Key Error Codes
 
@@ -28,10 +29,13 @@
 |------|---------|
 | NIKA-010 | Schema validation error |
 | NIKA-020 | DAG cycle detected |
+| NIKA-026 | Dependency chain failed (upstream task failed) |
 | NIKA-041 | Template resolution error |
 | NIKA-045 | Fetch error (SSRF blocked, timeout) |
 | NIKA-053 | Blocked command (security) |
 | NIKA-071 | Unknown alias in `{{with.alias}}` |
+| NIKA-072 | Null value at path — guard with `default()` |
 | NIKA-100 | MCP connection error |
+| NIKA-112 | Agent guardrail violation |
 | NIKA-270 | Skill file not found |
 | NIKA-300 | Structured output validation failed |

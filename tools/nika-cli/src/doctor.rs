@@ -856,8 +856,10 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
     // ─── User-level rules [user] — installed by `nika setup` ─────────────
     let user_rules: &[(&str, &str)] = &[
         ("Claude Code", ".claude/rules/nika.md"),
-        // Multi-file cursor: check the project layer (always loaded)
-        ("Cursor", ".cursor/rules/nika-project.mdc"),
+        // Multi-file cursor: check all 3 layers
+        ("Cursor (project)", ".cursor/rules/nika-project.mdc"),
+        ("Cursor (syntax)", ".cursor/rules/nika-syntax.mdc"),
+        ("Cursor (reference)", ".cursor/rules/nika-reference.mdc"),
         ("Copilot", ".github/copilot-instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
         ("Roo Code", ".roo/rules/nika.md"),
