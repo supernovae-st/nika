@@ -94,10 +94,6 @@ impl NikaBackend {
         #[cfg(unix)]
         let daemon: Arc<dyn DaemonProvider> = {
             let bridge = Arc::new(DaemonBridge::disconnected());
-            let b = bridge.clone();
-            tokio::spawn(async move {
-                b.reconnect().await;
-            });
             DaemonBridge::spawn_reconnect_loop(bridge.clone());
             bridge
         };

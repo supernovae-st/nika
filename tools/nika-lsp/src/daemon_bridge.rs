@@ -317,9 +317,14 @@ impl DaemonBridge {
     }
 
     /// Spawn a background reconnection task using the always-valid bridge.
+    ///
+    /// Does an immediate first attempt, then enters an exponential-backoff loop.
     pub fn spawn_reconnect_loop(bridge: Arc<DaemonBridge>) {
         #[cfg(unix)]
         tokio::spawn(async move {
+            // Immediate first attempt — no delay
+            bridge.reconnect().await;
+
             let mut delay = RECONNECT_INITIAL;
             loop {
                 tokio::time::sleep(delay).await;
