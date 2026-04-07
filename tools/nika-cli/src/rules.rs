@@ -77,9 +77,7 @@ pub fn assemble_windsurf_rules() -> String {
 /// Assemble Roo Code rules (~/.roo/rules/nika.md).
 /// Identity + verbs + data flow + mistakes.
 pub fn assemble_roo_rules() -> String {
-    format!(
-        "# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{COMMON_MISTAKES}\n"
-    )
+    format!("# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{COMMON_MISTAKES}\n")
 }
 
 /// Assemble Gemini CLI rules (~/.gemini/GEMINI.md).
@@ -109,9 +107,7 @@ pub fn assemble_jetbrains_rules() -> String {
 /// Assemble Cline rules (.clinerules).
 /// Plain text, no extension — identity + verbs + data flow + mistakes.
 pub fn assemble_cline_rules() -> String {
-    format!(
-        "# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{COMMON_MISTAKES}\n"
-    )
+    format!("# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{COMMON_MISTAKES}\n")
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
@@ -192,10 +188,7 @@ mod tests {
         ];
         for (name, output) in &outputs {
             for verb in ["infer:", "exec:", "fetch:", "invoke:", "agent:"] {
-                assert!(
-                    output.contains(verb),
-                    "{name} assembly missing verb {verb}"
-                );
+                assert!(output.contains(verb), "{name} assembly missing verb {verb}");
             }
         }
     }

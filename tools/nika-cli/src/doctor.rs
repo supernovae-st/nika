@@ -1638,11 +1638,7 @@ mod tests {
     #[test]
     fn check_mcp_config_warns_without_nika_server() {
         let tmpdir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            tmpdir.path().join(".mcp.json"),
-            r#"{"mcpServers": {}}"#,
-        )
-        .unwrap();
+        std::fs::write(tmpdir.path().join(".mcp.json"), r#"{"mcpServers": {}}"#).unwrap();
         let checks = check_mcp_config_at(tmpdir.path());
         assert!(
             checks.iter().any(|c| c.status == DiagnosticStatus::Warn),
@@ -1653,11 +1649,16 @@ mod tests {
     #[test]
     fn check_mcp_config_warns_in_nika_project_without_mcp() {
         let tmpdir = tempfile::tempdir().unwrap();
-        std::fs::write(tmpdir.path().join("nika.toml"), "[project]\nname = \"test\"\n").unwrap();
+        std::fs::write(
+            tmpdir.path().join("nika.toml"),
+            "[project]\nname = \"test\"\n",
+        )
+        .unwrap();
         let checks = check_mcp_config_at(tmpdir.path());
         assert!(
-            checks.iter().any(|c| c.status == DiagnosticStatus::Warn
-                && c.message.contains("no .mcp.json")),
+            checks
+                .iter()
+                .any(|c| c.status == DiagnosticStatus::Warn && c.message.contains("no .mcp.json")),
             "should warn about missing .mcp.json in Nika project"
         );
     }

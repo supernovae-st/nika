@@ -350,10 +350,7 @@ default = "anthropic"
     // Gemini CLI: .gemini/GEMINI.md
     let gemini_dir = root.join(".gemini");
     fs::create_dir_all(&gemini_dir).ok();
-    write_if_absent(
-        &gemini_dir.join("GEMINI.md"),
-        &rules::assemble_gemini_md(),
-    )?;
+    write_if_absent(&gemini_dir.join("GEMINI.md"), &rules::assemble_gemini_md())?;
 
     // Claude Code: .claude/settings.json with hooks + permissions
     let claude_dir = root.join(".claude");
@@ -677,8 +674,7 @@ mod tests {
         let temp = tempdir().unwrap();
         init_project_at(temp.path(), "plan", false).await.unwrap();
 
-        let content =
-            std::fs::read_to_string(temp.path().join("AGENTS.md")).unwrap();
+        let content = std::fs::read_to_string(temp.path().join("AGENTS.md")).unwrap();
         assert!(content.contains("nika/workflow@0.12"));
         assert!(content.contains("nika check"));
     }
