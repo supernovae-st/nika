@@ -481,18 +481,29 @@ pub async fn list_jobs(
     let offset = query.offset.unwrap_or(0);
 
     // When scope filtering is active, the DB doesn't know which rows pass the
-    // filter, so we may need multiple fetches to fill the requested page.
-    // Cap at 10 iterations (10 * page_size = 1000 rows max scanned).
+    // scope filter. Two consequences:
+    // 1. We may need multiple DB fetches to fill the requested page.
+    // 2. The client's `offset` means "skip N *visible* rows", not N DB rows.
+    //    So we must start from DB row 0 and skip in-app after filtering.
+    // Cap at 20 iterations (20 * 100 = 2000 DB rows max scanned).
     let need_scope_filter = principal
         .as_ref()
         .map(|axum::Extension(p)| p.scope != "*")
         .unwrap_or(false);
 
-    let target = (limit + 1) as usize; // +1 to detect has_more
+    // When scope-filtering, we need offset + limit + 1 visible rows total,
+    // then drop the first `offset` visible rows from the result.
+    let visible_target = if need_scope_filter {
+        (offset + limit + 1) as usize
+    } else {
+        (limit + 1) as usize
+    };
     let mut collected: Vec<nika_storage::Job> = Vec::new();
-    let mut db_offset = offset;
-    let page_size = limit + 1; // fetch slightly more than needed per round
-    let max_rounds = if need_scope_filter { 10 } else { 1 };
+    // Start from row 0 when filtering (offset is applied post-filter),
+    // or from the client's offset when no filter is needed.
+    let mut db_offset: i64 = if need_scope_filter { 0 } else { offset };
+    let page_size: i64 = 100; // fetch in chunks of 100
+    let max_rounds = if need_scope_filter { 20 } else { 1 };
 
     for _ in 0..max_rounds {
         let filter = nika_storage::JobFilter {
@@ -515,11 +526,18 @@ pub async fn list_jobs(
         }
 
         // Stop if DB returned fewer rows than requested (no more data)
-        // or we've collected enough results
-        if (batch_len as i64) < page_size || collected.len() >= target {
+        // or we've collected enough visible results
+        if (batch_len as i64) < page_size || collected.len() >= visible_target {
             break;
         }
         db_offset += page_size;
+    }
+
+    // Apply client offset: drop the first `offset` visible rows
+    if need_scope_filter && (offset as usize) < collected.len() {
+        collected = collected.split_off(offset as usize);
+    } else if need_scope_filter {
+        collected.clear();
     }
 
     let has_more = collected.len() > limit as usize;

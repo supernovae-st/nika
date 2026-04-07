@@ -1623,4 +1623,40 @@ mod tests {
             .iter()
             .all(|j| j["workflow"].as_str().unwrap().starts_with("project-a/")));
     }
+
+    #[tokio::test]
+    async fn scope_pagination_offset_skips_visible_rows_not_db_rows() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        // Create 5 out-of-scope + 4 in-scope jobs
+        for i in 0..5 {
+            create_test_job(&state.storage, &format!("project-b/wf{i}.nika.yaml")).await;
+        }
+        for i in 0..4 {
+            create_test_job(&state.storage, &format!("project-a/wf{i}.nika.yaml")).await;
+        }
+
+        // Request page 2 (offset=2, limit=2) — should get 2 remaining in-scope jobs
+        let req = Request::builder()
+            .method("GET")
+            .uri("/v1/jobs?limit=2&offset=2")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        // 4 in-scope total, skip 2 → 2 remaining, no more
+        assert_eq!(json["count"].as_u64().unwrap(), 2);
+        assert_eq!(json["has_more"].as_bool().unwrap(), false);
+        let jobs = json["jobs"].as_array().unwrap();
+        assert!(jobs
+            .iter()
+            .all(|j| j["workflow"].as_str().unwrap().starts_with("project-a/")));
+    }
 }
