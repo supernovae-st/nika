@@ -22,10 +22,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **`media-provenance` bundled in default features** — C2PA content credentials (sign + verify) now included out of the box. Truly zero feature flags for the binary — one build, everything included.
 - **`nika/executionEvent` LSP notification type** — Typed `ExecutionEventNotification` struct with serde support for live DAG update streaming from LSP to editor clients.
+- **`nika:fetch` builtin tool** — Agent-only HTTP request tool added to the KNOWN_BUILTIN_TOOLS catalog. Now 63 builtin tools total.
+- **Artifact path collision detection (NIKA-281)** — Detects when multiple artifact outputs within a task write to the same path. Emits NIKA-281 warning.
+- **Auth middleware integration tests** — 4 new tests covering full request→response cycle for bearer auth, including WWW-Authenticate header validation.
+- **Named endpoint slash model test** — Coverage for `h100/Qwen/Qwen3-8B` and `ollama/llama3.2` parsing.
+
+### Fixed
+
+- **CI: upload-artifact v7→v8** — All 3 upload-artifact actions upgraded to v8 for compatibility with download-artifact v8.
+- **VS Code: TreeDataProvider disposable leak** — `registerTreeDataProvider` return value now pushed to `context.subscriptions`.
+- **VS Code: `as any` → `as TaskStatus`** — Proper type import for `updateTaskStatus` status parameter.
+- **LSP: duplicate daemon reconnect** — Removed redundant `tokio::spawn` reconnect; `spawn_reconnect_loop` now does an immediate first attempt.
+- **serve: blocking I/O in async reconciler** — Extracted `scan_yaml_schedule_entries()` sync helper, wrapped in `tokio::task::spawn_blocking` for the 60s reconciliation loop.
+- **serve: WWW-Authenticate header on 401** — Returns `Bearer realm="nika"` per RFC 7235. Changed middleware return type from `Result<Response, StatusCode>` to `Response`.
+- **MCP: nika_schema version param documented** — Clarified that `version` parameter is reserved for future schema versioning.
 
 ### Changed
 
 - **Engine default features expanded** — `media-provenance` joins the default feature set. The binary now bundles every feature: TUI, LSP, serve, native-inference, all media tools, all extract modes. Only `lsp` remains opt-in at the engine-library level (not needed when embedding `nika-engine` as a library).
+- **Builtin tool count: 62→63** — Added `nika:fetch` (agent HTTP tool) to catalog. Updated comment arithmetic and test assertions.
 
 ---
 
