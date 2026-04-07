@@ -117,6 +117,9 @@ pub async fn process_task_artifacts(
     // Create artifact writer
     let writer = ArtifactWriter::new(&artifact_dir, task_id).with_max_size(max_size);
 
+    // Track resolved paths to detect collisions within a task's artifact specs
+    let mut seen_paths: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+
     // Process each output (index used for positional media matching)
     for (artifact_index, output_spec) in outputs.iter().enumerate() {
         match write_single_artifact(
@@ -162,6 +165,17 @@ pub async fn process_task_artifacts(
                         format: format_str,
                         checksum,
                     });
+                }
+
+                // Detect artifact path collision (NIKA-281)
+                if !seen_paths.insert(write_result.path.clone()) {
+                    let collision_msg = format!(
+                        "NIKA-281: artifact path collision — '{}' written multiple times by task '{}'",
+                        write_result.path.display(),
+                        task_id
+                    );
+                    warn!("{}", collision_msg);
+                    result.errors.push(collision_msg);
                 }
 
                 result.written += 1;
@@ -1370,6 +1384,54 @@ mod tests {
 
         assert_eq!(result.written, 2);
         assert_eq!(result.paths.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_artifact_collision_detected() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(DEFAULT_ARTIFACT_DIR);
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        // Two outputs writing to the same path → NIKA-281 collision warning
+        let spec = ArtifactSpec::Multiple(vec![
+            ArtifactOutput {
+                path: "report.txt".to_string(),
+                source: None,
+                template: None,
+                format: Some(ArtifactFormat::Text),
+                mode: Some(ArtifactMode::Overwrite),
+            },
+            ArtifactOutput {
+                path: "report.txt".to_string(),
+                source: None,
+                template: None,
+                format: Some(ArtifactFormat::Text),
+                mode: Some(ArtifactMode::Overwrite),
+            },
+        ]);
+
+        let result = process_task_artifacts(
+            "task1",
+            "test data",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &[],
+        )
+        .await;
+
+        assert_eq!(result.written, 2, "both writes succeed");
+        assert_eq!(result.errors.len(), 1, "one collision detected");
+        assert!(
+            result.errors[0].contains("NIKA-281"),
+            "error should mention NIKA-281: {}",
+            result.errors[0]
+        );
     }
 
     // ========== BUG-3: artifact source resolution ==========
