@@ -15,7 +15,7 @@
 //! assert_eq!(pos.character, 2);
 //! ```
 
-use tower_lsp_server::ls_types::{Position, Range};
+use tower_lsp_server::ls_types::Position;
 
 /// A byte offset in a source file (mirrors nika::source::ByteOffset).
 ///
@@ -139,7 +139,6 @@ pub fn position_to_offset(content: &str, line: u32, character: u32) -> Option<By
 /// # Returns
 ///
 /// An LSP Position with 0-indexed line and character (UTF-16 code units).
-#[allow(dead_code)]
 pub fn offset_to_position(content: &str, offset: ByteOffset) -> Position {
     let offset = offset.as_usize().min(content.len());
     let prefix = &content[..offset];
@@ -156,70 +155,6 @@ pub fn offset_to_position(content: &str, offset: ByteOffset) -> Position {
     Position { line, character }
 }
 
-/// Convert a byte range to an LSP Range.
-///
-/// # Arguments
-///
-/// * `content` - The full document content
-/// * `start` - Start byte offset
-/// * `end` - End byte offset (exclusive)
-#[allow(dead_code)]
-pub fn byte_range_to_lsp_range(content: &str, start: ByteOffset, end: ByteOffset) -> Range {
-    Range {
-        start: offset_to_position(content, start),
-        end: offset_to_position(content, end),
-    }
-}
-
-/// Check if a byte offset falls within a byte range.
-#[allow(dead_code)]
-pub fn offset_in_range(offset: ByteOffset, start: ByteOffset, end: ByteOffset) -> bool {
-    offset.0 >= start.0 && offset.0 < end.0
-}
-
-/// Get the line content at a given position.
-///
-/// Returns the full line (without newline) and the column offset.
-#[allow(dead_code)]
-pub fn get_line_at_position(content: &str, line: u32) -> Option<&str> {
-    content.lines().nth(line as usize)
-}
-
-/// Find the word boundaries at a given byte offset.
-///
-/// Returns (start_offset, end_offset) for the word containing the offset.
-/// A "word" is defined as alphanumeric characters plus underscore and hyphen.
-#[allow(dead_code)]
-pub fn word_boundaries_at_offset(content: &str, offset: ByteOffset) -> (ByteOffset, ByteOffset) {
-    let offset = offset.as_usize().min(content.len());
-    let bytes = content.as_bytes();
-
-    // Find start of word
-    let mut start = offset;
-    while start > 0 && is_word_char(bytes[start - 1]) {
-        start -= 1;
-    }
-
-    // Find end of word
-    let mut end = offset;
-    while end < bytes.len() && is_word_char(bytes[end]) {
-        end += 1;
-    }
-
-    (ByteOffset(start as u32), ByteOffset(end as u32))
-}
-
-/// Extract the word at a given byte offset.
-#[allow(dead_code)]
-pub fn word_at_offset(content: &str, offset: ByteOffset) -> &str {
-    let (start, end) = word_boundaries_at_offset(content, offset);
-    &content[start.as_usize()..end.as_usize()]
-}
-
-#[allow(dead_code)]
-fn is_word_char(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
-}
 
 #[cfg(test)]
 mod tests {
@@ -299,100 +234,6 @@ mod tests {
                 assert_eq!(pos.character, col, "col mismatch at {}:{}", line, col);
             }
         }
-    }
-
-    #[test]
-    fn test_byte_range_to_lsp_range() {
-        let content = "hello\nworld";
-
-        let range = byte_range_to_lsp_range(content, ByteOffset(0), ByteOffset(5));
-        assert_eq!(
-            range.start,
-            Position {
-                line: 0,
-                character: 0
-            }
-        );
-        assert_eq!(
-            range.end,
-            Position {
-                line: 0,
-                character: 5
-            }
-        );
-
-        let range = byte_range_to_lsp_range(content, ByteOffset(6), ByteOffset(11));
-        assert_eq!(
-            range.start,
-            Position {
-                line: 1,
-                character: 0
-            }
-        );
-        assert_eq!(
-            range.end,
-            Position {
-                line: 1,
-                character: 5
-            }
-        );
-    }
-
-    #[test]
-    fn test_word_at_offset() {
-        let content = "use: step1.result";
-
-        assert_eq!(word_at_offset(content, ByteOffset(0)), "use");
-        assert_eq!(word_at_offset(content, ByteOffset(5)), "step1");
-        assert_eq!(word_at_offset(content, ByteOffset(11)), "result");
-    }
-
-    #[test]
-    fn test_word_boundaries() {
-        let content = "hello-world_test 123";
-
-        let (start, end) = word_boundaries_at_offset(content, ByteOffset(3));
-        assert_eq!(
-            &content[start.as_usize()..end.as_usize()],
-            "hello-world_test"
-        );
-
-        let (start, end) = word_boundaries_at_offset(content, ByteOffset(17));
-        assert_eq!(&content[start.as_usize()..end.as_usize()], "123");
-    }
-
-    #[test]
-    fn test_offset_in_range() {
-        assert!(offset_in_range(
-            ByteOffset(5),
-            ByteOffset(0),
-            ByteOffset(10)
-        ));
-        assert!(offset_in_range(
-            ByteOffset(0),
-            ByteOffset(0),
-            ByteOffset(10)
-        ));
-        assert!(!offset_in_range(
-            ByteOffset(10),
-            ByteOffset(0),
-            ByteOffset(10)
-        )); // exclusive end
-        assert!(!offset_in_range(
-            ByteOffset(15),
-            ByteOffset(0),
-            ByteOffset(10)
-        ));
-    }
-
-    #[test]
-    fn test_get_line_at_position() {
-        let content = "line1\nline2\nline3";
-
-        assert_eq!(get_line_at_position(content, 0), Some("line1"));
-        assert_eq!(get_line_at_position(content, 1), Some("line2"));
-        assert_eq!(get_line_at_position(content, 2), Some("line3"));
-        assert_eq!(get_line_at_position(content, 3), None);
     }
 
     #[test]

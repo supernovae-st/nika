@@ -161,16 +161,6 @@ pub fn invoke_completions(
     completions
 }
 
-/// Check if a string looks like a NovaNet server name.
-///
-/// Used for determining which tool completions to provide.
-#[allow(dead_code)] // Public API for future use
-pub fn is_novanet_server(name: &str) -> bool {
-    matches!(
-        name.to_lowercase().as_str(),
-        "novanet" | "nova" | "novanet-mcp" | "novanet_mcp"
-    )
-}
 
 #[cfg(test)]
 mod tests {
@@ -212,14 +202,6 @@ mod tests {
         let completions = mcp_tool_completions("unknown_server");
         assert_eq!(completions.len(), 1);
         assert!(completions[0].label.contains("tool_name"));
-    }
-
-    #[test]
-    fn test_is_novanet_server() {
-        assert!(is_novanet_server("novanet"));
-        assert!(is_novanet_server("NovaNet"));
-        assert!(is_novanet_server("novanet-mcp"));
-        assert!(!is_novanet_server("custom"));
     }
 
     #[test]

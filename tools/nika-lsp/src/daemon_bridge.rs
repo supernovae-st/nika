@@ -23,7 +23,6 @@ const RECONNECT_MAX: Duration = Duration::from_secs(30);
 /// All methods return `Option<T>` or empty `Vec` — never panics, never blocks
 /// the LSP even if the daemon is down or slow.
 #[derive(Clone)]
-#[allow(dead_code)] // Methods used incrementally as LSP features are wired up
 pub struct DaemonBridge {
     #[cfg(unix)]
     client: Arc<RwLock<Option<nika_daemon::client::ConnectedClient>>>,
@@ -31,46 +30,12 @@ pub struct DaemonBridge {
     providers_cache: Arc<RwLock<CachedProviders>>,
 }
 
-#[allow(dead_code)]
 struct CachedProviders {
     data: Vec<ProviderStatusInfo>,
     fetched_at: Instant,
 }
 
-#[allow(dead_code)] // Methods used incrementally as LSP features are wired up
 impl DaemonBridge {
-    /// Try to connect to a running daemon. Returns `None` if daemon not running.
-    #[cfg(unix)]
-    pub async fn try_connect() -> Option<Self> {
-        let daemon_client = nika_daemon::client::DaemonClient::default_path();
-        if !daemon_client.socket_exists() {
-            tracing::debug!("Daemon socket not found — LSP features degraded");
-            return None;
-        }
-
-        match tokio::time::timeout(REQUEST_TIMEOUT, daemon_client.connect()).await {
-            Ok(Ok(connected)) => {
-                tracing::info!("Connected to Nika daemon");
-                Some(Self {
-                    client: Arc::new(RwLock::new(Some(connected))),
-                    connected: Arc::new(AtomicBool::new(true)),
-                    providers_cache: Arc::new(RwLock::new(CachedProviders {
-                        data: Vec::new(),
-                        fetched_at: Instant::now() - CACHE_TTL, // force first refresh
-                    })),
-                })
-            }
-            Ok(Err(e)) => {
-                tracing::debug!("Daemon connection failed: {e}");
-                None
-            }
-            Err(_) => {
-                tracing::debug!("Daemon connection timed out");
-                None
-            }
-        }
-    }
-
     /// Create a disconnected bridge (for platforms without daemon or testing).
     pub fn disconnected() -> Self {
         Self {

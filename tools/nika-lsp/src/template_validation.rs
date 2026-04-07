@@ -23,9 +23,6 @@ static USE_TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
 struct TemplateRef {
     /// The alias name (first part of the path)
     alias: String,
-    /// Full path (e.g., "alias.field")
-    #[allow(dead_code)]
-    full_path: String,
     /// Start offset within the string
     start: usize,
     /// End offset within the string
@@ -42,7 +39,6 @@ fn extract_refs_with_positions(text: &str) -> Vec<TemplateRef> {
             let alias = path.split('.').next()?.to_string();
             Some(TemplateRef {
                 alias,
-                full_path: path.to_string(),
                 start: m.start(),
                 end: m.end(),
             })

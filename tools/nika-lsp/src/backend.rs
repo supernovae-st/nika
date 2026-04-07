@@ -6,7 +6,7 @@
 //! ## AST Integration
 //!
 //! This module uses Nika's two-phase AST for accurate parsing:
-//! - Task ID extraction via `ast_integration::extract_task_ids_from_ast()`
+//! - Task definitions via `ast_integration::find_task_definitions()`
 //! - Go-to-definition via `ast_integration::find_task_by_id()`
 //! - Context detection via `node_context::find_context_at_position()`
 

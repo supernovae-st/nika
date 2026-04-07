@@ -31,12 +31,6 @@ impl DocumentState {
         self.last_valid_content = Some(self.rope.to_string());
     }
 
-    /// Get the last successfully parsed content (for fallback when current parse fails).
-    #[allow(dead_code)] // Used by hover/completion fallback when current parse fails
-    pub fn last_valid_content(&self) -> Option<&str> {
-        self.last_valid_content.as_deref()
-    }
-
     /// Get the full document content as a string.
     pub fn content(&self) -> String {
         self.rope.to_string()
@@ -107,11 +101,6 @@ impl DocumentState {
         }
     }
 
-    /// Get the number of lines in the document.
-    #[allow(dead_code)]
-    pub fn line_count(&self) -> usize {
-        self.rope.len_lines()
-    }
 }
 
 #[cfg(test)]
@@ -124,7 +113,7 @@ mod tests {
         let doc = DocumentState::new("hello\nworld".to_string(), 1);
         assert_eq!(doc.content(), "hello\nworld");
         assert_eq!(doc.version, 1);
-        assert_eq!(doc.line_count(), 2);
+
     }
 
     #[test]

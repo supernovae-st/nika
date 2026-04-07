@@ -15,9 +15,8 @@ use nika_core::source::{FileId, Span};
 pub struct ParsedWorkflow {
     /// The raw workflow AST (if parsing succeeded).
     pub workflow: Option<RawWorkflow>,
-    /// Whether parsing was successful.
-    /// Note: Kept for future diagnostic features.
-    #[allow(dead_code)]
+    /// Whether parsing was successful (read by tests).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub success: bool,
 }
 
@@ -26,10 +25,6 @@ pub struct ParsedWorkflow {
 pub struct TaskDefinition {
     /// Task ID.
     pub id: String,
-    /// Source span of the entire task.
-    /// Note: Kept for future features (multi-file navigation, refactoring).
-    #[allow(dead_code)]
-    pub span: Span,
     /// Line number of the task definition (0-indexed).
     pub line: u32,
     /// Column number of the task definition (0-indexed).
@@ -54,53 +49,6 @@ pub fn parse_workflow(content: &str) -> ParsedWorkflow {
     }
 }
 
-/// Extract all task IDs from the workflow AST.
-///
-/// This replaces the string-based `extract_task_ids()` in backend.rs
-/// with proper AST traversal.
-#[allow(dead_code)]
-pub fn extract_task_ids_from_ast(content: &str) -> Vec<String> {
-    let parsed = parse_workflow(content);
-
-    match parsed.workflow {
-        Some(workflow) => workflow
-            .tasks
-            .value
-            .iter()
-            .map(|task| task.value.id.value.clone())
-            .collect(),
-        None => {
-            // Fallback to string-based extraction for incomplete YAML
-            extract_task_ids_fallback(content)
-        }
-    }
-}
-
-/// Fallback task ID extraction using string patterns.
-///
-/// Used when AST parsing fails (e.g., incomplete YAML during editing).
-#[allow(dead_code)]
-fn extract_task_ids_fallback(content: &str) -> Vec<String> {
-    let mut task_ids = Vec::new();
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("- id:") || trimmed.starts_with("-id:") {
-            if let Some(id_part) = trimmed
-                .strip_prefix("- id:")
-                .or_else(|| trimmed.strip_prefix("-id:"))
-            {
-                let id = id_part.trim().trim_matches('"').trim_matches('\'');
-                if !id.is_empty() {
-                    task_ids.push(id.to_string());
-                }
-            }
-        }
-    }
-
-    task_ids
-}
-
 /// Find all task definitions with their spans.
 ///
 /// Returns a list of TaskDefinition structs containing task IDs
@@ -118,7 +66,6 @@ pub fn find_task_definitions(content: &str) -> Vec<TaskDefinition> {
 
                 definitions.push(TaskDefinition {
                     id: task.value.id.value.clone(),
-                    span: task.span,
                     line,
                     column,
                 });
@@ -143,17 +90,8 @@ fn find_task_definitions_fallback(content: &str) -> Vec<TaskDefinition> {
             if let Some(id_part) = trimmed.strip_prefix("- id:") {
                 let id = id_part.trim().trim_matches('"').trim_matches('\'');
                 if !id.is_empty() {
-                    // Calculate byte offset for the span
-                    let line_start = content
-                        .lines()
-                        .take(line_num)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
-
                     definitions.push(TaskDefinition {
                         id: id.to_string(),
-                        span: Span::new(FileId(0), line_start as u32, line_end as u32),
                         line: line_num as u32,
                         column: 0,
                     });
@@ -199,60 +137,9 @@ pub(crate) fn span_to_line_col(content: &str, span: &Span) -> (u32, u32) {
     (line, col)
 }
 
-/// Get the line content and range for a task definition.
-///
-/// Returns (line_content, start_col, end_col) for the task's id line.
-/// Note: Kept for future features (range selection, rename refactoring).
-#[allow(dead_code)]
-pub fn get_task_line_range(content: &str, task_def: &TaskDefinition) -> Option<(String, u32, u32)> {
-    let lines: Vec<&str> = content.lines().collect();
-    let line_idx = task_def.line as usize;
-
-    if line_idx < lines.len() {
-        let line = lines[line_idx];
-        Some((line.to_string(), 0, line.len() as u32))
-    } else {
-        None
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_extract_task_ids_from_ast() {
-        let yaml = r#"schema: "nika/workflow@0.12"
-tasks:
-  - id: step1
-    infer: "Hello"
-  - id: step2
-    exec: "echo test"
-  - id: step3
-    use:
-      data: step1
-    infer: "World"
-"#;
-        let ids = extract_task_ids_from_ast(yaml);
-        assert_eq!(ids.len(), 3);
-        assert!(ids.contains(&"step1".to_string()));
-        assert!(ids.contains(&"step2".to_string()));
-        assert!(ids.contains(&"step3".to_string()));
-    }
-
-    #[test]
-    fn test_extract_task_ids_fallback() {
-        // Incomplete YAML that won't parse
-        let yaml = r#"schema: "nika/workflow@0.12"
-tasks:
-  - id: step1
-    infer:
-  - id: step2
-"#;
-        let ids = extract_task_ids_from_ast(yaml);
-        // Should fall back to string-based extraction
-        assert!(ids.len() >= 2);
-    }
 
     #[test]
     fn test_find_task_definitions() {
@@ -319,28 +206,7 @@ tasks:
     }
 
     #[test]
-    fn test_get_task_line_range() {
-        let yaml = r#"schema: "nika/workflow@0.12"
-tasks:
-  - id: my_task
-    infer: "Hello"
-"#;
-        let defs = find_task_definitions(yaml);
-        let task = defs.iter().find(|d| d.id == "my_task").unwrap();
-
-        let result = get_task_line_range(yaml, task);
-        assert!(result.is_some());
-        let (line_content, start, _end) = result.unwrap();
-        assert!(line_content.contains("id:"));
-        assert!(line_content.contains("my_task"));
-        assert_eq!(start, 0);
-    }
-
-    #[test]
     fn test_empty_content() {
-        let ids = extract_task_ids_from_ast("");
-        assert!(ids.is_empty());
-
         let defs = find_task_definitions("");
         assert!(defs.is_empty());
     }
@@ -354,8 +220,8 @@ tasks:
   - id: 'single-quoted'
     exec: "test"
 "#;
-        let ids = extract_task_ids_from_ast(yaml);
+        let defs = find_task_definitions(yaml);
         // AST parser should handle quoted IDs
-        assert!(ids.len() >= 2);
+        assert!(defs.len() >= 2);
     }
 }
