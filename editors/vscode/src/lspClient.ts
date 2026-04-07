@@ -20,7 +20,7 @@ import {
   TransportKind,
 } from 'vscode-languageclient/node';
 import { execFile } from 'child_process';
-import { DagPanel } from './dagPanel';
+import { DagPanel, TaskStatus } from './dagPanel';
 import {
   isCursor,
   isWindsurf,
@@ -161,7 +161,7 @@ export function startClient(
       state.client.onNotification('nika/executionEvent', (event: { taskId: string; status: string }) => {
         log('INFO', `Execution event: ${event.taskId} → ${event.status}`);
         if (state.activeDagPanel) {
-          state.activeDagPanel.updateTaskStatus(event.taskId, event.status as any);
+          state.activeDagPanel.updateTaskStatus(event.taskId, event.status as TaskStatus);
         }
       });
     }
