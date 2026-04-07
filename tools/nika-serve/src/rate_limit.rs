@@ -59,16 +59,17 @@ pub async fn rate_limit_middleware(
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
-    // Extract token from Authorization header (if present)
-    let token = req
+    // Extract token from Authorization header, hash it for use as rate limiter key.
+    // SECURITY: Never store raw tokens in memory — BLAKE3 hash is one-way and fast.
+    let token_hash = req
         .headers()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-        .map(|s| s.to_string());
+        .map(|s| blake3::hash(s.as_bytes()).to_string());
 
     // No token = no rate limiting (unauthenticated requests like /health)
-    let Some(key) = token else {
+    let Some(key) = token_hash else {
         return next.run(req).await;
     };
 
