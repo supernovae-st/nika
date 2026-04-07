@@ -11,6 +11,9 @@
 //!
 //! WAL mode for concurrent reads. `user_version` pragma for schema migrations.
 
+#[cfg(feature = "postgres")]
+pub mod postgres;
+
 use std::path::Path;
 
 use rusqlite::{params, Connection, OptionalExtension};
@@ -381,10 +384,14 @@ pub struct Storage {
     inner: StorageInner,
 }
 
-/// Backend dispatch enum — currently only SQLite, prepared for PostgreSQL.
+/// Backend dispatch enum — SQLite for single-instance, PostgreSQL for multi-instance.
 #[derive(Clone)]
 enum StorageInner {
-    Sqlite { tx: mpsc::Sender<DbCommand> },
+    Sqlite {
+        tx: mpsc::Sender<DbCommand>,
+    },
+    #[cfg(feature = "postgres")]
+    Postgres(postgres::PostgresStorage),
 }
 
 impl Storage {
@@ -428,6 +435,17 @@ impl Storage {
         })
     }
 
+    /// Connect to a PostgreSQL database for multi-instance serve.
+    ///
+    /// Schema is auto-created on first connect. Requires the `postgres` feature.
+    #[cfg(feature = "postgres")]
+    pub async fn connect_postgres(url: &str) -> StorageResult<Self> {
+        let pg = postgres::PostgresStorage::connect(url).await?;
+        Ok(Self {
+            inner: StorageInner::Postgres(pg),
+        })
+    }
+
     pub async fn insert_job(&self, job: Job) -> StorageResult<()> {
         match &self.inner {
             StorageInner::Sqlite { tx } => {
@@ -437,6 +455,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.insert_job(job).await,
         }
     }
 
@@ -452,6 +472,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.get_job(id).await,
         }
     }
 
@@ -464,6 +486,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.list_jobs(state.as_ref()).await,
         }
     }
 
@@ -488,6 +512,11 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => {
+                pg.update_state(id, &state, exit_code, output.as_deref())
+                    .await
+            }
         }
     }
 
@@ -500,6 +529,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.add_history(event).await,
         }
     }
 
@@ -515,6 +546,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.get_history(job_id).await,
         }
     }
 
@@ -530,6 +563,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.increment_retry(id).await,
         }
     }
 
@@ -546,6 +581,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.list_jobs_for_workflow(workflow).await,
         }
     }
 
@@ -563,6 +600,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.list_jobs_filtered(&filter).await,
         }
     }
 
@@ -624,6 +663,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.reset_stale_running(reason).await,
         }
     }
 
@@ -645,6 +686,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.add_artifacts(job_id, &artifacts).await,
         }
     }
 
@@ -668,6 +711,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.save_checkpoint(job_id, task_id, output).await,
         }
     }
 
@@ -684,6 +729,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.load_checkpoints(job_id).await,
         }
     }
 
@@ -700,6 +747,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.delete_checkpoints(job_id).await,
         }
     }
 
@@ -716,6 +765,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.list_artifacts(job_id).await,
         }
     }
 
@@ -735,6 +786,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.delete_old_jobs(max_age_secs).await,
         }
     }
 
@@ -751,6 +804,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.insert_schedule(&schedule).await,
         }
     }
 
@@ -766,6 +821,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.get_schedule(id).await,
         }
     }
 
@@ -781,6 +838,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.get_schedule_by_name(name).await,
         }
     }
 
@@ -796,6 +855,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.list_schedules(enabled_only).await,
         }
     }
 
@@ -812,6 +873,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.update_schedule_enabled(id, enabled).await,
         }
     }
 
@@ -827,6 +890,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.delete_schedule(id).await,
         }
     }
 
@@ -850,6 +915,11 @@ impl Storage {
                 .await
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
+            }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => {
+                pg.update_schedule_after_fire(id, last_run_at, next_run_at, last_job_id)
+                    .await
             }
         }
     }
@@ -877,6 +947,11 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => {
+                pg.update_schedule_cron(id, cron_expr, next_run_at, paused)
+                    .await
+            }
         }
     }
 
@@ -891,6 +966,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.insert_token(&entry).await,
         }
     }
 
@@ -906,6 +983,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.get_token_by_hash(hash).await,
         }
     }
 
@@ -921,6 +1000,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.get_token_by_name(name).await,
         }
     }
 
@@ -933,6 +1014,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.list_tokens().await,
         }
     }
 
@@ -948,6 +1031,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.revoke_token(id).await,
         }
     }
 
@@ -963,6 +1048,8 @@ impl Storage {
                 .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.touch_token(id).await,
         }
     }
 
@@ -975,6 +1062,8 @@ impl Storage {
                     .map_err(|_| StorageError::ChannelClosed)?;
                 rx.await.map_err(|_| StorageError::ChannelClosed)?
             }
+            #[cfg(feature = "postgres")]
+            StorageInner::Postgres(pg) => pg.count_tokens().await,
         }
     }
 }

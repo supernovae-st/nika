@@ -230,6 +230,8 @@ chrono-tz = "0.10"
 
 # Storage
 rusqlite = { version = "0.39", features = ["bundled"] }
+sqlx-core = { version = "0.8", features = ["chrono"] }
+sqlx-postgres = { version = "0.8", features = ["chrono"] }
 
 # File watching
 notify = "8"

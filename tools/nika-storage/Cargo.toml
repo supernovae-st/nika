@@ -9,6 +9,10 @@ rust-version.workspace = true
 description = "SQLite storage actor for Nika job persistence"
 publish = true
 
+[features]
+default = []
+postgres = ["dep:sqlx-core", "dep:sqlx-postgres"]
+
 [dependencies]
 rusqlite = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
@@ -16,6 +20,8 @@ serde = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+sqlx-core = { workspace = true, optional = true }
+sqlx-postgres = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

@@ -459,6 +459,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "atoi"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28d99ec8bfea296261ca1af174f24225171fea9664ba9003cbebee704810528"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "atomic"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1495,6 +1504,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75984efb6ed102a0d42db99afb6c1948f0380d1d91808d5529916e6c08b49d8d"
 
 [[package]]
+name = "concurrent-queue"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "config"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1678,6 +1696,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "crc"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5eb8a2a1cd12ab0d987a5d5e825195d372001a4094a0376319d5a0ad71c1ba0d"
+dependencies = [
+ "crc-catalog",
+]
+
+[[package]]
+name = "crc-catalog"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
+
+[[package]]
 name = "crc32fast"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1765,6 +1798,15 @@ name = "crossbeam-epoch"
 version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-queue"
+version = "0.3.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -2699,6 +2741,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6"
 
 [[package]]
+name = "etcetera"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "136d1b5283a1ab77bd9257427ffd09d8667ced0570b6f938942bc7568ed5b943"
+dependencies = [
+ "cfg-if",
+ "home",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
 name = "euclid"
 version = "0.20.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2714,6 +2767,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "event-listener"
+version = "5.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e13b66accf52311f30a0db42147dadea9850cb48cd070028831ae5f5d4b856ab"
+dependencies = [
+ "concurrent-queue",
+ "parking",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -3159,6 +3223,17 @@ dependencies = [
  "futures-core",
  "futures-task",
  "futures-util",
+]
+
+[[package]]
+name = "futures-intrusive"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d930c203dd0b6ff06e0201a4a2fe9149b43c684fd4420555b26d21b1a02956f"
+dependencies = [
+ "futures-core",
+ "lock_api",
+ "parking_lot",
 ]
 
 [[package]]
@@ -3753,6 +3828,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
+]
+
+[[package]]
+name = "home"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
+dependencies = [
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5707,7 +5791,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -5752,7 +5836,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -5793,7 +5877,7 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5828,7 +5912,7 @@ dependencies = [
 
 [[package]]
 name = "nika-daemon"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "async-trait",
  "blake3",
@@ -5857,7 +5941,7 @@ dependencies = [
 
 [[package]]
 name = "nika-display"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "colored",
  "indexmap 2.13.0",
@@ -5874,7 +5958,7 @@ dependencies = [
 
 [[package]]
 name = "nika-engine"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -5952,7 +6036,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "chrono",
  "parking_lot",
@@ -5969,7 +6053,7 @@ dependencies = [
 
 [[package]]
 name = "nika-init"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "serde",
  "serde-saphyr 0.0.20",
@@ -5981,7 +6065,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -6002,7 +6086,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "dashmap",
  "insta",
@@ -6020,7 +6104,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "backon",
  "dashmap",
@@ -6045,7 +6129,7 @@ dependencies = [
 
 [[package]]
 name = "nika-media"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -6097,7 +6181,7 @@ dependencies = [
 
 [[package]]
 name = "nika-sdk"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -6118,7 +6202,7 @@ dependencies = [
 
 [[package]]
 name = "nika-serve"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "aide",
  "async-stream",
@@ -6157,12 +6241,14 @@ dependencies = [
 
 [[package]]
 name = "nika-storage"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "chrono",
  "rusqlite",
  "serde",
  "serde_json",
+ "sqlx-core",
+ "sqlx-postgres",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -6171,7 +6257,7 @@ dependencies = [
 
 [[package]]
 name = "nika-tui"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "arboard",
  "camino",
@@ -6217,7 +6303,7 @@ dependencies = [
 
 [[package]]
 name = "nika-vault"
-version = "0.75.0"
+version = "0.76.0"
 dependencies = [
  "chrono",
  "fs2",
@@ -6857,6 +6943,12 @@ checksum = "a69e0a534dd2e6aefce319af62a0aa0066a76bdfcec0201dfe02df226bc9ec70"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "parking"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
@@ -9554,6 +9646,9 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smallvec"
@@ -9667,6 +9762,75 @@ dependencies = [
  "js-sys",
  "rsqlite-vfs",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "sqlx-core"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee6798b1838b6a0f69c007c133b8df5866302197e404e8b6ee8ed3e3a5e68dc6"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "crossbeam-queue",
+ "either",
+ "event-listener",
+ "futures-core",
+ "futures-intrusive",
+ "futures-io",
+ "futures-util",
+ "hashbrown 0.15.5",
+ "hashlink 0.10.0",
+ "indexmap 2.13.0",
+ "log",
+ "memchr",
+ "once_cell",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "smallvec 1.15.1",
+ "thiserror 2.0.18",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "sqlx-postgres"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db58fcd5a53cf07c184b154801ff91347e4c30d17a3562a635ff028ad5deda46"
+dependencies = [
+ "atoi",
+ "base64 0.22.1",
+ "bitflags 2.11.0",
+ "byteorder",
+ "chrono",
+ "crc",
+ "dotenvy",
+ "etcetera",
+ "futures-channel",
+ "futures-core",
+ "futures-util",
+ "hex",
+ "hkdf",
+ "hmac",
+ "home",
+ "itoa",
+ "log",
+ "md-5",
+ "memchr",
+ "once_cell",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "smallvec 1.15.1",
+ "sqlx-core",
+ "stringprep",
+ "thiserror 2.0.18",
+ "tracing",
+ "whoami",
 ]
 
 [[package]]
