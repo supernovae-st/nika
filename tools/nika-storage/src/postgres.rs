@@ -11,6 +11,21 @@ use sqlx_postgres::Postgres;
 
 use crate::*;
 
+/// Redact credentials from error messages to prevent leaking `postgresql://user:pass@host` in logs.
+fn redact_pg_error(context: &str, err: impl std::fmt::Display) -> StorageError {
+    let mut msg = err.to_string();
+    for scheme in ["postgresql://", "postgres://"] {
+        while let Some(start) = msg.find(scheme) {
+            let rest = &msg[start..];
+            let end = rest
+                .find(|c: char| c.is_whitespace() || c == '\'' || c == '"')
+                .unwrap_or(rest.len());
+            msg.replace_range(start..start + end, "<REDACTED_URL>");
+        }
+    }
+    StorageError::Other(format!("{context}: {msg}"))
+}
+
 /// PostgreSQL schema — executed on connect to ensure tables exist.
 const SCHEMA_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS jobs (
@@ -118,13 +133,13 @@ impl PostgresStorage {
             .acquire_timeout(std::time::Duration::from_secs(5))
             .connect(url)
             .await
-            .map_err(|e| StorageError::Other(format!("PostgreSQL connect: {e}")))?;
+            .map_err(|e| redact_pg_error("PostgreSQL connect", e))?;
 
         // Run schema migration
         query(SCHEMA_SQL)
             .execute(&pool)
             .await
-            .map_err(|e| StorageError::Other(format!("PostgreSQL schema: {e}")))?;
+            .map_err(|e| redact_pg_error("PostgreSQL schema", e))?;
 
         Ok(Self { pool })
     }
@@ -854,6 +869,39 @@ fn pg_row_to_schedule(row: &sqlx_postgres::PgRow) -> CronSchedule {
         last_job_id: row.get("last_job_id"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redact_pg_error_strips_credentials() {
+        let err = redact_pg_error(
+            "connect",
+            "error connecting to postgresql://admin:s3cret@db.prod:5432/nika",
+        );
+        let msg = format!("{err}");
+        assert!(!msg.contains("s3cret"), "password leaked: {msg}");
+        assert!(!msg.contains("admin"), "username leaked: {msg}");
+        assert!(msg.contains("<REDACTED_URL>"), "missing redaction: {msg}");
+    }
+
+    #[test]
+    fn redact_pg_error_handles_postgres_scheme() {
+        let err = redact_pg_error("connect", "failed: postgres://user:pw@host/db timeout");
+        let msg = format!("{err}");
+        assert!(!msg.contains("user:pw"), "credentials leaked: {msg}");
+        assert!(msg.contains("<REDACTED_URL>"));
+        assert!(msg.contains("timeout"));
+    }
+
+    #[test]
+    fn redact_pg_error_passthrough_when_no_url() {
+        let err = redact_pg_error("query", "column 'foo' does not exist");
+        let msg = format!("{err}");
+        assert!(msg.contains("column 'foo' does not exist"));
     }
 }
 
