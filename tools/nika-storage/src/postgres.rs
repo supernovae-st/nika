@@ -337,8 +337,12 @@ impl PostgresStorage {
 
         let limit = filter.limit.unwrap_or(100).min(1000);
         let offset = filter.offset.unwrap_or(0);
+        params.push(limit.to_string());
+        let limit_idx = params.len();
+        params.push(offset.to_string());
+        let offset_idx = params.len();
         sql.push_str(&format!(
-            " ORDER BY created_at DESC LIMIT {limit} OFFSET {offset}"
+            " ORDER BY created_at DESC LIMIT ${limit_idx}::bigint OFFSET ${offset_idx}::bigint"
         ));
 
         // Build the query dynamically — sqlx requires compile-time knowledge of
