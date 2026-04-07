@@ -303,7 +303,7 @@ jobs:
           "$hash  $env:ARTIFACT-$env:VERSION.zip" | Out-File -Encoding utf8 "dist/$env:ARTIFACT-$env:VERSION.zip.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -1153,7 +1153,7 @@ jobs:
         run: napi build --release --target ${{ matrix.target }} ${{ matrix.use_zig && '--zig' || '' }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: sdk-npm-${{ matrix.target }}
           path: tools/nika-napi/*.node
@@ -1246,7 +1246,7 @@ jobs:
           working-directory: tools/nika-py
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: sdk-pypi-${{ matrix.os }}-${{ matrix.target }}
           path: tools/nika-py/dist
