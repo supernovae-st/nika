@@ -1,6 +1,6 @@
 {
   "name": "@supernovae-st/nika-linux-x64",
-  "version": "0.76.0",
+  "version": "0.77.0",
   "description": "Nika binary for Linux x64",
   "license": "AGPL-3.0-or-later",
   "repository": {
