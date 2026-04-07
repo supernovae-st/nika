@@ -212,15 +212,19 @@ pub async fn stream_events(
     Path(job_id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, crate::error::ServeError> {
-    // L2 scope enforcement: check job's workflow against token scope
+    // L2 scope enforcement: fail-closed — if we can't verify scope, deny access
     if let Some(axum::Extension(ref p)) = principal {
-        if let Ok(Some(job)) = state.storage.get_job(&job_id).await {
-            if !p.can_access(&job.workflow) {
-                return Err(crate::error::ServeError::Forbidden(format!(
-                    "token '{}' scope '{}' does not cover workflow '{}'",
-                    p.token_name, p.scope, job.workflow
-                )));
-            }
+        let job = state
+            .storage
+            .get_job(&job_id)
+            .await
+            .map_err(crate::error::ServeError::Storage)?
+            .ok_or(crate::error::ServeError::NotFound)?;
+        if !p.can_access(&job.workflow) {
+            return Err(crate::error::ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, job.workflow
+            )));
         }
     }
 

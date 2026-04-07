@@ -657,6 +657,11 @@ pub async fn reload_workflows(
     collect_workflows(&base, &base, &mut workflows).await?;
     workflows.sort_by(|a, b| a.name.cmp(&b.name));
 
+    // L2 scope enforcement: filter out workflows outside token scope
+    if let Some(axum::Extension(ref p)) = principal {
+        workflows.retain(|w| p.can_access(&w.name));
+    }
+
     let count = workflows.len();
     tracing::info!(count, "workflows reloaded");
     Ok(Json(ListWorkflowsResponse {
