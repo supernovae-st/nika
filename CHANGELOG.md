@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
+## [0.76.0] — 2026-04-07
+
+### Added
+- **Mega launch handoff** — complete session prompt, architecture snapshot, post-launch brainstorm, CI checklist
+
+### Status
+- 10,411 tests GREEN, 547K LOC, 18 crates
+- All P0 items shipped: S10 auth, scheduling, model/provider, LSP, IDE, stabilization
+- Ready for v1.0 launch cycle (May 5, 2026)
+
 ## [0.75.0] — 2026-04-07
 
 See detailed changelog: [`tools/nika/CHANGELOG.md`](tools/nika/CHANGELOG.md)
