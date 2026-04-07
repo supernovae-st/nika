@@ -100,8 +100,14 @@ pub async fn run_workflow(
     principal: Option<axum::Extension<crate::token_store::Principal>>,
     Json(req): Json<RunRequest>,
 ) -> Result<Json<RunResponse>, ServeError> {
-    // L2 scope enforcement
+    // L3 RBAC: viewer cannot execute
     if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_execute() {
+            return Err(ServeError::Forbidden(
+                "viewer role cannot execute workflows".into(),
+            ));
+        }
+        // L2 scope enforcement
         if !p.can_access(&req.workflow) {
             return Err(ServeError::Forbidden(format!(
                 "token '{}' scope '{}' does not cover workflow '{}'",
@@ -259,8 +265,17 @@ fn job_to_status_response(job: nika_storage::Job) -> StatusResponse {
 /// and marks the job as cancelled.
 pub async fn cancel_job(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Path(id): Path<String>,
 ) -> Result<Json<StatusResponse>, ServeError> {
+    // L3 RBAC: viewer cannot cancel
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_execute() {
+            return Err(ServeError::Forbidden(
+                "viewer role cannot cancel jobs".into(),
+            ));
+        }
+    }
     // Verify job exists
     let job = state
         .storage
@@ -588,7 +603,16 @@ pub async fn get_workflow_source(
 /// workflow list (same format as `GET /v1/workflows`).
 pub async fn reload_workflows(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
 ) -> Result<Json<ListWorkflowsResponse>, ServeError> {
+    // L3 RBAC: admin only
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_admin() {
+            return Err(ServeError::Forbidden(
+                "admin role required for reload".into(),
+            ));
+        }
+    }
     let base = state
         .config
         .workflows_dir

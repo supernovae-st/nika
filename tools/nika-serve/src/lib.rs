@@ -1224,19 +1224,25 @@ mod tests {
 
     // ── L2 scope enforcement ────────────────────────────────────────────────
 
-    /// Build a test app with MultiKey auth and a scoped token.
-    async fn test_app_scoped(scope: &str) -> (axum::Router, AppState, String /* raw token */) {
+    /// Build a test app with MultiKey auth and a token with given scope and role.
+    /// Returns (router, state, raw_token, _tempdir_guard).
+    /// The tempdir guard keeps the workflows directory alive for the test.
+    async fn test_app_multikey(
+        scope: &str,
+        role: nika_storage::Role,
+    ) -> (axum::Router, AppState, String, tempfile::TempDir) {
         let storage = nika_storage::Storage::open_memory().expect("open in-memory storage");
         let (_, shutdown_rx) = tokio::sync::watch::channel(false);
+        let tmpdir = tempfile::TempDir::new().unwrap();
 
-        // Create a scoped token in DB
+        // Create a token in DB
         let raw_token = token_store::generate_token();
         let hash = token_store::hash_token(&raw_token);
         let entry = nika_storage::TokenEntry {
             id: "scoped-1".to_string(),
             name: "scoped-test".to_string(),
             token_hash: hash.to_vec(),
-            role: nika_storage::Role::Operator,
+            role,
             scope: scope.to_string(),
             created_at: chrono::Utc::now().to_rfc3339(),
             expires_at: None,
@@ -1247,7 +1253,7 @@ mod tests {
 
         let config = ServeConfig {
             bind: "127.0.0.1:0".parse().unwrap(),
-            workflows_dir: std::path::PathBuf::from("/tmp/nika-test-workflows"),
+            workflows_dir: tmpdir.path().to_path_buf(),
             max_concurrent: 4,
             job_timeout_secs: 60,
             max_output_bytes: 1024,
@@ -1293,12 +1299,13 @@ mod tests {
             .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
             .layer(middleware::from_fn(request_id::request_id_middleware));
 
-        (app, state, raw_token)
+        (app, state, raw_token, tmpdir)
     }
 
     #[tokio::test]
     async fn scope_rejects_out_of_scope_workflow() {
-        let (app, _, token) = test_app_scoped("project-a/*").await;
+        let (app, _, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
 
         let req = Request::builder()
             .method("POST")
@@ -1313,7 +1320,8 @@ mod tests {
 
     #[tokio::test]
     async fn scope_allows_in_scope_workflow() {
-        let (app, _, token) = test_app_scoped("project-a/*").await;
+        let (app, _, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
 
         let req = Request::builder()
             .method("POST")
@@ -1329,7 +1337,7 @@ mod tests {
 
     #[tokio::test]
     async fn scope_wildcard_allows_everything() {
-        let (app, _, token) = test_app_scoped("*").await;
+        let (app, _, token, _dir) = test_app_multikey("*", nika_storage::Role::Operator).await;
 
         let req = Request::builder()
             .method("POST")
@@ -1341,5 +1349,66 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         // Wildcard scope passes → hits next check (workflow not found) → 400
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // ── L3 RBAC ─────────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn rbac_viewer_rejected_on_run() {
+        let (app, _, token, _dir) = test_app_multikey("*", nika_storage::Role::Viewer).await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/run")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::from(r#"{"workflow":"test.nika.yaml"}"#))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn rbac_viewer_allowed_on_list_workflows() {
+        let (app, _, token, _dir) = test_app_multikey("*", nika_storage::Role::Viewer).await;
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/v1/workflows")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // Viewer can list — 200 (empty list, but not 403)
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rbac_operator_rejected_on_reload() {
+        let (app, _, token, _dir) = test_app_multikey("*", nika_storage::Role::Operator).await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/reload")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn rbac_admin_allowed_on_reload() {
+        let (app, _, token, _dir) = test_app_multikey("*", nika_storage::Role::Admin).await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/reload")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // Admin can reload — 200 (empty dir but succeeds)
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

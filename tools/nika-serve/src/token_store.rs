@@ -24,13 +24,26 @@ pub struct Principal {
 }
 
 impl Principal {
+    /// Returns `true` if this principal can execute workflows (run, batch, cancel).
+    pub fn can_execute(&self) -> bool {
+        matches!(
+            self.role,
+            nika_storage::Role::Admin | nika_storage::Role::Operator
+        )
+    }
+
+    /// Returns `true` if this principal can perform admin operations (reload).
+    pub fn can_admin(&self) -> bool {
+        matches!(self.role, nika_storage::Role::Admin)
+    }
+
     /// Check if this principal is allowed to access a workflow by path.
     ///
     /// Scope patterns (comma-separated):
-    /// - `"*"` — matches everything
-    /// - `"prefix/*"` — matches any path starting with `"prefix/"`
-    /// - `"exact.nika.yaml"` — exact match only
-    /// - `""` — empty scope denies all access
+    /// - `"*"` matches everything
+    /// - `"prefix/*"` matches any path starting with `"prefix/"`
+    /// - `"exact.nika.yaml"` exact match only
+    /// - `""` empty scope denies all access
     pub fn can_access(&self, workflow: &str) -> bool {
         self.scope.split(',').any(|pat| {
             let pat = pat.trim();
@@ -363,5 +376,39 @@ mod tests {
     fn scope_empty_denies_all() {
         let p = make_principal("");
         assert!(!p.can_access("anything.nika.yaml"));
+    }
+
+    // =========================================================================
+    // L3 RBAC — Principal::can_execute() / can_admin()
+    // =========================================================================
+
+    fn make_principal_with_role(role: nika_storage::Role) -> Principal {
+        Principal {
+            token_id: "t1".to_string(),
+            token_name: "test".to_string(),
+            role,
+            scope: "*".to_string(),
+        }
+    }
+
+    #[test]
+    fn admin_can_execute_and_admin() {
+        let p = make_principal_with_role(nika_storage::Role::Admin);
+        assert!(p.can_execute());
+        assert!(p.can_admin());
+    }
+
+    #[test]
+    fn operator_can_execute_but_not_admin() {
+        let p = make_principal_with_role(nika_storage::Role::Operator);
+        assert!(p.can_execute());
+        assert!(!p.can_admin());
+    }
+
+    #[test]
+    fn viewer_cannot_execute_or_admin() {
+        let p = make_principal_with_role(nika_storage::Role::Viewer);
+        assert!(!p.can_execute());
+        assert!(!p.can_admin());
     }
 }
