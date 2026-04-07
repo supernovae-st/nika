@@ -1626,6 +1626,24 @@ impl CliRenderer {
                     error
                 );
             }
+
+            // Nika Shield security events — rendered in summary, not per-event
+            EventKind::TaintAnalysisComplete { .. }
+            | EventKind::TrustLevelAssigned { .. }
+            | EventKind::TrustElevationUsed { .. }
+            | EventKind::SpotlightApplied { .. }
+            | EventKind::SpotlightSkipped { .. }
+            | EventKind::AgentToolRestricted { .. }
+            | EventKind::CanaryInjected { .. }
+            | EventKind::CanaryDetected { .. }
+            | EventKind::ScanFindingDetected { .. }
+            | EventKind::SkillIntegrityVerified { .. }
+            | EventKind::SkillIntegrityFailed { .. }
+            | EventKind::CapabilityDenied { .. }
+            | EventKind::MlDetectionRun { .. }
+            | EventKind::MlDetectionBlocked { .. } => {
+                // Rendered in the security summary section at end of run
+            }
         }
     }
 

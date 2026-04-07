@@ -514,7 +514,22 @@ impl TuiState {
             | EventKind::RateLimitDelay { .. }
             | EventKind::TemplateResolutionFailed { .. }
             | EventKind::SchemaLoadFailed { .. }
-            | EventKind::VisionContentFailed { .. } => {
+            | EventKind::VisionContentFailed { .. }
+            // Nika Shield security events — captured in trace NDJSON only
+            | EventKind::TaintAnalysisComplete { .. }
+            | EventKind::TrustLevelAssigned { .. }
+            | EventKind::TrustElevationUsed { .. }
+            | EventKind::SpotlightApplied { .. }
+            | EventKind::SpotlightSkipped { .. }
+            | EventKind::AgentToolRestricted { .. }
+            | EventKind::CanaryInjected { .. }
+            | EventKind::CanaryDetected { .. }
+            | EventKind::ScanFindingDetected { .. }
+            | EventKind::SkillIntegrityVerified { .. }
+            | EventKind::SkillIntegrityFailed { .. }
+            | EventKind::CapabilityDenied { .. }
+            | EventKind::MlDetectionRun { .. }
+            | EventKind::MlDetectionBlocked { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
                 // status via TaskStarted/TaskCompleted/TaskFailed.
