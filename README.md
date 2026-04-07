@@ -310,7 +310,7 @@ tasks:
     infer: "First user: {{with.name | upper | trim}}"
 ```
 
-**64 pipe transforms**: `upper`, `lower`, `trim`, `join(",")`, `split(",")`, `sort`, `unique`, `flatten`, `first`, `last`, `length`, `to_json`, `parse_json`, `parse_yaml`, `default("x")`, `pluck(field)`, `where(field, val)`, `sort_by(field)`, `pick(f1,f2)`, `omit(f1,f2)`, `jq(expr)`, `regex(pattern)`, and [40+ more](docs/transforms.md).
+**64 pipe transforms**: `upper`, `lower`, `trim`, `join(",")`, `split(",")`, `sort`, `unique`, `flatten`, `first`, `last`, `length`, `to_json`, `parse_json`, `parse_yaml`, `default("x")`, `pluck(field)`, `where(field, val)`, `sort_by(field)`, `pick(f1,f2)`, `omit(f1,f2)`, `jq(expr)`, `regex(pattern)`, and [40+ more](tools/nika/CHANGELOG.md).
 
 **Parallel loops** with `for_each` + `concurrency`:
 
@@ -450,7 +450,7 @@ Three views: **Studio** (editor + DAG), **Command** (chat + execution), **Contro
 
 ```
 +-----------------------------------------------------------------------+
-| Nika Studio                                              v0.71.0      |
+| Nika Studio                                              v0.75.0      |
 |-----------------------------------------------------------------------|
 | +- Files --------+ +- Editor ------------------------------------+   |
 | | > workflows/   | |  1 | schema: "nika/workflow@0.12"           |   |
@@ -720,7 +720,7 @@ Read the [Manifesto](MANIFESTO.md) to understand why.
 
 <div align="center">
 
-**Nika v0.71.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 17 crates · 10,000+ tests
+**Nika v0.75.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 17 crates · 10,400+ tests
 
 [SuperNovae Studio](https://supernovae.studio) · [QR Code AI](https://qrcode-ai.com) · [GitHub](https://github.com/supernovae-st/nika)
 
