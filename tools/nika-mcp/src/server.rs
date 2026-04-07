@@ -36,10 +36,11 @@ pub struct CheckParams {
     pub path: String,
 }
 
-/// Parameters for the nika_schema tool
+/// Parameters for the nika_schema tool.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SchemaParams {
-    /// Schema version (default: @0.12)
+    /// Schema version (default: @0.12). Reserved for future schema versioning —
+    /// currently ignored, always returns @0.12.
     #[serde(default = "default_schema_version")]
     pub version: String,
 }
