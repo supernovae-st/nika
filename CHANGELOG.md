@@ -7,19 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.75.0 — FINAL STABILIZATION                                       ║
-║  16 fixes | 10,411 tests | CI v8 | serve hardening | artifact collision    ║
+║  NIKA v0.76.0 — LAUNCH READY                                              ║
+║  Auth L2/L3 + PostgreSQL + Hardening | 10,434 tests | 12 fixes            ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ## [0.76.0] — 2026-04-07
 
 ### Added
-- **Mega launch handoff** — complete session prompt, architecture snapshot, post-launch brainstorm, CI checklist
+- **Auth L2 — scope enforcement** on all endpoints (status, jobs, cancel, artifacts, events, workflows)
+- **Auth L3 — RBAC** with admin/operator/viewer roles
+- **PostgreSQL backend** behind `postgres` feature flag for multi-instance deployments
+- **Storage backend selection** via `NIKA_STORAGE_URL` environment variable
+- **Schema migration versioning** for PostgreSQL (`schema_migrations` table)
+
+### Fixed
+- `Role::parse` falls back to `Viewer` (least privilege) instead of `Operator`
+- `UNIQUE(job_id, name)` constraint on `job_artifacts` for correct upsert
+- Atomic `increment_retry` with `RETURNING` clause (race condition fix)
+- Parameterized `LIMIT/OFFSET` in PostgreSQL `list_jobs_filtered`
+- CI excludes `postgres` feature from `--all-features` check (no PG service in CI)
+- Credential redaction in PostgreSQL error messages
+- TLS warning when PostgreSQL URL lacks `sslmode`
+- `add_artifacts` wrapped in transaction for PostgreSQL
 
 ### Status
-- 10,411 tests GREEN, 547K LOC, 18 crates
-- All P0 items shipped: S10 auth, scheduling, model/provider, LSP, IDE, stabilization
+- 10,434 tests GREEN, 547K LOC, 17 crates
+- 6 HIGH + 5 MEDIUM fixes from 3-agent code review
 - Ready for v1.0 launch cycle (May 5, 2026)
 
 ## [0.75.0] — 2026-04-07
