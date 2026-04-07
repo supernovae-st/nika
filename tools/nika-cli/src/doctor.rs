@@ -856,10 +856,12 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
     // ─── User-level rules [user] — installed by `nika setup` ─────────────
     let user_rules: &[(&str, &str)] = &[
         ("Claude Code", ".claude/rules/nika.md"),
-        ("Cursor", ".cursor/rules/nika.mdc"),
+        // Multi-file cursor: check the project layer (always loaded)
+        ("Cursor", ".cursor/rules/nika-project.mdc"),
         ("Copilot", ".github/copilot/nika.instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
         ("Roo Code", ".roo/rules/nika.md"),
+        ("Gemini", ".gemini/GEMINI.md"),
     ];
 
     let has_claude_binary = which::which("claude").is_ok();
@@ -885,12 +887,21 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
         }
     }
 
+    // Warn about old monolithic cursor file
+    let old_cursor = home.join(".cursor/rules/nika.mdc");
+    if old_cursor.exists() {
+        checks.push(DiagnosticCheck::warn(
+            "AI Rules",
+            "[user] Old monolithic Cursor rules found (nika.mdc)",
+            "Run: nika doctor --fix (migrates to 3-file progressive discovery)",
+        ));
+    }
+
     // ─── Project-level rules [project] — manually placed or committed ─────
     let project_rules: &[(&str, &str)] = &[
-        ("Cursor", ".cursor/rules/nika.mdc"),
-        ("Copilot", ".github/copilot/nika.instructions.md"),
+        ("Cursor", ".cursor/rules/nika-project.mdc"),
+        ("Copilot", ".github/copilot-instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
-        ("Roo Code", ".roo/rules/nika.md"),
     ];
 
     let mut has_project_rules = false;
@@ -909,6 +920,65 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
             "AI Rules",
             "No AI coding tool rules found (user or project)",
             "Run: nika init (auto-installs editor rules on first run)",
+        ));
+    }
+
+    // ─── MCP config check ─────────────────────────────────────────────────
+    checks.extend(check_mcp_config());
+
+    checks
+}
+
+/// Check that .mcp.json has a nika server entry.
+fn check_mcp_config() -> Vec<DiagnosticCheck> {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    check_mcp_config_at(&cwd)
+}
+
+/// Check MCP config at a specific root path (testable).
+fn check_mcp_config_at(root: &std::path::Path) -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+    let mcp_path = root.join(".mcp.json");
+
+    if mcp_path.exists() {
+        match fs::read_to_string(&mcp_path) {
+            Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
+                Ok(parsed) => {
+                    if parsed["mcpServers"]["nika"].is_object() {
+                        checks.push(DiagnosticCheck::pass(
+                            "MCP Config",
+                            ".mcp.json has nika server configured",
+                        ));
+                    } else {
+                        checks.push(DiagnosticCheck::warn(
+                            "MCP Config",
+                            ".mcp.json exists but missing nika server entry",
+                            "Run: nika doctor --fix (adds nika MCP server)",
+                        ));
+                    }
+                }
+                Err(_) => {
+                    checks.push(DiagnosticCheck::warn(
+                        "MCP Config",
+                        ".mcp.json exists but contains invalid JSON",
+                        "Fix the JSON syntax in .mcp.json",
+                    ));
+                }
+            },
+            Err(_) => {
+                checks.push(DiagnosticCheck::warn(
+                    "MCP Config",
+                    ".mcp.json exists but cannot be read",
+                    "Check file permissions on .mcp.json",
+                ));
+            }
+        }
+    } else if root.join("nika.toml").exists() {
+        // This is a Nika project but no MCP config
+        checks.push(DiagnosticCheck::warn(
+            "MCP Config",
+            "Nika project detected but no .mcp.json",
+            "Run: nika doctor --fix (creates .mcp.json with nika server)",
         ));
     }
 
@@ -1544,5 +1614,51 @@ mod tests {
     fn extension_source_label_unknown_is_lowercase_marketplace() {
         assert_eq!(extension_source_label("zed"), "marketplace");
         assert_eq!(extension_source_label(""), "marketplace");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MCP config checks
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn check_mcp_config_passes_with_nika_server() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmpdir.path().join(".mcp.json"),
+            r#"{"mcpServers": {"nika": {"command": "nika", "args": ["mcp", "serve"]}}}"#,
+        )
+        .unwrap();
+        let checks = check_mcp_config_at(tmpdir.path());
+        assert!(
+            checks.iter().any(|c| c.status == DiagnosticStatus::Pass),
+            "should pass with nika server configured"
+        );
+    }
+
+    #[test]
+    fn check_mcp_config_warns_without_nika_server() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmpdir.path().join(".mcp.json"),
+            r#"{"mcpServers": {}}"#,
+        )
+        .unwrap();
+        let checks = check_mcp_config_at(tmpdir.path());
+        assert!(
+            checks.iter().any(|c| c.status == DiagnosticStatus::Warn),
+            "should warn when nika server missing"
+        );
+    }
+
+    #[test]
+    fn check_mcp_config_warns_in_nika_project_without_mcp() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(tmpdir.path().join("nika.toml"), "[project]\nname = \"test\"\n").unwrap();
+        let checks = check_mcp_config_at(tmpdir.path());
+        assert!(
+            checks.iter().any(|c| c.status == DiagnosticStatus::Warn
+                && c.message.contains("no .mcp.json")),
+            "should warn about missing .mcp.json in Nika project"
+        );
     }
 }
