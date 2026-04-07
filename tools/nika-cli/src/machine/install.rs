@@ -440,23 +440,8 @@ fn check_macos_app(_name: &str) -> bool {
     false
 }
 
-/// Comprehensive Nika rules for Claude Code (~/.claude/rules/nika.md).
-const CLAUDE_RULES_CONTENT: &str = include_str!("../../rules/claude.md");
-
-/// Unified Nika rules for Cursor (~/.cursor/rules/nika.mdc).
-///
-/// Merges syntax, patterns, architecture, and security into one comprehensive
-/// .mdc file triggered on *.nika.yaml files.
-const CURSOR_NIKA_RULES: &str = include_str!("../../rules/cursor.mdc");
-
-/// Nika rules for Copilot (~/.github/copilot/nika.instructions.md).
-const COPILOT_RULES: &str = include_str!("../../rules/copilot.md");
-
-/// Nika rules for Windsurf (~/.windsurf/rules/nika.md).
-const WINDSURF_RULES: &str = include_str!("../../rules/windsurf.md");
-
-/// Nika rules for Roo Code (~/.roo/rules/nika.md).
-const ROO_RULES: &str = include_str!("../../rules/roo.md");
+// Rule content is now assembled from shared modules via crate::rules.
+use crate::rules;
 
 // ─── Content Hash Fingerprinting ─────────────────────────────────────────────
 
@@ -628,10 +613,16 @@ pub fn fast_rule_update() -> bool {
     let mut dummy_results = Vec::new();
     let editors = detect_editors();
 
+    let claude_rules = rules::assemble_claude_rules();
+    let copilot_rules = rules::assemble_copilot_instructions();
+    let windsurf_rules = rules::assemble_windsurf_rules();
+    let roo_rules = rules::assemble_roo_rules();
+    let gemini_rules = rules::assemble_gemini_md();
+
     if editors.contains(&"claude") {
         install_rule(
             &home.join(".claude/rules/nika.md"),
-            CLAUDE_RULES_CONTENT,
+            &claude_rules,
             "Claude Code",
             "claude",
             &hashes,
@@ -640,20 +631,49 @@ pub fn fast_rule_update() -> bool {
         );
     }
     if editors.contains(&"cursor") {
+        // Multi-file cursor rules (3 files)
+        let cursor_dir = home.join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_dir).ok();
+        let project = rules::assemble_cursor_project_mdc();
+        let syntax = rules::assemble_cursor_syntax_mdc();
+        let reference = rules::assemble_cursor_reference_mdc();
         install_rule(
-            &home.join(".cursor/rules/nika.mdc"),
-            CURSOR_NIKA_RULES,
-            "Cursor",
-            "cursor",
+            &cursor_dir.join("nika-project.mdc"),
+            &project,
+            "Cursor (project)",
+            "cursor_project",
             &hashes,
             &mut dummy_results,
             true,
         );
+        install_rule(
+            &cursor_dir.join("nika-syntax.mdc"),
+            &syntax,
+            "Cursor (syntax)",
+            "cursor_syntax",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+        install_rule(
+            &cursor_dir.join("nika-reference.mdc"),
+            &reference,
+            "Cursor (reference)",
+            "cursor_reference",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+        // Remove old monolithic file
+        let old_cursor = cursor_dir.join("nika.mdc");
+        if old_cursor.exists() {
+            std::fs::remove_file(&old_cursor).ok();
+        }
     }
     if editors.contains(&"copilot") {
         install_rule(
             &home.join(".github/copilot/nika.instructions.md"),
-            COPILOT_RULES,
+            &copilot_rules,
             "Copilot",
             "copilot",
             &hashes,
@@ -664,7 +684,7 @@ pub fn fast_rule_update() -> bool {
     if editors.contains(&"windsurf") {
         install_rule(
             &home.join(".windsurf/rules/nika.md"),
-            WINDSURF_RULES,
+            &windsurf_rules,
             "Windsurf",
             "windsurf",
             &hashes,
@@ -675,9 +695,23 @@ pub fn fast_rule_update() -> bool {
     if editors.contains(&"roo") {
         install_rule(
             &home.join(".roo/rules/nika.md"),
-            ROO_RULES,
+            &roo_rules,
             "Roo Code",
             "roo",
+            &hashes,
+            &mut dummy_results,
+            true,
+        );
+    }
+    // Gemini CLI
+    let gemini_dir = home.join(".gemini");
+    if gemini_dir.exists() || which::which("gemini").is_ok() {
+        std::fs::create_dir_all(&gemini_dir).ok();
+        install_rule(
+            &gemini_dir.join("GEMINI.md"),
+            &gemini_rules,
+            "Gemini",
+            "gemini",
             &hashes,
             &mut dummy_results,
             true,
@@ -703,11 +737,17 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     let editors = detect_editors();
     let hashes = load_rule_hashes();
 
+    let claude_rules = rules::assemble_claude_rules();
+    let copilot_rules = rules::assemble_copilot_instructions();
+    let windsurf_rules = rules::assemble_windsurf_rules();
+    let roo_rules = rules::assemble_roo_rules();
+    let gemini_rules = rules::assemble_gemini_md();
+
     // Claude Code
     if editors.contains(&"claude") {
         install_rule(
             &home.join(".claude/rules/nika.md"),
-            CLAUDE_RULES_CONTENT,
+            &claude_rules,
             "Claude Code",
             "claude",
             &hashes,
@@ -716,24 +756,52 @@ fn setup_ai_rules() -> Vec<SetupResult> {
         );
     }
 
-    // Cursor
+    // Cursor — 3-file progressive discovery
     if editors.contains(&"cursor") {
+        let cursor_dir = home.join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_dir).ok();
+        let project = rules::assemble_cursor_project_mdc();
+        let syntax = rules::assemble_cursor_syntax_mdc();
+        let reference = rules::assemble_cursor_reference_mdc();
         install_rule(
-            &home.join(".cursor/rules/nika.mdc"),
-            CURSOR_NIKA_RULES,
-            "Cursor",
-            "cursor",
+            &cursor_dir.join("nika-project.mdc"),
+            &project,
+            "Cursor (project)",
+            "cursor_project",
             &hashes,
             &mut results,
             false,
         );
+        install_rule(
+            &cursor_dir.join("nika-syntax.mdc"),
+            &syntax,
+            "Cursor (syntax)",
+            "cursor_syntax",
+            &hashes,
+            &mut results,
+            false,
+        );
+        install_rule(
+            &cursor_dir.join("nika-reference.mdc"),
+            &reference,
+            "Cursor (reference)",
+            "cursor_reference",
+            &hashes,
+            &mut results,
+            false,
+        );
+        // Remove old monolithic file
+        let old_cursor = cursor_dir.join("nika.mdc");
+        if old_cursor.exists() {
+            std::fs::remove_file(&old_cursor).ok();
+        }
     }
 
     // Copilot
     if editors.contains(&"copilot") {
         install_rule(
             &home.join(".github/copilot/nika.instructions.md"),
-            COPILOT_RULES,
+            &copilot_rules,
             "Copilot",
             "copilot",
             &hashes,
@@ -746,7 +814,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     if editors.contains(&"windsurf") {
         install_rule(
             &home.join(".windsurf/rules/nika.md"),
-            WINDSURF_RULES,
+            &windsurf_rules,
             "Windsurf",
             "windsurf",
             &hashes,
@@ -759,9 +827,24 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     if editors.contains(&"roo") {
         install_rule(
             &home.join(".roo/rules/nika.md"),
-            ROO_RULES,
+            &roo_rules,
             "Roo Code",
             "roo",
+            &hashes,
+            &mut results,
+            false,
+        );
+    }
+
+    // Gemini CLI
+    let gemini_dir = home.join(".gemini");
+    if gemini_dir.exists() || which::which("gemini").is_ok() {
+        std::fs::create_dir_all(&gemini_dir).ok();
+        install_rule(
+            &gemini_dir.join("GEMINI.md"),
+            &gemini_rules,
+            "Gemini",
+            "gemini",
             &hashes,
             &mut results,
             false,
@@ -774,7 +857,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     if !has_skills {
         let skill_dir = skills_dir.join("nika-workflow-syntax");
         std::fs::create_dir_all(&skill_dir).ok();
-        let skill_content = CLAUDE_RULES_CONTENT;
+        let skill_content = rules::assemble_agents_md();
         if std::fs::write(skill_dir.join("SKILL.md"), skill_content).is_ok() {
             println!(
                 "  {} Agent Skills installed [~/.agents/skills/]",
@@ -1089,11 +1172,15 @@ pub fn quick_editor_scan() {
     let home = dirs::home_dir().unwrap_or_default();
     let hashes = load_rule_hashes();
     let mut results = Vec::new();
+    let claude_rules = rules::assemble_claude_rules();
+    let copilot_rules = rules::assemble_copilot_instructions();
+    let windsurf_rules = rules::assemble_windsurf_rules();
+    let roo_rules = rules::assemble_roo_rules();
     for editor in &new_editors {
         match **editor {
             "claude" => install_rule(
                 &home.join(".claude/rules/nika.md"),
-                CLAUDE_RULES_CONTENT,
+                &claude_rules,
                 "Claude Code",
                 "claude",
                 &hashes,
@@ -1101,11 +1188,34 @@ pub fn quick_editor_scan() {
                 true,
             ),
             "cursor" => {
+                let cursor_dir = home.join(".cursor/rules");
+                std::fs::create_dir_all(&cursor_dir).ok();
+                let project = rules::assemble_cursor_project_mdc();
+                let syntax = rules::assemble_cursor_syntax_mdc();
+                let reference = rules::assemble_cursor_reference_mdc();
                 install_rule(
-                    &home.join(".cursor/rules/nika.mdc"),
-                    CURSOR_NIKA_RULES,
-                    "Cursor",
-                    "cursor",
+                    &cursor_dir.join("nika-project.mdc"),
+                    &project,
+                    "Cursor (project)",
+                    "cursor_project",
+                    &hashes,
+                    &mut results,
+                    true,
+                );
+                install_rule(
+                    &cursor_dir.join("nika-syntax.mdc"),
+                    &syntax,
+                    "Cursor (syntax)",
+                    "cursor_syntax",
+                    &hashes,
+                    &mut results,
+                    true,
+                );
+                install_rule(
+                    &cursor_dir.join("nika-reference.mdc"),
+                    &reference,
+                    "Cursor (reference)",
+                    "cursor_reference",
                     &hashes,
                     &mut results,
                     true,
@@ -1114,7 +1224,7 @@ pub fn quick_editor_scan() {
             }
             "copilot" => install_rule(
                 &home.join(".github/copilot/nika.instructions.md"),
-                COPILOT_RULES,
+                &copilot_rules,
                 "Copilot",
                 "copilot",
                 &hashes,
@@ -1127,7 +1237,7 @@ pub fn quick_editor_scan() {
             "windsurf" => {
                 install_rule(
                     &home.join(".windsurf/rules/nika.md"),
-                    WINDSURF_RULES,
+                    &windsurf_rules,
                     "Windsurf",
                     "windsurf",
                     &hashes,
@@ -1138,7 +1248,7 @@ pub fn quick_editor_scan() {
             }
             "roo" => install_rule(
                 &home.join(".roo/rules/nika.md"),
-                ROO_RULES,
+                &roo_rules,
                 "Roo Code",
                 "roo",
                 &hashes,
@@ -1325,18 +1435,18 @@ mod tests {
         assert!(path.to_string_lossy().ends_with("machine.toml"));
     }
 
-    /// All rule constants must use {{with.item}} not bare {{item}} in code
+    /// All assembled rules must use {{with.item}} not bare {{item}} in code
     /// examples (the "Wrong" column in mistake tables is exempt).
     #[test]
     fn all_rules_use_with_item_not_bare_item() {
-        let rules: &[(&str, &str)] = &[
-            ("CLAUDE_RULES_CONTENT", CLAUDE_RULES_CONTENT),
-            ("CURSOR_NIKA_RULES", CURSOR_NIKA_RULES),
-            ("COPILOT_RULES", COPILOT_RULES),
-            ("WINDSURF_RULES", WINDSURF_RULES),
-            ("ROO_RULES", ROO_RULES),
+        let assembled: Vec<(&str, String)> = vec![
+            ("claude", rules::assemble_claude_rules()),
+            ("cursor_syntax", rules::assemble_cursor_syntax_mdc()),
+            ("copilot", rules::assemble_copilot_instructions()),
+            ("windsurf", rules::assemble_windsurf_rules()),
+            ("roo", rules::assemble_roo_rules()),
         ];
-        for (name, content) in rules {
+        for (name, content) in &assembled {
             for (i, line) in content.lines().enumerate() {
                 let trimmed = line.trim();
                 if trimmed.contains("{{item}}")
@@ -1354,32 +1464,32 @@ mod tests {
         }
     }
 
-    /// All rule constants must reference schema @0.12.
+    /// All assembled rules must reference schema @0.12.
     #[test]
     fn all_rules_reference_current_schema() {
-        let rules: &[(&str, &str)] = &[
-            ("CLAUDE_RULES_CONTENT", CLAUDE_RULES_CONTENT),
-            ("CURSOR_NIKA_RULES", CURSOR_NIKA_RULES),
-            ("COPILOT_RULES", COPILOT_RULES),
-            ("WINDSURF_RULES", WINDSURF_RULES),
-            ("ROO_RULES", ROO_RULES),
+        let assembled: Vec<(&str, String)> = vec![
+            ("claude", rules::assemble_claude_rules()),
+            ("cursor_syntax", rules::assemble_cursor_syntax_mdc()),
+            ("copilot", rules::assemble_copilot_instructions()),
+            ("windsurf", rules::assemble_windsurf_rules()),
+            ("roo", rules::assemble_roo_rules()),
         ];
-        for (name, content) in rules {
+        for (name, content) in &assembled {
             assert!(content.contains("@0.12"), "{} missing schema @0.12", name);
         }
     }
 
-    /// No rule constants should reference nonexistent models.
+    /// No assembled rules should reference nonexistent models.
     #[test]
     fn all_rules_no_nonexistent_models() {
-        let rules: &[(&str, &str)] = &[
-            ("CLAUDE_RULES_CONTENT", CLAUDE_RULES_CONTENT),
-            ("CURSOR_NIKA_RULES", CURSOR_NIKA_RULES),
-            ("COPILOT_RULES", COPILOT_RULES),
-            ("WINDSURF_RULES", WINDSURF_RULES),
-            ("ROO_RULES", ROO_RULES),
+        let assembled: Vec<(&str, String)> = vec![
+            ("claude", rules::assemble_claude_rules()),
+            ("cursor_syntax", rules::assemble_cursor_syntax_mdc()),
+            ("copilot", rules::assemble_copilot_instructions()),
+            ("windsurf", rules::assemble_windsurf_rules()),
+            ("roo", rules::assemble_roo_rules()),
         ];
-        for (name, content) in rules {
+        for (name, content) in &assembled {
             assert!(
                 !content.contains("grok-4"),
                 "{} references nonexistent model grok-4",
@@ -1426,38 +1536,47 @@ mod tests {
         assert_eq!(parsed, vec!["vscode", "claude", "cursor"]);
     }
 
-    /// Cursor rules .mdc must have valid frontmatter.
+    /// Cursor syntax .mdc must have valid frontmatter with globs.
     #[test]
-    fn cursor_rules_have_mdc_frontmatter() {
+    fn cursor_syntax_rules_have_mdc_frontmatter() {
+        let syntax = rules::assemble_cursor_syntax_mdc();
         assert!(
-            CURSOR_NIKA_RULES.starts_with("---\n"),
-            "CURSOR_NIKA_RULES must start with YAML frontmatter"
+            syntax.starts_with("---\n"),
+            "cursor syntax must start with YAML frontmatter"
         );
         assert!(
-            CURSOR_NIKA_RULES.contains("globs:"),
-            "CURSOR_NIKA_RULES must have globs: in frontmatter"
-        );
-        assert!(
-            CURSOR_NIKA_RULES.contains("alwaysApply:"),
-            "CURSOR_NIKA_RULES must have alwaysApply: in frontmatter"
+            syntax.contains("globs:"),
+            "cursor syntax must have globs: in frontmatter"
         );
     }
 
-    /// Copilot rules must have applyTo frontmatter.
+    /// Cursor project .mdc must have alwaysApply.
+    #[test]
+    fn cursor_project_rules_always_apply() {
+        let project = rules::assemble_cursor_project_mdc();
+        assert!(
+            project.contains("alwaysApply: true"),
+            "cursor project must have alwaysApply: true"
+        );
+    }
+
+    /// Copilot rules must have applyTo.
     #[test]
     fn copilot_rules_have_apply_to() {
+        let copilot = rules::assemble_copilot_instructions();
         assert!(
-            COPILOT_RULES.contains("applyTo:"),
-            "COPILOT_RULES must have applyTo: frontmatter"
+            copilot.contains("applyTo:"),
+            "copilot rules must have applyTo:"
         );
     }
 
     /// Windsurf rules must have trigger frontmatter.
     #[test]
     fn windsurf_rules_have_trigger() {
+        let windsurf = rules::assemble_windsurf_rules();
         assert!(
-            WINDSURF_RULES.contains("trigger:"),
-            "WINDSURF_RULES must have trigger: frontmatter"
+            windsurf.contains("trigger:"),
+            "windsurf rules must have trigger:"
         );
     }
 

@@ -8,18 +8,7 @@ use nika_engine::display::StatusIcon;
 use nika_engine::error::NikaError;
 use nika_engine::tools::PermissionMode;
 
-/// Nika workflow syntax reference — embedded at compile time.
-/// Used for project-level AGENTS.md so teams work without running `nika setup`.
-const AGENTS_MD_CONTENT: &str = include_str!("../rules/claude.md");
-
-/// Copilot instructions (GitHub Copilot / VS Code Copilot Chat).
-const COPILOT_MD_CONTENT: &str = include_str!("../rules/copilot.md");
-
-/// Cursor rules (Cursor IDE).
-const CURSOR_MDC_CONTENT: &str = include_str!("../rules/cursor.mdc");
-
-/// Windsurf rules (Windsurf / Codeium).
-const WINDSURF_MD_CONTENT: &str = include_str!("../rules/windsurf.md");
+use crate::rules;
 
 /// Starter workflow created by `nika init` so the LSP activates immediately.
 const STARTER_WORKFLOW: &str = r#"schema: "nika/workflow@0.12"
@@ -276,39 +265,110 @@ default = "anthropic"
         fs::write(&starter_path, STARTER_WORKFLOW)?;
     }
 
-    // Create .mcp.json (Claude Code convention — empty by default)
+    // Create .mcp.json with nika MCP server pre-configured
     let mcp_json_path = root.join(".mcp.json");
     if !mcp_json_path.exists() {
-        fs::write(&mcp_json_path, "{\n  \"mcpServers\": {}\n}\n")?;
+        let mcp_content = serde_json::json!({
+            "mcpServers": {
+                "nika": {
+                    "command": "nika",
+                    "args": ["mcp", "serve"]
+                }
+            }
+        });
+        fs::write(
+            &mcp_json_path,
+            serde_json::to_string_pretty(&mcp_content).unwrap() + "\n",
+        )?;
     }
 
-    // Create AGENTS.md
+    // Create AGENTS.md (cross-tool, works with any AI assistant)
     let agents_md_path = root.join("AGENTS.md");
     if !agents_md_path.exists() {
-        fs::write(&agents_md_path, AGENTS_MD_CONTENT)?;
+        fs::write(&agents_md_path, rules::assemble_agents_md())?;
     }
 
-    // Create IDE-specific AI instruction files (so every AI assistant understands Nika)
     // GitHub Copilot: .github/copilot-instructions.md
     let copilot_dir = root.join(".github");
     let copilot_path = copilot_dir.join("copilot-instructions.md");
     if !copilot_path.exists() {
         fs::create_dir_all(&copilot_dir).ok();
-        fs::write(&copilot_path, COPILOT_MD_CONTENT)?;
+        fs::write(&copilot_path, rules::assemble_copilot_instructions())?;
     }
 
-    // Cursor: .cursor/rules/nika.mdc
+    // Cursor: 3-file progressive discovery (.cursor/rules/)
     let cursor_dir = root.join(".cursor").join("rules");
-    let cursor_path = cursor_dir.join("nika.mdc");
-    if !cursor_path.exists() {
-        fs::create_dir_all(&cursor_dir).ok();
-        fs::write(&cursor_path, CURSOR_MDC_CONTENT)?;
+    fs::create_dir_all(&cursor_dir).ok();
+    // Remove old monolithic file if present
+    let old_cursor = cursor_dir.join("nika.mdc");
+    if old_cursor.exists() {
+        fs::remove_file(&old_cursor).ok();
+    }
+    write_if_absent(
+        &cursor_dir.join("nika-project.mdc"),
+        &rules::assemble_cursor_project_mdc(),
+    )?;
+    write_if_absent(
+        &cursor_dir.join("nika-syntax.mdc"),
+        &rules::assemble_cursor_syntax_mdc(),
+    )?;
+    write_if_absent(
+        &cursor_dir.join("nika-reference.mdc"),
+        &rules::assemble_cursor_reference_mdc(),
+    )?;
+
+    // Cursor MCP config: .cursor/mcp.json
+    let cursor_mcp = root.join(".cursor").join("mcp.json");
+    if !cursor_mcp.exists() {
+        let cursor_mcp_content = serde_json::json!({
+            "mcpServers": {
+                "nika": {
+                    "command": "nika",
+                    "args": ["mcp", "serve"]
+                }
+            }
+        });
+        fs::write(
+            &cursor_mcp,
+            serde_json::to_string_pretty(&cursor_mcp_content).unwrap() + "\n",
+        )?;
     }
 
-    // Windsurf: .windsurfrules
-    let windsurf_path = root.join(".windsurfrules");
-    if !windsurf_path.exists() {
-        fs::write(&windsurf_path, WINDSURF_MD_CONTENT)?;
+    // Windsurf: .windsurf/rules/nika.md (new location)
+    let windsurf_dir = root.join(".windsurf").join("rules");
+    fs::create_dir_all(&windsurf_dir).ok();
+    write_if_absent(
+        &windsurf_dir.join("nika.md"),
+        &rules::assemble_windsurf_rules(),
+    )?;
+    // Remove old .windsurfrules if migrating
+    let old_windsurf = root.join(".windsurfrules");
+    if old_windsurf.exists() {
+        fs::remove_file(&old_windsurf).ok();
+    }
+
+    // Gemini CLI: .gemini/GEMINI.md
+    let gemini_dir = root.join(".gemini");
+    fs::create_dir_all(&gemini_dir).ok();
+    write_if_absent(
+        &gemini_dir.join("GEMINI.md"),
+        &rules::assemble_gemini_md(),
+    )?;
+
+    // Claude Code: .claude/settings.json with hooks + permissions
+    let claude_dir = root.join(".claude");
+    fs::create_dir_all(&claude_dir).ok();
+    let claude_settings = claude_dir.join("settings.json");
+    if !claude_settings.exists() {
+        let settings = serde_json::json!({
+            "permissions": {
+                "allow": ["mcp__nika__*", "Bash(nika *)"]
+            }
+        });
+        fs::write(
+            &claude_settings,
+            serde_json::to_string_pretty(&settings).unwrap() + "\n",
+        )?;
     }
 
     // Create or append .gitignore
@@ -328,6 +388,14 @@ default = "anthropic"
         fs::write(&gitignore_path, gitignore_entries)?;
     }
 
+    Ok(())
+}
+
+/// Write a file only if it doesn't already exist.
+fn write_if_absent(path: &std::path::Path, content: &str) -> Result<(), NikaError> {
+    if !path.exists() {
+        fs::write(path, content)?;
+    }
     Ok(())
 }
 
@@ -502,9 +570,9 @@ mod tests {
         );
     }
 
-    // Test 23: init creates .mcp.json (Claude Code convention)
+    // Test 23: init creates .mcp.json with nika MCP server pre-configured
     #[tokio::test]
-    async fn init_creates_mcp_json() {
+    async fn init_creates_mcp_json_with_nika_server() {
         let temp = tempdir().unwrap();
         init_project_at(temp.path(), "plan", false).await.unwrap();
 
@@ -514,8 +582,116 @@ mod tests {
         let content = std::fs::read_to_string(&mcp_json).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert!(
-            parsed.get("mcpServers").is_some(),
-            "should have mcpServers key"
+            parsed["mcpServers"]["nika"].is_object(),
+            ".mcp.json should have nika server pre-configured"
         );
+        assert_eq!(
+            parsed["mcpServers"]["nika"]["command"], "nika",
+            "nika server command should be 'nika'"
+        );
+    }
+
+    // Test 24: init generates 3 Cursor files instead of 1
+    #[tokio::test]
+    async fn init_generates_cursor_multi_file() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let rules_dir = temp.path().join(".cursor/rules");
+        assert!(
+            rules_dir.join("nika-project.mdc").exists(),
+            "nika-project.mdc should exist"
+        );
+        assert!(
+            rules_dir.join("nika-syntax.mdc").exists(),
+            "nika-syntax.mdc should exist"
+        );
+        assert!(
+            rules_dir.join("nika-reference.mdc").exists(),
+            "nika-reference.mdc should exist"
+        );
+        // Old monolithic file should NOT exist
+        assert!(
+            !rules_dir.join("nika.mdc").exists(),
+            "old nika.mdc should not exist"
+        );
+
+        // Project file must be small and alwaysApply
+        let project = std::fs::read_to_string(rules_dir.join("nika-project.mdc")).unwrap();
+        assert!(project.contains("alwaysApply: true"));
+        assert!(project.lines().count() < 25);
+    }
+
+    // Test 25: init generates .claude/settings.json with permissions
+    #[tokio::test]
+    async fn init_generates_claude_settings() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let settings_path = temp.path().join(".claude/settings.json");
+        assert!(settings_path.exists(), ".claude/settings.json should exist");
+
+        let settings: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&settings_path).unwrap()).unwrap();
+        let allow = settings["permissions"]["allow"]
+            .as_array()
+            .expect("allow should be array");
+        assert!(
+            allow
+                .iter()
+                .any(|v| v.as_str().unwrap_or("").contains("nika")),
+            "should have nika permission"
+        );
+    }
+
+    // Test 26: init generates .cursor/mcp.json
+    #[tokio::test]
+    async fn init_generates_cursor_mcp_json() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let cursor_mcp = temp.path().join(".cursor/mcp.json");
+        assert!(cursor_mcp.exists(), ".cursor/mcp.json should exist");
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cursor_mcp).unwrap()).unwrap();
+        assert!(parsed["mcpServers"]["nika"].is_object());
+    }
+
+    // Test 27: init generates .gemini/GEMINI.md
+    #[tokio::test]
+    async fn init_generates_gemini_md() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let gemini = temp.path().join(".gemini/GEMINI.md");
+        assert!(gemini.exists(), ".gemini/GEMINI.md should exist");
+
+        let content = std::fs::read_to_string(&gemini).unwrap();
+        assert!(content.contains("nika/workflow@0.12"));
+    }
+
+    // Test 28: AGENTS.md contains schema version
+    #[tokio::test]
+    async fn init_agents_md_has_schema_version() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let content =
+            std::fs::read_to_string(temp.path().join("AGENTS.md")).unwrap();
+        assert!(content.contains("nika/workflow@0.12"));
+        assert!(content.contains("nika check"));
+    }
+
+    // Test 29: init generates .windsurf/rules/nika.md (new path)
+    #[tokio::test]
+    async fn init_generates_windsurf_rules() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let windsurf = temp.path().join(".windsurf/rules/nika.md");
+        assert!(windsurf.exists(), ".windsurf/rules/nika.md should exist");
+        // Old .windsurfrules should not exist
+        assert!(!temp.path().join(".windsurfrules").exists());
     }
 }
