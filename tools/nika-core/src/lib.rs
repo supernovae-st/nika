@@ -23,6 +23,7 @@ pub mod error;
 pub mod error_codes;
 pub mod mcp;
 pub mod provider_name;
+pub mod capabilities;
 pub mod schema;
 pub mod source;
 pub mod trust;
