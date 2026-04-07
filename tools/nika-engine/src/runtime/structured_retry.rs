@@ -31,9 +31,12 @@ use super::output::{extract_json, format_validation_errors};
 /// - Output format is JSON
 /// - Output has inline schema
 /// - structured.max_retries > 0
-pub(crate) fn get_retry_config(task: &AnalyzedTask) -> Option<(Value, u8, InferParams)> {
-    // Must be an infer action
-    let infer_action = match &task.action {
+pub(crate) fn get_retry_config(
+    task: &AnalyzedTask,
+    resolved_action: &AnalyzedTaskAction,
+) -> Option<(Value, u8, InferParams)> {
+    // Must be an infer action — use the RESOLVED action (templates already expanded)
+    let infer_action = match resolved_action {
         AnalyzedTaskAction::Infer(infer) => infer,
         _ => return None,
     };

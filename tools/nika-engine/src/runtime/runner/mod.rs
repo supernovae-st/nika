@@ -1407,16 +1407,54 @@ impl Runner {
                         // adjustment in case we add the counter back.
 
                         // Get concurrency settings: for_each overrides, then standalone task fields
+                        // Note: bindings aren't available here (they're per-iteration),
+                        // but inputs/context are available via empty bindings + datastore.
                         let fe = task.for_each.as_ref();
-                        // TODO: resolve templates at runtime
+                        let empty_bindings = crate::binding::ResolvedBindings::new();
                         let concurrency = fe
-                            .and_then(|f| f.concurrency.as_ref().and_then(|c| c.value()))
-                            .or(task.concurrency.as_ref().and_then(|c| c.value()))
+                            .and_then(|f| {
+                                crate::runtime::resolve_typed::resolve_task_u32(
+                                    &f.concurrency,
+                                    &empty_bindings,
+                                    &self.datastore,
+                                    "concurrency",
+                                )
+                                .ok()
+                                .flatten()
+                            })
+                            .or_else(|| {
+                                crate::runtime::resolve_typed::resolve_task_u32(
+                                    &task.concurrency,
+                                    &empty_bindings,
+                                    &self.datastore,
+                                    "concurrency",
+                                )
+                                .ok()
+                                .flatten()
+                            })
                             .unwrap_or(1)
                             .max(1) as usize;
                         let fail_fast = fe
-                            .map(|f| f.fail_fast.value().unwrap_or(true))
-                            .or(task.fail_fast.as_ref().and_then(|f| f.value()))
+                            .map(|f| {
+                                crate::runtime::resolve_typed::resolve_required_bool(
+                                    &f.fail_fast,
+                                    &empty_bindings,
+                                    &self.datastore,
+                                    "fail_fast",
+                                    true,
+                                )
+                                .unwrap_or(true)
+                            })
+                            .or_else(|| {
+                                crate::runtime::resolve_typed::resolve_task_bool(
+                                    &task.fail_fast,
+                                    &empty_bindings,
+                                    &self.datastore,
+                                    "fail_fast",
+                                )
+                                .ok()
+                                .flatten()
+                            })
                             .unwrap_or(true);
 
                         // Guard against unbounded for_each arrays that could OOM
@@ -1768,13 +1806,17 @@ impl Runner {
                 IndexMap::new();
 
             // Clamp max_duration_secs to prevent Instant overflow (max ~292 years)
-            // TODO: resolve template at runtime
-            let clamped_duration = self
-                .workflow
-                .max_duration_secs
-                .value()
-                .unwrap_or(3600)
-                .min(604_800); // Cap at 1 week
+            // Resolve template using empty bindings (workflow-level, no task context)
+            let empty_bindings = crate::binding::ResolvedBindings::new();
+            let clamped_duration = crate::runtime::resolve_typed::resolve_required_u64(
+                &self.workflow.max_duration_secs,
+                &empty_bindings,
+                &self.datastore,
+                "max_duration_secs",
+                3600,
+            )
+            .unwrap_or(3600)
+            .min(604_800); // Cap at 1 week
             let timeout_deadline =
                 tokio::time::Instant::now() + std::time::Duration::from_secs(clamped_duration);
             // Hoist the sleep future to avoid re-creating it on every select! iteration
@@ -1824,7 +1866,7 @@ impl Runner {
                             .map(|t| Arc::from(t.name.as_str()))
                             .collect();
 
-                        let max_dur = self.workflow.max_duration_secs.value().unwrap_or(3600);
+                        let max_dur = clamped_duration;
                         self.event_log.emit(EventKind::WorkflowAborted {
                             reason: format!(
                                 "Workflow exceeded max_duration_secs ({} seconds)",

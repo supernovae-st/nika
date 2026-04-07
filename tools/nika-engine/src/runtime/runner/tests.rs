@@ -2105,7 +2105,7 @@ fn test_get_retry_config_none_for_exec_task() {
         span: Span::dummy(),
     };
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "Exec tasks should never qualify for retry"
     );
 }
@@ -2114,7 +2114,7 @@ fn test_get_retry_config_none_for_exec_task() {
 fn test_get_retry_config_none_for_no_output() {
     let task = make_infer_task("no_output", None, None);
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "No output means no retry"
     );
 }
@@ -2135,7 +2135,7 @@ fn test_get_retry_config_none_for_text_format() {
         )),
     );
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "Text format should not qualify for retry"
     );
 }
@@ -2156,7 +2156,7 @@ fn test_get_retry_config_none_for_json_no_schema() {
         )),
     );
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "JSON without schema should not qualify"
     );
 }
@@ -2175,7 +2175,7 @@ fn test_get_retry_config_none_for_no_structured() {
         None, // No structured spec → no max_retries
     );
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "No structured spec means no retry"
     );
 }
@@ -2196,7 +2196,7 @@ fn test_get_retry_config_none_for_zero_retries() {
         Some(structured),
     );
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "Zero retries means no retry"
     );
 }
@@ -2217,7 +2217,7 @@ fn test_get_retry_config_none_for_default_retries() {
         Some(structured),
     );
     assert!(
-        get_retry_config(&task).is_none(),
+        get_retry_config(&task, &task.action).is_none(),
         "Default retries (None → 0) means no retry"
     );
 }
@@ -2238,7 +2238,7 @@ fn test_get_retry_config_some_for_valid_config() {
         }),
         Some(structured),
     );
-    let result = get_retry_config(&task);
+    let result = get_retry_config(&task, &task.action);
     assert!(result.is_some(), "Valid config should return Some");
 
     let (ret_schema, max_retries, infer) = result.unwrap();

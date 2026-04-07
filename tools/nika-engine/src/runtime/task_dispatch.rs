@@ -152,8 +152,14 @@ pub(crate) async fn execute_task_iteration(
     }
 
     // Enforce context_budget if configured on this task
-    // TODO: resolve template at runtime
-    if let Some(budget) = task.context_budget.as_ref().and_then(|b| b.value()) {
+    if let Some(budget) = crate::runtime::resolve_typed::resolve_task_u32(
+        &task.context_budget,
+        &bindings,
+        &datastore,
+        "context_budget",
+    )
+    .unwrap_or(None)
+    {
         let budget_event =
             crate::binding::token_budget::enforce_budget(&mut bindings, budget, &task_id);
         event_log.emit(budget_event);
@@ -263,7 +269,8 @@ pub(crate) async fn execute_task_iteration(
     };
 
     // Check if task qualifies for schema validation retry
-    let retry_config = get_retry_config(&task);
+    // Pass resolved_action so temperature/max_tokens are already concrete values
+    let retry_config = get_retry_config(&task, &resolved_action);
 
     // Execute with retry loop if configured
     let mut task_result = if let Some((schema, max_retries, original_infer)) = retry_config {
@@ -286,8 +293,17 @@ pub(crate) async fn execute_task_iteration(
         // Fetch handles retry internally (HTTP 5xx backoff) — skip runner retry.
         let is_fetch = matches!(lowered_action, TaskAction::Fetch { .. });
         let task_retry = if !is_fetch { task.retry.as_ref() } else { None };
-        // TODO: resolve template at runtime
-        let max_attempts = task_retry.map_or(1u32, |r| r.max_attempts.value().unwrap_or(3).max(1));
+        // Resolve retry templates using bindings + datastore
+        let resolved_retry = task_retry
+            .map(|r| {
+                crate::runtime::resolve_typed::resolve_retry(r, &bindings, &datastore)
+            })
+            .transpose()
+            .ok()
+            .flatten();
+        let effective_retry = resolved_retry.as_ref().or(task_retry);
+        let max_attempts = effective_retry
+            .map_or(1u32, |r| r.max_attempts.value().unwrap_or(3).max(1));
 
         let result = if max_attempts <= 1 {
             // No retry — single execution (with routing fallback if configured)
@@ -303,10 +319,9 @@ pub(crate) async fn execute_task_iteration(
                 .await
         } else {
             // Task-level retry loop with exponential backoff.
-            // TODO: resolve templates at runtime
             let delay_ms =
-                task_retry.map_or(1000u64, |r| r.delay_ms.value().unwrap_or(1000));
-            let backoff = task_retry
+                effective_retry.map_or(1000u64, |r| r.delay_ms.value().unwrap_or(1000));
+            let backoff = effective_retry
                 .map_or(1.0f64, |r| {
                     r.backoff.as_ref().and_then(|b| b.value()).unwrap_or(1.0)
                 })
@@ -537,12 +552,21 @@ pub(crate) async fn execute_task_iteration(
                                         });
                                     // Resolve templates in fallback task before lowering
                                     let fb_resolved_action =
-                                        crate::runtime::resolve_typed::resolve_action_templates(
+                                        match crate::runtime::resolve_typed::resolve_action_templates(
                                             &fb_task.action,
                                             &bindings,
                                             &datastore,
-                                        )
-                                        .unwrap_or_else(|_| fb_task.action.clone());
+                                        ) {
+                                            Ok(a) => a,
+                                            Err(e) => {
+                                                tracing::warn!(
+                                                    task_id = %task_id,
+                                                    error = %e,
+                                                    "Fallback task template resolution failed"
+                                                );
+                                                fb_task.action.clone()
+                                            }
+                                        };
                                     let fb_action = lower_action(
                                         &fb_resolved_action,
                                         &fb_task.provider,
