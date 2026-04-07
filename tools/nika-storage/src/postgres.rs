@@ -26,8 +26,16 @@ fn redact_pg_error(context: &str, err: impl std::fmt::Display) -> StorageError {
     StorageError::Other(format!("{context}: {msg}"))
 }
 
+/// Current schema version. Bump when adding migrations.
+const SCHEMA_VERSION: i32 = 1;
+
 /// PostgreSQL schema — executed on connect to ensure tables exist.
 const SCHEMA_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER NOT NULL PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     name TEXT,
@@ -140,6 +148,32 @@ impl PostgresStorage {
             .execute(&pool)
             .await
             .map_err(|e| redact_pg_error("PostgreSQL schema", e))?;
+
+        // Record schema version (idempotent — ON CONFLICT ignores if already set)
+        let now = chrono::Utc::now().to_rfc3339();
+        query(
+            "INSERT INTO schema_migrations (version, applied_at) \
+             VALUES ($1, $2) ON CONFLICT (version) DO NOTHING",
+        )
+        .bind(SCHEMA_VERSION)
+        .bind(&now)
+        .execute(&pool)
+        .await
+        .map_err(|e| StorageError::Other(format!("schema version: {e}")))?;
+
+        // Verify current schema version matches expected
+        let row = query("SELECT MAX(version) as ver FROM schema_migrations")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| StorageError::Other(format!("schema version check: {e}")))?;
+        let current: Option<i32> = row.get("ver");
+        if current != Some(SCHEMA_VERSION) {
+            tracing::warn!(
+                expected = SCHEMA_VERSION,
+                actual = ?current,
+                "PostgreSQL schema version mismatch — database may need migration"
+            );
+        }
 
         Ok(Self { pool })
     }
