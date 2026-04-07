@@ -4,20 +4,29 @@
   "title": "Nika Workflow",
   "description": "Schema for .nika.yaml workflow files - DAG workflow runner for AI tasks",
   "type": "object",
-  "required": ["schema", "tasks"],
+  "required": [
+    "schema",
+    "tasks"
+  ],
   "additionalProperties": false,
   "properties": {
     "schema": {
       "type": "string",
       "pattern": "^nika/workflow@0\\.[1-9][0-9]?$",
       "description": "Workflow schema version (nika/workflow@0.1 through @0.99)",
-      "examples": ["nika/workflow@0.10", "nika/workflow@0.12"]
+      "examples": [
+        "nika/workflow@0.10",
+        "nika/workflow@0.12"
+      ]
     },
     "workflow": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
       "description": "Workflow identifier (lowercase alphanumeric with hyphens)",
-      "examples": ["generate-page", "seo-pipeline"]
+      "examples": [
+        "generate-page",
+        "seo-pipeline"
+      ]
     },
     "description": {
       "type": "string",
@@ -26,7 +35,14 @@
     "provider": {
       "description": "Default LLM provider, custom endpoint name, or provider fallback chain (v0.50+)",
       "default": "claude",
-      "examples": ["claude", "openai", ["groq", "claude"]],
+      "examples": [
+        "claude",
+        "openai",
+        [
+          "groq",
+          "claude"
+        ]
+      ],
       "oneOf": [
         {
           "type": "string",
@@ -34,22 +50,32 @@
         },
         {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 1,
-          "description": "Provider fallback chain — first = primary, rest = fallback on failure"
+          "description": "Provider fallback chain \u2014 first = primary, rest = fallback on failure"
         }
       ]
     },
     "model": {
       "type": "string",
       "description": "Required for LLM tasks. Model to use for infer/agent verbs (e.g., gpt-4o-mini, claude-sonnet-4-6)",
-      "examples": ["claude-sonnet-4-6", "gpt-4o-mini", "gemini-2.0-flash", "Qwen/Qwen3.5-27B-GPTQ-Int4"]
+      "examples": [
+        "claude-sonnet-4-6",
+        "gpt-4o-mini",
+        "gemini-2.0-flash",
+        "Qwen/Qwen3.5-27B-GPTQ-Int4"
+      ]
     },
     "base_url": {
       "type": "string",
       "format": "uri",
       "description": "Base URL for OpenAI-compatible endpoint (e.g., vLLM, Ollama). Overrides provider's default URL.",
-      "examples": ["http://localhost:8000/v1", "http://10.0.1.42:8000/v1"]
+      "examples": [
+        "http://localhost:8000/v1",
+        "http://10.0.1.42:8000/v1"
+      ]
     },
     "context": {
       "$ref": "#/$defs/ContextSpec",
@@ -64,13 +90,21 @@
     },
     "skills": {
       "type": "object",
-      "description": "Workflow-level skills for prompt augmentation (v0.6+). Map of alias → skill file path.",
+      "description": "Workflow-level skills for prompt augmentation (v0.6+). Map of alias \u2192 skill file path.",
       "additionalProperties": {
         "type": "string",
         "description": "Path to skill file (local or pkg: URI)",
-        "examples": ["./skills/writing.skill.md", "pkg:@spn/core@1.0.0/skills/coding.md"]
+        "examples": [
+          "./skills/writing.skill.md",
+          "pkg:@spn/core@1.0.0/skills/coding.md"
+        ]
       },
-      "examples": [{"seo": "./skills/seo.skill.md", "brand": "./skills/brand.skill.md"}]
+      "examples": [
+        {
+          "seo": "./skills/seo.skill.md",
+          "brand": "./skills/brand.skill.md"
+        }
+      ]
     },
     "mcp": {
       "type": "object",
@@ -114,7 +148,10 @@
     "goal": {
       "type": "string",
       "description": "Goal-driven orchestration (v0.52+). When set, an orchestrator agent is appended to the workflow DAG that evaluates task results and can launch additional sub-workflows until the goal is met.",
-      "examples": ["Produce a comprehensive market analysis report", "Research and summarize AI safety findings"]
+      "examples": [
+        "Produce a comprehensive market analysis report",
+        "Research and summarize AI safety findings"
+      ]
     },
     "orchestrate": {
       "type": "object",
@@ -122,25 +159,46 @@
       "additionalProperties": false,
       "properties": {
         "max_rounds": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 10,
-          "description": "Maximum orchestration rounds before graceful stop"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum orchestration rounds before graceful stop",
+          "default": 10
         },
         "confidence_target": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 1.0,
-          "default": 0.85,
-          "description": "Confidence threshold (0.0-1.0). Agent must self-assess at least this confidence before completing."
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Confidence threshold (0.0-1.0). Agent must self-assess at least this confidence before completing.",
+          "default": 0.85
         },
         "agent": {
           "type": "string",
           "description": "Optional agent preset name from the agents: block"
         },
         "max_cost_usd": {
-          "type": "number",
-          "minimum": 0,
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Optional cost budget in USD. Orchestrator stops if exceeded."
         }
       }
@@ -154,11 +212,16 @@
       "properties": {
         "files": {
           "type": "object",
-          "description": "File mappings (alias → path)",
+          "description": "File mappings (alias \u2192 path)",
           "additionalProperties": {
             "type": "string"
           },
-          "examples": [{"brand": "./context/brand.md", "config": "./settings.json"}]
+          "examples": [
+            {
+              "brand": "./context/brand.md",
+              "config": "./settings.json"
+            }
+          ]
         },
         "session": {
           "type": "string",
@@ -187,8 +250,16 @@
         }
       },
       "oneOf": [
-        { "required": ["path"] },
-        { "required": ["pkg"] }
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "pkg"
+          ]
+        }
       ]
     },
     "McpServerConfig": {
@@ -199,18 +270,33 @@
         "command": {
           "type": "string",
           "description": "Command to spawn the MCP server (stdio transport)",
-          "examples": ["cargo", "node", "python", "npx"]
+          "examples": [
+            "cargo",
+            "node",
+            "python",
+            "npx"
+          ]
         },
         "args": {
           "type": "array",
           "description": "Arguments to pass to the command",
-          "items": { "type": "string" },
-          "examples": [["run", "-p", "novanet-mcp"]]
+          "items": {
+            "type": "string"
+          },
+          "examples": [
+            [
+              "run",
+              "-p",
+              "novanet-mcp"
+            ]
+          ]
         },
         "env": {
           "type": "object",
           "description": "Environment variables for the server process",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "cwd": {
           "type": "string",
@@ -220,24 +306,41 @@
           "type": "string",
           "format": "uri",
           "description": "URL for SSE or streamable-http transport",
-          "examples": ["http://localhost:3000/mcp", "https://mcp.example.com/sse"]
+          "examples": [
+            "http://localhost:3000/mcp",
+            "https://mcp.example.com/sse"
+          ]
         },
         "transport": {
           "type": "string",
-          "enum": ["stdio", "sse", "streamable-http"],
+          "enum": [
+            "stdio",
+            "sse",
+            "streamable-http"
+          ],
           "default": "stdio",
           "description": "MCP transport protocol"
         }
       },
       "oneOf": [
-        { "required": ["command"] },
-        { "required": ["url"] }
+        {
+          "required": [
+            "command"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        }
       ]
     },
     "Task": {
       "type": "object",
       "description": "A task in the workflow DAG",
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -271,12 +374,20 @@
             },
             {
               "type": "object",
-              "required": ["items"],
+              "required": [
+                "items"
+              ],
               "properties": {
                 "items": {
                   "oneOf": [
-                    { "type": "array", "minItems": 1, "items": {} },
-                    { "type": "string" }
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {}
+                    },
+                    {
+                      "type": "string"
+                    }
                   ],
                   "description": "Array or binding to iterate over"
                 },
@@ -286,13 +397,27 @@
                   "description": "Variable name for current iteration value"
                 },
                 "concurrency": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 100,
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    {
+                      "$ref": "#/$defs/TemplateString"
+                    }
+                  ],
                   "description": "Max parallel iterations"
                 },
                 "fail_fast": {
-                  "type": "boolean",
+                  "oneOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "$ref": "#/$defs/TemplateString"
+                    }
+                  ],
                   "description": "Stop all iterations on first failure"
                 }
               },
@@ -300,7 +425,7 @@
               "description": "Object form: for_each: { items: ..., as: ..., concurrency: ... }"
             }
           ],
-          "description": "Array to iterate over in parallel — flat or object form (v0.3+)"
+          "description": "Array to iterate over in parallel \u2014 flat or object form (v0.3+)"
         },
         "as": {
           "type": "string",
@@ -309,16 +434,30 @@
           "description": "Variable name for current iteration value"
         },
         "concurrency": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100,
-          "default": 1,
-          "description": "Maximum parallel executions for for_each"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum parallel executions for for_each",
+          "default": 1
         },
         "fail_fast": {
-          "type": "boolean",
-          "default": true,
-          "description": "Stop all iterations on first error"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Stop all iterations on first error",
+          "default": true
         },
         "decompose": {
           "$ref": "#/$defs/DecomposeSpec",
@@ -345,9 +484,11 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Agent preset reference — resolved from workflow's agents: block"
+              "description": "Agent preset reference \u2014 resolved from workflow's agents: block"
             },
-            { "$ref": "#/$defs/AgentParams" }
+            {
+              "$ref": "#/$defs/AgentParams"
+            }
           ]
         },
         "artifact": {
@@ -371,7 +512,9 @@
             },
             {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "minItems": 1,
               "description": "Provider fallback chain (v0.50+)"
             }
@@ -385,12 +528,18 @@
           "type": "string",
           "format": "uri",
           "description": "Inline base URL for OpenAI-compatible endpoint (one-off override)",
-          "examples": ["http://localhost:11434/v1"]
+          "examples": [
+            "http://localhost:11434/v1"
+          ]
         },
         "preset": {
           "type": "string",
           "description": "Reference to a named agent from the workflow's agents: block. Inherits provider, model, temperature, and system. Task-level overrides take precedence.",
-          "examples": ["think", "lite", "fast"]
+          "examples": [
+            "think",
+            "lite",
+            "fast"
+          ]
         },
         "record": {
           "description": "Record specification for task output compression (v0.48+)",
@@ -399,14 +548,23 @@
               "type": "boolean",
               "description": "Shorthand: true enables recording with defaults"
             },
-            { "$ref": "#/$defs/RecordSpec" }
+            {
+              "$ref": "#/$defs/RecordSpec"
+            }
           ]
         },
         "context_budget": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 200000,
-          "description": "Token budget for task bindings — auto-truncates if exceeded (v0.51+)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200000
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Token budget for task bindings \u2014 auto-truncates if exceeded (v0.51+)"
         },
         "routing": {
           "$ref": "#/$defs/RoutingConfig",
@@ -434,26 +592,77 @@
         }
       },
       "oneOf": [
-        { "required": ["id", "infer"] },
-        { "required": ["id", "exec"] },
-        { "required": ["id", "fetch"] },
-        { "required": ["id", "invoke"] },
         {
-          "required": ["id", "agent"],
-          "properties": { "agent": { "type": "object" } },
-          "description": "Agent verb (object form only — agent: string is a preset ref)"
+          "required": [
+            "id",
+            "infer"
+          ]
         },
         {
-          "required": ["id"],
+          "required": [
+            "id",
+            "exec"
+          ]
+        },
+        {
+          "required": [
+            "id",
+            "fetch"
+          ]
+        },
+        {
+          "required": [
+            "id",
+            "invoke"
+          ]
+        },
+        {
+          "required": [
+            "id",
+            "agent"
+          ],
+          "properties": {
+            "agent": {
+              "type": "object"
+            }
+          },
+          "description": "Agent verb (object form only \u2014 agent: string is a preset ref)"
+        },
+        {
+          "required": [
+            "id"
+          ],
           "not": {
             "anyOf": [
-              { "required": ["infer"] },
-              { "required": ["exec"] },
-              { "required": ["fetch"] },
-              { "required": ["invoke"] },
               {
-                "required": ["agent"],
-                "properties": { "agent": { "type": "object" } }
+                "required": [
+                  "infer"
+                ]
+              },
+              {
+                "required": [
+                  "exec"
+                ]
+              },
+              {
+                "required": [
+                  "fetch"
+                ]
+              },
+              {
+                "required": [
+                  "invoke"
+                ]
+              },
+              {
+                "required": [
+                  "agent"
+                ],
+                "properties": {
+                  "agent": {
+                    "type": "object"
+                  }
+                }
               }
             ]
           },
@@ -464,12 +673,19 @@
     "DecomposeSpec": {
       "type": "object",
       "description": "Runtime DAG expansion via MCP traversal (v0.5+)",
-      "required": ["traverse", "source"],
+      "required": [
+        "traverse",
+        "source"
+      ],
       "additionalProperties": false,
       "properties": {
         "strategy": {
           "type": "string",
-          "enum": ["semantic", "static", "nested"],
+          "enum": [
+            "semantic",
+            "static",
+            "nested"
+          ],
           "description": "Expansion strategy"
         },
         "traverse": {
@@ -486,17 +702,31 @@
           "description": "MCP server to use for traversal (default: novanet)"
         },
         "max_items": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1000,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Maximum items to expand"
         },
         "max_depth": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 3,
-          "description": "Maximum recursion depth for nested strategy (default: 3)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum recursion depth for nested strategy (default: 3)",
+          "default": 3
         }
       }
     },
@@ -515,9 +745,16 @@
               "description": "LLM prompt (supports {{with.alias}} templates)"
             },
             "temperature": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 2,
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 2
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
               "description": "LLM temperature (0.0-2.0, higher = more creative)"
             },
             "system": {
@@ -525,42 +762,73 @@
               "description": "System prompt (persona/behavior)"
             },
             "max_tokens": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000000,
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000000
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
               "description": "Maximum output tokens"
             },
             "response_format": {
               "type": "string",
-              "enum": ["json", "text", "markdown"],
+              "enum": [
+                "json",
+                "text",
+                "markdown"
+              ],
               "description": "Expected response format (v0.10+)"
             },
             "extended_thinking": {
-              "type": "boolean",
-              "default": false,
-              "description": "Enable extended thinking (Claude only, v0.4+)"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Enable extended thinking (Claude only, v0.4+)",
+              "default": false
             },
             "thinking_budget": {
-              "type": "integer",
-              "minimum": 1024,
-              "maximum": 65536,
-              "default": 4096,
-              "description": "Token budget for thinking (requires extended_thinking: true)"
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1024,
+                  "maximum": 65536
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Token budget for thinking (requires extended_thinking: true)",
+              "default": 4096
             },
             "content": {
               "type": "array",
               "description": "Multimodal vision content parts (v0.34+).",
-              "items": { "$ref": "#/$defs/ContentPart" }
+              "items": {
+                "$ref": "#/$defs/ContentPart"
+              }
             },
             "guardrails": {
               "type": "array",
               "description": "Guardrails for validating infer output (v0.12+)",
-              "items": { "$ref": "#/$defs/GuardrailConfig" }
+              "items": {
+                "$ref": "#/$defs/GuardrailConfig"
+              }
             },
             "provider_chain": {
               "type": "array",
-              "items": { "type": "string" },
-              "description": "Fallback provider chain — try providers in order (v0.12+)"
+              "items": {
+                "type": "string"
+              },
+              "description": "Fallback provider chain \u2014 try providers in order (v0.12+)"
             }
           }
         }
@@ -570,31 +838,69 @@
       "oneOf": [
         {
           "type": "object",
-          "required": ["type", "text"],
+          "required": [
+            "type",
+            "text"
+          ],
           "additionalProperties": false,
           "properties": {
-            "type": { "const": "text" },
-            "text": { "type": "string" }
+            "type": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
           }
         },
         {
           "type": "object",
-          "required": ["type", "source"],
+          "required": [
+            "type",
+            "source"
+          ],
           "additionalProperties": false,
           "properties": {
-            "type": { "const": "image" },
-            "source": { "type": "string" },
-            "detail": { "type": "string", "enum": ["auto", "low", "high"], "default": "auto" }
+            "type": {
+              "const": "image"
+            },
+            "source": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "low",
+                "high"
+              ],
+              "default": "auto"
+            }
           }
         },
         {
           "type": "object",
-          "required": ["type", "url"],
+          "required": [
+            "type",
+            "url"
+          ],
           "additionalProperties": false,
           "properties": {
-            "type": { "const": "image_url" },
-            "url": { "type": "string", "format": "uri" },
-            "detail": { "type": "string", "enum": ["auto", "low", "high"], "default": "auto" }
+            "type": {
+              "const": "image_url"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "detail": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "low",
+                "high"
+              ],
+              "default": "auto"
+            }
           }
         }
       ]
@@ -607,7 +913,9 @@
         },
         {
           "type": "object",
-          "required": ["command"],
+          "required": [
+            "command"
+          ],
           "additionalProperties": false,
           "properties": {
             "command": {
@@ -615,13 +923,27 @@
               "description": "Shell command to execute (supports {{with.alias}} templates)"
             },
             "shell": {
-              "type": "boolean",
-              "default": false,
-              "description": "Execute via shell (default: false for security, set true for pipes/redirects)"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Execute via shell (default: false for security, set true for pipes/redirects)",
+              "default": false
             },
             "timeout": {
-              "type": "integer",
-              "minimum": 1,
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
               "description": "Timeout in seconds"
             },
             "cwd": {
@@ -631,8 +953,15 @@
             "env": {
               "type": "object",
               "description": "Environment variables to set for the command (v0.22+)",
-              "additionalProperties": { "type": "string" },
-              "examples": [{"NODE_ENV": "production", "DEBUG": "true"}]
+              "additionalProperties": {
+                "type": "string"
+              },
+              "examples": [
+                {
+                  "NODE_ENV": "production",
+                  "DEBUG": "true"
+                }
+              ]
             }
           }
         }
@@ -640,7 +969,9 @@
     },
     "FetchParams": {
       "type": "object",
-      "required": ["url"],
+      "required": [
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
         "url": {
@@ -650,13 +981,23 @@
         },
         "method": {
           "type": "string",
-          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD",
+            "OPTIONS"
+          ],
           "default": "GET",
           "description": "HTTP method"
         },
         "headers": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "additionalProperties": {
+            "type": "string"
+          },
           "description": "HTTP headers"
         },
         "body": {
@@ -669,22 +1010,52 @@
           "additionalProperties": true
         },
         "timeout": {
-          "type": "integer",
-          "minimum": 1,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Request timeout in seconds"
         },
         "follow_redirects": {
-          "type": "boolean",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Whether to follow HTTP redirects (defaults to true)"
         },
         "response": {
           "type": "string",
-          "enum": ["full", "binary", "slim"],
-          "description": "Response mode: full (status + headers + body JSON), binary (CAS store), or slim (metadata only — no body/headers)"
+          "enum": [
+            "full",
+            "binary",
+            "slim"
+          ],
+          "description": "Response mode: full (status + headers + body JSON), binary (CAS store), or slim (metadata only \u2014 no body/headers)"
         },
         "extract": {
           "type": "string",
-          "enum": ["markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed", "llm_txt", "sitemap", "metadata_links"],
+          "enum": [
+            "markdown",
+            "article",
+            "text",
+            "selector",
+            "metadata",
+            "links",
+            "jsonpath",
+            "feed",
+            "llm_txt",
+            "sitemap",
+            "metadata_links"
+          ],
           "description": "Extraction mode for response body"
         },
         "selector": {
@@ -699,52 +1070,101 @@
       "additionalProperties": false,
       "properties": {
         "max_attempts": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 3,
-          "description": "Maximum retry attempts (default: 3)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum retry attempts (default: 3)",
+          "default": 3
         },
         "max_retries": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 3,
-          "description": "Alias for max_attempts (default: 3)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Alias for max_attempts (default: 3)",
+          "default": 3
         },
         "delay_ms": {
-          "type": "integer",
-          "minimum": 100,
-          "maximum": 60000,
-          "default": 1000,
-          "description": "Delay between retries in milliseconds (default: 1000)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 60000
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Delay between retries in milliseconds (default: 1000)",
+          "default": 1000
         },
         "delay": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 60,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Delay between retries in seconds (converted to ms)"
         },
         "backoff": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 5,
-          "default": 2,
-          "description": "Backoff multiplier for exponential backoff (default: 2.0)"
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Backoff multiplier for exponential backoff (default: 2.0)",
+          "default": 2
         },
         "backoff_ms": {
-          "type": "integer",
-          "minimum": 100,
-          "maximum": 60000,
-          "default": 1000,
-          "description": "Serde alias for delay_ms (delay between retries in milliseconds)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 60000
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Serde alias for delay_ms (delay between retries in milliseconds)",
+          "default": 1000
         },
         "multiplier": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 5,
-          "default": 2,
-          "description": "Serde alias for backoff (backoff multiplier)"
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Serde alias for backoff (backoff multiplier)",
+          "default": 2
         }
       }
     },
@@ -769,8 +1189,15 @@
           "description": "Parameters to pass to the tool"
         },
         "timeout": {
-          "type": "integer",
-          "minimum": 1,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Timeout in seconds for the MCP tool call"
         },
         "resource": {
@@ -779,10 +1206,22 @@
         }
       },
       "oneOf": [
-        { "required": ["mcp", "tool"] },
-        { "required": ["server", "tool"] },
         {
-          "required": ["tool"],
+          "required": [
+            "mcp",
+            "tool"
+          ]
+        },
+        {
+          "required": [
+            "server",
+            "tool"
+          ]
+        },
+        {
+          "required": [
+            "tool"
+          ],
           "properties": {
             "tool": {
               "pattern": "^nika:"
@@ -791,7 +1230,9 @@
           "description": "Builtin tools: nika:import, nika:thumbnail, etc."
         },
         {
-          "required": ["tool"],
+          "required": [
+            "tool"
+          ],
           "properties": {
             "tool": {
               "pattern": "^[a-z][a-z0-9_-]*::[a-z]"
@@ -799,13 +1240,25 @@
           },
           "description": "MCP tools with server::tool_name syntax (e.g., novanet::search)"
         },
-        { "required": ["mcp", "resource"] },
-        { "required": ["server", "resource"] }
+        {
+          "required": [
+            "mcp",
+            "resource"
+          ]
+        },
+        {
+          "required": [
+            "server",
+            "resource"
+          ]
+        }
       ]
     },
     "AgentParams": {
       "type": "object",
-      "required": ["prompt"],
+      "required": [
+        "prompt"
+      ],
       "additionalProperties": false,
       "properties": {
         "prompt": {
@@ -826,76 +1279,141 @@
         },
         "mcp": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "MCP servers the agent can access"
         },
         "tools": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Builtin tools the agent can use (nika:read, nika:write, etc.)"
         },
         "max_turns": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100,
-          "default": 10,
-          "description": "Maximum agentic turns"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum agentic turns",
+          "default": 10
         },
         "depth_limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 3,
-          "description": "Maximum nested agent depth (spawn_agent protection)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum nested agent depth (spawn_agent protection)",
+          "default": 3
         },
         "temperature": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 2,
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "LLM temperature"
         },
         "max_tokens": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1000000,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Maximum output tokens per turn (v0.18+)"
         },
         "token_budget": {
-          "type": "integer",
-          "minimum": 1,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "Total token budget for agent execution (v0.5+)"
         },
         "extended_thinking": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable extended thinking (Claude only, v0.4+)"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Enable extended thinking (Claude only, v0.4+)",
+          "default": false
         },
         "thinking_budget": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65536,
-          "default": 4096,
-          "description": "Token budget for thinking (requires extended_thinking: true)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65536
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Token budget for thinking (requires extended_thinking: true)",
+          "default": 4096
         },
         "tool_choice": {
           "type": "string",
-          "enum": ["auto", "required", "none"],
+          "enum": [
+            "auto",
+            "required",
+            "none"
+          ],
           "default": "auto",
           "description": "Tool selection behavior (v0.8+)"
         },
         "skills": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Skills to inject into agent context (v0.15.4+)"
         },
         "stop_sequences": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Sequences that stop generation"
         },
         "scope": {
           "type": "string",
-          "enum": ["full", "minimal", "debug"],
+          "enum": [
+            "full",
+            "minimal",
+            "debug"
+          ],
           "description": "Scope preset for agent capabilities (v0.10+)"
         },
         "completion": {
@@ -903,7 +1421,9 @@
         },
         "guardrails": {
           "type": "array",
-          "items": { "$ref": "#/$defs/GuardrailConfig" }
+          "items": {
+            "$ref": "#/$defs/GuardrailConfig"
+          }
         },
         "limits": {
           "$ref": "#/$defs/LimitsConfig"
@@ -919,8 +1439,12 @@
       "description": "Data bindings from previous task outputs",
       "additionalProperties": {
         "oneOf": [
-          { "type": "string" },
-          { "$ref": "#/$defs/BindingValue" }
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/BindingValue"
+          }
         ]
       }
     },
@@ -936,16 +1460,28 @@
           "description": "Source task.field reference (legacy)"
         },
         "lazy": {
-          "type": "boolean",
-          "default": false,
-          "description": "Defer resolution until first access (v0.5+)"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Defer resolution until first access (v0.5+)",
+          "default": false
         },
         "default": {
           "description": "Default value if source is null"
         },
         "transform": {
           "type": "string",
-          "enum": ["json", "yaml", "string", "trim"],
+          "enum": [
+            "json",
+            "yaml",
+            "string",
+            "trim"
+          ],
           "description": "Transform to apply"
         }
       }
@@ -956,23 +1492,41 @@
       "properties": {
         "format": {
           "type": "string",
-          "enum": ["json", "yaml", "text", "markdown"],
+          "enum": [
+            "json",
+            "yaml",
+            "text",
+            "markdown"
+          ],
           "default": "text",
           "description": "Expected output format"
         },
         "schema": {
           "oneOf": [
-            { "type": "object", "description": "Inline JSON Schema object" },
-            { "type": "string", "description": "Path to JSON Schema file" }
+            {
+              "type": "object",
+              "description": "Inline JSON Schema object"
+            },
+            {
+              "type": "string",
+              "description": "Path to JSON Schema file"
+            }
           ],
           "description": "JSON Schema for output validation (inline object or file path)"
         },
         "max_retries": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 10,
-          "default": 2,
-          "description": "Maximum retry attempts on validation failure (v0.10)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum retry attempts on validation failure (v0.10)",
+          "default": 2
         },
         "schema_ref": {
           "type": "string",
@@ -993,58 +1547,119 @@
           "properties": {
             "schema": {
               "oneOf": [
-                { "type": "object", "description": "Inline JSON Schema object" },
-                { "type": "string", "description": "Path to JSON Schema file" }
+                {
+                  "type": "object",
+                  "description": "Inline JSON Schema object"
+                },
+                {
+                  "type": "string",
+                  "description": "Path to JSON Schema file"
+                }
               ],
               "description": "JSON Schema for output validation (inline object or file path)"
             },
             "from_example": {
               "oneOf": [
-                { "type": "object", "description": "Inline JSON example object (schema derived at runtime)" },
-                { "type": "string", "description": "Path to JSON example file (schema derived at runtime)" }
+                {
+                  "type": "object",
+                  "description": "Inline JSON example object (schema derived at runtime)"
+                },
+                {
+                  "type": "string",
+                  "description": "Path to JSON example file (schema derived at runtime)"
+                }
               ],
-              "description": "JSON example — Nika auto-derives the JSON Schema from this structure"
+              "description": "JSON example \u2014 Nika auto-derives the JSON Schema from this structure"
             },
             "enable_extractor": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable Layer 1: rig Extractor (Rust type extraction)"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Enable Layer 1: rig Extractor (Rust type extraction)",
+              "default": true
             },
             "enable_tool_injection": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable Layer 0: DynamicSubmitTool injection (v0.28+)"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Enable Layer 0: DynamicSubmitTool injection (v0.28+)",
+              "default": true
             },
             "enable_tool_use": {
-              "type": "boolean",
-              "default": true,
-              "description": "Legacy alias for enable_tool_injection"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Legacy alias for enable_tool_injection",
+              "default": true
             },
             "enable_retry": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable Layer 3: Retry with feedback"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Enable Layer 3: Retry with feedback",
+              "default": true
             },
             "enable_repair": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable Layer 4: LLM repair"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Enable Layer 4: LLM repair",
+              "default": true
             },
             "max_retries": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 10,
-              "default": 2,
-              "description": "Maximum retry attempts for Layer 3"
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "Maximum retry attempts for Layer 3",
+              "default": 2
             },
             "repair_model": {
               "type": "string",
               "description": "Model to use for Layer 4 repair (defaults to task model)"
             },
             "strict": {
-              "type": "boolean",
-              "default": false,
-              "description": "When true, derived from_example schemas add additionalProperties: false to all objects"
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "description": "When true, derived from_example schemas add additionalProperties: false to all objects",
+              "default": false
             }
           }
         }
@@ -1059,8 +1674,14 @@
         {
           "schema": {
             "type": "object",
-            "properties": { "name": { "type": "string" } },
-            "required": ["name"]
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
           }
         },
         {
@@ -1093,26 +1714,51 @@
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json", "yaml", "markdown", "binary"],
+          "enum": [
+            "text",
+            "json",
+            "yaml",
+            "markdown",
+            "binary"
+          ],
           "default": "text",
           "description": "Default output format"
         },
         "mode": {
           "type": "string",
-          "enum": ["overwrite", "append", "unique", "fail"],
+          "enum": [
+            "overwrite",
+            "append",
+            "unique",
+            "fail"
+          ],
           "default": "overwrite",
           "description": "Default write mode"
         },
         "manifest": {
-          "type": "boolean",
-          "default": false,
-          "description": "Generate artifacts.json manifest at workflow end"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Generate artifacts.json manifest at workflow end",
+          "default": false
         },
         "max_size": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 104857600,
-          "description": "Maximum artifact size in bytes (default: 100MB)"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum artifact size in bytes (default: 100MB)",
+          "default": 104857600
         }
       }
     },
@@ -1126,7 +1772,9 @@
           "type": "object",
           "description": "Single artifact with options",
           "additionalProperties": false,
-          "required": ["path"],
+          "required": [
+            "path"
+          ],
           "properties": {
             "path": {
               "type": "string",
@@ -1142,12 +1790,23 @@
             },
             "format": {
               "type": "string",
-              "enum": ["text", "json", "yaml", "markdown", "binary"],
+              "enum": [
+                "text",
+                "json",
+                "yaml",
+                "markdown",
+                "binary"
+              ],
               "description": "Output format override"
             },
             "mode": {
               "type": "string",
-              "enum": ["overwrite", "append", "unique", "fail"],
+              "enum": [
+                "overwrite",
+                "append",
+                "unique",
+                "fail"
+              ],
               "description": "Write mode override"
             }
           }
@@ -1157,13 +1816,39 @@
           "description": "Multiple artifacts",
           "items": {
             "type": "object",
-            "required": ["path"],
+            "required": [
+              "path"
+            ],
             "properties": {
-              "path": { "type": "string" },
-              "source": { "type": "string" },
-              "template": { "type": "string", "description": "Template string (v0.22+)" },
-              "format": { "type": "string", "enum": ["text", "json", "yaml", "markdown", "binary"] },
-              "mode": { "type": "string", "enum": ["overwrite", "append", "unique", "fail"] }
+              "path": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "template": {
+                "type": "string",
+                "description": "Template string (v0.22+)"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "json",
+                  "yaml",
+                  "markdown",
+                  "binary"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "overwrite",
+                  "append",
+                  "unique",
+                  "fail"
+                ]
+              }
             }
           }
         }
@@ -1176,20 +1861,36 @@
       "properties": {
         "level": {
           "type": "string",
-          "enum": ["trace", "debug", "info", "warn", "error"],
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
           "default": "info",
           "description": "Log level"
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json"],
+          "enum": [
+            "text",
+            "json"
+          ],
           "default": "text",
           "description": "Log output format"
         },
         "console": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show logs in console output"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Show logs in console output",
+          "default": true
         },
         "file": {
           "type": "string",
@@ -1200,30 +1901,107 @@
     "GuardrailConfig": {
       "type": "object",
       "description": "Guardrail for validating outputs (v0.12+)",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["length", "schema", "regex", "llm"]
+          "enum": [
+            "length",
+            "schema",
+            "regex",
+            "llm"
+          ]
         },
-        "id": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
         "on_failure": {
           "type": "string",
-          "enum": ["retry", "escalate", "fail"],
+          "enum": [
+            "retry",
+            "escalate",
+            "fail"
+          ],
           "default": "retry"
         },
-        "min_words": { "type": "integer", "minimum": 0 },
-        "max_words": { "type": "integer", "minimum": 0 },
-        "min_chars": { "type": "integer", "minimum": 0 },
-        "max_chars": { "type": "integer", "minimum": 0 },
-        "message": { "type": "string" },
-        "json_schema": { "type": "object" },
-        "pattern": { "type": "string" },
-        "negate": { "type": "boolean", "default": false },
-        "judge_prompt": { "type": "string" },
-        "pass_pattern": { "type": "string" },
-        "judge_model": { "type": "string" },
-        "judge_provider": { "type": "string" }
+        "min_words": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "max_words": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "min_chars": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "max_chars": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "json_schema": {
+          "type": "object"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "negate": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "default": false
+        },
+        "judge_prompt": {
+          "type": "string"
+        },
+        "pass_pattern": {
+          "type": "string"
+        },
+        "judge_model": {
+          "type": "string"
+        },
+        "judge_provider": {
+          "type": "string"
+        }
       }
     },
     "CompletionConfig": {
@@ -1232,18 +2010,35 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["explicit", "natural", "pattern"],
+          "enum": [
+            "explicit",
+            "natural",
+            "pattern"
+          ],
           "default": "natural"
         },
         "signal": {
           "type": "object",
           "properties": {
-            "tool": { "type": "string", "default": "nika:complete" },
+            "tool": {
+              "type": "string",
+              "default": "nika:complete"
+            },
             "fields": {
               "type": "object",
               "properties": {
-                "required": { "type": "array", "items": { "type": "string" } },
-                "optional": { "type": "array", "items": { "type": "string" } }
+                "required": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "optional": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -1253,22 +2048,69 @@
           "items": {
             "type": "object",
             "properties": {
-              "value": { "type": "string", "description": "The pattern string" },
-              "type": { "type": "string", "enum": ["exact", "contains", "regex"], "description": "Pattern match type" },
-              "name": { "type": "string", "description": "Pattern name for identification" }
+              "value": {
+                "type": "string",
+                "description": "The pattern string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "exact",
+                  "contains",
+                  "regex"
+                ],
+                "description": "Pattern match type"
+              },
+              "name": {
+                "type": "string",
+                "description": "Pattern name for identification"
+              }
             }
           }
         },
         "confidence": {
           "type": "object",
           "properties": {
-            "threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
+            "threshold": {
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "default": 0.7
+            },
             "on_low": {
               "type": "object",
               "properties": {
-                "action": { "type": "string", "enum": ["retry", "escalate", "accept"], "default": "retry" },
-                "max_retries": { "type": "integer", "minimum": 0, "default": 2 },
-                "feedback": { "type": "string" }
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "retry",
+                    "escalate",
+                    "accept"
+                  ],
+                  "default": "retry"
+                },
+                "max_retries": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "$ref": "#/$defs/TemplateString"
+                    }
+                  ],
+                  "default": 2
+                },
+                "feedback": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -1276,8 +2118,12 @@
         "instruction": {
           "type": "object",
           "properties": {
-            "tone": { "type": "string" },
-            "lang": { "type": "string" }
+            "tone": {
+              "type": "string"
+            },
+            "lang": {
+              "type": "string"
+            }
           }
         }
       }
@@ -1286,20 +2132,76 @@
       "type": "object",
       "description": "Agent execution limits for cost control (v0.12+)",
       "properties": {
-        "max_turns": { "type": "integer", "minimum": 0 },
-        "max_tokens": { "type": "integer", "minimum": 0 },
-        "max_cost_usd": { "type": "number", "minimum": 0 },
-        "max_duration_secs": { "type": "integer", "minimum": 0 },
+        "max_turns": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "max_tokens": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "max_cost_usd": {
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
+        "max_duration_secs": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ]
+        },
         "on_limit_reached": {
           "type": "object",
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["complete_partial", "fail", "escalate"],
+              "enum": [
+                "complete_partial",
+                "fail",
+                "escalate"
+              ],
               "default": "complete_partial"
             },
-            "save_progress": { "type": "boolean", "default": true },
-            "message": { "type": "string" }
+            "save_progress": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/TemplateString"
+                }
+              ],
+              "default": true
+            },
+            "message": {
+              "type": "string"
+            }
           }
         }
       }
@@ -1322,50 +2224,91 @@
         },
         "mcp": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "MCP servers the agent can access"
         },
         "tools": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Builtin tools the agent can use"
         },
         "skills": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Skills to inject into agent"
         },
         "max_turns": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100,
-          "default": 10,
-          "description": "Maximum agentic turns"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum agentic turns",
+          "default": 10
         },
         "depth_limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 3,
-          "description": "Maximum nested agent depth"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum nested agent depth",
+          "default": 3
         },
         "temperature": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 2,
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
           "description": "LLM temperature"
         },
         "extended_thinking": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable extended thinking (Claude only, v0.4+)"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Enable extended thinking (Claude only, v0.4+)",
+          "default": false
         },
         "thinking_budget": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65536,
-          "default": 4096,
-          "description": "Token budget for thinking"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65536
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Token budget for thinking",
+          "default": 4096
         },
         "from": {
           "type": "string",
@@ -1383,28 +2326,51 @@
       "additionalProperties": false,
       "properties": {
         "compress": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to compress this task's output into a summary"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Whether to compress this task's output into a summary",
+          "default": true
         },
         "retain": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Fields to retain verbatim in compressed summary (e.g., [\"stats\", \"findings\"])"
         },
         "max_tokens": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4096,
-          "default": 500,
-          "description": "Maximum tokens for the compressed summary"
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Maximum tokens for the compressed summary",
+          "default": 500
         },
         "confidence_threshold": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "default": 0.7,
-          "description": "Minimum confidence threshold for compression quality"
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "$ref": "#/$defs/TemplateString"
+            }
+          ],
+          "description": "Minimum confidence threshold for compression quality",
+          "default": 0.7
         }
       }
     },
@@ -1415,11 +2381,18 @@
       "properties": {
         "fallback": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 1,
-          "description": "Provider fallback chain — tried in order on failure"
+          "description": "Provider fallback chain \u2014 tried in order on failure"
         }
       }
+    },
+    "TemplateString": {
+      "type": "string",
+      "pattern": "\\{\\{",
+      "description": "Template expression resolved at runtime (e.g. {{inputs.temperature}})"
     }
   }
 }
