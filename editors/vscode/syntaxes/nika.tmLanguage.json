@@ -2,23 +2,55 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Nika Workflow",
   "scopeName": "source.nika",
-  "fileTypes": ["nika.yaml"],
+  "fileTypes": [
+    "nika.yaml"
+  ],
   "patterns": [
-    { "include": "#comment" },
-    { "include": "#schema-line" },
-    { "include": "#workflow-line" },
-    { "include": "#provider-line" },
-    { "include": "#top-level-keys" },
-    { "include": "#task-id" },
-    { "include": "#verbs" },
-    { "include": "#task-fields" },
-    { "include": "#verb-sub-fields" },
-    { "include": "#template-expression" },
-    { "include": "#dollar-reference" },
-    { "include": "#strings" },
-    { "include": "#numbers" },
-    { "include": "#booleans" },
-    { "include": "#null" }
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#schema-line"
+    },
+    {
+      "include": "#workflow-line"
+    },
+    {
+      "include": "#provider-line"
+    },
+    {
+      "include": "#top-level-keys"
+    },
+    {
+      "include": "#task-id"
+    },
+    {
+      "include": "#verbs"
+    },
+    {
+      "include": "#task-fields"
+    },
+    {
+      "include": "#verb-sub-fields"
+    },
+    {
+      "include": "#template-expression"
+    },
+    {
+      "include": "#dollar-reference"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#booleans"
+    },
+    {
+      "include": "#null"
+    }
   ],
   "repository": {
     "comment": {
@@ -28,76 +60,126 @@
     "schema-line": {
       "match": "^(schema)(:)\\s*(nika/workflow@[\\d.]+)",
       "captures": {
-        "1": { "name": "keyword.control.schema.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" },
-        "3": { "name": "string.unquoted.schema-version.nika" }
+        "1": {
+          "name": "keyword.control.schema.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        },
+        "3": {
+          "name": "string.unquoted.schema-version.nika"
+        }
       }
     },
     "workflow-line": {
       "match": "^(workflow)(:)\\s*(\\S+)",
       "captures": {
-        "1": { "name": "keyword.control.workflow.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" },
-        "3": { "name": "entity.name.function.workflow-name.nika" }
+        "1": {
+          "name": "keyword.control.workflow.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        },
+        "3": {
+          "name": "entity.name.function.workflow-name.nika"
+        }
       }
     },
     "provider-line": {
       "match": "^(provider)(:)\\s*(\\S+)",
       "captures": {
-        "1": { "name": "keyword.control.provider.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" },
-        "3": { "name": "support.constant.provider-name.nika" }
+        "1": {
+          "name": "keyword.control.provider.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        },
+        "3": {
+          "name": "support.constant.provider-name.nika"
+        }
       }
     },
     "top-level-keys": {
-      "match": "^(tasks|mcp|context|include|imports|inputs|skills|agents|artifacts|log|edges|pkg|description|model)(:)",
+      "match": "^(agents|artifacts|context|description|goal|include|inputs|log|max_duration_secs|mcp|model|orchestrate|pkg|routing|schedule|skills|tasks)(:)",
       "captures": {
-        "1": { "name": "keyword.control.top-level.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" }
+        "1": {
+          "name": "keyword.control.top-level.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        }
       }
     },
     "task-id": {
       "match": "^\\s*-?\\s*(id)(:)\\s*([\"']?)([\\w-]+)\\3",
       "captures": {
-        "1": { "name": "keyword.other.id.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" },
-        "3": { "name": "punctuation.definition.string.nika" },
-        "4": { "name": "entity.name.function.task-id.nika" }
+        "1": {
+          "name": "keyword.other.id.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        },
+        "3": {
+          "name": "punctuation.definition.string.nika"
+        },
+        "4": {
+          "name": "entity.name.function.task-id.nika"
+        }
       }
     },
     "verbs": {
       "match": "^\\s+(infer|exec|fetch|invoke|agent)(:)",
       "captures": {
-        "1": { "name": "keyword.control.verb.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" }
+        "1": {
+          "name": "keyword.control.verb.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        }
       }
     },
     "task-fields": {
-      "match": "^\\s+(with|depends_on|for_each|as|concurrency|fail_fast|output|guard|guardrails|on_error|retry|timeout|structured|artifact|decompose|skills|completion|limits|description|provider|model|log)(:)",
+      "match": "^\\s+(artifact|as|concurrency|context_budget|decompose|depends_on|description|fail_fast|for_each|guardrails|log|model|on_error|output|preset|provider|record|retry|routing|structured|timeout|when|with)(:)",
       "captures": {
-        "1": { "name": "support.type.field.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" }
+        "1": {
+          "name": "support.type.field.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        }
       }
     },
     "verb-sub-fields": {
       "match": "^\\s+(prompt|model|temperature|system|max_tokens|thinking|extended_thinking|thinking_budget|response_format|content|command|shell|cwd|working_dir|env|timeout|timeout_ms|url|method|headers|body|json|extract|selector|response|follow_redirects|mcp|server|tool|resource|params|max_turns|max_iterations|depth_limit|tools|goal|tool_choice|scope|from|token_budget|stop_sequences|source|detail|signal|confidence|mode|on_failure|on_limit_reached|judge_prompt|judge_model|pass_pattern|pattern|negate|type|text|max_attempts|delay|delay_ms|backoff|backoff_multiplier|strategy|traverse|mcp_server|max_items|max_depth|max_cost_usd|max_duration_secs|save_progress)(:)",
       "captures": {
-        "1": { "name": "variable.other.property.nika" },
-        "2": { "name": "punctuation.separator.key-value.nika" }
+        "1": {
+          "name": "variable.other.property.nika"
+        },
+        "2": {
+          "name": "punctuation.separator.key-value.nika"
+        }
       }
     },
     "template-expression": {
       "match": "(\\{\\{)([^}]+)(\\}\\})",
       "captures": {
-        "1": { "name": "punctuation.definition.template.begin.nika" },
-        "2": { "name": "variable.other.template.nika" },
-        "3": { "name": "punctuation.definition.template.end.nika" }
+        "1": {
+          "name": "punctuation.definition.template.begin.nika"
+        },
+        "2": {
+          "name": "variable.other.template.nika"
+        },
+        "3": {
+          "name": "punctuation.definition.template.end.nika"
+        }
       }
     },
     "dollar-reference": {
       "match": "\\$(\\w[\\w-]*)",
       "captures": {
-        "0": { "name": "variable.other.reference.nika" }
+        "0": {
+          "name": "variable.other.reference.nika"
+        }
       }
     },
     "strings": {
@@ -107,7 +189,9 @@
           "begin": "\"",
           "end": "\"",
           "patterns": [
-            { "include": "#template-expression" },
+            {
+              "include": "#template-expression"
+            },
             {
               "name": "constant.character.escape.nika",
               "match": "\\\\."
@@ -119,7 +203,9 @@
           "begin": "'",
           "end": "'",
           "patterns": [
-            { "include": "#template-expression" }
+            {
+              "include": "#template-expression"
+            }
           ]
         }
       ]

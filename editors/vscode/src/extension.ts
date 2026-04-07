@@ -13,7 +13,7 @@ import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { WorkflowTreeProvider } from './workflowTree';
-import { DagPanel, DagGraph } from './dagPanel';
+import { DagPanel, DagPanelSerializer, DagGraph } from './dagPanel';
 import {
   getArtifactName,
   downloadNikaBinary,
@@ -108,6 +108,14 @@ export function activate(context: ExtensionContext): void {
   );
   state.activeDagPanel = dagPanel;
   context.subscriptions.push(dagPanel);
+
+  // Restore DAG panels across VS Code restarts
+  context.subscriptions.push(
+    vscode.window.registerWebviewPanelSerializer(
+      DagPanel.viewType,
+      new DagPanelSerializer(context.extensionUri),
+    ),
+  );
 
   // Register all commands SYNCHRONOUSLY before any async work.
 

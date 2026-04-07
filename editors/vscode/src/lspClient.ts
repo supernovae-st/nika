@@ -55,9 +55,9 @@ export function runNikaCommand(resolvedServerPath: string | undefined, subcmd: s
 }
 
 /** Compare extension version with LSP server version and warn on mismatch. */
-export function checkVersionMismatch(context: ExtensionContext, log: LogFn): void {
+export function checkVersionMismatch(context: ExtensionContext, log: LogFn, resolvedPath?: string): void {
   const extVersion = context.extension.packageJSON.version as string;
-  const serverPath = getNikaPath();
+  const serverPath = resolvedPath ?? getNikaPath();
 
   execFile(serverPath, ['--version'], { timeout: 5000 }, (error, stdout) => {
     if (error) { return; }
@@ -144,7 +144,7 @@ export function startClient(
     }
 
     // Check for version mismatch between extension and LSP server
-    checkVersionMismatch(context, log);
+    checkVersionMismatch(context, log, state.resolvedServerPath);
 
     // Auto-configure MCP for the current IDE
     if (isCursor()) {
