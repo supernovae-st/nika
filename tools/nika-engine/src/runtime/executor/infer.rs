@@ -2015,4 +2015,18 @@ mod tests {
         assert_eq!(parse_model_slash("/llama"), None); // empty prefix
         assert_eq!(parse_model_slash("groq/"), None); // empty model
     }
+
+    #[test]
+    fn test_parse_model_slash_named_endpoint() {
+        // Named endpoint from nika.toml: model: "h100/Qwen/Qwen3-8B"
+        assert_eq!(
+            parse_model_slash("h100/Qwen/Qwen3-8B"),
+            Some(("h100", "Qwen/Qwen3-8B"))
+        );
+        // Ollama-style single model
+        assert_eq!(
+            parse_model_slash("ollama/llama3.2"),
+            Some(("ollama", "llama3.2"))
+        );
+    }
 }
