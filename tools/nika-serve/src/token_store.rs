@@ -18,8 +18,31 @@ pub struct Principal {
     pub token_name: String,
     /// Role for RBAC (L1: only Operator enforced).
     pub role: nika_storage::Role,
-    /// Scope glob pattern (L1: always "*").
+    /// Scope glob pattern — comma-separated patterns.
+    /// `"*"` = all, `"project-a/*"` = prefix, exact = literal match.
     pub scope: String,
+}
+
+impl Principal {
+    /// Check if this principal is allowed to access a workflow by path.
+    ///
+    /// Scope patterns (comma-separated):
+    /// - `"*"` — matches everything
+    /// - `"prefix/*"` — matches any path starting with `"prefix/"`
+    /// - `"exact.nika.yaml"` — exact match only
+    /// - `""` — empty scope denies all access
+    pub fn can_access(&self, workflow: &str) -> bool {
+        self.scope.split(',').any(|pat| {
+            let pat = pat.trim();
+            if pat == "*" {
+                true
+            } else if let Some(prefix) = pat.strip_suffix('*') {
+                workflow.starts_with(prefix)
+            } else {
+                pat == workflow
+            }
+        })
+    }
 }
 
 /// Authentication mode determined at startup.
@@ -288,5 +311,57 @@ mod tests {
         let store = TokenStore::new(Storage::open_memory().unwrap());
         let multi = AuthMode::MultiKey { store };
         assert_eq!(multi.description(), "Multi-key (named tokens)");
+    }
+
+    // =========================================================================
+    // L2 scope enforcement — Principal::can_access()
+    // =========================================================================
+
+    fn make_principal(scope: &str) -> Principal {
+        Principal {
+            token_id: "t1".to_string(),
+            token_name: "test".to_string(),
+            role: nika_storage::Role::Operator,
+            scope: scope.to_string(),
+        }
+    }
+
+    #[test]
+    fn scope_wildcard_matches_everything() {
+        let p = make_principal("*");
+        assert!(p.can_access("anything.nika.yaml"));
+        assert!(p.can_access("project-a/deep/nested/flow.nika.yaml"));
+        assert!(p.can_access(""));
+    }
+
+    #[test]
+    fn scope_prefix_glob_matches_subtree() {
+        let p = make_principal("project-a/*");
+        assert!(p.can_access("project-a/flow.nika.yaml"));
+        assert!(p.can_access("project-a/deep/nested.nika.yaml"));
+        assert!(!p.can_access("project-b/flow.nika.yaml"));
+        assert!(!p.can_access("flow.nika.yaml"));
+    }
+
+    #[test]
+    fn scope_exact_match() {
+        let p = make_principal("pipeline.nika.yaml");
+        assert!(p.can_access("pipeline.nika.yaml"));
+        assert!(!p.can_access("other.nika.yaml"));
+        assert!(!p.can_access("pipeline.nika.yaml/extra"));
+    }
+
+    #[test]
+    fn scope_multiple_globs_comma_separated() {
+        let p = make_principal("project-a/*,project-b/*");
+        assert!(p.can_access("project-a/flow.nika.yaml"));
+        assert!(p.can_access("project-b/flow.nika.yaml"));
+        assert!(!p.can_access("project-c/flow.nika.yaml"));
+    }
+
+    #[test]
+    fn scope_empty_denies_all() {
+        let p = make_principal("");
+        assert!(!p.can_access("anything.nika.yaml"));
     }
 }

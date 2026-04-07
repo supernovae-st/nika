@@ -18,6 +18,9 @@ pub enum ServeError {
     #[error("Invalid workflow: {0}")]
     InvalidWorkflow(String),
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Configuration error: {0}")]
     Config(String),
 
@@ -39,6 +42,7 @@ impl IntoResponse for ServeError {
         let (status, msg) = match &self {
             Self::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
             Self::PathTraversal => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::Forbidden(_) => (StatusCode::FORBIDDEN, self.to_string()),
             Self::QueueFull(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
             Self::InvalidWorkflow(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             Self::Config(_) => (

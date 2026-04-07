@@ -97,8 +97,19 @@ const MAX_BATCH_SIZE: usize = 50;
 /// creates a job in SQLite, spawns a subprocess worker.
 pub async fn run_workflow(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Json(req): Json<RunRequest>,
 ) -> Result<Json<RunResponse>, ServeError> {
+    // L2 scope enforcement
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_access(&req.workflow) {
+            return Err(ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, req.workflow
+            )));
+        }
+    }
+
     // Validate workflow path (prevent directory traversal)
     validate_workflow_path(&req.workflow)?;
 
@@ -321,6 +332,7 @@ pub async fn cancel_job(
 /// Two-pass: validates ALL requests first, then submits. No partial failures.
 pub async fn batch_run(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Json(requests): Json<Vec<RunRequest>>,
 ) -> Result<Json<Vec<RunResponse>>, ServeError> {
     let max_batch = std::env::var("NIKA_SERVE_BATCH_MAX")
@@ -374,7 +386,7 @@ pub async fn batch_run(
     // Queue capacity is enforced per-job by try_acquire_job_slot() CAS inside run_workflow.
     let mut responses = Vec::with_capacity(requests.len());
     for req in requests {
-        let resp = run_workflow(State(state.clone()), Json(req)).await?;
+        let resp = run_workflow(State(state.clone()), principal.clone(), Json(req)).await?;
         responses.push(resp.0);
     }
 
@@ -527,8 +539,19 @@ pub async fn list_workflows(
 /// Uses the same path validation as `run_workflow` (traversal protection).
 pub async fn get_workflow_source(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Path(name): Path<String>,
 ) -> Result<Response, ServeError> {
+    // L2 scope enforcement
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_access(&name) {
+            return Err(ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, name
+            )));
+        }
+    }
+
     validate_workflow_path(&name)?;
 
     let full_path = state.config.workflows_dir.join(&name);

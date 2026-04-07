@@ -1221,4 +1221,125 @@ mod tests {
         assert_eq!(active, 1, "1 active");
         assert_eq!(paused, 1, "1 paused");
     }
+
+    // ── L2 scope enforcement ────────────────────────────────────────────────
+
+    /// Build a test app with MultiKey auth and a scoped token.
+    async fn test_app_scoped(scope: &str) -> (axum::Router, AppState, String /* raw token */) {
+        let storage = nika_storage::Storage::open_memory().expect("open in-memory storage");
+        let (_, shutdown_rx) = tokio::sync::watch::channel(false);
+
+        // Create a scoped token in DB
+        let raw_token = token_store::generate_token();
+        let hash = token_store::hash_token(&raw_token);
+        let entry = nika_storage::TokenEntry {
+            id: "scoped-1".to_string(),
+            name: "scoped-test".to_string(),
+            token_hash: hash.to_vec(),
+            role: nika_storage::Role::Operator,
+            scope: scope.to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            expires_at: None,
+            last_used_at: None,
+            revoked: false,
+        };
+        storage.insert_token(entry).await.unwrap();
+
+        let config = ServeConfig {
+            bind: "127.0.0.1:0".parse().unwrap(),
+            workflows_dir: std::path::PathBuf::from("/tmp/nika-test-workflows"),
+            max_concurrent: 4,
+            job_timeout_secs: 60,
+            max_output_bytes: 1024,
+            db_path: std::path::PathBuf::from(":memory:"),
+            auth_token: String::new(),
+            cors_origin: None,
+            executor_mode: config::ExecutorMode::Embedded,
+            rate_per_second: 100,
+            rate_burst: 100,
+            gc_retention_secs: 7 * 24 * 3600,
+            gc_interval_secs: 3600,
+            project_root: None,
+            working_dir_mode: None,
+        };
+
+        let auth_mode = Arc::new(token_store::AuthMode::MultiKey {
+            store: token_store::TokenStore::new(storage.clone()),
+        });
+
+        let state = AppState {
+            storage,
+            config: Arc::new(config),
+            executor: executor::Executor::Subprocess,
+            semaphore: Arc::new(Semaphore::new(4)),
+            shutdown: shutdown_rx,
+            workers: Arc::new(Mutex::new(HashMap::new())),
+            active_jobs: Arc::new(AtomicUsize::new(0)),
+            event_bus: events::EventBus::default(),
+            webhook_config: None,
+            auth_mode: auth_mode.clone(),
+        };
+
+        let rl_state = rate_limit::new_rate_limiter();
+        let app = routes::build_router(state.clone())
+            .layer(middleware::from_fn_with_state(
+                auth_mode,
+                auth::require_auth,
+            ))
+            .layer(middleware::from_fn_with_state(
+                rl_state,
+                rate_limit::rate_limit_middleware,
+            ))
+            .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
+            .layer(middleware::from_fn(request_id::request_id_middleware));
+
+        (app, state, raw_token)
+    }
+
+    #[tokio::test]
+    async fn scope_rejects_out_of_scope_workflow() {
+        let (app, _, token) = test_app_scoped("project-a/*").await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/run")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::from(r#"{"workflow":"project-b/pipeline.nika.yaml"}"#))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn scope_allows_in_scope_workflow() {
+        let (app, _, token) = test_app_scoped("project-a/*").await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/run")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::from(r#"{"workflow":"project-a/pipeline.nika.yaml"}"#))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // Scope passes → hits next check (workflow not found on disk) → 400
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn scope_wildcard_allows_everything() {
+        let (app, _, token) = test_app_scoped("*").await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/run")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::from(r#"{"workflow":"any/workflow.nika.yaml"}"#))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // Wildcard scope passes → hits next check (workflow not found) → 400
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
 }

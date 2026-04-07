@@ -22,6 +22,10 @@ pub enum TokenAction {
         /// Token role (operator, viewer, admin)
         #[arg(long, default_value = "operator")]
         role: String,
+        /// Scope glob pattern — restricts which workflows this token can access.
+        /// Use "*" for all, "project-a/*" for a subtree, comma-separate for multiple.
+        #[arg(long, default_value = "*")]
+        scope: String,
         /// Expiry duration (e.g. "30d", "12h", "never")
         #[arg(long)]
         expires: Option<String>,
@@ -67,9 +71,10 @@ pub async fn run(action: TokenAction) -> Result<(), NikaError> {
         TokenAction::Add {
             name,
             role,
+            scope,
             expires,
             db,
-        } => cmd_add(&name, &role, expires.as_deref(), db.as_deref()).await,
+        } => cmd_add(&name, &role, &scope, expires.as_deref(), db.as_deref()).await,
         TokenAction::List { json, db } => cmd_list(json, db.as_deref()).await,
         TokenAction::Revoke { name, db } => cmd_revoke(&name, db.as_deref()).await,
     }
@@ -78,6 +83,7 @@ pub async fn run(action: TokenAction) -> Result<(), NikaError> {
 async fn cmd_add(
     name: &str,
     role_str: &str,
+    scope: &str,
     expires: Option<&str>,
     db: Option<&str>,
 ) -> Result<(), NikaError> {
@@ -121,7 +127,7 @@ async fn cmd_add(
         name: name.to_string(),
         token_hash: hash.to_vec(),
         role,
-        scope: "*".to_string(),
+        scope: scope.to_string(),
         created_at: now,
         expires_at,
         last_used_at: None,
@@ -229,11 +235,18 @@ async fn cmd_list(json: bool, db: Option<&str>) -> Result<(), NikaError> {
 
         let last_used = token.last_used_at.as_deref().unwrap_or("never");
 
+        let scope_display = if token.scope == "*" {
+            String::new()
+        } else {
+            format!("  scope: {}", token.scope.yellow())
+        };
+
         eprintln!(
-            "  {} {}  {}  last used: {}",
+            "  {} {}  {}{}  last used: {}",
             connector,
             token.name.cyan().bold(),
             role_display,
+            scope_display,
             last_used.dimmed()
         );
     }

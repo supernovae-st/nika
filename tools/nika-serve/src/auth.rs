@@ -31,7 +31,7 @@ fn unauthorized() -> Response {
 /// Delegates to `AuthMode` for the actual authentication logic (Legacy or MultiKey).
 pub async fn require_auth(
     State(auth_mode): State<Arc<AuthMode>>,
-    request: Request<Body>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Response {
     // Health endpoint is always public
@@ -47,7 +47,8 @@ pub async fn require_auth(
 
     match raw_token {
         Some(token) => {
-            if auth_mode.authenticate(token).await.is_some() {
+            if let Some(principal) = auth_mode.authenticate(token).await {
+                request.extensions_mut().insert(principal);
                 next.run(request).await
             } else {
                 unauthorized()
