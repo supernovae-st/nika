@@ -623,10 +623,7 @@ async fn reconcile_yaml_schedules(
                     name: name.clone(),
                     workflow: entry.rel_path.clone(),
                     cron_expr: config_cron.clone(),
-                    timezone: entry
-                        .timezone
-                        .clone()
-                        .unwrap_or_else(|| "UTC".to_string()),
+                    timezone: entry.timezone.clone().unwrap_or_else(|| "UTC".to_string()),
                     paused,
                     source: "yaml".to_string(),
                     overlap: entry.overlap.clone(),

@@ -4813,7 +4813,7 @@ mod tests {
 
     #[test]
     fn min_floats() {
-        let val = json!([3.14, 2.71, 1.41]);
+        let val = json!([3.16, 2.73, 1.41]);
         let result = TransformOp::Min.apply(&val).unwrap();
         assert_eq!(result, json!(1.41));
     }
@@ -4869,9 +4869,9 @@ mod tests {
 
     #[test]
     fn max_floats() {
-        let val = json!([3.14, 2.71, 1.41]);
+        let val = json!([3.16, 2.73, 1.41]);
         let result = TransformOp::Max.apply(&val).unwrap();
-        assert_eq!(result, json!(3.14));
+        assert_eq!(result, json!(3.16));
     }
 
     #[test]

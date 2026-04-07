@@ -943,7 +943,7 @@ jobs:
         if: env.HAS_OVSX_PAT == 'true'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish --no-git-tag-version --packagePath *.vsix -p "$OVSX_PAT"
+        run: npx ovsx publish --packagePath *.vsix -p "$OVSX_PAT"
         continue-on-error: true
 
       - name: Warn if Open VSX PAT is missing

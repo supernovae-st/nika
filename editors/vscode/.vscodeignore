@@ -2,6 +2,10 @@
 src/**
 node_modules/**
 tsconfig.json
+esbuild.mjs
+vitest.config.js
+vitest.config.js.map
+out/test/**
 **/*.ts
 **/*.map
 .gitignore
