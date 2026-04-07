@@ -64,7 +64,7 @@ pub async fn run_server(config: ServeConfig) -> Result<(), ServeError> {
     let storage = if let Some(ref url) = config.storage_url {
         #[cfg(feature = "postgres")]
         {
-            info!(url = %url.split('@').last().unwrap_or("***"), "connecting to PostgreSQL");
+            info!(url = %url.split('@').next_back().unwrap_or("***"), "connecting to PostgreSQL");
             nika_storage::Storage::connect_postgres(url)
                 .await
                 .map_err(|e| ServeError::Config(format!("PostgreSQL: {e}")))?
@@ -1617,7 +1617,7 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         // Should see exactly 2 in-scope jobs, not 0 (the pagination bug)
         assert_eq!(json["count"].as_u64().unwrap(), 2);
-        assert_eq!(json["has_more"].as_bool().unwrap(), false);
+        assert!(!json["has_more"].as_bool().unwrap());
         let jobs = json["jobs"].as_array().unwrap();
         assert!(jobs
             .iter()
@@ -1653,7 +1653,7 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         // 4 in-scope total, skip 2 → 2 remaining, no more
         assert_eq!(json["count"].as_u64().unwrap(), 2);
-        assert_eq!(json["has_more"].as_bool().unwrap(), false);
+        assert!(!json["has_more"].as_bool().unwrap());
         let jobs = json["jobs"].as_array().unwrap();
         assert!(jobs
             .iter()

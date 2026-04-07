@@ -115,14 +115,12 @@ pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
     }
 
     // ── xAI / Grok ─────────────────────────────────────────────────
-    if prov == "xai" || prov == "grok" {
-        if lower == "grok-4" {
-            return ModelCapabilities {
-                // grok-4 rejects stop sequences and presence/frequency penalty
-                supports_stop_sequences: false,
-                ..Default::default()
-            };
-        }
+    if (prov == "xai" || prov == "grok") && lower == "grok-4" {
+        return ModelCapabilities {
+            // grok-4 rejects stop sequences and presence/frequency penalty
+            supports_stop_sequences: false,
+            ..Default::default()
+        };
     }
 
     // ── Everything else: safe defaults ──────────────────────────────

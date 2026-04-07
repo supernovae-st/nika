@@ -535,7 +535,7 @@ impl TaskExecutor {
             resolved_model.as_deref(),
         );
         let model_id = resolved_m.model_id;
-        let model: Option<&str> = Some(&model_id);
+        let model = Some(model_id.as_str());
 
         // Per-provider temperature validation (M-orig8)
         if let Some(temp) = infer.temperature {
@@ -841,7 +841,7 @@ impl TaskExecutor {
         // Build options once (reused across retry attempts)
         // Provider-aware capabilities: token param, temperature, thinking mechanism.
         use nika_core::catalogs::capabilities::{model_capabilities, TokenLimitParam};
-        let caps = model_capabilities(provider_name, model.unwrap_or(""));
+        let caps = model_capabilities(provider_name, model_id.as_str());
         let is_openai_reasoning = caps.token_limit_param == TokenLimitParam::MaxCompletionTokens;
 
         let additional_params = if infer.extended_thinking == Some(true) {

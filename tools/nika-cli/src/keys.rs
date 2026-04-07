@@ -1971,7 +1971,7 @@ mod tests {
     // ── Test 8: Problem summary counts correct ───────────────────────
     #[test]
     fn problem_summary_counts_correct() {
-        let keys = vec![
+        let keys = [
             make_key(
                 "anthropic",
                 KeyCategory::Inference,

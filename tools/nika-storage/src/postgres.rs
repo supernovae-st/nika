@@ -931,6 +931,20 @@ fn pg_row_to_schedule(row: &sqlx_postgres::PgRow) -> CronSchedule {
     }
 }
 
+fn pg_row_to_token(row: &sqlx_postgres::PgRow) -> TokenEntry {
+    TokenEntry {
+        id: row.get("id"),
+        name: row.get("name"),
+        token_hash: row.get("token_hash"),
+        role: Role::parse(row.get::<&str, _>("role")),
+        scope: row.get("scope"),
+        created_at: row.get("created_at"),
+        expires_at: row.get("expires_at"),
+        last_used_at: row.get("last_used_at"),
+        revoked: row.get("revoked"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -961,19 +975,5 @@ mod tests {
         let err = redact_pg_error("query", "column 'foo' does not exist");
         let msg = format!("{err}");
         assert!(msg.contains("column 'foo' does not exist"));
-    }
-}
-
-fn pg_row_to_token(row: &sqlx_postgres::PgRow) -> TokenEntry {
-    TokenEntry {
-        id: row.get("id"),
-        name: row.get("name"),
-        token_hash: row.get("token_hash"),
-        role: Role::parse(row.get::<&str, _>("role")),
-        scope: row.get("scope"),
-        created_at: row.get("created_at"),
-        expires_at: row.get("expires_at"),
-        last_used_at: row.get("last_used_at"),
-        revoked: row.get("revoked"),
     }
 }

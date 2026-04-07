@@ -830,8 +830,8 @@ mod tests {
     fn test_compute_hour_slots_hourly() {
         // "0 * * * *" fires every hour
         let slots = compute_hour_slots("0 * * * *");
-        for h in 0..24 {
-            assert!(slots[h], "should fire at hour {h}");
+        for (h, &slot) in slots.iter().enumerate() {
+            assert!(slot, "should fire at hour {h}");
         }
     }
 
