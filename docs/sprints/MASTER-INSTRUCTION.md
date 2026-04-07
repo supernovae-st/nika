@@ -1,286 +1,253 @@
-# MASTER INSTRUCTION — Nika v0.78.0 → Launch
+# MASTER INSTRUCTION — Nika v0.78.0
 
 > **Copy-paste this ENTIRE document into a new Claude Code session.**
-> It contains EVERYTHING: what to do, how to do it, what skills to use,
-> what documents to read, and how to verify.
 
 ---
 
 ## WHO YOU ARE
 
 Rust + TypeScript senior on **Nika** — semantic YAML workflow engine for AI ("Inference as Code").
-v0.78.0, 17 crates, ~409K LOC, 10,498 tests. Launch: May 5, 2026.
-Franglais conversations, EN code/commits. Paris timezone. Solo founder.
-
-**Project root**: `/Users/thibaut/dev/supernovae/nika`
-**Workspace**: `/Users/thibaut/dev/supernovae/nika/tools` (Cargo workspace)
-**Editors**: `/Users/thibaut/dev/supernovae/nika/editors/` (vscode, zed, neovim, helix)
-
----
-
-## MANDATORY SKILLS (use the Skill tool for each)
+v0.78.0, 17 crates, ~409K LOC, 10,498 tests. Launch: **May 5, 2026**. Solo founder, Paris.
 
 ```
-test-driven-development           — RED → GREEN → REFACTOR, always
-verification-before-completion    — cargo test + clippy + fmt BEFORE commit
-systematic-debugging              — Root cause BEFORE fix
-rust                              — Idiomatic Rust, proper error types
-requesting-code-review            — After each major feature
+Project root:  /Users/thibaut/dev/supernovae/nika
+Workspace:     /Users/thibaut/dev/supernovae/nika/tools    (Cargo)
+Editors:       /Users/thibaut/dev/supernovae/nika/editors/  (vscode, zed, neovim, helix, shared)
 ```
 
 ---
 
-## COMMIT RULES
+## SKILLS (mandatory — use Skill tool)
+
+```
+test-driven-development           RED → GREEN → REFACTOR
+verification-before-completion    cargo test + clippy + fmt BEFORE commit
+systematic-debugging              Root cause BEFORE fix
+rust                              Idiomatic Rust, proper error types
+requesting-code-review            After each major feature
+```
+
+## COMMITS
 
 ```
 type(scope): description
 
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
-
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `style`
-Scopes: `engine`, `ast`, `cli`, `tui`, `serve`, `daemon`, `lsp`, `mcp`, `vscode`, `ci`
-
-**1 fix = 1 commit. Granulaire. Jamais batché.**
-
----
+1 fix = 1 commit. Push after each logical chunk.
 
 ## VERIFICATION (before EVERY commit)
 
 ```bash
 cd /Users/thibaut/dev/supernovae/nika/tools
-
-# 1. Tests (ALWAYS --lib to avoid macOS Keychain popups)
-cargo test --workspace --lib --exclude nika-py
-
-# 2. Clippy
-cargo clippy --workspace -- -D warnings
-
-# 3. Format
-cargo fmt --all --check
-
-# 4. TypeScript (if touching editors/vscode/)
-cd /Users/thibaut/dev/supernovae/nika/editors/vscode && npm run compile
-
-# 5. Editor keyword sync (if touching transforms/builtins/task keys)
+cargo test --workspace --lib --exclude nika-py    # 10,498+ tests, 0 fail
+cargo clippy --workspace -- -D warnings           # 0 warnings
+cargo fmt --all --check                           # clean
+# If touching editors/vscode:
+cd ../editors/vscode && npm run compile
+# If touching transforms/builtins/keywords:
 ./editors/sync-editors.sh --check
 ```
 
-**Expected baseline**: 10,498+ tests GREEN, 0 clippy warnings, fmt clean.
+---
+
+## WHAT EXISTS (don't redo)
+
+All of these are SHIPPED and TESTED:
+
+| Feature | Version | Tests |
+|---------|---------|-------|
+| 5 verbs (infer/exec/fetch/invoke/agent) | @0.12 | 4,532 |
+| 64 transforms + 63 builtins | v0.74 | catalog guards |
+| Scheduling (cron, overlap, timeline, wizard, reconciler) | v0.72-74 | 40+ |
+| IDE (DAG webview, sidebar, Cursor MCP, binary bundling) | v0.74 | 12 vitest |
+| S10 Multi-tenant auth (BLAKE3, moka, AuthMode::MultiKey) | v0.74 | V6 schema |
+| LSP decoupled (nika-core only, 13 capabilities) | v0.74 | 949 |
+| MCP (7 tools, 3 prompts, enable_prompts) | v0.74 | 388 |
+| Templatable<T> (65 typed fields, runtime resolution) | v0.76 | +40 |
+| ModelCapabilities catalog (token limits, vision, thinking) | v0.76 | 23 |
+| Provider split (rig/mod.rs → 4 modules) | v0.77 | existing |
+| 5 editors (VS Code, Zed, Neovim, Helix, shared keywords) | v0.77 | sync script |
+| AI rules (shared modules, per-tool assemblers, L0-L3) | v0.78 | doctor checks |
+| Slash syntax (model: groq/llama), endpoints nika.toml | v0.74 | existing |
+| on_error routing, native-inference default | v0.69-73 | existing |
+| runner.rs test split + task_dispatch.rs extracted | v0.75 | existing |
 
 ---
 
-## WHAT TO DO — 3 TRACKS
+## WHAT TO DO
 
-### Track 1: Pre-Launch Stabilization
+### Track A: Pre-Launch Fixes (~3h)
 
-**Document**: `docs/sprints/SESSION-MEGA-FINAL.md`
+⚠ **Verify each item first** — codebase moves fast, some may be done.
 
-⚠ Many items from the original list are now DONE (npm sync done at 0.77, clippy fixed, etc.). **Verify each item before fixing** — the codebase moved fast.
+| # | Fix | Check | Effort |
+|---|-----|-------|--------|
+| A1 | TreeDataProvider disposable leak | `grep "registerTreeDataProvider" editors/vscode/src/extension.ts` — is return value pushed to subscriptions? | 5min |
+| A2 | Blocking std::fs in async reconciler | `grep "std::fs::read_to_string" tools/nika-serve/src/lib.rs` — in async context? | 30min |
+| A3 | WWW-Authenticate header on 401 | `grep "UNAUTHORIZED" tools/nika-serve/src/auth.rs` — has WWW-Authenticate? | 10min |
+| A4 | Artifact path collision detection | `grep "HashSet" tools/nika-engine/src/runtime/artifact_processor.rs` — exists? | 1h |
+| A5 | Auth middleware integration tests | `grep "#\[tokio::test\]" tools/nika-serve/src/auth.rs` — how many? | 30min |
+| A6 | Templatable perf fast-path | Read `docs/sprints/SESSION-TEMPLATABLE-HANDOFF.md` item S1 | 2h |
 
-**Still likely needed** (verify first):
-| # | Fix | File | Effort |
-|---|-----|------|--------|
-| B2 | TreeDataProvider disposable leak | `editors/vscode/src/extension.ts` | 5min |
-| B3 | Duplicate daemon reconnect | `tools/nika-lsp/src/backend.rs` | 10min |
-| B4 | Blocking fs in async reconciler | `tools/nika-serve/src/lib.rs` | 30min |
-| B5 | WWW-Authenticate header on 401 | `tools/nika-serve/src/auth.rs` | 10min |
-| C2 | Artifact path collision detection | `tools/nika-engine/src/runtime/artifact_processor.rs` | 1h |
-| D1 | Auth middleware integration tests | `tools/nika-serve/src/auth.rs` | 30min |
+### Track B: Distribution / Publish (~2h)
 
-**New items from recent sessions** (check handoffs):
-| # | Fix | Source |
-|---|-----|--------|
-| T1 | Templatable perf: has_any_template() fast-path | `SESSION-TEMPLATABLE-HANDOFF.md` S1 |
-| T2 | Templatable: template in on_error fallback task | `SESSION-TEMPLATABLE-HANDOFF.md` S2 |
-| T3 | Templatable: template in guardrails threshold | `SESSION-TEMPLATABLE-HANDOFF.md` S3 |
-| M1 | Channel matrix: publish to Open VSX, Homebrew, npm | `SESSION-MEGA-HANDOFF-2026-04-07.md` |
-| E1 | Zed: publish to extensions.zed.dev | `SESSION-HANDOFF-EDITORS-ARCH-2026-04-07.md` |
+From `docs/sprints/SESSION-MEGA-HANDOFF-2026-04-07.md` channel matrix:
 
-**How**: Read each handoff doc, verify what's done vs pending, fix remaining items in TDD.
+| Channel | Status | Action |
+|---------|--------|--------|
+| VS Code Marketplace | v0.74 published | Push + tag v0.78 |
+| Open VSX (Cursor) | NEVER published | Need OVSX_PAT in GitHub secrets |
+| Homebrew | v0.72 | Need HOMEBREW_TAP_TOKEN refresh |
+| npm | v0.71 | Fix Windows build cascade |
+| crates.io | v0.47 | Decide strategy |
+| Zed extensions | Not published | Submit to extensions.zed.dev |
 
----
-
-### Track 2: Post-Launch Architecture Refactoring (~10 weeks)
+### Track C: Architecture Refactoring (post-launch, ~10 weeks)
 
 **Document**: `docs/plans/2026-04-07-architecture-roadmap.md`
 
-6 phases with session prompts ready to copy-paste:
+Each phase has a **copy-paste session prompt** in the document:
 
-| Phase | What | Effort | ROI |
-|-------|------|--------|-----|
-| 3 | Runner decomposition (2,262→10 modules) | 1 week | Medium — navigability |
-| 1 | God Crate extraction (nika-engine 158K→5 crates) | 2 weeks | **HIGH — compile time -30%** |
-| 2 | NikaError domains (103→15 sub-enums) | 4-6 weeks | HIGH — dev velocity |
-| 4 | Provider macro (20→3 touch points) | 1 week | Medium — extensibility |
-| 6 | Parser/analyzer split (4K+5K→5+8 files) | 1 week | Low — readability |
-| 5 | Serve/daemon unification | 2 weeks | Medium — correctness |
+| Phase | What | Effort | Impact |
+|-------|------|--------|--------|
+| 3 | Runner decomposition (2,262 LOC → 10 modules) | 1 week | Medium |
+| 1 | **God Crate split** (nika-engine 158K → 5 crates) | 2 weeks | **HIGH — compile -30%** |
+| 2 | NikaError domains (103 → 15 sub-enums) | 4-6 weeks | HIGH |
+| 4 | Provider macro (20 → 3 touch points) | 1 week | Medium |
+| 6 | Parser/analyzer split (4K+5K → 5+8 files) | 1 week | Low |
+| 5 | Serve/daemon unification | 2 weeks | Medium |
 
-**How**: Each phase in the roadmap has a `### Session Prompt` section. Copy it into a new session.
+### Track D: Templatable Deferred Items
 
----
+From `docs/sprints/SESSION-TEMPLATABLE-HANDOFF.md`:
 
-### Track 3: Quick Wins (do anytime, in any session)
+| # | Item | Effort |
+|---|------|--------|
+| S1 | `has_any_template()` fast-path (skip clone when no templates) | 2h |
+| S2 | Template in `on_error` fallback task | 1h |
+| S3 | Template in guardrails `threshold` field | 1h |
+| S4 | Negative test: `temperature: "{{inputs.temp}}"` with string that can't parse | 30min |
+
+### Quick Wins (anytime)
 
 | Fix | Where | Effort |
 |-----|-------|--------|
+| Delete dead `error_domains.rs` | `nika-engine/src/error_domains.rs` | 5min |
 | Centralize VERB_KEYS constant | `parser.rs` + `validate.rs` | 15min |
-| Merge Runner constructors | `runner/mod.rs` (with_event_log + with_policy share 90%) | 30min |
-| Delete dead error_domains.rs | `nika-engine/src/error_domains.rs` | 5min |
-| Comment `schedule: _` in lower.rs | `lower.rs:61` | 2min |
-| provider_embedded.rs fmt | `nika-daemon/src/provider_embedded.rs` | 2min |
+| Merge Runner constructors | `runner/mod.rs` (90% duplicate) | 30min |
 
 ---
 
-## KEY DOCUMENTS (read order for new sessions)
+## KEY DOCUMENTS (read order)
 
-### Architecture & Current State
-1. `CLAUDE.md` (project root) — crate graph, commands, conventions, editor arch
-2. `docs/plans/2026-04-07-architecture-roadmap.md` — **6-phase refactoring roadmap** (God Crate split, NikaError domains, runner decomp, provider macro, serve/daemon, AST split)
-3. `CHANGELOG.md` — full history through v0.75.0
+### Start Here
+1. **`CLAUDE.md`** — crate graph, commands, conventions, editor arch, AI rules arch
+2. **`docs/plans/2026-04-07-architecture-roadmap.md`** — 6-phase refactoring with session prompts
 
 ### Latest Handoffs (most recent first)
-4. `docs/sprints/SESSION-MEGA-HANDOFF-2026-04-07.md` — **mega handoff**: podcast, 5 editors, distribution audit, channel matrix
-5. `docs/sprints/SESSION-TEMPLATABLE-HANDOFF.md` — Templatable<T> feature (65 typed fields), deferred items S1-S4
-6. `docs/sprints/SESSION-MODEL-RESILIENCE-HANDOFF.md` — ModelCapabilities catalog, stale defaults fix
-7. `docs/sprints/SESSION-HANDOFF-EDITORS-ARCH-2026-04-07.md` — 5 editors architecture, Zed MCP Context Server
-8. `docs/sprints/SESSION-MEGA-FINAL.md` — 15 stabilization fixes (some done, verify first)
+3. `docs/sprints/SESSION-MEGA-HANDOFF-2026-04-07.md` — podcast, 5 editors, distribution, channel matrix
+4. `docs/sprints/SESSION-TEMPLATABLE-HANDOFF.md` — Templatable<T>, deferred S1-S4
+5. `docs/sprints/SESSION-MODEL-RESILIENCE-HANDOFF.md` — ModelCapabilities catalog
+6. `docs/sprints/SESSION-HANDOFF-EDITORS-ARCH-2026-04-07.md` — 5 editors, Zed MCP
 
 ### Architecture Plans
-9. `docs/plans/2026-04-07-ai-rules-architecture.md` — 4-layer progressive AI context (L0→L3)
-10. `docs/plans/2026-04-07-zed-deep-integration-plan.md` — Zed WASM extension details
-11. `docs/plans/2026-04-07-deferred-provider-refactor.md` — provider type zoo cleanup plan
-12. `docs/plans/2026-04-07-model-resilience.md` — model capabilities design
+7. `docs/plans/2026-04-07-ai-rules-architecture.md` — 4-layer progressive AI context
+8. `docs/plans/2026-04-07-deferred-provider-refactor.md` — provider type zoo cleanup
+9. `docs/plans/2026-04-07-zed-deep-integration-plan.md` — Zed WASM extension
 
-### Scheduling & IDE (DONE — reference only)
-13. `docs/sprints/SESSION-SCHEDULING-HANDOFF.md` — scheduling implementation (DONE)
-14. `docs/sprints/SESSION-IDE-HANDOFF.md` — IDE/VSCode extension (DONE)
-15. `docs/plans/2026-04-05-scheduling-ux-bible.md` — scheduling UX patterns
+### Reference (DONE — only if needed)
+10. `docs/sprints/SESSION-SCHEDULING-HANDOFF.md` — scheduling (DONE)
+11. `docs/sprints/SESSION-IDE-HANDOFF.md` — IDE/VSCode (DONE)
+12. `docs/plans/2026-04-05-scheduling-ux-bible.md` — UX patterns
 
 ---
 
-## MULTI-AGENT WORKFLOW
+## MULTI-AGENT PATTERNS
 
-Pour les tâches complexes, lance plusieurs agents en parallèle :
-
-### Pattern: Code Review
+### Code Review (after implementing)
 ```
-Lance 3 agents feature-dev:code-reviewer en parallèle:
-1. Agent A: review fichier X pour bugs, security, quality
-2. Agent B: review fichier Y pour les mêmes
-3. Agent C: run tests + clippy + fmt
-→ Consolide les résultats, fix les bugs trouvés
+Lance 3 agents feature-dev:code-reviewer en parallèle sur les fichiers touchés.
+Consolide → fix les bugs trouvés → re-test.
 ```
 
-### Pattern: Architecture Analysis
+### Architecture Analysis (before refactoring)
 ```
-Lance 6 agents spn-rust:rust-architect en parallèle:
-1. Un par sous-système (runner, errors, crates, providers, serve, AST)
-→ Chaque agent lit le code, propose des améliorations
-→ Consolide en un document architecture
-```
-
-### Pattern: Bug Hunting
-```
-Lance 3-5 agents feature-dev:code-reviewer sur des fichiers différents:
-→ Chaque agent cherche bugs, dead code, missing tests
-→ Fusionne les résultats, priorise, fix en TDD
+Lance un agent spn-rust:rust-architect par sous-système.
+Chaque agent lit le code, propose améliorations avec file:line.
+Consolide en plan d'exécution.
 ```
 
-### Pattern: Feature Implementation
+### Bug Hunting (periodic)
+```
+Lance 3-5 agents feature-dev:code-reviewer sur des fichiers différents.
+Cherche: bugs, dead code, missing tests, security issues.
+Priorise et fix en TDD.
+```
+
+### Feature Implementation
 ```
 1. Agent feature-dev:code-explorer — analyse le code existant
 2. Agent feature-dev:code-architect — propose l'architecture
-3. Toi: implémentes en TDD avec verification-before-completion
+3. Implémente en TDD
 4. Agent spn-powers:code-reviewer — review le résultat
 ```
 
 ---
 
-## NIKA-SPECIFIC CONVENTIONS
+## CONVENTIONS
 
 ### Rust
-- `cargo test --workspace --lib` (ALWAYS --lib, never without, to avoid Keychain)
-- `Co-Authored-By: Nika 🦋 <nika@supernovae.studio>` (ALWAYS, never Claude)
-- Schema: `nika/workflow@0.12`
-- 5 verbs: infer, exec, fetch, invoke, agent
+- `cargo test --workspace --lib` (ALWAYS --lib — Keychain popups)
 - Error codes: NIKA-XXX (see `nika-core/src/error_codes.rs`)
+- Schema: `nika/workflow@0.12`, 5 verbs, 64 transforms, 63 builtins
 
-### Editors (5 total)
-- **VS Code/Cursor**: `cd editors/vscode && npm run compile` (tsc + esbuild)
-  - `extensionKind: ["workspace"]` required for Remote/WSL
-  - Cursor MCP uses `"mcpServers"`, VS Code uses `"servers"` (DIFFERENT keys!)
-  - ELK.js must use bundled version (no Web Worker in webview sandbox)
-- **Zed**: `cd editors/zed/` — Rust WASM extension, MCP Context Server is killer feature
-- **Neovim**: `cd editors/neovim/` — Lua plugin, `require("nika").setup()`
-- **Helix**: `cd editors/helix/` — TOML config + Tree-sitter queries
-- **Shared**: `editors/shared/nika-keywords.json` — generated from Rust source
-- **Sync**: `./editors/sync-editors.sh --fix` propagates keyword changes to all editors
-- **When adding transforms/builtins**: update Rust source → run sync script → commit both
+### Editors
+- 1 LSP binary (`nika lsp --stdio`), N thin wrappers
+- `./editors/sync-editors.sh --fix` after adding transforms/builtins/keywords
+- VS Code: `npm run compile` (tsc + esbuild), `extensionKind: ["workspace"]`
+- Zed: Rust WASM, MCP Context Server = killer feature
+- Cursor MCP key: `"mcpServers"` — VS Code MCP key: `"servers"` (DIFFERENT!)
 
-### Git
-- 1 fix = 1 commit, granulaire
-- Push after each logical chunk
-- Pre-commit hooks: fmt + clippy (automatic)
+### AI Rules (new v0.78)
+- Content in `tools/nika-cli/rules/shared/` (7 modules)
+- Per-tool assemblers in `tools/nika-cli/src/rules.rs`
+- 4 layers: L0 identity → L1 syntax → L2 reference → L3 live (MCP)
+- `nika init` writes project files, `nika setup` writes home dir rules
+- `nika doctor` checks MCP config + rule file health
 
 ---
 
-## CURRENT STATS
+## STATS
 
 ```
 Version:     0.78.0
 Tests:       10,498 passed, 0 failed, 1 ignored
-Clippy:      clean
 Crates:      17 workspace members
-LOC:         ~409K Rust + ~2K TypeScript
-Storage:     Schema V6 (schedules + serve_tokens)
-Providers:   9 (7 cloud + native + mock) + OpenAI-compat table (7 more)
+Providers:   9 + 7 OpenAI-compat = 16 total
 Transforms:  64 (incl. parse_yaml)
 Builtins:    63 (incl. json_diff)
-LSP:         13 capabilities, decoupled from nika-engine
-MCP:         7 tools, 3 prompts, enable_prompts()
-Editors:     5 (VS Code, Zed, Neovim, Helix, shared keywords)
-Extension:   DAG webview, sidebar tree, Cursor/Windsurf auto-config
-Features:    Templatable<T> (65 typed fields), ModelCapabilities catalog,
-             slash syntax (model: groq/llama), endpoints in nika.toml,
-             S10 multi-tenant auth (BLAKE3), scheduling full stack
+Editors:     5 (VS Code, Zed, Neovim, Helix, shared)
+LSP:         13 capabilities, decoupled
+MCP:         7 tools, 3 prompts
+Auth:        Multi-tenant BLAKE3 + legacy Bearer
 ```
-
-### Recent Major Changes (v0.75→v0.78)
-- **Templatable<T>**: `{{inputs.temperature}}` works in ALL 65 typed fields (number/bool/integer)
-- **ModelCapabilities catalog**: single source of truth for model-specific API behavior
-- **Provider split**: rig/mod.rs god file → 4 modules (inference, streaming, construction, compat)
-- **5 editors**: VS Code, Zed (WASM + MCP Context Server), Neovim (Lua), Helix (TOML), shared keywords
-- **AI rules architecture**: 4-layer progressive discovery (L0 identity → L3 live MCP)
-- **Distribution fixes**: Open VSX publishing fixed, VSIX icon, marketplace metadata
-- **max_completion_tokens**: fixed for OpenAI reasoning models (o-series, gpt-5.x)
 
 ---
 
 ## START
 
-1. Run verification baseline:
-   ```bash
-   cd /Users/thibaut/dev/supernovae/nika/tools
-   cargo test --workspace --lib --exclude nika-py
-   # Expected: 10,498+ tests, 0 failures
-   ```
+```bash
+# 1. Baseline
+cd /Users/thibaut/dev/supernovae/nika/tools
+cargo test --workspace --lib --exclude nika-py
 
-2. Check what's new since your last session:
-   ```bash
-   git log --oneline -20
-   cat docs/sprints/SESSION-MEGA-HANDOFF-2026-04-07.md | head -60
-   ```
+# 2. What's new
+git log --oneline -15
 
-3. Pick your track:
-   - **Stabilization** → Read latest handoffs (items 4-8 in KEY DOCUMENTS), verify + fix remaining
-   - **Architecture** → Read `docs/plans/2026-04-07-architecture-roadmap.md`, start at Phase 3
-   - **Distribution** → Read channel matrix in `SESSION-MEGA-HANDOFF-2026-04-07.md`, publish to channels
-   - **Templatable perf** → Read `SESSION-TEMPLATABLE-HANDOFF.md` items S1-S4
-   - **Quick wins** → Just fix them inline
+# 3. Pick track: A (fixes) / B (publish) / C (architecture) / D (Templatable)
 
-4. For every fix: **test first** (RED), then **fix** (GREEN), then **refactor** if needed.
+# 4. For every fix: test FIRST (RED) → fix (GREEN) → refactor if needed
 
-5. Commit granulaire, push after each chunk.
-
-6. When done, run full verification suite and push.
+# 5. Commit granulaire, push after each chunk
+```
