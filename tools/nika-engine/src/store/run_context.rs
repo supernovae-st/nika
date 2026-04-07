@@ -54,6 +54,9 @@ pub struct TaskResult {
     pub status: TaskOutcome,
     /// Media files produced by this task (empty for non-media tasks)
     pub media: Vec<crate::media::MediaRef>,
+    /// Trust level of this task's output (Nika Shield).
+    /// Defaults to Trusted for backward compatibility.
+    pub trust_level: nika_core::trust::TrustLevel,
 }
 
 impl TaskResult {
@@ -64,6 +67,7 @@ impl TaskResult {
             duration,
             status: TaskOutcome::Success,
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -74,6 +78,7 @@ impl TaskResult {
             duration,
             status: TaskOutcome::Success,
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -84,6 +89,7 @@ impl TaskResult {
             duration,
             status: TaskOutcome::Failed(error.into()),
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -99,6 +105,7 @@ impl TaskResult {
                 dependency: dependency.into(),
             },
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -113,12 +120,19 @@ impl TaskResult {
                 reason: reason.into(),
             },
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
     /// Attach media references to this result.
     pub fn with_media(mut self, media: Vec<crate::media::MediaRef>) -> Self {
         self.media = media;
+        self
+    }
+
+    /// Set the trust level for this result (Nika Shield).
+    pub fn with_trust(mut self, level: nika_core::trust::TrustLevel) -> Self {
+        self.trust_level = level;
         self
     }
 
@@ -313,6 +327,11 @@ impl RunContext {
     /// Get a task result
     pub fn get(&self, task_id: &str) -> Option<TaskResult> {
         self.results.get(task_id).map(|r| r.value().clone())
+    }
+
+    /// Get the trust level of a completed task's output (Nika Shield).
+    pub fn get_trust(&self, task_id: &str) -> Option<nika_core::trust::TrustLevel> {
+        self.results.get(task_id).map(|r| r.trust_level)
     }
 
     /// Check task status without cloning the full TaskResult (M11 perf fix).

@@ -2046,6 +2046,7 @@ impl Runner {
                                 failed: failed_count,
                             },
                             media: merged_media,
+                            trust_level: nika_core::trust::TrustLevel::Trusted,
                         }
                     } else {
                         // Total failure: no iterations succeeded
