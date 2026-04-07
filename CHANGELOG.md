@@ -7,10 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.77.0 — HARDENED                                                  ║
-║  Auth scope enforcement + PG hardening + 5 editors | 10,435 tests         ║
+║  NIKA v0.78.0 — PROGRESSIVE DISCOVERY                                     ║
+║  AI rules architecture: shared modules, 12 assemblers, 10 tools | 10,520  ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.78.0] — 2026-04-07
+
+### Added
+- **Progressive Discovery AI rules** — 7 shared content modules (`rules/shared/`) composed by 12 assembler functions into tool-specific formats
+- **10 AI coding assistants** — Claude Code, Cursor (3-file progressive), Copilot, Windsurf, Roo, Gemini CLI, Amazon Q, JetBrains AI, Cline, AGENTS.md
+- **MCP pre-configuration** — `nika init` pre-populates `.mcp.json` and `.cursor/mcp.json` with nika MCP server
+- **Claude Code settings** — `nika init` generates `.claude/settings.json` with permissions for nika MCP tools
+- **Doctor MCP check** — `nika doctor` validates `.mcp.json` has nika server entry
+- **Gemini CLI support** — `nika init` generates `.gemini/GEMINI.md`; `nika setup` deploys to `~/.gemini/`
+
+### Changed
+- **Cursor rules** — migrated from 1 monolithic `.mdc` (518 lines) to 3-file progressive discovery: project (alwaysApply, 15 lines), syntax (globs, ~100 lines), reference (on-demand)
+- **Windsurf rules** — migrated from `.windsurfrules` to `.windsurf/rules/nika.md`
+- **Rule architecture** — all 5 monolithic rule files (2,632 lines total) replaced by 7 shared modules (362 lines) + 12 compile-time assemblers
+
+### Removed
+- 5 monolithic rule files: `claude.md`, `copilot.md`, `cursor.mdc`, `windsurf.md`, `roo.md` (content preserved in shared modules)
+
+### Status
+- 10,520 tests GREEN (+22 new), 17 crates
+- 2,632 lines of duplicated content → 362 lines shared modules + assemblers
 
 ## [0.77.0] — 2026-04-07
 
