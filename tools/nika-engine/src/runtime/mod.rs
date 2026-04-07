@@ -54,6 +54,7 @@ pub mod resolver;
 mod rig_agent_loop;
 pub mod robots;
 mod runner;
+pub mod canary;
 pub mod security;
 mod skill_injector;
 pub mod spotlight;
