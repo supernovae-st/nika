@@ -13,6 +13,7 @@ pub mod trace;
 pub mod init;
 pub mod mcp;
 pub mod pkg;
+pub mod rules;
 
 pub mod model_cloud;
 pub mod model_cmd;
