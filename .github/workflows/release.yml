@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -163,7 +163,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           # Use HEAD for dry-run, tag for real releases
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
@@ -336,7 +336,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           # Use HEAD for dry-run, tag for real releases
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
@@ -445,7 +445,7 @@ jobs:
       ai_telegram_msg: ${{ steps.ai_notes.outputs.telegram_msg }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           # Use HEAD for dry-run, tag for real releases
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
@@ -854,7 +854,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -961,7 +961,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1053,7 +1053,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1124,7 +1124,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1166,7 +1166,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1233,7 +1233,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1286,7 +1286,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1497,7 +1497,7 @@ jobs:
 
     steps:
       - name: Checkout for stats
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
 
