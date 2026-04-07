@@ -303,7 +303,7 @@ jobs:
           "$hash  $env:ARTIFACT-$env:VERSION.zip" | Out-File -Encoding utf8 "dist/$env:ARTIFACT-$env:VERSION.zip.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -342,13 +342,13 @@ jobs:
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Download Linux amd64 artifact (musl static)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: nika-linux-musl-x64
           path: artifacts/amd64
 
       - name: Download Linux arm64 artifact (musl static)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: nika-linux-musl-arm64
           path: artifacts/arm64
@@ -451,7 +451,7 @@ jobs:
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -884,7 +884,7 @@ jobs:
 
       - name: Download binary artifact
         if: matrix.artifact != ''
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: editors/vscode/server/
@@ -972,7 +972,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -1153,7 +1153,7 @@ jobs:
         run: napi build --release --target ${{ matrix.target }} ${{ matrix.use_zig && '--zig' || '' }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v4
         with:
           name: sdk-npm-${{ matrix.target }}
           path: tools/nika-napi/*.node
@@ -1177,7 +1177,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Download all SDK artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           pattern: sdk-npm-*
           path: tools/nika-napi
@@ -1246,7 +1246,7 @@ jobs:
           working-directory: tools/nika-py
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v4
         with:
           name: sdk-pypi-${{ matrix.os }}-${{ matrix.target }}
           path: tools/nika-py/dist
@@ -1259,7 +1259,7 @@ jobs:
 
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           pattern: sdk-pypi-*
           path: dist
@@ -1291,7 +1291,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: nika-windows-x64
           path: artifacts
