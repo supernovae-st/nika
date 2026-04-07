@@ -59,6 +59,7 @@ pub mod spawn;
 pub mod structured_output;
 pub(crate) mod structured_retry;
 pub mod submit_tool;
+pub(crate) mod task_dispatch;
 #[cfg(test)]
 mod tests_e2e_workflow;
 
