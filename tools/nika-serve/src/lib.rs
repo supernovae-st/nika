@@ -1547,4 +1547,80 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
+
+    #[tokio::test]
+    async fn scope_rejects_artifact_download_for_out_of_scope_job() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        let job_id = create_test_job(&state.storage, "project-b/pipeline.nika.yaml").await;
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("/v1/jobs/{job_id}/artifacts/output.md"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // 403 from scope check (not 404 from missing artifact — scope check runs first)
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn scope_rejects_batch_with_out_of_scope_workflow() {
+        let (app, _, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        // Out-of-scope workflow first — scope check in pass 1 should reject
+        // before attempting disk validation on any item
+        let body = serde_json::json!([
+            {"workflow": "project-b/bad.nika.yaml"},
+            {"workflow": "project-a/ok.nika.yaml"}
+        ]);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/batch/run")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::from(body.to_string()))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // Batch should fail in pass 1 (scope check), not pass 2
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn scope_pagination_correct_with_mixed_jobs() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        // Create 3 out-of-scope jobs and 2 in-scope jobs
+        for i in 0..3 {
+            create_test_job(&state.storage, &format!("project-b/wf{i}.nika.yaml")).await;
+        }
+        for i in 0..2 {
+            create_test_job(&state.storage, &format!("project-a/wf{i}.nika.yaml")).await;
+        }
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/v1/jobs?limit=10")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        // Should see exactly 2 in-scope jobs, not 0 (the pagination bug)
+        assert_eq!(json["count"].as_u64().unwrap(), 2);
+        assert_eq!(json["has_more"].as_bool().unwrap(), false);
+        let jobs = json["jobs"].as_array().unwrap();
+        assert!(jobs
+            .iter()
+            .all(|j| j["workflow"].as_str().unwrap().starts_with("project-a/")));
+    }
 }

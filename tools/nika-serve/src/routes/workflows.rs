@@ -403,6 +403,18 @@ pub async fn batch_run(
     for (i, req) in requests.iter().enumerate() {
         validate_workflow_path(&req.workflow)
             .map_err(|e| ServeError::InvalidWorkflow(format!("batch[{}]: {}", i, e)))?;
+
+        // L2 scope enforcement: reject out-of-scope workflows in pass 1
+        // to prevent orphaned jobs from partial batch failure in pass 2
+        if let Some(axum::Extension(ref p)) = principal {
+            if !p.can_access(&req.workflow) {
+                return Err(ServeError::Forbidden(format!(
+                    "batch[{}]: token '{}' scope '{}' does not cover workflow '{}'",
+                    i, p.token_name, p.scope, req.workflow
+                )));
+            }
+        }
+
         let full_path = state.config.workflows_dir.join(&req.workflow);
         let canonical = full_path.canonicalize().map_err(|_| {
             ServeError::InvalidWorkflow(format!(
@@ -468,28 +480,54 @@ pub async fn list_jobs(
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0);
 
-    let filter = nika_storage::JobFilter {
-        state: state_filter,
-        workflow: query.workflow,
-        tag: tag_filter,
-        limit: Some(limit + 1), // fetch one extra to detect has_more
-        offset: Some(offset),
-    };
+    // When scope filtering is active, the DB doesn't know which rows pass the
+    // filter, so we may need multiple fetches to fill the requested page.
+    // Cap at 10 iterations (10 * page_size = 1000 rows max scanned).
+    let need_scope_filter = principal
+        .as_ref()
+        .map(|axum::Extension(p)| p.scope != "*")
+        .unwrap_or(false);
 
-    let mut jobs = state.storage.list_jobs_filtered(filter).await?;
+    let target = (limit + 1) as usize; // +1 to detect has_more
+    let mut collected: Vec<nika_storage::Job> = Vec::new();
+    let mut db_offset = offset;
+    let page_size = limit + 1; // fetch slightly more than needed per round
+    let max_rounds = if need_scope_filter { 10 } else { 1 };
 
-    // L2 scope enforcement: filter out jobs for workflows outside token scope
-    if let Some(axum::Extension(ref p)) = principal {
-        jobs.retain(|j| p.can_access(&j.workflow));
+    for _ in 0..max_rounds {
+        let filter = nika_storage::JobFilter {
+            state: state_filter.clone(),
+            workflow: query.workflow.clone(),
+            tag: tag_filter.clone(),
+            limit: Some(page_size),
+            offset: Some(db_offset),
+        };
+
+        let batch = state.storage.list_jobs_filtered(filter).await?;
+        let batch_len = batch.len();
+
+        if need_scope_filter {
+            if let Some(axum::Extension(ref p)) = principal {
+                collected.extend(batch.into_iter().filter(|j| p.can_access(&j.workflow)));
+            }
+        } else {
+            collected.extend(batch);
+        }
+
+        // Stop if DB returned fewer rows than requested (no more data)
+        // or we've collected enough results
+        if (batch_len as i64) < page_size || collected.len() >= target {
+            break;
+        }
+        db_offset += page_size;
     }
 
-    let has_more = jobs.len() as i64 > limit;
-    if has_more {
-        jobs.truncate(limit as usize);
-    }
-    let count = jobs.len();
+    let has_more = collected.len() > limit as usize;
+    collected.truncate(limit as usize);
+    let count = collected.len();
 
-    let job_responses: Vec<StatusResponse> = jobs.into_iter().map(job_to_status_response).collect();
+    let job_responses: Vec<StatusResponse> =
+        collected.into_iter().map(job_to_status_response).collect();
 
     Ok(Json(JobListResponse {
         jobs: job_responses,
