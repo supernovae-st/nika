@@ -10,6 +10,7 @@ use crate::ast::artifact::ArtifactSpec;
 use crate::ast::decompose::DecomposeSpec;
 use crate::ast::logging::LogConfig;
 use crate::ast::structured::StructuredOutputSpec;
+use crate::ast::templatable::Templatable;
 use crate::binding::WithSpec;
 use crate::source::Span;
 
@@ -75,10 +76,10 @@ pub struct AnalyzedTask {
     pub decompose: Option<DecomposeSpec>,
 
     /// Standalone concurrency (used with decompose when no for_each)
-    pub concurrency: Option<u32>,
+    pub concurrency: Option<Templatable<u32>>,
 
     /// Standalone fail_fast (used with decompose when no for_each)
-    pub fail_fast: Option<bool>,
+    pub fail_fast: Option<Templatable<bool>>,
 
     /// Artifact configuration for file persistence
     pub artifact: Option<ArtifactSpec>,
@@ -93,7 +94,7 @@ pub struct AnalyzedTask {
     pub record: Option<crate::ast::record::RecordSpec>,
 
     /// Context budget in tokens — limits total binding size passed to LLM
-    pub context_budget: Option<u32>,
+    pub context_budget: Option<Templatable<u32>>,
 
     /// Task-level routing override.
     pub routing: Option<crate::ast::routing::RoutingConfig>,
@@ -153,17 +154,17 @@ pub struct AnalyzedInferAction {
     /// System prompt override
     pub system: Option<String>,
 
-    /// Temperature (validated: 0.0 - 2.0)
-    pub temperature: Option<f64>,
+    /// Temperature (validated: 0.0 - 2.0, or template)
+    pub temperature: Option<Templatable<f64>>,
 
     /// Maximum tokens to generate
-    pub max_tokens: Option<u32>,
+    pub max_tokens: Option<Templatable<u32>>,
 
     /// Enable extended thinking
-    pub extended_thinking: Option<bool>,
+    pub extended_thinking: Option<Templatable<bool>>,
 
     /// Thinking budget tokens
-    pub thinking_budget: Option<u32>,
+    pub thinking_budget: Option<Templatable<u32>>,
 
     /// Multimodal content parts for vision (analyzed, spans stripped)
     pub content: Option<Vec<crate::ast::content::AnalyzedContentPart>>,
@@ -185,7 +186,7 @@ pub struct AnalyzedExecAction {
     pub command: String,
 
     /// Run through shell
-    pub shell: bool,
+    pub shell: Templatable<bool>,
 
     /// Working directory
     pub cwd: Option<String>,
@@ -194,10 +195,10 @@ pub struct AnalyzedExecAction {
     pub env: IndexMap<String, String>,
 
     /// Timeout in milliseconds
-    pub timeout_ms: Option<u64>,
+    pub timeout_ms: Option<Templatable<u64>>,
 
     /// Maximum stdout size in bytes before truncation. Default: 50 MB.
-    pub max_stdout: Option<u64>,
+    pub max_stdout: Option<Templatable<u64>>,
 
     /// Span of the action
     pub span: Span,
@@ -222,10 +223,10 @@ pub struct AnalyzedFetchAction {
     pub json: Option<serde_json::Value>,
 
     /// Timeout in milliseconds
-    pub timeout_ms: Option<u64>,
+    pub timeout_ms: Option<Templatable<u64>>,
 
     /// Follow redirects
-    pub follow_redirects: bool,
+    pub follow_redirects: Templatable<bool>,
 
     /// Response mode: full or binary
     pub response: Option<crate::ast::extract::ResponseMode>,
@@ -237,10 +238,10 @@ pub struct AnalyzedFetchAction {
     pub selector: Option<String>,
 
     /// Enable cookie jar for session persistence
-    pub session: bool,
+    pub session: Templatable<bool>,
 
     /// Enable HTTP response caching
-    pub cache: bool,
+    pub cache: Templatable<bool>,
 
     /// Span of the action
     pub span: Span,
@@ -304,7 +305,7 @@ pub struct AnalyzedInvokeAction {
     pub params: Option<serde_json::Value>,
 
     /// Timeout for tool execution
-    pub timeout_ms: Option<u64>,
+    pub timeout_ms: Option<Templatable<u64>>,
 
     /// Span of the action
     pub span: Span,
@@ -320,10 +321,10 @@ pub struct AnalyzedAgentAction {
     pub tools: Vec<String>,
 
     /// Maximum turns
-    pub max_turns: Option<u32>,
+    pub max_turns: Option<Templatable<u32>>,
 
     /// Maximum tokens per response
-    pub max_tokens: Option<u32>,
+    pub max_tokens: Option<Templatable<u32>>,
 
     /// Agent definition reference (resolved)
     pub from: Option<String>,
@@ -344,19 +345,19 @@ pub struct AnalyzedAgentAction {
     pub model: Option<String>,
 
     /// Temperature for LLM sampling
-    pub temperature: Option<f64>,
+    pub temperature: Option<Templatable<f64>>,
 
     /// Token budget for the agent
-    pub token_budget: Option<u32>,
+    pub token_budget: Option<Templatable<u32>>,
 
     /// Enable extended thinking (Claude)
-    pub extended_thinking: Option<bool>,
+    pub extended_thinking: Option<Templatable<bool>>,
 
     /// Thinking budget tokens
-    pub thinking_budget: Option<u32>,
+    pub thinking_budget: Option<Templatable<u32>>,
 
     /// Max spawn_agent recursion depth
-    pub depth_limit: Option<u32>,
+    pub depth_limit: Option<Templatable<u32>>,
 
     /// Tool choice behavior: auto, required, none
     pub tool_choice: Option<String>,
@@ -390,7 +391,7 @@ pub struct AnalyzedOutput {
     pub schema_ref: Option<String>,
 
     /// Maximum retries on validation failure
-    pub max_retries: Option<u32>,
+    pub max_retries: Option<Templatable<u32>>,
 
     /// Span of the output config
     pub span: Span,
@@ -436,10 +437,10 @@ pub struct AnalyzedForEach {
     pub as_var: String,
 
     /// Maximum concurrency (None = unlimited)
-    pub concurrency: Option<u32>,
+    pub concurrency: Option<Templatable<u32>>,
 
     /// Fail fast on first error (default: true)
-    pub fail_fast: bool,
+    pub fail_fast: Templatable<bool>,
 
     /// Span of the for_each config
     pub span: Span,
@@ -451,7 +452,7 @@ impl Default for AnalyzedForEach {
             items: String::new(),
             as_var: "item".to_string(),
             concurrency: None, // None = not specified, inherits from task/workflow level
-            fail_fast: true,
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         }
     }
@@ -482,13 +483,13 @@ impl AnalyzedForEach {
 #[derive(Debug, Clone)]
 pub struct AnalyzedRetry {
     /// Maximum retry attempts (validated: 1-10)
-    pub max_attempts: u32,
+    pub max_attempts: Templatable<u32>,
 
     /// Delay between retries in milliseconds (validated: 0-60000)
-    pub delay_ms: u64,
+    pub delay_ms: Templatable<u64>,
 
     /// Exponential backoff multiplier (validated: 1.0-5.0)
-    pub backoff: Option<f64>,
+    pub backoff: Option<Templatable<f64>>,
 
     /// Span of the retry config
     pub span: Span,
@@ -497,8 +498,8 @@ pub struct AnalyzedRetry {
 impl Default for AnalyzedRetry {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
-            delay_ms: 1000,
+            max_attempts: Templatable::Value(3),
+            delay_ms: Templatable::Value(1000),
             backoff: None,
             span: Span::dummy(),
         }
@@ -627,7 +628,7 @@ mod tests {
         let for_each = AnalyzedForEach::default();
         assert_eq!(for_each.as_var, "item");
         assert_eq!(for_each.concurrency, None); // None = unspecified, inherits
-        assert!(for_each.fail_fast);
+        assert_eq!(for_each.fail_fast, Templatable::Value(true));
     }
 
     #[test]
@@ -686,8 +687,8 @@ mod tests {
     #[test]
     fn test_analyzed_retry_default() {
         let retry = AnalyzedRetry::default();
-        assert_eq!(retry.max_attempts, 3);
-        assert_eq!(retry.delay_ms, 1000);
+        assert_eq!(retry.max_attempts, Templatable::Value(3));
+        assert_eq!(retry.delay_ms, Templatable::Value(1000));
         assert!(retry.backoff.is_none());
     }
 }

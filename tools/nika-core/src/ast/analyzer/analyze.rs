@@ -25,6 +25,7 @@ use crate::ast::raw::{
     RawTaskAction, RawWorkflow,
 };
 use crate::ast::schema::SchemaVersion;
+use crate::ast::templatable::Templatable;
 use crate::binding::{parse_with_entry, WithSpec};
 use crate::catalogs::ModelResolver;
 use crate::source::{Span, Spanned};
@@ -450,8 +451,8 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     workflow.max_duration_secs = raw
         .max_duration_secs
         .as_ref()
-        .map(|s| s.value)
-        .unwrap_or(3600);
+        .map(|s| s.value.clone())
+        .unwrap_or(Templatable::Value(3600));
 
     // 3b. Validate model is specified when LLM verbs are used
     let has_workflow_model = workflow.model.is_some();
@@ -733,21 +734,29 @@ fn check_model_name(model: &Spanned<String>, ctx: &mut AnalyzerContext) {
 /// Validate infer-specific fields (temperature, thinking_budget).
 fn check_infer_fields(infer: &RawInferAction, ctx: &mut AnalyzerContext) {
     if let Some(ref temp) = infer.temperature {
-        if temp.value < 0.0 || temp.value > 2.0 {
-            ctx.add_warning(AnalyzeError::new(
-                AnalyzeErrorKind::InvalidValue,
-                temp.span,
-                format!(
-                    "temperature: {} is outside the valid range [0.0, 2.0]. \
-                     Most providers reject values outside this range.",
-                    temp.value
-                ),
-            ));
+        // Only validate concrete values; template expressions are resolved at runtime
+        if let Templatable::Value(v) = &temp.value {
+            if *v < 0.0 || *v > 2.0 {
+                ctx.add_warning(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    temp.span,
+                    format!(
+                        "temperature: {} is outside the valid range [0.0, 2.0]. \
+                         Most providers reject values outside this range.",
+                        v
+                    ),
+                ));
+            }
         }
     }
 
     if let Some(ref budget) = infer.thinking_budget {
-        if !infer.extended_thinking.as_ref().is_some_and(|s| s.value) {
+        let thinking_enabled = infer
+            .extended_thinking
+            .as_ref()
+            .and_then(|s| s.value.as_value().copied())
+            .unwrap_or(false);
+        if !thinking_enabled {
             ctx.add_warning(AnalyzeError::new(
                 AnalyzeErrorKind::InvalidValue,
                 budget.span,
@@ -762,21 +771,29 @@ fn check_infer_fields(infer: &RawInferAction, ctx: &mut AnalyzerContext) {
 /// Validate agent-specific infer fields (temperature, thinking_budget).
 fn check_agent_infer_fields(agent: &RawAgentAction, ctx: &mut AnalyzerContext) {
     if let Some(ref temp) = agent.temperature {
-        if temp.value < 0.0 || temp.value > 2.0 {
-            ctx.add_warning(AnalyzeError::new(
-                AnalyzeErrorKind::InvalidValue,
-                temp.span,
-                format!(
-                    "temperature: {} is outside the valid range [0.0, 2.0]. \
-                     Most providers reject values outside this range.",
-                    temp.value
-                ),
-            ));
+        // Only validate concrete values; template expressions are resolved at runtime
+        if let Templatable::Value(v) = &temp.value {
+            if *v < 0.0 || *v > 2.0 {
+                ctx.add_warning(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    temp.span,
+                    format!(
+                        "temperature: {} is outside the valid range [0.0, 2.0]. \
+                         Most providers reject values outside this range.",
+                        v
+                    ),
+                ));
+            }
         }
     }
 
     if let Some(ref budget) = agent.thinking_budget {
-        if !agent.extended_thinking.as_ref().is_some_and(|s| s.value) {
+        let thinking_enabled = agent
+            .extended_thinking
+            .as_ref()
+            .and_then(|s| s.value.as_value().copied())
+            .unwrap_or(false);
+        if !thinking_enabled {
             ctx.add_warning(AnalyzeError::new(
                 AnalyzeErrorKind::InvalidValue,
                 budget.span,
@@ -1186,8 +1203,8 @@ fn analyze_task(
         retry: raw.retry.as_ref().map(|r| analyze_retry(&r.value, r.span)),
         on_error: None, // Resolved below after task_table lookups
         decompose: raw.decompose.as_ref().map(|d| d.value.clone()),
-        concurrency: raw.concurrency.as_ref().map(|s| s.value),
-        fail_fast: raw.fail_fast.as_ref().map(|s| s.value),
+        concurrency: raw.concurrency.as_ref().map(|s| s.value.clone()),
+        fail_fast: raw.fail_fast.as_ref().map(|s| s.value.clone()),
         artifact: raw.artifact.as_ref().and_then(|s| {
             match serde_json::from_value(s.value.clone()) {
                 Ok(spec) => Some(spec),
@@ -1265,19 +1282,24 @@ fn analyze_task(
             }
         }),
         context_budget: raw.context_budget.as_ref().and_then(|s| {
-            let val = s.value;
-            if val == 0 || val > 200_000 {
-                ctx.errors.push(AnalyzeError {
-                    kind: AnalyzeErrorKind::InvalidValue,
-                    span: s.span,
-                    message: format!("context_budget must be between 1 and 200000, got {val}"),
-                    suggestion: Some("Use a value like 4000 (roughly 16K chars)".to_string()),
-                    note: None,
-                });
-                None
-            } else {
-                Some(val)
+            // Only validate concrete values; templates are resolved at runtime
+            if let Templatable::Value(val) = &s.value {
+                if *val == 0 || *val > 200_000 {
+                    ctx.errors.push(AnalyzeError {
+                        kind: AnalyzeErrorKind::InvalidValue,
+                        span: s.span,
+                        message: format!(
+                            "context_budget must be between 1 and 200000, got {val}"
+                        ),
+                        suggestion: Some(
+                            "Use a value like 4000 (roughly 16K chars)".to_string(),
+                        ),
+                        note: None,
+                    });
+                    return None;
+                }
             }
+            Some(s.value.clone())
         }),
         when: raw.when.as_ref().map(|s| s.value.clone()),
         span: raw.span,
@@ -1455,7 +1477,7 @@ fn analyze_task(
             .and_then(|fe| fe.value.concurrency.as_ref())
     });
     if let Some(concurrency) = concurrency_check {
-        if concurrency.value == 0 {
+        if let Templatable::Value(0) = &concurrency.value {
             ctx.add_error(AnalyzeError::new(
                 AnalyzeErrorKind::InvalidValue,
                 concurrency.span,
@@ -1468,9 +1490,21 @@ fn analyze_task(
     // Warn if timeout: 0 on any action (would cause immediate timeout)
     if let Some(ref action) = raw.action {
         let timeout_zero = match action {
-            RawTaskAction::Exec(s) => s.value.timeout_ms.as_ref().filter(|t| t.value == 0),
-            RawTaskAction::Fetch(s) => s.value.timeout_ms.as_ref().filter(|t| t.value == 0),
-            RawTaskAction::Invoke(s) => s.value.timeout_ms.as_ref().filter(|t| t.value == 0),
+            RawTaskAction::Exec(s) => s
+                .value
+                .timeout_ms
+                .as_ref()
+                .filter(|t| matches!(t.value, Templatable::Value(0))),
+            RawTaskAction::Fetch(s) => s
+                .value
+                .timeout_ms
+                .as_ref()
+                .filter(|t| matches!(t.value, Templatable::Value(0))),
+            RawTaskAction::Invoke(s) => s
+                .value
+                .timeout_ms
+                .as_ref()
+                .filter(|t| matches!(t.value, Templatable::Value(0))),
             _ => None,
         };
         if let Some(t) = timeout_zero {
@@ -1531,10 +1565,10 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
     AnalyzedInferAction {
         prompt: raw.prompt.value.clone(),
         system: raw.system.as_ref().map(|s| s.value.clone()),
-        temperature: raw.temperature.as_ref().map(|s| s.value),
-        max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
-        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
-        thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
+        temperature: raw.temperature.as_ref().map(|s| s.value.clone()),
+        max_tokens: raw.max_tokens.as_ref().map(|s| s.value.clone()),
+        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value.clone()),
+        thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value.clone()),
         content: raw
             .content
             .as_ref()
@@ -1548,7 +1582,11 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
 fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
     AnalyzedExecAction {
         command: raw.command.value.clone(),
-        shell: raw.shell.as_ref().map(|s| s.value).unwrap_or(false),
+        shell: raw
+            .shell
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(false)),
         cwd: raw.cwd.as_ref().map(|s| s.value.clone()),
         env: raw
             .env
@@ -1560,8 +1598,8 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
                     .collect()
             })
             .unwrap_or_default(),
-        timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
-        max_stdout: raw.max_stdout.as_ref().map(|s| s.value),
+        timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value.clone()),
+        max_stdout: raw.max_stdout.as_ref().map(|s| s.value.clone()),
         span: raw.command.span,
     }
 }
@@ -1601,12 +1639,12 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
             .unwrap_or_default(),
         body: raw.body.as_ref().map(|s| s.value.clone()),
         json: raw.json.as_ref().map(|s| s.value.clone()),
-        timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
+        timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value.clone()),
         follow_redirects: raw
             .follow_redirects
             .as_ref()
-            .map(|s| s.value)
-            .unwrap_or(true),
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(true)),
         response: raw.response.as_ref().and_then(
             |s| match crate::ast::extract::ResponseMode::parse(&s.value) {
                 Some(mode) => Some(mode),
@@ -1642,8 +1680,16 @@ fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFet
             }
         }),
         selector: raw.selector.as_ref().map(|s| s.value.clone()),
-        session: raw.session.as_ref().map(|s| s.value).unwrap_or(false),
-        cache: raw.cache.as_ref().map(|s| s.value).unwrap_or(false),
+        session: raw
+            .session
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(false)),
+        cache: raw
+            .cache
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(false)),
         span: raw.url.span,
     }
 }
@@ -1666,7 +1712,7 @@ fn analyze_invoke(raw: &RawInvokeAction) -> AnalyzedInvokeAction {
         tool: tool.to_string(),
         resource: raw.resource.as_ref().map(|s| s.value.clone()),
         params: raw.params.as_ref().map(|s| s.value.clone()),
-        timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
+        timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value.clone()),
         span,
     }
 }
@@ -1698,7 +1744,7 @@ fn analyze_agent(raw: &RawAgentAction, ctx: &mut AnalyzerContext) -> AnalyzedAge
     let has_thinking = raw
         .extended_thinking
         .as_ref()
-        .map(|s| s.value)
+        .and_then(|s| s.value.as_value().copied())
         .unwrap_or(false);
     if has_thinking && has_tools {
         ctx.add_warning(AnalyzeError::new(
@@ -1717,8 +1763,8 @@ fn analyze_agent(raw: &RawAgentAction, ctx: &mut AnalyzerContext) -> AnalyzedAge
             .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
-        max_turns: raw.max_turns.as_ref().map(|s| s.value),
-        max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
+        max_turns: raw.max_turns.as_ref().map(|s| s.value.clone()),
+        max_tokens: raw.max_tokens.as_ref().map(|s| s.value.clone()),
         from: raw.from.as_ref().map(|s| s.value.clone()),
         skills: raw
             .skills
@@ -1736,11 +1782,11 @@ fn analyze_agent(raw: &RawAgentAction, ctx: &mut AnalyzerContext) -> AnalyzedAge
             .as_ref()
             .map(|s| crate::ProviderName::parse(&s.value)),
         model: raw.model.as_ref().map(|s| s.value.clone()),
-        temperature: raw.temperature.as_ref().map(|s| s.value),
-        token_budget: raw.token_budget.as_ref().map(|s| s.value),
-        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
-        thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
-        depth_limit: raw.depth_limit.as_ref().map(|s| s.value),
+        temperature: raw.temperature.as_ref().map(|s| s.value.clone()),
+        token_budget: raw.token_budget.as_ref().map(|s| s.value.clone()),
+        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value.clone()),
+        thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value.clone()),
+        depth_limit: raw.depth_limit.as_ref().map(|s| s.value.clone()),
         tool_choice: raw.tool_choice.as_ref().map(|s| s.value.clone()),
         stop_sequences: raw
             .stop_sequences
@@ -1785,7 +1831,7 @@ fn analyze_output(
         format,
         schema: raw.schema.as_ref().map(|s| s.value.clone()),
         schema_ref: raw.schema_ref.as_ref().map(|s| s.value.clone()),
-        max_retries: raw.max_retries.as_ref().map(|s| s.value),
+        max_retries: raw.max_retries.as_ref().map(|s| s.value.clone()),
         span: raw.format.as_ref().map(|s| s.span).unwrap_or(Span::dummy()),
     }
 }
@@ -1912,8 +1958,12 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
             .as_ref()
             .map(|s| s.value.clone())
             .unwrap_or_else(|| "item".to_string()),
-        concurrency: raw.concurrency.as_ref().map(|s| s.value),
-        fail_fast: raw.fail_fast.as_ref().map(|s| s.value).unwrap_or(true),
+        concurrency: raw.concurrency.as_ref().map(|s| s.value.clone()),
+        fail_fast: raw
+            .fail_fast
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(true)),
         span,
     }
 }
@@ -1921,9 +1971,17 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
 /// Analyze retry configuration.
 fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedRetry {
     AnalyzedRetry {
-        max_attempts: raw.max_attempts.as_ref().map(|s| s.value).unwrap_or(3),
-        delay_ms: raw.delay_ms.as_ref().map(|s| s.value).unwrap_or(1000),
-        backoff: raw.backoff.as_ref().map(|s| s.value),
+        max_attempts: raw
+            .max_attempts
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(3)),
+        delay_ms: raw
+            .delay_ms
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or(Templatable::Value(1000)),
+        backoff: raw.backoff.as_ref().map(|s| s.value.clone()),
         span,
     }
 }
@@ -2845,7 +2903,7 @@ mod tests {
         let mut task = make_raw_task("task1");
         task.retry = Some(Spanned::new(
             RawRetryConfig {
-                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                max_attempts: Some(Spanned::new(Templatable::Value(3), make_span(0, 1))),
                 delay_ms: None,
                 backoff: None,
             },
@@ -3500,8 +3558,8 @@ mod tests {
         )));
         task.retry = Some(Spanned::new(
             RawRetryConfig {
-                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
-                delay_ms: Some(Spanned::new(1000, make_span(0, 4))),
+                max_attempts: Some(Spanned::new(Templatable::Value(3), make_span(0, 1))),
+                delay_ms: Some(Spanned::new(Templatable::Value(1000), make_span(0, 4))),
                 ..Default::default()
             },
             make_span(0, 30),
@@ -3543,7 +3601,7 @@ mod tests {
         )));
         task.retry = Some(Spanned::new(
             RawRetryConfig {
-                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                max_attempts: Some(Spanned::new(Templatable::Value(3), make_span(0, 1))),
                 ..Default::default()
             },
             make_span(0, 30),
@@ -3586,7 +3644,7 @@ mod tests {
         )));
         task.retry = Some(Spanned::new(
             RawRetryConfig {
-                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                max_attempts: Some(Spanned::new(Templatable::Value(3), make_span(0, 1))),
                 ..Default::default()
             },
             make_span(0, 30),
@@ -3626,7 +3684,7 @@ mod tests {
         ))));
         task.retry = Some(Spanned::new(
             RawRetryConfig {
-                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                max_attempts: Some(Spanned::new(Templatable::Value(3), make_span(0, 1))),
                 ..Default::default()
             },
             make_span(0, 30),
@@ -4049,7 +4107,7 @@ tasks:
         );
         let wf = result.value.unwrap();
         let task = wf.get_task_by_name("constrained").unwrap();
-        assert_eq!(task.context_budget, Some(4000));
+        assert_eq!(task.context_budget, Some(Templatable::Value(4000)));
     }
 
     #[test]

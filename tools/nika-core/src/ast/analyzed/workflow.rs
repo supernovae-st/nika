@@ -84,7 +84,7 @@ pub struct AnalyzedWorkflow {
     pub schedule: Option<crate::ast::schedule::ScheduleConfig>,
 
     /// Global workflow timeout in seconds (default: 3600s = 1h).
-    pub max_duration_secs: u64,
+    pub max_duration_secs: crate::ast::templatable::Templatable<u64>,
 
     /// Span of the entire workflow
     pub span: Span,
@@ -112,7 +112,7 @@ impl Default for AnalyzedWorkflow {
             orchestrate: None,
             routing: None,
             schedule: None,
-            max_duration_secs: 3600,
+            max_duration_secs: crate::ast::templatable::Templatable::Value(3600),
             span: Span::dummy(),
         }
     }

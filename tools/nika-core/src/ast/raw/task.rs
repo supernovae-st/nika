@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use super::action::RawTaskAction;
 use crate::ast::decompose::DecomposeSpec;
 use crate::ast::structured::StructuredOutputSpec;
+use crate::ast::templatable::Templatable;
 use crate::source::{Span, Spanned};
 
 /// A raw task as parsed from YAML.
@@ -61,10 +62,10 @@ pub struct RawTask {
     pub decompose: Option<Spanned<DecomposeSpec>>,
 
     /// Standalone concurrency (used with decompose when no for_each)
-    pub concurrency: Option<Spanned<u32>>,
+    pub concurrency: Option<Spanned<Templatable<u32>>>,
 
     /// Standalone fail_fast (used with decompose when no for_each)
-    pub fail_fast: Option<Spanned<bool>>,
+    pub fail_fast: Option<Spanned<Templatable<bool>>>,
 
     /// Routing override for this task.
     pub routing: Option<Spanned<serde_json::Value>>,
@@ -82,7 +83,7 @@ pub struct RawTask {
     pub record: Option<Spanned<serde_json::Value>>,
 
     /// Context budget in tokens — limits total binding size passed to LLM
-    pub context_budget: Option<Spanned<u32>>,
+    pub context_budget: Option<Spanned<Templatable<u32>>>,
 
     /// Conditional execution: template expression evaluated as boolean.
     /// If falsy (false, "false", "", null, 0), the task is skipped.
@@ -109,7 +110,7 @@ pub struct RawOutputConfig {
     /// Schema reference: file path or inline
     pub schema_ref: Option<Spanned<String>>,
     /// Maximum retries on validation failure
-    pub max_retries: Option<Spanned<u32>>,
+    pub max_retries: Option<Spanned<Templatable<u32>>>,
 }
 
 /// For-each iteration configuration.
@@ -120,20 +121,20 @@ pub struct RawForEach {
     /// Loop variable name (default: "item")
     pub as_var: Option<Spanned<String>>,
     /// Maximum concurrency
-    pub concurrency: Option<Spanned<u32>>,
+    pub concurrency: Option<Spanned<Templatable<u32>>>,
     /// Stop all iterations on first error (default: true)
-    pub fail_fast: Option<Spanned<bool>>,
+    pub fail_fast: Option<Spanned<Templatable<bool>>>,
 }
 
 /// Retry configuration.
 #[derive(Debug, Clone, Default)]
 pub struct RawRetryConfig {
     /// Maximum retry attempts
-    pub max_attempts: Option<Spanned<u32>>,
+    pub max_attempts: Option<Spanned<Templatable<u32>>>,
     /// Delay between retries in milliseconds
-    pub delay_ms: Option<Spanned<u64>>,
+    pub delay_ms: Option<Spanned<Templatable<u64>>>,
     /// Exponential backoff multiplier
-    pub backoff: Option<Spanned<f64>>,
+    pub backoff: Option<Spanned<Templatable<f64>>>,
 }
 
 impl RawTask {

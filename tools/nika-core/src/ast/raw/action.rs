@@ -5,6 +5,7 @@
 
 use indexmap::IndexMap;
 
+use crate::ast::templatable::Templatable;
 use crate::source::{Span, Spanned};
 
 /// The action a task performs - one of the 5 verbs.
@@ -66,16 +67,16 @@ pub struct RawInferAction {
     pub system: Option<Spanned<String>>,
 
     /// Temperature (0.0 - 2.0)
-    pub temperature: Option<Spanned<f64>>,
+    pub temperature: Option<Spanned<Templatable<f64>>>,
 
     /// Maximum tokens to generate
-    pub max_tokens: Option<Spanned<u32>>,
+    pub max_tokens: Option<Spanned<Templatable<u32>>>,
 
     /// Enable extended thinking (Claude)
-    pub extended_thinking: Option<Spanned<bool>>,
+    pub extended_thinking: Option<Spanned<Templatable<bool>>>,
 
     /// Thinking budget tokens
-    pub thinking_budget: Option<Spanned<u32>>,
+    pub thinking_budget: Option<Spanned<Templatable<u32>>>,
 
     /// Multimodal content parts (text + images) for vision models
     pub content: Option<Spanned<Vec<crate::ast::content::RawContentPart>>>,
@@ -94,7 +95,7 @@ pub struct RawExecAction {
     pub command: Spanned<String>,
 
     /// Run through shell (sh -c) - defaults to false for security
-    pub shell: Option<Spanned<bool>>,
+    pub shell: Option<Spanned<Templatable<bool>>>,
 
     /// Working directory
     pub cwd: Option<Spanned<String>>,
@@ -103,10 +104,10 @@ pub struct RawExecAction {
     pub env: Option<Spanned<IndexMap<Spanned<String>, Spanned<String>>>>,
 
     /// Timeout in milliseconds
-    pub timeout_ms: Option<Spanned<u64>>,
+    pub timeout_ms: Option<Spanned<Templatable<u64>>>,
 
     /// Maximum stdout size in bytes before truncation. Default: 50 MB.
-    pub max_stdout: Option<Spanned<u64>>,
+    pub max_stdout: Option<Spanned<Templatable<u64>>>,
 }
 
 /// Parameters for the `fetch` verb (HTTP requests).
@@ -128,10 +129,10 @@ pub struct RawFetchAction {
     pub json: Option<Spanned<serde_json::Value>>,
 
     /// Timeout in milliseconds
-    pub timeout_ms: Option<Spanned<u64>>,
+    pub timeout_ms: Option<Spanned<Templatable<u64>>>,
 
     /// Follow redirects
-    pub follow_redirects: Option<Spanned<bool>>,
+    pub follow_redirects: Option<Spanned<Templatable<bool>>>,
 
     /// Response mode: "full" (status + headers + body) or "binary" (CAS store)
     pub response: Option<Spanned<String>>,
@@ -143,10 +144,10 @@ pub struct RawFetchAction {
     pub selector: Option<Spanned<String>>,
 
     /// Enable cookie jar for session persistence across fetch tasks
-    pub session: Option<Spanned<bool>>,
+    pub session: Option<Spanned<Templatable<bool>>>,
 
     /// Enable HTTP response caching with ETag / If-Modified-Since
-    pub cache: Option<Spanned<bool>>,
+    pub cache: Option<Spanned<Templatable<bool>>>,
 }
 
 /// Parameters for the `invoke` verb (MCP tool invocation).
@@ -166,7 +167,7 @@ pub struct RawInvokeAction {
     pub mcp: Option<Spanned<String>>,
 
     /// Timeout for tool execution
-    pub timeout_ms: Option<Spanned<u64>>,
+    pub timeout_ms: Option<Spanned<Templatable<u64>>>,
 }
 
 impl RawInvokeAction {
@@ -194,10 +195,10 @@ pub struct RawAgentAction {
     pub tools: Option<Spanned<Vec<Spanned<String>>>>,
 
     /// Maximum turns before stopping
-    pub max_turns: Option<Spanned<u32>>,
+    pub max_turns: Option<Spanned<Templatable<u32>>>,
 
     /// Maximum tokens per response
-    pub max_tokens: Option<Spanned<u32>>,
+    pub max_tokens: Option<Spanned<Templatable<u32>>>,
 
     /// Agent definition reference (agents: section)
     pub from: Option<Spanned<String>>,
@@ -215,22 +216,22 @@ pub struct RawAgentAction {
     pub mcp: Option<Spanned<Vec<Spanned<String>>>>,
 
     /// Temperature for LLM sampling
-    pub temperature: Option<Spanned<f64>>,
+    pub temperature: Option<Spanned<Templatable<f64>>>,
 
     /// Token budget for the agent
-    pub token_budget: Option<Spanned<u32>>,
+    pub token_budget: Option<Spanned<Templatable<u32>>>,
 
     /// System prompt (agent persona)
     pub system: Option<Spanned<String>>,
 
     /// Enable extended thinking (Claude)
-    pub extended_thinking: Option<Spanned<bool>>,
+    pub extended_thinking: Option<Spanned<Templatable<bool>>>,
 
     /// Thinking budget tokens
-    pub thinking_budget: Option<Spanned<u32>>,
+    pub thinking_budget: Option<Spanned<Templatable<u32>>>,
 
     /// Max spawn_agent recursion depth
-    pub depth_limit: Option<Spanned<u32>>,
+    pub depth_limit: Option<Spanned<Templatable<u32>>>,
 
     /// Tool choice behavior: auto, required, none
     pub tool_choice: Option<Spanned<String>>,
@@ -300,13 +301,13 @@ mod tests {
     fn test_infer_action_fields() {
         let infer = RawInferAction {
             prompt: Spanned::new("Hello, world!".to_string(), make_span(0, 13)),
-            temperature: Some(Spanned::new(0.7, make_span(20, 23))),
-            max_tokens: Some(Spanned::new(1000, make_span(30, 34))),
+            temperature: Some(Spanned::new(Templatable::Value(0.7), make_span(20, 23))),
+            max_tokens: Some(Spanned::new(Templatable::Value(1000), make_span(30, 34))),
             ..Default::default()
         };
 
         assert_eq!(infer.prompt.value, "Hello, world!");
-        assert_eq!(infer.temperature.as_ref().unwrap().value, 0.7);
-        assert_eq!(infer.max_tokens.as_ref().unwrap().value, 1000);
+        assert_eq!(infer.temperature.as_ref().unwrap().value, Templatable::Value(0.7));
+        assert_eq!(infer.max_tokens.as_ref().unwrap().value, Templatable::Value(1000));
     }
 }

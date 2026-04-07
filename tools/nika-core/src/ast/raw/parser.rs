@@ -14,6 +14,7 @@ use super::task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
 use super::workflow::{RawContextConfig, RawIncludeSpec, RawPkgConfig, RawWorkflow};
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::structured::StructuredOutputSpec;
+use crate::ast::templatable::Templatable;
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 /// Errors that can occur during parsing.
@@ -154,16 +155,21 @@ fn get_string_field(
     }
 }
 
-/// Get an optional f64 field from a mapping.
+/// Get an optional f64 field from a mapping (supports template expressions).
 fn get_f64_field(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
     key: &str,
-) -> Result<Option<Spanned<f64>>, ParseError> {
+) -> Result<Option<Spanned<Templatable<f64>>>, ParseError> {
     match map.get_node(key) {
         Some(Node::Scalar(s)) => {
             let span = marked_span_to_span(file, s.span());
-            let value: f64 = s.as_str().parse().map_err(|_| ParseError {
+            let text = s.as_str();
+            // Template expression — defer to runtime resolution
+            if crate::ast::templatable::is_template_string(text) {
+                return Ok(Some(Spanned::new(Templatable::Template(text.to_string()), span)));
+            }
+            let value: f64 = text.parse().map_err(|_| ParseError {
                 kind: ParseErrorKind::InvalidType,
                 span,
                 message: format!("'{}' must be a number", key),
@@ -172,10 +178,10 @@ fn get_f64_field(
                 return Err(ParseError {
                     kind: ParseErrorKind::InvalidType,
                     span,
-                    message: format!("'{}' must be a finite number (got {})", key, s.as_str()),
+                    message: format!("'{}' must be a finite number (got {})", key, text),
                 });
             }
-            Ok(Some(Spanned::new(value, span)))
+            Ok(Some(Spanned::new(Templatable::Value(value), span)))
         }
         Some(node) => Err(ParseError {
             kind: ParseErrorKind::InvalidType,
@@ -186,21 +192,25 @@ fn get_f64_field(
     }
 }
 
-/// Get an optional u32 field from a mapping.
+/// Get an optional u32 field from a mapping (supports template expressions).
 fn get_u32_field(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
     key: &str,
-) -> Result<Option<Spanned<u32>>, ParseError> {
+) -> Result<Option<Spanned<Templatable<u32>>>, ParseError> {
     match map.get_node(key) {
         Some(Node::Scalar(s)) => {
             let span = marked_span_to_span(file, s.span());
-            let value: u32 = s.as_str().parse().map_err(|_| ParseError {
+            let text = s.as_str();
+            if crate::ast::templatable::is_template_string(text) {
+                return Ok(Some(Spanned::new(Templatable::Template(text.to_string()), span)));
+            }
+            let value: u32 = text.parse().map_err(|_| ParseError {
                 kind: ParseErrorKind::InvalidType,
                 span,
                 message: format!("'{}' must be a positive integer", key),
             })?;
-            Ok(Some(Spanned::new(value, span)))
+            Ok(Some(Spanned::new(Templatable::Value(value), span)))
         }
         Some(node) => Err(ParseError {
             kind: ParseErrorKind::InvalidType,
@@ -211,21 +221,25 @@ fn get_u32_field(
     }
 }
 
-/// Get an optional u64 field from a mapping.
+/// Get an optional u64 field from a mapping (supports template expressions).
 fn get_u64_field(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
     key: &str,
-) -> Result<Option<Spanned<u64>>, ParseError> {
+) -> Result<Option<Spanned<Templatable<u64>>>, ParseError> {
     match map.get_node(key) {
         Some(Node::Scalar(s)) => {
             let span = marked_span_to_span(file, s.span());
-            let value: u64 = s.as_str().parse().map_err(|_| ParseError {
+            let text = s.as_str();
+            if crate::ast::templatable::is_template_string(text) {
+                return Ok(Some(Spanned::new(Templatable::Template(text.to_string()), span)));
+            }
+            let value: u64 = text.parse().map_err(|_| ParseError {
                 kind: ParseErrorKind::InvalidType,
                 span,
                 message: format!("'{}' must be a positive integer", key),
             })?;
-            Ok(Some(Spanned::new(value, span)))
+            Ok(Some(Spanned::new(Templatable::Value(value), span)))
         }
         Some(node) => Err(ParseError {
             kind: ParseErrorKind::InvalidType,
@@ -236,16 +250,20 @@ fn get_u64_field(
     }
 }
 
-/// Get an optional bool field from a mapping.
+/// Get an optional bool field from a mapping (supports template expressions).
 fn get_bool_field(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
     key: &str,
-) -> Result<Option<Spanned<bool>>, ParseError> {
+) -> Result<Option<Spanned<Templatable<bool>>>, ParseError> {
     match map.get_node(key) {
         Some(Node::Scalar(s)) => {
             let span = marked_span_to_span(file, s.span());
-            let value = match s.as_str().to_lowercase().as_str() {
+            let text = s.as_str();
+            if crate::ast::templatable::is_template_string(text) {
+                return Ok(Some(Spanned::new(Templatable::Template(text.to_string()), span)));
+            }
+            let value = match text.to_lowercase().as_str() {
                 "true" | "yes" | "on" | "1" => true,
                 "false" | "no" | "off" | "0" => false,
                 _ => {
@@ -256,7 +274,7 @@ fn get_bool_field(
                     });
                 }
             };
-            Ok(Some(Spanned::new(value, span)))
+            Ok(Some(Spanned::new(Templatable::Value(value), span)))
         }
         Some(node) => Err(ParseError {
             kind: ParseErrorKind::InvalidType,
@@ -789,7 +807,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
                 timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
                     Some(v) => Some(v),
                     None => get_u64_field(file, m, "timeout")?
-                        .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
+                        .map(|s| Spanned::new(s.value.map_value(|v| v.saturating_mul(1000)), s.span)),
                 },
                 max_stdout: get_u64_field(file, m, "max_stdout")?,
             })
@@ -837,7 +855,7 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
             None => get_u64_field(file, m, "timeout")?
-                .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
+                .map(|s| Spanned::new(s.value.map_value(|v| v.saturating_mul(1000)), s.span)),
         },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
         response: get_string_field(file, m, "response")?,
@@ -884,7 +902,7 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
             None => get_u64_field(file, m, "timeout")?
-                .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
+                .map(|s| Spanned::new(s.value.map_value(|v| v.saturating_mul(1000)), s.span)),
         },
     })
 }
@@ -1090,7 +1108,7 @@ fn parse_retry(
                     delay_ms: match get_u64_field(file, m, "delay_ms")? {
                         Some(v) => Some(v),
                         None => get_u64_field(file, m, "delay")?
-                            .map(|s| Spanned::new(s.value.saturating_mul(1000), s.span)),
+                            .map(|s| Spanned::new(s.value.map_value(|v| v.saturating_mul(1000)), s.span)),
                     },
                     backoff: get_f64_field(file, m, "backoff")?,
                 },
@@ -1152,9 +1170,11 @@ fn parse_decompose(
 
             let mcp_server = get_string_field(file, m, "mcp_server")?.map(|s| s.value);
 
-            let max_items = get_u32_field(file, m, "max_items")?.map(|s| s.value as usize);
+            let max_items = get_u32_field(file, m, "max_items")?
+                .map(|s| s.value.unwrap_value() as usize);
 
-            let max_depth = get_u32_field(file, m, "max_depth")?.map(|s| s.value as usize);
+            let max_depth = get_u32_field(file, m, "max_depth")?
+                .map(|s| s.value.unwrap_value() as usize);
 
             Ok(Some(Spanned::new(
                 DecomposeSpec {
@@ -2348,8 +2368,8 @@ tasks:
         match &task.value.action {
             Some(RawTaskAction::Infer(action)) => {
                 assert_eq!(action.value.prompt.value, "Say hello");
-                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 20);
-                assert!((action.value.temperature.as_ref().unwrap().value - 0.5).abs() < 0.001);
+                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, Templatable::Value(20));
+                assert!((action.value.temperature.as_ref().unwrap().value.value().unwrap() - 0.5).abs() < 0.001);
             }
             _ => panic!("Expected Infer action"),
         }
@@ -2375,7 +2395,7 @@ tasks:
                     action.value.system.as_ref().unwrap().value,
                     "You are a translator"
                 );
-                assert!((action.value.temperature.as_ref().unwrap().value - 0.3).abs() < 0.001);
+                assert!((action.value.temperature.as_ref().unwrap().value.value().unwrap() - 0.3).abs() < 0.001);
             }
             _ => panic!("Expected Infer action"),
         }
@@ -2402,10 +2422,10 @@ tasks:
             Some(RawTaskAction::Infer(action)) => {
                 assert_eq!(action.value.prompt.value, "Think deeply");
                 assert_eq!(action.value.system.as_ref().unwrap().value, "Be thorough");
-                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 4096);
-                assert!((action.value.temperature.as_ref().unwrap().value - 0.9).abs() < 0.001);
-                assert!(action.value.extended_thinking.as_ref().unwrap().value);
-                assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, 8000);
+                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, Templatable::Value(4096));
+                assert!((action.value.temperature.as_ref().unwrap().value.value().unwrap() - 0.9).abs() < 0.001);
+                assert_eq!(action.value.extended_thinking.as_ref().unwrap().value, Templatable::Value(true));
+                assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, Templatable::Value(8000));
                 assert_eq!(action.value.response_format.as_ref().unwrap().value, "json");
             }
             _ => panic!("Expected Infer action"),
@@ -2436,10 +2456,10 @@ tasks:
                     action.value.system.as_ref().unwrap().value,
                     "You are a helpful assistant"
                 );
-                assert!((action.value.temperature.as_ref().unwrap().value - 0.7).abs() < 0.001);
-                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 1000);
-                assert!(action.value.extended_thinking.as_ref().unwrap().value);
-                assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, 8000);
+                assert!((action.value.temperature.as_ref().unwrap().value.value().unwrap() - 0.7).abs() < 0.001);
+                assert_eq!(action.value.max_tokens.as_ref().unwrap().value, Templatable::Value(1000));
+                assert_eq!(action.value.extended_thinking.as_ref().unwrap().value, Templatable::Value(true));
+                assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, Templatable::Value(8000));
             }
             _ => panic!("Expected Infer action"),
         }
@@ -2517,9 +2537,9 @@ tasks:
         match &task.value.action {
             Some(RawTaskAction::Exec(action)) => {
                 assert_eq!(action.value.command.value, "npm run build");
-                assert!(action.value.shell.as_ref().unwrap().value);
+                assert_eq!(action.value.shell.as_ref().unwrap().value, Templatable::Value(true));
                 assert_eq!(action.value.cwd.as_ref().unwrap().value, "/app");
-                assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, 30000);
+                assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, Templatable::Value(30000));
                 let env = action.value.env.as_ref().unwrap();
                 assert!(env.value.values().any(|v| v.value == "production"));
             }
@@ -2547,7 +2567,7 @@ tasks:
             Some(RawTaskAction::Fetch(action)) => {
                 assert_eq!(action.value.url.value, "https://api.example.com/data");
                 assert_eq!(action.value.method.as_ref().unwrap().value, "POST");
-                assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, 5000); // 5 seconds * 1000
+                assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, Templatable::Value(5000)); // 5 seconds * 1000
                 let headers = action.value.headers.as_ref().unwrap();
                 assert!(headers.value.values().any(|v| v.value.contains("Bearer")));
             }
@@ -2603,7 +2623,7 @@ tasks:
                 let tools = action.value.tools.as_ref().unwrap();
                 assert_eq!(tools.value.len(), 2);
                 assert_eq!(tools.value[0].value, "nika:read");
-                assert_eq!(action.value.max_turns.as_ref().unwrap().value, 10);
+                assert_eq!(action.value.max_turns.as_ref().unwrap().value, Templatable::Value(10));
             }
             _ => panic!("Expected Agent action"),
         }
@@ -2859,7 +2879,7 @@ tasks:
         let for_each = task.value.for_each.as_ref().unwrap();
         assert!(for_each.value.items.value.contains("["));
         assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "item");
-        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 3);
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, Templatable::Value(3));
     }
 
     #[test]
@@ -2897,8 +2917,8 @@ tasks:
         let for_each = task.value.for_each.as_ref().unwrap();
         assert_eq!(for_each.value.items.value, "{{with.data}}");
         assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "item");
-        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 5);
-        assert!(!for_each.value.fail_fast.as_ref().unwrap().value);
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, Templatable::Value(5));
+        assert_eq!(for_each.value.fail_fast.as_ref().unwrap().value, Templatable::Value(false));
     }
 
     #[test]
@@ -2919,7 +2939,7 @@ tasks:
         let for_each = task.value.for_each.as_ref().unwrap();
         assert!(for_each.value.items.value.contains("["));
         assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "x");
-        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 3);
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, Templatable::Value(3));
     }
 
     #[test]
@@ -2958,9 +2978,9 @@ tasks:
         let task = workflow.get_task("resilient").unwrap();
 
         let retry = task.value.retry.as_ref().unwrap();
-        assert_eq!(retry.value.max_attempts.as_ref().unwrap().value, 3);
-        assert_eq!(retry.value.delay_ms.as_ref().unwrap().value, 1000);
-        assert!((retry.value.backoff.as_ref().unwrap().value - 2.0).abs() < 0.001);
+        assert_eq!(retry.value.max_attempts.as_ref().unwrap().value, Templatable::Value(3));
+        assert_eq!(retry.value.delay_ms.as_ref().unwrap().value, Templatable::Value(1000));
+        assert!((retry.value.backoff.as_ref().unwrap().value.value().unwrap() - 2.0).abs() < 0.001);
     }
 
     #[test]
@@ -3859,7 +3879,7 @@ tasks:
 "#;
         let wf = parse(yaml, FileId(0)).unwrap();
         let task = wf.get_task("constrained").unwrap();
-        assert_eq!(task.value.context_budget.as_ref().unwrap().value, 4000);
+        assert_eq!(task.value.context_budget.as_ref().unwrap().value, Templatable::Value(4000));
     }
 
     #[test]
