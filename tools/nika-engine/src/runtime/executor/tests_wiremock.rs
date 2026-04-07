@@ -24,6 +24,7 @@ fn setup() -> (TaskExecutor, ResolvedBindings, RunContext, EventLog) {
         max_token_spend: None,
         allowed_hosts: vec!["127.0.0.1".to_string(), "localhost".to_string()],
         blocked_hosts: vec![],
+        security: Default::default(),
     };
     let executor = TaskExecutor::with_policy(
         "mock",
@@ -1121,6 +1122,7 @@ async fn wiremock_fetch_template_resolved_in_url() {
         max_token_spend: None,
         allowed_hosts: vec!["127.0.0.1".to_string(), "localhost".to_string()],
         blocked_hosts: vec![],
+        security: Default::default(),
     };
     let executor = TaskExecutor::with_policy(
         "mock",
