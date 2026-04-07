@@ -59,10 +59,10 @@ pub fn assemble_cursor_reference_mdc() -> String {
 }
 
 /// Assemble Copilot instructions (.github/copilot-instructions.md).
-/// Identity + verbs + data flow.
+/// Identity + verbs + data flow + structured output + mistakes.
 pub fn assemble_copilot_instructions() -> String {
     format!(
-        "# Nika Workflow Engine\n\napplyTo: \"**/*.nika.yaml\"\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{STRUCTURED_OUTPUT}\n\n{COMMON_MISTAKES}\n"
+        "# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{STRUCTURED_OUTPUT}\n\n{COMMON_MISTAKES}\n"
     )
 }
 
@@ -157,9 +157,10 @@ mod tests {
     }
 
     #[test]
-    fn assembled_copilot_has_apply_to() {
+    fn assembled_copilot_has_nika_content() {
         let copilot = assemble_copilot_instructions();
-        assert!(copilot.contains("applyTo:") || copilot.contains("nika"));
+        assert!(copilot.contains("nika/workflow@0.12"));
+        assert!(copilot.contains("infer:"));
     }
 
     #[test]

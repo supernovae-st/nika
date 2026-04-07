@@ -354,6 +354,9 @@ default = "anthropic"
     fs::create_dir_all(&gemini_dir).ok();
     write_if_absent(&gemini_dir.join("GEMINI.md"), &rules::assemble_gemini_md())?;
 
+    // Cline: .clinerules
+    write_if_absent(&root.join(".clinerules"), &rules::assemble_cline_rules())?;
+
     // Claude Code: .claude/settings.json with hooks + permissions
     let claude_dir = root.join(".claude");
     fs::create_dir_all(&claude_dir).ok();

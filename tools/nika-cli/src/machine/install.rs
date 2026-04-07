@@ -724,15 +724,13 @@ pub fn fast_rule_update() -> bool {
 }
 
 fn setup_ai_rules() -> Vec<SetupResult> {
-    let home = dirs::home_dir();
-    if home.is_none() {
+    let Some(home) = dirs::home_dir() else {
         return vec![SetupResult {
             name: "AI Rules".into(),
             success: false,
             message: "cannot determine home directory".into(),
         }];
-    }
-    let home = home.unwrap();
+    };
     let mut results = Vec::new();
     let editors = detect_editors();
     let hashes = load_rule_hashes();
@@ -1560,13 +1558,13 @@ mod tests {
         );
     }
 
-    /// Copilot rules must have applyTo.
+    /// Copilot rules must have nika content.
     #[test]
-    fn copilot_rules_have_apply_to() {
+    fn copilot_rules_have_nika_content() {
         let copilot = rules::assemble_copilot_instructions();
         assert!(
-            copilot.contains("applyTo:"),
-            "copilot rules must have applyTo:"
+            copilot.contains("nika/workflow@0.12"),
+            "copilot rules must have schema version"
         );
     }
 
