@@ -74,7 +74,7 @@ export function activate(context: ExtensionContext): void {
 
   // Sidebar tree view — workflow explorer
   const workflowTree = new WorkflowTreeProvider();
-  window.registerTreeDataProvider('nikaWorkflows', workflowTree);
+  context.subscriptions.push(window.registerTreeDataProvider('nikaWorkflows', workflowTree));
   const watcher = workspace.createFileSystemWatcher('**/*.nika.yaml');
   watcher.onDidCreate(() => workflowTree.refresh());
   watcher.onDidDelete(() => workflowTree.refresh());
