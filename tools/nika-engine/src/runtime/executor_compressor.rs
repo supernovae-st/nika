@@ -27,7 +27,7 @@ impl<'a> ExecutorCompressorLlm<'a> {
     ///
     /// Tries to use a cheap model for compression:
     /// 1. claude-haiku-4-5 (if provider is anthropic)
-    /// 2. gpt-4.1-mini (if provider is openai)
+    /// 2. gpt-5.2 (if provider is openai)
     /// 3. Falls back to the workflow's default model
     pub fn new(executor: &'a TaskExecutor, default_provider: &str, default_model: &str) -> Self {
         let (provider, model) = resolve_cheap_model(default_provider, default_model);
@@ -97,7 +97,7 @@ mod tests {
     fn test_resolve_cheap_model_openai() {
         let (p, m) = resolve_cheap_model("openai", "gpt-4o");
         assert_eq!(p, "openai");
-        assert_eq!(m, "gpt-4.1-mini");
+        assert_eq!(m, "gpt-5.2");
     }
 
     #[test]

@@ -83,7 +83,7 @@ fn test_rig_provider_default_model_openai() {
     std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
     let provider = RigProvider::openai();
 
-    assert_eq!(provider.default_model(), openai::GPT_4O);
+    assert_eq!(provider.default_model(), "gpt-5.2");
 }
 
 #[test]
@@ -1270,23 +1270,33 @@ fn reasoning_model_o_series() {
 
 #[test]
 fn reasoning_model_gpt5() {
-    assert!(is_reasoning_model("gpt-5"));
-    assert!(is_reasoning_model("gpt-5-turbo"));
-    assert!(is_reasoning_model("gpt-5.2"));
-    assert!(is_reasoning_model("gpt-5.2-pro"));
-    assert!(is_reasoning_model("gpt-5.2-2025-12-11"));
-    assert!(is_reasoning_model("gpt-5.2-chat-latest"));
+    // gpt-5.x supports temperature, so is_reasoning_model returns false.
+    // Use model_capabilities() for richer checks — these are "temperature-rejects" tests.
+    // gpt-5.x needs max_completion_tokens but DOES support temperature.
+    assert!(!is_reasoning_model("gpt-5"));
+    assert!(!is_reasoning_model("gpt-5-turbo"));
+    assert!(!is_reasoning_model("gpt-5.2"));
+    assert!(!is_reasoning_model("gpt-5.2-pro"));
+
+    // Verify via catalog that they DO need max_completion_tokens
+    use nika_core::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+    assert_eq!(
+        model_capabilities("openai", "gpt-5.2").token_limit_param,
+        TokenLimitParam::MaxCompletionTokens
+    );
 }
 
 #[test]
 fn reasoning_model_deepseek() {
+    // DeepSeek Reasoner: uses max_tokens (standard), but rejects temperature
     assert!(is_reasoning_model("deepseek-reasoner"));
 }
 
 #[test]
 fn reasoning_model_case_insensitive() {
     assert!(is_reasoning_model("O1"));
-    assert!(is_reasoning_model("GPT-5"));
+    // GPT-5 supports temperature → is_reasoning_model returns false
+    assert!(!is_reasoning_model("GPT-5"));
 }
 
 #[test]

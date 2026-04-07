@@ -93,9 +93,13 @@ pub fn build_response_format_params(schema: &serde_json::Value) -> serde_json::V
 ///
 /// Kept for backward compatibility with callers that don't have provider context.
 pub fn is_reasoning_model(model_id: &str) -> bool {
-    // Delegate to the centralized catalog with "openai" as default provider
-    // context, since most callers are in OpenAI code paths.
-    !nika_core::catalogs::model_capabilities("openai", model_id).supports_temperature
+    // Try to infer provider from model name for accurate capability lookup.
+    let provider = if model_id.to_lowercase().starts_with("deepseek") {
+        "deepseek"
+    } else {
+        "openai"
+    };
+    !nika_core::catalogs::model_capabilities(provider, model_id).supports_temperature
 }
 
 /// Compute effective temperature, stripping it for models that reject it.
