@@ -147,9 +147,12 @@ jobs:
         working-directory: tools/nika
         run: cargo check --workspace --no-default-features
 
-      - name: Check all-features (all feature flags compatible)
+      - name: Check all-features (excluding postgres — requires PG service)
         working-directory: tools/nika
-        run: cargo check --workspace --all-features
+        run: |
+          cargo check --workspace --all-features --exclude nika-storage
+          cargo check -p nika-storage --no-default-features
+          cargo check -p nika-storage
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Coverage: llvm-cov nextest --lib → Codecov
