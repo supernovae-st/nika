@@ -230,11 +230,20 @@ pub(crate) async fn execute_task_iteration(
                 .map(|s| nika_core::ProviderName::parse(s))
                 .collect()
         });
+    // Resolve retry templates before lowering (fetch tasks embed retry in lowered action)
+    let resolved_retry = task
+        .retry
+        .as_ref()
+        .map(|r| crate::runtime::resolve_typed::resolve_retry(r, &bindings, &datastore))
+        .transpose()
+        .ok()
+        .flatten();
+    let effective_retry_for_lower = resolved_retry.or_else(|| task.retry.clone());
     let mut lowered_action = lower_action(
         &resolved_action,
         &effective_provider,
         &effective_model,
-        &task.retry,
+        &effective_retry_for_lower,
         &provider_chain,
     );
 
@@ -253,10 +262,21 @@ pub(crate) async fn execute_task_iteration(
         }
     }
 
-    let lowered_output = task
-        .output
-        .as_ref()
-        .map(|o: &AnalyzedOutput| lower_output(o.clone()));
+    let lowered_output = task.output.as_ref().map(|o: &AnalyzedOutput| {
+        // Resolve max_retries template before lowering
+        let mut resolved_output = o.clone();
+        if let Some(ref mr) = o.max_retries {
+            if let Ok(Some(val)) = crate::runtime::resolve_typed::resolve_task_u32(
+                &Some(mr.clone()),
+                &bindings,
+                &datastore,
+                "output.max_retries",
+            ) {
+                resolved_output.max_retries = Some(nika_core::ast::templatable::Templatable::Value(val));
+            }
+        }
+        lower_output(resolved_output)
+    });
 
     // Bridge structured: config to OutputPolicy for executor Layer 0 dispatch.
     // If both output: and structured: are set, output: takes precedence (already lowered).

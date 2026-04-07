@@ -2466,6 +2466,45 @@ tasks:
     }
 
     #[test]
+    fn test_parse_infer_with_template_in_typed_fields() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: gen
+    infer:
+      prompt: "Hello"
+      temperature: "{{inputs.temp}}"
+      max_tokens: "{{inputs.tokens}}"
+      extended_thinking: "{{inputs.think}}"
+      thinking_budget: "{{inputs.budget}}"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("gen").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Infer(action)) => {
+                assert_eq!(
+                    action.value.temperature.as_ref().unwrap().value,
+                    Templatable::Template("{{inputs.temp}}".to_string())
+                );
+                assert_eq!(
+                    action.value.max_tokens.as_ref().unwrap().value,
+                    Templatable::Template("{{inputs.tokens}}".to_string())
+                );
+                assert_eq!(
+                    action.value.extended_thinking.as_ref().unwrap().value,
+                    Templatable::Template("{{inputs.think}}".to_string())
+                );
+                assert_eq!(
+                    action.value.thinking_budget.as_ref().unwrap().value,
+                    Templatable::Template("{{inputs.budget}}".to_string())
+                );
+            }
+            _ => panic!("Expected Infer action"),
+        }
+    }
+
+    #[test]
     fn test_parse_infer_rejects_misplaced_provider() {
         let yaml = r#"
 schema: "nika/workflow@0.12"

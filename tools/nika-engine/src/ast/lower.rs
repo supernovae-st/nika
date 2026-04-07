@@ -137,7 +137,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
     };
 
     // Use for_each concurrency/fail_fast when available, otherwise standalone values
-    // TODO: resolve template at runtime
+
     let concurrency =
         fe_concurrency.or(task.concurrency.and_then(|c| c.value()).map(|c| c as usize));
     let fail_fast =
@@ -226,15 +226,15 @@ fn lower_infer(
         prompt: infer.prompt,
         provider,
         model,
-        // TODO: resolve template at runtime
+    
         temperature: infer.temperature.and_then(|t| t.value()),
-        // TODO: resolve template at runtime
+    
         max_tokens: infer.max_tokens.and_then(|t| t.value()),
         system: infer.system,
         response_format,
-        // TODO: resolve template at runtime
+    
         extended_thinking: infer.extended_thinking.and_then(|t| t.value()),
-        // TODO: resolve template at runtime
+    
         thinking_budget: infer.thinking_budget.and_then(|t| t.value()).map(u64::from),
         content: infer
             .content
@@ -247,11 +247,11 @@ fn lower_infer(
 fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
     ExecParams {
         command: e.command,
-        // TODO: resolve template at runtime
+    
         shell: Some(e.shell.value().unwrap_or(false)),
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
         // to avoid losing sub-second values (e.g. 500ms -> 1s, not 0s)
-        // TODO: resolve template at runtime
+    
         timeout: e
             .timeout_ms
             .and_then(|ms| ms.value())
@@ -262,13 +262,13 @@ fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
         } else {
             Some(e.env.into_iter().collect())
         },
-        // TODO: resolve template at runtime
+    
         max_stdout: e.max_stdout.and_then(|v| v.value()),
     }
 }
 
 fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> FetchParams {
-    // TODO: resolve templates at runtime
+
     let follow_redirects_val = fetch.follow_redirects.value().unwrap_or(true);
     let session_val = fetch.session.value().unwrap_or(false);
     let cache_val = fetch.cache.value().unwrap_or(false);
@@ -279,7 +279,7 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         body: fetch.body,
         json: fetch.json,
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
-        // TODO: resolve template at runtime
+    
         timeout: fetch
             .timeout_ms
             .and_then(|ms| ms.value())
@@ -301,7 +301,7 @@ fn lower_invoke(invoke: AnalyzedInvokeAction) -> InvokeParams {
         params: invoke.params,
         resource: invoke.resource,
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
-        // TODO: resolve template at runtime
+    
         timeout: invoke
             .timeout_ms
             .and_then(|ms| ms.value())
@@ -332,7 +332,7 @@ fn lower_agent(
             }
         });
 
-    // TODO: resolve templates at runtime
+
     AgentParams {
         prompt: agent.prompt,
         system: agent.system,
@@ -388,7 +388,7 @@ pub(crate) fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
         format: lower_output_format(output.format),
         schema,
         from_example: None,
-        // TODO: resolve template at runtime
+    
         max_retries: output.max_retries.and_then(|v| v.value()).map(|v| v as u8),
         source_structured_spec: None,
     }
@@ -420,7 +420,7 @@ pub(crate) fn lower_for_each(
             // Try parsing as JSON (e.g. `["a","b"]`); fall back to string binding.
             let items =
                 serde_json::from_str(&fe.items).unwrap_or(serde_json::Value::String(fe.items));
-            // TODO: resolve template at runtime
+        
             let concurrency = fe.concurrency.and_then(|p| p.value()).map(|p| p as usize);
             let fail_fast = fe.fail_fast.value().unwrap_or(true);
             (
@@ -438,7 +438,7 @@ pub(crate) fn lower_for_each(
 // ---------------------------------------------------------------------------
 
 fn lower_retry(retry: AnalyzedRetry) -> RetryConfig {
-    // TODO: resolve templates at runtime
+
     RetryConfig {
         max_attempts: retry.max_attempts.value().unwrap_or(3),
         backoff_ms: retry.delay_ms.value().unwrap_or(1000),

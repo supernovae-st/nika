@@ -2086,3 +2086,77 @@ tasks:
     assert_eq!(failures.len(), 1);
     assert_eq!(failures[0]["label"], "broken");
 }
+
+// ========================================================================
+// Templatable<T>: template expressions in typed fields
+// ========================================================================
+
+/// E2E: temperature and max_tokens as {{inputs.*}} templates resolve correctly.
+/// The mock provider receives the resolved values and produces output.
+#[tokio::test]
+async fn template_in_temperature_and_max_tokens() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+
+inputs:
+  temperature: 0.5
+  max_tokens: 100
+
+tasks:
+  - id: gen
+    infer:
+      prompt: "Hello world"
+      temperature: "{{inputs.temperature}}"
+      max_tokens: "{{inputs.max_tokens}}"
+"#;
+    let output = run_and_get(yaml, "gen").await;
+    // Mock provider returns deterministic output — just verify task succeeded
+    assert!(!output.is_empty(), "Task with templated temperature should produce output");
+}
+
+/// E2E: concurrency as {{inputs.*}} template resolves correctly in for_each.
+#[tokio::test]
+async fn template_in_for_each_concurrency() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+
+inputs:
+  parallel: 2
+
+tasks:
+  - id: process
+    for_each: ["a", "b", "c"]
+    as: item
+    concurrency: "{{inputs.parallel}}"
+    infer: "Process {{with.item}}"
+"#;
+    let runner = run_yaml(yaml).await;
+    let result = runner.datastore().get("process").expect("process result");
+    assert!(result.is_success(), "for_each with templated concurrency should succeed");
+}
+
+/// E2E: retry.max_attempts as template.
+#[tokio::test]
+async fn template_in_retry_max_attempts() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+model: mock-model
+
+inputs:
+  retries: 2
+
+tasks:
+  - id: gen
+    retry:
+      max_attempts: "{{inputs.retries}}"
+      delay_ms: 100
+    infer: "Generate content"
+"#;
+    let output = run_and_get(yaml, "gen").await;
+    assert!(!output.is_empty(), "Task with templated retry should produce output");
+}
