@@ -53,7 +53,7 @@ LABEL org.opencontainers.image.url="https://supernovae.studio"
 LABEL org.opencontainers.image.documentation="https://github.com/supernovae-st/nika#readme"
 
 ARG TARGETARCH
-ARG VERSION=0.74.0
+ARG VERSION=0.75.0
 
 LABEL org.opencontainers.image.version="${VERSION}"
 

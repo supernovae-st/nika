@@ -122,7 +122,7 @@ flowchart LR
     INFER[infer]:::verb --> LLM["9 Providers"]:::target
     EXEC[exec]:::verb --> SHELL[Shell]:::target
     FETCH[fetch]:::verb --> HTTP["HTTP + 9 Extract Modes"]:::target
-    INVOKE[invoke]:::verb --> TOOLS["62 Tools + MCP"]:::target
+    INVOKE[invoke]:::verb --> TOOLS["63 Tools + MCP"]:::target
     AGENT[agent]:::verb --> LOOP["Agentic Loop + Guardrails"]:::target
 ```
 
@@ -295,7 +295,7 @@ Get guaranteed schema-valid JSON from any provider. No prompt hacking required.
 
 Same result on all 9 providers. No exceptions.
 
-### Data Flow -- 63 transforms, bindings, parallel loops
+### Data Flow -- 64 transforms, bindings, parallel loops
 
 ```yaml
 tasks:
@@ -322,7 +322,7 @@ tasks:
   infer: "Translate to {{with.locale}}: {{with.text}}"
 ```
 
-### 62 Builtin Tools
+### 63 Builtin Tools
 
 All accessible via `invoke: nika:*` -- no external dependencies.
 
@@ -571,7 +571,7 @@ flowchart TD
     subgraph Backends
         PROV["9 Providers"]:::backend
         MCPS["MCP Servers"]:::backend
-        BUILT["62 Builtin Tools"]:::backend
+        BUILT["63 Builtin Tools"]:::backend
         CAS["CAS Media Store"]:::backend
     end
 

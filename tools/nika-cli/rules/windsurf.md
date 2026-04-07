@@ -247,7 +247,7 @@ Use `content:` array instead of `prompt:` for images:
 ```
 
 **Tool naming rules:**
-- `nika:tool_name` — 62 builtin tools (always available, no server needed)
+- `nika:tool_name` — 63 builtin tools (always available, no server needed)
 - `server::tool_name` — MCP server tools (double colon `::`, server must be running)
 - `mcp: server` + `tool: name` — split form (equivalent to `server::name`)
 - Short form for builtins: `invoke: "nika:thumbnail"`
@@ -379,7 +379,7 @@ Binary artifact (media pipeline):
     format: binary                     # Store raw CAS bytes directly
 ```
 
-## 62 Builtin Tools (nika:*)
+## 63 Builtin Tools (nika:*)
 
 **Core (7)**: `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`, `nika:complete`
 **File (5)**: `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`

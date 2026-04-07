@@ -8,6 +8,27 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.75.0] — 2026-04-07
+
+### Architecture
+
+- **runner.rs decomposition** — Split the 7075-line monolith into 4 focused modules:
+  - `runner/mod.rs` (2262 lines) — core workflow runner logic
+  - `runner/tests.rs` (4800 lines) — all runner tests in a dedicated file (-72% main file size)
+  - `task_dispatch.rs` (653 lines) — verb dispatch extracted from runner (-656 lines)
+  - `structured_retry.rs` (342 lines) — structured output retry loop extracted from runner (-324 lines)
+
+### Added
+
+- **`media-provenance` bundled in default features** — C2PA content credentials (sign + verify) now included out of the box. Truly zero feature flags for the binary — one build, everything included.
+- **`nika/executionEvent` LSP notification type** — Typed `ExecutionEventNotification` struct with serde support for live DAG update streaming from LSP to editor clients.
+
+### Changed
+
+- **Engine default features expanded** — `media-provenance` joins the default feature set. The binary now bundles every feature: TUI, LSP, serve, native-inference, all media tools, all extract modes. Only `lsp` remains opt-in at the engine-library level (not needed when embedding `nika-engine` as a library).
+
+---
+
 ## [0.74.0] — 2026-04-06
 
 ### Added

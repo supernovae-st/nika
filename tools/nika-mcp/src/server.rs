@@ -645,7 +645,7 @@ schema, workflow, description, provider, model, inputs, context, include, mcp, a
 with: { alias: $task_id } → {{with.alias}}
 Path: $task.data.field | Defaults: $task.path ?? "fallback" | Env: $env.API_KEY
 
-## 63 Transforms
+## 64 Transforms
 String: upper, lower, trim, trim_start, trim_end, length, to_string
 Array: first, last, flatten, reverse, sort, unique, compact, keys, values
 Numeric: to_number, round, abs, ceil, floor
@@ -665,7 +665,7 @@ markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
 Core (7): sleep, log, emit, assert, prompt, run, complete
 File (5): read, write, edit, glob, grep
 Introspection (6): dag_info, task_status, threads, orchestrate, cost, records
-Data (12): json_merge, set_diff, zip, map, filter, group_by, chunk, token_count, enrich, jq, tree_data, inject
+Data (13): json_merge, set_diff, zip, map, filter, group_by, chunk, token_count, enrich, jq, tree_data, inject, json_diff
 Data Sprint 2 (6): json_verify, yaml_validate, locale_lookup, aggregate, json_flatten, json_unflatten
 Media always-on (5): import, decode, dimensions, thumbhash, dominant_color
 Media core (3): thumbnail, convert, strip

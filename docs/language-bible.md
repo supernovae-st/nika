@@ -148,7 +148,7 @@ for CJK vs 4 chars/token for Latin). Minimum 50 tokens per binding preserved.
 
 ## Part 2: Transforms
 
-63 transforms available via pipe chains: `$task.field | trim | upper | first(100)`.
+64 transforms available via pipe chains: `$task.field | trim | upper | first(100)`.
 
 ### When to use what
 
@@ -357,7 +357,7 @@ exec:
       query: "{{with.topic}}"
 ```
 
-62 builtin tools (`nika:*`) available without any server. Key ones:
+63 builtin tools (`nika:*`) available without any server. Key ones:
 
 | Tool | Purpose | Key param |
 |------|---------|-----------|
