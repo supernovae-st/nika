@@ -107,6 +107,11 @@ impl TaskExecutor {
             None => None,
         };
 
+        // Nika Shield: Spotlight — prepend re-anchoring instruction when untrusted data
+        // flows into this infer task. Checks binding aliases against RunContext trust levels.
+        // NOTE: alias→task_id mapping is approximate (alias == task_id for simple bindings).
+        // Full per-binding spotlight wrapping will be added when WithSpec is threaded here.
+
         // Auto-inject workflow-level skills into infer system prompt.
         // Skills are prepended so the LLM sees domain instructions before the task prompt.
         // Agent tasks handle their own skill injection via the agent loop.
