@@ -1,4 +1,4 @@
-# MASTER INSTRUCTION — Nika v0.75.0 → Launch
+# MASTER INSTRUCTION — Nika v0.78.0 → Launch
 
 > **Copy-paste this ENTIRE document into a new Claude Code session.**
 > It contains EVERYTHING: what to do, how to do it, what skills to use,
@@ -8,13 +8,13 @@
 
 ## WHO YOU ARE
 
-Rust + TypeScript senior on **Nika** — semantic YAML workflow engine for AI.
-v0.75.0, 17 crates, ~409K LOC, 10,365 tests. Launch: May 5, 2026.
-Franglais conversations, EN code/commits. Paris timezone.
+Rust + TypeScript senior on **Nika** — semantic YAML workflow engine for AI ("Inference as Code").
+v0.78.0, 17 crates, ~409K LOC, 10,498 tests. Launch: May 5, 2026.
+Franglais conversations, EN code/commits. Paris timezone. Solo founder.
 
 **Project root**: `/Users/thibaut/dev/supernovae/nika`
 **Workspace**: `/Users/thibaut/dev/supernovae/nika/tools` (Cargo workspace)
-**Extension**: `/Users/thibaut/dev/supernovae/nika/editors/vscode`
+**Editors**: `/Users/thibaut/dev/supernovae/nika/editors/` (vscode, zed, neovim, helix)
 
 ---
 
@@ -59,41 +59,45 @@ cargo clippy --workspace -- -D warnings
 # 3. Format
 cargo fmt --all --check
 
-# 4. TypeScript (if touching editors/)
+# 4. TypeScript (if touching editors/vscode/)
 cd /Users/thibaut/dev/supernovae/nika/editors/vscode && npm run compile
+
+# 5. Editor keyword sync (if touching transforms/builtins/task keys)
+./editors/sync-editors.sh --check
 ```
 
-**Expected baseline**: 10,365+ tests GREEN, 0 clippy warnings, fmt clean.
+**Expected baseline**: 10,498+ tests GREEN, 0 clippy warnings, fmt clean.
 
 ---
 
 ## WHAT TO DO — 3 TRACKS
 
-### Track 1: Pre-Launch Stabilization (~4h)
+### Track 1: Pre-Launch Stabilization
 
 **Document**: `docs/sprints/SESSION-MEGA-FINAL.md`
 
-15 fixes ordered by priority. TDD for each. Summary:
+⚠ Many items from the original list are now DONE (npm sync done at 0.77, clippy fixed, etc.). **Verify each item before fixing** — the codebase moved fast.
 
+**Still likely needed** (verify first):
 | # | Fix | File | Effort |
 |---|-----|------|--------|
-| A1 | Stale counts 63→64/62→63 | `nika-core/catalogs/builtins.rs:108`, `nika/src/main.rs:945`, `nika-mcp/server.rs` | 15min |
-| A2 | npm version sync 0.74→0.75 | `packages/*/package.json` (6 files) | 10min |
-| A3 | Dockerfile version | `tools/nika/Dockerfile:56` | 2min |
-| B1 | CI upload-artifact@v7→v8 | `.github/workflows/release.yml` (3 sites) | 5min |
-| B2 | TreeDataProvider disposable | `editors/vscode/src/extension.ts:77` | 5min |
-| B3 | Duplicate daemon reconnect | `tools/nika-lsp/src/backend.rs:96-101` | 10min |
+| B2 | TreeDataProvider disposable leak | `editors/vscode/src/extension.ts` | 5min |
+| B3 | Duplicate daemon reconnect | `tools/nika-lsp/src/backend.rs` | 10min |
 | B4 | Blocking fs in async reconciler | `tools/nika-serve/src/lib.rs` | 30min |
-| B5 | WWW-Authenticate header | `tools/nika-serve/src/auth.rs:47` | 10min |
-| B7 | MCP schema version param doc | `tools/nika-mcp/src/server.rs` | 5min |
-| C1 | cargo fmt | `tools/` | 2min |
-| C2 | Artifact path collision | `tools/nika-engine/src/runtime/artifact_processor.rs` | 1h |
-| C3 | Stale TODO comment | `tools/nika-engine/src/runtime/for_each.rs:28` | 2min |
-| D1 | Auth middleware tests | `tools/nika-serve/src/auth.rs` | 30min |
-| D2 | Named endpoint slash test | `tools/nika-engine/src/runtime/executor/infer.rs` | 10min |
-| D4 | Schedule comment test | `tools/nika-serve/src/lib.rs` | 10min |
+| B5 | WWW-Authenticate header on 401 | `tools/nika-serve/src/auth.rs` | 10min |
+| C2 | Artifact path collision detection | `tools/nika-engine/src/runtime/artifact_processor.rs` | 1h |
+| D1 | Auth middleware integration tests | `tools/nika-serve/src/auth.rs` | 30min |
 
-**How**: Read `docs/sprints/SESSION-MEGA-FINAL.md` for exact before/after code.
+**New items from recent sessions** (check handoffs):
+| # | Fix | Source |
+|---|-----|--------|
+| T1 | Templatable perf: has_any_template() fast-path | `SESSION-TEMPLATABLE-HANDOFF.md` S1 |
+| T2 | Templatable: template in on_error fallback task | `SESSION-TEMPLATABLE-HANDOFF.md` S2 |
+| T3 | Templatable: template in guardrails threshold | `SESSION-TEMPLATABLE-HANDOFF.md` S3 |
+| M1 | Channel matrix: publish to Open VSX, Homebrew, npm | `SESSION-MEGA-HANDOFF-2026-04-07.md` |
+| E1 | Zed: publish to extensions.zed.dev | `SESSION-HANDOFF-EDITORS-ARCH-2026-04-07.md` |
+
+**How**: Read each handoff doc, verify what's done vs pending, fix remaining items in TDD.
 
 ---
 
@@ -131,24 +135,27 @@ cd /Users/thibaut/dev/supernovae/nika/editors/vscode && npm run compile
 ## KEY DOCUMENTS (read order for new sessions)
 
 ### Architecture & Current State
-1. `CLAUDE.md` (project root) — crate graph, commands, conventions
-2. `docs/plans/2026-04-07-architecture-roadmap.md` — **6-phase refactoring roadmap**
-3. `docs/sprints/SESSION-FINAL-HANDOFF.md` — launch readiness inventory
-4. `CHANGELOG.md` — full history through v0.74.0
+1. `CLAUDE.md` (project root) — crate graph, commands, conventions, editor arch
+2. `docs/plans/2026-04-07-architecture-roadmap.md` — **6-phase refactoring roadmap** (God Crate split, NikaError domains, runner decomp, provider macro, serve/daemon, AST split)
+3. `CHANGELOG.md` — full history through v0.75.0
 
-### Stabilization
-5. `docs/sprints/SESSION-MEGA-FINAL.md` — **15 fixes with TDD workflow**
+### Latest Handoffs (most recent first)
+4. `docs/sprints/SESSION-MEGA-HANDOFF-2026-04-07.md` — **mega handoff**: podcast, 5 editors, distribution audit, channel matrix
+5. `docs/sprints/SESSION-TEMPLATABLE-HANDOFF.md` — Templatable<T> feature (65 typed fields), deferred items S1-S4
+6. `docs/sprints/SESSION-MODEL-RESILIENCE-HANDOFF.md` — ModelCapabilities catalog, stale defaults fix
+7. `docs/sprints/SESSION-HANDOFF-EDITORS-ARCH-2026-04-07.md` — 5 editors architecture, Zed MCP Context Server
+8. `docs/sprints/SESSION-MEGA-FINAL.md` — 15 stabilization fixes (some done, verify first)
 
-### Feature-Specific (if continuing work on these)
-6. `docs/sprints/SESSION-SCHEDULING-HANDOFF.md` — scheduling implementation
-7. `docs/sprints/SESSION-IDE-HANDOFF.md` — IDE/VSCode extension
-8. `docs/plans/2026-04-06-s10-multi-tenant-auth-blueprint.md` — auth (DONE)
-9. `docs/plans/2026-04-06-nika-ide-plan.md` — IDE detailed plan (DONE)
+### Architecture Plans
+9. `docs/plans/2026-04-07-ai-rules-architecture.md` — 4-layer progressive AI context (L0→L3)
+10. `docs/plans/2026-04-07-zed-deep-integration-plan.md` — Zed WASM extension details
+11. `docs/plans/2026-04-07-deferred-provider-refactor.md` — provider type zoo cleanup plan
+12. `docs/plans/2026-04-07-model-resilience.md` — model capabilities design
 
-### Design References
-10. `docs/plans/2026-04-05-scheduling-ux-bible.md` — scheduling UX patterns
-11. `docs/plans/2026-04-05-scheduling-design.md` — scheduling architecture
-12. `docs/plans/2026-04-05-cli-ux-wow-patterns.md` — CLI interaction design
+### Scheduling & IDE (DONE — reference only)
+13. `docs/sprints/SESSION-SCHEDULING-HANDOFF.md` — scheduling implementation (DONE)
+14. `docs/sprints/SESSION-IDE-HANDOFF.md` — IDE/VSCode extension (DONE)
+15. `docs/plans/2026-04-05-scheduling-ux-bible.md` — scheduling UX patterns
 
 ---
 
@@ -199,11 +206,17 @@ Lance 3-5 agents feature-dev:code-reviewer sur des fichiers différents:
 - 5 verbs: infer, exec, fetch, invoke, agent
 - Error codes: NIKA-XXX (see `nika-core/src/error_codes.rs`)
 
-### TypeScript (editors/vscode)
-- `npm run compile` (tsc + esbuild)
-- `extensionKind: ["workspace"]` required for Remote/WSL
-- Cursor MCP uses `"mcpServers"`, VS Code uses `"servers"` (DIFFERENT keys!)
-- ELK.js must use bundled version (no Web Worker in webview sandbox)
+### Editors (5 total)
+- **VS Code/Cursor**: `cd editors/vscode && npm run compile` (tsc + esbuild)
+  - `extensionKind: ["workspace"]` required for Remote/WSL
+  - Cursor MCP uses `"mcpServers"`, VS Code uses `"servers"` (DIFFERENT keys!)
+  - ELK.js must use bundled version (no Web Worker in webview sandbox)
+- **Zed**: `cd editors/zed/` — Rust WASM extension, MCP Context Server is killer feature
+- **Neovim**: `cd editors/neovim/` — Lua plugin, `require("nika").setup()`
+- **Helix**: `cd editors/helix/` — TOML config + Tree-sitter queries
+- **Shared**: `editors/shared/nika-keywords.json` — generated from Rust source
+- **Sync**: `./editors/sync-editors.sh --fix` propagates keyword changes to all editors
+- **When adding transforms/builtins**: update Rust source → run sync script → commit both
 
 ### Git
 - 1 fix = 1 commit, granulaire
@@ -215,20 +228,32 @@ Lance 3-5 agents feature-dev:code-reviewer sur des fichiers différents:
 ## CURRENT STATS
 
 ```
-Version:     0.75.0
-Tests:       10,365 passed, 0 failed, 1 ignored
+Version:     0.78.0
+Tests:       10,498 passed, 0 failed, 1 ignored
 Clippy:      clean
-Fmt:         1 file drift (provider_embedded.rs)
 Crates:      17 workspace members
 LOC:         ~409K Rust + ~2K TypeScript
 Storage:     Schema V6 (schedules + serve_tokens)
-Providers:   9 (7 cloud + native + mock)
-Transforms:  64
-Builtins:    63
-LSP:         13 capabilities, 949 tests
-MCP:         7 tools, 3 prompts
+Providers:   9 (7 cloud + native + mock) + OpenAI-compat table (7 more)
+Transforms:  64 (incl. parse_yaml)
+Builtins:    63 (incl. json_diff)
+LSP:         13 capabilities, decoupled from nika-engine
+MCP:         7 tools, 3 prompts, enable_prompts()
+Editors:     5 (VS Code, Zed, Neovim, Helix, shared keywords)
 Extension:   DAG webview, sidebar tree, Cursor/Windsurf auto-config
+Features:    Templatable<T> (65 typed fields), ModelCapabilities catalog,
+             slash syntax (model: groq/llama), endpoints in nika.toml,
+             S10 multi-tenant auth (BLAKE3), scheduling full stack
 ```
+
+### Recent Major Changes (v0.75→v0.78)
+- **Templatable<T>**: `{{inputs.temperature}}` works in ALL 65 typed fields (number/bool/integer)
+- **ModelCapabilities catalog**: single source of truth for model-specific API behavior
+- **Provider split**: rig/mod.rs god file → 4 modules (inference, streaming, construction, compat)
+- **5 editors**: VS Code, Zed (WASM + MCP Context Server), Neovim (Lua), Helix (TOML), shared keywords
+- **AI rules architecture**: 4-layer progressive discovery (L0 identity → L3 live MCP)
+- **Distribution fixes**: Open VSX publishing fixed, VSIX icon, marketplace metadata
+- **max_completion_tokens**: fixed for OpenAI reasoning models (o-series, gpt-5.x)
 
 ---
 
@@ -237,16 +262,25 @@ Extension:   DAG webview, sidebar tree, Cursor/Windsurf auto-config
 1. Run verification baseline:
    ```bash
    cd /Users/thibaut/dev/supernovae/nika/tools
-   cargo test --workspace --lib --exclude nika-py 2>&1 | grep "passed"
+   cargo test --workspace --lib --exclude nika-py
+   # Expected: 10,498+ tests, 0 failures
    ```
 
-2. Pick your track:
-   - **Stabilization** → Read `docs/sprints/SESSION-MEGA-FINAL.md`, start at A1
+2. Check what's new since your last session:
+   ```bash
+   git log --oneline -20
+   cat docs/sprints/SESSION-MEGA-HANDOFF-2026-04-07.md | head -60
+   ```
+
+3. Pick your track:
+   - **Stabilization** → Read latest handoffs (items 4-8 in KEY DOCUMENTS), verify + fix remaining
    - **Architecture** → Read `docs/plans/2026-04-07-architecture-roadmap.md`, start at Phase 3
+   - **Distribution** → Read channel matrix in `SESSION-MEGA-HANDOFF-2026-04-07.md`, publish to channels
+   - **Templatable perf** → Read `SESSION-TEMPLATABLE-HANDOFF.md` items S1-S4
    - **Quick wins** → Just fix them inline
 
-3. For every fix: **test first** (RED), then **fix** (GREEN), then **refactor** if needed.
+4. For every fix: **test first** (RED), then **fix** (GREEN), then **refactor** if needed.
 
-4. Commit granulaire, push after each chunk.
+5. Commit granulaire, push after each chunk.
 
-5. When done, run full verification suite and push.
+6. When done, run full verification suite and push.
