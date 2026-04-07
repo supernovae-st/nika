@@ -10,11 +10,20 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::{Request, StatusCode};
+use axum::http::{header, Request, StatusCode};
 use axum::middleware::Next;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 
 use crate::token_store::AuthMode;
+
+/// Return 401 with `WWW-Authenticate: Bearer realm="nika"` per RFC 7235.
+fn unauthorized() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        [(header::WWW_AUTHENTICATE, "Bearer realm=\"nika\"")],
+    )
+        .into_response()
+}
 
 /// Axum middleware that requires a valid `Authorization: Bearer <token>` header
 /// on all routes except `/health`.
@@ -24,10 +33,10 @@ pub async fn require_auth(
     State(auth_mode): State<Arc<AuthMode>>,
     request: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Response {
     // Health endpoint is always public
     if request.uri().path() == "/health" {
-        return Ok(next.run(request).await);
+        return next.run(request).await;
     }
 
     let raw_token = request
@@ -39,12 +48,12 @@ pub async fn require_auth(
     match raw_token {
         Some(token) => {
             if auth_mode.authenticate(token).await.is_some() {
-                Ok(next.run(request).await)
+                next.run(request).await
             } else {
-                Err(StatusCode::UNAUTHORIZED)
+                unauthorized()
             }
         }
-        None => Err(StatusCode::UNAUTHORIZED),
+        None => unauthorized(),
     }
 }
 
@@ -100,5 +109,13 @@ mod tests {
         let long = auth.authenticate(&"x".repeat(1000)).await;
         assert!(short.is_none());
         assert!(long.is_none());
+    }
+
+    #[test]
+    fn unauthorized_response_has_www_authenticate_header() {
+        let resp = unauthorized();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let header = resp.headers().get(header::WWW_AUTHENTICATE).unwrap();
+        assert_eq!(header.to_str().unwrap(), "Bearer realm=\"nika\"");
     }
 }
