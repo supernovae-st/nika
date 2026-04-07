@@ -609,13 +609,29 @@ impl RigProvider {
                     }
                     messages.push(serde_json::json!({"role": "user", "content": prompt}));
 
-                    let body = serde_json::json!({
+                    let mut body = serde_json::json!({
                         "model": model_id,
                         "messages": messages,
-                        "max_tokens": max_tok,
                         "tools": openai_tools,
                         "tool_choice": "required",
                     });
+                    // Apply correct token limit field (max_tokens vs max_completion_tokens)
+                    use nika_core::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+                    let provider_hint = if raw_base_url.contains("api.openai.com") {
+                        "openai"
+                    } else if raw_base_url.contains("openrouter.ai") {
+                        "openrouter"
+                    } else {
+                        "custom"
+                    };
+                    match model_capabilities(provider_hint, model_id).token_limit_param {
+                        TokenLimitParam::MaxCompletionTokens => {
+                            body["max_completion_tokens"] = serde_json::json!(max_tok);
+                        }
+                        TokenLimitParam::MaxTokens => {
+                            body["max_tokens"] = serde_json::json!(max_tok);
+                        }
+                    }
 
                     let (json, prompt_tokens, completion_tokens) = Self::raw_chat_completion(
                         http_client,
