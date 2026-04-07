@@ -208,9 +208,22 @@ impl EventBus {
 /// event channel (BUG-5: prevents orphan channel creation).
 pub async fn stream_events(
     State(state): State<crate::state::AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Path(job_id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, crate::error::ServeError> {
+    // L2 scope enforcement: check job's workflow against token scope
+    if let Some(axum::Extension(ref p)) = principal {
+        if let Ok(Some(job)) = state.storage.get_job(&job_id).await {
+            if !p.can_access(&job.workflow) {
+                return Err(crate::error::ServeError::Forbidden(format!(
+                    "token '{}' scope '{}' does not cover workflow '{}'",
+                    p.token_name, p.scope, job.workflow
+                )));
+            }
+        }
+    }
+
     // Parse Last-Event-Id for reconnect replay
     let last_event_id: Option<u64> = headers
         .get("last-event-id")

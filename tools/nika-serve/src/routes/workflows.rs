@@ -232,6 +232,7 @@ pub async fn run_workflow(
 /// `GET /v1/status/{id}` -- Poll job status.
 pub async fn get_status(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Path(id): Path<String>,
 ) -> Result<Json<StatusResponse>, ServeError> {
     let job = state
@@ -239,6 +240,16 @@ pub async fn get_status(
         .get_job(&id)
         .await?
         .ok_or(ServeError::NotFound)?;
+
+    // L2 scope enforcement
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_access(&job.workflow) {
+            return Err(ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, job.workflow
+            )));
+        }
+    }
 
     Ok(Json(job_to_status_response(job)))
 }
@@ -282,6 +293,16 @@ pub async fn cancel_job(
         .get_job(&id)
         .await?
         .ok_or(ServeError::NotFound)?;
+
+    // L2 scope enforcement
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_access(&job.workflow) {
+            return Err(ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, job.workflow
+            )));
+        }
+    }
 
     // Only pending/running jobs can be cancelled
     if !matches!(
@@ -425,6 +446,7 @@ fn validate_tag_key(key: &str) -> Result<(), ServeError> {
 /// `GET /v1/jobs` -- List jobs with optional filtering.
 pub async fn list_jobs(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Query(query): Query<JobListQuery>,
 ) -> Result<Json<JobListResponse>, ServeError> {
     let state_filter = query.state.as_deref().map(nika_storage::JobState::parse);
@@ -455,6 +477,12 @@ pub async fn list_jobs(
     };
 
     let mut jobs = state.storage.list_jobs_filtered(filter).await?;
+
+    // L2 scope enforcement: filter out jobs for workflows outside token scope
+    if let Some(axum::Extension(ref p)) = principal {
+        jobs.retain(|j| p.can_access(&j.workflow));
+    }
+
     let has_more = jobs.len() as i64 > limit;
     if has_more {
         jobs.truncate(limit as usize);
@@ -507,6 +535,7 @@ pub struct ListWorkflowsResponse {
 /// Returns relative paths sorted alphabetically.
 pub async fn list_workflows(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListWorkflowsResponse>, ServeError> {
     let base = state
@@ -518,6 +547,11 @@ pub async fn list_workflows(
     let mut workflows = Vec::new();
     collect_workflows(&base, &base, &mut workflows).await?;
     workflows.sort_by(|a, b| a.name.cmp(&b.name));
+
+    // L2 scope enforcement: filter out workflows outside token scope
+    if let Some(axum::Extension(ref p)) = principal {
+        workflows.retain(|w| p.can_access(&w.name));
+    }
 
     // Apply cursor: skip everything up to and including `after`
     if let Some(ref after) = query.after {

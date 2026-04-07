@@ -53,14 +53,25 @@ pub fn download_docs(op: TransformOperation) -> TransformOperation {
 /// Returns JSON array with name, size, format, content_type, and checksum.
 pub async fn list_artifacts(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Path(job_id): Path<String>,
 ) -> Result<Json<ListArtifactsResponse>, ServeError> {
     // Verify job exists
-    state
+    let job = state
         .storage
         .get_job(&job_id)
         .await?
         .ok_or(ServeError::NotFound)?;
+
+    // L2 scope enforcement
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_access(&job.workflow) {
+            return Err(ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, job.workflow
+            )));
+        }
+    }
 
     let artifacts = state.storage.list_artifacts(&job_id).await?;
 
@@ -89,6 +100,7 @@ pub async fn list_artifacts(
 /// ETag is derived from checksum (if available) or file mtime.
 pub async fn download_artifact(
     State(state): State<AppState>,
+    principal: Option<axum::Extension<crate::token_store::Principal>>,
     Path((job_id, name)): Path<(String, String)>,
 ) -> Result<Response, ServeError> {
     // Reject path traversal
@@ -97,11 +109,21 @@ pub async fn download_artifact(
     }
 
     // Verify job exists
-    state
+    let job = state
         .storage
         .get_job(&job_id)
         .await?
         .ok_or(ServeError::NotFound)?;
+
+    // L2 scope enforcement
+    if let Some(axum::Extension(ref p)) = principal {
+        if !p.can_access(&job.workflow) {
+            return Err(ServeError::Forbidden(format!(
+                "token '{}' scope '{}' does not cover workflow '{}'",
+                p.token_name, p.scope, job.workflow
+            )));
+        }
+    }
 
     // Find the artifact in DB
     let artifacts = state.storage.list_artifacts(&job_id).await?;

@@ -1437,4 +1437,114 @@ mod tests {
         // Admin can reload — 200 (empty dir but succeeds)
         assert_eq!(resp.status(), StatusCode::OK);
     }
+
+    // ── L2 scope enforcement: job-level endpoints ──────────────────────────
+
+    /// Helper: create a job in storage for a given workflow.
+    async fn create_test_job(storage: &nika_storage::Storage, workflow: &str) -> String {
+        let job_id = uuid::Uuid::new_v4().simple().to_string();
+        storage
+            .create_job_with_tags(&job_id, workflow, None)
+            .await
+            .unwrap();
+        job_id
+    }
+
+    #[tokio::test]
+    async fn scope_rejects_status_for_out_of_scope_job() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        let job_id = create_test_job(&state.storage, "project-b/pipeline.nika.yaml").await;
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("/v1/status/{job_id}"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn scope_allows_status_for_in_scope_job() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        let job_id = create_test_job(&state.storage, "project-a/pipeline.nika.yaml").await;
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("/v1/status/{job_id}"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn scope_rejects_cancel_for_out_of_scope_job() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        let job_id = create_test_job(&state.storage, "project-b/pipeline.nika.yaml").await;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/v1/cancel/{job_id}"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn scope_filters_jobs_list() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        create_test_job(&state.storage, "project-a/pipeline.nika.yaml").await;
+        create_test_job(&state.storage, "project-b/other.nika.yaml").await;
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/v1/jobs")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let jobs = json["jobs"].as_array().unwrap();
+        // Only project-a job should be visible
+        assert_eq!(jobs.len(), 1);
+        assert!(jobs[0]["workflow"]
+            .as_str()
+            .unwrap()
+            .starts_with("project-a/"));
+    }
+
+    #[tokio::test]
+    async fn scope_rejects_artifacts_for_out_of_scope_job() {
+        let (app, state, token, _dir) =
+            test_app_multikey("project-a/*", nika_storage::Role::Operator).await;
+
+        let job_id = create_test_job(&state.storage, "project-b/pipeline.nika.yaml").await;
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("/v1/jobs/{job_id}/artifacts"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
 }
