@@ -904,6 +904,9 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
         ("Cursor", ".cursor/rules/nika-project.mdc"),
         ("Copilot", ".github/copilot-instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
+        ("Cline", ".clinerules"),
+        ("Amazon Q", ".amazonq/rules/nika.rule.md"),
+        ("JetBrains AI", ".aiassistant/rules/nika.md"),
     ];
 
     let mut has_project_rules = false;

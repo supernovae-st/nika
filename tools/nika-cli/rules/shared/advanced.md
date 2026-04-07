@@ -88,3 +88,12 @@ artifacts:                         # Workflow-level defaults
 ```
 
 `source:` must be a CAS hash — NEVER a file path. Use `nika:import` or `nika:decode` first.
+
+### routing: provider fallback chain
+
+```yaml
+- id: resilient
+  routing:
+    fallback: [anthropic, openai, groq]
+  infer: "Generate content with automatic provider fallback"
+```

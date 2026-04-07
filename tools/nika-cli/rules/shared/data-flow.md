@@ -27,7 +27,7 @@
 {{with.result | default("none") | upper}}
 ```
 
-**String**: `upper`, `lower`, `trim`, `length`, `to_string`, `replace(a, b)`, `truncate(N)`
+**String**: `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `length`, `to_string`, `replace(a, b)`, `truncate(N)`
 **Array**: `first`, `last`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `keys`, `values`
 **Query**: `pluck(field)`, `where(field, val)`, `pick(f1, f2)`, `omit(f1, f2)`, `sort_by(field)`, `group_by(field)`, `merge`
 **Type**: `to_json`, `parse_json`, `parse_yaml`, `to_number`, `to_bool`, `type_of`
