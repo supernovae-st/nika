@@ -13,11 +13,9 @@ publish = true
 ignored = ["rig-core"]  # imported as `rig`, machete can't detect renamed crates
 
 [features]
-default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "fetch-sitemap", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
-# Only 2 features remain opt-in:
-#   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
-#   - lsp: editor-specific, not needed for engine users
-# Everything else is default.
+default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "fetch-sitemap", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression", "media-provenance"]
+# Only lsp remains opt-in (editor-specific, not needed for engine users).
+# Everything else is default. Zero flags for the binary.
 native-inference = ["dep:mistralrs", "dep:async-stream", "dep:image"]  # Native LLM inference via mistral.rs
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support
 

@@ -22,10 +22,8 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "lsp", "serve", "native-inference", "nika-engine/default"]
-# Only 1 feature remains opt-in:
-#   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
-# Everything else bundled — one binary, everything included.
+default = ["tui", "lsp", "serve", "native-inference", "media-provenance", "nika-engine/default"]
+# Zero opt-in features. One binary, everything included.
 tui = ["dep:nika-tui"]
 serve = ["dep:nika-serve"]
 integration = []  # Enable integration tests with real MCP servers
