@@ -118,4 +118,86 @@ mod tests {
         let header = resp.headers().get(header::WWW_AUTHENTICATE).unwrap();
         assert_eq!(header.to_str().unwrap(), "Bearer realm=\"nika\"");
     }
+
+    // =========================================================================
+    // Middleware integration tests (full request → response cycle)
+    // =========================================================================
+
+    use axum::middleware;
+    use axum::routing::get;
+    use axum::Router;
+    use tower::ServiceExt;
+
+    fn test_app(auth: Arc<AuthMode>) -> Router {
+        Router::new()
+            .route("/api/test", get(|| async { "ok" }))
+            .route("/health", get(|| async { "healthy" }))
+            .layer(middleware::from_fn_with_state(auth.clone(), require_auth))
+            .with_state(auth)
+    }
+
+    #[tokio::test]
+    async fn middleware_rejects_without_token() {
+        let app = test_app(make_legacy_auth());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let www_auth = resp.headers().get(header::WWW_AUTHENTICATE).unwrap();
+        assert_eq!(www_auth.to_str().unwrap(), "Bearer realm=\"nika\"");
+    }
+
+    #[tokio::test]
+    async fn middleware_accepts_valid_bearer() {
+        let app = test_app(make_legacy_auth());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/test")
+                    .header("Authorization", format!("Bearer {TEST_TOKEN}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn middleware_rejects_wrong_bearer() {
+        let app = test_app(make_legacy_auth());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/test")
+                    .header("Authorization", "Bearer wrong-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert!(resp.headers().get(header::WWW_AUTHENTICATE).is_some());
+    }
+
+    #[tokio::test]
+    async fn middleware_bypasses_health_endpoint() {
+        let app = test_app(make_legacy_auth());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
 }
