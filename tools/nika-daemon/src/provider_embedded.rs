@@ -48,7 +48,10 @@ impl EmbeddedDaemonProvider {
                     tracing::debug!("EmbeddedDaemonProvider: vault at {}", secrets_dir.display());
                     Some(NikaVault::new(&secrets_dir))
                 } else {
-                    tracing::debug!("EmbeddedDaemonProvider: no vault at {}", secrets_dir.display());
+                    tracing::debug!(
+                        "EmbeddedDaemonProvider: no vault at {}",
+                        secrets_dir.display()
+                    );
                     None
                 }
             })
@@ -183,9 +186,15 @@ mod tests {
         // This test verifies no panic on missing vault directory
         let p = EmbeddedDaemonProvider::new();
         let status = p.provider_status().await;
-        assert!(!status.is_empty(), "Should list providers even without vault");
+        assert!(
+            !status.is_empty(),
+            "Should list providers even without vault"
+        );
         // Verify vault was initialized (even if None)
-        assert!(p.vault.get().is_some(), "OnceLock should be initialized after first call");
+        assert!(
+            p.vault.get().is_some(),
+            "OnceLock should be initialized after first call"
+        );
     }
 
     #[tokio::test]

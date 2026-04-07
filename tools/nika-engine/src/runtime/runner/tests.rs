@@ -11,23 +11,21 @@
 //! - is_truthy when: condition evaluation
 
 use super::*;
-use crate::runtime::structured_retry::{get_retry_config, is_retryable};
-use crate::runtime::task_dispatch::is_truthy;
 use crate::ast::analyzed::{
     AnalyzedExecAction, AnalyzedForEach, AnalyzedInferAction, AnalyzedOutput, AnalyzedTask,
-    AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat, TaskId,
-    TaskTable,
+    AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
 };
 use crate::ast::schema::SchemaVersion;
 use crate::ast::structured::StructuredOutputSpec;
 use crate::binding::types::{BindingPath, BindingSource};
 use crate::binding::{WithEntry, WithSpec};
+use crate::runtime::structured_retry::{get_retry_config, is_retryable};
+use crate::runtime::task_dispatch::is_truthy;
 use crate::source::Span;
 use indexmap::IndexMap;
 use serde_json::json;
 use std::panic::panic_any;
 use std::time::Duration;
-
 
 // ═══════════════════════════════════════════════════════════════
 // QUIET MODE TEST
@@ -286,10 +284,7 @@ async fn test_for_each_preserves_order() {
 // ═══════════════════════════════════════════════════════════════
 
 /// Helper to create a minimal workflow with exec tasks
-fn create_exec_workflow(
-    tasks: Vec<(&str, &str)>,
-    edges: Vec<(&str, &str)>,
-) -> AnalyzedWorkflow {
+fn create_exec_workflow(tasks: Vec<(&str, &str)>, edges: Vec<(&str, &str)>) -> AnalyzedWorkflow {
     let mut task_table = TaskTable::new();
     for (id, _) in &tasks {
         task_table.insert(id);
@@ -715,8 +710,7 @@ fn all_done_returns_true_when_all_completed() {
 #[test]
 fn get_final_output_returns_output_from_final_task() {
     // Chain: a -> b (b is final)
-    let workflow =
-        create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![("a", "b")]);
+    let workflow = create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![("a", "b")]);
     let runner = Runner::new(workflow).unwrap();
 
     // Mark tasks as done
@@ -2428,8 +2422,7 @@ fn test_get_ready_tasks_no_deps() {
 
 #[test]
 fn test_get_ready_tasks_blocked_by_incomplete_dep() {
-    let workflow =
-        create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
+    let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
     let runner = Runner::new(workflow).unwrap();
     let mut pending = fresh_pending(&runner);
 
@@ -2440,8 +2433,7 @@ fn test_get_ready_tasks_blocked_by_incomplete_dep() {
 
 #[test]
 fn test_get_ready_tasks_unblocked_after_dep_success() {
-    let workflow =
-        create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
+    let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
     let runner = Runner::new(workflow).unwrap();
     let mut pending = fresh_pending(&runner);
 
@@ -2585,8 +2577,7 @@ fn test_dependency_failure_does_not_affect_parallel_tasks() {
 
 #[test]
 fn test_dependency_failure_emits_events() {
-    let workflow =
-        create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
+    let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
     let runner = Runner::new(workflow).unwrap();
     let mut pending = fresh_pending(&runner);
 
@@ -3034,8 +3025,7 @@ async fn audit_structured_output_layer4_repair_succeeds() {
         Box::pin(async move { Ok(r#"{"valid": true}"#.to_string()) })
     });
 
-    let mut engine =
-        StructuredOutputEngine::new(spec, log.clone()).with_infer_callback(callback);
+    let mut engine = StructuredOutputEngine::new(spec, log.clone()).with_infer_callback(callback);
 
     let result = engine
         .validate("repair-test", r#"{"invalid_field": 123}"#)
@@ -3823,10 +3813,7 @@ fn test_is_retryable_provider_api_error() {
     let err = NikaError::ProviderApiError {
         message: "429 Too Many Requests".to_string(),
     };
-    assert!(
-        is_retryable(&err),
-        "ProviderApiError should be retryable"
-    );
+    assert!(is_retryable(&err), "ProviderApiError should be retryable");
 }
 
 #[test]
@@ -3850,10 +3837,7 @@ fn test_is_retryable_mcp_not_connected() {
     let err = NikaError::McpNotConnected {
         name: "novanet".to_string(),
     };
-    assert!(
-        is_retryable(&err),
-        "McpNotConnected should be retryable"
-    );
+    assert!(is_retryable(&err), "McpNotConnected should be retryable");
 }
 
 #[test]
@@ -3904,10 +3888,7 @@ fn test_is_not_retryable_template_error() {
         template: "{{with.x}}".to_string(),
         reason: "not found".to_string(),
     };
-    assert!(
-        !is_retryable(&err),
-        "TemplateError should NOT be retryable"
-    );
+    assert!(!is_retryable(&err), "TemplateError should NOT be retryable");
 }
 
 #[test]
@@ -3915,10 +3896,7 @@ fn test_is_not_retryable_cycle_detected() {
     let err = NikaError::CycleDetected {
         cycle: "a -> b -> a".to_string(),
     };
-    assert!(
-        !is_retryable(&err),
-        "CycleDetected should NOT be retryable"
-    );
+    assert!(!is_retryable(&err), "CycleDetected should NOT be retryable");
 }
 
 #[test]
@@ -3926,10 +3904,7 @@ fn test_is_not_retryable_missing_api_key() {
     let err = NikaError::MissingApiKey {
         provider: "openai".to_string(),
     };
-    assert!(
-        !is_retryable(&err),
-        "MissingApiKey should NOT be retryable"
-    );
+    assert!(!is_retryable(&err), "MissingApiKey should NOT be retryable");
 }
 
 #[test]

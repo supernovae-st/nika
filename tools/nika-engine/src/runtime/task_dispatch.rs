@@ -144,10 +144,7 @@ pub(crate) async fn execute_task_iteration(
                 });
                 return IterationResult {
                     store_id: task_id,
-                    result: TaskResult::skipped(format!(
-                        "Skipped: when resolution failed: {}",
-                        e
-                    )),
+                    result: TaskResult::skipped(format!("Skipped: when resolution failed: {}", e)),
                     for_each_info,
                 };
             }
@@ -402,8 +399,7 @@ pub(crate) async fn execute_task_iteration(
                     output
                 };
 
-                let tr =
-                    make_task_result(final_output, effective_output.as_ref(), duration).await;
+                let tr = make_task_result(final_output, effective_output.as_ref(), duration).await;
                 let tr = tr.with_media(datastore.take_media(&task_id));
                 if tr.is_success() {
                     event_log.emit(EventKind::TaskCompleted {
@@ -633,10 +629,9 @@ pub(crate) async fn execute_task_iteration(
                 let raw_output = task_result.output_str();
                 let compressor =
                     crate::runtime::record_compress::RecordCompressor::new(event_log.clone());
-                let compressor_model = nika_core::catalogs::default_model_for_provider(
-                    executor.default_provider(),
-                )
-                .unwrap_or("claude-haiku-4-5");
+                let compressor_model =
+                    nika_core::catalogs::default_model_for_provider(executor.default_provider())
+                        .unwrap_or("claude-haiku-4-5");
                 let llm = crate::runtime::executor_compressor::ExecutorCompressorLlm::new(
                     &executor,
                     executor.default_provider(),

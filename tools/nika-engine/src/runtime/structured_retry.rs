@@ -11,7 +11,9 @@ use std::time::Instant;
 
 use serde_json::Value;
 
-use crate::ast::analyzed::{AnalyzedTask, AnalyzedTaskAction, OutputFormat as AnalyzedOutputFormat};
+use crate::ast::analyzed::{
+    AnalyzedTask, AnalyzedTaskAction, OutputFormat as AnalyzedOutputFormat,
+};
 use crate::ast::output::OutputPolicy;
 use crate::ast::{InferParams, TaskAction};
 use crate::binding::ResolvedBindings;
@@ -242,12 +244,8 @@ pub(crate) async fn execute_with_retry(
                     errors = %error_feedback,
                     "Schema validation failed, retrying"
                 );
-                current_infer.prompt = build_retry_prompt(
-                    &original_prompt,
-                    schema,
-                    &output,
-                    &error_feedback,
-                );
+                current_infer.prompt =
+                    build_retry_prompt(&original_prompt, schema, &output, &error_feedback);
             }
             Err(e) => {
                 // Executor error (not validation error) - don't retry
