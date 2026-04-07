@@ -75,7 +75,6 @@ CREATE TABLE IF NOT EXISTS job_artifacts (
     content_type TEXT NOT NULL DEFAULT 'text/plain'
 );
 CREATE INDEX IF NOT EXISTS idx_artifacts_job ON job_artifacts(job_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_unique ON job_artifacts(job_id, name);
 
 CREATE TABLE IF NOT EXISTS checkpoints (
     job_id TEXT NOT NULL,
@@ -148,6 +147,22 @@ impl PostgresStorage {
             .execute(&pool)
             .await
             .map_err(|e| redact_pg_error("PostgreSQL schema", e))?;
+
+        // Migration: deduplicate job_artifacts then add UNIQUE constraint.
+        // Runs as separate statements to avoid rolling back the entire schema
+        // if duplicates exist from before the constraint was added.
+        query(
+            "DELETE FROM job_artifacts a USING job_artifacts b \
+             WHERE a.id < b.id AND a.job_id = b.job_id AND a.name = b.name",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| StorageError::Other(format!("deduplicate artifacts: {e}")))?;
+
+        query("CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_unique ON job_artifacts(job_id, name)")
+            .execute(&pool)
+            .await
+            .map_err(|e| StorageError::Other(format!("artifacts unique index: {e}")))?;
 
         // Record schema version (idempotent — ON CONFLICT ignores if already set)
         let now = chrono::Utc::now().to_rfc3339();
