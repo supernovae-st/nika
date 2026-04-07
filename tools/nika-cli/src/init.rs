@@ -276,8 +276,8 @@ default = "anthropic"
                 }
             }
         });
-        let json = serde_json::to_string_pretty(&mcp_content)
-            .map_err(|e| NikaError::ConfigError {
+        let json =
+            serde_json::to_string_pretty(&mcp_content).map_err(|e| NikaError::ConfigError {
                 reason: e.to_string(),
             })?;
         fs::write(&mcp_json_path, json + "\n")?;
@@ -329,10 +329,11 @@ default = "anthropic"
                 }
             }
         });
-        let json = serde_json::to_string_pretty(&cursor_mcp_content)
-            .map_err(|e| NikaError::ConfigError {
+        let json = serde_json::to_string_pretty(&cursor_mcp_content).map_err(|e| {
+            NikaError::ConfigError {
                 reason: e.to_string(),
-            })?;
+            }
+        })?;
         fs::write(&cursor_mcp, json + "\n")?;
     }
 
@@ -393,10 +394,9 @@ default = "anthropic"
                 }]
             }
         });
-        let json = serde_json::to_string_pretty(&settings)
-            .map_err(|e| NikaError::ConfigError {
-                reason: e.to_string(),
-            })?;
+        let json = serde_json::to_string_pretty(&settings).map_err(|e| NikaError::ConfigError {
+            reason: e.to_string(),
+        })?;
         fs::write(&claude_settings, json + "\n")?;
     }
 
@@ -764,7 +764,10 @@ mod tests {
         init_project_at(temp.path(), "plan", false).await.unwrap();
 
         let rules = temp.path().join(".claude/rules/nika-workflows.md");
-        assert!(rules.exists(), ".claude/rules/nika-workflows.md should exist");
+        assert!(
+            rules.exists(),
+            ".claude/rules/nika-workflows.md should exist"
+        );
 
         let content = std::fs::read_to_string(&rules).unwrap();
         assert!(content.contains("nika/workflow@0.12"));

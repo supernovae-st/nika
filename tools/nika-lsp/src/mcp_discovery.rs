@@ -161,7 +161,6 @@ pub fn invoke_completions(
     completions
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

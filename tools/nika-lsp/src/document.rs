@@ -100,7 +100,6 @@ impl DocumentState {
             character: col as u32,
         }
     }
-
 }
 
 #[cfg(test)]
@@ -113,7 +112,6 @@ mod tests {
         let doc = DocumentState::new("hello\nworld".to_string(), 1);
         assert_eq!(doc.content(), "hello\nworld");
         assert_eq!(doc.version, 1);
-
     }
 
     #[test]

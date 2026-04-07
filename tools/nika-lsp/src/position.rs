@@ -155,7 +155,6 @@ pub fn offset_to_position(content: &str, offset: ByteOffset) -> Position {
     Position { line, character }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
