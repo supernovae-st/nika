@@ -25,5 +25,6 @@ pub mod mcp;
 pub mod provider_name;
 pub mod schema;
 pub mod source;
+pub mod trust;
 
 pub use provider_name::ProviderName;
