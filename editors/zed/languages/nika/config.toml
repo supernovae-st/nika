@@ -1,0 +1,24 @@
+name = "Nika"
+grammar = "yaml"
+path_suffixes = [".nika.yaml", ".nika.yml"]
+line_comments = ["# "]
+tab_size = 2
+hard_tabs = false
+first_line_pattern = "^schema:\\s*[\"']?nika/workflow@"
+
+brackets = [
+  { start = "{", end = "}", close = true, newline = true },
+  { start = "[", end = "]", close = true, newline = true },
+  { start = "(", end = ")", close = true, newline = false },
+  { start = "\"", end = "\"", close = true, newline = false, not_in = ["string", "comment"] },
+  { start = "'", end = "'", close = true, newline = false, not_in = ["string", "comment"] },
+  { start = "{{", end = "}}", close = true, newline = false },
+]
+
+word_characters = ["_", "-", "$", "."]
+
+[overrides.comment]
+word_characters = []
+
+[overrides.string]
+word_characters = ["_", "-", "$", ".", "|", "{", "}"]

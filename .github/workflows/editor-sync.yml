@@ -1,0 +1,22 @@
+name: Editor Sync Check
+
+on:
+  pull_request:
+    paths:
+      - 'tools/nika-core/src/ast/raw/parser.rs'
+      - 'tools/nika-core/src/ast/raw/action.rs'
+      - 'tools/nika-core/src/binding/transform.rs'
+      - 'tools/nika-core/src/catalogs/builtins.rs'
+      - 'editors/**'
+
+jobs:
+  check-sync:
+    name: Editor keyword sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check editor keyword sync
+        run: ./editors/sync-editors.sh
