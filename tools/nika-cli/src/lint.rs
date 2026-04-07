@@ -12,6 +12,8 @@ use nika_engine::error::NikaError;
 use std::path::Path;
 
 #[cfg(test)]
+use nika_core::ast::templatable::Templatable;
+#[cfg(test)]
 use nika_engine::ast::analyzed::{
     AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach, AnalyzedInferAction,
     AnalyzedInvokeAction, AnalyzedRetry, AnalyzedTask, TaskId,
@@ -97,7 +99,7 @@ pub fn lint_workflow(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
 
         // L030: high concurrency
         if let Some(ref fe) = task.for_each {
-            if let Some(c) = fe.concurrency {
+            if let Some(c) = fe.concurrency.as_ref().and_then(|c| c.value()) {
                 if c > 10 {
                     findings.push(LintFinding {
                         severity: Severity::Warning,
@@ -417,8 +419,10 @@ mod tests {
 
     #[test]
     fn l001_fires_when_no_description() {
-        let mut wf = AnalyzedWorkflow::default();
-        wf.description = None;
+        let mut wf = AnalyzedWorkflow {
+            description: None,
+            ..Default::default()
+        };
         make_task(&mut wf, "t1", AnalyzedTaskAction::default());
         let findings = lint_workflow(&wf);
         assert!(has_rule(&findings, "L001"), "L001 should fire");
@@ -426,8 +430,10 @@ mod tests {
 
     #[test]
     fn l001_silent_when_description_present() {
-        let mut wf = AnalyzedWorkflow::default();
-        wf.description = Some("A good workflow".into());
+        let mut wf = AnalyzedWorkflow {
+            description: Some("A good workflow".into()),
+            ..Default::default()
+        };
         make_task(&mut wf, "t1", AnalyzedTaskAction::default());
         let findings = lint_workflow(&wf);
         assert!(!has_rule(&findings, "L001"), "L001 should NOT fire");
@@ -437,8 +443,10 @@ mod tests {
 
     #[test]
     fn l002_fires_when_no_name() {
-        let mut wf = AnalyzedWorkflow::default();
-        wf.name = None;
+        let mut wf = AnalyzedWorkflow {
+            name: None,
+            ..Default::default()
+        };
         make_task(&mut wf, "t1", AnalyzedTaskAction::default());
         let findings = lint_workflow(&wf);
         assert!(has_rule(&findings, "L002"), "L002 should fire");
@@ -446,8 +454,10 @@ mod tests {
 
     #[test]
     fn l002_silent_when_name_present() {
-        let mut wf = AnalyzedWorkflow::default();
-        wf.name = Some("my-workflow".into());
+        let mut wf = AnalyzedWorkflow {
+            name: Some("my-workflow".into()),
+            ..Default::default()
+        };
         make_task(&mut wf, "t1", AnalyzedTaskAction::default());
         let findings = lint_workflow(&wf);
         assert!(!has_rule(&findings, "L002"), "L002 should NOT fire");
@@ -511,8 +521,8 @@ mod tests {
             AnalyzedTaskAction::Fetch(AnalyzedFetchAction::default()),
         );
         wf.tasks.iter_mut().find(|t| t.id == id).unwrap().retry = Some(AnalyzedRetry {
-            max_attempts: 3,
-            delay_ms: 1000,
+            max_attempts: Templatable::Value(3),
+            delay_ms: Templatable::Value(1000),
             backoff: None,
             span: Span::dummy(),
         });
@@ -541,8 +551,8 @@ mod tests {
         wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
             items: "$data".into(),
             as_var: "item".into(),
-            concurrency: Some(15),
-            fail_fast: true,
+            concurrency: Some(Templatable::Value(15)),
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         });
         let findings = lint_workflow(&wf);
@@ -556,8 +566,8 @@ mod tests {
         wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
             items: "$data".into(),
             as_var: "item".into(),
-            concurrency: Some(5),
-            fail_fast: true,
+            concurrency: Some(Templatable::Value(5)),
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         });
         let findings = lint_workflow(&wf);
@@ -685,9 +695,11 @@ mod tests {
 
     #[test]
     fn clean_workflow_produces_no_warnings() {
-        let mut wf = AnalyzedWorkflow::default();
-        wf.name = Some("good-workflow".into());
-        wf.description = Some("A well-formed workflow".into());
+        let mut wf = AnalyzedWorkflow {
+            name: Some("good-workflow".into()),
+            description: Some("A well-formed workflow".into()),
+            ..Default::default()
+        };
 
         let id1 = make_task(
             &mut wf,
@@ -699,8 +711,8 @@ mod tests {
             let t = wf.tasks.iter_mut().find(|t| t.id == id1).unwrap();
             t.description = Some("Fetches data".into());
             t.retry = Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
                 backoff: None,
                 span: Span::dummy(),
             });
@@ -879,7 +891,7 @@ mod tests {
             items: "$data".into(),
             as_var: "item".into(),
             concurrency: None,
-            fail_fast: true,
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         });
         let findings = lint_workflow(&wf);
@@ -893,8 +905,8 @@ mod tests {
         wf.tasks.iter_mut().find(|t| t.id == id).unwrap().for_each = Some(AnalyzedForEach {
             items: "$data".into(),
             as_var: "item".into(),
-            concurrency: Some(5),
-            fail_fast: true,
+            concurrency: Some(Templatable::Value(5)),
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         });
         let findings = lint_workflow(&wf);

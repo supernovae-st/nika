@@ -11,6 +11,8 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 
+use nika_core::ast::templatable::Templatable;
+
 use super::action::{ExecParams, FetchParams, InferParams, RetryConfig, TaskAction};
 use super::agent::AgentParams;
 use super::analyzed::{
@@ -135,8 +137,11 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
     };
 
     // Use for_each concurrency/fail_fast when available, otherwise standalone values
-    let concurrency = fe_concurrency.or(task.concurrency.map(|c| c as usize));
-    let fail_fast = fe_fail_fast.or(task.fail_fast);
+    // TODO: resolve template at runtime
+    let concurrency =
+        fe_concurrency.or(task.concurrency.and_then(|c| c.value()).map(|c| c as usize));
+    let fail_fast =
+        fe_fail_fast.or(task.fail_fast.and_then(|f| f.value()));
 
     Ok(Task {
         id: task.name,
@@ -221,12 +226,16 @@ fn lower_infer(
         prompt: infer.prompt,
         provider,
         model,
-        temperature: infer.temperature,
-        max_tokens: infer.max_tokens,
+        // TODO: resolve template at runtime
+        temperature: infer.temperature.and_then(|t| t.value()),
+        // TODO: resolve template at runtime
+        max_tokens: infer.max_tokens.and_then(|t| t.value()),
         system: infer.system,
         response_format,
-        extended_thinking: infer.extended_thinking,
-        thinking_budget: infer.thinking_budget.map(u64::from),
+        // TODO: resolve template at runtime
+        extended_thinking: infer.extended_thinking.and_then(|t| t.value()),
+        // TODO: resolve template at runtime
+        thinking_budget: infer.thinking_budget.and_then(|t| t.value()).map(u64::from),
         content: infer
             .content
             .map(|parts| parts.into_iter().map(Into::into).collect()),
@@ -238,21 +247,31 @@ fn lower_infer(
 fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
     ExecParams {
         command: e.command,
-        shell: Some(e.shell),
+        // TODO: resolve template at runtime
+        shell: Some(e.shell.value().unwrap_or(false)),
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
         // to avoid losing sub-second values (e.g. 500ms -> 1s, not 0s)
-        timeout: e.timeout_ms.map(|ms| ms.div_ceil(1000)),
+        // TODO: resolve template at runtime
+        timeout: e
+            .timeout_ms
+            .and_then(|ms| ms.value())
+            .map(|ms| ms.div_ceil(1000)),
         cwd: e.cwd,
         env: if e.env.is_empty() {
             None
         } else {
             Some(e.env.into_iter().collect())
         },
-        max_stdout: e.max_stdout,
+        // TODO: resolve template at runtime
+        max_stdout: e.max_stdout.and_then(|v| v.value()),
     }
 }
 
 fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> FetchParams {
+    // TODO: resolve templates at runtime
+    let follow_redirects_val = fetch.follow_redirects.value().unwrap_or(true);
+    let session_val = fetch.session.value().unwrap_or(false);
+    let cache_val = fetch.cache.value().unwrap_or(false);
     FetchParams {
         url: fetch.url,
         method: fetch.method.as_str().to_string(),
@@ -260,14 +279,18 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         body: fetch.body,
         json: fetch.json,
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
-        timeout: fetch.timeout_ms.map(|ms| ms.div_ceil(1000)),
+        // TODO: resolve template at runtime
+        timeout: fetch
+            .timeout_ms
+            .and_then(|ms| ms.value())
+            .map(|ms| ms.div_ceil(1000)),
         retry: retry.map(lower_retry),
-        follow_redirects: Some(fetch.follow_redirects),
+        follow_redirects: Some(follow_redirects_val),
         response: fetch.response,
         extract: fetch.extract,
         selector: fetch.selector,
-        session: if fetch.session { Some(true) } else { None },
-        cache: if fetch.cache { Some(true) } else { None },
+        session: if session_val { Some(true) } else { None },
+        cache: if cache_val { Some(true) } else { None },
     }
 }
 
@@ -278,7 +301,11 @@ fn lower_invoke(invoke: AnalyzedInvokeAction) -> InvokeParams {
         params: invoke.params,
         resource: invoke.resource,
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
-        timeout: invoke.timeout_ms.map(|ms| ms.div_ceil(1000)),
+        // TODO: resolve template at runtime
+        timeout: invoke
+            .timeout_ms
+            .and_then(|ms| ms.value())
+            .map(|ms| ms.div_ceil(1000)),
     }
 }
 
@@ -305,6 +332,7 @@ fn lower_agent(
             }
         });
 
+    // TODO: resolve templates at runtime
     AgentParams {
         prompt: agent.prompt,
         system: agent.system,
@@ -312,16 +340,16 @@ fn lower_agent(
         model,
         mcp: agent.mcp,
         tools: agent.tools,
-        max_turns: agent.max_turns,
-        token_budget: agent.token_budget,
+        max_turns: agent.max_turns.and_then(|t| t.value()),
+        token_budget: agent.token_budget.and_then(|t| t.value()),
         stop_sequences: agent.stop_sequences,
         scope: agent.scope,
-        extended_thinking: agent.extended_thinking,
-        thinking_budget: agent.thinking_budget.map(u64::from),
-        depth_limit: agent.depth_limit,
+        extended_thinking: agent.extended_thinking.and_then(|t| t.value()),
+        thinking_budget: agent.thinking_budget.and_then(|t| t.value()).map(u64::from),
+        depth_limit: agent.depth_limit.and_then(|t| t.value()),
         tool_choice,
-        temperature: agent.temperature.map(|t| t as f32),
-        max_tokens: agent.max_tokens,
+        temperature: agent.temperature.and_then(|t| t.value()).map(|t| t as f32),
+        max_tokens: agent.max_tokens.and_then(|t| t.value()),
         skills: if agent.skills.is_empty() {
             None
         } else {
@@ -360,7 +388,8 @@ pub(crate) fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
         format: lower_output_format(output.format),
         schema,
         from_example: None,
-        max_retries: output.max_retries.map(|v| v as u8),
+        // TODO: resolve template at runtime
+        max_retries: output.max_retries.and_then(|v| v.value()).map(|v| v as u8),
         source_structured_spec: None,
     }
 }
@@ -391,12 +420,14 @@ pub(crate) fn lower_for_each(
             // Try parsing as JSON (e.g. `["a","b"]`); fall back to string binding.
             let items =
                 serde_json::from_str(&fe.items).unwrap_or(serde_json::Value::String(fe.items));
-            let concurrency = fe.concurrency.map(|p| p as usize);
+            // TODO: resolve template at runtime
+            let concurrency = fe.concurrency.and_then(|p| p.value()).map(|p| p as usize);
+            let fail_fast = fe.fail_fast.value().unwrap_or(true);
             (
                 Some(items),
                 Some(fe.as_var),
                 concurrency,
-                Some(fe.fail_fast),
+                Some(fail_fast),
             )
         }
     }
@@ -407,10 +438,11 @@ pub(crate) fn lower_for_each(
 // ---------------------------------------------------------------------------
 
 fn lower_retry(retry: AnalyzedRetry) -> RetryConfig {
+    // TODO: resolve templates at runtime
     RetryConfig {
-        max_attempts: retry.max_attempts,
-        backoff_ms: retry.delay_ms,
-        multiplier: retry.backoff.unwrap_or(1.0),
+        max_attempts: retry.max_attempts.value().unwrap_or(3),
+        backoff_ms: retry.delay_ms.value().unwrap_or(1000),
+        multiplier: retry.backoff.and_then(|b| b.value()).unwrap_or(1.0),
     }
 }
 
@@ -425,12 +457,12 @@ fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
         _ => None,
     };
     retry.map(|r| AnalyzedRetry {
-        max_attempts: r.max_attempts,
-        delay_ms: r.backoff_ms,
+        max_attempts: Templatable::Value(r.max_attempts),
+        delay_ms: Templatable::Value(r.backoff_ms),
         backoff: if r.multiplier.is_nan() || (r.multiplier - 1.0).abs() <= BACKOFF_UNITY_TOLERANCE {
             None
         } else {
-            Some(r.multiplier)
+            Some(Templatable::Value(r.multiplier))
         },
         span: Span::dummy(),
     })
@@ -679,8 +711,8 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             decompose: task.decompose.clone(),
             concurrency: task
                 .concurrency
-                .map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
-            fail_fast: task.fail_fast,
+                .map(|c| Templatable::Value(u32::try_from(c).unwrap_or(u32::MAX))),
+            fail_fast: task.fail_fast.map(Templatable::Value),
             artifact: task.artifact.clone(),
             log: task.log.clone(),
             structured: task.structured.clone(),
@@ -744,7 +776,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     })
 }
@@ -769,12 +801,12 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
         TaskAction::Infer { infer } => AnalyzedTaskAction::Infer(AnalyzedInferAction {
             prompt: infer.prompt.clone(),
             system: infer.system.clone(),
-            temperature: infer.temperature,
-            max_tokens: infer.max_tokens,
-            extended_thinking: infer.extended_thinking,
+            temperature: infer.temperature.map(Templatable::Value),
+            max_tokens: infer.max_tokens.map(Templatable::Value),
+            extended_thinking: infer.extended_thinking.map(Templatable::Value),
             thinking_budget: infer
                 .thinking_budget
-                .map(|b| u32::try_from(b).unwrap_or(u32::MAX)),
+                .map(|b| Templatable::Value(u32::try_from(b).unwrap_or(u32::MAX))),
             content: infer.content.as_ref().map(|parts| {
                 parts
                     .iter()
@@ -812,7 +844,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
         }),
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: exec.command.clone(),
-            shell: exec.shell.unwrap_or(false),
+            shell: Templatable::Value(exec.shell.unwrap_or(false)),
             cwd: exec.cwd.clone(),
             env: exec
                 .env
@@ -820,8 +852,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                 .unwrap_or_default(),
             // Convert seconds (runtime) back to milliseconds (analyzed)
-            timeout_ms: exec.timeout.map(|s| s * 1000),
-            max_stdout: exec.max_stdout,
+            timeout_ms: exec.timeout.map(|s| Templatable::Value(s * 1000)),
+            max_stdout: exec.max_stdout.map(Templatable::Value),
             span: Span::dummy(),
         }),
         TaskAction::Fetch { fetch } => AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
@@ -838,13 +870,13 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             body: fetch.body.clone(),
             json: fetch.json.clone(),
             // Convert seconds (runtime) back to milliseconds (analyzed)
-            timeout_ms: fetch.timeout.map(|s| s * 1000),
-            follow_redirects: fetch.follow_redirects.unwrap_or(true),
+            timeout_ms: fetch.timeout.map(|s| Templatable::Value(s * 1000)),
+            follow_redirects: Templatable::Value(fetch.follow_redirects.unwrap_or(true)),
             response: fetch.response,
             extract: fetch.extract,
             selector: fetch.selector.clone(),
-            session: fetch.session.unwrap_or(false),
-            cache: fetch.cache.unwrap_or(false),
+            session: Templatable::Value(fetch.session.unwrap_or(false)),
+            cache: Templatable::Value(fetch.cache.unwrap_or(false)),
             span: Span::dummy(),
         }),
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
@@ -853,14 +885,14 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             resource: invoke.resource.clone(),
             params: invoke.params.clone(),
             // Convert seconds (runtime) back to milliseconds (analyzed)
-            timeout_ms: invoke.timeout.map(|s| s * 1000),
+            timeout_ms: invoke.timeout.map(|s| Templatable::Value(s * 1000)),
             span: Span::dummy(),
         }),
         TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
             prompt: agent.prompt.clone(),
             tools: agent.tools.clone(),
-            max_turns: agent.max_turns,
-            max_tokens: agent.max_tokens,
+            max_turns: agent.max_turns.map(Templatable::Value),
+            max_tokens: agent.max_tokens.map(Templatable::Value),
             from: None,
             skills: agent
                 .skills
@@ -871,11 +903,11 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             system: agent.system.clone(),
             provider: None,
             model: None,
-            temperature: agent.temperature.map(f64::from),
-            token_budget: agent.token_budget,
-            extended_thinking: agent.extended_thinking,
-            thinking_budget: agent.thinking_budget.map(|v| v as u32),
-            depth_limit: agent.depth_limit,
+            temperature: agent.temperature.map(|t| Templatable::Value(f64::from(t))),
+            token_budget: agent.token_budget.map(Templatable::Value),
+            extended_thinking: agent.extended_thinking.map(Templatable::Value),
+            thinking_budget: agent.thinking_budget.map(|v| Templatable::Value(v as u32)),
+            depth_limit: agent.depth_limit.map(Templatable::Value),
             tool_choice: agent.tool_choice.as_ref().map(|tc| tc.as_str().to_string()),
             stop_sequences: agent.stop_sequences.clone(),
             scope: agent.scope.clone(),
@@ -907,7 +939,7 @@ fn unlower_output(output: &OutputPolicy) -> AnalyzedOutput {
         format,
         schema,
         schema_ref,
-        max_retries: output.max_retries.map(u32::from),
+        max_retries: output.max_retries.map(|v| Templatable::Value(u32::from(v))),
         span: Span::dummy(),
     }
 }
@@ -927,8 +959,9 @@ fn unlower_for_each(
     Some(AnalyzedForEach {
         items: items_str,
         as_var: as_var.cloned().unwrap_or_else(|| "item".to_string()),
-        concurrency: concurrency.map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
-        fail_fast: fail_fast.unwrap_or(true),
+        concurrency: concurrency
+            .map(|c| Templatable::Value(u32::try_from(c).unwrap_or(u32::MAX))),
+        fail_fast: Templatable::Value(fail_fast.unwrap_or(true)),
         span: Span::dummy(),
     })
 }
@@ -1036,10 +1069,10 @@ mod tests {
             action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
                 prompt: "Hello".to_string(),
                 system: Some("You are helpful".to_string()),
-                temperature: Some(0.7),
-                max_tokens: Some(100),
-                extended_thinking: Some(true),
-                thinking_budget: Some(8192),
+                temperature: Some(Templatable::Value(0.7)),
+                max_tokens: Some(Templatable::Value(100)),
+                extended_thinking: Some(Templatable::Value(true)),
+                thinking_budget: Some(Templatable::Value(8192)),
                 content: None,
                 response_format: None,
                 guardrails: Vec::new(),
@@ -1097,10 +1130,10 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "npm run build".to_string(),
-                shell: true,
+                shell: Templatable::Value(true),
                 cwd: Some("/app".to_string()),
                 env,
-                timeout_ms: Some(30000),
+                timeout_ms: Some(Templatable::Value(30000)),
                 max_stdout: None,
                 span: Span::dummy(),
             }),
@@ -1132,19 +1165,19 @@ mod tests {
                 headers: IndexMap::new(),
                 body: None,
                 json: Some(serde_json::json!({"key": "value"})),
-                timeout_ms: Some(5000),
-                follow_redirects: false,
+                timeout_ms: Some(Templatable::Value(5000)),
+                follow_redirects: Templatable::Value(false),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
-                backoff: Some(2.0),
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
+                backoff: Some(Templatable::Value(2.0)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "fetch_data")
@@ -1202,8 +1235,8 @@ mod tests {
             action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "Research AI papers".to_string(),
                 tools: vec!["nika:read".to_string(), "nika:write".to_string()],
-                max_turns: Some(10),
-                max_tokens: Some(4096),
+                max_turns: Some(Templatable::Value(10)),
+                max_tokens: Some(Templatable::Value(4096)),
                 from: None,
                 skills: vec!["writing".to_string()],
                 mcp: vec![],
@@ -1282,8 +1315,8 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: r#"["a","b","c"]"#.to_string(),
                 as_var: "item".to_string(),
-                concurrency: Some(3),
-                fail_fast: true,
+                concurrency: Some(Templatable::Value(3)),
+                fail_fast: Templatable::Value(true),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "par")
@@ -1305,7 +1338,7 @@ mod tests {
             items: "$my_list".to_string(),
             as_var: "x".to_string(),
             concurrency: None,
-            fail_fast: false,
+            fail_fast: Templatable::Value(false),
             span: Span::dummy(),
         }));
         assert_eq!(
@@ -1545,9 +1578,9 @@ mod tests {
         let id = wf.task_table.insert("infer_retry");
         let mut task = dummy_task(id, "infer_retry");
         task.retry = Some(AnalyzedRetry {
-            max_attempts: 3,
-            delay_ms: 1000,
-            backoff: Some(2.0),
+            max_attempts: Templatable::Value(3),
+            delay_ms: Templatable::Value(1000),
+            backoff: Some(Templatable::Value(2.0)),
             span: Span::dummy(),
         });
         wf.tasks.push(task);
@@ -1647,17 +1680,17 @@ mod tests {
                 body: None,
                 json: None,
                 timeout_ms: None,
-                follow_redirects: true,
+                follow_redirects: Templatable::Value(true),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
                 backoff: None, // None → multiplier 1.0
                 span: Span::dummy(),
             }),
@@ -1686,18 +1719,18 @@ mod tests {
                 body: None,
                 json: None,
                 timeout_ms: None,
-                follow_redirects: true,
+                follow_redirects: Templatable::Value(true),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
-                backoff: Some(1.00005), // Within tolerance of 1.0
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
+                backoff: Some(Templatable::Value(1.00005)), // Within tolerance of 1.0
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "fetcher")
@@ -1726,18 +1759,18 @@ mod tests {
                 body: None,
                 json: None,
                 timeout_ms: None,
-                follow_redirects: true,
+                follow_redirects: Templatable::Value(true),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
-                backoff: Some(1.00011),
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
+                backoff: Some(Templatable::Value(1.00011)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "fetcher")
@@ -1745,15 +1778,16 @@ mod tests {
 
         let lowered = lower(wf).unwrap();
         let unlowered = unlower(lowered).unwrap();
-        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff;
+        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff.clone();
         assert!(
             backoff.is_some(),
             "backoff of 1.00011 (just over tolerance) must NOT be collapsed to None"
         );
+        let backoff_val = backoff.unwrap().value().unwrap();
         assert!(
-            (backoff.unwrap() - 1.00011).abs() < f64::EPSILON * 100.0,
+            (backoff_val - 1.00011).abs() < f64::EPSILON * 100.0,
             "backoff value should be preserved: got {}",
-            backoff.unwrap()
+            backoff_val
         );
     }
 
@@ -1770,18 +1804,18 @@ mod tests {
                 body: None,
                 json: None,
                 timeout_ms: None,
-                follow_redirects: true,
+                follow_redirects: Templatable::Value(true),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
-                backoff: Some(0.99989),
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
+                backoff: Some(Templatable::Value(0.99989)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "fetcher")
@@ -1789,15 +1823,16 @@ mod tests {
 
         let lowered = lower(wf).unwrap();
         let unlowered = unlower(lowered).unwrap();
-        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff;
+        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff.clone();
         assert!(
             backoff.is_some(),
             "backoff of 0.99989 (just over tolerance on low side) must NOT be collapsed to None"
         );
+        let backoff_val = backoff.unwrap().value().unwrap();
         assert!(
-            (backoff.unwrap() - 0.99989).abs() < f64::EPSILON * 100.0,
+            (backoff_val - 0.99989).abs() < f64::EPSILON * 100.0,
             "backoff value should be preserved: got {}",
-            backoff.unwrap()
+            backoff_val
         );
     }
 
@@ -1815,18 +1850,18 @@ mod tests {
                 body: None,
                 json: None,
                 timeout_ms: None,
-                follow_redirects: true,
+                follow_redirects: Templatable::Value(true),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
-                max_attempts: 3,
-                delay_ms: 1000,
-                backoff: Some(1.0001),
+                max_attempts: Templatable::Value(3),
+                delay_ms: Templatable::Value(1000),
+                backoff: Some(Templatable::Value(1.0001)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "fetcher")
@@ -1834,7 +1869,7 @@ mod tests {
 
         let lowered = lower(wf).unwrap();
         let unlowered = unlower(lowered).unwrap();
-        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff;
+        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff.clone();
         assert!(
             backoff.is_none(),
             "backoff of exactly 1.0001 (at boundary, uses >) should be collapsed to None"
@@ -1850,8 +1885,8 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
                 prompt: "think hard".to_string(),
-                extended_thinking: Some(true),
-                thinking_budget: Some(u32::MAX),
+                extended_thinking: Some(Templatable::Value(true)),
+                thinking_budget: Some(Templatable::Value(u32::MAX)),
                 ..Default::default()
             }),
             ..dummy_task(id, "thinker")
@@ -1870,7 +1905,7 @@ mod tests {
         let unlowered = unlower(lowered).unwrap();
         match &unlowered.tasks[0].action {
             AnalyzedTaskAction::Infer(infer) => {
-                assert_eq!(infer.thinking_budget, Some(u32::MAX));
+                assert_eq!(infer.thinking_budget, Some(Templatable::Value(u32::MAX)));
             }
             _ => panic!("expected Infer"),
         }
@@ -1908,8 +1943,8 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: r#"["a","b","c"]"#.to_string(),
                 as_var: "item".to_string(),
-                concurrency: Some(2),
-                fail_fast: true,
+                concurrency: Some(Templatable::Value(2)),
+                fail_fast: Templatable::Value(true),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "iter")
@@ -1921,7 +1956,7 @@ mod tests {
         assert!(t.for_each.is_some(), "for_each should survive roundtrip");
         let fe = t.for_each.as_ref().unwrap();
         assert_eq!(fe.as_var, "item");
-        assert_eq!(fe.concurrency, Some(2));
+        assert_eq!(fe.concurrency, Some(Templatable::Value(2)));
     }
 
     #[test]
@@ -1966,7 +2001,7 @@ mod tests {
                 tool: "".to_string(), // resource-only invoke
                 resource: None,
                 params: None,
-                timeout_ms: Some(10000),
+                timeout_ms: Some(Templatable::Value(10000)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "read_res")
@@ -2136,7 +2171,7 @@ mod tests {
             action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "do something".to_string(),
                 tools: vec![],
-                max_turns: Some(5),
+                max_turns: Some(Templatable::Value(5)),
                 max_tokens: None,
                 from: Some("my_agent_def".to_string()),
                 skills: vec![],
@@ -2451,7 +2486,7 @@ mod tests {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(serde_json::json!({"type": "object"})),
                 schema_ref: None,
-                max_retries: Some(5),
+                max_retries: Some(Templatable::Value(5)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")
@@ -2479,7 +2514,7 @@ mod tests {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(serde_json::json!({"type": "object"})),
                 schema_ref: None,
-                max_retries: Some(3),
+                max_retries: Some(Templatable::Value(3)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")
@@ -2493,7 +2528,7 @@ mod tests {
             .expect("output should exist");
         assert_eq!(
             output.max_retries,
-            Some(3),
+            Some(Templatable::Value(3)),
             "max_retries should survive roundtrip"
         );
     }
@@ -2562,10 +2597,10 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "echo hi".to_string(),
-                shell: false,
+                shell: Templatable::Value(false),
                 cwd: None,
                 env: IndexMap::new(),
-                timeout_ms: Some(500),
+                timeout_ms: Some(Templatable::Value(500)),
                 max_stdout: None,
                 span: Span::dummy(),
             }),
@@ -2594,10 +2629,10 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "echo hi".to_string(),
-                shell: false,
+                shell: Templatable::Value(false),
                 cwd: None,
                 env: IndexMap::new(),
-                timeout_ms: Some(1000),
+                timeout_ms: Some(Templatable::Value(1000)),
                 max_stdout: None,
                 span: Span::dummy(),
             }),
@@ -2625,13 +2660,13 @@ mod tests {
                 headers: IndexMap::new(),
                 body: None,
                 json: None,
-                timeout_ms: Some(1500),
-                follow_redirects: true,
+                timeout_ms: Some(Templatable::Value(1500)),
+                follow_redirects: Templatable::Value(true),
                 response: None,
                 extract: None,
                 selector: None,
-                session: false,
-                cache: false,
+                session: Templatable::Value(false),
+                cache: Templatable::Value(false),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")
@@ -2661,7 +2696,7 @@ mod tests {
                 tool: "tool".to_string(),
                 resource: None,
                 params: None,
-                timeout_ms: Some(100),
+                timeout_ms: Some(Templatable::Value(100)),
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "t")

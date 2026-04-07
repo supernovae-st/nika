@@ -59,8 +59,9 @@ pub(crate) fn get_retry_config(task: &AnalyzedTask) -> Option<(Value, u8, InferP
         prompt: infer_action.prompt.clone(),
         provider: task.provider.clone(),
         model: task.model.clone(),
-        temperature: infer_action.temperature,
-        max_tokens: infer_action.max_tokens,
+        // TODO: resolve templates at runtime
+        temperature: infer_action.temperature.as_ref().and_then(|t| t.value()),
+        max_tokens: infer_action.max_tokens.as_ref().and_then(|t| t.value()),
         system: infer_action.system.clone(),
         response_format: None,
         extended_thinking: None,

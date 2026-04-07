@@ -11,6 +11,7 @@
 //! - is_truthy when: condition evaluation
 
 use super::*;
+use nika_core::ast::templatable::Templatable;
 use crate::ast::analyzed::{
     AnalyzedExecAction, AnalyzedForEach, AnalyzedInferAction, AnalyzedOutput, AnalyzedTask,
     AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
@@ -53,7 +54,7 @@ fn make_empty_workflow() -> AnalyzedWorkflow {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     }
 }
@@ -145,7 +146,7 @@ fn create_for_each_workflow(
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: command.to_string(),
-            shell,
+            shell: Templatable::Value(shell),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -162,8 +163,8 @@ fn create_for_each_workflow(
         for_each: Some(AnalyzedForEach {
             items: items_json.to_string(),
             as_var: as_var.to_string(),
-            concurrency,
-            fail_fast,
+            concurrency: concurrency.map(Templatable::Value),
+            fail_fast: Templatable::Value(fail_fast),
             span: Span::dummy(),
         }),
         retry: None,
@@ -203,7 +204,7 @@ fn create_for_each_workflow(
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     }
 }
@@ -305,7 +306,7 @@ fn create_exec_workflow(tasks: Vec<(&str, &str)>, edges: Vec<(&str, &str)>) -> A
                 description: None,
                 action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                     command: cmd.to_string(),
-                    shell: false,
+                    shell: Templatable::Value(false),
                     cwd: None,
                     env: IndexMap::new(),
                     timeout_ms: None,
@@ -359,7 +360,7 @@ fn create_exec_workflow(tasks: Vec<(&str, &str)>, edges: Vec<(&str, &str)>) -> A
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     }
 }
@@ -1021,7 +1022,7 @@ fn create_two_step_for_each_workflow(
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: step1_cmd.to_string(),
-            shell: step1_shell,
+            shell: Templatable::Value(step1_shell),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -1067,7 +1068,7 @@ fn create_two_step_for_each_workflow(
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: step2_cmd.to_string(),
-            shell: false,
+            shell: Templatable::Value(false),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -1085,7 +1086,7 @@ fn create_two_step_for_each_workflow(
             items: for_each_items.to_string(),
             as_var: "item".to_string(),
             concurrency: None,
-            fail_fast: true,
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         }),
         retry: None,
@@ -1125,7 +1126,7 @@ fn create_two_step_for_each_workflow(
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     }
 }
@@ -2065,7 +2066,7 @@ fn test_get_retry_config_none_for_exec_task() {
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: "echo hi".to_string(),
-            shell: false,
+            shell: Templatable::Value(false),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -3367,7 +3368,7 @@ fn create_with_template_for_each_workflow(
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: step1_cmd.to_string(),
-            shell: step1_shell,
+            shell: Templatable::Value(step1_shell),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -3413,7 +3414,7 @@ fn create_with_template_for_each_workflow(
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: step2_cmd.to_string(),
-            shell: false,
+            shell: Templatable::Value(false),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -3431,7 +3432,7 @@ fn create_with_template_for_each_workflow(
             items: for_each_template.to_string(),
             as_var: "item".to_string(),
             concurrency: None,
-            fail_fast: true,
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         }),
         retry: None,
@@ -3471,7 +3472,7 @@ fn create_with_template_for_each_workflow(
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     }
 }
@@ -3676,7 +3677,7 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: "test '{{with.item}}' != 'FAIL' && echo {{with.item | shell}}".to_string(),
-            shell: true,
+            shell: Templatable::Value(true),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -3693,8 +3694,8 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         for_each: Some(AnalyzedForEach {
             items: r#"["ok", "FAIL", "ok2"]"#.to_string(),
             as_var: "item".to_string(),
-            concurrency: Some(3),
-            fail_fast: true,
+            concurrency: Some(Templatable::Value(3)),
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         }),
         retry: None,
@@ -3719,7 +3720,7 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: "echo {{with.item | shell}}".to_string(),
-            shell: true,
+            shell: Templatable::Value(true),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -3736,8 +3737,8 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         for_each: Some(AnalyzedForEach {
             items: r#"["a", "b", "c"]"#.to_string(),
             as_var: "item".to_string(),
-            concurrency: Some(3),
-            fail_fast: true,
+            concurrency: Some(Templatable::Value(3)),
+            fail_fast: Templatable::Value(true),
             span: Span::dummy(),
         }),
         retry: None,
@@ -3777,7 +3778,7 @@ async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     };
 
@@ -3968,7 +3969,7 @@ async fn test_exec_task_with_retry_runs_and_succeeds() {
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: "echo hello".to_string(),
-            shell: false,
+            shell: Templatable::Value(false),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -3984,9 +3985,9 @@ async fn test_exec_task_with_retry_runs_and_succeeds() {
         output: None,
         for_each: None,
         retry: Some(AnalyzedRetry {
-            max_attempts: 3,
-            delay_ms: 100,
-            backoff: Some(2.0),
+            max_attempts: Templatable::Value(3),
+            delay_ms: Templatable::Value(100),
+            backoff: Some(Templatable::Value(2.0)),
             span: Span::dummy(),
         }),
         on_error: None,
@@ -4025,7 +4026,7 @@ async fn test_exec_task_with_retry_runs_and_succeeds() {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     };
 
@@ -4086,7 +4087,7 @@ async fn test_exec_task_with_retry_retries_on_failure() {
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: cmd,
-            shell: true,
+            shell: Templatable::Value(true),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -4102,8 +4103,8 @@ async fn test_exec_task_with_retry_retries_on_failure() {
         output: None,
         for_each: None,
         retry: Some(AnalyzedRetry {
-            max_attempts: 3,
-            delay_ms: 50,
+            max_attempts: Templatable::Value(3),
+            delay_ms: Templatable::Value(50),
             backoff: None,
             span: Span::dummy(),
         }),
@@ -4143,7 +4144,7 @@ async fn test_exec_task_with_retry_retries_on_failure() {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     };
 
@@ -4265,7 +4266,7 @@ fn make_preset_workflow(
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     }
 }
@@ -4498,7 +4499,7 @@ async fn test_multiple_tasks_different_presets() {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     };
 
@@ -4574,7 +4575,7 @@ async fn test_record_shorthand_true_creates_record() {
         description: None,
         action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: "echo hello".to_string(),
-            shell: false,
+            shell: Templatable::Value(false),
             cwd: None,
             env: IndexMap::new(),
             timeout_ms: None,
@@ -4626,7 +4627,7 @@ async fn test_record_shorthand_true_creates_record() {
         orchestrate: None,
         routing: None,
         schedule: None,
-        max_duration_secs: 3600,
+        max_duration_secs: Templatable::Value(3600),
         span: Span::dummy(),
     };
 

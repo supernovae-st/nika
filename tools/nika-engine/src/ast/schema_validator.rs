@@ -991,6 +991,45 @@ tasks:
 }
 
 // ========================================================================
+// Test: Template expressions in typed fields pass schema validation
+// Validates the Templatable<T> feature — templates in numeric/boolean fields
+// ========================================================================
+#[test]
+fn test_template_in_typed_fields_passes() {
+    let validator = WorkflowSchemaValidator::new().unwrap();
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+inputs:
+  temperature: 0.7
+  max_tokens: 4096
+  model: "gpt-4o"
+tasks:
+  - id: generate
+    model: "{{inputs.model}}"
+    infer:
+      prompt: "Hello"
+      temperature: "{{inputs.temperature}}"
+      max_tokens: "{{inputs.max_tokens}}"
+      extended_thinking: "{{inputs.think}}"
+  - id: run_cmd
+    exec:
+      command: "echo hello"
+      shell: "{{inputs.use_shell}}"
+      timeout: "{{inputs.timeout}}"
+  - id: scrape
+    fetch:
+      url: "https://example.com"
+      follow_redirects: "{{inputs.follow}}"
+"#;
+    let result = validator.validate_yaml(yaml);
+    assert!(
+        result.is_ok(),
+        "Template expressions in typed fields should pass schema: {:?}",
+        result
+    );
+}
+
+// ========================================================================
 // Test: Builtin invoke tool (nika:*) without mcp passes
 // JSON schema supports tool-only invoke for nika:* builtins
 // ========================================================================

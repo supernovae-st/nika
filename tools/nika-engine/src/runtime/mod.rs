@@ -49,6 +49,7 @@ pub mod preset;
 pub mod rate_limit;
 pub mod record;
 pub mod record_compress;
+pub mod resolve_typed;
 pub mod resolver;
 mod rig_agent_loop;
 pub mod robots;

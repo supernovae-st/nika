@@ -1408,12 +1408,16 @@ impl Runner {
 
                         // Get concurrency settings: for_each overrides, then standalone task fields
                         let fe = task.for_each.as_ref();
+                        // TODO: resolve templates at runtime
                         let concurrency = fe
-                            .and_then(|f| f.concurrency)
-                            .or(task.concurrency)
+                            .and_then(|f| f.concurrency.as_ref().and_then(|c| c.value()))
+                            .or(task.concurrency.as_ref().and_then(|c| c.value()))
                             .unwrap_or(1)
                             .max(1) as usize;
-                        let fail_fast = fe.map(|f| f.fail_fast).or(task.fail_fast).unwrap_or(true);
+                        let fail_fast = fe
+                            .map(|f| f.fail_fast.value().unwrap_or(true))
+                            .or(task.fail_fast.as_ref().and_then(|f| f.value()))
+                            .unwrap_or(true);
 
                         // Guard against unbounded for_each arrays that could OOM
                         const MAX_FOR_EACH_ITEMS: usize = 50_000;
@@ -1764,7 +1768,13 @@ impl Runner {
                 IndexMap::new();
 
             // Clamp max_duration_secs to prevent Instant overflow (max ~292 years)
-            let clamped_duration = self.workflow.max_duration_secs.min(604_800); // Cap at 1 week
+            // TODO: resolve template at runtime
+            let clamped_duration = self
+                .workflow
+                .max_duration_secs
+                .value()
+                .unwrap_or(3600)
+                .min(604_800); // Cap at 1 week
             let timeout_deadline =
                 tokio::time::Instant::now() + std::time::Duration::from_secs(clamped_duration);
             // Hoist the sleep future to avoid re-creating it on every select! iteration
@@ -1814,17 +1824,18 @@ impl Runner {
                             .map(|t| Arc::from(t.name.as_str()))
                             .collect();
 
+                        let max_dur = self.workflow.max_duration_secs.value().unwrap_or(3600);
                         self.event_log.emit(EventKind::WorkflowAborted {
                             reason: format!(
                                 "Workflow exceeded max_duration_secs ({} seconds)",
-                                self.workflow.max_duration_secs
+                                max_dur
                             ),
                             duration_ms: duration.as_millis() as u64,
                             running_tasks: running_tasks.clone(),
                         });
                         self.write_trace();
                         return Err(NikaError::WorkflowTimeout {
-                            duration_secs: self.workflow.max_duration_secs,
+                            duration_secs: max_dur,
                             running_tasks: running_tasks.iter().map(|t| t.to_string()).collect(),
                         });
                     }

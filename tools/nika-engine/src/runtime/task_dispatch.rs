@@ -152,7 +152,8 @@ pub(crate) async fn execute_task_iteration(
     }
 
     // Enforce context_budget if configured on this task
-    if let Some(budget) = task.context_budget {
+    // TODO: resolve template at runtime
+    if let Some(budget) = task.context_budget.as_ref().and_then(|b| b.value()) {
         let budget_event =
             crate::binding::token_budget::enforce_budget(&mut bindings, budget, &task_id);
         event_log.emit(budget_event);
@@ -175,6 +176,30 @@ pub(crate) async fn execute_task_iteration(
 
     // Bridge AnalyzedTask to lowered types at executor boundary
     // PERF(M4): pass references — lower_action clones only what each verb needs
+
+    // Resolve Templatable<T> fields (e.g., temperature: "{{inputs.temperature}}")
+    // before lowering, since lower_action extracts plain values from Templatable::Value.
+    let resolved_action = match crate::runtime::resolve_typed::resolve_action_templates(
+        &task.action,
+        &bindings,
+        &datastore,
+    ) {
+        Ok(action) => action,
+        Err(e) => {
+            let duration = start.elapsed();
+            event_log.emit(EventKind::TaskFailed {
+                task_id: Arc::clone(&task_id),
+                error: e.to_string(),
+                duration_ms: duration.as_millis() as u64,
+                error_code: Some(e.code().to_string()),
+            });
+            return IterationResult {
+                store_id: task_id,
+                result: TaskResult::failed(e.to_string(), duration),
+                for_each_info,
+            };
+        }
+    };
 
     // Resolve preset: merge agent preset values as fallback for provider/model
     // Precedence: task-level > preset > workflow-default
@@ -200,7 +225,7 @@ pub(crate) async fn execute_task_iteration(
                 .collect()
         });
     let mut lowered_action = lower_action(
-        &task.action,
+        &resolved_action,
         &effective_provider,
         &effective_model,
         &task.retry,
@@ -261,7 +286,8 @@ pub(crate) async fn execute_task_iteration(
         // Fetch handles retry internally (HTTP 5xx backoff) — skip runner retry.
         let is_fetch = matches!(lowered_action, TaskAction::Fetch { .. });
         let task_retry = if !is_fetch { task.retry.as_ref() } else { None };
-        let max_attempts = task_retry.map_or(1u32, |r| r.max_attempts.max(1));
+        // TODO: resolve template at runtime
+        let max_attempts = task_retry.map_or(1u32, |r| r.max_attempts.value().unwrap_or(3).max(1));
 
         let result = if max_attempts <= 1 {
             // No retry — single execution (with routing fallback if configured)
@@ -277,9 +303,13 @@ pub(crate) async fn execute_task_iteration(
                 .await
         } else {
             // Task-level retry loop with exponential backoff.
-            let delay_ms = task_retry.map_or(1000u64, |r| r.delay_ms);
+            // TODO: resolve templates at runtime
+            let delay_ms =
+                task_retry.map_or(1000u64, |r| r.delay_ms.value().unwrap_or(1000));
             let backoff = task_retry
-                .map_or(1.0f64, |r| r.backoff.unwrap_or(1.0))
+                .map_or(1.0f64, |r| {
+                    r.backoff.as_ref().and_then(|b| b.value()).unwrap_or(1.0)
+                })
                 .clamp(1.0, 10.0);
             let mut last_err: Option<crate::error::NikaError> = None;
             let mut final_result = None;
@@ -443,7 +473,7 @@ pub(crate) async fn execute_task_iteration(
 
                             OnErrorAction::RetryWithProvider { provider } => {
                                 let fb_action = lower_action(
-                                    &task.action,
+                                    &resolved_action,
                                     &Some(provider.clone()),
                                     &task.model.clone().or(effective_model.clone()),
                                     &None,
@@ -505,8 +535,16 @@ pub(crate) async fn execute_task_iteration(
                                                 .map(|s| nika_core::ProviderName::parse(s))
                                                 .collect()
                                         });
+                                    // Resolve templates in fallback task before lowering
+                                    let fb_resolved_action =
+                                        crate::runtime::resolve_typed::resolve_action_templates(
+                                            &fb_task.action,
+                                            &bindings,
+                                            &datastore,
+                                        )
+                                        .unwrap_or_else(|_| fb_task.action.clone());
                                     let fb_action = lower_action(
-                                        &fb_task.action,
+                                        &fb_resolved_action,
                                         &fb_task.provider,
                                         &fb_task.model,
                                         &None,

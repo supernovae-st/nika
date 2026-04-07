@@ -5,6 +5,7 @@
 use nika::ast::analyzer::{analyze, AnalyzeErrorKind};
 use nika::ast::raw::{parse, RawWorkflow};
 use nika::source::{ByteOffset, FileId};
+use nika_core::ast::Templatable;
 
 /// Helper to parse YAML and return RawWorkflow
 fn parse_yaml(yaml: &str) -> Result<RawWorkflow, String> {
@@ -674,7 +675,7 @@ tasks:
 
     let for_each = task.for_each.as_ref().unwrap();
     assert_eq!(for_each.as_var, "current_item");
-    assert_eq!(for_each.concurrency, Some(3));
+    assert_eq!(for_each.concurrency, Some(Templatable::Value(3)));
 }
 
 #[test]
@@ -707,7 +708,7 @@ tasks:
     assert!(task.retry.is_some(), "task should have retry config");
 
     let retry = task.retry.as_ref().unwrap();
-    assert_eq!(retry.max_attempts, 5);
-    assert_eq!(retry.delay_ms, 2000);
-    assert_eq!(retry.backoff, Some(1.5));
+    assert_eq!(retry.max_attempts, Templatable::Value(5));
+    assert_eq!(retry.delay_ms, Templatable::Value(2000));
+    assert_eq!(retry.backoff, Some(Templatable::Value(1.5)));
 }

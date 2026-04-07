@@ -1441,8 +1441,8 @@ mod tests {
                     Some(AnalyzedForEach {
                         items: r#"["a", "b", "c"]"#.to_string(),
                         as_var: "item".to_string(),
-                        concurrency: Some(3),
-                        fail_fast: true,
+                        concurrency: Some(nika_core::ast::templatable::Templatable::Value(3)),
+                        fail_fast: nika_core::ast::templatable::Templatable::Value(true),
                         span: Span::dummy(),
                     }),
                 ),

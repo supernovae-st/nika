@@ -10,6 +10,7 @@ use nika::ast::analyzed::{AnalyzedTaskAction, AnalyzedWorkflow};
 use nika::ast::parse_analyzed;
 use nika::event::EventLog;
 use nika::runtime::Runner;
+use nika_core::ast::Templatable;
 
 /// Helper to create a minimal workflow YAML and parse it
 fn parse_workflow(yaml: &str) -> AnalyzedWorkflow {
@@ -150,8 +151,8 @@ tasks:
         let task = &workflow.tasks[0];
         let fe = task.for_each.as_ref().unwrap();
 
-        assert_eq!(fe.concurrency, Some(3));
-        assert!(!fe.fail_fast);
+        assert_eq!(fe.concurrency, Some(Templatable::Value(3)));
+        assert_eq!(fe.fail_fast, Templatable::Value(false));
     }
 
     #[test]
@@ -171,9 +172,9 @@ tasks:
         let fe = task.for_each.as_ref().unwrap();
 
         // Default concurrency is 1 (sequential)
-        assert_eq!(fe.concurrency, Some(1));
+        assert_eq!(fe.concurrency, Some(Templatable::Value(1)));
         // Default fail_fast is true
-        assert!(fe.fail_fast);
+        assert_eq!(fe.fail_fast, Templatable::Value(true));
     }
 }
 

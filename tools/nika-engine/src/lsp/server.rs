@@ -189,9 +189,20 @@ fn check_model_compatibility(ast_index: &AstIndex, uri: &Uri, source: &str) -> V
         }
 
         let (extended_thinking, tool_choice_required) = match &task.action {
-            AnalyzedTaskAction::Infer(infer) => (infer.extended_thinking.unwrap_or(false), false),
+            AnalyzedTaskAction::Infer(infer) => (
+                infer
+                    .extended_thinking
+                    .as_ref()
+                    .and_then(|t| t.value())
+                    .unwrap_or(false),
+                false,
+            ),
             AnalyzedTaskAction::Agent(agent) => {
-                let et = agent.extended_thinking.unwrap_or(false);
+                let et = agent
+                    .extended_thinking
+                    .as_ref()
+                    .and_then(|t| t.value())
+                    .unwrap_or(false);
                 let tc = agent
                     .tool_choice
                     .as_deref()

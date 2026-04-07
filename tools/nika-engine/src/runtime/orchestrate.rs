@@ -10,6 +10,7 @@
 use nika_core::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
 };
+use nika_core::ast::templatable::Templatable;
 use nika_core::ast::completion::{CompletionConfig, CompletionMode};
 use nika_core::source::Span;
 
@@ -122,7 +123,7 @@ pub fn wrap_as_orchestrator(mut workflow: AnalyzedWorkflow) -> AnalyzedWorkflow 
             "nika:complete".to_string(),
             "nika:log".to_string(),
         ],
-        max_turns: Some(config.max_rounds * 3), // ~3 turns per round
+        max_turns: Some(Templatable::Value(config.max_rounds * 3)), // ~3 turns per round
         completion: Some(CompletionConfig {
             mode: CompletionMode::Explicit,
             ..Default::default()
@@ -322,7 +323,7 @@ mod tests {
 
         assert_eq!(orch.preset, Some("speed".to_string()));
         if let AnalyzedTaskAction::Agent(agent) = &orch.action {
-            assert_eq!(agent.max_turns, Some(15)); // 5 * 3
+            assert_eq!(agent.max_turns, Some(Templatable::Value(15))); // 5 * 3
             assert!(agent.limits.is_some());
         } else {
             panic!("Expected Agent action");
