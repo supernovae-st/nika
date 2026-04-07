@@ -858,7 +858,7 @@ fn check_ai_rules() -> Vec<DiagnosticCheck> {
         ("Claude Code", ".claude/rules/nika.md"),
         // Multi-file cursor: check the project layer (always loaded)
         ("Cursor", ".cursor/rules/nika-project.mdc"),
-        ("Copilot", ".github/copilot/nika.instructions.md"),
+        ("Copilot", ".github/copilot-instructions.md"),
         ("Windsurf", ".windsurf/rules/nika.md"),
         ("Roo Code", ".roo/rules/nika.md"),
         ("Gemini", ".gemini/GEMINI.md"),

@@ -672,7 +672,7 @@ pub fn fast_rule_update() -> bool {
     }
     if editors.contains(&"copilot") {
         install_rule(
-            &home.join(".github/copilot/nika.instructions.md"),
+            &home.join(".github/copilot-instructions.md"),
             &copilot_rules,
             "Copilot",
             "copilot",
@@ -800,7 +800,7 @@ fn setup_ai_rules() -> Vec<SetupResult> {
     // Copilot
     if editors.contains(&"copilot") {
         install_rule(
-            &home.join(".github/copilot/nika.instructions.md"),
+            &home.join(".github/copilot-instructions.md"),
             &copilot_rules,
             "Copilot",
             "copilot",
@@ -1223,7 +1223,7 @@ pub fn quick_editor_scan() {
                 install_vscode_extension("cursor", "supernovae.nika-lang");
             }
             "copilot" => install_rule(
-                &home.join(".github/copilot/nika.instructions.md"),
+                &home.join(".github/copilot-instructions.md"),
                 &copilot_rules,
                 "Copilot",
                 "copilot",

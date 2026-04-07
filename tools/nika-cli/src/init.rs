@@ -276,10 +276,11 @@ default = "anthropic"
                 }
             }
         });
-        fs::write(
-            &mcp_json_path,
-            serde_json::to_string_pretty(&mcp_content).unwrap() + "\n",
-        )?;
+        let json = serde_json::to_string_pretty(&mcp_content)
+            .map_err(|e| NikaError::ConfigError {
+                reason: e.to_string(),
+            })?;
+        fs::write(&mcp_json_path, json + "\n")?;
     }
 
     // Create AGENTS.md (cross-tool, works with any AI assistant)
@@ -328,10 +329,11 @@ default = "anthropic"
                 }
             }
         });
-        fs::write(
-            &cursor_mcp,
-            serde_json::to_string_pretty(&cursor_mcp_content).unwrap() + "\n",
-        )?;
+        let json = serde_json::to_string_pretty(&cursor_mcp_content)
+            .map_err(|e| NikaError::ConfigError {
+                reason: e.to_string(),
+            })?;
+        fs::write(&cursor_mcp, json + "\n")?;
     }
 
     // Windsurf: .windsurf/rules/nika.md (new location)
@@ -362,10 +364,11 @@ default = "anthropic"
                 "allow": ["mcp__nika__*", "Bash(nika *)"]
             }
         });
-        fs::write(
-            &claude_settings,
-            serde_json::to_string_pretty(&settings).unwrap() + "\n",
-        )?;
+        let json = serde_json::to_string_pretty(&settings)
+            .map_err(|e| NikaError::ConfigError {
+                reason: e.to_string(),
+            })?;
+        fs::write(&claude_settings, json + "\n")?;
     }
 
     // Create or append .gitignore
