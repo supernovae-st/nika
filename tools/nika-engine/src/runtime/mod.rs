@@ -56,6 +56,7 @@ pub mod robots;
 mod runner;
 pub mod security;
 mod skill_injector;
+pub mod spotlight;
 pub mod spawn;
 pub mod structured_output;
 pub(crate) mod structured_retry;
