@@ -76,7 +76,17 @@ impl RigAgentLoop {
         }
 
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let request = request_builder.max_tokens(effective_max_tokens).build();
+        let provider_name = self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or("");
+        let model_name = self.params.model.as_deref().unwrap_or("");
+        let (rig_max, token_params) =
+            crate::provider::rig::token_limit_for_model(provider_name, model_name, effective_max_tokens);
+        if let Some(mt) = rig_max {
+            request_builder = request_builder.max_tokens(mt);
+        }
+        if let Some(params) = token_params {
+            request_builder = request_builder.additional_params(params);
+        }
+        let request = request_builder.build();
 
         // Execute streaming request
         let mut stream =
@@ -263,10 +273,19 @@ impl RigAgentLoop {
             // Even without TUI, we need streaming to extract token usage from FinalResponse
             // Use preamble with injected skills
             let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+            let provider_name = self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or("");
+            let model_name = self.params.model.as_deref().unwrap_or("");
+            let (rig_max, token_params) =
+                crate::provider::rig::token_limit_for_model(provider_name, model_name, effective_max_tokens);
             let mut builder = AgentBuilder::new(model)
                 .preamble(&preamble)
-                .tools(tools)
-                .max_tokens(effective_max_tokens);
+                .tools(tools);
+            if let Some(mt) = rig_max {
+                builder = builder.max_tokens(mt);
+            }
+            if let Some(params) = token_params {
+                builder = builder.additional_params(params);
+            }
 
             // Apply temperature — strip for models that reject it
             if let Some(temp) = self.params.effective_temperature() {
@@ -427,10 +446,19 @@ impl RigAgentLoop {
         // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let provider_name = self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or("");
+        let model_name = self.params.model.as_deref().unwrap_or("");
+        let (rig_max, token_params) =
+            crate::provider::rig::token_limit_for_model(provider_name, model_name, effective_max_tokens);
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
-            .tools(tools)
-            .max_tokens(effective_max_tokens);
+            .tools(tools);
+        if let Some(mt) = rig_max {
+            builder = builder.max_tokens(mt);
+        }
+        if let Some(params) = token_params {
+            builder = builder.additional_params(params);
+        }
 
         // Apply temperature — strip for reasoning models
         if let Some(temp) = self.params.effective_temperature() {

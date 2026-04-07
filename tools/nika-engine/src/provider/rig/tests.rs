@@ -2032,3 +2032,58 @@ async fn test_openai_compat_infer_with_tools_tracks_tokens() {
         "completion_tokens should come from API response"
     );
 }
+
+// =========================================================================
+// token_limit_for_model tests
+// =========================================================================
+
+#[test]
+fn token_limit_openai_o3_uses_max_completion_tokens() {
+    let (rig_max, extra) = super::token_limit_for_model("openai", "o3", 4096);
+    assert!(rig_max.is_none(), "o3: must NOT set rig max_tokens");
+    let params = extra.expect("o3: must inject additional_params");
+    assert_eq!(params["max_completion_tokens"], 4096);
+}
+
+#[test]
+fn token_limit_openai_o4_mini_uses_max_completion_tokens() {
+    let (rig_max, extra) = super::token_limit_for_model("openai", "o4-mini", 8192);
+    assert!(rig_max.is_none());
+    assert_eq!(extra.unwrap()["max_completion_tokens"], 8192);
+}
+
+#[test]
+fn token_limit_openai_gpt52_uses_max_completion_tokens() {
+    let (rig_max, extra) = super::token_limit_for_model("openai", "gpt-5.2", 16384);
+    assert!(rig_max.is_none(), "gpt-5.2: must NOT set rig max_tokens");
+    assert_eq!(extra.unwrap()["max_completion_tokens"], 16384);
+}
+
+#[test]
+fn token_limit_openai_gpt4o_uses_max_tokens() {
+    let (rig_max, extra) = super::token_limit_for_model("openai", "gpt-4o", 4096);
+    assert_eq!(rig_max, Some(4096));
+    assert!(extra.is_none(), "gpt-4o: no additional_params needed");
+}
+
+#[test]
+fn token_limit_anthropic_uses_max_tokens() {
+    let (rig_max, extra) = super::token_limit_for_model("anthropic", "claude-sonnet-4-6", 8192);
+    assert_eq!(rig_max, Some(8192));
+    assert!(extra.is_none());
+}
+
+#[test]
+fn token_limit_custom_endpoint_uses_max_tokens() {
+    // Custom/vLLM endpoints: safe defaults even if model name matches o3
+    let (rig_max, extra) = super::token_limit_for_model("custom", "o3", 4096);
+    assert_eq!(rig_max, Some(4096), "custom endpoints always use max_tokens");
+    assert!(extra.is_none());
+}
+
+#[test]
+fn token_limit_groq_uses_max_tokens() {
+    let (rig_max, extra) = super::token_limit_for_model("groq", "llama-3.3-70b", 4096);
+    assert_eq!(rig_max, Some(4096));
+    assert!(extra.is_none());
+}

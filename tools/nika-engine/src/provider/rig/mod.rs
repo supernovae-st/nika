@@ -102,6 +102,30 @@ pub fn is_reasoning_model(model_id: &str) -> bool {
     !nika_core::catalogs::model_capabilities(provider, model_id).supports_temperature
 }
 
+/// Resolve the correct token-limit parameter for a provider + model combination.
+///
+/// Returns `(rig_max_tokens, additional_params)`:
+/// - Standard models: `(Some(N), None)` → call `.max_tokens(N)` on the rig builder
+/// - OpenAI reasoning models: `(None, Some(json))` → skip `.max_tokens()`, inject
+///   `max_completion_tokens` via `.additional_params()`
+///
+/// rig-core's `max_tokens` field is `Option<u64>` with `skip_serializing_if`,
+/// so not calling `.max_tokens()` omits it entirely from the JSON body.
+pub(crate) fn token_limit_for_model(
+    provider: &str,
+    model: &str,
+    max_tok: u64,
+) -> (Option<u64>, Option<serde_json::Value>) {
+    use nika_core::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+    match model_capabilities(provider, model).token_limit_param {
+        TokenLimitParam::MaxCompletionTokens => (
+            None,
+            Some(serde_json::json!({"max_completion_tokens": max_tok})),
+        ),
+        TokenLimitParam::MaxTokens => (Some(max_tok), None),
+    }
+}
+
 /// Compute effective temperature, stripping it for models that reject it.
 ///
 /// Assumes "openai" provider context. For provider-aware checks, use
@@ -855,18 +879,26 @@ impl RigProvider {
                 .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
             }
             // All rig-core providers (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi)
-            _ => dispatch_rig!(self, |client| {
-                let agent = client
-                    .agent(model_id)
-                    .max_tokens(effective_max_tokens)
-                    .build();
-                timeout(INFER_TIMEOUT, agent.prompt(prompt))
-                    .await
-                    .map_err(|_| RigInferError::Timeout {
-                        duration_ms: INFER_TIMEOUT.as_millis() as u64,
-                    })?
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }),
+            _ => {
+                let (rig_max, token_params) =
+                    token_limit_for_model(self.name(), model_id, effective_max_tokens);
+                dispatch_rig!(self, |client| {
+                    let mut builder = client.agent(model_id);
+                    if let Some(mt) = rig_max {
+                        builder = builder.max_tokens(mt);
+                    }
+                    if let Some(params) = token_params.clone() {
+                        builder = builder.additional_params(params);
+                    }
+                    let agent = builder.build();
+                    timeout(INFER_TIMEOUT, agent.prompt(prompt))
+                        .await
+                        .map_err(|_| RigInferError::Timeout {
+                            duration_ms: INFER_TIMEOUT.as_millis() as u64,
+                        })?
+                        .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+                })
+            }
         }
     }
 
@@ -934,6 +966,7 @@ impl RigProvider {
 
         let model_id = model.unwrap_or_else(|| self.default_model());
         let max_tok = max_tokens.map(|v| v.max(16)).map(u64::from).unwrap_or(8192);
+        let (rig_max, token_params) = token_limit_for_model(self.name(), model_id, max_tok);
 
         let message = Message::User {
             content: OneOrMany::many(user_content).map_err(|_| {
@@ -943,7 +976,13 @@ impl RigProvider {
 
         macro_rules! vision_prompt {
             ($client:expr) => {{
-                let mut builder = $client.agent(model_id).max_tokens(max_tok);
+                let mut builder = $client.agent(model_id);
+                if let Some(mt) = rig_max {
+                    builder = builder.max_tokens(mt);
+                }
+                if let Some(ref params) = token_params {
+                    builder = builder.additional_params(params.clone());
+                }
                 if let Some(sys) = system {
                     builder = builder.preamble(sys);
                 }
@@ -970,7 +1009,13 @@ impl RigProvider {
                 ..
             } => {
                 let compat_timeout = std::time::Duration::from_secs(*timeout_secs);
-                let mut builder = client.agent(model_id).max_tokens(max_tok);
+                let mut builder = client.agent(model_id);
+                if let Some(mt) = rig_max {
+                    builder = builder.max_tokens(mt);
+                }
+                if let Some(ref params) = token_params {
+                    builder = builder.additional_params(params.clone());
+                }
                 if let Some(sys) = system {
                     builder = builder.preamble(sys);
                 }
@@ -1061,6 +1106,7 @@ impl RigProvider {
 
         let model_id = model.unwrap_or_else(|| self.default_model());
         let max_tok = max_tokens.map(|v| v.max(16)).map(u64::from).unwrap_or(8192);
+        let (rig_max, token_params) = token_limit_for_model(self.name(), model_id, max_tok);
 
         let message = Message::User {
             content: OneOrMany::many(user_content).map_err(|_| {
@@ -1074,7 +1120,13 @@ impl RigProvider {
         macro_rules! vision_stream {
             ($client:expr, $is_anthropic:expr) => {{
                 let model = $client.completion_model(model_id);
-                let mut builder = model.completion_request(message).max_tokens(max_tok);
+                let mut builder = model.completion_request(message);
+                if let Some(mt) = rig_max {
+                    builder = builder.max_tokens(mt);
+                }
+                if let Some(ref params) = token_params {
+                    builder = builder.additional_params(params.clone());
+                }
                 if let Some(sys) = system {
                     builder = builder.preamble(sys.to_string());
                 }
@@ -1175,13 +1227,19 @@ impl RigProvider {
 
         let model_id = model.unwrap_or_else(|| self.default_model());
         let max_tok = max_tokens.map(|v| v.max(16) as u64).unwrap_or(8192);
+        let (rig_max, token_params) = token_limit_for_model(self.name(), model_id, max_tok);
 
         macro_rules! build_agent_with_tools {
             ($client:expr) => {{
                 let mut builder = AgentBuilder::new($client.completion_model(model_id))
                     .tools(tools)
-                    .tool_choice(RigToolChoice::Required)
-                    .max_tokens(max_tok);
+                    .tool_choice(RigToolChoice::Required);
+                if let Some(mt) = rig_max {
+                    builder = builder.max_tokens(mt);
+                }
+                if let Some(ref params) = token_params {
+                    builder = builder.additional_params(params.clone());
+                }
                 if let Some(sys) = system {
                     builder = builder.preamble(sys);
                 }
@@ -1328,13 +1386,21 @@ impl RigProvider {
         let max_tokens = options.max_tokens.unwrap_or(8192).max(16);
 
         let effective_temperature = effective_temperature_for_model(model_id, options.temperature);
+        let (rig_max, token_params) =
+            token_limit_for_model(self.name(), model_id, max_tokens as u64);
 
         // Use system prompt as preamble (not concatenated into user prompt)
         let user_prompt = prompt.to_string();
 
         macro_rules! build_and_prompt {
             ($client:expr) => {{
-                let mut builder = $client.agent(model_id).max_tokens(max_tokens as u64);
+                let mut builder = $client.agent(model_id);
+                if let Some(mt) = rig_max {
+                    builder = builder.max_tokens(mt);
+                }
+                if let Some(ref params) = token_params {
+                    builder = builder.additional_params(params.clone());
+                }
                 if let Some(system) = &options.system {
                     builder = builder.preamble(system);
                 }
@@ -1678,12 +1744,18 @@ impl RigProvider {
             // All rig-core providers (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi, OpenAiCompat)
             _ => {
                 let is_anthropic = self.is_anthropic();
+                let (rig_max, token_params) =
+                    token_limit_for_model(self.name(), model_id, effective_max_tokens);
                 dispatch_rig!(self, |client| {
                     let model = client.completion_model(model_id);
-                    let request = model
-                        .completion_request(prompt)
-                        .max_tokens(effective_max_tokens)
-                        .build();
+                    let mut rb = model.completion_request(prompt);
+                    if let Some(mt) = rig_max {
+                        rb = rb.max_tokens(mt);
+                    }
+                    if let Some(params) = token_params.clone() {
+                        rb = rb.additional_params(params);
+                    }
+                    let request = rb.build();
                     let stream_start = Instant::now();
                     let mut stream = model
                         .stream(request)
@@ -1773,6 +1845,8 @@ impl RigProvider {
         let mut result = StreamResult::default();
 
         let effective_temperature = effective_temperature_for_model(model_id, options.temperature);
+        let (rig_max, token_params) =
+            token_limit_for_model(self.name(), model_id, max_tokens as u64);
 
         // Helper: build request with options and start streaming
         // Uses preamble() for system prompt (not string concatenation) to ensure
@@ -1780,9 +1854,13 @@ impl RigProvider {
         macro_rules! build_request_with_options {
             ($client:expr) => {{
                 let model = $client.completion_model(model_id);
-                let mut rb = model
-                    .completion_request(prompt)
-                    .max_tokens(max_tokens as u64);
+                let mut rb = model.completion_request(prompt);
+                if let Some(mt) = rig_max {
+                    rb = rb.max_tokens(mt);
+                }
+                if let Some(ref params) = token_params {
+                    rb = rb.additional_params(params.clone());
+                }
                 if let Some(ref system) = options.system {
                     rb = rb.preamble(system.clone());
                 }
