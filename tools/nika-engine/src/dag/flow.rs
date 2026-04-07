@@ -1522,7 +1522,6 @@ mod tests {
                 record: None,
                 preset: None,
                 when: None,
-                trust_elevated: false,
             })],
         };
 
@@ -1596,7 +1595,6 @@ mod tests {
                     record: None,
                     preset: None,
                     when: None,
-                trust_elevated: false,
                 }),
                 Arc::new(Task {
                     id: "b".to_string(),
@@ -1624,7 +1622,6 @@ mod tests {
                     record: None,
                     preset: None,
                     when: None,
-                trust_elevated: false,
                 }),
             ],
         };
@@ -1698,7 +1695,6 @@ mod tests {
                     record: None,
                     preset: None,
                     when: None,
-                trust_elevated: false,
                 }),
                 Arc::new(Task {
                     id: "b".to_string(),
@@ -1726,7 +1722,6 @@ mod tests {
                     record: None,
                     preset: None,
                     when: None,
-                trust_elevated: false,
                 }),
             ],
         };

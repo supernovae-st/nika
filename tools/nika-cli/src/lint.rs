@@ -400,6 +400,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
+            trust_elevated: false,
             span: Span::dummy(),
         });
         id
@@ -835,6 +836,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
+            trust_elevated: false,
             span: Span::dummy(),
         });
         // Second task with same name but different TaskId
@@ -865,6 +867,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
+            trust_elevated: false,
             span: Span::dummy(),
         });
 
