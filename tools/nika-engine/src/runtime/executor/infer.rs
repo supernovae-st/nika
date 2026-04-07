@@ -839,12 +839,10 @@ impl TaskExecutor {
             || infer.extended_thinking == Some(true);
 
         // Build options once (reused across retry attempts)
-        // Provider-aware extended thinking: Claude uses thinking block, OpenAI reasoning
-        // models use max_completion_tokens + reasoning_effort.
-        let is_openai_reasoning = provider_name == "openai"
-            && model
-                .map(|m| m.starts_with("o1") || m.starts_with("o3") || m.starts_with("o4"))
-                .unwrap_or(false);
+        // Provider-aware capabilities: token param, temperature, thinking mechanism.
+        use nika_core::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+        let caps = model_capabilities(provider_name, model.unwrap_or(""));
+        let is_openai_reasoning = caps.token_limit_param == TokenLimitParam::MaxCompletionTokens;
 
         let additional_params = if infer.extended_thinking == Some(true) {
             let budget = infer.thinking_budget.unwrap_or(4096);
@@ -867,6 +865,13 @@ impl TaskExecutor {
                 Some(serde_json::json!({
                     "thinking": { "type": "enabled", "budget_tokens": budget }
                 }))
+            } else if caps.supports_thinking {
+                // Provider supports thinking but we don't have a specific implementation
+                tracing::warn!(
+                    provider = provider_name,
+                    "extended_thinking mechanism not implemented for {provider_name} — ignoring"
+                );
+                None
             } else {
                 tracing::warn!(
                     provider = provider_name,
@@ -897,7 +902,8 @@ impl TaskExecutor {
         // This ensures deterministic extraction across runs.
         let is_structured = output_policy.is_some_and(|p| p.is_structured());
         let effective_temperature = if infer.extended_thinking == Some(true) {
-            Some(1.0)
+            // Claude requires temperature=1.0 for thinking; others: pass through
+            if provider_name == "anthropic" { Some(1.0) } else { infer.temperature }
         } else if infer.temperature.is_none() && is_structured {
             Some(0.0)
         } else {

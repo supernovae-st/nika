@@ -141,6 +141,43 @@ pub static KNOWN_PRICING: &[ModelPricing] = &[
         input_per_million: 30.0,
         output_per_million: 60.0,
     },
+    // GPT-5 family: most specific patterns first (pro before base, newer before older)
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-5.4-nano",
+        input_per_million: 0.10,
+        output_per_million: 0.40,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-5.4-mini",
+        input_per_million: 0.40,
+        output_per_million: 1.60,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-5.4",
+        input_per_million: 2.00,
+        output_per_million: 8.00,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-5.2-pro",
+        input_per_million: 21.0,
+        output_per_million: 168.0,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-5.2",
+        input_per_million: 1.75,
+        output_per_million: 14.0,
+    },
+    ModelPricing {
+        provider: "OpenAI",
+        model_pattern: "gpt-5",
+        input_per_million: 1.75,
+        output_per_million: 14.0,
+    },
     // o1-mini before o1
     ModelPricing {
         provider: "OpenAI",
@@ -354,8 +391,14 @@ pub static KNOWN_PRICING: &[ModelPricing] = &[
         output_per_million: 1.5,
     },
     // ═══════════════════════════════════════════════════════════
-    // xAI — more specific before less specific
+    // xAI — more specific before less specific (grok-4 before grok-3)
     // ═══════════════════════════════════════════════════════════
+    ModelPricing {
+        provider: "xAI",
+        model_pattern: "grok-4",
+        input_per_million: 3.0,
+        output_per_million: 15.0,
+    },
     ModelPricing {
         provider: "xAI",
         model_pattern: "grok-3-mini-fast",
@@ -547,6 +590,43 @@ mod tests {
     }
 
     #[test]
+    fn gpt5_pricing() {
+        let p = find_pricing("gpt-5.2").unwrap();
+        assert!((p.input_per_million - 1.75).abs() < f64::EPSILON);
+        assert!((p.output_per_million - 14.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn gpt5_pro_pricing() {
+        let p = find_pricing("gpt-5.2-pro").unwrap();
+        assert!((p.input_per_million - 21.0).abs() < f64::EPSILON);
+        assert!((p.output_per_million - 168.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn gpt5_dated_variant_fallback() {
+        // gpt-5.2-2025-12-11 should match gpt-5.2 via contains() fallback
+        let p = find_pricing("gpt-5.2-2025-12-11").unwrap();
+        assert!((p.input_per_million - 1.75).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn gpt54_pricing() {
+        let base = find_pricing("gpt-5.4").unwrap();
+        let mini = find_pricing("gpt-5.4-mini").unwrap();
+        let nano = find_pricing("gpt-5.4-nano").unwrap();
+        assert!(nano.input_per_million < mini.input_per_million);
+        assert!(mini.input_per_million < base.input_per_million);
+    }
+
+    #[test]
+    fn grok4_pricing() {
+        let p = find_pricing("grok-4").unwrap();
+        assert!((p.input_per_million - 3.0).abs() < f64::EPSILON);
+        assert!((p.output_per_million - 15.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
     fn gpt41_variants_differentiated() {
         let nano = find_pricing("gpt-4.1-nano").unwrap();
         let mini = find_pricing("gpt-4.1-mini").unwrap();
@@ -669,5 +749,52 @@ mod tests {
     fn gemini_free_preview() {
         let p = find_pricing("gemini-2.0-flash-exp").unwrap();
         assert!((p.input_per_million - 0.0).abs() < f64::EPSILON);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Contract tests — capabilities + pricing consistency
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn all_openai_reasoning_models_have_pricing() {
+        use crate::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+        let reasoning_models = [
+            "o1", "o3", "o3-mini", "o3-pro", "o4-mini",
+            "gpt-5", "gpt-5.2", "gpt-5.2-pro",
+            "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
+        ];
+        for model in reasoning_models {
+            let caps = model_capabilities("openai", model);
+            assert_eq!(
+                caps.token_limit_param,
+                TokenLimitParam::MaxCompletionTokens,
+                "'{model}' should use max_completion_tokens"
+            );
+            assert!(
+                find_pricing(model).is_some(),
+                "Missing pricing for reasoning model '{model}'"
+            );
+        }
+    }
+
+    #[test]
+    fn standard_models_use_max_tokens() {
+        use crate::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+        let standard_models = [
+            ("openai", "gpt-4o"),
+            ("openai", "gpt-4.1"),
+            ("anthropic", "claude-sonnet-4-6"),
+            ("gemini", "gemini-2.5-flash"),
+            ("mistral", "mistral-large-latest"),
+            ("deepseek", "deepseek-chat"),
+        ];
+        for (provider, model) in standard_models {
+            let caps = model_capabilities(provider, model);
+            assert_eq!(
+                caps.token_limit_param,
+                TokenLimitParam::MaxTokens,
+                "'{model}' on '{provider}' should use max_tokens"
+            );
+        }
     }
 }

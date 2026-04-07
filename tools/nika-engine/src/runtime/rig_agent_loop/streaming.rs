@@ -65,15 +65,11 @@ impl RigAgentLoop {
             request_builder = request_builder.preamble(sys.to_string());
         }
 
-        // Apply temperature — but strip for reasoning models (o3, gpt-5, deepseek-reasoner)
-        // which reject temperature with HTTP 400
+        // Apply temperature — strip for models that reject it
         if let Some(temp) = self.params.effective_temperature() {
-            if crate::provider::rig::is_reasoning_model(self.params.model.as_deref().unwrap_or(""))
-            {
-                tracing::warn!(
-                    model = self.params.model.as_deref().unwrap_or("unknown"),
-                    "Stripping temperature for reasoning model in agent stream path"
-                );
+            let model_id = self.params.model.as_deref().unwrap_or("");
+            if crate::provider::rig::is_reasoning_model(model_id) {
+                tracing::warn!(model = model_id, "temperature stripped for reasoning model in agent stream");
             } else {
                 request_builder = request_builder.temperature(f64::from(temp));
             }
@@ -272,15 +268,11 @@ impl RigAgentLoop {
                 .tools(tools)
                 .max_tokens(effective_max_tokens);
 
-            // Apply temperature — strip for reasoning models
+            // Apply temperature — strip for models that reject it
             if let Some(temp) = self.params.effective_temperature() {
-                if crate::provider::rig::is_reasoning_model(
-                    self.params.model.as_deref().unwrap_or(""),
-                ) {
-                    tracing::warn!(
-                        model = self.params.model.as_deref().unwrap_or("unknown"),
-                        "Stripping temperature for reasoning model in agent path"
-                    );
+                let model_id = self.params.model.as_deref().unwrap_or("");
+                if crate::provider::rig::is_reasoning_model(model_id) {
+                    tracing::warn!(model = model_id, "temperature stripped for reasoning model in agent");
                 } else {
                     builder = builder.temperature(f64::from(temp));
                 }

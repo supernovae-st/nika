@@ -9,6 +9,7 @@
 //! - [`builtins`] -- 63 known nika:* builtin tool names
 
 pub mod builtins;
+pub mod capabilities;
 pub mod cost;
 pub mod lsp_types;
 pub mod mcp_aliases;
@@ -18,6 +19,7 @@ pub mod resolver;
 
 // Re-export main types for convenient access
 pub use builtins::{is_known_builtin, KNOWN_BUILTIN_TOOLS};
+pub use capabilities::{model_capabilities, ModelCapabilities, TokenLimitParam};
 pub use cost::{
     estimate_cost, find_pricing, model_cost_label, CostEstimate, ModelPricing, KNOWN_PRICING,
 };

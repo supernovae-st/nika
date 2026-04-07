@@ -45,6 +45,9 @@ pub mod budget;
 // Vision/multimodal content parts
 pub mod content;
 
+// Template-aware typed values
+pub mod templatable;
+
 // Type modules
 pub mod agent_def;
 pub mod artifact;
@@ -77,6 +80,7 @@ pub use record::RecordSpec;
 pub use routing::RoutingConfig;
 pub use schema::SchemaVersion;
 pub use structured::StructuredOutputSpec;
+pub use templatable::Templatable;
 
 // ============================================================================
 // Unified Pipeline: YAML -> Raw -> Analyzed

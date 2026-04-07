@@ -1272,6 +1272,10 @@ fn reasoning_model_o_series() {
 fn reasoning_model_gpt5() {
     assert!(is_reasoning_model("gpt-5"));
     assert!(is_reasoning_model("gpt-5-turbo"));
+    assert!(is_reasoning_model("gpt-5.2"));
+    assert!(is_reasoning_model("gpt-5.2-pro"));
+    assert!(is_reasoning_model("gpt-5.2-2025-12-11"));
+    assert!(is_reasoning_model("gpt-5.2-chat-latest"));
 }
 
 #[test]

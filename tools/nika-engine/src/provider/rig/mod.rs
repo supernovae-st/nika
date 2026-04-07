@@ -87,27 +87,31 @@ pub fn build_response_format_params(schema: &serde_json::Value) -> serde_json::V
 
 /// Check if a model ID is a reasoning model that does not support `temperature`.
 ///
-/// OpenAI reasoning models (o-series, gpt-5) and DeepSeek Reasoner reject
-/// `temperature` with HTTP 400. We strip it with a warning instead of crashing.
+/// **Deprecated:** Prefer [`nika_core::catalogs::model_capabilities`] directly
+/// for richer, provider-aware capability checks. This function assumes OpenAI
+/// provider context and only checks temperature support.
+///
+/// Kept for backward compatibility with callers that don't have provider context.
 pub fn is_reasoning_model(model_id: &str) -> bool {
-    let lower = model_id.to_lowercase();
-    // OpenAI o-series reasoning models
-    lower == "o1"
-        || lower == "o1-mini"
-        || lower == "o1-pro"
-        || lower == "o3"
-        || lower == "o3-mini"
-        || lower == "o3-pro"
-        || lower == "o4-mini"
-        || lower.starts_with("o1-")
-        || lower.starts_with("o3-")
-        || lower == "o4"
-        || lower.starts_with("o4-")
-        // OpenAI GPT-5 (reasoning by default)
-        || lower == "gpt-5"
-        || lower.starts_with("gpt-5-")
-        // DeepSeek Reasoner
-        || lower == "deepseek-reasoner"
+    // Delegate to the centralized catalog with "openai" as default provider
+    // context, since most callers are in OpenAI code paths.
+    !nika_core::catalogs::model_capabilities("openai", model_id).supports_temperature
+}
+
+/// Compute effective temperature, stripping it for models that reject it.
+///
+/// Assumes "openai" provider context. For provider-aware checks, use
+/// `model_capabilities(provider, model).supports_temperature` directly.
+fn effective_temperature_for_model(model_id: &str, requested: Option<f64>) -> Option<f64> {
+    if requested.is_some() && is_reasoning_model(model_id) {
+        tracing::warn!(
+            model = %model_id,
+            "temperature stripped for model that does not support it"
+        );
+        None
+    } else {
+        requested
+    }
 }
 
 /// Provider type enum for rig-core providers
@@ -734,13 +738,37 @@ impl RigProvider {
         temperature: Option<f64>,
         timeout: std::time::Duration,
     ) -> Result<(String, u64, u64), RigInferError> {
+        use nika_core::catalogs::capabilities::{model_capabilities, TokenLimitParam};
+
+        // Infer provider from base_url for capability lookup
+        let provider_hint = if base_url.contains("api.openai.com") {
+            "openai"
+        } else if base_url.contains("openrouter.ai") {
+            "openrouter"
+        } else {
+            // Custom endpoint — safe defaults (max_tokens, allow temperature)
+            "custom"
+        };
+        let caps = model_capabilities(provider_hint, model);
+
         let mut body = serde_json::json!({
             "model": model,
             "messages": messages,
-            "max_tokens": max_tokens,
         });
+        match caps.token_limit_param {
+            TokenLimitParam::MaxCompletionTokens => {
+                body["max_completion_tokens"] = serde_json::json!(max_tokens);
+            }
+            TokenLimitParam::MaxTokens => {
+                body["max_tokens"] = serde_json::json!(max_tokens);
+            }
+        }
         if let Some(temp) = temperature {
-            body["temperature"] = serde_json::json!(temp);
+            if caps.supports_temperature {
+                body["temperature"] = serde_json::json!(temp);
+            } else {
+                tracing::warn!(model, "temperature stripped — model does not support it");
+            }
         }
 
         let (json, prompt_tokens, completion_tokens) =
@@ -1295,18 +1323,7 @@ impl RigProvider {
         // Clamp to 16 minimum — OpenAI rejects < 16, no provider benefits from < 16
         let max_tokens = options.max_tokens.unwrap_or(8192).max(16);
 
-        // Strip temperature for reasoning models (BUG 5 / NIKA-031)
-        let effective_temperature = if options.temperature.is_some() && is_reasoning_model(model_id)
-        {
-            tracing::warn!(
-                model = %model_id,
-                "temperature ignored for reasoning model '{}' (not supported)",
-                model_id
-            );
-            None
-        } else {
-            options.temperature
-        };
+        let effective_temperature = effective_temperature_for_model(model_id, options.temperature);
 
         // Use system prompt as preamble (not concatenated into user prompt)
         let user_prompt = prompt.to_string();
@@ -1751,18 +1768,7 @@ impl RigProvider {
         let mut response_buf = String::with_capacity(4096);
         let mut result = StreamResult::default();
 
-        // Strip temperature for reasoning models (BUG 5 / NIKA-031)
-        let effective_temperature = if options.temperature.is_some() && is_reasoning_model(model_id)
-        {
-            tracing::warn!(
-                model = %model_id,
-                "temperature ignored for reasoning model '{}' (not supported)",
-                model_id
-            );
-            None
-        } else {
-            options.temperature
-        };
+        let effective_temperature = effective_temperature_for_model(model_id, options.temperature);
 
         // Helper: build request with options and start streaming
         // Uses preamble() for system prompt (not string concatenation) to ensure

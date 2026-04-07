@@ -13,11 +13,11 @@ use crate::catalogs::providers::find_provider;
 pub static PROVIDER_DEFAULTS: &[(&str, &str)] = &[
     // rig-core providers
     ("anthropic", "claude-sonnet-4-6"),
-    ("openai", "gpt-4o"),
+    ("openai", "gpt-5.2"),
     ("mistral", "mistral-large-latest"),
     ("groq", "llama-3.3-70b-versatile"),
     ("deepseek", "deepseek-chat"),
-    ("gemini", "gemini-2.0-flash"),
+    ("gemini", "gemini-2.5-flash"),
     ("xai", "grok-3-fast"),
     // OpenAI-compat providers
     ("openrouter", "anthropic/claude-sonnet-4-6"),
@@ -60,8 +60,8 @@ pub fn default_model_for_provider(provider: &str) -> Option<&'static str> {
 /// Falls back to [`default_model_for_provider`] when no cheap alternative exists.
 pub static PROVIDER_CHEAP_MODELS: &[(&str, &str)] = &[
     ("anthropic", "claude-haiku-4-5"),
-    ("openai", "gpt-4.1-mini"),
-    ("gemini", "gemini-2.0-flash"),
+    ("openai", "gpt-5.2"),
+    ("gemini", "gemini-2.5-flash"),
     ("groq", "llama-3.3-70b-versatile"),
     ("deepseek", "deepseek-chat"),
     ("mistral", "mistral-small-latest"),
@@ -314,7 +314,7 @@ mod tests {
             1,
             Some("llama-3.3-70b-versatile"),
         );
-        assert_eq!(r.model_id, "gpt-4o");
+        assert_eq!(r.model_id, "gpt-5.2");
         assert!(matches!(r.source, ModelSource::FallbackSubstituted { .. }));
         if let ModelSource::FallbackSubstituted {
             original_model,
@@ -369,6 +369,36 @@ mod tests {
                 default_model_for_provider(id).is_some(),
                 "Provider '{}' missing default model",
                 id
+            );
+        }
+    }
+
+    /// Canary test — fails when a default model gets retired.
+    /// Update defaults in PROVIDER_DEFAULTS BEFORE the retirement date.
+    #[test]
+    fn default_models_are_not_retired() {
+        let retired = [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            "gpt-4-turbo",
+            "gpt-3.5-turbo",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+        ];
+        for (provider, model) in PROVIDER_DEFAULTS.iter() {
+            assert!(
+                !retired.contains(model),
+                "Default model for '{provider}' is '{model}' which is RETIRED — update PROVIDER_DEFAULTS"
+            );
+        }
+        for (provider, model) in PROVIDER_CHEAP_MODELS.iter() {
+            assert!(
+                !retired.contains(model),
+                "Cheap model for '{provider}' is '{model}' which is RETIRED — update PROVIDER_CHEAP_MODELS"
             );
         }
     }
