@@ -381,6 +381,16 @@ default = "anthropic"
         let settings = serde_json::json!({
             "permissions": {
                 "allow": ["mcp__nika__*", "Bash(nika *)"]
+            },
+            "hooks": {
+                "PostToolUse": [{
+                    "matcher": "Edit|Write",
+                    "hooks": [{
+                        "type": "command",
+                        "command": "FILE=$(cat | jq -r '.tool_input.file_path // empty'); case \"$FILE\" in *.nika.yaml) nika check \"$FILE\" 2>&1 | head -20 ;; esac; exit 0",
+                        "timeout": 10000
+                    }]
+                }]
             }
         });
         let json = serde_json::to_string_pretty(&settings)
@@ -389,6 +399,14 @@ default = "anthropic"
             })?;
         fs::write(&claude_settings, json + "\n")?;
     }
+
+    // Claude Code: .claude/rules/nika-workflows.md (project-level Layer 1+2)
+    let claude_rules_dir = claude_dir.join("rules");
+    fs::create_dir_all(&claude_rules_dir).ok();
+    write_if_absent(
+        &claude_rules_dir.join("nika-workflows.md"),
+        &rules::assemble_claude_rules(),
+    )?;
 
     // Create or append .gitignore
     let gitignore_path = root.join(".gitignore");
@@ -711,5 +729,67 @@ mod tests {
         assert!(windsurf.exists(), ".windsurf/rules/nika.md should exist");
         // Old .windsurfrules should not exist
         assert!(!temp.path().join(".windsurfrules").exists());
+    }
+
+    // Test 30: init generates .claude/settings.json with PostToolUse hook
+    #[tokio::test]
+    async fn init_generates_claude_settings_with_hooks() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let settings: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(temp.path().join(".claude/settings.json")).unwrap(),
+        )
+        .unwrap();
+        // Must have hooks.PostToolUse
+        assert!(
+            settings["hooks"]["PostToolUse"].is_array(),
+            "should have PostToolUse hooks array"
+        );
+        // Must have permissions.allow with nika
+        assert!(
+            settings["permissions"]["allow"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str().unwrap_or("").contains("nika")),
+            "should have nika permission"
+        );
+    }
+
+    // Test 31: init generates .claude/rules/nika-workflows.md
+    #[tokio::test]
+    async fn init_generates_claude_project_rules() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let rules = temp.path().join(".claude/rules/nika-workflows.md");
+        assert!(rules.exists(), ".claude/rules/nika-workflows.md should exist");
+
+        let content = std::fs::read_to_string(&rules).unwrap();
+        assert!(content.contains("nika/workflow@0.12"));
+        assert!(content.contains("infer:"));
+    }
+
+    // Test 32: init generates .amazonq/rules/nika.rule.md
+    #[tokio::test]
+    async fn init_generates_amazonq_rules() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let amazonq = temp.path().join(".amazonq/rules/nika.rule.md");
+        assert!(amazonq.exists(), ".amazonq/rules/nika.rule.md should exist");
+    }
+
+    // Test 33: init generates .clinerules
+    #[tokio::test]
+    async fn init_generates_clinerules() {
+        let temp = tempdir().unwrap();
+        init_project_at(temp.path(), "plan", false).await.unwrap();
+
+        let cline = temp.path().join(".clinerules");
+        assert!(cline.exists(), ".clinerules should exist");
+        let content = std::fs::read_to_string(&cline).unwrap();
+        assert!(content.contains("nika/workflow@0.12"));
     }
 }
