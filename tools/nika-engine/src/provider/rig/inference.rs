@@ -195,7 +195,9 @@ impl RigProvider {
                     duration_ms: INFER_TIMEOUT.as_millis() as u64,
                 })?
                 .map(|r| r.message.content)
-                .map_err(|e: super::super::native::NativeError| RigInferError::PromptError(e.to_string()))
+                .map_err(|e: super::super::native::NativeError| {
+                    RigInferError::PromptError(e.to_string())
+                })
             }
             // All rig-core providers (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, XAi)
             _ => {
@@ -266,7 +268,8 @@ impl RigProvider {
                         .to_string(),
                 ));
             }
-            let (prompt_text, vision_images) = super::provider_streaming::extract_native_vision_parts(&user_content)?;
+            let (prompt_text, vision_images) =
+                super::provider_streaming::extract_native_vision_parts(&user_content)?;
             let options = super::super::native::ChatOptions {
                 max_tokens,
                 ..Default::default()
@@ -279,7 +282,9 @@ impl RigProvider {
             .map_err(|_| RigInferError::Timeout {
                 duration_ms: VISION_TIMEOUT.as_millis() as u64,
             })?
-            .map_err(|e: super::super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
+            .map_err(|e: super::super::native::NativeError| {
+                RigInferError::PromptError(e.to_string())
+            })?;
             return Ok(response.message.content);
         }
 
@@ -398,7 +403,8 @@ impl RigProvider {
                         .to_string(),
                 ));
             }
-            let (prompt_text, vision_images) = super::provider_streaming::extract_native_vision_parts(&user_content)?;
+            let (prompt_text, vision_images) =
+                super::provider_streaming::extract_native_vision_parts(&user_content)?;
             let options = super::super::native::ChatOptions {
                 max_tokens,
                 ..Default::default()
@@ -411,7 +417,9 @@ impl RigProvider {
             .map_err(|_| RigInferError::Timeout {
                 duration_ms: VISION_STREAM_TIMEOUT.as_millis() as u64,
             })?
-            .map_err(|e: super::super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
+            .map_err(|e: super::super::native::NativeError| {
+                RigInferError::PromptError(e.to_string())
+            })?;
             // Send full response as a single Done chunk (non-streaming fallback)
             let text = response.message.content;
             if let Err(e) = tx.send(StreamChunk::Done(text.clone())).await {

@@ -190,7 +190,10 @@ mod tests {
                 TokenLimitParam::MaxCompletionTokens,
                 "{model} should use max_completion_tokens"
             );
-            assert!(caps.supports_temperature, "{model} should support temperature");
+            assert!(
+                caps.supports_temperature,
+                "{model} should support temperature"
+            );
         }
     }
 

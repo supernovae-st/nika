@@ -2077,7 +2077,11 @@ fn token_limit_anthropic_uses_max_tokens() {
 fn token_limit_custom_endpoint_uses_max_tokens() {
     // Custom/vLLM endpoints: safe defaults even if model name matches o3
     let (rig_max, extra) = super::token_limit_for_model("custom", "o3", 4096);
-    assert_eq!(rig_max, Some(4096), "custom endpoints always use max_tokens");
+    assert_eq!(
+        rig_max,
+        Some(4096),
+        "custom endpoints always use max_tokens"
+    );
     assert!(extra.is_none());
 }
 

@@ -1662,8 +1662,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_jobs_negative_offset_limit_returns_200() {
-        let (app, state, token, _dir) =
-            test_app_multikey("*", nika_storage::Role::Operator).await;
+        let (app, state, token, _dir) = test_app_multikey("*", nika_storage::Role::Operator).await;
 
         create_test_job(&state.storage, "test.nika.yaml").await;
 
@@ -1687,8 +1686,7 @@ mod tests {
 
     #[tokio::test]
     async fn artifact_download_path_traversal_rejected() {
-        let (app, state, token, _dir) =
-            test_app_multikey("*", nika_storage::Role::Operator).await;
+        let (app, state, token, _dir) = test_app_multikey("*", nika_storage::Role::Operator).await;
 
         let job_id = create_test_job(&state.storage, "test.nika.yaml").await;
 

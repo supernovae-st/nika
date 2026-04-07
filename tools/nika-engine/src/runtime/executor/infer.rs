@@ -903,7 +903,11 @@ impl TaskExecutor {
         let is_structured = output_policy.is_some_and(|p| p.is_structured());
         let effective_temperature = if infer.extended_thinking == Some(true) {
             // Claude requires temperature=1.0 for thinking; others: pass through
-            if provider_name == "anthropic" { Some(1.0) } else { infer.temperature }
+            if provider_name == "anthropic" {
+                Some(1.0)
+            } else {
+                infer.temperature
+            }
         } else if infer.temperature.is_none() && is_structured {
             Some(0.0)
         } else {

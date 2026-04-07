@@ -10,8 +10,8 @@
 use nika_core::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
 };
-use nika_core::ast::templatable::Templatable;
 use nika_core::ast::completion::{CompletionConfig, CompletionMode};
+use nika_core::ast::templatable::Templatable;
 use nika_core::source::Span;
 
 /// The reserved task ID for the orchestrator agent.

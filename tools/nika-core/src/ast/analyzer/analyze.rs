@@ -1288,12 +1288,8 @@ fn analyze_task(
                     ctx.errors.push(AnalyzeError {
                         kind: AnalyzeErrorKind::InvalidValue,
                         span: s.span,
-                        message: format!(
-                            "context_budget must be between 1 and 200000, got {val}"
-                        ),
-                        suggestion: Some(
-                            "Use a value like 4000 (roughly 16K chars)".to_string(),
-                        ),
+                        message: format!("context_budget must be between 1 and 200000, got {val}"),
+                        suggestion: Some("Use a value like 4000 (roughly 16K chars)".to_string()),
                         note: None,
                     });
                     return None;

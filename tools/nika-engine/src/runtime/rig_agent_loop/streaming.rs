@@ -69,17 +69,28 @@ impl RigAgentLoop {
         if let Some(temp) = self.params.effective_temperature() {
             let model_id = self.params.model.as_deref().unwrap_or("");
             if crate::provider::rig::is_reasoning_model(model_id) {
-                tracing::warn!(model = model_id, "temperature stripped for reasoning model in agent stream");
+                tracing::warn!(
+                    model = model_id,
+                    "temperature stripped for reasoning model in agent stream"
+                );
             } else {
                 request_builder = request_builder.temperature(f64::from(temp));
             }
         }
 
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let provider_name = self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or("");
+        let provider_name = self
+            .params
+            .provider
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or("");
         let model_name = self.params.model.as_deref().unwrap_or("");
-        let (rig_max, token_params) =
-            crate::provider::rig::token_limit_for_model(provider_name, model_name, effective_max_tokens);
+        let (rig_max, token_params) = crate::provider::rig::token_limit_for_model(
+            provider_name,
+            model_name,
+            effective_max_tokens,
+        );
         if let Some(mt) = rig_max {
             request_builder = request_builder.max_tokens(mt);
         }
@@ -273,13 +284,19 @@ impl RigAgentLoop {
             // Even without TUI, we need streaming to extract token usage from FinalResponse
             // Use preamble with injected skills
             let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-            let provider_name = self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or("");
+            let provider_name = self
+                .params
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or("");
             let model_name = self.params.model.as_deref().unwrap_or("");
-            let (rig_max, token_params) =
-                crate::provider::rig::token_limit_for_model(provider_name, model_name, effective_max_tokens);
-            let mut builder = AgentBuilder::new(model)
-                .preamble(&preamble)
-                .tools(tools);
+            let (rig_max, token_params) = crate::provider::rig::token_limit_for_model(
+                provider_name,
+                model_name,
+                effective_max_tokens,
+            );
+            let mut builder = AgentBuilder::new(model).preamble(&preamble).tools(tools);
             if let Some(mt) = rig_max {
                 builder = builder.max_tokens(mt);
             }
@@ -291,7 +308,10 @@ impl RigAgentLoop {
             if let Some(temp) = self.params.effective_temperature() {
                 let model_id = self.params.model.as_deref().unwrap_or("");
                 if crate::provider::rig::is_reasoning_model(model_id) {
-                    tracing::warn!(model = model_id, "temperature stripped for reasoning model in agent");
+                    tracing::warn!(
+                        model = model_id,
+                        "temperature stripped for reasoning model in agent"
+                    );
                 } else {
                     builder = builder.temperature(f64::from(temp));
                 }
@@ -446,13 +466,19 @@ impl RigAgentLoop {
         // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
         let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
-        let provider_name = self.params.provider.as_ref().map(|p| p.as_str()).unwrap_or("");
+        let provider_name = self
+            .params
+            .provider
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or("");
         let model_name = self.params.model.as_deref().unwrap_or("");
-        let (rig_max, token_params) =
-            crate::provider::rig::token_limit_for_model(provider_name, model_name, effective_max_tokens);
-        let mut builder = AgentBuilder::new(model)
-            .preamble(&preamble)
-            .tools(tools);
+        let (rig_max, token_params) = crate::provider::rig::token_limit_for_model(
+            provider_name,
+            model_name,
+            effective_max_tokens,
+        );
+        let mut builder = AgentBuilder::new(model).preamble(&preamble).tools(tools);
         if let Some(mt) = rig_max {
             builder = builder.max_tokens(mt);
         }

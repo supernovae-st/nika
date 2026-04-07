@@ -307,7 +307,13 @@ mod tests {
         };
 
         assert_eq!(infer.prompt.value, "Hello, world!");
-        assert_eq!(infer.temperature.as_ref().unwrap().value, Templatable::Value(0.7));
-        assert_eq!(infer.max_tokens.as_ref().unwrap().value, Templatable::Value(1000));
+        assert_eq!(
+            infer.temperature.as_ref().unwrap().value,
+            Templatable::Value(0.7)
+        );
+        assert_eq!(
+            infer.max_tokens.as_ref().unwrap().value,
+            Templatable::Value(1000)
+        );
     }
 }

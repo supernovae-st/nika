@@ -3,9 +3,9 @@
 //! Covers text streaming, vision streaming, and streaming with options.
 
 use super::*;
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
-use std::time::Instant;
 
 impl RigProvider {
     /// Stream text completion with real-time token updates
@@ -392,4 +392,3 @@ pub(super) fn extract_native_vision_parts(
 
     Ok((text_parts.join("\n"), images))
 }
-

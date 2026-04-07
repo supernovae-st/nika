@@ -367,8 +367,8 @@ pub(crate) async fn execute_task_iteration(
         } else {
             None
         };
-        let max_attempts = effective_retry
-            .map_or(1u32, |r| r.max_attempts.value().unwrap_or(3).max(1));
+        let max_attempts =
+            effective_retry.map_or(1u32, |r| r.max_attempts.value().unwrap_or(3).max(1));
 
         let result = if max_attempts <= 1 {
             // No retry — single execution (with routing fallback if configured)
@@ -384,8 +384,7 @@ pub(crate) async fn execute_task_iteration(
                 .await
         } else {
             // Task-level retry loop with exponential backoff.
-            let delay_ms =
-                effective_retry.map_or(1000u64, |r| r.delay_ms.value().unwrap_or(1000));
+            let delay_ms = effective_retry.map_or(1000u64, |r| r.delay_ms.value().unwrap_or(1000));
             let backoff = effective_retry
                 .map_or(1.0f64, |r| {
                     r.backoff.as_ref().and_then(|b| b.value()).unwrap_or(1.0)

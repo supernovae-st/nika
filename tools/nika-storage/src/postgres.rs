@@ -159,10 +159,12 @@ impl PostgresStorage {
         .await
         .map_err(|e| StorageError::Other(format!("deduplicate artifacts: {e}")))?;
 
-        query("CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_unique ON job_artifacts(job_id, name)")
-            .execute(&pool)
-            .await
-            .map_err(|e| StorageError::Other(format!("artifacts unique index: {e}")))?;
+        query(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_artifacts_unique ON job_artifacts(job_id, name)",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| StorageError::Other(format!("artifacts unique index: {e}")))?;
 
         // Record schema version (idempotent — ON CONFLICT ignores if already set)
         let now = chrono::Utc::now().to_rfc3339();

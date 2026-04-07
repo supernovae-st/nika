@@ -11,7 +11,6 @@
 //! - is_truthy when: condition evaluation
 
 use super::*;
-use nika_core::ast::templatable::Templatable;
 use crate::ast::analyzed::{
     AnalyzedExecAction, AnalyzedForEach, AnalyzedInferAction, AnalyzedOutput, AnalyzedTask,
     AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
@@ -24,6 +23,7 @@ use crate::runtime::structured_retry::{get_retry_config, is_retryable};
 use crate::runtime::task_dispatch::is_truthy;
 use crate::source::Span;
 use indexmap::IndexMap;
+use nika_core::ast::templatable::Templatable;
 use serde_json::json;
 use std::panic::panic_any;
 use std::time::Duration;

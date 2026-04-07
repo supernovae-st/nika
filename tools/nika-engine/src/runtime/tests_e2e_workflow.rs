@@ -2113,7 +2113,10 @@ tasks:
 "#;
     let output = run_and_get(yaml, "gen").await;
     // Mock provider returns deterministic output — just verify task succeeded
-    assert!(!output.is_empty(), "Task with templated temperature should produce output");
+    assert!(
+        !output.is_empty(),
+        "Task with templated temperature should produce output"
+    );
 }
 
 /// E2E: concurrency as {{inputs.*}} template resolves correctly in for_each.
@@ -2136,7 +2139,10 @@ tasks:
 "#;
     let runner = run_yaml(yaml).await;
     let result = runner.datastore().get("process").expect("process result");
-    assert!(result.is_success(), "for_each with templated concurrency should succeed");
+    assert!(
+        result.is_success(),
+        "for_each with templated concurrency should succeed"
+    );
 }
 
 /// E2E: retry.max_attempts as template.
@@ -2158,5 +2164,8 @@ tasks:
     infer: "Generate content"
 "#;
     let output = run_and_get(yaml, "gen").await;
-    assert!(!output.is_empty(), "Task with templated retry should produce output");
+    assert!(
+        !output.is_empty(),
+        "Task with templated retry should produce output"
+    );
 }

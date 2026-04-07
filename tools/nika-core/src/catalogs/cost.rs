@@ -759,9 +759,17 @@ mod tests {
     fn all_openai_reasoning_models_have_pricing() {
         use crate::catalogs::capabilities::{model_capabilities, TokenLimitParam};
         let reasoning_models = [
-            "o1", "o3", "o3-mini", "o3-pro", "o4-mini",
-            "gpt-5", "gpt-5.2", "gpt-5.2-pro",
-            "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
+            "o1",
+            "o3",
+            "o3-mini",
+            "o3-pro",
+            "o4-mini",
+            "gpt-5",
+            "gpt-5.2",
+            "gpt-5.2-pro",
+            "gpt-5.4",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
         ];
         for model in reasoning_models {
             let caps = model_capabilities("openai", model);
