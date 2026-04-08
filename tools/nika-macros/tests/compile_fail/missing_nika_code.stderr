@@ -1,0 +1,5 @@
+error: variant `MissingCode` is missing #[nika_code("...")]  or #[nika_code(delegate)]
+ --> tests/compile_fail/missing_nika_code.rs:5:5
+  |
+5 |     MissingCode,
+  |     ^^^^^^^^^^^
