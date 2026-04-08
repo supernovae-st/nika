@@ -43,6 +43,59 @@ pub(crate) fn is_truthy(value: &str) -> bool {
     !matches!(trimmed, "" | "false" | "null" | "0" | "0.0")
 }
 
+/// Sprint 2 Item 5: compute the runtime trust level of a task's output.
+///
+/// Mirrors the compile-time `TaintAnalyzer::compute_output_trust` rules
+/// but operates on the actual upstream task results via
+/// `datastore.get_trust()`. Used to populate `TaskResult::trust_level`
+/// and emit `TrustLevelAssigned` events so the SecuritySummary trust
+/// counters can increment and downstream taint propagation works.
+fn compute_runtime_trust(
+    task: &AnalyzedTask,
+    datastore: &RunContext,
+) -> nika_core::trust::TrustLevel {
+    use nika_core::ast::analyzed::AnalyzedTaskAction;
+    use nika_core::binding::BindingSource;
+    use nika_core::trust::{builtin_output_trust, TrustLevel};
+
+    // Compute input trust by merging upstream binding sources.
+    let mut input_trust = TrustLevel::Trusted;
+    for entry in task.with_spec.values() {
+        let binding_trust = match &entry.source.source {
+            BindingSource::Task(tid) => datastore
+                .get_trust(tid.as_ref())
+                .unwrap_or(TrustLevel::Trusted),
+            BindingSource::Input(_) | BindingSource::LoopVar(_) => {
+                datastore.invocation_source().input_trust()
+            }
+            BindingSource::Context(_) | BindingSource::Vault { .. } | BindingSource::Env(_) => {
+                TrustLevel::Trusted
+            }
+        };
+        input_trust = input_trust.merge(binding_trust);
+    }
+
+    match &task.action {
+        AnalyzedTaskAction::Fetch(_) => TrustLevel::Untrusted,
+        AnalyzedTaskAction::Exec(_) => TrustLevel::Untrusted,
+        AnalyzedTaskAction::Invoke(inv) => {
+            if inv.tool.starts_with("nika:") {
+                builtin_output_trust(&inv.tool, input_trust)
+            } else {
+                TrustLevel::Untrusted
+            }
+        }
+        AnalyzedTaskAction::Infer(_) => {
+            if input_trust.is_untrusted() {
+                TrustLevel::ModelTainted
+            } else {
+                TrustLevel::ModelGenerated
+            }
+        }
+        AnalyzedTaskAction::Agent(_) => TrustLevel::ModelTainted,
+    }
+}
+
 /// Execute a single task iteration (used for both regular tasks and for_each items).
 ///
 /// Bridge conversions (`lower_action`, `lower_output`) happen here at the
@@ -562,8 +615,29 @@ async fn execute_task_iteration_inner(
                     output
                 };
 
-                let tr = make_task_result(final_output, effective_output.as_ref(), duration).await;
-                let tr = tr.with_media(datastore.take_media(&task_id));
+                let mut tr =
+                    make_task_result(final_output, effective_output.as_ref(), duration).await;
+                tr = tr.with_media(datastore.take_media(&task_id));
+
+                // ── Nika Shield Item 5: compute + emit TrustLevelAssigned ──
+                // Runtime trust propagation. Mirrors the compile-time
+                // TaintAnalyzer rules but operates on the actual upstream
+                // task results via datastore.get_trust(). Without this, the
+                // SecuritySummary trust counters never increment and the
+                // success criterion #1 ("TrustLevelAssigned events for every
+                // task") fails.
+                let computed_trust = compute_runtime_trust(&task, &datastore);
+                tr.trust_level = computed_trust;
+                event_log.emit(EventKind::TrustLevelAssigned {
+                    task_id: Arc::clone(&task_id),
+                    trust_level: computed_trust.to_string(),
+                });
+                if task.trust_elevated {
+                    event_log.emit(EventKind::TrustElevationUsed {
+                        task_id: Arc::clone(&task_id),
+                    });
+                }
+
                 if tr.is_success() {
                     event_log.emit(EventKind::TaskCompleted {
                         task_id: Arc::clone(&task_id),
@@ -829,5 +903,213 @@ async fn execute_task_iteration_inner(
         store_id: task_id,
         result: task_result,
         for_each_info,
+    }
+}
+
+#[cfg(test)]
+mod tests_shield_runtime_trust {
+    //! Sprint 2 Item 5 — runtime trust computation regression tests.
+    //!
+    //! Verifies `compute_runtime_trust()` mirrors the compile-time
+    //! TaintAnalyzer rules so the SecuritySummary trust counters and
+    //! downstream taint propagation actually work.
+
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use serde_json::json;
+
+    use super::compute_runtime_trust;
+    use crate::store::{RunContext, TaskResult};
+    use nika_core::ast::analyzed::{
+        AnalyzedExecAction, AnalyzedFetchAction, AnalyzedInferAction, AnalyzedTask,
+        AnalyzedTaskAction, AnalyzedWorkflow,
+    };
+    use nika_core::binding::types::{BindingPath, BindingSource};
+    use nika_core::binding::{WithEntry, WithSpec};
+    use nika_core::source::Span;
+    use nika_core::trust::{InvocationSource, TrustLevel};
+
+    fn make_task(name: &str, action: AnalyzedTaskAction, with_spec: WithSpec) -> AnalyzedTask {
+        let mut wf = AnalyzedWorkflow::default();
+        let id = wf.task_table.insert(name);
+        AnalyzedTask {
+            id,
+            name: name.to_string(),
+            description: None,
+            action,
+            provider: None,
+            model: None,
+            with_spec,
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            on_error: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            record: None,
+            context_budget: None,
+            preset: None,
+            routing: None,
+            when: None,
+            trust_elevated: false,
+            span: Span::dummy(),
+        }
+    }
+
+    fn spec_with_task(alias: &str, task_id: &str) -> WithSpec {
+        let mut spec = WithSpec::default();
+        spec.insert(
+            alias.to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task(Arc::from(task_id)),
+                segments: vec![],
+            }),
+        );
+        spec
+    }
+
+    fn insert_with_trust(ctx: &RunContext, task_id: &str, trust: TrustLevel) {
+        let arc_id: Arc<str> = Arc::from(task_id);
+        let mut tr = TaskResult::success(json!("output"), Duration::from_millis(1));
+        tr.trust_level = trust;
+        ctx.insert(arc_id, tr);
+    }
+
+    #[test]
+    fn fetch_task_output_is_always_untrusted() {
+        let ctx = RunContext::new(InvocationSource::Cli);
+        let task = make_task(
+            "fetch",
+            AnalyzedTaskAction::Fetch(AnalyzedFetchAction::default()),
+            WithSpec::default(),
+        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::Untrusted);
+    }
+
+    #[test]
+    fn shell_task_output_is_always_untrusted() {
+        let ctx = RunContext::new(InvocationSource::Cli);
+        let task = make_task(
+            "shell",
+            AnalyzedTaskAction::Exec(AnalyzedExecAction::default()),
+            WithSpec::default(),
+        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::Untrusted);
+    }
+
+    #[test]
+    fn infer_with_trusted_inputs_is_model_generated() {
+        let ctx = RunContext::new(InvocationSource::Cli);
+        insert_with_trust(&ctx, "literal", TrustLevel::Trusted);
+        let task = make_task(
+            "summarize",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+            spec_with_task("data", "literal"),
+        );
+        assert_eq!(
+            compute_runtime_trust(&task, &ctx),
+            TrustLevel::ModelGenerated
+        );
+    }
+
+    #[test]
+    fn infer_with_untrusted_inputs_is_model_tainted() {
+        let ctx = RunContext::new(InvocationSource::Cli);
+        insert_with_trust(&ctx, "fetched", TrustLevel::Untrusted);
+        let task = make_task(
+            "summarize",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+            spec_with_task("data", "fetched"),
+        );
+        assert_eq!(
+            compute_runtime_trust(&task, &ctx),
+            TrustLevel::ModelTainted
+        );
+    }
+
+    #[test]
+    fn infer_with_serve_input_is_model_tainted() {
+        use rustc_hash::FxHashMap;
+
+        let ctx = RunContext::new(InvocationSource::Serve);
+        let mut inputs = FxHashMap::default();
+        inputs.insert("topic".to_string(), json!("from HTTP"));
+        ctx.set_inputs(inputs);
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "topic".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Input("topic".into()),
+                segments: vec![],
+            }),
+        );
+        let task = make_task(
+            "summarize",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+            spec,
+        );
+        assert_eq!(
+            compute_runtime_trust(&task, &ctx),
+            TrustLevel::ModelTainted
+        );
+    }
+
+    #[test]
+    fn agent_task_is_always_model_tainted() {
+        use nika_core::ast::analyzed::AnalyzedAgentAction;
+
+        let ctx = RunContext::new(InvocationSource::Cli);
+        let task = make_task(
+            "agent",
+            AnalyzedTaskAction::Agent(Box::<AnalyzedAgentAction>::default()),
+            WithSpec::default(),
+        );
+        assert_eq!(
+            compute_runtime_trust(&task, &ctx),
+            TrustLevel::ModelTainted
+        );
+    }
+
+    #[test]
+    fn invoke_propagating_builtin_passes_input_trust() {
+        use nika_core::ast::analyzed::AnalyzedInvokeAction;
+
+        let ctx = RunContext::new(InvocationSource::Cli);
+        insert_with_trust(&ctx, "fetched", TrustLevel::Untrusted);
+        let inv = AnalyzedInvokeAction {
+            tool: "nika:jq".to_string(),
+            ..Default::default()
+        };
+        let task = make_task(
+            "filter",
+            AnalyzedTaskAction::Invoke(inv),
+            spec_with_task("data", "fetched"),
+        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::Untrusted);
+    }
+
+    #[test]
+    fn invoke_pure_builtin_returns_trusted() {
+        use nika_core::ast::analyzed::AnalyzedInvokeAction;
+
+        let ctx = RunContext::new(InvocationSource::Cli);
+        insert_with_trust(&ctx, "fetched", TrustLevel::Untrusted);
+        let inv = AnalyzedInvokeAction {
+            tool: "nika:sleep".to_string(),
+            ..Default::default()
+        };
+        let task = make_task(
+            "wait",
+            AnalyzedTaskAction::Invoke(inv),
+            spec_with_task("data", "fetched"),
+        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::Trusted);
     }
 }

@@ -416,6 +416,19 @@ impl BuiltinTool for RunTool {
                 runner = runner.with_base_path(dir);
             }
 
+            // ── Nika Shield Item 4: trust ceiling propagation ─────────────
+            // The nested workflow inherits the parent's trust ceiling via
+            // `InvocationSource::NestedRun { ceiling }`. This means the
+            // child workflow's `inputs:` bindings are trusted at MOST as
+            // much as the parent task that called nika:run. Propagates
+            // through arbitrary nesting because input_trust() returns
+            // the ceiling directly.
+            runner = runner.with_invocation_source(
+                nika_core::trust::InvocationSource::NestedRun {
+                    ceiling: caller_trust,
+                },
+            );
+
             // Inject parent context into child workflow's datastore
             if let Some(context) = params.get_context()? {
                 runner = runner.with_initial_context("__parent_context__", context);
@@ -519,10 +532,7 @@ mod tests {
                                                 current_task_id().as_deref(),
                                                 Some("task_a")
                                             );
-                                            assert_eq!(
-                                                current_task_trust(),
-                                                TrustLevel::Untrusted
-                                            );
+                                            assert_eq!(current_task_trust(), TrustLevel::Untrusted);
                                             assert!(current_task_elevated());
                                             assert_eq!(current_parent_chain().len(), 1);
                                         },
@@ -619,10 +629,8 @@ mod tests {
         let tool = RunTool;
         let result = WORKFLOW_DEPTH
             .scope(Cell::new(MAX_ALLOWED_DEPTH), async {
-                tool.call(
-                    r#"{"workflow":"some/path.nika.yaml","max_depth":3}"#.to_string(),
-                )
-                .await
+                tool.call(r#"{"workflow":"some/path.nika.yaml","max_depth":3}"#.to_string())
+                    .await
             })
             .await;
         assert!(result.is_err());

@@ -118,6 +118,10 @@ pub struct RigAgentLoop {
     /// a child_token() so cancelling the parent cascades to children.
     /// Stored to keep the token alive — child_token() refs depend on it.
     _cancel_token: tokio_util::sync::CancellationToken,
+    /// Per-run Nika Shield context (Sprint 2 Item 2). When set, the
+    /// agent loop runs canary detection on the assistant response AND
+    /// the extended-thinking trace at the end of every streaming session.
+    pub(crate) shield: Option<crate::runtime::shield::SecurityContext>,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -547,6 +551,7 @@ impl RigAgentLoop {
             media_staging,
             limit_tracker,
             _cancel_token: cancel_token,
+            shield,
         })
     }
 
@@ -799,8 +804,8 @@ impl RigAgentLoop {
             let server_trusted = trusted_mcp_servers
                 .map(|list| list.iter().any(|s| s == mcp_name))
                 .unwrap_or(false);
-            let wrap_descriptions = matches!(shield, Some(s) if s.spotlight_enabled())
-                && !server_trusted;
+            let wrap_descriptions =
+                matches!(shield, Some(s) if s.spotlight_enabled()) && !server_trusted;
 
             for def in tool_defs {
                 let raw_description = def.description.clone().unwrap_or_default();
