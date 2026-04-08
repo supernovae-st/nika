@@ -42,6 +42,7 @@ pub mod schema;
 pub mod workflow;
 
 pub mod eval;
+pub mod inputs;
 pub mod keys;
 pub mod lint;
 pub mod machine;

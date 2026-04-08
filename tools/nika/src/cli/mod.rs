@@ -20,6 +20,7 @@ pub use nika_cli::eval;
 #[cfg(unix)]
 pub use nika_cli::every;
 pub use nika_cli::init;
+pub use nika_cli::inputs;
 #[cfg(unix)]
 #[cfg(unix)]
 pub use nika_cli::jobs;
