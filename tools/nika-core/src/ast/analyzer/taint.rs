@@ -376,6 +376,20 @@ impl TaintWarning {
         }
     }
 
+    /// Sink task name for the warning — the task that consumes the
+    /// untrusted data. Used by lint rules to attach the warning to a
+    /// specific task ID in the user's workflow.
+    pub fn task_name(&self) -> Option<&str> {
+        Some(match self {
+            Self::UntrustedToExec { exec_task, .. } => exec_task.as_str(),
+            Self::UntrustedToAgentTools { agent_task, .. } => agent_task.as_str(),
+            Self::UntrustedToInferNoSchema { infer_task, .. } => infer_task.as_str(),
+            Self::UntrustedForEachAmplification { foreach_task, .. } => foreach_task.as_str(),
+            Self::UntrustedToFetchUrl { fetch_task, .. } => fetch_task.as_str(),
+            Self::UntrustedWhenCondition { conditional_task, .. } => conditional_task.as_str(),
+        })
+    }
+
     /// Recommendation text.
     pub fn recommendation(&self) -> &'static str {
         match self {

@@ -234,6 +234,110 @@ pub fn lint_workflow(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
         }
     }
 
+    // L-SEC-001..008: Nika Shield security findings (Sprint 2 Item 6)
+    findings.extend(lint_security(workflow));
+
+    findings
+}
+
+/// Sprint 2 Item 6 — Nika Shield lint rules. Wires `TaintAnalyzer` into
+/// `nika lint` so risky data-flow patterns surface in the same report as
+/// the existing best-practice findings.
+///
+/// Maps `TaintWarning` variants to L-SEC-001..006 with appropriate
+/// severities, plus two lint-only rules:
+///   - L-SEC-007: skill referenced without integrity entry
+///   - L-SEC-008: agent max_turns > 20 with untrusted inputs
+fn lint_security(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
+    use nika_core::ast::analyzer::taint::{TaintAnalyzer, TaintWarning};
+    use nika_core::trust::InvocationSource;
+
+    // Conservative default: lint at compile-time as if the workflow were
+    // invoked from the CLI. The runtime check still applies the actual
+    // invocation source (Serve / Test / NestedRun / Unknown).
+    let report = TaintAnalyzer::analyze(workflow, InvocationSource::Cli);
+    let mut findings = Vec::with_capacity(report.warnings.len() + 4);
+
+    for warning in &report.warnings {
+        let (rule, severity): (&'static str, Severity) = match warning {
+            TaintWarning::UntrustedToExec { .. } => ("L-SEC-001", Severity::Warning),
+            TaintWarning::UntrustedToAgentTools { .. } => ("L-SEC-002", Severity::Warning),
+            TaintWarning::UntrustedToInferNoSchema { .. } => ("L-SEC-003", Severity::Info),
+            TaintWarning::UntrustedForEachAmplification { .. } => {
+                ("L-SEC-004", Severity::Warning)
+            }
+            TaintWarning::UntrustedToFetchUrl { .. } => ("L-SEC-005", Severity::Warning),
+            TaintWarning::UntrustedWhenCondition { .. } => ("L-SEC-006", Severity::Info),
+        };
+        findings.push(LintFinding {
+            severity,
+            rule,
+            task_id: warning.task_name().map(String::from),
+            message: format!(
+                "{}\nRecommendation: {}",
+                warning.message(),
+                warning.recommendation()
+            ),
+        });
+    }
+
+    // L-SEC-007: skill referenced without an integrity entry. We can only
+    // detect this when the workflow declares skills via the analyzed
+    // metadata; the integrity map lives in nika.toml and is wired by
+    // SkillInjector at runtime, so the lint flags every skill alias and
+    // recommends adding the hash. False positives are acceptable — the
+    // user just adds the entry once.
+    for skill_alias in workflow.skills_map.keys() {
+        findings.push(LintFinding {
+            severity: Severity::Info,
+            rule: "L-SEC-007",
+            task_id: None,
+            message: format!(
+                "Skill '{skill_alias}' has no recorded integrity hash.\n\
+                 Recommendation: add the file's blake3 hash to \
+                 [skills.integrity] in nika.toml to detect tampering."
+            ),
+        });
+    }
+
+    // L-SEC-008: agent task with `max_turns > 20` consuming untrusted
+    // inputs. High turn budgets give a compromised agent more attempts
+    // to exfiltrate data — cap to ≤20 unless the task is `trust: elevated`.
+    for task in &workflow.tasks {
+        let AnalyzedTaskAction::Agent(agent) = &task.action else {
+            continue;
+        };
+        let Some(max_t) = agent.max_turns.as_ref().and_then(|t| t.value()) else {
+            continue;
+        };
+        if max_t <= 20 {
+            continue;
+        }
+        // Is this task processing untrusted upstream data?
+        let is_tainted = report
+            .trust_map
+            .get(task.name.as_str())
+            .copied()
+            .map(|t| t.is_untrusted())
+            .unwrap_or(false);
+        if !is_tainted {
+            continue;
+        }
+        if task.trust_elevated {
+            continue;
+        }
+        findings.push(LintFinding {
+            severity: Severity::Warning,
+            rule: "L-SEC-008",
+            task_id: Some(task.name.clone()),
+            message: format!(
+                "Agent '{}' has max_turns={max_t} with untrusted inputs.\n\
+                 Recommendation: reduce max_turns to ≤20 or add trust: elevated after audit.",
+                task.name
+            ),
+        });
+    }
+
     findings
 }
 
@@ -919,3 +1023,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tests_shield_lint;
