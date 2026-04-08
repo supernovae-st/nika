@@ -7,6 +7,7 @@
 //! The `help` module remains in the binary crate because it uses `Cli::command()`.
 
 // Re-export all handlers from nika-cli
+pub use nika_cli::bench;
 #[cfg(unix)]
 pub use nika_cli::cache_cmd;
 pub use nika_cli::check;
@@ -21,6 +22,7 @@ pub use nika_cli::eval;
 #[cfg(unix)]
 #[cfg(unix)]
 pub use nika_cli::every;
+pub use nika_cli::explain;
 pub use nika_cli::init;
 #[cfg(unix)]
 #[cfg(unix)]
@@ -41,6 +43,7 @@ pub use nika_cli::schedule;
 pub use nika_cli::schema;
 pub use nika_cli::showcase;
 pub use nika_cli::switch;
+pub use nika_cli::test_cmd;
 pub use nika_cli::token;
 pub use nika_cli::tools_cmd;
 pub use nika_cli::trace;

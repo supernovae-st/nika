@@ -693,3 +693,133 @@ mod tests {
         assert!(text.contains("1 failed"));
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLI ENTRY POINT (moved from main.rs in Phase 15)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Run evaluation pipeline: load dataset → run workflow per entry → validate → report.
+#[allow(clippy::too_many_arguments)]
+pub async fn eval_workflow(
+    file: &str,
+    dataset_path: &str,
+    provider_override: Option<&str>,
+    format: &str,
+    fail_fast: bool,
+    parallel: usize,
+    skip_confirm: bool,
+    quiet: bool,
+    detail: nika_engine::display::DetailLevel,
+) -> Result<(), NikaError> {
+    let entries = load_dataset(dataset_path)?;
+    let concurrency = parallel.max(1).min(entries.len());
+
+    if !quiet {
+        eprintln!(
+            "  {} {} entries from {}{}",
+            "Eval:".cyan(),
+            entries.len(),
+            dataset_path,
+            if concurrency > 1 {
+                format!(" (parallel: {concurrency})")
+            } else {
+                String::new()
+            }
+        );
+    }
+
+    // Default to mock provider for safety (no accidental API costs)
+    let provider = provider_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "mock".to_string());
+
+    let mut results = Vec::with_capacity(entries.len());
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
+
+    for (i, entry) in entries.iter().enumerate() {
+        let _permit = semaphore.acquire().await.unwrap();
+        let start = std::time::Instant::now();
+        let cli_inputs = inputs_to_cli_args(&entry.inputs);
+
+        // Create temp file for output capture
+        let capture_dir = std::env::temp_dir();
+        let capture_path = capture_dir.join(format!("nika-eval-{}-{i}.json", std::process::id()));
+        let capture_str = capture_path.to_string_lossy().to_string();
+
+        // Run workflow with output capture
+        let run_result = crate::run::run_workflow(
+            file,
+            Some(provider.clone()),
+            None,
+            &cli_inputs,
+            None,
+            false,
+            Some(&capture_str),
+            None,
+            None,
+            skip_confirm || provider == "mock",
+            true, // quiet — suppress per-run output
+            detail,
+            true, // no-live
+            "deny",
+            false,
+        )
+        .await;
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        match run_result {
+            Ok(()) => {
+                // Read captured output
+                let captured: std::collections::HashMap<String, serde_json::Value> =
+                    if let Ok(raw) = tokio::fs::read_to_string(&capture_path).await {
+                        serde_json::from_str(&raw).unwrap_or_default()
+                    } else {
+                        std::collections::HashMap::new()
+                    };
+                let _ = tokio::fs::remove_file(&capture_path).await;
+
+                let failures = validate_entry(&captured, &entry.expected);
+                let passed = failures.is_empty();
+
+                if !quiet && !passed {
+                    eprintln!("  {} entry #{i}", "FAIL".red().bold());
+                    for f in &failures {
+                        eprintln!("    {f}");
+                    }
+                } else if !quiet {
+                    eprintln!("  {} entry #{i} ({}ms)", "PASS".green(), duration_ms);
+                }
+
+                results.push(EvalResult {
+                    entry_index: i,
+                    passed,
+                    failures,
+                    duration_ms,
+                });
+
+                if !passed && fail_fast {
+                    break;
+                }
+            }
+            Err(e) => {
+                let _ = tokio::fs::remove_file(&capture_path).await;
+
+                if !quiet {
+                    eprintln!("  {} entry #{i} — {e}", "FAIL".red().bold());
+                }
+                results.push(EvalResult {
+                    entry_index: i,
+                    passed: false,
+                    failures: vec![format!("workflow execution failed: {e}")],
+                    duration_ms,
+                });
+                if fail_fast {
+                    break;
+                }
+            }
+        }
+    }
+
+    finalize(results, format, quiet)
+}

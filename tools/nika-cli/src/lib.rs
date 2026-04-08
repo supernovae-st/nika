@@ -42,8 +42,10 @@ pub mod schedule;
 pub mod schema;
 pub mod workflow;
 
+pub mod bench;
 pub mod check;
 pub mod eval;
+pub mod explain;
 pub mod inputs;
 pub mod keys;
 pub mod lint;
@@ -54,6 +56,7 @@ pub mod provider;
 pub mod run;
 pub mod switch;
 pub mod task_filter;
+pub mod test_cmd;
 pub mod token;
 pub mod tools_cmd;
 pub mod verbs;
