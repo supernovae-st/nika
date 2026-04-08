@@ -423,11 +423,9 @@ impl BuiltinTool for RunTool {
             // much as the parent task that called nika:run. Propagates
             // through arbitrary nesting because input_trust() returns
             // the ceiling directly.
-            runner = runner.with_invocation_source(
-                nika_core::trust::InvocationSource::NestedRun {
-                    ceiling: caller_trust,
-                },
-            );
+            runner = runner.with_invocation_source(nika_core::trust::InvocationSource::NestedRun {
+                ceiling: caller_trust,
+            });
 
             // Inject parent context into child workflow's datastore
             if let Some(context) = params.get_context()? {

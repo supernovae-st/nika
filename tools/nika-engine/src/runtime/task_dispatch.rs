@@ -1028,10 +1028,7 @@ mod tests_shield_runtime_trust {
             AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
             spec_with_task("data", "fetched"),
         );
-        assert_eq!(
-            compute_runtime_trust(&task, &ctx),
-            TrustLevel::ModelTainted
-        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::ModelTainted);
     }
 
     #[test]
@@ -1055,10 +1052,7 @@ mod tests_shield_runtime_trust {
             AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
             spec,
         );
-        assert_eq!(
-            compute_runtime_trust(&task, &ctx),
-            TrustLevel::ModelTainted
-        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::ModelTainted);
     }
 
     #[test]
@@ -1071,10 +1065,7 @@ mod tests_shield_runtime_trust {
             AnalyzedTaskAction::Agent(Box::<AnalyzedAgentAction>::default()),
             WithSpec::default(),
         );
-        assert_eq!(
-            compute_runtime_trust(&task, &ctx),
-            TrustLevel::ModelTainted
-        );
+        assert_eq!(compute_runtime_trust(&task, &ctx), TrustLevel::ModelTainted);
     }
 
     #[test]
