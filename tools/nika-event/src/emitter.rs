@@ -10,16 +10,34 @@
 //! - `EventEmitter`: Trait for emitting events
 //! - `NoopEmitter`: Zero-cost no-op implementation for tests
 
+use std::sync::Arc;
+
 use super::log::{EventKind, EventLog};
 
-/// Trait for emitting events during workflow execution
+/// Trait for emitting events during workflow execution.
 ///
 /// Enables dependency injection: real EventLog in production,
 /// NoopEmitter or custom mock in tests.
 pub trait EventEmitter: Send + Sync {
-    /// Emit an event and return its ID
+    /// Emit an event and return its ID.
     fn emit(&self, kind: EventKind) -> u64;
 }
+
+/// Blanket impl: `Arc<T: EventEmitter>` is also an `EventEmitter`.
+///
+/// Eliminates 40+ `.clone()` calls across the codebase — structs can hold
+/// `Arc<dyn EventEmitter>` (or `Arc<EventLog>`) and pass it around cheaply.
+impl<T: EventEmitter + ?Sized> EventEmitter for Arc<T> {
+    fn emit(&self, kind: EventKind) -> u64 {
+        (**self).emit(kind)
+    }
+}
+
+/// Type alias for the common `Arc<dyn EventEmitter>` pattern.
+///
+/// Use `EventSink` in struct fields that only need to emit events.
+/// `Arc<EventLog>` satisfies `EventSink` via the blanket impl above.
+pub type EventSink = Arc<dyn EventEmitter>;
 
 /// Implement EventEmitter for EventLog (the real implementation)
 impl EventEmitter for EventLog {
@@ -188,7 +206,7 @@ mod tests {
     // Generic function tests
     // ═══════════════════════════════════════════════════════════════
 
-    fn emit_workflow_started<E: EventEmitter>(emitter: &E, task_count: usize) -> u64 {
+    fn emit_workflow_started<E: EventEmitter + ?Sized>(emitter: &E, task_count: usize) -> u64 {
         emitter.emit(EventKind::WorkflowStarted {
             task_count,
             generation_id: "test-gen".to_string(),
@@ -210,5 +228,44 @@ mod tests {
         let noop = NoopEmitter::new();
         let id = emit_workflow_started(&noop, 3);
         assert_eq!(id, 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Blanket impl tests (Arc<T: EventEmitter> is EventEmitter)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn arc_eventlog_satisfies_emitter_via_blanket() {
+        let log = Arc::new(EventLog::new());
+        // Arc<EventLog> can call .emit() directly via blanket impl
+        let id = log.emit(EventKind::TaskStarted {
+            task_id: Arc::from("test"),
+            verb: "infer".into(),
+            inputs: Arc::new(json!({})),
+        });
+        assert_eq!(id, 0);
+    }
+
+    #[test]
+    fn arc_eventlog_works_as_event_sink() {
+        let log: EventSink = Arc::new(EventLog::new());
+        let id = emit_workflow_started(&*log, 5);
+        assert_eq!(id, 0);
+    }
+
+    #[test]
+    fn arc_noop_satisfies_emitter_via_blanket() {
+        let noop = Arc::new(NoopEmitter::new());
+        let id = noop.emit(EventKind::WorkflowCompleted {
+            final_output: Arc::new(json!("done")),
+            total_duration_ms: 100,
+        });
+        assert_eq!(id, 0);
+    }
+
+    #[test]
+    fn event_sink_is_clone() {
+        let sink: EventSink = Arc::new(EventLog::new());
+        let _cloned = sink.clone();
     }
 }

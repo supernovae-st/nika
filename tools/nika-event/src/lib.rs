@@ -20,7 +20,7 @@ mod trace;
 pub mod types;
 
 // Re-export all public types
-pub use emitter::{EventEmitter, NoopEmitter};
+pub use emitter::{EventEmitter, EventSink, NoopEmitter};
 pub use error::EventError;
 pub use log::{AgentTurnMetadata, ContextSource, Event, EventKind, EventLog, ExcludedItem};
 pub use trace::{
