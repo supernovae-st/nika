@@ -12,8 +12,9 @@ nika-engine
 ├── nika-media       CAS store, image/document processing
 ├── nika-mcp         MCP client (rmcp)
 ├── nika-vault       Encrypted secrets (XChaCha20 + Argon2i)
-├── nika-lsp-core    LSP intelligence (opt-in feature "lsp")
-└── nika-display     CLI renderers (Renderer trait)
+├── nika-daemon      Background daemon IPC
+├── nika-display     CLI renderers (Renderer trait)
+└── nika-lsp-core    LSP intelligence (opt-in feature "lsp")
 ```
 
 ## Module Map
