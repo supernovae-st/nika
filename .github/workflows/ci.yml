@@ -348,7 +348,7 @@ jobs:
           echo "value=v${VER}" >> "$GITHUB_OUTPUT"
 
       - name: Post PR comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         env:
           CHECK_RESULT: ${{ needs.check.result }}
           TEST_RESULT: ${{ needs.test.result }}
