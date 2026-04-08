@@ -1,6 +1,6 @@
 {
   "name": "@supernovae-st/nika-darwin-x64",
-  "version": "0.78.0",
+  "version": "0.79.0",
   "description": "Nika binary for macOS x64 (Intel)",
   "license": "AGPL-3.0-or-later",
   "repository": {

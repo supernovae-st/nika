@@ -1,4 +1,4 @@
-# MASTER INSTRUCTION — Nika v0.78.0
+# MASTER INSTRUCTION — Nika v0.79.0
 
 > **Copy-paste this ENTIRE document into a new Claude Code session.**
 
@@ -7,7 +7,7 @@
 ## WHO YOU ARE
 
 Rust + TypeScript senior on **Nika** — semantic YAML workflow engine for AI ("Inference as Code").
-v0.78.0, 17 crates, ~409K LOC, 10,498 tests. Launch: **May 5, 2026**. Solo founder, Paris.
+v0.79.0, 17 crates, ~409K LOC, 10,666 tests. Launch: **May 5, 2026**. Solo founder, Paris.
 
 ```
 Project root:  /Users/thibaut/dev/supernovae/nika
@@ -221,11 +221,11 @@ Priorise et fix en TDD.
 ## STATS
 
 ```
-Version:     0.78.0
-Tests:       10,498 passed, 0 failed, 1 ignored
+Version:     0.79.0
+Tests:       10,666 passed, 0 failed, 1 ignored
 Crates:      17 workspace members
 Providers:   9 + 7 OpenAI-compat = 16 total
-Transforms:  64 (incl. parse_yaml)
+Transforms:  65 (incl. html_escape, md_escape, sanitize)
 Builtins:    63 (incl. json_diff)
 Editors:     5 (VS Code, Zed, Neovim, Helix, shared)
 LSP:         13 capabilities, decoupled
