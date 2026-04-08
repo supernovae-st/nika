@@ -675,6 +675,10 @@ cargo install --path tools/nika --features "tui,native-inference,media-core"
 
 </details>
 
+> **Platform:** macOS and Linux. The daemon, scheduling (`nika every`, `nika schedule`), 
+> and background jobs require Unix. Core features (run, check, test, infer, fetch, invoke, 
+> agent, TUI, LSP) work on all platforms including Windows.
+
 ---
 
 ## Documentation

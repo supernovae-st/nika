@@ -1814,6 +1814,45 @@ J-0  (May 5)  LAUNCH. Show HN. v0.80.0.
 | 14 | rstest first (Phase 4) | Enables cheap testing of 5, 6, 7 |
 | 15 | Revised phase count: 20 (was 19) | 1 added: kernel-mock |
 
+### 18.19 V2.3 Phase Reordering (2026-04-09)
+
+V2.3 (`docs/sprints/CONSTELLATION-V2.3-AGGRESSIVE-TARGETS.md`) revises the phase execution order
+based on Session 5 progress and learnings from V2.2 (`docs/sprints/CONSTELLATION-V2.2-SESSION4-PLAN.md`).
+
+**Completed phases (pre-V2.3):**
+Pre-0, 0, 1, 2, 4 (partial), 5.1, 8a, 8b, 9, 10, 16 (partial), 11.
+
+**Revised execution order (V2.3):**
+
+```
+Phase 15: main.rs → nika-cli (IN PROGRESS — Session 5)
+Phase 3:  nika-macros (4 derives + 1 macro) — moved BEFORE Phase 12
+Phase 12: nika-builtin extraction (63 tools)
+Phase 13: nika-verb-* crates (5 verb crates)
+Phase 14: nika-runtime + nika-cache + RunContext splinters
+Phase 6:  error_domains promotion (16h, 6 sub-phases per V2.2)
+Phase 7:  LSP absorption (7 commits, -4000 LOC per V2.2)
+Phase 17: nika-tui split
+Phase 19: Type system hardening
+Phase 21: Zero-unwrap migration (CI ratchet + 6-week migration) — NEW in V2.3
+Phase 22: PGO + binary size + perf hardening
+Phase 23: blake3 AST cache (nika check <5ms) — NEW in V2.3
+Phase 20: Polish + public API curation
+```
+
+**Removed from scope:**
+- Windows daemon port (Unix-only accepted, `#[cfg(unix)]` stays)
+- `nika pkg` + registry (nuke — re-add properly post-launch)
+
+**Firm targets (V2.3):**
+- `nika-engine` ≤100k LOC after Phase 14, <80k after Phase 15b
+- Zero `unwrap` in hot path prod code (<50 total with `// REASON:`)
+- `nika check` repeat <5ms via blake3 cache
+- 8,800 LOC boilerplate eliminated via `nika-macros`
+- NO Salsa adoption (blake3 cache instead — 2 weeks not 2 months)
+
+See V2.3 and V2.2 docs for full rationale and per-phase details.
+
 ---
 
-**END OF PLAN v2.1**
+**END OF PLAN v2.1 + v2.3 addendum**

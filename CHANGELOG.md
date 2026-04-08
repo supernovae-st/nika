@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.79.3 — CONSTELLATION KEYSTONE                                    ║
+║  Provider trait bridge | Arc<dyn Provider> | 10,790 tests                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [0.79.3] — 2026-04-08
+
+### Added
+- **Phase 11 Provider bridge** — `impl nika_kernel::provider::Provider for RigProvider`:
+  - `kernel_bridge.rs` (550 LOC, 19 tests) bridges kernel DTOs <-> rig-core types
+  - Text inference via `infer_with_options`, vision via `infer_vision`
+  - Streaming via `infer_stream_with_options` / `infer_vision_stream`
+  - `StreamChunk` -> `InferEvent` adapter (skips TUI-specific events)
+  - `RigInferError` -> `ProviderError` conversion with keyword detection
+  - `dispatch_rig!` macro preserved inside bridge (connect, don't delete)
+- **`TaskExecutor::get_dyn_provider()`** — returns `Arc<dyn Provider>` for verb crate consumption
+- **Compile-time `Send+Sync` assertion** on `Arc<dyn Provider>` for Phase 12 verb crates
+
+### Status
+- 10,790 tests (+22), 24 workspace crates, 0 clippy warnings
+- 6 production trait implementations total
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.79.2 — CONSTELLATION EFFECTS                                     ║
+║  5 L1 effect crates | analyze.rs split | 10,768 tests                     ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [0.79.2] — 2026-04-08
+
+### Added
+- **5 L1 effect crates** — production implementations of nika-kernel traits:
+  - **nika-clock**: `SystemClock` (tokio::time, ZST) — 5 tests
+  - **nika-fs**: `TokioFs` (tokio::fs + globset, ZST) — 13 tests
+  - **nika-blob**: `DiskBlobStore` (blake3 CAS, sharded layout) — 13 tests
+  - **nika-http**: `ReqwestClient` (SSRF: IPv4/v6/CGN/cloud-metadata) — 16 tests
+  - **nika-exec-runner**: `TokioShell` (100+ pattern blocklist, NFKC normalization) — 28 tests
+- Total: 75 new tests across 5 crates
+
+### Changed
+- **analyze.rs** split: 5,531 LOC -> 6 module files (largest 1,109 LOC)
+
+### Fixed
+- **4 P0 SSRF bypasses**: IPv4-mapped IPv6, CGN 100.64.0.0/10, metadata.google.internal, cloud metadata hostnames
+- **1 P0 blocklist fix**: full 100+ patterns ported from engine security.rs with NFKC normalization
+- **3 P1 fixes**: stat reads 512 bytes not full file, shell-mode blocklist wired, args scanned in non-shell mode
+- **2 P2 kernel DTOs**: PartialEq+Eq on FileMetadata/BlobMetadata
+
+### Status
+- 10,768 tests, 24 workspace crates, 0 clippy warnings
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.79.1 — CONSTELLATION FOUNDATION                                  ║
+║  nika-kernel + mock crate | god file splits | 10,693 tests                ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+## [0.79.1] — 2026-04-08
+
+### Added
+- **nika-kernel** crate (L0.5) — 10 trait definitions for all side effects: Clock, Filesystem, HttpClient, ShellExecutor, BlobStore, Provider, EventEmitter, VerbExecutor, BuiltinTool, TaskScope
+- **nika-kernel-mock** crate — 5 hand-written mocks (MockClock, InMemoryFs, MemoryBlobStore, MockHttpClient, MockShell) with 23 conformance tests
+- **EventEmitter blanket impl** for `Arc<T>` + `EventSink` type alias — enables `Arc<dyn EventEmitter>` wiring
+- **ARCHITECTURE.md** for nika-engine (matklad rule)
+- rstest adoption pilot on transform.rs parse + apply tests
+
+### Changed
+- **transform.rs** split: 5,570 LOC -> 5 module files (mod.rs, apply.rs, helpers.rs, parser.rs, tests.rs)
+- **template.rs** split: 4,938 LOC -> 2 files (mod.rs, tests.rs)
+- `#[must_use]` on 10 Runner builder methods
+- `FxHashSet` in 6 template.rs call sites (perf)
+- `OnceLock` for workspace_root write-once invariant
+- `Arc::from(task_id)` hoisted out of streaming loops (perf)
+
+### Fixed
+- ARM64 linker error: disable opt-level in test profile
+- Dead MPSC receivers in non-streaming infer paths (spawned drain tasks)
+- McpInvoke params redacted before trace serialization (security)
+- Workers Mutex released before async storage update in serve
+
+### Status
+- 10,693 tests, 19 workspace crates, 0 clippy warnings
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
 ║  NIKA v0.79.0 — SHIELD                                                    ║
 ║  6-layer prompt injection defense stack | 65 transforms | 10,666 tests    ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝

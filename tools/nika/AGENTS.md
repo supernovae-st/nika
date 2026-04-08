@@ -2,27 +2,56 @@
 
 Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 
-## Workspace Structure
+## Workspace Structure (24 crates)
 
 ```
 tools/
-├── nika/           Binary (2k) — CLI entry point
-├── nika-engine/    Execution engine (135k) — embeddable runtime
-├── nika-core/      AST, types, catalogs (23k) — pure, zero I/O
-├── nika-vault/     Encrypted secrets (1.2k) — XChaCha20 + Argon2i
-├── nika-daemon/    Background daemon (5k) — secrets, jobs, watch, cache
-├── nika-init/      Project scaffolding (21k) — init wizard + course
-├── nika-event/     EventLog, TraceWriter (4k)
-├── nika-mcp/       MCP client, rmcp (9k)
-├── nika-media/     CAS store, processor (13k)
-├── nika-storage/   Storage abstraction (1k)
-├── nika-cli/       CLI subcommands (8k)
-├── nika-tui/       Terminal UI (86k) — ratatui
-├── nika-serve/     HTTP API server (4k)
-├── nika-sdk/       Embedded SDK (3k) — programmatic API
-├── nika-lsp-core/  LSP intelligence (9k)
-└── nika-lsp/       LSP binary (2.5k)
+│
+│ L0 — CORE (pure, zero I/O)
+├── nika-core/          AST, types, catalogs, policy, trust (23k)
+├── nika-event/         EventLog, TraceWriter (4k)
+│
+│ L0.5 — KERNEL (trait boundary for all side effects)
+├── nika-kernel/        Trait definitions: Provider, FileSystem, BlobStore, HttpClient, ShellExecutor (717)
+├── nika-kernel-mock/   5 hand-written mocks for kernel traits (744, dev-dep only)
+│
+│ L1 — EFFECTS (one crate per side-effect, implements kernel traits)
+├── nika-clock/         SystemClock — tokio::time (85)
+├── nika-fs/            TokioFs — tokio::fs + globset (262)
+├── nika-blob/          DiskBlobStore — blake3 CAS (342)
+├── nika-http/          ReqwestClient — SSRF defense (384)
+├── nika-exec-runner/   TokioShell — 100+ pattern blocklist (692)
+│
+│ L2 — ENGINES (runtime, providers, tools)
+├── nika-engine/        Execution engine (135k) — providers, builtins, runtime
+│   └── provider/rig/kernel_bridge.rs  — impl Provider for RigProvider
+│   └── runtime/executor: get_dyn_provider() → Arc<dyn Provider>
+├── nika-display/       CLI renderers, formatters (13k)
+├── nika-media/         CAS store, image processor (13k)
+├── nika-mcp/           MCP client, rmcp (9k)
+├── nika-daemon/        Background daemon (5k) — secrets, jobs, watch, cache
+├── nika-storage/       Storage abstraction (1k)
+├── nika-vault/         Encrypted secrets (1.2k) — XChaCha20 + Argon2i
+│
+│ L3 — INTERFACES
+├── nika-cli/           CLI subcommands (8k)
+├── nika-tui/           Terminal UI (86k) — ratatui
+├── nika-serve/         HTTP API server (4k)
+├── nika-sdk/           Embedded SDK (3k) — programmatic API
+├── nika-lsp-core/      LSP intelligence (9k)
+├── nika-lsp/           LSP binary (2.5k)
+├── nika-init/          Project scaffolding (21k) — init wizard + course
+│
+│ L4 — BINARY
+└── nika/               Binary entry point (2k)
 ```
+
+### Provider Bridge (kernel_bridge.rs)
+
+`nika-engine` bridges the `nika-kernel::Provider` trait to the concrete `RigProvider`:
+- `kernel_bridge.rs` in `provider/rig/` implements `Provider for RigProvider`
+- `TaskExecutor::get_dyn_provider()` returns `Arc<dyn Provider>` for trait-based dispatch
+- Mock provider implements `Provider` directly (no bridge needed)
 
 ## Source Tree (nika-engine)
 
