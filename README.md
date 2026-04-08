@@ -714,13 +714,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
 The AGPL protects the commons: if you modify Nika and offer it as a hosted service, you share your changes back. For CLI usage, there are zero restrictions. Commercial use is welcome.
 
+If your organization needs a commercial license without copyleft obligations, contact [contact@supernovae.studio](mailto:contact@supernovae.studio).
+
 Read the [Manifesto](MANIFESTO.md) to understand why.
 
 ---
 
 <div align="center">
 
-**Nika v0.77.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 17 crates · 10,435 tests
+**Nika v0.79.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 17 crates · 10,666 tests
 
 [SuperNovae Studio](https://supernovae.studio) · [QR Code AI](https://qrcode-ai.com) · [GitHub](https://github.com/supernovae-st/nika)
 
