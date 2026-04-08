@@ -287,13 +287,48 @@ impl BuiltinTool for RunTool {
             // Check current depth using task_local! (race-condition-safe)
             let depth = current_depth();
             if depth >= max_depth {
-                return Err(NikaError::BuiltinToolError {
-                    tool: "nika_run".into(),
-                    reason: format!(
-                        "Maximum recursion depth ({}) reached at depth {}. Cannot execute nested workflow '{}'.",
-                        max_depth, depth, params.workflow
-                    ),
+                return Err(NikaError::RunDepthExceeded {
+                    depth: depth + 1,
+                    max: max_depth,
                 });
+            }
+
+            // ── Nika Shield Item 4: capability check ──────────────────────
+            // Tainted callers cannot launch nested workflows unless they
+            // carry `trust: elevated`. Reads the calling task's trust state
+            // from the task_local set by execute_task_iteration (Item 0.F).
+            let caller_trust = current_task_trust();
+            let caller_elevated = current_task_elevated();
+            if caller_trust.is_untrusted() && !caller_elevated {
+                let caller_id = current_task_id()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "<top>".to_string());
+                return Err(NikaError::CapabilityDenied {
+                    task_id: caller_id,
+                    action: "nika:run".to_string(),
+                    reason: "parent task has untrusted inputs and is not trust: elevated"
+                        .to_string(),
+                });
+            }
+
+            // ── Nika Shield Item 4: cycle detection ───────────────────────
+            // Track canonical workflow paths in PARENT_CHAIN. Re-entering a
+            // workflow via nested call (workflow A → B → A) hard-fails with
+            // NIKA-387 even when within the depth limit. Pure cycle, not
+            // depth-based.
+            let canonical_for_cycle: Option<std::path::PathBuf> = if !is_inline {
+                let workflow_path = Path::new(&params.workflow);
+                workflow_path.canonicalize().ok()
+            } else {
+                None
+            };
+            let parent_chain = current_parent_chain();
+            if let Some(ref canon) = canonical_for_cycle {
+                if parent_chain.iter().any(|p| p == canon) {
+                    return Err(NikaError::RunCycleDetected {
+                        workflow_path: canon.display().to_string(),
+                    });
+                }
             }
 
             let next_depth = depth + 1;
@@ -386,11 +421,21 @@ impl BuiltinTool for RunTool {
                 runner = runner.with_initial_context("__parent_context__", context);
             }
 
-            // Execute with task_local! depth tracking
-            // WORKFLOW_DEPTH.scope() provides automatic cleanup on panic/cancellation
+            // Execute with task_local! depth tracking + cycle-detection
+            // chain. WORKFLOW_DEPTH.scope() provides automatic cleanup on
+            // panic/cancellation; PARENT_CHAIN extends with the current
+            // workflow's canonical path so deeper nests can detect cycles.
+            let mut new_chain = parent_chain.clone();
+            if let Some(canon) = canonical_for_cycle {
+                new_chain.push(canon);
+            }
             let execution_result = WORKFLOW_DEPTH
                 .scope(Cell::new(next_depth), async {
-                    tokio::time::timeout(timeout_duration, runner.run()).await
+                    PARENT_CHAIN
+                        .scope(new_chain, async {
+                            tokio::time::timeout(timeout_duration, runner.run()).await
+                        })
+                        .await
                 })
                 .await;
 
@@ -495,6 +540,128 @@ mod tests {
         assert_eq!(current_task_trust(), TrustLevel::Trusted);
         assert!(!current_task_elevated());
         assert!(current_parent_chain().is_empty());
+    }
+
+    /// Sprint 2 Item 4: tainted callers cannot launch nested workflows
+    /// unless they carry `trust: elevated`. Returns NIKA-380.
+    #[tokio::test]
+    async fn nika_run_blocks_tainted_caller_without_elevation() {
+        let tool = RunTool;
+        let id: Arc<str> = Arc::from("parent");
+        let result = CURRENT_TASK_ID
+            .scope(Some(id), async {
+                CURRENT_TASK_TRUST
+                    .scope(TrustLevel::Untrusted, async {
+                        CURRENT_TASK_ELEVATED
+                            .scope(false, async {
+                                WORKFLOW_DEPTH
+                                    .scope(Cell::new(0), async {
+                                        tool.call(
+                                            r#"{"workflow":"some/path.nika.yaml"}"#.to_string(),
+                                        )
+                                        .await
+                                    })
+                                    .await
+                            })
+                            .await
+                    })
+                    .await
+            })
+            .await;
+        assert!(result.is_err(), "tainted caller must be blocked");
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-380");
+    }
+
+    /// Sprint 2 Item 4: tainted + elevated callers can launch nested
+    /// workflows. They still hit the file-not-found error but at least the
+    /// capability check passes.
+    #[tokio::test]
+    async fn nika_run_allows_tainted_elevated_caller() {
+        let tool = RunTool;
+        let id: Arc<str> = Arc::from("parent");
+        let result = CURRENT_TASK_ID
+            .scope(Some(id), async {
+                CURRENT_TASK_TRUST
+                    .scope(TrustLevel::Untrusted, async {
+                        CURRENT_TASK_ELEVATED
+                            .scope(true, async {
+                                WORKFLOW_DEPTH
+                                    .scope(Cell::new(0), async {
+                                        tool.call(
+                                            r#"{"workflow":"nonexistent.nika.yaml"}"#.to_string(),
+                                        )
+                                        .await
+                                    })
+                                    .await
+                            })
+                            .await
+                    })
+                    .await
+            })
+            .await;
+        // Should NOT fail with NIKA-380 (capability denied) — it should
+        // proceed past the capability check and hit the file resolution
+        // failure (NIKA-210 BuiltinToolError) instead.
+        let err = result.unwrap_err();
+        assert_ne!(
+            err.code(),
+            "NIKA-380",
+            "elevated caller must bypass capability check, got: {err}"
+        );
+    }
+
+    /// Sprint 2 Item 4: depth limit returns NIKA-386, not the old generic
+    /// BuiltinToolError. Hardcoded MAX_ALLOWED_DEPTH = 10 still applies as
+    /// the upper bound.
+    #[tokio::test]
+    async fn nika_run_depth_exceeded_returns_nika_386() {
+        let tool = RunTool;
+        let result = WORKFLOW_DEPTH
+            .scope(Cell::new(MAX_ALLOWED_DEPTH), async {
+                tool.call(
+                    r#"{"workflow":"some/path.nika.yaml","max_depth":3}"#.to_string(),
+                )
+                .await
+            })
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-386");
+    }
+
+    /// Sprint 2 Item 4: a workflow path already in PARENT_CHAIN cannot be
+    /// re-entered, even within the depth limit. Returns NIKA-387.
+    #[tokio::test]
+    async fn nika_run_cycle_detection_blocks_re_entry() {
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().expect("tempdir");
+        let workflow_path = dir.path().join("loop.nika.yaml");
+        std::fs::write(
+            &workflow_path,
+            "schema: \"nika/workflow@0.12\"\nworkflow: loop\ntasks:\n  - id: t\n    infer: \"x\"\n",
+        )
+        .expect("write workflow");
+
+        let canonical = workflow_path.canonicalize().expect("canonicalize");
+        let chain = vec![canonical.clone()];
+
+        let tool = RunTool;
+        let workflow_str = workflow_path.to_string_lossy().to_string();
+        let result = WORKFLOW_DEPTH
+            .scope(Cell::new(1), async {
+                PARENT_CHAIN
+                    .scope(chain, async {
+                        tool.call(format!(r#"{{"workflow":"{workflow_str}"}}"#))
+                            .await
+                    })
+                    .await
+            })
+            .await;
+        assert!(result.is_err(), "cycle must be blocked");
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-387");
     }
 
     #[test]
