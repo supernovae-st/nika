@@ -42,10 +42,13 @@ src/
 │   ├── builtin/         #   63 builtin tools (nika:*)
 │   │   ├── data/        #   Data tools: jq, map, filter, enrich, merge, inject, etc.
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
+│   ├── shield.rs        #   SecurityContext aggregate (SpotlightFence + CanarySystem)
+│   ├── canary.rs        #   Canary token system (3x16-char, exfiltration detection)
+│   ├── spotlight.rs     #   Untrusted data fencing (wrap_untrusted, re-anchoring)
 │   └── security.rs      #   Command blocklist + env validation
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
 ├── binding/             # Data flow: templates, transforms, JSONPath, resolve
-├── tools/               # File tools: read, write (overwrite param), edit, glob, grep
+├── tools/               # File tools: read, write, edit, glob, grep + check_path_readable (Shield)
 ├── display/             # CLI display renderers (Renderer trait + Box<dyn Renderer>)
 │   ├── renderer.rs      #   Renderer trait, CliRenderer, RunStats, TestRenderer
 │   ├── live.rs          #   LiveRenderer (indicatif: spinners, progress, for_each sub-bars)
@@ -72,6 +75,9 @@ src/
 ```
 src/
 ├── lib.rs               # Public API
+├── policy.rs            # SecurityPolicyConfig (diamond-layered, zero I/O)
+├── trust.rs             # TrustLevel, InvocationSource, trust categories for builtins
+├── capabilities.rs      # AgentToolPolicy enum (Unrestricted | RestrictDangerous)
 ├── catalogs/            # Zero-dep definitions (providers, models, mcp_aliases)
 ├── ast/                 # AST types (Raw, Analyzed, Analyzer, Schema)
 │   ├── raw/             #   Phase 1: YAML → Raw AST (parser.rs)
@@ -107,11 +113,13 @@ src/
 | 250 | Context error |
 | 251-259 | Media pipeline |
 | 260-269 | Package URI errors |
-| 270-279 | Skill errors |
+| 270-279 | Skill errors (271 = SkillIntegrityFailed) |
 | 280-285 | Artifacts + Media (path, write, size, integrity, cleanup, lock) |
 | 290-297 | Media tools (tool error, format, dependency, timeout, args, pipeline, security) |
 | 300-309 | Structured output |
 | 310-319 | Course errors |
+| 320-329 | Record compression errors |
+| 380-389 | Nika Shield security (CapabilityDenied, TrustViolation, CanaryLeaked, InjectionDetected, SpotlightRequired, MlModelMissing, RunDepthExceeded, RunCycleDetected, CanaryInThinking, UntrustedVisionBlocked) |
 | SECRET-001 | Daemon: keychain disabled |
 | SECRET-002 | Daemon: keyring store error |
 | SECRET-003 | Daemon: keyring delete error |
@@ -127,17 +135,19 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (8900+, safe — no keychain)
+cargo test --workspace --lib             # All crates (10666+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
-cargo test -p nika-engine --lib          # Engine tests only (4170+)
-cargo test -p nika-daemon --lib          # Daemon tests only (164)
-cargo test -p nika-tui --lib             # TUI tests only (2153+)
-cargo test -p nika-engine --lib -- display  # Display system tests (255+)
+cargo test -p nika-engine --lib          # Engine tests only
+cargo test -p nika-daemon --lib          # Daemon tests only
+cargo test -p nika-tui --lib             # TUI tests only
+cargo test -p nika-engine --lib -- shield  # Shield security tests (101+)
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```
 
 **WARNING:** `cargo test` (without `--lib`) runs contract tests that trigger macOS Keychain popups. Always use `--lib` for safe testing.
+
+**Shield tests:** Use `InvocationSource::Test` for `RunContext` — trusted inputs, all security layers active but permissive. Test files: `tests_shield_*.rs` in executor/ and tools/.
 
 ### Testing Philosophy — Be INTELLIGENT, Not Superficial
 
@@ -185,6 +195,8 @@ VPS resilience: `~/.nika/daemon/nika-exe-path` stores the binary path so the dae
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 - **Skills:** Workflow-level `skills:` are auto-injected into all `infer:` task system prompts (not just agents). Agent tasks can override with per-task `skills: [x, y]`.
+- **Shield:** `SecurityContext` is passed via `task_local!` in runner — never modify `BuiltinTool::call` signature. `trust: elevated` on a task overrides capability restrictions. `SecurityPolicyConfig` in nika-core, `SecurityContext` in nika-engine.
+- **Trust:** `RunContext::new()` requires `InvocationSource` (no default constructor). `InvocationSource::NestedRun { ceiling }` for nika:run.
 
 ## Custom Endpoints (OpenAI-Compatible)
 

@@ -1,6 +1,6 @@
 # Nika
 
-Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 64 transforms | 63 builtin tools | [QR Code AI](https://qrcode-ai.com)
+Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 65 transforms | 63 builtin tools | [QR Code AI](https://qrcode-ai.com)
 
 ## 5 Verbs
 
@@ -137,6 +137,25 @@ tasks:
 
 Layers: L0 tool injection (provider-native) → L2 extract+validate → L3 retry with feedback → L4 LLM repair.
 Result: valid JSON matching the schema. Same result on ALL 7 providers. No exceptions.
+
+## Nika Shield — 6-Layer Prompt Injection Defense
+
+Defense-in-depth stack wired into the runner. No single layer is sufficient; all 6 compose.
+
+| Layer | Name | What it does |
+|-------|------|--------------|
+| L0 | Policy | `[policy.security]` in nika.toml — taint_mode, spotlight, canary, capabilities |
+| L1 | Taint Analysis | Compile-time trust propagation (`nika check --security`, `nika lint` L-SEC-001..008) |
+| L2 | Spotlighting | Auto-wrap untrusted data with randomized fence markers + re-anchoring |
+| L3 | Structured Output | Pre-existing 5-layer JSON schema enforcement |
+| L4 | Capabilities | Per-task tool restriction based on trust chain (`AgentToolPolicy`) |
+| L5 | Validation + Audit | Canary tokens (3x16-char suffix) + output scanner + 14 security events |
+
+- `trust: elevated` on a task overrides capability restrictions
+- `SecurityPolicyConfig` lives in nika-core (diamond-layered for nika-display access)
+- `SecurityContext` aggregate in nika-engine/runtime/shield.rs
+- Error codes: NIKA-271 (SkillIntegrity), NIKA-380..389 (Shield security)
+- See `SECURITY.md` for the full threat model
 
 ## Secrets Architecture
 
