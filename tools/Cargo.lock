@@ -6066,6 +6066,7 @@ name = "nika-event"
 version = "0.79.0"
 dependencies = [
  "chrono",
+ "nika-macros",
  "parking_lot",
  "pretty_assertions",
  "rand 0.8.5",

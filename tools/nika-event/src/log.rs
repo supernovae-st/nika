@@ -145,7 +145,7 @@ pub struct Event {
 /// All possible event types (3 levels)
 ///
 /// Uses `Arc<str>` for task_id fields to enable zero-cost cloning.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, nika_macros::EventTaskId)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EventKind {
     // ═══════════════════════════════════════════
@@ -185,11 +185,13 @@ pub enum EventKind {
     // ═══════════════════════════════════════════
     // TASK LEVEL
     // ═══════════════════════════════════════════
+    #[has_task_id]
     TaskScheduled {
         task_id: Arc<str>,
         dependencies: Vec<Arc<str>>,
     },
     /// Task execution begins with resolved inputs from with: block
+    #[has_task_id]
     TaskStarted {
         task_id: Arc<str>,
         /// Verb type (infer, exec, fetch, invoke, agent)
@@ -197,11 +199,13 @@ pub enum EventKind {
         /// Resolved inputs from ResolvedBindings (what the task receives)
         inputs: Arc<Value>,
     },
+    #[has_task_id]
     TaskCompleted {
         task_id: Arc<str>,
         output: Arc<Value>,
         duration_ms: u64,
     },
+    #[has_task_id]
     TaskFailed {
         task_id: Arc<str>,
         error: String,
@@ -211,6 +215,7 @@ pub enum EventKind {
         error_code: Option<String>,
     },
     /// A task was skipped because a dependency failed.
+    #[has_task_id]
     TaskSkipped {
         task_id: Arc<str>,
         /// The dependency that failed causing the skip
@@ -220,11 +225,13 @@ pub enum EventKind {
     // ═══════════════════════════════════════════
     // FINE-GRAINED (template/provider)
     // ═══════════════════════════════════════════
+    #[has_task_id]
     TemplateResolved {
         task_id: Arc<str>,
         template: String,
         result: String,
     },
+    #[has_task_id]
     ProviderCalled {
         task_id: Arc<str>,
         provider: String,
@@ -234,6 +241,7 @@ pub enum EventKind {
         #[serde(skip_serializing_if = "Option::is_none")]
         endpoint_url: Option<String>,
     },
+    #[has_task_id]
     ProviderResponded {
         task_id: Arc<str>,
         /// API request ID (for debugging with provider)
@@ -253,6 +261,7 @@ pub enum EventKind {
     },
 
     /// Provider fallback: one provider failed, trying the next in the chain
+    #[has_task_id]
     ProviderFallback {
         task_id: Arc<str>,
         /// Provider that failed
@@ -267,6 +276,7 @@ pub enum EventKind {
     // CONTEXT ASSEMBLY
     // ═══════════════════════════════════════════
     /// Context assembly event for observability
+    #[has_task_id]
     ContextAssembled {
         task_id: Arc<str>,
         /// Sources included in context
@@ -285,6 +295,7 @@ pub enum EventKind {
     // MCP EVENTS
     // ═══════════════════════════════════════════
     /// MCP tool call or resource read initiated
+    #[has_task_id]
     McpInvoke {
         task_id: Arc<str>,
         /// Unique call ID for correlating with McpResponse
@@ -297,6 +308,7 @@ pub enum EventKind {
         params: Option<Arc<Value>>,
     },
     /// MCP operation completed
+    #[has_task_id]
     McpResponse {
         task_id: Arc<str>,
         /// Correlates with McpInvoke.call_id
@@ -329,6 +341,7 @@ pub enum EventKind {
     /// Emitted when MCP tool calls fail with connection errors and are retried.
     /// Use `McpClient::call_tool_with_retry_events()` for observable retry tracking.
     /// TUI handlers display this event with attempt count and error details.
+    #[has_task_id]
     McpRetry {
         /// Task ID initiating the retry
         task_id: Arc<str>,
@@ -348,6 +361,7 @@ pub enum EventKind {
     // AGENT EVENTS
     // ═══════════════════════════════════════════
     /// Agent preset was applied to a task (via `agent: <name>` or `preset: <name>`)
+    #[has_task_id]
     PresetApplied {
         task_id: Arc<str>,
         preset_name: String,
@@ -355,6 +369,7 @@ pub enum EventKind {
         model: Option<String>,
     },
     /// Agent loop started
+    #[has_task_id]
     AgentStart {
         task_id: Arc<str>,
         max_turns: u32,
@@ -367,6 +382,7 @@ pub enum EventKind {
     /// - Token usage (input/output/cache)
     /// - Stop reason
     /// - Thinking content (if using streaming API)
+    #[has_task_id]
     AgentTurn {
         task_id: Arc<str>,
         turn_index: u32,
@@ -377,6 +393,7 @@ pub enum EventKind {
         metadata: Option<AgentTurnMetadata>,
     },
     /// Agent loop completed (reached stop condition or max turns)
+    #[has_task_id]
     AgentComplete {
         task_id: Arc<str>,
         turns: u32,
@@ -387,6 +404,7 @@ pub enum EventKind {
     // NESTED AGENT EVENTS
     // ═══════════════════════════════════════════
     /// A sub-agent was spawned by a parent agent
+    #[has_task_id(field = "parent_task_id")]
     AgentSpawned {
         /// ID of the parent task that spawned the child
         parent_task_id: Arc<str>,
@@ -400,6 +418,7 @@ pub enum EventKind {
     // RECORD EVENTS
     // ═══════════════════════════════════════════
     /// Task output was compressed into a Record
+    #[has_task_id]
     RecordCreated {
         task_id: Arc<str>,
         /// Token count of compressed summary
@@ -414,6 +433,7 @@ pub enum EventKind {
         model: String,
     },
     /// Record compression was skipped (fallback to truncation or disabled)
+    #[has_task_id]
     RecordSkipped {
         task_id: Arc<str>,
         /// Reason compression was skipped
@@ -424,6 +444,7 @@ pub enum EventKind {
     // GUARDRAIL EVENTS
     // ═══════════════════════════════════════════
     /// Guardrail check passed
+    #[has_task_id]
     GuardrailPassed {
         /// Task ID for correlation
         task_id: Arc<str>,
@@ -433,6 +454,7 @@ pub enum EventKind {
         description: String,
     },
     /// Guardrail check failed
+    #[has_task_id]
     GuardrailFailed {
         /// Task ID for correlation
         task_id: Arc<str>,
@@ -447,6 +469,7 @@ pub enum EventKind {
     ///
     /// Emitted when a guardrail with `on_failure: escalate` fails.
     /// This signals that human intervention or special handling is needed.
+    #[has_task_id]
     GuardrailEscalation {
         /// Task ID for correlation
         task_id: Arc<str>,
@@ -467,6 +490,7 @@ pub enum EventKind {
     // BUILTIN TOOL EVENTS
     // ═══════════════════════════════════════════
     /// Log event emitted by nika:log builtin tool
+    #[has_task_id(optional)]
     Log {
         /// Log level: trace, debug, info, warn, error
         level: String,
@@ -478,6 +502,7 @@ pub enum EventKind {
     },
 
     /// Custom event emitted by nika:emit builtin tool
+    #[has_task_id(optional)]
     Custom {
         /// Event name/type
         name: String,
@@ -492,6 +517,7 @@ pub enum EventKind {
     // ARTIFACT EVENTS
     // ═══════════════════════════════════════════
     /// Artifact successfully written to disk
+    #[has_task_id]
     ArtifactWritten {
         /// Task that produced this artifact
         task_id: Arc<str>,
@@ -506,6 +532,7 @@ pub enum EventKind {
         checksum: Option<String>,
     },
     /// Artifact write failed
+    #[has_task_id]
     ArtifactFailed {
         /// Task that produced this artifact
         task_id: Arc<str>,
@@ -519,6 +546,7 @@ pub enum EventKind {
     // MEDIA EVENTS
     // ═══════════════════════════════════════════
     /// Media content blocks extracted from MCP tool result
+    #[has_task_id]
     MediaExtracted {
         task_id: Arc<str>,
         /// Number of non-text content blocks found
@@ -528,6 +556,7 @@ pub enum EventKind {
     },
 
     /// Single media block processed (decoded + detected)
+    #[has_task_id]
     MediaProcessed {
         task_id: Arc<str>,
         /// blake3 hash of the decoded content (with "blake3:" prefix)
@@ -539,6 +568,7 @@ pub enum EventKind {
     },
 
     /// Media file stored in CAS
+    #[has_task_id]
     MediaStored {
         task_id: Arc<str>,
         /// blake3 hash (with "blake3:" prefix)
@@ -556,6 +586,7 @@ pub enum EventKind {
     },
 
     /// Media storage failed
+    #[has_task_id]
     MediaStoreFailed {
         task_id: Arc<str>,
         /// blake3 hash (if available, empty string if pre-hash failure)
@@ -582,6 +613,7 @@ pub enum EventKind {
     /// - Layer 2: Extract + Validate (post-processing)
     /// - Layer 3: Retry with Feedback
     /// - Layer 4: LLM Repair
+    #[has_task_id]
     StructuredOutputAttempt {
         /// Task ID for correlation
         task_id: Arc<str>,
@@ -600,6 +632,7 @@ pub enum EventKind {
     /// Structured output successfully extracted
     ///
     /// Emitted when any layer successfully produces valid output
+    #[has_task_id]
     StructuredOutputSuccess {
         /// Task ID for correlation
         task_id: Arc<str>,
@@ -613,6 +646,7 @@ pub enum EventKind {
     /// Structured output validation timed out
     ///
     /// Emitted when the aggregate timeout (600s) is exceeded across all layers.
+    #[has_task_id]
     StructuredOutputTimeout {
         task_id: Arc<str>,
         timeout_secs: u64,
@@ -625,6 +659,7 @@ pub enum EventKind {
     ///
     /// Emitted when CAS image references in `content:` are resolved
     /// to base64 data before sending to a vision-capable LLM.
+    #[has_task_id]
     VisionContentResolved {
         /// Task that triggered vision resolution
         task_id: Arc<str>,
@@ -640,6 +675,7 @@ pub enum EventKind {
     // HTTP TELEMETRY EVENTS
     // ═══════════════════════════════════════════
     /// HTTP request initiated by fetch: verb
+    #[has_task_id]
     HttpRequest {
         task_id: Arc<str>,
         method: String,
@@ -647,6 +683,7 @@ pub enum EventKind {
         has_body: bool,
     },
     /// HTTP response received by fetch: verb
+    #[has_task_id]
     HttpResponse {
         task_id: Arc<str>,
         status_code: u16,
@@ -672,6 +709,7 @@ pub enum EventKind {
     // EXEC EVENTS
     // ═══════════════════════════════════════════
     /// Shell command execution completed with exit details
+    #[has_task_id]
     ExecCompleted {
         task_id: Arc<str>,
         /// Process exit code (0 = success)
@@ -688,6 +726,7 @@ pub enum EventKind {
     // FETCH EVENTS
     // ═══════════════════════════════════════════
     /// Fetch retry attempt (mirrors McpRetry pattern)
+    #[has_task_id]
     FetchRetry {
         task_id: Arc<str>,
         /// URL being fetched
@@ -704,6 +743,7 @@ pub enum EventKind {
     },
 
     /// Fetch retries exhausted — all attempts failed
+    #[has_task_id]
     FetchExhausted {
         task_id: Arc<str>,
         /// URL that was being fetched
@@ -718,6 +758,7 @@ pub enum EventKind {
     },
 
     /// Task-level retry attempt (all verbs except fetch, which has FetchRetry)
+    #[has_task_id]
     TaskRetry {
         task_id: Arc<str>,
         /// Current attempt number (1-based)
@@ -735,6 +776,7 @@ pub enum EventKind {
     ///
     /// Built-in 4-attempt safety net in the infer executor, independent of task-level
     /// `retry:` config. Emitted on each retry for observability and cost tracking.
+    #[has_task_id]
     ProviderAutoRetried {
         task_id: Arc<str>,
         /// Current attempt number (1-based, attempt 1 = first retry)
@@ -751,6 +793,7 @@ pub enum EventKind {
     // ROUTING EVENTS
     // ═══════════════════════════════════════════
     /// A fallback was triggered — switching from one provider to another.
+    #[has_task_id]
     FallbackTriggered {
         task_id: Arc<str>,
         /// Provider that failed.
@@ -767,6 +810,7 @@ pub enum EventKind {
     // POLICY EVENTS
     // ═══════════════════════════════════════════
     /// Security policy blocked an operation
+    #[has_task_id]
     PolicyBlocked {
         task_id: Arc<str>,
         /// Verb that was blocked (exec, fetch, invoke)
@@ -812,6 +856,7 @@ pub enum EventKind {
     // CONTEXT BUDGET EVENTS
     // ═══════════════════════════════════════════
     /// Context budget check passed — bindings fit within budget
+    #[has_task_id]
     BudgetOk {
         task_id: Arc<str>,
         /// Configured budget in tokens
@@ -820,6 +865,7 @@ pub enum EventKind {
         actual: u32,
     },
     /// Context budget exceeded — bindings were truncated to fit
+    #[has_task_id]
     BudgetExceeded {
         task_id: Arc<str>,
         /// Configured budget in tokens
@@ -834,6 +880,7 @@ pub enum EventKind {
     // BINDING EVENTS
     // ═══════════════════════════════════════════
     /// Binding default value applied (via ?? operator)
+    #[has_task_id]
     BindingDefaultApplied {
         task_id: Arc<str>,
         /// Alias name in with: block
@@ -845,6 +892,7 @@ pub enum EventKind {
     },
 
     /// Binding transform chain applied (e.g., |upper|trim|sort)
+    #[has_task_id]
     BindingTransformApplied {
         task_id: Arc<str>,
         /// Alias name
@@ -854,6 +902,7 @@ pub enum EventKind {
     },
 
     /// Environment variable resolved via $env.VAR_NAME binding
+    #[has_task_id]
     BindingEnvResolved {
         task_id: Arc<str>,
         /// Environment variable name
@@ -863,6 +912,7 @@ pub enum EventKind {
     },
 
     /// Vault credential resolved via $vault.SERVICE.FIELD binding
+    #[has_task_id]
     BindingVaultResolved {
         task_id: Arc<str>,
         /// Service name
@@ -877,6 +927,7 @@ pub enum EventKind {
     // DAG ORCHESTRATION EVENTS
     // ═══════════════════════════════════════════
     /// Decompose modifier expansion started
+    #[has_task_id]
     DecomposeStarted {
         task_id: Arc<str>,
         /// Strategy: "semantic", "static", "nested"
@@ -884,6 +935,7 @@ pub enum EventKind {
     },
 
     /// Decompose modifier expansion completed
+    #[has_task_id]
     DecomposeCompleted {
         task_id: Arc<str>,
         /// Strategy used
@@ -895,6 +947,7 @@ pub enum EventKind {
     },
 
     /// for_each iteration batch started
+    #[has_task_id]
     ForEachStarted {
         task_id: Arc<str>,
         /// Number of items to iterate over
@@ -906,6 +959,7 @@ pub enum EventKind {
     },
 
     /// for_each iteration batch completed with aggregated results
+    #[has_task_id]
     ForEachCompleted {
         task_id: Arc<str>,
         /// Total iterations attempted
@@ -934,6 +988,7 @@ pub enum EventKind {
     },
 
     /// Builtin tool invoked by agent (nika:read, nika:write, etc.)
+    #[has_task_id]
     BuiltinToolInvoked {
         task_id: Arc<str>,
         /// Tool name: "nika:read", "nika:write", etc.
@@ -952,6 +1007,7 @@ pub enum EventKind {
     /// This is the highest-frequency event and should be lightweight.
     /// LiveRenderer uses it to show live "out:1.2k" on task bars,
     /// turning 30s inference from "frozen" to "clearly alive".
+    #[has_task_id]
     StreamingDelta {
         task_id: Arc<str>,
         /// Tokens received in this chunk.
@@ -999,6 +1055,7 @@ pub enum EventKind {
     // FETCH EXTRACT EVENTS
     // ═══════════════════════════════════════════
     /// Extraction mode applied to fetch response.
+    #[has_task_id]
     ExtractApplied {
         task_id: Arc<str>,
         /// Extract mode: "css", "jq", "text", "markdown", "llm_txt"
@@ -1016,6 +1073,7 @@ pub enum EventKind {
     // SECURITY EVENTS
     // ═══════════════════════════════════════════
     /// LLM output security scan finding (output_scanner).
+    #[has_task_id]
     SecurityScanFinding {
         task_id: Arc<str>,
         /// Pattern category: "invisible_unicode", "exfiltration", "role_hijack", etc.
@@ -1028,6 +1086,7 @@ pub enum EventKind {
     // FOR_EACH ITEM EVENTS
     // ═══════════════════════════════════════════
     /// A single for_each iteration started.
+    #[has_task_id]
     ForEachItemStarted {
         task_id: Arc<str>,
         /// 0-based index of this iteration
@@ -1036,12 +1095,14 @@ pub enum EventKind {
         total: usize,
     },
     /// A single for_each iteration completed successfully.
+    #[has_task_id]
     ForEachItemCompleted {
         task_id: Arc<str>,
         index: usize,
         duration_ms: u64,
     },
     /// A single for_each iteration failed.
+    #[has_task_id]
     ForEachItemFailed {
         task_id: Arc<str>,
         index: usize,
@@ -1052,12 +1113,14 @@ pub enum EventKind {
     // CANCELLATION
     // ═══════════════════════════════════════════
     /// Task was cancelled (not failed) due to workflow abort or fail_fast.
+    #[has_task_id]
     TaskCancelled { task_id: Arc<str>, reason: String },
 
     // ═══════════════════════════════════════════
     // FALLBACK
     // ═══════════════════════════════════════════
     /// All providers in the fallback chain failed.
+    #[has_task_id]
     FallbackChainExhausted {
         task_id: Arc<str>,
         /// Providers that were tried
@@ -1072,6 +1135,7 @@ pub enum EventKind {
     // ON_ERROR FALLBACK
     // ═══════════════════════════════════════════
     /// Task-level on_error: fallback was triggered after primary execution + retries failed.
+    #[has_task_id]
     TaskFallbackTriggered {
         task_id: Arc<str>,
         /// Which on_error action fired: "ignore", "retry_with_provider", or "fallback"
@@ -1085,24 +1149,28 @@ pub enum EventKind {
     // DIAGNOSTICS (S6 telemetry)
     // ═══════════════════════════════════════════
     /// Template binding resolution failed before task execution.
+    #[has_task_id]
     TemplateResolutionFailed {
         task_id: Arc<str>,
         template: String,
         error: String,
     },
     /// Domain rate limiter delayed request.
+    #[has_task_id]
     RateLimitDelay {
         task_id: Arc<str>,
         domain: String,
         delay_ms: u64,
     },
     /// Schema file could not be loaded or parsed.
+    #[has_task_id]
     SchemaLoadFailed {
         task_id: Arc<str>,
         schema_path: String,
         error: String,
     },
     /// Vision content resolution failed (CAS read, unsupported format, etc.).
+    #[has_task_id]
     VisionContentFailed {
         task_id: Arc<str>,
         source: String,
@@ -1124,34 +1192,42 @@ pub enum EventKind {
         warning_count: usize,
     },
     /// Trust level assigned to a task after execution.
+    #[has_task_id]
     TrustLevelAssigned {
         task_id: Arc<str>,
         trust_level: String,
     },
     /// Task uses `trust: elevated` — bypasses spotlight/capability restrictions.
+    #[has_task_id]
     TrustElevationUsed { task_id: Arc<str> },
     /// Spotlight fence applied to untrusted binding in prompt.
+    #[has_task_id]
     SpotlightApplied {
         task_id: Arc<str>,
         binding_alias: String,
         trust_level: String,
     },
     /// Spotlight skipped (disabled globally or elevated).
+    #[has_task_id]
     SpotlightSkipped { task_id: Arc<str>, reason: String },
     /// Agent tool restricted due to trust chain.
+    #[has_task_id]
     AgentToolRestricted {
         task_id: Arc<str>,
         removed_tool: String,
         reason: String,
     },
     /// Canary token injected into system prompt.
+    #[has_task_id]
     CanaryInjected { task_id: Arc<str> },
     /// Canary token detected in LLM output — ALERT!
+    #[has_task_id]
     CanaryDetected {
         task_id: Arc<str>,
         match_type: String,
     },
     /// Output scanner finding (pattern detection).
+    #[has_task_id]
     ScanFindingDetected {
         task_id: Arc<str>,
         category: String,
@@ -1166,130 +1242,26 @@ pub enum EventKind {
         actual: String,
     },
     /// Capability denied at runtime.
+    #[has_task_id]
     CapabilityDenied {
         task_id: Arc<str>,
         action: String,
         reason: String,
     },
     /// ML detection run (behind shield-ml feature flag).
+    #[has_task_id]
     MlDetectionRun {
         task_id: Arc<str>,
         score: f64,
         latency_ms: u64,
     },
     /// ML detection blocked task (score above threshold).
+    #[has_task_id]
     MlDetectionBlocked { task_id: Arc<str>, score: f64 },
 }
 
 impl EventKind {
-    /// Extract task_id if event is task-related
-    pub fn task_id(&self) -> Option<&str> {
-        match self {
-            Self::TaskScheduled { task_id, .. }
-            | Self::TaskStarted { task_id, .. }
-            | Self::TaskCompleted { task_id, .. }
-            | Self::TaskFailed { task_id, .. }
-            | Self::TaskSkipped { task_id, .. }
-            | Self::TemplateResolved { task_id, .. }
-            | Self::ProviderCalled { task_id, .. }
-            | Self::ProviderResponded { task_id, .. }
-            | Self::ProviderFallback { task_id, .. }
-            | Self::ContextAssembled { task_id, .. }
-            | Self::McpInvoke { task_id, .. }
-            | Self::McpResponse { task_id, .. }
-            | Self::McpRetry { task_id, .. }  // P2 Fix: Added McpRetry
-            | Self::PresetApplied { task_id, .. }
-            | Self::AgentStart { task_id, .. }
-            | Self::AgentTurn { task_id, .. }
-            | Self::AgentComplete { task_id, .. }
-            | Self::RecordCreated { task_id, .. }
-            | Self::RecordSkipped { task_id, .. }
-            | Self::ArtifactWritten { task_id, .. }
-            | Self::ArtifactFailed { task_id, .. }
-            | Self::VisionContentResolved { task_id, .. }
-            | Self::MediaExtracted { task_id, .. }
-            | Self::MediaProcessed { task_id, .. }
-            | Self::MediaStored { task_id, .. }
-            | Self::MediaStoreFailed { task_id, .. }
-            | Self::StructuredOutputAttempt { task_id, .. }
-            | Self::StructuredOutputSuccess { task_id, .. }
-            | Self::StructuredOutputTimeout { task_id, .. }
-            | Self::HttpRequest { task_id, .. }
-            | Self::HttpResponse { task_id, .. }
-            | Self::GuardrailPassed { task_id, .. }
-            | Self::GuardrailFailed { task_id, .. }
-            | Self::GuardrailEscalation { task_id, .. }
-            | Self::ExecCompleted { task_id, .. }
-            | Self::FetchRetry { task_id, .. }
-            | Self::FetchExhausted { task_id, .. }
-            | Self::TaskRetry { task_id, .. }
-            | Self::ProviderAutoRetried { task_id, .. }
-            | Self::FallbackTriggered { task_id, .. }
-            | Self::PolicyBlocked { task_id, .. }
-            | Self::BudgetOk { task_id, .. }
-            | Self::BudgetExceeded { task_id, .. }
-            | Self::BindingDefaultApplied { task_id, .. }
-            | Self::BindingTransformApplied { task_id, .. }
-            | Self::BindingEnvResolved { task_id, .. }
-            | Self::BindingVaultResolved { task_id, .. }
-            | Self::DecomposeStarted { task_id, .. }
-            | Self::DecomposeCompleted { task_id, .. }
-            | Self::ForEachStarted { task_id, .. }
-            | Self::ForEachCompleted { task_id, .. }
-            | Self::BuiltinToolInvoked { task_id, .. }
-            | Self::StreamingDelta { task_id, .. }
-            | Self::ExtractApplied { task_id, .. }
-            | Self::SecurityScanFinding { task_id, .. }
-            | Self::ForEachItemStarted { task_id, .. }
-            | Self::ForEachItemCompleted { task_id, .. }
-            | Self::ForEachItemFailed { task_id, .. }
-            | Self::TaskCancelled { task_id, .. }
-            | Self::FallbackChainExhausted { task_id, .. }
-            | Self::TaskFallbackTriggered { task_id, .. }
-            | Self::TemplateResolutionFailed { task_id, .. }
-            | Self::RateLimitDelay { task_id, .. }
-            | Self::SchemaLoadFailed { task_id, .. }
-            | Self::VisionContentFailed { task_id, .. }
-            | Self::TrustLevelAssigned { task_id, .. }
-            | Self::TrustElevationUsed { task_id, .. }
-            | Self::SpotlightApplied { task_id, .. }
-            | Self::SpotlightSkipped { task_id, .. }
-            | Self::AgentToolRestricted { task_id, .. }
-            | Self::CanaryInjected { task_id, .. }
-            | Self::CanaryDetected { task_id, .. }
-            | Self::ScanFindingDetected { task_id, .. }
-            | Self::CapabilityDenied { task_id, .. }
-            | Self::MlDetectionRun { task_id, .. }
-            | Self::MlDetectionBlocked { task_id, .. } => Some(task_id),
-            // AgentSpawned uses parent_task_id as the primary task reference
-            Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
-            // Log and Custom may optionally have task_id
-            Self::Log { task_id, .. } | Self::Custom { task_id, .. } => {
-                task_id.as_ref().map(|s| s.as_ref())
-            }
-            Self::WorkflowStarted { .. }
-            | Self::WorkflowCompleted { .. }
-            | Self::WorkflowFailed { .. }
-            | Self::WorkflowAborted { .. }
-            | Self::WorkflowPaused
-            | Self::WorkflowResumed
-            | Self::McpConnected { .. }
-            | Self::McpError { .. }
-            | Self::MediaCleanup { .. }
-            | Self::MediaIntegrityCheck { .. }
-            | Self::BootPhaseCompleted { .. }
-            | Self::NativeModelLoaded { .. }
-            | Self::ProviderInitialized { .. }
-            | Self::OrchestratorStarted { .. }
-            | Self::OrchestratorRound { .. }
-            | Self::OrchestratorSubWorkflow { .. }
-            | Self::OrchestratorCompleted { .. }
-            | Self::OrchestratorFailed { .. }
-            | Self::TaintAnalysisComplete { .. }
-            | Self::SkillIntegrityVerified { .. }
-            | Self::SkillIntegrityFailed { .. } => None,
-        }
-    }
+
 
     /// Check if this is a workflow-level event
     pub fn is_workflow_event(&self) -> bool {
