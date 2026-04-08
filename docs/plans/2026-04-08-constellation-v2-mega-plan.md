@@ -8,6 +8,13 @@
 > **Scope:** MAXIMUM — every trait wired, every macro added, every god file split, every crate extracted, every dead scaffold resurrected
 > **Supersedes:** `2026-04-08-architecture-modular-refactor-mega-plan.md` (v1)
 
+> **⚠️ SUPERSEDED SECTIONS:** This plan was written 2026-04-08 and is partially superseded by:
+> - **V2.2** (`docs/sprints/CONSTELLATION-V2.2-TECH-DEBT-ADDENDUM.md`) — revised Phase 6 (16h not 40h), Phase 7 (not blocked), Phase 11 (80% done → now 100%), Phase 14 (additive), + 55 new bugs + 28 crate adoptions
+> - **V2.3** (`docs/sprints/CONSTELLATION-V2.3-AGGRESSIVE-TARGETS.md`) — firm targets: engine ≤100k, NO Salsa, zero-unwrap CI ratchet, nika-macros Phase 3 before Phase 12
+> - **§18.19** (at the end of this file) has the CURRENT phase ordering
+>
+> **Read V2.3 FIRST for current targets. Use this plan for architectural context and trait specifications (§5).**
+
 ## Table of Contents
 
 1. [Philosophy — Connect, Do Not Delete](#1-philosophy--connect-do-not-delete)
@@ -711,6 +718,8 @@ scheduler.rs                ~600 LOC    NEW — extracted from run() god method
 ---
 
 ## 8. Phase Roadmap — 19 Phases
+
+> **Note:** This ordering is superseded by §18.19 below (V2.3 reordering).
 
 ```
 PHASE 0: Shield Sprint 2 merges                              [BLOCKING — J-27]
