@@ -3,6 +3,11 @@
 > **Reporting a vulnerability:** email security@supernovae.studio with details
 > and steps to reproduce. We'll respond within 48h. Do not file public issues
 > for unpatched vulnerabilities.
+>
+> **Sprint 2 status (2026-04-08):** Items 1-6 of Nika Shield are wired into
+> the runner hot path. Item 7 (ML detection) and a handful of A1/A4/A8/A10
+> hardenings are deferred — see "What Is NOT Yet Wired" below. Effective
+> coverage of the documented threat model is **~87%**, not 100%.
 
 ## Honest Threat Model
 
@@ -156,6 +161,42 @@ via agent output from bypassing guardrails.
 - **Side-channel timing or resource-exhaustion attacks**.
 - **Attacks on the infrastructure running Nika** (kernel exploits, container escapes).
 
+## What Is NOT Yet Wired (Sprint 2 deferrals)
+
+The following items are documented in the Sprint 2 design but are not yet
+landed in the runner hot path. They are tracked for Sprint 3.
+
+- **A1: deep-tree spotlight wrap on JSON object bindings**. Sprint 2 wraps
+  each binding alias as a single string; an `extract: article` payload
+  accessed via `{{with.scrape.text_content}}` deep-paths into the wrapped
+  JSON, which the current spotlight pre-pass does not catch. Workaround:
+  bind `text` to a top-level alias (`text: $scrape.text_content`).
+- **A4: per-task fence rotation**. Sprint 2 ships per-run fences (one fence
+  per workflow execution). A2/A4 hardening rotates the fence per task so
+  leaking one cannot help with another. Sprint 3.
+- **A7: untrusted vision input**. NIKA-389 variant exists but the runner
+  does not yet block vision inputs sourced from untrusted CAS hashes.
+- **A8: per-element wrap inside `for_each`**. Loop variables are wrapped
+  conservatively at the alias level; per-iteration wrap when the iterator
+  is `Value::Array` is deferred.
+- **A9: runtime `when:` block on tainted condition**. The L-SEC-006 lint
+  fires at compile-time but the runtime does not yet refuse to evaluate
+  the condition.
+- **A10: cache key augmentation with trust level**. Cache writes are not
+  yet partitioned by trust, so a poisoned response could be served on a
+  cache hit. Sprint 3.
+- **A12: artifact path traversal block**. The L-SEC lint flags risky
+  patterns but the runtime allowlist + `..` rejection lands in Sprint 3.
+- **Item 7 — ML / heuristic injection scanner**. The output_scanner is
+  wired but the Aho-Corasick + optional ONNX classifier are deferred to
+  a follow-up sprint behind the `shield-ml` feature flag.
+- **`[mcp.trusted]` policy field**. Item 3c wraps every MCP tool
+  description regardless of server trust until the `nika.toml` schema
+  for `policy.security.trusted_mcp_servers` lands.
+
+Together these account for the ~13% gap between aspirational v1 coverage
+(100%) and the actual Sprint 2 v2 wiring (~87%).
+
 ## Best Practices for Handling Untrusted Data
 
 1. **Always use `structured:` schema** for `infer:` tasks that process fetched
@@ -185,14 +226,19 @@ via agent output from bypassing guardrails.
 
 ## Error Codes (Nika Shield Range)
 
-| Code | Name | Meaning |
-|------|------|---------|
-| NIKA-271 | SkillIntegrityFailed | Skill file blake3 hash does not match nika.toml |
-| NIKA-380 | CapabilityDenied | Task action exceeds inferred capabilities |
-| NIKA-381 | TrustViolation | Untrusted data flow blocked in strict mode |
-| NIKA-382 | CanaryLeaked | Canary token detected in LLM output |
-| NIKA-383 | InjectionDetected | ML detector score above threshold (shield-ml) |
-| NIKA-384 | SpotlightRequired | Spotlight enforcement blocked incompatible flow |
+| Code | Name | Meaning | Sprint 2 wired? |
+|------|------|---------|---|
+| NIKA-271 | SkillIntegrityFailed | Skill file blake3 hash does not match nika.toml | yes |
+| NIKA-380 | CapabilityDenied | Task action exceeds inferred capabilities (recon block, nika:run, agent restrict) | yes |
+| NIKA-381 | TrustViolation | Untrusted data flow blocked in strict mode | reserved |
+| NIKA-382 | CanaryLeaked | Canary token detected in LLM output (carries match_type + token_index) | yes |
+| NIKA-383 | InjectionDetected | ML detector score above threshold (`shield-ml`) | reserved (Item 7) |
+| NIKA-384 | SpotlightRequired | Spotlight enforcement blocked incompatible flow | reserved (strict mode) |
+| NIKA-385 | MlModelMissing | ML model file missing under `shield-ml` | reserved (Item 7) |
+| NIKA-386 | RunDepthExceeded | nika:run nesting depth above policy.security.max_run_depth | yes |
+| NIKA-387 | RunCycleDetected | nika:run cyclic invocation chain | yes |
+| NIKA-388 | CanaryInThinking | Canary leaked in extended-thinking trace | reserved |
+| NIKA-389 | UntrustedVisionBlocked | Untrusted vision input refused (A7) | reserved |
 
 ## OWASP LLM Top 10 (2025) Compliance
 

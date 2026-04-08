@@ -29,6 +29,8 @@ mod tests_shield_agent_restrict;
 #[cfg(test)]
 mod tests_shield_canary;
 #[cfg(test)]
+mod tests_shield_e2e;
+#[cfg(test)]
 mod tests_shield_spotlight;
 #[cfg(test)]
 mod tests_wiremock;
