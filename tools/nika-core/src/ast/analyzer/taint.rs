@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::ast::analyzed::{AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow};
 use crate::binding::BindingSource;
-use crate::trust::{is_trust_propagating_builtin, InvocationSource, TrustLevel};
+use crate::trust::{builtin_output_trust, InvocationSource, TrustLevel};
 
 // NOTE: AnalyzedTask.id is TaskId(u32), an interned index.
 // We use task.name (String) as the key in trust_map for human-readable output.
@@ -94,15 +94,11 @@ impl TaintAnalyzer {
             // Shell stdout is always untrusted (external process output)
             AnalyzedTaskAction::Exec(_) => TrustLevel::Untrusted,
 
-            // Invoke: depends on whether it's a builtin or MCP tool
+            // Invoke: builtins via fail-closed dispatch table, MCP tools always Untrusted.
             AnalyzedTaskAction::Invoke(inv) => {
                 if inv.tool.starts_with("nika:") {
-                    // Builtins: data-passing propagate input trust, pure builtins = Trusted
-                    if is_trust_propagating_builtin(&inv.tool) {
-                        input_trust.merge(TrustLevel::Trusted) // min(input, Trusted)
-                    } else {
-                        TrustLevel::Trusted // Pure builtins (sleep, log, etc.)
-                    }
+                    // P0-4 hardening: unknown builtins fall closed to Untrusted.
+                    builtin_output_trust(&inv.tool, input_trust)
                 } else {
                     // MCP tool result = untrusted (external server)
                     TrustLevel::Untrusted

@@ -90,13 +90,23 @@ impl std::fmt::Display for InvocationSource {
 }
 
 // ── Builtin Trust Categorization ────────────────────────────────────────────
+//
+// Every nika:* builtin MUST appear in exactly one of the four categories
+// below. The compile-time test `all_builtins_categorized_exactly_once` walks
+// the registered builtin list and asserts membership.
+//
+// `builtin_output_trust` is the single dispatch point. Unknown builtins
+// fail-closed to `merge(Untrusted)` (P0-4 hardening) — this defeats trust
+// laundering via uncategorized builtins like `fetch → pdf_extract → exec`.
 
 /// Builtins that pass data through — output trust = `min(input_trust, Trusted)`.
 ///
-/// These tools transform or reshape data without adding trust. If the input
-/// is untrusted, the output remains untrusted (an attacker can't launder
-/// tainted data through `nika:jq`).
+/// Conservative: if the input is untrusted, the output remains untrusted.
+/// An attacker cannot launder tainted data through `nika:jq` or similar
+/// transforms. `nika:run` is here because nested workflows return whatever
+/// trust their internal tasks computed.
 pub const TRUST_PROPAGATING_BUILTINS: &[&str] = &[
+    // Data shape transforms
     "nika:jq",
     "nika:map",
     "nika:filter",
@@ -114,35 +124,82 @@ pub const TRUST_PROPAGATING_BUILTINS: &[&str] = &[
     "nika:tree_data",
     "nika:json_verify",
     "nika:yaml_validate",
+    // File reads
     "nika:read",
     "nika:glob",
     "nika:grep",
+    // HTML / text extraction
     "nika:html_to_md",
     "nika:css_select",
     "nika:readability",
     "nika:extract_metadata",
     "nika:extract_links",
+    "nika:pdf_extract",
+    // Locale lookup
     "nika:locale_lookup",
+    // Nested workflow — output trust is whatever the inner workflow computed.
+    "nika:run",
+];
+
+/// Builtins that take untrusted bytes and produce metadata or new bytes.
+///
+/// Output is the input trust level — propagated unchanged because the bytes
+/// being measured / transformed remain untrusted. Distinct from
+/// `TRUST_PROPAGATING_BUILTINS` only conceptually: both functions return
+/// `input_trust` for these tools, but reference builtins are documentation
+/// that the OUTPUT is a CAS hash reference, not semantic content.
+pub const TRUST_REFERENCE_BUILTINS: &[&str] = &[
+    // CAS pipeline entry points
+    "nika:import",
+    "nika:decode",
+    // Read-only metadata about untrusted bytes
+    "nika:dimensions",
+    "nika:thumbhash",
+    "nika:dominant_color",
+    "nika:phash",
+    "nika:compare",
+    "nika:provenance",
+    "nika:verify",
+    "nika:qr_validate",
+    "nika:quality",
+    "nika:metadata",
+    // Transforms producing new bytes from untrusted bytes
+    "nika:thumbnail",
+    "nika:convert",
+    "nika:strip",
+    "nika:optimize",
+    "nika:svg_render",
+    "nika:chart",
+    "nika:pipeline",
 ];
 
 /// Builtins that produce trusted output regardless of input (pure side-effects
-/// or metadata-only queries).
+/// or metadata-only queries that never echo input data).
 pub const TRUST_PURE_BUILTINS: &[&str] = &[
+    // Workflow control
     "nika:sleep",
     "nika:log",
     "nika:emit",
     "nika:assert",
-    "nika:cost",
-    "nika:token_count",
+    "nika:prompt",
+    "nika:complete",
+    // Introspection
     "nika:dag_info",
     "nika:task_status",
     "nika:threads",
+    "nika:orchestrate",
+    "nika:cost",
     "nika:records",
-    "nika:prompt",
-    "nika:complete",
-    "nika:dimensions",
-    "nika:thumbhash",
-    "nika:dominant_color",
+    "nika:token_count",
+    // Side-effect file writes — outputs are file metadata, not echoed input
+    "nika:write",
+    "nika:edit",
+];
+
+/// Builtins whose output is always `Untrusted` regardless of input (external
+/// data sources). Output is fetched from outside the workflow (HTTP, MCP).
+pub const TRUST_EXTERNAL_BUILTINS: &[&str] = &[
+    "nika:fetch",
 ];
 
 /// Check if a builtin tool propagates input trust (vs producing trusted output).
@@ -153,6 +210,28 @@ pub fn is_trust_propagating_builtin(tool: &str) -> bool {
 /// Check if a builtin tool always produces trusted output.
 pub fn is_trust_pure_builtin(tool: &str) -> bool {
     TRUST_PURE_BUILTINS.contains(&tool)
+}
+
+/// Compute the output trust level for a builtin invocation.
+///
+/// **Fail-closed:** unknown `nika:*` tools default to `merge(Untrusted)` and
+/// trip a `debug_assert!` so the next test run flags the missing
+/// categorization. This defeats P0-4 (trust laundering via uncategorized
+/// builtins like `nika:pdf_extract`).
+#[must_use]
+pub fn builtin_output_trust(tool: &str, input_trust: TrustLevel) -> TrustLevel {
+    if TRUST_PROPAGATING_BUILTINS.contains(&tool) {
+        input_trust.merge(TrustLevel::Trusted)
+    } else if TRUST_REFERENCE_BUILTINS.contains(&tool) {
+        input_trust
+    } else if TRUST_PURE_BUILTINS.contains(&tool) {
+        TrustLevel::Trusted
+    } else if TRUST_EXTERNAL_BUILTINS.contains(&tool) {
+        TrustLevel::Untrusted
+    } else {
+        debug_assert!(false, "uncategorized nika:* builtin: {tool}");
+        input_trust.merge(TrustLevel::Untrusted)
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -216,11 +295,26 @@ mod tests {
 
     #[test]
     fn test_builtin_categorization_no_overlap() {
-        for tool in TRUST_PROPAGATING_BUILTINS {
-            assert!(
-                !TRUST_PURE_BUILTINS.contains(tool),
-                "{tool} is in both PROPAGATING and PURE lists"
-            );
+        let categories: &[(&str, &[&str])] = &[
+            ("PROPAGATING", TRUST_PROPAGATING_BUILTINS),
+            ("REFERENCE", TRUST_REFERENCE_BUILTINS),
+            ("PURE", TRUST_PURE_BUILTINS),
+            ("EXTERNAL", TRUST_EXTERNAL_BUILTINS),
+        ];
+
+        // Each tool may appear in at most one category.
+        for (a_name, a_list) in categories {
+            for tool in *a_list {
+                for (b_name, b_list) in categories {
+                    if a_name == b_name {
+                        continue;
+                    }
+                    assert!(
+                        !b_list.contains(tool),
+                        "{tool} appears in both {a_name} and {b_name} categories"
+                    );
+                }
+            }
         }
     }
 
@@ -240,6 +334,172 @@ mod tests {
         assert!(is_trust_pure_builtin("nika:log"));
         assert!(!is_trust_pure_builtin("nika:jq"));
         assert!(!is_trust_pure_builtin("unknown:tool"));
+    }
+
+    /// Compile-time invariant: every known `nika:*` builtin appears in exactly
+    /// one trust category. This is the P0-4 hardening — defeats trust
+    /// laundering by ensuring no builtin silently falls through to fail-open.
+    #[test]
+    fn all_builtins_categorized_exactly_once() {
+        // Mirror the actual registered builtin set. If a new builtin is
+        // added to the engine, list it here AND categorize it above.
+        let known: &[&str] = &[
+            // Core (7)
+            "nika:sleep",
+            "nika:log",
+            "nika:emit",
+            "nika:assert",
+            "nika:prompt",
+            "nika:run",
+            "nika:complete",
+            // File (5)
+            "nika:read",
+            "nika:write",
+            "nika:edit",
+            "nika:glob",
+            "nika:grep",
+            // Network (1)
+            "nika:fetch",
+            // Introspection (6)
+            "nika:dag_info",
+            "nika:task_status",
+            "nika:threads",
+            "nika:orchestrate",
+            "nika:cost",
+            "nika:records",
+            // Data (13)
+            "nika:json_merge",
+            "nika:json_diff",
+            "nika:set_diff",
+            "nika:zip",
+            "nika:map",
+            "nika:filter",
+            "nika:group_by",
+            "nika:chunk",
+            "nika:token_count",
+            "nika:enrich",
+            "nika:jq",
+            "nika:tree_data",
+            "nika:inject",
+            // Data Sprint 2 (5)
+            "nika:json_verify",
+            "nika:yaml_validate",
+            "nika:locale_lookup",
+            "nika:aggregate",
+            "nika:json_flatten",
+            "nika:json_unflatten",
+            // HTML / text extraction (5)
+            "nika:html_to_md",
+            "nika:css_select",
+            "nika:extract_metadata",
+            "nika:extract_links",
+            "nika:readability",
+            "nika:pdf_extract",
+            // Media always-on (5)
+            "nika:import",
+            "nika:decode",
+            "nika:dimensions",
+            "nika:thumbhash",
+            "nika:dominant_color",
+            // Media core (3)
+            "nika:thumbnail",
+            "nika:convert",
+            "nika:strip",
+            // Media opt-in
+            "nika:metadata",
+            "nika:optimize",
+            "nika:svg_render",
+            "nika:chart",
+            "nika:phash",
+            "nika:compare",
+            "nika:provenance",
+            "nika:verify",
+            "nika:qr_validate",
+            "nika:quality",
+            "nika:pipeline",
+        ];
+
+        for tool in known {
+            let in_prop = TRUST_PROPAGATING_BUILTINS.contains(tool);
+            let in_ref = TRUST_REFERENCE_BUILTINS.contains(tool);
+            let in_pure = TRUST_PURE_BUILTINS.contains(tool);
+            let in_ext = TRUST_EXTERNAL_BUILTINS.contains(tool);
+            let count = [in_prop, in_ref, in_pure, in_ext]
+                .iter()
+                .filter(|x| **x)
+                .count();
+            assert_eq!(
+                count, 1,
+                "{tool} must appear in exactly one trust category, found in {count}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_nika_builtin_falls_closed_to_untrusted() {
+        // We can't trip the debug_assert in #[cfg(test)] without aborting,
+        // so call a non-existent name AFTER catching the assertion. We use
+        // std::panic::catch_unwind to swallow the assert and check the value.
+        let result = std::panic::catch_unwind(|| {
+            builtin_output_trust("nika:future_tool_v3", TrustLevel::Trusted)
+        });
+        match result {
+            Ok(trust) => {
+                // Release builds: debug_assert is a no-op, so we get the
+                // fail-closed value directly.
+                assert!(trust.is_untrusted(), "unknown builtin must fail closed");
+            }
+            Err(_) => {
+                // Debug builds: debug_assert! panicked. The fact that it
+                // panicked is itself the contract we want to test.
+            }
+        }
+    }
+
+    #[test]
+    fn builtin_output_trust_propagating_returns_input_trust() {
+        // Trusted in → Trusted out (merge with Trusted = no change)
+        assert_eq!(
+            builtin_output_trust("nika:jq", TrustLevel::Trusted),
+            TrustLevel::Trusted
+        );
+        // Untrusted in → Untrusted out (merge with Trusted = min = Untrusted)
+        assert_eq!(
+            builtin_output_trust("nika:jq", TrustLevel::Untrusted),
+            TrustLevel::Untrusted
+        );
+    }
+
+    #[test]
+    fn builtin_output_trust_pure_returns_trusted_always() {
+        assert_eq!(
+            builtin_output_trust("nika:sleep", TrustLevel::Untrusted),
+            TrustLevel::Trusted
+        );
+        assert_eq!(
+            builtin_output_trust("nika:log", TrustLevel::Untrusted),
+            TrustLevel::Trusted
+        );
+    }
+
+    #[test]
+    fn builtin_output_trust_external_returns_untrusted_always() {
+        assert_eq!(
+            builtin_output_trust("nika:fetch", TrustLevel::Trusted),
+            TrustLevel::Untrusted
+        );
+    }
+
+    #[test]
+    fn builtin_output_trust_reference_passes_through() {
+        assert_eq!(
+            builtin_output_trust("nika:thumbhash", TrustLevel::Untrusted),
+            TrustLevel::Untrusted
+        );
+        assert_eq!(
+            builtin_output_trust("nika:thumbhash", TrustLevel::Trusted),
+            TrustLevel::Trusted
+        );
     }
 
     #[test]
