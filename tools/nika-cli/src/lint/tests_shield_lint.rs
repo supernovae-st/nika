@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use nika_core::ast::analyzed::{
-    AnalyzedAgentAction, AnalyzedFetchAction, AnalyzedInferAction, AnalyzedExecAction,
+    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedInferAction,
     AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, TaskId,
 };
 use nika_core::ast::templatable::Templatable;
@@ -200,11 +200,7 @@ fn l_sec_006_fires_on_untrusted_when_condition() {
         fetch_id,
         "fetch_data",
     );
-    wf.tasks
-        .iter_mut()
-        .find(|t| t.id == cond_id)
-        .unwrap()
-        .when = Some("{{with.data}}".into());
+    wf.tasks.iter_mut().find(|t| t.id == cond_id).unwrap().when = Some("{{with.data}}".into());
     let findings = lint_workflow(&wf);
     assert!(has_rule_for(&findings, "L-SEC-006", "cond_task"));
 }
@@ -301,7 +297,10 @@ fn l_sec_lint_dispatcher_runs_security_module() {
         "fetch_data",
     );
     let findings = lint_workflow(&wf);
-    let l_sec_count = findings.iter().filter(|f| f.rule.starts_with("L-SEC-")).count();
+    let l_sec_count = findings
+        .iter()
+        .filter(|f| f.rule.starts_with("L-SEC-"))
+        .count();
     assert!(
         l_sec_count > 0,
         "lint_workflow must include L-SEC findings via lint_security"

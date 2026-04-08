@@ -54,12 +54,7 @@ impl SpotlightFence {
     /// Sprint 2 P0-2 hardening: renamed from `wrap` to `wrap_untrusted`
     /// and asserts the trust level is actually untrusted in debug builds
     /// so accidental wraps of trusted data trip in tests.
-    pub fn wrap_untrusted(
-        &self,
-        content: &str,
-        source_label: &str,
-        trust: TrustLevel,
-    ) -> String {
+    pub fn wrap_untrusted(&self, content: &str, source_label: &str, trust: TrustLevel) -> String {
         debug_assert!(
             trust.is_untrusted(),
             "wrap_untrusted called with non-untrusted data: {trust:?}"

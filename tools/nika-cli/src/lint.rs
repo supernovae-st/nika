@@ -263,9 +263,7 @@ fn lint_security(workflow: &AnalyzedWorkflow) -> Vec<LintFinding> {
             TaintWarning::UntrustedToExec { .. } => ("L-SEC-001", Severity::Warning),
             TaintWarning::UntrustedToAgentTools { .. } => ("L-SEC-002", Severity::Warning),
             TaintWarning::UntrustedToInferNoSchema { .. } => ("L-SEC-003", Severity::Info),
-            TaintWarning::UntrustedForEachAmplification { .. } => {
-                ("L-SEC-004", Severity::Warning)
-            }
+            TaintWarning::UntrustedForEachAmplification { .. } => ("L-SEC-004", Severity::Warning),
             TaintWarning::UntrustedToFetchUrl { .. } => ("L-SEC-005", Severity::Warning),
             TaintWarning::UntrustedWhenCondition { .. } => ("L-SEC-006", Severity::Info),
         };

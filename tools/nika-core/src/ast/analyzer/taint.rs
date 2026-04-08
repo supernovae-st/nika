@@ -386,7 +386,9 @@ impl TaintWarning {
             Self::UntrustedToInferNoSchema { infer_task, .. } => infer_task.as_str(),
             Self::UntrustedForEachAmplification { foreach_task, .. } => foreach_task.as_str(),
             Self::UntrustedToFetchUrl { fetch_task, .. } => fetch_task.as_str(),
-            Self::UntrustedWhenCondition { conditional_task, .. } => conditional_task.as_str(),
+            Self::UntrustedWhenCondition {
+                conditional_task, ..
+            } => conditional_task.as_str(),
         })
     }
 

@@ -259,7 +259,10 @@ mod tests {
             injected.starts_with(base),
             "prefix must be preserved verbatim for provider cache"
         );
-        assert!(injected.contains("[trace_id="), "canary must appear in suffix");
+        assert!(
+            injected.contains("[trace_id="),
+            "canary must appear in suffix"
+        );
         assert!(injected.contains("[session="), "session token must appear");
         assert!(injected.contains("[verify="), "verify token must appear");
         assert!(injected.len() > base.len(), "suffix added");

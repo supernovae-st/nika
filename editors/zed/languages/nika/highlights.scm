@@ -161,7 +161,7 @@
   key: (flow_node
     (plain_scalar
       (string_scalar) @type
-      (#match? @type "^(artifact|as|concurrency|context_budget|decompose|depends_on|description|fail_fast|for_each|guardrails|log|model|on_error|output|preset|provider|record|retry|routing|structured|timeout|when|with)$"))))
+      (#match? @type "^(artifact|as|concurrency|context_budget|decompose|depends_on|description|fail_fast|for_each|guardrails|log|model|on_error|output|preset|provider|record|retry|routing|structured|timeout|trust|when|with)$"))))
 
 ; ============================================================
 ; Verb sub-fields (properties inside verb blocks)

@@ -119,10 +119,7 @@ pub fn check_path_readable(
     // the caller's read will then fail with the underlying I/O error and
     // there's nothing to leak.
     let canonical = path.canonicalize().unwrap_or_else(|_| PathBuf::from(path));
-    let file_name = canonical
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let file_name = canonical.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
     let blocked = SENSITIVE_FILE_NAMES.contains(&file_name)
         || SENSITIVE_FILE_SUFFIXES

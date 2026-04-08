@@ -27,7 +27,12 @@ fn build_executor(policy: PolicyConfig) -> TaskExecutor {
         .expect("executor build")
 }
 
-fn insert_with_trust(ctx: &RunContext, task_id: &str, output: serde_json::Value, trust: TrustLevel) {
+fn insert_with_trust(
+    ctx: &RunContext,
+    task_id: &str,
+    output: serde_json::Value,
+    trust: TrustLevel,
+) {
     let arc_id: Arc<str> = Arc::from(task_id);
     let mut tr = TaskResult::success(output, Duration::from_millis(1));
     tr.trust_level = trust;

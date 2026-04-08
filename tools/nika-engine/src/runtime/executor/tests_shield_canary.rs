@@ -60,7 +60,10 @@ async fn canary_injects_three_tokens_as_suffix_when_enabled() {
     let base = "You are a helpful assistant.";
     let injected = canary.inject_into_system_prompt(base);
 
-    assert!(injected.starts_with(base), "prefix preserved (cache safety)");
+    assert!(
+        injected.starts_with(base),
+        "prefix preserved (cache safety)"
+    );
     assert!(injected.contains("[trace_id="));
     assert!(injected.contains("[session="));
     assert!(injected.contains("[verify="));
@@ -123,7 +126,10 @@ async fn canary_normal_response_does_not_trigger_detection() {
     let any_detect = events
         .iter()
         .any(|e| matches!(&e.kind, EventKind::CanaryDetected { .. }));
-    assert!(!any_detect, "well-behaved mock response must not leak canary");
+    assert!(
+        !any_detect,
+        "well-behaved mock response must not leak canary"
+    );
 
     // Injection event must still fire.
     let any_inject = events
@@ -229,10 +235,7 @@ async fn canary_strict_mode_returns_nika_382_when_token_leaks_via_execute() {
         assert_eq!(e.code(), "NIKA-382");
         match e {
             NikaError::CanaryLeaked { match_type, .. } => {
-                assert!(matches!(
-                    match_type,
-                    "exact" | "substring" | "char_spaced"
-                ));
+                assert!(matches!(match_type, "exact" | "substring" | "char_spaced"));
             }
             _ => panic!("expected CanaryLeaked, got {e:?}"),
         }

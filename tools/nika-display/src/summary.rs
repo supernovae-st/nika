@@ -462,10 +462,7 @@ fn format_section_shield(stats: &ShieldStats, w: usize) -> Vec<String> {
             stats.canary.detected.to_string().red()
         )
     } else {
-        format!(
-            "    canary  {} injected, 0 detected",
-            stats.canary.injected
-        )
+        format!("    canary  {} injected, 0 detected", stats.canary.injected)
     };
     lines.push(format!("│{}│", pad_right(&canary_line, w)));
     if stats.findings > 0 {
