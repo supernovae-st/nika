@@ -2332,109 +2332,51 @@ impl fmt::Display for TransformOp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
     use serde_json::json;
 
     // ─────────────────────────────────────────────────────────────
-    // Parse tests
+    // Parse tests — simple transforms (rstest parametrized)
     // ─────────────────────────────────────────────────────────────
 
-    #[test]
-    fn parse_upper() {
-        let expr = TransformExpr::parse("upper").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Upper]);
+    #[rstest]
+    #[case("upper", &[TransformOp::Upper])]
+    #[case("lower", &[TransformOp::Lower])]
+    #[case("trim", &[TransformOp::Trim])]
+    #[case("length", &[TransformOp::Length])]
+    #[case("first", &[TransformOp::First])]
+    #[case("shell", &[TransformOp::Shell])]
+    #[case("to_json", &[TransformOp::ToJson])]
+    #[case("parse_json", &[TransformOp::ParseJson])]
+    #[case("round", &[TransformOp::Round(None)])]
+    fn parse_simple_transform(#[case] input: &str, #[case] expected: &[TransformOp]) {
+        let expr = TransformExpr::parse(input).unwrap();
+        assert_eq!(expr.ops.as_slice(), expected);
     }
 
-    #[test]
-    fn parse_lower() {
-        let expr = TransformExpr::parse("lower").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Lower]);
+    // Parse tests — parametric transforms (need owned values, separate table)
+    #[rstest]
+    #[case("first(3)", TransformOp::FirstN(3))]
+    #[case("last(5)", TransformOp::LastN(5))]
+    #[case("round(2)", TransformOp::Round(Some(2)))]
+    fn parse_parametric_transform(#[case] input: &str, #[case] expected: TransformOp) {
+        let expr = TransformExpr::parse(input).unwrap();
+        assert_eq!(expr.ops.as_slice(), &[expected]);
     }
 
-    #[test]
-    fn parse_trim() {
-        let expr = TransformExpr::parse("trim").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Trim]);
-    }
-
-    #[test]
-    fn parse_length() {
-        let expr = TransformExpr::parse("length").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Length]);
-    }
-
-    #[test]
-    fn parse_first() {
-        let expr = TransformExpr::parse("first").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::First]);
-    }
-
-    #[test]
-    fn parse_first_n() {
-        let expr = TransformExpr::parse("first(3)").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::FirstN(3)]);
-    }
-
-    #[test]
-    fn parse_last_n() {
-        let expr = TransformExpr::parse("last(5)").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::LastN(5)]);
-    }
-
-    #[test]
-    fn parse_join() {
-        let expr = TransformExpr::parse("join(', ')").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Join(", ".to_string())]);
-    }
-
-    #[test]
-    fn parse_split() {
-        let expr = TransformExpr::parse("split('/')").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Split("/".to_string())]);
-    }
-
-    #[test]
-    fn parse_default_string() {
-        let expr = TransformExpr::parse("default('N/A')").unwrap();
-        assert_eq!(
-            expr.ops.as_slice(),
-            &[TransformOp::Default(Value::String("N/A".to_string()))]
-        );
+    #[rstest]
+    #[case("join(', ')", TransformOp::Join(", ".to_string()))]
+    #[case("split('/')", TransformOp::Split("/".to_string()))]
+    #[case("default('N/A')", TransformOp::Default(Value::String("N/A".to_string())))]
+    fn parse_string_parametric(#[case] input: &str, #[case] expected: TransformOp) {
+        let expr = TransformExpr::parse(input).unwrap();
+        assert_eq!(expr.ops.as_slice(), &[expected]);
     }
 
     #[test]
     fn parse_default_number() {
         let expr = TransformExpr::parse("default(42)").unwrap();
         assert_eq!(expr.ops.as_slice(), &[TransformOp::Default(json!(42))]);
-    }
-
-    #[test]
-    fn parse_round() {
-        let expr = TransformExpr::parse("round(2)").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Round(Some(2))]);
-    }
-
-    #[test]
-    fn parse_round_no_arg() {
-        let expr = TransformExpr::parse("round").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Round(None)]);
-    }
-
-    #[test]
-    fn parse_shell() {
-        let expr = TransformExpr::parse("shell").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::Shell]);
-    }
-
-    #[test]
-    fn parse_to_json() {
-        let expr = TransformExpr::parse("to_json").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::ToJson]);
-    }
-
-    #[test]
-    fn parse_parse_json() {
-        let expr = TransformExpr::parse("parse_json").unwrap();
-        assert_eq!(expr.ops.as_slice(), &[TransformOp::ParseJson]);
     }
 
     #[test]
@@ -2492,10 +2434,19 @@ mod tests {
     // Apply tests — String
     // ─────────────────────────────────────────────────────────────
 
-    #[test]
-    fn apply_upper_string() {
-        let result = TransformOp::Upper.apply(&json!("hello")).unwrap();
-        assert_eq!(result, json!("HELLO"));
+    #[rstest]
+    #[case(TransformOp::Upper, json!("hello"), json!("HELLO"))]
+    #[case(TransformOp::Lower, json!("HELLO"), json!("hello"))]
+    #[case(TransformOp::Trim, json!(" hello "), json!("hello"))]
+    #[case(TransformOp::TrimStart, json!("  hello  "), json!("hello  "))]
+    #[case(TransformOp::TrimEnd, json!("  hello  "), json!("  hello"))]
+    fn apply_string_transform(
+        #[case] op: TransformOp,
+        #[case] input: Value,
+        #[case] expected: Value,
+    ) {
+        let result = op.apply(&input).unwrap();
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -2510,50 +2461,21 @@ mod tests {
         assert!(matches!(err, TransformError::NullInput { .. }));
     }
 
-    #[test]
-    fn apply_lower_string() {
-        let result = TransformOp::Lower.apply(&json!("HELLO")).unwrap();
-        assert_eq!(result, json!("hello"));
-    }
-
-    #[test]
-    fn apply_trim() {
-        let result = TransformOp::Trim.apply(&json!(" hello ")).unwrap();
-        assert_eq!(result, json!("hello"));
-    }
-
-    #[test]
-    fn apply_trim_start() {
-        let result = TransformOp::TrimStart.apply(&json!("  hello  ")).unwrap();
-        assert_eq!(result, json!("hello  "));
-    }
-
-    #[test]
-    fn apply_trim_end() {
-        let result = TransformOp::TrimEnd.apply(&json!("  hello  ")).unwrap();
-        assert_eq!(result, json!("  hello"));
-    }
-
     // ─────────────────────────────────────────────────────────────
     // Apply tests — Collection
     // ─────────────────────────────────────────────────────────────
 
-    #[test]
-    fn apply_length_array() {
-        let result = TransformOp::Length.apply(&json!([1, 2, 3])).unwrap();
-        assert_eq!(result, json!(3));
-    }
-
-    #[test]
-    fn apply_length_string() {
-        let result = TransformOp::Length.apply(&json!("abc")).unwrap();
-        assert_eq!(result, json!(3));
-    }
-
-    #[test]
-    fn apply_length_object() {
-        let result = TransformOp::Length.apply(&json!({"a": 1, "b": 2})).unwrap();
-        assert_eq!(result, json!(2));
+    #[rstest]
+    #[case(TransformOp::Length, json!([1, 2, 3]), json!(3))]
+    #[case(TransformOp::Length, json!("abc"), json!(3))]
+    #[case(TransformOp::Length, json!({"a": 1, "b": 2}), json!(2))]
+    fn apply_length_variants(
+        #[case] op: TransformOp,
+        #[case] input: Value,
+        #[case] expected: Value,
+    ) {
+        let result = op.apply(&input).unwrap();
+        assert_eq!(result, expected);
     }
 
     #[test]
