@@ -11,8 +11,8 @@ Write AI workflows in YAML. Run them anywhere.
 
 [![Crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&label=CI)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-10%2C666-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
-[![Crates](https://img.shields.io/badge/crates-17-3b82f6?style=flat-square)](https://github.com/supernovae-st/nika/tree/main/tools)
+[![Tests](https://img.shields.io/badge/tests-10%2C790-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Crates](https://img.shields.io/badge/crates-24-3b82f6?style=flat-square)](https://github.com/supernovae-st/nika/tree/main/tools)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
 [![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19362013.svg)](https://zenodo.org/doi/10.5281/zenodo.19362013)
@@ -583,7 +583,7 @@ flowchart TD
 
 **Three-phase AST** (inspired by rustc): Raw (parse with source spans) --> Analyzed (validate, resolve bindings) --> Lowered (concrete runtime types). The immutable DAG is built from petgraph for safe concurrent execution.
 
-**17 workspace crates:**
+**24 workspace crates:**
 
 ```
 tools/
@@ -641,7 +641,7 @@ No other AI workflow engine ships these features natively.
 | **Source** | `git clone https://github.com/supernovae-st/nika && cargo install --path nika/tools/nika` |
 
 ```bash
-nika --version       # nika 0.79.0
+nika --version       # nika 0.79.3
 nika doctor          # full system health check
 ```
 
@@ -722,14 +722,14 @@ nika showcase list               # browse 115 example workflows
 ```bash
 git clone https://github.com/supernovae-st/nika.git
 cd nika
-cargo build                       # build all 17 crates
-cargo test --workspace --lib      # 10,666 tests (safe, no keychain popups)
+cargo build                       # build all 24 crates
+cargo test --workspace --lib      # 10,790+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # zero warnings policy
 ```
 
 > **Note:** `cargo test` without `--lib` runs contract tests that trigger macOS Keychain popups. Always use `--lib`.
 
-Nika is built with AI assistance. Every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,666 tests that prove it works. See the [Manifesto](MANIFESTO.md#9-built-with-ai) for our stance on AI-assisted development.
+Nika is built with AI assistance. Every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,790+ tests that prove it works. See the [Manifesto](MANIFESTO.md#9-built-with-ai) for our stance on AI-assisted development.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
@@ -749,7 +749,7 @@ Read the [Manifesto](MANIFESTO.md) to understand why.
 
 <div align="center">
 
-**Nika v0.79.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 17 crates · 10,666 tests
+**Nika v0.79.3** · Schema `nika/workflow@0.12` · Rust 1.86+ · 24 crates · 10,790+ tests
 
 [SuperNovae Studio](https://supernovae.studio) · [QR Code AI](https://qrcode-ai.com) · [GitHub](https://github.com/supernovae-st/nika)
 
