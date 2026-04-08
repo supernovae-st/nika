@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Message Rendering for Chat View
 //!
 //! Contains the `render_messages_v2` method and related helpers, split into

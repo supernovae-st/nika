@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Integration tests for builtin nika:* tools (v0.9.3)
 //!
 //! Tests the full invoke path through TaskExecutor for builtin tools.

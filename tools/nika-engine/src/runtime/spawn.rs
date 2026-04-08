@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Spawn Agent Tool (MVP 8 Phase 2)
 //!
 //! Internal tool for recursive agent spawning. Allows an agent to delegate

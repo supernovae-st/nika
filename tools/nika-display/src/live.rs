@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! LiveRenderer — animated, in-place CLI display using indicatif.
 //!
 //! Uses `MultiProgress` to maintain a fixed status area at the bottom of the

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Include Loader — Raw-level workflow include expansion
 //!
 //! Operates on the **raw AST** (before analysis), so the analyzer sees

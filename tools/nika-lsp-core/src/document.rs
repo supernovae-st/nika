@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Rope-backed document for efficient incremental edits.
 //!
 //! [`Document`] wraps a [`ropey::Rope`] and provides the operations

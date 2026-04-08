@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Server-Sent Events (SSE) for real-time job status streaming.
 //!
 //! - `EventBus`: per-job broadcast channels for publish/subscribe

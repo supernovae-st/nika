@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! for_each binding resolution — extracted from runner.rs
 //!
 //! Resolves for_each items expressions from all binding formats into a `Vec<Value>`.

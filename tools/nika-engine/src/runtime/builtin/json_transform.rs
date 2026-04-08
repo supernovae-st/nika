@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! `nika:json_flatten` / `nika:json_unflatten` — Flatten/unflatten nested JSON.
 //!
 //! - `json_flatten`: `{"a": {"b": 1}}` → `{"a.b": 1}`

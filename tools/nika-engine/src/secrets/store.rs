@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Thread-safe in-process secret store.
 //!
 //! Replaces `unsafe { std::env::set_var }` with a lock-free `DashMap`.

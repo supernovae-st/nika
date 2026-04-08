@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Model capabilities catalog — single source of truth for model behavior.
 //!
 //! Every model-specific conditional in the codebase MUST read from here

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! YAML Bomb Protection via serde-saphyr Budget System
 //!
 //! This module provides protection against YAML bombs (deeply nested structures,

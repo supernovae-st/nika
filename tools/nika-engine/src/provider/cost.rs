@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Cost calculation for LLM providers
 //!
 //! Provides pricing tables and cost calculation for all supported providers.

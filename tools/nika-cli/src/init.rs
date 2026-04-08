@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Init subcommand handler — creates nika.toml + .nika/ + AGENTS.md + starter workflow
 
 use std::fs;

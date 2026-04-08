@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Task Box Flow - Scrollable stack of TaskBox widgets
 //!
 //! Displays ALL TaskBox widgets stacked vertically with auto-scroll.

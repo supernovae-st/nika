@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! robots.txt compliance via texting_robots (RFC 9309).
 //!
 //! Per-domain robots.txt fetching and caching. Checks if a URL is allowed

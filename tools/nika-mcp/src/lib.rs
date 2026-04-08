@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Client Module - Model Context Protocol integration
 //!
 //! Provides MCP client functionality for connecting to and communicating

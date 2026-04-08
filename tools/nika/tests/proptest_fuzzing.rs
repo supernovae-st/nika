@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Property-Based Testing for Nika (v0.4.1)
 //!
 //! Uses proptest to fuzz-test critical parsing and validation logic.

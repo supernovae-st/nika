@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 // The #[error] attribute from thiserror uses struct fields via string interpolation,
 // but Rust's unused_assignments lint doesn't recognize this.
 #![allow(unused_assignments)]

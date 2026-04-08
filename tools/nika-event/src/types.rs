@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Typed enums for event fields that were previously stringly-typed.
 //!
 //! These replace `String` fields in EventKind variants with compile-time

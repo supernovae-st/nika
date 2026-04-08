@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! End-to-end integration tests for the tree-sitter bridge.
 //!
 //! Each test exercises `extract_partial()` on realistic or pathological

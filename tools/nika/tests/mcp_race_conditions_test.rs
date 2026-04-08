@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Race Condition Tests (HIGH Priority)
 //!
 //! Tests for concurrent MCP client access patterns to verify thread safety.

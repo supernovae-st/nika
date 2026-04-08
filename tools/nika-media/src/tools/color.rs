@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:dominant_color — Extract dominant color palette from an image.
 //!
 //! Uses `color-thief` crate. Quality 1 = best quality (slowest).

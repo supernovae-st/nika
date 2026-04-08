@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Public API: `Client`, `Job`, and `Artifact`.
 //!
 //! `Client` is the entry point — create one via `Client::remote()` or

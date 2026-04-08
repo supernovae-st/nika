@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Keyboard Actions for TaskBox Widgets
 //!
 //! Unified shortcut system across all 5 verb boxes.

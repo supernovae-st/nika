@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Enhanced Tree Widget for Nika TUI
 //!
 //! VS Code-like tree view with SuperNovae ecosystem detection.

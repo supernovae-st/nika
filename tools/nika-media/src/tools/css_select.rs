@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:css_select — CSS selector extraction from HTML content.
 //!
 //! Accepts a CAS hash or raw HTML string and a CSS selector.

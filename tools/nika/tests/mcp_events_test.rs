@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Connection Event Tests (v0.7.0)
 //!
 //! Tests for EventKind::McpConnected and EventKind::McpError emission

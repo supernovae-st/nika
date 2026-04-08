@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Summary display helpers — workflow completion and doctor diagnostics.
 //!
 //! Contains both the legacy `print_done_summary` and the rich box-style

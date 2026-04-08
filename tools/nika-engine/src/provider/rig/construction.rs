@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Provider construction, factory methods, and metadata.
 //!
 //! All methods that create, configure, or inspect `RigProvider` instances.

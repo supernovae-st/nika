@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Spinner constants and progress bar templates for LiveRenderer.
 //!
 //! Tick strings use Braille dots — the de facto standard for CLI spinners.

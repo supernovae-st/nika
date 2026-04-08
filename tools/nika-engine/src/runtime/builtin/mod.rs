@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Builtin Tools Module — 60 nika:* tools across 6 tiers
 //!
 //! **Core (7):** sleep, log, emit, assert, prompt, run, complete

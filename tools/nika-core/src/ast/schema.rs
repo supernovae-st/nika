@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Schema version definitions for Nika workflows.
 //!
 //! This module owns the `SchemaVersion` enum which is shared across

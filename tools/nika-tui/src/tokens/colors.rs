@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! # Tailwind CSS Color Palette for Ratatui
 //!
 //! Complete Tailwind CSS v3.4 color palette converted to `ratatui::style::Color`.

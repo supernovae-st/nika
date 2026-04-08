@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! AST integration module for LSP features.
 //!
 //! This module provides AST-based utilities for LSP operations,

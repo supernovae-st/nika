@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Analyzer module - Phase 2 transformation.
 //!
 //! This module provides the core analysis functionality that transforms

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Registry operations for the SuperNovae package system.
 //!
 //! This module provides file system operations for the `~/.nika/` registry:

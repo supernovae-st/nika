@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Analyzed AST - Phase 2 of the Two-Phase IR Architecture.
 //!
 //! This module contains the validated, resolved AST types. All string

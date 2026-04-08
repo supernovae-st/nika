@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Tree state management for selection and expansion.
 //!
 //! Tracks which nodes are selected, expanded, and provides keyboard navigation.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Integration tests for reasoning capture and token tracking (v0.4.1 → v0.7.2)
 //!
 //! These tests verify that extended thinking and token tracking work correctly.

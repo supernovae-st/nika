@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Real Output Verification Tests
 //!
 //! Tests that MCP tools (invoke: verb) produce correct outputs.

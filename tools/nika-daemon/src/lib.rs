@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Nika native daemon — background services for secrets, jobs, watch, and cache.
 //!
 //! The daemon is Nika's optional background brain. `nika run` works without it,

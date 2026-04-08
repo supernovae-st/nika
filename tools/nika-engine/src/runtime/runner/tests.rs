@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Runner unit tests — DAG scheduling, for_each, events, retry, cancellation, pause.
 //!
 //! Extracted from runner.rs to reduce file size. Tests cover:

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Tool Discovery for LSP Completions
 //!
 //! Provides intelligent completions for MCP server names and tool names

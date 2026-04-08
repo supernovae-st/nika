@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! SSE (Server-Sent Events) wire format parser.
 //!
 //! Parses the `event:\ndata:\n\n` format from nika-serve into typed

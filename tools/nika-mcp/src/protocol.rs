@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! JSON-RPC 2.0 Protocol Types for MCP
 //!
 //! This module provides the core JSON-RPC 2.0 types used for MCP communication:

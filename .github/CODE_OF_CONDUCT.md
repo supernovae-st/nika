@@ -1,74 +1,142 @@
-# Contributor Covenant Code of Conduct
+# Code of Conduct
 
-## Our Pledge
+## Who We Are
 
-We as members, contributors, and leaders pledge to make participation in our
-community a harassment-free experience for everyone, regardless of age, body
-size, visible or invisible disability, ethnicity, sex characteristics, gender
-identity and expression, level of experience, education, socio-economic status,
-nationality, personal appearance, race, caste, color, religion, or sexual
-identity and orientation.
+Nika exists to liberate. To close the gap between "AI exists" and "I can use AI."
+That mission only works if the community behind it is as open as the tool itself.
 
-We pledge to act and interact in ways that contribute to an open, welcoming,
-diverse, inclusive, and healthy community.
+We are engineers, designers, writers, students, researchers, and people who just
+want to automate things. Some of us have shipped production systems for years. Some
+of us opened a terminal for the first time last week. Both matter equally here.
 
-## Our Standards
+If you care about making AI accessible to everyone — you belong here. Your
+background, your title, your years of experience: irrelevant. What matters is what
+you bring today.
 
-Examples of behavior that contributes to a positive environment for our
-community include:
+## Our Principles
 
-* Demonstrating empathy and kindness toward other people
-* Being respectful of differing opinions, viewpoints, and experiences
-* Giving and gracefully accepting constructive feedback
-* Accepting responsibility and apologizing to those affected by our mistakes,
-  and learning from the experience
-* Focusing on what is best not just for us as individuals, but for the overall
-  community
+These are not rules to memorize. They are how we think.
 
-Examples of unacceptable behavior include:
+### Build for the person who isn't in the room
 
-* The use of sexualized language or imagery, and sexual attention or advances of
-  any kind
-* Trolling, insulting or derogatory comments, and personal or political attacks
-* Public or private harassment
-* Publishing others' private information, such as a physical or email address,
-  without their explicit permission
-* Other conduct which could reasonably be considered inappropriate in a
-  professional setting
+The farmer who wants to automate crop reports. The teacher processing student
+feedback. The journalist scraping public data. They will never open a GitHub issue.
+They will never read this document. But they are who Nika is for. Every decision we
+make — every API, every error message, every default — should serve them.
 
-## Enforcement Responsibilities
+Design is not how something looks. Design is how it works for the person using it.
 
-Community leaders are responsible for clarifying and enforcing our standards of
-acceptable behavior and will take appropriate and fair corrective action in
-response to any behavior that they deem inappropriate, threatening, offensive,
-or harmful.
+### Show your ugly work
 
-Community leaders have the right and responsibility to remove, edit, or reject
-comments, commits, code, wiki edits, issues, and other contributions that are
-not aligned to this Code of Conduct, and will communicate reasons for moderation
-decisions when appropriate.
+The best ideas start broken. Share early. Share rough. A half-formed sketch in a
+Discussion thread is worth more than a polished PR that surprises everyone. We
+normalize showing work in progress — not because we lower our standards, but because
+good things come from iteration, not isolation.
 
-## Scope
+If you have a question, ask it. If you don't know something, say so. Nobody here
+was born knowing Rust, YAML, or DAG theory. The fastest way to learn is to admit
+what you don't know yet.
 
-This Code of Conduct applies within all community spaces, and also applies when
-an individual is officially representing the community in public spaces.
+### Discuss before you build
 
-## Enforcement
+Open a Discussion or an Issue before writing code. Describe the problem. Describe
+your approach. Listen to feedback. This is not bureaucracy — this is how we avoid
+wasting your time and ours.
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-**[contact@supernovae.studio](mailto:contact@supernovae.studio)**.
+We are deliberate about what goes into Nika. Five verbs. Not six. Every feature,
+every transform, every builtin earns its place. If your idea is good, the
+conversation will make it better. If it doesn't fit, you'll understand why before
+you've written 500 lines.
 
-All complaints will be reviewed and investigated promptly and fairly.
+### The best idea wins
 
-All community leaders are obligated to respect the privacy and security of the
-reporter of any incident.
+It doesn't matter if you're a core maintainer or a first-time contributor. The idea
+is evaluated on its own merit. A newcomer who spots a better approach than a veteran
+is not an embarrassment — it's the system working.
 
-## Attribution
+Anyone can talk to anyone. There is no hierarchy of voice.
 
-This Code of Conduct is adapted from the [Contributor Covenant][homepage],
-version 2.1, available at
-[https://www.contributor-covenant.org/version/2/1/code_of_conduct.html][v2.1].
+### Quality is not negotiable
 
-[homepage]: https://www.contributor-covenant.org
-[v2.1]: https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
+We are obsessive about quality. Not in a way that blocks progress — in a way that
+respects users. Every error message should help someone fix their problem. Every
+default should be safe. Every change should be tested.
+
+Code review here is rigorous. Your PR will be questioned, challenged, iterated.
+This is not personal. When we push back on an implementation, it's because we
+believe the work can be better — and we believe you can make it better. The craft
+matters.
+
+If a test fails, we don't merge. If a feature adds complexity without clear value,
+we say no. If an error message is confusing, we rewrite it. This is the standard.
+
+### Go the extra step
+
+Don't just aim to be technically correct. Try to be kind, clear, and helpful. When
+someone's PR needs changes, explain why and how — don't just point at the failure.
+When someone asks a question, answer the question they actually have, not the one
+you wish they'd asked.
+
+If someone takes issue with something you said, resist the urge to be defensive.
+Stop, listen, and consider. People will forgive mistakes as long as you show good
+faith.
+
+## Everyone Is Welcome
+
+We mean this literally.
+
+You write Rust? Welcome. You write nothing but YAML? Welcome. You're a designer
+who can make the TUI less ugly? Welcome. You're a farmer who tried Nika and it
+didn't work? Especially welcome — tell us why.
+
+Contribution is not just code. Documentation, translations, bug reports, workflow
+recipes, design feedback, answering questions in Discussions — all of it counts.
+All of it matters.
+
+The only credential we care about is that you showed up.
+
+## What We Don't Tolerate
+
+Some things are never acceptable, and no amount of context makes them okay:
+
+- Harassment, intimidation, or threats of any kind
+- Discrimination based on identity, background, or beliefs
+- Sexualized language or imagery in project spaces
+- Publishing someone's private information without consent
+- Sustained disruption of discussions or community spaces
+- Bad-faith behavior: trolling, gaslighting, or deliberate provocation
+
+This is not about policing tone. You can be blunt. You can disagree strongly. You
+can say "this approach is wrong" and explain why. What you cannot do is make this
+space hostile for others.
+
+## How We Handle Problems
+
+If something happens that violates these principles:
+
+1. **Report it** — email [contact@supernovae.studio](mailto:contact@supernovae.studio).
+   All reports are confidential.
+2. **We investigate** — promptly, privately, and fairly.
+3. **We act** — responses range from a private conversation to a permanent ban,
+   proportional to the severity.
+
+Maintainers are held to a higher standard. If a maintainer violates this Code, the
+consequences are the same or stricter.
+
+## The Spirit
+
+Nika is named after a warrior who liberates — not with force, but with joy. The
+butterfly is our symbol because transformation starts small, because freedom is
+fragile, and because something light and open can start a storm.
+
+This Code of Conduct exists to protect that spirit. Not to create a bureaucracy.
+Not to police language. But to make sure that when someone shows up — anyone,
+from anywhere, with any background — they find a crew that takes them seriously.
+
+We build in the open. We build for everyone. We hold ourselves to a high standard
+because the people who depend on Nika deserve nothing less.
+
+---
+
+*Adapted from principles shared by the Rust, Go, and p5.js communities, the
+Contributor Covenant v2.1, and the Recurse Center social rules.*

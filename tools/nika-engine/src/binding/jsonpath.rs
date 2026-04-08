@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! JSONPath evaluation — RFC 9535 via `serde_json_path`
 //!
 //! Replaces the minimal custom `util/jsonpath.rs` with RFC 9535 compliance.

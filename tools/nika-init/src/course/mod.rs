@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Course module — interactive learning path for Nika
 //!
 //! 12 levels with a Liberation theme, from basic shell commands

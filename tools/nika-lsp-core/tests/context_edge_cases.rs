@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Edge-case tests for `detect_context()` in `nika_lsp_core::analysis::context`.
 //!
 //! Each test targets a pathological input that could trip up the text-based

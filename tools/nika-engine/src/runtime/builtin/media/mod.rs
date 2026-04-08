@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Media Builtin Tools — thin adapter layer
 //!
 //! Tool implementations live in `nika-media::tools`. This module provides:

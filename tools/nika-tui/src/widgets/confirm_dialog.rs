@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Confirmation Dialog — Modal popup for destructive actions
 //!
 //! Renders a centered popup with a warning message and [Y]es / [N]o options.

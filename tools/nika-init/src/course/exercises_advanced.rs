@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Exercise content for Levels 7-12 (22 advanced exercises)
 //!
 //! Swiss Knife (3), Gone Rogue (3), Data Heist (4), Open Protocol (3),

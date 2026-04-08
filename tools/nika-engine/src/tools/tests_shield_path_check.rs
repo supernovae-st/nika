@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Sprint 2 Item 3b — `check_path_readable` tests.
 //!
 //! Verifies the recon-block helper that gates `nika:read`, `nika:glob`,

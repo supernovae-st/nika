@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! NikaVault — re-exported from nika-core.
 //!
 //! The vault implementation lives in nika-core so both nika-engine and nika-daemon

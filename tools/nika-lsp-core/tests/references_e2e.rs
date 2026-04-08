@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! End-to-end tests for the references handler.
 //!
 //! Each test builds a realistic Nika workflow YAML and exercises

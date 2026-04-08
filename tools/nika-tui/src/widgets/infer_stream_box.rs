@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Infer Stream Box — Data types only
 //!
 //! Widget rendering code removed. Data types (`InferStatus`, `InferStreamData`)

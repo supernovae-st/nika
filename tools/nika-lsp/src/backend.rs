@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! LSP Backend implementation for Nika.
 //!
 //! This is the main LSP server that handles all protocol messages and

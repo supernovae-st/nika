@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Integration tests for CosmicTheme → Theme bridge
 //!
 //! These tests verify the complete rendering pipeline from CosmicTheme

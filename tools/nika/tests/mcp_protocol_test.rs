@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Integration tests for MCP JSON-RPC 2.0 Protocol Types
 //!
 //! Tests serialization, deserialization, and helper methods for JSON-RPC types.

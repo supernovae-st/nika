@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! `nika token` — manage serve API tokens for multi-tenant auth.
 //!
 //! CLI-only token management (no HTTP routes — AD-6 security decision).

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Inline content rendering (MCP calls and Infer streams).
 //!
 //! Renders the `InlineContent::McpCall` and `InlineContent::InferStream` variants

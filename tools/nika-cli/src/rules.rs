@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Assembler functions composing shared content modules into tool-specific AI rule formats.
 //!
 //! Each AI coding assistant has its own format requirements (MDC frontmatter, globs,

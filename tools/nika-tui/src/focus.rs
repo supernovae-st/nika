@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Panel Navigation for 3-View Architecture
 //!
 //! Defines `PanelId` -- the canonical panel identifiers for the 3-view TUI

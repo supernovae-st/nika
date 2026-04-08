@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! E2E workflow-level tests for media tools.
 //!
 //! Tests the FULL invoke dispatch path: BuiltinToolRouter → MediaToolAdapter → MediaOp → CAS.

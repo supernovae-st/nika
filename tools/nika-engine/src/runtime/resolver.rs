@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Agent and Skill Resolver
 //!
 //! Resolves external agent definitions and loads skill files at workflow start.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Matrix Decrypt Widget - Text reveal effect with emoji chaos
 //!
 //! Creates a "decryption" effect where text is revealed progressively

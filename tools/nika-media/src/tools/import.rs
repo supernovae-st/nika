@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:import — Import local files into the CAS media store.
 //!
 //! Reads any file from the filesystem, detects MIME type via magic bytes,

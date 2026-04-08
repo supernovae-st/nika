@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Content-Addressable Storage (CAS) with blake3 hashing and io::atomic writes.
 //!
 //! Layout: `{root}/{hash[0..2]}/{hash[2..]}` (NO extension in filename).

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Edit History - Undo/Redo for text input
 //!
 //! Provides undo/redo functionality for text editing in the TUI.

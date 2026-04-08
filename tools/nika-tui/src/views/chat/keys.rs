@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Key Handler Methods for Chat View
 //!
 //! Specialized key event handlers for overlay modes and main key handling.

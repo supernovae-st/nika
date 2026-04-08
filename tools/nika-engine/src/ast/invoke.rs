@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Invoke Action - MCP tool calls and resource reads
 //!
 //! Defines the invoke verb parameters for MCP integration:

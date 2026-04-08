@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Provider icons for TUI display
 //!
 //! Consistent icon mapping for all providers (7 LLM + 1 Local + 11 MCP).

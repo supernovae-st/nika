@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:thumbnail — SIMD-accelerated image resize.
 //!
 //! Uses `fast_image_resize` for Lanczos3 with SIMD auto-detection.

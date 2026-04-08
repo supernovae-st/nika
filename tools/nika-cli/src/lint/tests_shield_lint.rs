@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Sprint 2 Item 6 — Nika Shield L-SEC-001..008 lint rule tests.
 
 #![cfg(test)]

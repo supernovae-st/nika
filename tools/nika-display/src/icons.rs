@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Cosmic icon palette — Unicode icons for verbs, status, and subsystems.
 //!
 //! Design: Every icon is Narrow East Asian Width (eaw=N) to avoid

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! End-to-end tests for folding ranges via the LspHandler trait.
 
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};

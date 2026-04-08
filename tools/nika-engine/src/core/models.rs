@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Curated model definitions for native inference via mistral.rs.
 //!
 //! The pure data catalog (types, statics, lookup functions) lives in

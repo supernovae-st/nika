@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Workflow Schema Validator
 //!
 //! Validates workflow YAML against the Nika JSON Schema before serde parsing.

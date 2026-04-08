@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Tests for RigAgentLoop provider methods (Mistral, Groq, DeepSeek)
 //!
 //! These tests verify the 3 provider methods added in v0.6 work correctly.

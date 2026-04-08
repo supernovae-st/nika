@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! # Unified Icon System for Nika TUI 🦋
 //!
 //! Centralized icon definitions to ensure consistency and avoid conflicts.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Raw AST - Phase 1 of the Two-Phase IR Architecture.
 //!
 //! This module contains AST types that are directly parsed from YAML with

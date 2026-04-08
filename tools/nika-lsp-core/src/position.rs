@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Line/column and AST span indexing for LSP position mapping.
 //!
 //! [`LineIndex`] maps byte offsets to (line, column) positions.

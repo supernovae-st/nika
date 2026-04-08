@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:html_to_md — Convert HTML content to Markdown.
 //!
 //! Accepts either a CAS hash (reads HTML from store) or raw HTML string.

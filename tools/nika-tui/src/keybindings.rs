@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Unified Keybindings for Navigation 2.0
 //!
 //! Centralizes keybinding definitions for consistent behavior across views.

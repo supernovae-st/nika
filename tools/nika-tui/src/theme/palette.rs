@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Solarized color palette constants and animation helpers.
 //!
 //! The Solarized palette by Ethan Schoonover provides a semantic gray scale

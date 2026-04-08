@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Tree widget renderer with icons, colors, and animations.
 //!
 //! Provides a full tree view widget that renders TreeNodes with:

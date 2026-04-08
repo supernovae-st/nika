@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Agent definition types for workflow
 //!
 //! The `agents:` block in a workflow allows defining reusable agent configurations.

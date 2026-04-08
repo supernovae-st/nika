@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Showcase workflows — 20 real, runnable workflows using exec: and fetch: only
 //!
 //! No LLM provider or API key required. Demonstrates practical automation

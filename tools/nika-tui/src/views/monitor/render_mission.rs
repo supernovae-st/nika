@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Mission Control panel rendering (Panel 1)
 //!
 //! Verb-colored TaskBox style with tab-aware rendering:

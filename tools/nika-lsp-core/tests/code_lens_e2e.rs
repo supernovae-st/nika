@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! E2E tests for code_lens handler.
 use nika_lsp_core::handlers::code_lens::{code_lenses, LensCommand};
 

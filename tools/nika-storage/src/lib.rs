@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! SQLite storage layer for jobs and cache.
 //!
 //! Extracted from `nika-daemon` as a standalone crate so that any Nika binary

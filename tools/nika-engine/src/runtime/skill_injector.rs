@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Skill Injector - Prepends skill content to agent system prompts
 //!
 //! The SkillInjector loads skill files (both local and pkg: URIs) and caches them

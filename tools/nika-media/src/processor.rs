@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MediaProcessor: ContentBlock -> decode -> detect -> hash -> store -> MediaRef
 //!
 //! Fully async — CasStore::store() uses io::atomic internally.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Verb Output Verification Tests
 //!
 //! Comprehensive tests for all 5 Nika verbs (infer, exec, fetch, invoke, agent).

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Comprehensive media tool tests — 100 NEW tests covering pixel-level verification,
 //! format-specific encoding, aspect ratio precision, alpha channel behavior, idempotency,
 //! output size bounds, color accuracy, thumbhash fidelity, schema validation, and more.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Span and source position tracking for Nika workflows.
 //!
 //! This module provides the foundation for error reporting with precise

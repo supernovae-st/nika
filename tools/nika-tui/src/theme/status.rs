@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Task status and mission phase types for theme-aware styling.
 //!
 //! These types bridge the runtime task states with visual presentation,

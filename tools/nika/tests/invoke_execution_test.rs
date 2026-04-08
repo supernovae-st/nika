@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Integration tests for Invoke Verb Execution
 //!
 //! Tests the execution of invoke verbs (MCP tool calls and resource reads)

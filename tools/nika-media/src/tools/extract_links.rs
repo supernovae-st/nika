@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:extract_links — Rich SEO link classification from HTML.
 //!
 //! Classifies links by DOM context (nav, header, footer, content, sidebar),

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Shared helpers used by verb implementations
 //!
 //! Free functions used across the per-verb modules (infer, exec, fetch, invoke, agent).

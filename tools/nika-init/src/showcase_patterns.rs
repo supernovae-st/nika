@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Showcase Patterns — 15 workflows exercising for_each + structured output
 //!
 //! These workflows demonstrate data processing patterns that combine

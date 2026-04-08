@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Validator Module (Layer 2)
 //!
 //! Pre-call validation of MCP tool parameters against cached schemas.

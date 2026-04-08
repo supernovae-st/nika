@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! AST Index for position-aware LSP lookups.
 //!
 //! This module provides the foundation for Phase 2 LSP support by caching

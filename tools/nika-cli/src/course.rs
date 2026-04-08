@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Course subcommand handler — interactive learning CLI
 //!
 //! 8 subcommands: status, next, check, hint, reset, run, info, watch

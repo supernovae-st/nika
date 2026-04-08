@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! YAML parser with span tracking using marked_yaml.
 //!
 //! This module provides the entry point for parsing YAML workflows

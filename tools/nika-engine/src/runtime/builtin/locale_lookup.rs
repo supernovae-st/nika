@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! `nika:locale_lookup` — BCP-47 to NLLB/ISO code mapping.
 //!
 //! Two-level lookup: exact match → language prefix fallback → error.

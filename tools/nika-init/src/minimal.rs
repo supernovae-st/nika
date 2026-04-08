@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Minimal init workflows — 1 per verb
 //!
 //! Five workflows demonstrating the five Nika verbs:

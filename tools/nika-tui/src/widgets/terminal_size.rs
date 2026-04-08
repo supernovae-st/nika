@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Terminal Size Handling — graceful degradation for small terminals
 //!
 //! Provides minimum size checking and a fallback overlay when terminal is too small.

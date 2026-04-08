@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Showcase Infrastructure — 15 workflows demonstrating context, inputs, artifacts, and resilience
 //!
 //! These workflows cover the infrastructure features that make Nika production-ready:

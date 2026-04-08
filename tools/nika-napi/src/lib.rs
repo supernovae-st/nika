@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Node.js bindings for the Nika SDK via napi-rs.
 //!
 //! Wraps `nika-sdk` remote transport only — no embedded mode.

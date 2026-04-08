@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Per-token rate limiting middleware using `governor`.
 //!
 //! Each unique Bearer token gets its own rate limiter bucket.

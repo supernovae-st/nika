@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Call Tracking for Chat View
 //!
 //! Contains methods for tracking MCP tool calls and their lifecycle.

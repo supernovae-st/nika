@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! ChatWorkflow - DAG wrapper for chat conversations
 //!
 //! Turns every chat message into a traceable DAG node with stable NodeIndex.

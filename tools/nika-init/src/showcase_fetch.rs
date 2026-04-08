@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Showcase Fetch — 15 workflows demonstrating ALL 9 extract modes + 3 response modes
 //!
 //! Complete coverage of the `fetch:` verb's extraction and response capabilities:

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! TUI Event Pipeline Tests
 //!
 //! Verifies that events flow correctly from Runner to TUI state.

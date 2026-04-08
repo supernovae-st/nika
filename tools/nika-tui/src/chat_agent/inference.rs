@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! LLM inference for the chat agent
 //!
 //! Handles sending prompts to the LLM provider and streaming responses

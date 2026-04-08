@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Rename handler — task ID refactoring.
 //!
 //! Leverages the existing `references.rs` to find all references to a task ID,

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! HTTP response caching with ETag / If-Modified-Since support.
 //!
 //! In-memory cache for the lifetime of a workflow run. Stores response

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! MCP Server for Nika — exposes workflow tools via Model Context Protocol
 //!
 //! Allows AI coding tools (Claude Code, Cursor, Copilot, etc.) to validate,

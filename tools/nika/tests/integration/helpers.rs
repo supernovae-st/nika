@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Integration test helpers for testing against real MCP servers.
 //!
 // Allow dead_code because these helpers are used by #[ignore] tests only

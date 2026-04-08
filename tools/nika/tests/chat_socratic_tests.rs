@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Socratic Tests for Chat Agent Interface
 //!
 //! These tests use the Socratic method - asking questions about what SHOULD happen

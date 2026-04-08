@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:cost — Introspection tool that reports workflow token usage and cost.
 //!
 //! Iterates `ProviderResponded` events from the `EventLog` and returns:

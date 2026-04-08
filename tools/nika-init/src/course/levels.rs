@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Course levels — 12 progressive levels with Liberation theme names
 //!
 //! Each level has a fixed number of exercises and builds on the previous.

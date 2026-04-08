@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Security Module - Path Validation for Artifact Output
 //!
 //! Provides security-critical path validation functions for artifact output.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! E2E Workflow Tests — v0.52
 //!
 //! Comprehensive end-to-end tests that parse YAML, build DAG, execute workflows,

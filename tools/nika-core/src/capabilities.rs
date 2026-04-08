@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Capability inference and enforcement for Nika Shield.
 //!
 //! Each task has a minimum capability set inferred from its YAML. Runtime

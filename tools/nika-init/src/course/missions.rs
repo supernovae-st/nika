@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Level-specific MISSION.md content for the Nika course.
 //!
 //! Each level gets a rich, themed briefing document with ASCII art,

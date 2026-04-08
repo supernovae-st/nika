@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Server configuration loaded from nika.toml `[serve]` section + environment variables.
 //!
 //! Merge order: env vars > nika.toml `[serve]` > hardcoded defaults.

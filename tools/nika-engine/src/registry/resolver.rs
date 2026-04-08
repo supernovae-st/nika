@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Package path resolution for local SuperNovae packages.
 //!
 //! Resolves package references like `@workflows/seo-audit` or `@workflows/seo-audit@1.2.0`

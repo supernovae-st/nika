@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! SuperNovae Package Registry
 //!
 //! This module provides the registry system for managing installed skill packages.

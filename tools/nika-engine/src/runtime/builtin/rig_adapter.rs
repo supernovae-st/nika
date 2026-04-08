@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Rig ToolDyn adapter for builtin tools
 //!
 //! Wraps BuiltinTool implementations as rig-core ToolDyn for use in RigAgentLoop.

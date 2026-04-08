@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Static catalogs -- zero-dependency provider, model, and MCP alias definitions.
 //!
 //! These are pure data modules with no runtime dependencies. They define the

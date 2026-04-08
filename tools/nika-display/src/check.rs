@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! CheckRenderer -- pre-flight validation checklist for `nika check`.
 //!
 //! Displays validation phases as a checklist with pass/fail status,

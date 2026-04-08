@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! nika:quality — Image quality assessment via DSSIM (multi-scale SSIM).
 //!
 //! Compares two images (original vs processed) and returns a quality score.

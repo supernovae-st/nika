@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! `nika:yaml_validate` — Batch YAML field presence checker.
 //!
 //! Globs YAML files, checks required dot-path fields exist, reports failures.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Job service — submit, execute, cancel, retry.
 //!
 //! Jobs execute by spawning `nika run <workflow> --json-output -y` as a child process.

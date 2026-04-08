@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Trust system for Nika Shield — compile-time and runtime data provenance tracking.
 //!
 //! Every value flowing through a Nika DAG has a trust level. The propagation rule

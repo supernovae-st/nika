@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Chat history management and multi-turn conversation support
 //!
 //! Provides methods for managing conversation history and continuing

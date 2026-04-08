@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! TDD Tests for RigAgentLoop - rig-core based agentic execution
 //!
 //! These tests define the expected behavior of the new rig-based agent loop.

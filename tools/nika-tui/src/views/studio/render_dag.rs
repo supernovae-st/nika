@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! DAG panel rendering for the Studio view.
 //!
 //! Contains `render_dag_panel()` on `StudioView`, plus `render_structure()`,

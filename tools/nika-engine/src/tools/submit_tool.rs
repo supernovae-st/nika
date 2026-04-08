@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! Dynamic Submit Tool - Structured Output Enforcement
 //!
 //! Based on rig's Extractor pattern - injects JSON Schema as tool definition
