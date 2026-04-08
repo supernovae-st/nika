@@ -317,7 +317,10 @@ pub async fn cancel_job(
     }
 
     // Kill subprocess + abort the worker task (FIX-12: SIGTERM subprocess PID)
-    if let Some(handle) = state.workers.lock().await.remove(&id) {
+    // Extract from lock before the if-let block so the MutexGuard drops at the semicolon
+    // (edition 2021 extends temporaries in if-let scrutinees to end of block)
+    let handle = state.workers.lock().await.remove(&id);
+    if let Some(handle) = handle {
         let pid = handle.child_pid.load(std::sync::atomic::Ordering::Relaxed);
         if pid > 0 {
             #[cfg(unix)]
