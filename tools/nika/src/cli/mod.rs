@@ -14,6 +14,7 @@ pub use nika_cli::config;
 pub use nika_cli::course;
 #[cfg(unix)]
 pub use nika_cli::daemon;
+pub use nika_cli::discover;
 pub use nika_cli::doctor;
 pub use nika_cli::eval;
 #[cfg(unix)]
@@ -39,6 +40,7 @@ pub use nika_cli::schedule;
 pub use nika_cli::schema;
 pub use nika_cli::showcase;
 pub use nika_cli::switch;
+pub use nika_cli::task_filter;
 pub use nika_cli::token;
 pub use nika_cli::tools_cmd;
 pub use nika_cli::trace;

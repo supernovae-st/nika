@@ -30,6 +30,7 @@ pub mod clean;
 pub mod config;
 #[cfg(unix)]
 pub mod daemon;
+pub mod discover;
 pub mod doctor;
 #[cfg(unix)]
 pub mod every;
@@ -50,6 +51,7 @@ pub mod new_cmd;
 pub mod onboarding;
 pub mod provider;
 pub mod switch;
+pub mod task_filter;
 pub mod token;
 pub mod tools_cmd;
 pub mod verbs;
