@@ -29,6 +29,8 @@ mod providers;
 mod streaming;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_shield_mcp_wrap;
 mod thinking;
 pub mod types;
 
@@ -232,6 +234,33 @@ impl RigAgentLoop {
         policy_enforcer: Option<Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
         workflow_base_dir: Option<PathBuf>,
     ) -> Result<Self, NikaError> {
+        Self::new_with_shield(
+            task_id,
+            params,
+            event_log,
+            mcp_clients,
+            policy_enforcer,
+            workflow_base_dir,
+            None,
+            None,
+        )
+    }
+
+    /// Sprint 2 Item 3c: same as `new()` but plumbs the per-run Nika Shield
+    /// SecurityContext + the trusted MCP server allowlist so MCP tool
+    /// descriptions from non-trusted servers are wrapped with the spotlight
+    /// fence at agent construction time.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_shield(
+        task_id: String,
+        params: AgentParams,
+        event_log: EventLog,
+        mcp_clients: FxHashMap<String, Arc<McpClient>>,
+        policy_enforcer: Option<Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
+        workflow_base_dir: Option<PathBuf>,
+        shield: Option<crate::runtime::shield::SecurityContext>,
+        trusted_mcp_servers: Option<Arc<[String]>>,
+    ) -> Result<Self, NikaError> {
         // Validate params
         if params.prompt.is_empty() {
             return Err(NikaError::AgentValidationError {
@@ -259,13 +288,16 @@ impl RigAgentLoop {
         // will receive a child_token() so parent cancellation cascades.
         let cancel_token = tokio_util::sync::CancellationToken::new();
 
-        // Build tools from MCP clients (with media staging and policy enforcement)
+        // Build tools from MCP clients (with media staging, policy enforcement,
+        // and Nika Shield Item 3c MCP description wrapping).
         let mut tools = Self::build_tools(
             &params.mcp,
             &mcp_clients,
             &media_staging,
             policy_enforcer.as_ref(),
             &event_log,
+            shield.as_ref(),
+            trusted_mcp_servers.as_deref(),
         )?;
 
         // Add spawn_agent tool if depth_limit allows spawning (MVP 8 Phase 2)
@@ -737,12 +769,15 @@ impl RigAgentLoop {
     }
 
     /// Build NikaMcpTool instances from MCP clients with media staging and policy
+    #[allow(clippy::too_many_arguments)]
     fn build_tools(
         mcp_names: &[String],
         mcp_clients: &FxHashMap<String, Arc<McpClient>>,
         media_staging: &AgentMediaStaging,
         policy_enforcer: Option<&Arc<parking_lot::RwLock<crate::runtime::policy::PolicyEnforcer>>>,
         event_log: &EventLog,
+        shield: Option<&crate::runtime::shield::SecurityContext>,
+        trusted_mcp_servers: Option<&[String]>,
     ) -> Result<Vec<Arc<dyn rig::tool::ToolDyn>>, NikaError> {
         let mut tools: Vec<Arc<dyn rig::tool::ToolDyn>> = Vec::new();
 
@@ -756,11 +791,34 @@ impl RigAgentLoop {
             // Get tool definitions from MCP client
             let tool_defs = client.get_tool_definitions();
 
+            // Nika Shield Item 3c: wrap MCP tool descriptions with the
+            // spotlight fence when the server is NOT in the trusted list.
+            // Defeats malicious tool description injection (Attack #11).
+            // Trusted servers (declared in [mcp.trusted] of nika.toml) bypass
+            // the wrap so their descriptions stay clean for the LLM.
+            let server_trusted = trusted_mcp_servers
+                .map(|list| list.iter().any(|s| s == mcp_name))
+                .unwrap_or(false);
+            let wrap_descriptions = matches!(shield, Some(s) if s.spotlight_enabled())
+                && !server_trusted;
+
             for def in tool_defs {
+                let raw_description = def.description.clone().unwrap_or_default();
+                let description = if wrap_descriptions && !raw_description.is_empty() {
+                    let fence = shield.unwrap().fence();
+                    fence.wrap_untrusted(
+                        &raw_description,
+                        &format!("mcp:{mcp_name}/{}", def.name),
+                        nika_core::trust::TrustLevel::Untrusted,
+                    )
+                } else {
+                    raw_description
+                };
+
                 let mut tool = NikaMcpTool::with_media_staging(
                     NikaMcpToolDef {
                         name: def.name.clone(),
-                        description: def.description.clone().unwrap_or_default(),
+                        description,
                         input_schema: def
                             .input_schema
                             .clone()

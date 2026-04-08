@@ -307,16 +307,26 @@ impl TaskExecutor {
             mcp_clients.insert(mcp_name.clone(), client);
         }
 
-        // Create rig-based agent loop (with policy enforcement for tool calls)
+        // Create rig-based agent loop (with policy enforcement for tool calls).
         // Pass workflow_base_dir so agent's builtin file tools (glob, read, etc.)
-        // operate in the workflow's directory, not the process cwd.
-        let agent_loop = RigAgentLoop::new(
+        // operate in the workflow's directory, not the process cwd. Sprint 2
+        // Item 3c: pass the shield so MCP tool descriptions from non-trusted
+        // servers get wrapped with the spotlight fence at construction time.
+        let trusted_mcp_servers: Option<Arc<[String]>> =
+            // Sprint 2: trusted MCP servers list comes from policy.security in
+            // a future commit. For now we treat all servers as untrusted (the
+            // safe default). Once `[mcp.trusted]` is wired through, this
+            // becomes `Some(Arc::from(self.shield.trusted_mcp_servers()))`.
+            None;
+        let agent_loop = RigAgentLoop::new_with_shield(
             task_id.to_string(),
             resolved_agent,
             self.event_log.clone(),
             mcp_clients,
             Some(Arc::clone(&self.policy_enforcer)),
             Some(self.workflow_base_dir.clone()),
+            Some(self.shield.clone()),
+            trusted_mcp_servers,
         )?;
 
         // Wire skill injection if the agent has skills and the workflow defines a skills map
