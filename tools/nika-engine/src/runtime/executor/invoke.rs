@@ -113,7 +113,7 @@ impl TaskExecutor {
             mcp_server,
             tool: resolved_tool.clone(),
             resource: resolved_resource.clone(),
-            params: resolved_params.clone().map(Arc::new),
+            params: resolved_params.as_ref().map(|p| Arc::new(redact_value(p))),
         });
 
         // Check for builtin nika_* tools
