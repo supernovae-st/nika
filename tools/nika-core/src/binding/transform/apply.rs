@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, LazyLock, Mutex};
 
+use super::dispatch_macro::{strict_arr, strict_num, strict_obj, strict_str};
 use super::helpers::{
     f64_to_json_number, shell_escape, strip_bom_and_control_chars, strip_markdown_code_block,
     truncate, type_mismatch, value_type_name,
@@ -31,31 +32,11 @@ impl TransformOp {
     pub fn apply(&self, value: &Value) -> Result<Value, TransformError> {
         match self {
             // ── String ───────────────────────────────────────
-            TransformOp::Upper => match value {
-                Value::Null => Err(TransformError::NullInput { op: "upper" }),
-                Value::String(s) => Ok(Value::String(s.to_uppercase())),
-                _ => Err(type_mismatch("upper", "string", value)),
-            },
-            TransformOp::Lower => match value {
-                Value::Null => Err(TransformError::NullInput { op: "lower" }),
-                Value::String(s) => Ok(Value::String(s.to_lowercase())),
-                _ => Err(type_mismatch("lower", "string", value)),
-            },
-            TransformOp::Trim => match value {
-                Value::Null => Err(TransformError::NullInput { op: "trim" }),
-                Value::String(s) => Ok(Value::String(s.trim().to_string())),
-                _ => Err(type_mismatch("trim", "string", value)),
-            },
-            TransformOp::TrimStart => match value {
-                Value::Null => Err(TransformError::NullInput { op: "trim_start" }),
-                Value::String(s) => Ok(Value::String(s.trim_start().to_string())),
-                _ => Err(type_mismatch("trim_start", "string", value)),
-            },
-            TransformOp::TrimEnd => match value {
-                Value::Null => Err(TransformError::NullInput { op: "trim_end" }),
-                Value::String(s) => Ok(Value::String(s.trim_end().to_string())),
-                _ => Err(type_mismatch("trim_end", "string", value)),
-            },
+            TransformOp::Upper => strict_str("upper", value, |s| Ok(Value::String(s.to_uppercase()))),
+            TransformOp::Lower => strict_str("lower", value, |s| Ok(Value::String(s.to_lowercase()))),
+            TransformOp::Trim => strict_str("trim", value, |s| Ok(Value::String(s.trim().to_string()))),
+            TransformOp::TrimStart => strict_str("trim_start", value, |s| Ok(Value::String(s.trim_start().to_string()))),
+            TransformOp::TrimEnd => strict_str("trim_end", value, |s| Ok(Value::String(s.trim_end().to_string()))),
 
             // ── Collection ───────────────────────────────────
             TransformOp::Length => match value {
@@ -65,16 +46,8 @@ impl TransformOp {
                 Value::Object(obj) => Ok(Value::Number(obj.len().into())),
                 _ => Err(type_mismatch("length", "array, string, or object", value)),
             },
-            TransformOp::First => match value {
-                Value::Null => Err(TransformError::NullInput { op: "first" }),
-                Value::Array(arr) => Ok(arr.first().cloned().unwrap_or(Value::Null)),
-                _ => Err(type_mismatch("first", "array", value)),
-            },
-            TransformOp::Last => match value {
-                Value::Null => Err(TransformError::NullInput { op: "last" }),
-                Value::Array(arr) => Ok(arr.last().cloned().unwrap_or(Value::Null)),
-                _ => Err(type_mismatch("last", "array", value)),
-            },
+            TransformOp::First => strict_arr("first", value, |arr| Ok(arr.first().cloned().unwrap_or(Value::Null))),
+            TransformOp::Last => strict_arr("last", value, |arr| Ok(arr.last().cloned().unwrap_or(Value::Null))),
             TransformOp::FirstN(n) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "first" }),
                 Value::Array(arr) => {
@@ -134,73 +107,53 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("values", "object", value)),
             },
-            TransformOp::Flatten => match value {
-                Value::Null => Err(TransformError::NullInput { op: "flatten" }),
-                Value::Array(arr) => {
-                    let mut flat = Vec::new();
-                    for item in arr {
-                        match item {
-                            Value::Array(inner) => flat.extend(inner.iter().cloned()),
-                            other => flat.push(other.clone()),
-                        }
+            TransformOp::Flatten => strict_arr("flatten", value, |arr| {
+                let mut flat = Vec::new();
+                for item in arr {
+                    match item {
+                        Value::Array(inner) => flat.extend(inner.iter().cloned()),
+                        other => flat.push(other.clone()),
                     }
-                    Ok(Value::Array(flat))
                 }
-                _ => Err(type_mismatch("flatten", "array", value)),
-            },
-            TransformOp::Reverse => match value {
-                Value::Null => Err(TransformError::NullInput { op: "reverse" }),
-                Value::Array(arr) => {
-                    let mut rev = arr.clone();
-                    rev.reverse();
-                    Ok(Value::Array(rev))
-                }
-                _ => Err(type_mismatch("reverse", "array", value)),
-            },
-            TransformOp::Sort => match value {
-                Value::Null => Err(TransformError::NullInput { op: "sort" }),
-                Value::Array(arr) => {
-                    let mut sorted = arr.clone();
-                    sorted.sort_by(|a, b| match (a.as_f64(), b.as_f64()) {
-                        (Some(x), Some(y)) => {
-                            x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
-                        }
-                        (Some(_), None) => std::cmp::Ordering::Less,
-                        (None, Some(_)) => std::cmp::Ordering::Greater,
-                        _ => a.to_string().cmp(&b.to_string()),
-                    });
-                    Ok(Value::Array(sorted))
-                }
-                _ => Err(type_mismatch("sort", "array", value)),
-            },
-            TransformOp::Unique => match value {
-                Value::Null => Err(TransformError::NullInput { op: "unique" }),
-                Value::Array(arr) => {
-                    let mut seen = Vec::new();
-                    let mut unique = Vec::new();
-                    for item in arr {
-                        let s = item.to_string();
-                        if !seen.contains(&s) {
-                            seen.push(s);
-                            unique.push(item.clone());
-                        }
+                Ok(Value::Array(flat))
+            }),
+            TransformOp::Reverse => strict_arr("reverse", value, |arr| {
+                let mut rev = arr.to_vec();
+                rev.reverse();
+                Ok(Value::Array(rev))
+            }),
+            TransformOp::Sort => strict_arr("sort", value, |arr| {
+                let mut sorted = arr.to_vec();
+                sorted.sort_by(|a, b| match (a.as_f64(), b.as_f64()) {
+                    (Some(x), Some(y)) => {
+                        x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
                     }
-                    Ok(Value::Array(unique))
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    _ => a.to_string().cmp(&b.to_string()),
+                });
+                Ok(Value::Array(sorted))
+            }),
+            TransformOp::Unique => strict_arr("unique", value, |arr| {
+                let mut seen = Vec::new();
+                let mut unique = Vec::new();
+                for item in arr {
+                    let s = item.to_string();
+                    if !seen.contains(&s) {
+                        seen.push(s);
+                        unique.push(item.clone());
+                    }
                 }
-                _ => Err(type_mismatch("unique", "array", value)),
-            },
-            TransformOp::Compact => match value {
-                Value::Null => Err(TransformError::NullInput { op: "compact" }),
-                Value::Array(arr) => {
-                    let compacted: Vec<Value> = arr
-                        .iter()
-                        .filter(|v| !v.is_null() && !matches!(v, Value::String(s) if s.is_empty()))
-                        .cloned()
-                        .collect();
-                    Ok(Value::Array(compacted))
-                }
-                _ => Err(type_mismatch("compact", "array", value)),
-            },
+                Ok(Value::Array(unique))
+            }),
+            TransformOp::Compact => strict_arr("compact", value, |arr| {
+                let compacted: Vec<Value> = arr
+                    .iter()
+                    .filter(|v| !v.is_null() && !matches!(v, Value::String(s) if s.is_empty()))
+                    .cloned()
+                    .collect();
+                Ok(Value::Array(compacted))
+            }),
 
             // ── Type conversion ──────────────────────────────
             TransformOp::ToString => match value {
@@ -334,28 +287,20 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("abs", "number", value)),
             },
-            TransformOp::Ceil => match value {
-                Value::Null => Err(TransformError::NullInput { op: "ceil" }),
-                Value::Number(n) => {
-                    let f = n.as_f64().unwrap_or(0.0);
-                    if f.is_nan() || f.is_infinite() {
-                        return Ok(Value::Null);
-                    }
-                    Ok(Value::Number((f.ceil() as i64).into()))
+            TransformOp::Ceil => strict_num("ceil", value, |n| {
+                let f = n.as_f64().unwrap_or(0.0);
+                if f.is_nan() || f.is_infinite() {
+                    return Ok(Value::Null);
                 }
-                _ => Err(type_mismatch("ceil", "number", value)),
-            },
-            TransformOp::Floor => match value {
-                Value::Null => Err(TransformError::NullInput { op: "floor" }),
-                Value::Number(n) => {
-                    let f = n.as_f64().unwrap_or(0.0);
-                    if f.is_nan() || f.is_infinite() {
-                        return Ok(Value::Null);
-                    }
-                    Ok(Value::Number((f.floor() as i64).into()))
+                Ok(Value::Number((f.ceil() as i64).into()))
+            }),
+            TransformOp::Floor => strict_num("floor", value, |n| {
+                let f = n.as_f64().unwrap_or(0.0);
+                if f.is_nan() || f.is_infinite() {
+                    return Ok(Value::Null);
                 }
-                _ => Err(type_mismatch("floor", "number", value)),
-            },
+                Ok(Value::Number((f.floor() as i64).into()))
+            }),
 
             // ── Utility ──────────────────────────────────────
             TransformOp::Default(default_val) => match value {
@@ -529,17 +474,13 @@ impl TransformOp {
             },
 
             // ── Data (array/object manipulation) ────────────
-            TransformOp::Pluck(field) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "pluck" }),
-                Value::Array(arr) => {
-                    let result: Vec<Value> = arr
-                        .iter()
-                        .filter_map(|item| navigate_dot_path(item, field).cloned())
-                        .collect();
-                    Ok(Value::Array(result))
-                }
-                _ => Err(type_mismatch("pluck", "array", value)),
-            },
+            TransformOp::Pluck(field) => strict_arr("pluck", value, |arr| {
+                let result: Vec<Value> = arr
+                    .iter()
+                    .filter_map(|item| navigate_dot_path(item, field).cloned())
+                    .collect();
+                Ok(Value::Array(result))
+            }),
             TransformOp::Where(field, op, expected) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "where" }),
                 Value::Array(arr) => {
@@ -600,17 +541,13 @@ impl TransformOp {
                 }
                 _ => Err(type_mismatch("pick", "object", value)),
             },
-            TransformOp::Omit(fields) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "omit" }),
-                Value::Object(obj) => {
-                    let mut result = obj.clone();
-                    for field in fields {
-                        result.remove(field);
-                    }
-                    Ok(Value::Object(result))
+            TransformOp::Omit(fields) => strict_obj("omit", value, |obj| {
+                let mut result = obj.clone();
+                for field in fields {
+                    result.remove(field);
                 }
-                _ => Err(type_mismatch("omit", "object", value)),
-            },
+                Ok(Value::Object(result))
+            }),
             TransformOp::SortBy(field) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "sort_by" }),
                 Value::Array(arr) => {
@@ -711,18 +648,12 @@ impl TransformOp {
             },
 
             // ── Encoding ────────────────────────────────────
-            TransformOp::Base64Encode => match value {
-                Value::Null => Err(TransformError::NullInput {
-                    op: "base64_encode",
-                }),
-                Value::String(s) => {
-                    use base64::Engine;
-                    Ok(Value::String(
-                        base64::engine::general_purpose::STANDARD.encode(s.as_bytes()),
-                    ))
-                }
-                _ => Err(type_mismatch("base64_encode", "string", value)),
-            },
+            TransformOp::Base64Encode => strict_str("base64_encode", value, |s| {
+                use base64::Engine;
+                Ok(Value::String(
+                    base64::engine::general_purpose::STANDARD.encode(s.as_bytes()),
+                ))
+            }),
             // Note: base64_decode returns UTF-8 text only. For binary data
             // (images, audio), use `nika:import` with CAS instead.
             TransformOp::Base64Decode => match value {
@@ -750,21 +681,9 @@ impl TransformOp {
             },
 
             // ── Predicate (returns bool) ────────────────────────
-            TransformOp::StartsWith(prefix) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "starts_with" }),
-                Value::String(s) => Ok(Value::Bool(s.starts_with(prefix.as_str()))),
-                _ => Err(type_mismatch("starts_with", "string", value)),
-            },
-            TransformOp::EndsWith(suffix) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "ends_with" }),
-                Value::String(s) => Ok(Value::Bool(s.ends_with(suffix.as_str()))),
-                _ => Err(type_mismatch("ends_with", "string", value)),
-            },
-            TransformOp::Contains(text) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "contains" }),
-                Value::String(s) => Ok(Value::Bool(s.contains(text.as_str()))),
-                _ => Err(type_mismatch("contains", "string", value)),
-            },
+            TransformOp::StartsWith(prefix) => strict_str("starts_with", value, |s| Ok(Value::Bool(s.starts_with(prefix.as_str())))),
+            TransformOp::EndsWith(suffix) => strict_str("ends_with", value, |s| Ok(Value::Bool(s.ends_with(suffix.as_str())))),
+            TransformOp::Contains(text) => strict_str("contains", value, |s| Ok(Value::Bool(s.contains(text.as_str())))),
 
             // ── Hashing ─────────────────────────────────────────
             TransformOp::ContentHash => match value {
@@ -802,19 +721,11 @@ impl TransformOp {
             },
 
             // ── String manipulation ────────────────────────────────
-            TransformOp::Replace(from, to) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "replace" }),
-                Value::String(s) => Ok(Value::String(s.replace(from.as_str(), to.as_str()))),
-                _ => Err(type_mismatch("replace", "string", value)),
-            },
-            TransformOp::Truncate(n) => match value {
-                Value::Null => Err(TransformError::NullInput { op: "truncate" }),
-                Value::String(s) => {
-                    let truncated: String = s.chars().take(*n).collect();
-                    Ok(Value::String(truncated))
-                }
-                _ => Err(type_mismatch("truncate", "string", value)),
-            },
+            TransformOp::Replace(from, to) => strict_str("replace", value, |s| Ok(Value::String(s.replace(from.as_str(), to.as_str())))),
+            TransformOp::Truncate(n) => strict_str("truncate", value, |s| {
+                let truncated: String = s.chars().take(*n).collect();
+                Ok(Value::String(truncated))
+            }),
 
             // ── Aggregation ───────────────────────────────────────────
             TransformOp::Add => match value {

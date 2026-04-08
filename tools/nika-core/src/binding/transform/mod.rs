@@ -315,6 +315,7 @@ impl fmt::Display for TransformError {
 impl std::error::Error for TransformError {}
 
 mod apply;
+mod dispatch_macro;
 mod helpers;
 mod parser;
 
