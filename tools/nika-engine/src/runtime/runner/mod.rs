@@ -413,6 +413,7 @@ impl Runner {
     ///
     /// When quiet is true, Runner will not print to stdout/stderr.
     /// All events are still emitted to the EventLog for TUI display.
+    #[must_use]
     pub fn quiet(mut self) -> Self {
         self.quiet = true;
         self
@@ -424,6 +425,7 @@ impl Runner {
     /// Use `InvocationSource::Cli` for direct CLI runs (default), `Serve`
     /// for `nika serve`, `NestedRun { ceiling }` from inside `nika:run`, and
     /// `Unknown` only when the embedding caller genuinely cannot tell.
+    #[must_use]
     pub fn with_invocation_source(mut self, source: nika_core::trust::InvocationSource) -> Self {
         self.datastore.set_invocation_source(source);
         self
@@ -433,6 +435,7 @@ impl Runner {
     ///
     /// Automatically selects Live (animated) or Classic (append-only)
     /// renderer based on TTY detection and detail level.
+    #[must_use]
     pub fn with_detail_level(mut self, detail: crate::display::DetailLevel) -> Self {
         let effective_detail = if self.quiet {
             crate::display::DetailLevel::Min
@@ -444,6 +447,7 @@ impl Runner {
     }
 
     /// Force the classic (append-only) renderer regardless of TTY.
+    #[must_use]
     pub fn with_classic_renderer(mut self, detail: crate::display::DetailLevel) -> Self {
         let effective_detail = if self.quiet {
             crate::display::DetailLevel::Min
@@ -477,6 +481,7 @@ impl Runner {
     /// // with:
     /// //   parent: __parent_context__.result
     /// ```
+    #[must_use]
     pub fn with_initial_context(self, key: &str, context: Value) -> Self {
         use crate::store::TaskResult;
         use crate::util::intern;
@@ -503,6 +508,7 @@ impl Runner {
     ///
     /// By default, `PermissionMode::Plan` is used (deny writes, emit permission request).
     /// For `nika run`, use `AcceptAll` since the user explicitly chose to run.
+    #[must_use]
     pub fn with_permission_mode(self, mode: crate::tools::PermissionMode) -> Self {
         self.executor.set_permission_mode(mode);
         self
@@ -519,6 +525,7 @@ impl Runner {
     /// By default, the runner uses `std::env::current_dir()`. When set,
     /// exec tasks with `cwd:` can only access paths under this directory.
     /// This should be the directory containing the workflow file.
+    #[must_use]
     pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
         self.executor = self.executor.with_base_path(path);
         self
@@ -527,6 +534,7 @@ impl Runner {
     /// Set the project root directory (parent of nika.toml).
     ///
     /// Used by `working_dir_mode = "project"` to set exec task cwd.
+    #[must_use]
     pub fn with_project_root(mut self, root: std::path::PathBuf) -> Self {
         self.executor = self.executor.with_project_root(root);
         self
@@ -537,11 +545,13 @@ impl Runner {
     /// - `"project"` → exec tasks default cwd to project_root
     /// - `"workflow"` → exec tasks default cwd to workflow_base_dir
     /// - `"none"` → no default cwd, inherit process cwd
+    #[must_use]
     pub fn with_working_dir_mode(mut self, mode: String) -> Self {
         self.executor = self.executor.with_working_dir_mode(mode);
         self
     }
 
+    #[must_use]
     pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
         self.executor = self.executor.with_cancel_token(token.clone());
         self.cancel_token = token;
