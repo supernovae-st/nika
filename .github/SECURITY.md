@@ -4,9 +4,9 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.63.x+ | Yes |
-| 0.55.x - 0.62.x | Security fixes only |
-| < 0.55 | No |
+| 0.79.x+ | Yes |
+| 0.63.x - 0.78.x | Security fixes only |
+| < 0.63 | No |
 
 ## Reporting a Vulnerability
 

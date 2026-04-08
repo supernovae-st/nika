@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to Nika! Whether you're filing a bug, proposing a feature, improving docs, or submitting code -- every contribution matters.
 
-Nika is an open-source project licensed under **AGPL-3.0-or-later**. By contributing, you agree that your contributions will be licensed under the same terms.
+Nika is an open-source project licensed under **AGPL-3.0-or-later**. By submitting a pull request, you agree to our [Contributor License Agreement (CLA)](https://cla-assistant.io/supernovae-st/nika). The CLA lets us offer Nika under dual licensing (AGPL + commercial) while you retain full copyright of your work.
 
 ## Table of Contents
 
@@ -14,6 +14,7 @@ Nika is an open-source project licensed under **AGPL-3.0-or-later**. By contribu
 - [Pull Request Process](#pull-request-process)
 - [Issue Guidelines](#issue-guidelines)
 - [Version Lock Policy](#version-lock-policy)
+- [Contributor License Agreement](#contributor-license-agreement)
 - [Code of Conduct](#code-of-conduct)
 
 ## Getting Started
@@ -351,19 +352,25 @@ Nika uses `NikaError` with `NIKA-XXX` codes, not `anyhow`. When adding error cas
 - **AST pipeline**: Always Raw -> Analyzed -> Lower (never skip phases)
 - **Logging**: `tracing` macros
 - **Extensions**: `.nika.yaml` for workflows
-- **License header**: Not required in source files (AGPL covers the whole project)
+- **License header**: All `.rs` files carry `// SPDX-License-Identifier: AGPL-3.0-or-later` (automated)
 
 See [CONVENTIONS.md](CONVENTIONS.md) for workflow authoring conventions.
 
+## Contributor License Agreement
+
+When you open your first pull request, the CLA-assistant bot will ask you to sign our [CLA](https://cla-assistant.io/supernovae-st/nika). This is a one-time process — comment "I have read the CLA Document and I hereby sign the CLA" on the PR and you're done.
+
+The CLA grants SuperNovae a license to distribute your contributions under AGPL and commercial licenses. **You retain full copyright.** See the [full CLA text](https://cla-assistant.io/supernovae-st/nika) for details.
+
 ## Code of Conduct
 
-Be kind, be constructive, be patient. We're building something meaningful here. Harassment, discrimination, and bad-faith behavior have no place in this project.
+Read our [Code of Conduct](.github/CODE_OF_CONDUCT.md). The short version: be kind, show your ugly work, discuss before you build, and remember that quality is not negotiable here.
 
 ## Questions?
 
 - **Bugs or features**: [Open an issue](https://github.com/supernovae-st/nika/issues)
+- **Discussion before PRs**: [GitHub Discussions](https://github.com/supernovae-st/nika/discussions)
 - **Security**: Email security@supernovae.studio
-- **General discussion**: [GitHub Discussions](https://github.com/supernovae-st/nika/discussions) (if enabled)
 
 ---
 

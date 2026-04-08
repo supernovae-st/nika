@@ -41,6 +41,7 @@
 - [ ] Commit messages follow `type(scope): description` convention
 - [ ] No new `unsafe` code without justification
 - [ ] Version remains 0.x.x
+- [ ] CLA signed (bot will check automatically)
 
 ## Screenshots
 

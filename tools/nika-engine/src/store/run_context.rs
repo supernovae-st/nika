@@ -15,6 +15,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
+use std::sync::OnceLock;
+
 use parking_lot::RwLock;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use serde_json::Value;
@@ -285,8 +287,9 @@ pub struct RunContext {
     media_budget: Arc<crate::media::MediaBudget>,
 
     /// Workspace root for CAS store path resolution.
-    /// Set by Runner at workflow start. Defaults to current_dir().
-    workspace_root: Arc<RwLock<PathBuf>>,
+    /// Write-once: set by Runner before execution, read by tasks during run.
+    /// Defaults to current_dir() on first read if never explicitly set.
+    workspace_root: Arc<OnceLock<PathBuf>>,
 
     /// Optional NikaVault for `$vault.SERVICE.FIELD` bindings.
     ///
@@ -325,7 +328,6 @@ impl RunContext {
     /// Internal constructor — same as `new()` but spelled out for clarity
     /// at call sites that need to thread the source through a builder.
     fn with_invocation_source(invocation_source: nika_core::trust::InvocationSource) -> Self {
-        let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         Self {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             context: Arc::default(),
@@ -339,7 +341,7 @@ impl RunContext {
                     .unwrap_or(crate::media::MediaBudget::DEFAULT_MAX_PER_RUN);
                 crate::media::MediaBudget::with_max_per_run(max)
             }),
-            workspace_root: Arc::new(RwLock::new(workspace_root)),
+            workspace_root: Arc::new(OnceLock::new()),
             vault: None,
             invocation_source,
         }
@@ -497,14 +499,17 @@ impl RunContext {
             .collect()
     }
 
-    /// Set the workspace root (called by Runner at workflow start).
+    /// Set the workspace root (called by Runner before execution starts).
+    /// Ignored if already set (write-once semantics).
     pub fn set_workspace_root(&self, root: PathBuf) {
-        *self.workspace_root.write() = root;
+        let _ = self.workspace_root.set(root);
     }
 
-    /// Get the workspace root path (cloned).
+    /// Get the workspace root path. Falls back to current_dir() if never set.
     pub fn workspace_root(&self) -> PathBuf {
-        self.workspace_root.read().clone()
+        self.workspace_root
+            .get_or_init(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+            .clone()
     }
 
     /// Set the NikaVault for `$vault.SERVICE.FIELD` bindings.
