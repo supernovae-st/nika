@@ -60,6 +60,60 @@ pub(crate) async fn execute_task_iteration(
     base_path: PathBuf,
     is_fallback_execution: bool,
 ) -> IterationResult {
+    // ── Nika Shield: scope tokio::task_local! state once for the whole
+    //    iteration so any builtin tool dispatched downstream (Item 4
+    //    nika:run, Item 3b path-recon, ...) can read the calling task's
+    //    trust level + elevation flag without modifying BuiltinTool::call
+    //    or its 24 implementations (P0-5 hardening).
+    //
+    //    Trust is read from the datastore — Sprint 1 already populates it
+    //    via TaskExecutor when each task completes. Elevation comes from
+    //    the AnalyzedTask itself (`trust: elevated` in the YAML).
+    let shield_task_trust = datastore
+        .get_trust(&task_id)
+        .unwrap_or(nika_core::trust::TrustLevel::Trusted);
+    let shield_task_elevated = task.trust_elevated;
+    let shield_task_id_arc = Arc::clone(&task_id);
+    crate::runtime::builtin::run::CURRENT_TASK_ID
+        .scope(Some(shield_task_id_arc), async move {
+            crate::runtime::builtin::run::CURRENT_TASK_TRUST
+                .scope(shield_task_trust, async move {
+                    crate::runtime::builtin::run::CURRENT_TASK_ELEVATED
+                        .scope(shield_task_elevated, async move {
+                            execute_task_iteration_inner(
+                                task,
+                                task_id,
+                                parent_task_id,
+                                datastore,
+                                executor,
+                                event_log,
+                                for_each_binding,
+                                workflow_artifacts,
+                                base_path,
+                                is_fallback_execution,
+                            )
+                            .await
+                        })
+                        .await
+                })
+                .await
+        })
+        .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_task_iteration_inner(
+    task: Arc<AnalyzedTask>,
+    task_id: Arc<str>,
+    parent_task_id: Arc<str>,
+    datastore: RunContext,
+    executor: TaskExecutor,
+    event_log: EventLog,
+    for_each_binding: Option<(String, Value, usize)>,
+    workflow_artifacts: Option<ArtifactsConfig>,
+    base_path: PathBuf,
+    is_fallback_execution: bool,
+) -> IterationResult {
     let start = Instant::now();
 
     // Extract for_each info if present

@@ -33,24 +33,91 @@ use super::BuiltinTool;
 use crate::ast::parse_analyzed;
 use crate::error::NikaError;
 use crate::runtime::Runner;
+use nika_core::trust::TrustLevel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::Cell;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 tokio::task_local! {
     /// Workflow nesting depth for the current execution context.
     /// Uses task_local! for proper isolation between concurrent workflows.
     /// Replaces global AtomicU32 which had race conditions.
-    static WORKFLOW_DEPTH: Cell<u32>;
+    pub(crate) static WORKFLOW_DEPTH: Cell<u32>;
+
+    /// ID of the task currently dispatching a builtin tool. Set by the
+    /// runner before each `BuiltinTool::call` so the called tool can
+    /// emit security errors that reference the calling task.
+    ///
+    /// `None` outside a runner-driven dispatch (e.g. CLI `nika invoke`).
+    pub(crate) static CURRENT_TASK_ID: Option<Arc<str>>;
+
+    /// Trust level of the calling task. Set by the runner before each
+    /// builtin dispatch. Used by Item 4 (`nika:run` ceiling), Item 3b
+    /// (path recon block), and downstream sprints.
+    ///
+    /// Defaults to `Trusted` outside a runner context.
+    pub(crate) static CURRENT_TASK_TRUST: TrustLevel;
+
+    /// Whether the calling task has `trust: elevated`. Set by the runner
+    /// before each builtin dispatch.
+    pub(crate) static CURRENT_TASK_ELEVATED: bool;
+
+    /// Canonical workflow file paths in the parent chain — for `nika:run`
+    /// cycle detection (Item 4). Each `nika:run` push its own canonical
+    /// path before scoping the nested invocation.
+    pub(crate) static PARENT_CHAIN: Vec<PathBuf>;
 }
 
 /// Get current workflow depth, returns 0 if not in a workflow context.
 fn current_depth() -> u32 {
     WORKFLOW_DEPTH.try_with(|d| d.get()).unwrap_or(0)
+}
+
+/// Get the calling task ID, or `None` outside a runner-driven dispatch.
+///
+/// Wired into Item 3b/4 in subsequent Sprint 2 commits.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_task_id() -> Option<Arc<str>> {
+    CURRENT_TASK_ID.try_with(|id| id.clone()).unwrap_or(None)
+}
+
+/// Get the calling task's trust level, or `Trusted` outside a runner-driven
+/// dispatch (which only happens in standalone tool invocations like
+/// `nika invoke nika:read foo.md`).
+///
+/// Wired into Item 3b/4 in subsequent Sprint 2 commits.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_task_trust() -> TrustLevel {
+    CURRENT_TASK_TRUST
+        .try_with(|t| *t)
+        .unwrap_or(TrustLevel::Trusted)
+}
+
+/// Whether the calling task has `trust: elevated`. Defaults to `false`
+/// (conservative — never auto-elevate when context is missing).
+///
+/// Wired into Item 3b/4 in subsequent Sprint 2 commits.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_task_elevated() -> bool {
+    CURRENT_TASK_ELEVATED.try_with(|e| *e).unwrap_or(false)
+}
+
+/// Snapshot of the parent workflow chain for `nika:run` cycle detection.
+/// Returns an empty vec outside a nested-run context.
+///
+/// Wired into Item 4 in a subsequent Sprint 2 commit.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_parent_chain() -> Vec<PathBuf> {
+    PARENT_CHAIN.try_with(|c| c.clone()).unwrap_or_default()
 }
 
 /// Maximum allowed recursion depth for nested workflows.
@@ -373,6 +440,63 @@ impl BuiltinTool for RunTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// P0-5: outside any task_local scope, the helpers must return the
+    /// safe defaults (no calling task, Trusted floor, not elevated, empty
+    /// chain). This is the contract that lets `nika invoke nika:read foo.md`
+    /// work as a top-level CLI command.
+    #[tokio::test]
+    async fn task_local_helpers_return_safe_defaults_outside_scope() {
+        assert!(current_task_id().is_none());
+        assert_eq!(current_task_trust(), TrustLevel::Trusted);
+        assert!(!current_task_elevated());
+        assert!(current_parent_chain().is_empty());
+    }
+
+    /// Round-trip the task_local through a `.scope().await` and verify the
+    /// helpers see the scoped values from inside, then revert to defaults
+    /// outside the scope.
+    #[tokio::test]
+    async fn task_local_helpers_round_trip_through_scopes() {
+        let id: Arc<str> = Arc::from("task_a");
+        let id_for_scope = Arc::clone(&id);
+
+        CURRENT_TASK_ID
+            .scope(Some(id_for_scope), async {
+                CURRENT_TASK_TRUST
+                    .scope(TrustLevel::Untrusted, async {
+                        CURRENT_TASK_ELEVATED
+                            .scope(true, async {
+                                PARENT_CHAIN
+                                    .scope(
+                                        vec![std::path::PathBuf::from("/wf/a.nika.yaml")],
+                                        async {
+                                            assert_eq!(
+                                                current_task_id().as_deref(),
+                                                Some("task_a")
+                                            );
+                                            assert_eq!(
+                                                current_task_trust(),
+                                                TrustLevel::Untrusted
+                                            );
+                                            assert!(current_task_elevated());
+                                            assert_eq!(current_parent_chain().len(), 1);
+                                        },
+                                    )
+                                    .await
+                            })
+                            .await
+                    })
+                    .await
+            })
+            .await;
+
+        // Outside the scope, defaults are restored.
+        assert!(current_task_id().is_none());
+        assert_eq!(current_task_trust(), TrustLevel::Trusted);
+        assert!(!current_task_elevated());
+        assert!(current_parent_chain().is_empty());
+    }
 
     #[test]
     fn test_run_tool_name() {
