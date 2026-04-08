@@ -11,6 +11,7 @@
 
 extern crate proc_macro;
 
+mod event_task_id;
 mod nika_error_code;
 
 /// Derive macro that generates a `code() -> &'static str` method for error enums.
@@ -35,4 +36,17 @@ mod nika_error_code;
 pub fn derive_nika_error_code(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     nika_error_code::derive(&input).into()
+}
+
+/// Derive macro that generates a `task_id() -> Option<&str>` method for event enums.
+///
+/// Annotate variants with:
+/// - `#[has_task_id]` — extracts `task_id: Arc<str>` field
+/// - `#[has_task_id(field = "parent_task_id")]` — custom field name
+/// - `#[has_task_id(optional)]` — for `Option<Arc<str>>` fields
+/// - No attribute → returns `None`
+#[proc_macro_derive(EventTaskId, attributes(has_task_id))]
+pub fn derive_event_task_id(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    event_task_id::derive(&input).into()
 }
