@@ -29,6 +29,7 @@
 pub mod artifact_processor;
 pub mod boot;
 pub mod builtin;
+pub mod canary;
 pub mod chat_workflow;
 pub mod context;
 pub mod context_loader;
@@ -55,8 +56,10 @@ mod rig_agent_loop;
 pub mod robots;
 mod runner;
 pub mod security;
+pub mod shield;
 mod skill_injector;
 pub mod spawn;
+pub mod spotlight;
 pub mod structured_output;
 pub(crate) mod structured_retry;
 pub mod submit_tool;

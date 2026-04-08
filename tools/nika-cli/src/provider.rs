@@ -10,9 +10,9 @@ use nika_engine::error::NikaError;
 /// Provider management actions (read-only catalog).
 ///
 /// Key management moved to `nika keys`. Use:
-///   nika keys set <provider>    — store an API key
-///   nika keys remove <provider> — delete a key
-///   nika keys check             — test all keys
+///   `nika keys set PROVIDER`    — store an API key
+///   `nika keys remove PROVIDER` — delete a key
+///   `nika keys check`           — test all keys
 #[derive(Subcommand)]
 pub enum ProviderAction {
     /// List all providers, models, and pricing

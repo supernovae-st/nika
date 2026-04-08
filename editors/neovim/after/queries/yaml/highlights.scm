@@ -83,7 +83,7 @@
         "artifact" "as" "concurrency" "context_budget" "decompose"
         "depends_on" "description" "fail_fast" "for_each" "guardrails" "log"
         "model" "on_error" "output" "preset" "provider" "record" "retry"
-        "routing" "structured" "timeout" "when" "with"))))
+        "routing" "structured" "timeout" "trust" "when" "with"))))
 
 ; ── Verb sub-fields ─────────────────────────────────────────────────────────
 (block_mapping_pair

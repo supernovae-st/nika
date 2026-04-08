@@ -19,7 +19,7 @@ use pretty_assertions::assert_eq;
 #[test]
 fn test_lazy_missing_upstream_task_defers_error() {
     // Arrange: Create a lazy binding to a non-existent task
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // Note: "nonexistent_task" is never added to the store
 
     let mut spec = BindingSpec::default();
@@ -47,7 +47,7 @@ fn test_lazy_missing_upstream_task_defers_error() {
 #[test]
 fn test_lazy_missing_upstream_task_error_on_access() {
     // Arrange: Create a lazy binding to a non-existent task (no default)
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // "missing_task" never exists in store
 
     let mut spec = BindingSpec::default();
@@ -81,7 +81,7 @@ fn test_lazy_missing_upstream_task_error_on_access() {
 #[test]
 fn test_lazy_missing_task_with_default_uses_fallback() {
     // Arrange: Lazy binding to missing task WITH a default value
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // "optional_task" doesn't exist
 
     let mut spec = BindingSpec::default();
@@ -110,7 +110,7 @@ fn test_lazy_missing_task_with_default_uses_fallback() {
 #[test]
 fn test_lazy_missing_nested_path_clear_error() {
     // Arrange: Task exists but nested path doesn't
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         std::sync::Arc::from("task1"),
         nika::store::TaskResult::success(
@@ -163,7 +163,7 @@ fn test_lazy_circular_pattern_no_deadlock_after_execution() {
     // After both tasks complete, resolution works fine.
     // The "circularity" is broken because lazy doesn't resolve at parse time.
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     // Simulate: both tasks completed
     store.insert(
@@ -226,7 +226,7 @@ fn test_lazy_circular_pattern_partial_execution_error() {
     // Expected: task_a can't resolve its binding from task_b
     // because task_b hasn't produced output yet.
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     // Only task_a completed
     store.insert(
@@ -285,7 +285,7 @@ fn test_lazy_self_reference_fails_gracefully() {
     // Even if task1 completes, it can't reference its own output
     // in a binding that's evaluated before the task runs.
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // Task hasn't run yet (no output in store)
 
     let mut spec = BindingSpec::default();
@@ -315,7 +315,7 @@ fn test_lazy_self_reference_fails_gracefully() {
 #[test]
 fn test_lazy_self_reference_with_default_uses_fallback() {
     // Arrange: Self-reference pattern but with a default value
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // No task output yet
 
     let mut spec = BindingSpec::default();
@@ -370,7 +370,7 @@ fn test_lazy_binding_empty_path_segment() {
 #[test]
 fn test_lazy_binding_binding_not_found_error() {
     // Try to resolve an alias that was never declared
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     let bindings = ResolvedBindings::new();
 
     let result = bindings.get_resolved("undeclared_alias", &store);
@@ -390,7 +390,7 @@ fn test_lazy_and_eager_mixed_validation() {
     // If eager binding fails, entire from_binding_spec should fail
     // even if lazy bindings would succeed
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // No tasks in store
 
     let mut spec = BindingSpec::default();
@@ -424,7 +424,7 @@ fn test_lazy_binding_multiple_resolution_calls() {
     // Verify that lazy bindings can be resolved multiple times
     // (each call re-evaluates from datastore)
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     store.insert(
         std::sync::Arc::from("counter"),
@@ -461,7 +461,7 @@ fn test_lazy_binding_multiple_resolution_calls() {
 fn test_lazy_binding_preserves_pending_state() {
     // Verify is_lazy() returns true even after attempted resolution
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     let mut spec = BindingSpec::default();
     spec.insert(

@@ -54,6 +54,9 @@ pub struct TaskResult {
     pub status: TaskOutcome,
     /// Media files produced by this task (empty for non-media tasks)
     pub media: Vec<crate::media::MediaRef>,
+    /// Trust level of this task's output (Nika Shield).
+    /// Defaults to Trusted for backward compatibility.
+    pub trust_level: nika_core::trust::TrustLevel,
 }
 
 impl TaskResult {
@@ -64,6 +67,7 @@ impl TaskResult {
             duration,
             status: TaskOutcome::Success,
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -74,6 +78,7 @@ impl TaskResult {
             duration,
             status: TaskOutcome::Success,
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -84,6 +89,7 @@ impl TaskResult {
             duration,
             status: TaskOutcome::Failed(error.into()),
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -99,6 +105,7 @@ impl TaskResult {
                 dependency: dependency.into(),
             },
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
@@ -113,12 +120,19 @@ impl TaskResult {
                 reason: reason.into(),
             },
             media: Vec::new(),
+            trust_level: nika_core::trust::TrustLevel::Trusted,
         }
     }
 
     /// Attach media references to this result.
     pub fn with_media(mut self, media: Vec<crate::media::MediaRef>) -> Self {
         self.media = media;
+        self
+    }
+
+    /// Set the trust level for this result (Nika Shield).
+    pub fn with_trust(mut self, level: nika_core::trust::TrustLevel) -> Self {
+        self.trust_level = level;
         self
     }
 
@@ -276,10 +290,38 @@ pub struct RunContext {
     /// Set by the runner at workflow start. When `None`, vault bindings
     /// return a clear error ("vault not configured").
     vault: Option<Arc<nika_vault::NikaVault>>,
+
+    /// How the workflow was invoked — determines the trust floor for `inputs:`
+    /// bindings (Nika Shield, P0-3 hardening). Required argument to `new()`
+    /// so embedded SDK consumers cannot accidentally fail open.
+    invocation_source: nika_core::trust::InvocationSource,
 }
 
 impl Default for RunContext {
+    /// Default constructor — uses `InvocationSource::Unknown` which is
+    /// **fail-closed** (inputs treated as `Untrusted`). Production callers
+    /// must use `RunContext::new(InvocationSource::*)` instead so the trust
+    /// floor is explicit.
     fn default() -> Self {
+        Self::with_invocation_source(nika_core::trust::InvocationSource::Unknown)
+    }
+}
+
+impl RunContext {
+    /// Create a new run context with an explicit invocation source.
+    ///
+    /// **The caller MUST specify the source.** Use `InvocationSource::Cli`
+    /// for local CLI runs, `Serve` for `nika serve`, `Test` for unit tests,
+    /// `NestedRun { ceiling }` from inside `nika:run`, and `Unknown` only
+    /// when the embedding SDK genuinely cannot tell — `Unknown` fails closed
+    /// (inputs treated as `Untrusted`).
+    pub fn new(invocation_source: nika_core::trust::InvocationSource) -> Self {
+        Self::with_invocation_source(invocation_source)
+    }
+
+    /// Internal constructor — same as `new()` but spelled out for clarity
+    /// at call sites that need to thread the source through a builder.
+    fn with_invocation_source(invocation_source: nika_core::trust::InvocationSource) -> Self {
         let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         Self {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
@@ -296,13 +338,22 @@ impl Default for RunContext {
             }),
             workspace_root: Arc::new(RwLock::new(workspace_root)),
             vault: None,
+            invocation_source,
         }
     }
-}
 
-impl RunContext {
-    pub fn new() -> Self {
-        Self::default()
+    /// How this workflow run was invoked — determines the trust floor for
+    /// `inputs:` bindings (Nika Shield).
+    #[inline]
+    #[must_use]
+    pub fn invocation_source(&self) -> nika_core::trust::InvocationSource {
+        self.invocation_source
+    }
+
+    /// Override the invocation source after construction. Used by the runner
+    /// builder pattern (`Runner::with_invocation_source`).
+    pub fn set_invocation_source(&mut self, source: nika_core::trust::InvocationSource) {
+        self.invocation_source = source;
     }
 
     /// Insert a task result (accepts `Arc<str>` for zero-cost key reuse)
@@ -313,6 +364,11 @@ impl RunContext {
     /// Get a task result
     pub fn get(&self, task_id: &str) -> Option<TaskResult> {
         self.results.get(task_id).map(|r| r.value().clone())
+    }
+
+    /// Get the trust level of a completed task's output (Nika Shield).
+    pub fn get_trust(&self, task_id: &str) -> Option<nika_core::trust::TrustLevel> {
+        self.results.get(task_id).map(|r| r.trust_level)
     }
 
     /// Check task status without cloning the full TaskResult (M11 perf fix).
@@ -759,9 +815,43 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Sprint 2 P0-3: invocation source must thread through RunContext.
+    #[test]
+    fn invocation_source_round_trips() {
+        use nika_core::trust::{InvocationSource, TrustLevel};
+
+        let cli = RunContext::new(InvocationSource::Cli);
+        assert_eq!(cli.invocation_source(), InvocationSource::Cli);
+        assert_eq!(cli.invocation_source().input_trust(), TrustLevel::Trusted);
+
+        let serve = RunContext::new(InvocationSource::Serve);
+        assert_eq!(serve.invocation_source(), InvocationSource::Serve);
+        assert_eq!(
+            serve.invocation_source().input_trust(),
+            TrustLevel::Untrusted
+        );
+
+        // Default fails closed (Unknown → Untrusted).
+        let def = RunContext::default();
+        assert_eq!(def.invocation_source(), InvocationSource::Unknown);
+        assert_eq!(def.invocation_source().input_trust(), TrustLevel::Untrusted);
+    }
+
+    /// `set_invocation_source` is the builder hook used by `Runner`.
+    #[test]
+    fn invocation_source_can_be_overridden() {
+        use nika_core::trust::{InvocationSource, TrustLevel};
+
+        let mut ctx = RunContext::new(InvocationSource::Cli);
+        ctx.set_invocation_source(InvocationSource::NestedRun {
+            ceiling: TrustLevel::Untrusted,
+        });
+        assert_eq!(ctx.invocation_source().input_trust(), TrustLevel::Untrusted);
+    }
+
     #[test]
     fn insert_and_get_result() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task1"),
             TaskResult::success(json!({"key": "value"}), Duration::from_secs(1)),
@@ -774,7 +864,7 @@ mod tests {
 
     #[test]
     fn success_str_converts_to_value() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task1"),
             TaskResult::success_str("hello", Duration::from_secs(1)),
@@ -787,7 +877,7 @@ mod tests {
 
     #[test]
     fn failed_result() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task1"),
             TaskResult::failed("oops", Duration::from_secs(1)),
@@ -800,7 +890,7 @@ mod tests {
 
     #[test]
     fn resolve_simple_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
@@ -812,7 +902,7 @@ mod tests {
 
     #[test]
     fn resolve_nested_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("flights"),
             TaskResult::success(
@@ -830,7 +920,7 @@ mod tests {
 
     #[test]
     fn resolve_array_index() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("data"),
             TaskResult::success(
@@ -845,7 +935,7 @@ mod tests {
 
     #[test]
     fn resolve_path_not_found() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task1"),
             TaskResult::success(json!({"a": 1}), Duration::from_secs(1)),
@@ -863,7 +953,7 @@ mod tests {
     fn concurrent_writes_all_stored() {
         use std::thread;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let store_arc = Arc::new(store);
 
         let handles: Vec<_> = (0..100)
@@ -896,7 +986,7 @@ mod tests {
     fn concurrent_reads_during_writes() {
         use std::thread;
 
-        let store = Arc::new(RunContext::new());
+        let store = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
 
         // Pre-populate some data
         for i in 0..50 {
@@ -944,7 +1034,7 @@ mod tests {
 
     #[test]
     fn overwrite_existing_task() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Insert initial value
         store.insert(
@@ -969,7 +1059,7 @@ mod tests {
 
     #[test]
     fn contains_and_is_success() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Non-existent task
         assert!(!store.contains("nonexistent"));
@@ -994,7 +1084,7 @@ mod tests {
 
     #[test]
     fn get_output_returns_arc() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let big_json = json!({
             "large": "data".repeat(1000),
@@ -1016,7 +1106,7 @@ mod tests {
 
     #[test]
     fn resolve_task_only_returns_full_output() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"a": 1, "b": 2}), Duration::from_secs(1)),
@@ -1029,7 +1119,7 @@ mod tests {
 
     #[test]
     fn resolve_deeply_nested_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("deep"),
             TaskResult::success(
@@ -1046,7 +1136,7 @@ mod tests {
 
     #[test]
     fn resolve_mixed_array_object_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("mixed"),
             TaskResult::success(
@@ -1087,7 +1177,7 @@ mod tests {
 
     #[test]
     fn empty_task_id_resolves_nothing() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!(1), Duration::from_secs(1)),
@@ -1099,7 +1189,7 @@ mod tests {
 
     #[test]
     fn clone_is_shallow() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": 42}), Duration::from_secs(1)),
@@ -1130,13 +1220,13 @@ mod tests {
 
     #[test]
     fn test_context_default_is_empty() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert!(!store.has_context());
     }
 
     #[test]
     fn test_set_and_get_context_file() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context
@@ -1155,7 +1245,7 @@ mod tests {
 
     #[test]
     fn test_set_and_get_context_session() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context.session = Some(json!({"focus_areas": ["rust", "ai"]}));
@@ -1169,7 +1259,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_path_files() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context.files.insert(
@@ -1199,7 +1289,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_path_session() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context.session = Some(json!({"focus": "rust", "level": 3}));
@@ -1225,7 +1315,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_shorthand() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut context = LoadedContext::new();
         context
             .files
@@ -1256,7 +1346,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_path_invalid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context.files.insert("brand".to_string(), json!("content"));
@@ -1276,13 +1366,13 @@ mod tests {
 
     #[test]
     fn test_inputs_default_is_empty() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert!(!store.has_inputs());
     }
 
     #[test]
     fn test_set_and_get_input_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1306,7 +1396,7 @@ mod tests {
 
     #[test]
     fn test_get_input_default_without_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         // Input without default field
@@ -1326,7 +1416,7 @@ mod tests {
 
     #[test]
     fn test_resolve_input_path_simple() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1364,7 +1454,7 @@ mod tests {
 
     #[test]
     fn test_resolve_input_path_nested() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1400,7 +1490,7 @@ mod tests {
 
     #[test]
     fn test_resolve_input_path_invalid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1452,7 +1542,7 @@ mod tests {
 
     #[test]
     fn resolve_media_full_array() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let value = store.resolve_path("gen_img.media").unwrap();
@@ -1464,7 +1554,7 @@ mod tests {
 
     #[test]
     fn resolve_media_index_hash() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let hash = store.resolve_path("gen_img.media[0].hash").unwrap();
@@ -1476,7 +1566,7 @@ mod tests {
 
     #[test]
     fn resolve_media_index_mime_type() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let mime = store.resolve_path("gen_img.media[0].mime_type").unwrap();
@@ -1488,7 +1578,7 @@ mod tests {
 
     #[test]
     fn resolve_media_empty_returns_empty_array() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // Task with no media
         store.insert(
             Arc::from("no_media"),
@@ -1501,7 +1591,7 @@ mod tests {
 
     #[test]
     fn resolve_media_index_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let path = store.resolve_path("gen_img.media[0].path").unwrap();
@@ -1510,7 +1600,7 @@ mod tests {
 
     #[test]
     fn resolve_media_index_size_bytes() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let size = store.resolve_path("gen_img.media[0].size_bytes").unwrap();
@@ -1519,7 +1609,7 @@ mod tests {
 
     #[test]
     fn resolve_media_index_extension() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let ext = store.resolve_path("gen_img.media[0].extension").unwrap();
@@ -1528,7 +1618,7 @@ mod tests {
 
     #[test]
     fn resolve_media_out_of_bounds() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         // Index beyond array length should return None
@@ -1537,7 +1627,7 @@ mod tests {
 
     #[test]
     fn resolve_media_does_not_shadow_output() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         // Standard output field should still resolve normally
@@ -1547,7 +1637,7 @@ mod tests {
 
     #[test]
     fn iter_results_returns_all_entries() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task1"),
             TaskResult::success_str("out1", Duration::from_millis(10)),
@@ -1573,7 +1663,7 @@ mod tests {
 
     #[test]
     fn iter_results_includes_media_refs() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let results = store.iter_results();
@@ -1596,7 +1686,7 @@ mod tests {
         // The result is stored as Value::String(json_str).
         // Downstream tasks must be able to access {{with.thumb.hash}} etc.
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // Simulate what run_invoke + make_task_result does: stores JSON as Value::String
         let invoke_output = r#"{"hash":"blake3:abc123","mime_type":"image/png","size_bytes":1234,"metadata":{"width":256,"height":192}}"#;
         store.insert(
@@ -1634,7 +1724,7 @@ mod tests {
     #[test]
     fn invoke_json_result_with_array_accessible() {
         // nika:dominant_color returns {"colors":[{"r":255,"g":0,"b":0,"hex":"#ff0000"}],"count":1}
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let invoke_output = r##"{"colors":[{"r":255,"g":0,"b":0,"hex":"#ff0000"},{"r":0,"g":0,"b":255,"hex":"#0000ff"}],"count":2}"##;
         store.insert(
             Arc::from("colors"),
@@ -1654,7 +1744,7 @@ mod tests {
     #[test]
     fn invoke_dimensions_result_accessible() {
         // nika:dimensions returns {"width":1024,"height":768,"orientation":"landscape"}
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let invoke_output = r#"{"width":1024,"height":768,"orientation":"landscape"}"#;
         store.insert(
             Arc::from("dim"),
@@ -1669,7 +1759,7 @@ mod tests {
     #[test]
     fn enriched_media_ref_metadata_accessible() {
         // MediaRef with enriched metadata must be accessible
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut metadata = serde_json::Map::new();
         metadata.insert("width".into(), json!(512));
         metadata.insert("height".into(), json!(384));
@@ -1715,7 +1805,7 @@ mod tests {
     #[test]
     fn chained_invoke_bindings_work() {
         // Simulate: gen → media[0].hash → thumb (invoke) → dim (invoke)
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Task "gen" has media
         let media = vec![crate::media::MediaRef {
@@ -1785,7 +1875,7 @@ mod tests {
 
     #[test]
     fn test_record_set_get_roundtrip() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let record = make_test_record("task1");
         ctx.set_record("task1".into(), record);
         let got = ctx.get_record("task1").expect("record should exist");
@@ -1795,7 +1885,7 @@ mod tests {
 
     #[test]
     fn test_record_has_record() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert!(!ctx.has_record("task1"));
         ctx.set_record("task1".into(), make_test_record("task1"));
         assert!(ctx.has_record("task1"));
@@ -1804,7 +1894,7 @@ mod tests {
 
     #[test]
     fn test_record_iter_records() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         ctx.set_record("a".into(), make_test_record("a"));
         ctx.set_record("b".into(), make_test_record("b"));
         let records = ctx.iter_records();
@@ -1813,7 +1903,7 @@ mod tests {
 
     #[test]
     fn test_record_missing_returns_none() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert!(ctx.get_record("nonexistent").is_none());
     }
 
@@ -1837,7 +1927,7 @@ mod tests {
     fn skipped_task_is_completed_successfully() {
         // BUG-10: is_completed_successfully() delegates to is_usable().
         // Skipped tasks must return Some(true) so downstream tasks proceed.
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("gated"), TaskResult::skipped("when: false"));
 
         assert_eq!(
@@ -1857,7 +1947,7 @@ mod tests {
     #[test]
     fn skipped_task_is_not_failed() {
         // Skipped is distinct from Failed — must not appear in is_failed()
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(Arc::from("skipped"), TaskResult::skipped("when: false"));
 
         assert!(

@@ -321,6 +321,9 @@ pub struct PolicyConfig {
     /// Blocked hosts for fetch:
     #[serde(default)]
     pub blocked_hosts: Vec<String>,
+    /// Nika Shield security configuration
+    #[serde(default)]
+    pub security: SecurityPolicyConfig,
 }
 
 impl Default for PolicyConfig {
@@ -336,9 +339,16 @@ impl Default for PolicyConfig {
             max_token_spend: None,
             allowed_hosts: vec![],
             blocked_hosts: vec![],
+            security: SecurityPolicyConfig::default(),
         }
     }
 }
+
+/// Re-exports for the Nika Shield security policy (canonical home: `nika_core::policy`).
+///
+/// Lives in nika-core (L0) so both nika-engine (which enforces it) and nika-display
+/// (which renders the security summary) can read it without violating diamond layering.
+pub use nika_core::policy::{SecurityPolicyConfig, TaintMode};
 
 /// Load just the `PolicyConfig` from `nika.toml` (sync, best-effort).
 ///

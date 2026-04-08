@@ -225,16 +225,65 @@ impl RigAgentLoop {
             }
         }
 
+        let response_text = response_parts.concat();
+        let thinking_text = if thinking_parts.is_empty() {
+            None
+        } else {
+            Some(thinking_parts.concat())
+        };
+
+        // ── Nika Shield: per-stream canary detection on assistant text +
+        //    extended-thinking trace. The end-of-execute check (in
+        //    TaskExecutor::execute) catches leaks in the FINAL response,
+        //    but the thinking trace is opaque to that path. Sprint 2 Item 2
+        //    success criterion #4 + NIKA-388 CanaryInThinking.
+        if let Some(ref shield) = self.shield {
+            if shield.canary_enabled() {
+                let canary = shield.canary();
+                if let Some(detection) = canary.check_output(&response_text) {
+                    let match_type: &'static str = match detection.match_type {
+                        crate::runtime::canary::CanaryMatchType::Exact => "exact",
+                        crate::runtime::canary::CanaryMatchType::Substring => "substring",
+                        crate::runtime::canary::CanaryMatchType::CharSpaced => "char_spaced",
+                    };
+                    self.event_log.emit(EventKind::CanaryDetected {
+                        task_id: Arc::from(self.task_id.as_str()),
+                        match_type: match_type.to_string(),
+                    });
+                    if shield.is_strict() {
+                        return Err(NikaError::CanaryLeaked {
+                            task_id: self.task_id.clone(),
+                            match_type,
+                            token_index: detection.token_index as u8,
+                        });
+                    }
+                }
+                if let Some(ref thinking) = thinking_text {
+                    if canary.check_output(thinking).is_some() {
+                        // Thinking-trace leaks are stronger evidence of
+                        // system-prompt exfil than output-channel leaks.
+                        // We tag the match type as "thinking" so the
+                        // SecuritySummary + lint can attribute the source.
+                        self.event_log.emit(EventKind::CanaryDetected {
+                            task_id: Arc::from(self.task_id.as_str()),
+                            match_type: "thinking".to_string(),
+                        });
+                        if shield.is_strict() {
+                            return Err(NikaError::CanaryInThinking {
+                                task_id: self.task_id.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(StreamingResult {
-            response: response_parts.concat(),
+            response: response_text,
             input_tokens,
             output_tokens,
             cached_input_tokens,
-            thinking: if thinking_parts.is_empty() {
-                None
-            } else {
-                Some(thinking_parts.concat())
-            },
+            thinking: thinking_text,
             ttft_ms,
         })
     }

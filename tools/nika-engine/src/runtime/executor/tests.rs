@@ -68,7 +68,7 @@ fn test_executor_is_clone() {
 async fn test_execute_exec_simple_command() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -93,7 +93,7 @@ async fn test_execute_exec_simple_command() {
 async fn test_exec_stdout_truncation() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Generate 200 bytes of output, limit to 100
     let action = TaskAction::Exec {
@@ -126,7 +126,7 @@ async fn test_exec_stdout_truncation() {
 async fn test_exec_stdout_within_limit() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -156,7 +156,7 @@ async fn test_exec_stdout_within_limit() {
 async fn test_exec_python3_c_allowed_in_static_yaml() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -191,7 +191,7 @@ async fn test_execute_exec_with_template_binding() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("name", json!("world"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -216,7 +216,7 @@ async fn test_execute_exec_with_template_binding() {
 async fn test_execute_exec_command_failure() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Use false command which exists and always returns exit code 1
     let action = TaskAction::Exec {
@@ -253,7 +253,7 @@ async fn test_execute_exec_emits_template_resolved() {
     let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("greeting", json!("Hello"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -295,7 +295,7 @@ async fn test_execute_exec_emits_template_resolved() {
 async fn test_execute_fetch_invalid_url() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -328,7 +328,7 @@ async fn test_execute_fetch_with_template_url() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("endpoint", json!("httpbin.org/get"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -373,7 +373,7 @@ async fn test_execute_invoke_tool_call() {
     let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -404,7 +404,7 @@ async fn test_execute_invoke_resource_read() {
     let executor = TaskExecutor::new("mock", None, None, event_log).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -439,7 +439,7 @@ async fn test_execute_invoke_emits_mcp_events() {
     let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -483,7 +483,7 @@ async fn test_execute_invoke_tool_with_template_params() {
     let mut bindings = ResolvedBindings::new();
     bindings.set("entity_key", json!("qr-code"));
     bindings.set("locale_val", json!("en-US"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -514,7 +514,7 @@ async fn test_execute_invoke_tool_with_template_params() {
 async fn test_execute_invoke_validation_error_both_tool_and_resource() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Both tool and resource set (invalid)
     let action = TaskAction::Invoke {
@@ -545,7 +545,7 @@ async fn test_execute_invoke_validation_error_both_tool_and_resource() {
 async fn test_execute_invoke_validation_error_neither_tool_nor_resource() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Neither tool nor resource set (invalid)
     let action = TaskAction::Invoke {
@@ -577,7 +577,7 @@ async fn test_execute_invoke_mcp_not_configured() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     // No inject_mock_mcp_client() - server not configured
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -615,7 +615,7 @@ async fn test_builtin_invoke_stages_media_ref() {
     let event_log = EventLog::new();
     let executor = TaskExecutor::new("mock", None, None, event_log).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Use nika:decode instead of nika:import to avoid path confinement issues in tests.
     // Both tools return the same hash/mime_type/size_bytes JSON and test media staging.
@@ -667,7 +667,7 @@ async fn test_binding_resolution_single_template() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("key", json!("value123"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -694,7 +694,7 @@ async fn test_binding_resolution_multiple_templates() {
     let mut bindings = ResolvedBindings::new();
     bindings.set("first", json!("hello"));
     bindings.set("second", json!("world"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -719,7 +719,7 @@ async fn test_binding_resolution_multiple_templates() {
 async fn test_binding_resolution_no_templates() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -745,7 +745,7 @@ async fn test_binding_resolution_json_value() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!({"id": 42, "name": "test"}));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -773,7 +773,7 @@ async fn test_binding_resolution_datastore_lookup() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("task_output", json!({"data": "ok"}));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
     let task_id_prev: Arc<str> = Arc::from("prev_task");
     datastore.insert(
         task_id_prev.clone(),
@@ -808,7 +808,7 @@ async fn test_expand_decompose_static() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("items", json!(["item1", "item2", "item3"]));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
@@ -835,7 +835,7 @@ async fn test_expand_decompose_static_with_max_items() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("items", json!(["a", "b", "c", "d", "e"]));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
@@ -859,7 +859,7 @@ async fn test_expand_decompose_static_wrong_type() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("notarray", json!({"key": "value"}));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
@@ -965,7 +965,7 @@ async fn test_extract_decompose_nodes_empty_nodes() {
 async fn test_error_handling_exec_timeout() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Sleep command longer than timeout
     let action = TaskAction::Exec {
@@ -1098,7 +1098,7 @@ async fn test_execute_exec_blocked_by_policy() {
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -1146,7 +1146,7 @@ async fn test_execute_exec_allowed_by_policy() {
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -1186,7 +1186,7 @@ async fn test_execute_exec_disabled_by_policy() {
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -1235,7 +1235,7 @@ async fn test_execute_fetch_blocked_by_policy() {
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -1287,7 +1287,7 @@ async fn test_execute_fetch_disabled_by_policy() {
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -1388,7 +1388,7 @@ async fn test_run_exec_shell_free_mode_default() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_shell_free");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Shell-free: semicolon should NOT be interpreted as command separator
     let params = ExecParams {
@@ -1420,7 +1420,7 @@ async fn test_run_exec_shell_true_mode_interprets_metacharacters() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_shell_true");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Shell mode: && should work as command separator
     let params = ExecParams {
@@ -1445,7 +1445,7 @@ async fn test_run_exec_shell_free_prevents_injection() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_injection");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // In shell-free mode, injection attempts are harmless
     let params = ExecParams {
@@ -1469,7 +1469,7 @@ async fn test_run_exec_security_validation_blocks_dangerous_commands() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let task_id: Arc<str> = Arc::from("test_blocked");
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Blocklisted command should be rejected even in shell-free mode
     let params = ExecParams {
@@ -1851,7 +1851,7 @@ async fn test_run_infer_empty_prompt() {
 async fn test_run_exec_with_env_vars() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let mut env = rustc_hash::FxHashMap::default();
     env.insert("MY_VAR".to_string(), "hello_from_env".to_string());
@@ -1880,7 +1880,7 @@ async fn test_run_exec_with_env_template_resolution() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("env_val", json!("resolved_value"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let mut env = rustc_hash::FxHashMap::default();
     env.insert("DYNAMIC".to_string(), "{{with.env_val}}".to_string());
@@ -1908,7 +1908,7 @@ async fn test_run_exec_with_env_template_resolution() {
 async fn test_run_exec_with_multiple_env_vars() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let mut env = rustc_hash::FxHashMap::default();
     env.insert("A".to_string(), "first".to_string());
@@ -1941,7 +1941,7 @@ async fn test_run_exec_with_multiple_env_vars() {
 async fn test_run_exec_with_custom_timeout() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Use a short timeout with a command that finishes quickly
     let action = TaskAction::Exec {
@@ -2039,7 +2039,7 @@ async fn test_run_infer_mock_with_model_override() {
 async fn test_resolve_decompose_source_literal() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let result = executor.resolve_decompose_source("some-key", &bindings, &datastore);
     assert!(result.is_ok(), "Should succeed: {:?}", result.err());
@@ -2051,7 +2051,7 @@ async fn test_resolve_decompose_source_template() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("entity", json!("qr-code"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let result = executor.resolve_decompose_source("{{with.entity}}", &bindings, &datastore);
     assert!(result.is_ok(), "Should succeed: {:?}", result.err());
@@ -2063,7 +2063,7 @@ async fn test_resolve_decompose_source_dollar_binding() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("my_key", json!("entity-key"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let result = executor.resolve_decompose_source("$my_key", &bindings, &datastore);
     assert!(result.is_ok(), "Should succeed: {:?}", result.err());
@@ -2074,7 +2074,7 @@ async fn test_resolve_decompose_source_dollar_binding() {
 async fn test_resolve_decompose_source_missing_binding_fails() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let result = executor.resolve_decompose_source("$nonexistent", &bindings, &datastore);
     assert!(result.is_err(), "Missing binding should fail");
@@ -2084,7 +2084,7 @@ async fn test_resolve_decompose_source_missing_binding_fails() {
 async fn test_resolve_decompose_source_dollar_path_from_datastore() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Insert task result with nested field
     datastore.insert(
@@ -2176,7 +2176,7 @@ async fn test_extract_decompose_nodes_from_object_without_known_fields_fails() {
 async fn audit_exec_timeout_fires_promptly() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2227,7 +2227,7 @@ async fn audit_exec_json_object_binding_breaks_shlex() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!({"key": "value"}));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2274,7 +2274,7 @@ async fn audit_exec_json_object_binding_breaks_shlex() {
 async fn audit_exec_stderr_in_error_message() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2306,7 +2306,7 @@ async fn audit_exec_stderr_in_error_message() {
 async fn audit_exec_output_trimmed() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2340,7 +2340,7 @@ async fn audit_exec_output_trimmed() {
 async fn audit_blocklist_extra_spaces_bypass() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2376,7 +2376,7 @@ async fn audit_blocklist_extra_spaces_bypass() {
 async fn audit_blocklist_tab_bypass() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2439,7 +2439,7 @@ fn audit_blocklist_newline_still_caught() {
 async fn audit_exec_cwd_is_wired() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2472,7 +2472,7 @@ async fn audit_exec_cwd_is_wired() {
 async fn test_exec_cwd_resolves_templates_shell_mode() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     // Use "src" subdirectory — within workflow_base_dir (current dir)
     let cwd = std::env::current_dir().unwrap();
@@ -2517,7 +2517,7 @@ async fn test_exec_cwd_resolves_templates_shellfree_mode() {
     let cwd = std::env::current_dir().unwrap();
     let src_dir = cwd.join("src");
     bindings.set("work_dir", json!(src_dir.to_string_lossy().to_string()));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -2553,7 +2553,7 @@ async fn test_agent_provider_fallback_to_mock() {
     let event_log = EventLog::new();
     let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Agent {
         agent: AgentParams {
@@ -2619,7 +2619,7 @@ async fn test_agent_provider_chain_all_fail() {
     // provider_chain: [fake_1, fake_2] — both unknown → FallbackChainExhausted
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Agent {
         agent: AgentParams {
@@ -2680,7 +2680,7 @@ async fn test_agent_single_provider_mock() {
     // Single provider (no chain) — mock should just work
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let action = TaskAction::Agent {
         agent: AgentParams {

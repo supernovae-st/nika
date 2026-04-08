@@ -1253,7 +1253,7 @@ mod tests {
     async fn test_process_task_artifacts_disabled() {
         let base = tempdir().unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let result = process_task_artifacts(
             "task1",
             "output",
@@ -1278,7 +1278,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let result = process_task_artifacts(
             "task1",
@@ -1317,7 +1317,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.json".to_string(),
@@ -1350,7 +1350,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Multiple(vec![
             ArtifactOutput {
@@ -1392,7 +1392,7 @@ mod tests {
         let artifact_dir = base.path().join(DEFAULT_ARTIFACT_DIR);
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Two outputs writing to the same path → NIKA-281 collision warning
         let spec = ArtifactSpec::Multiple(vec![
@@ -1448,7 +1448,7 @@ mod tests {
             "report_data".to_string(),
             serde_json::Value::String("Content from binding source".to_string()),
         );
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "report.txt".to_string(),
@@ -1486,7 +1486,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // source points to a non-existent binding → should fall back to task output
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -1576,7 +1576,7 @@ mod tests {
         std::fs::create_dir_all(&artifact_dir).unwrap();
 
         // Create datastore with task result that has JSON data
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_result = TaskResult::success_str(
             r#"{"name": "Alice", "age": 30}"#.to_string(),
             Duration::from_millis(100),
@@ -1633,7 +1633,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Create artifact spec WITHOUT template
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -1670,7 +1670,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default(); // Empty bindings
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Create artifact spec with template that references missing binding
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -1713,7 +1713,7 @@ mod tests {
             "./outputs/result-{{with.timestamp}}.json",
             "task output",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert_eq!(result, "./outputs/result-2024-01-15_14-30-00.json");
     }
@@ -1726,7 +1726,7 @@ mod tests {
             "./outputs/{{output}}.json",
             "my-report",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert_eq!(result, "./outputs/my-report.json");
     }
@@ -1741,7 +1741,7 @@ mod tests {
             "{{task_id}}/{{with.locale}}/output.json",
             "",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert_eq!(result, "{{task_id}}/fr-FR/output.json");
     }
@@ -1755,7 +1755,7 @@ mod tests {
             "./outputs/{{with.meta.slug}}-v{{with.meta.version}}.json",
             "",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert_eq!(result, "./outputs/qr-code-v2.json");
     }
@@ -1769,7 +1769,7 @@ mod tests {
             "./outputs/{{with.name}}.txt",
             "",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         // Path traversal characters should be sanitized
         assert!(!result.contains(".."));
@@ -1784,7 +1784,7 @@ mod tests {
             "./outputs/{{output}}.txt",
             "../../../etc/passwd",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert!(!result.contains("../"));
         assert!(!result.contains("etc/passwd"));
@@ -1799,7 +1799,7 @@ mod tests {
             "./outputs/{{with.unknown}}.json",
             "",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert_eq!(result, "./outputs/{{with.unknown}}.json");
     }
@@ -1813,7 +1813,7 @@ mod tests {
             "{{task_id}}/{{date}}/output.json",
             "",
             &bindings,
-            &RunContext::new(),
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
         );
         assert_eq!(result, "{{task_id}}/{{date}}/output.json");
     }
@@ -1824,8 +1824,12 @@ mod tests {
         let long_value = "a".repeat(300);
         bindings.set("name", serde_json::json!(long_value));
 
-        let result =
-            resolve_artifact_path_bindings("{{with.name}}.txt", "", &bindings, &RunContext::new());
+        let result = resolve_artifact_path_bindings(
+            "{{with.name}}.txt",
+            "",
+            &bindings,
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
+        );
         // sanitize_for_path truncates to 200 chars
         assert!(result.len() <= 204); // 200 + ".txt"
     }
@@ -1839,7 +1843,7 @@ mod tests {
         let mut bindings = ResolvedBindings::default();
         bindings.set("timestamp", serde_json::json!("2024-01-15_14-30-00"));
 
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "result-{{with.timestamp}}.json".to_string(),
@@ -1933,7 +1937,7 @@ mod tests {
         std::fs::write(&cas_file, binary_data).unwrap();
 
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let media_refs = vec![MediaRef {
             hash: "blake3:abcdef1234".to_string(),
@@ -1999,7 +2003,7 @@ mod tests {
         std::fs::write(&cas_file2, b"image data 2").unwrap();
 
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let media_refs = vec![
             MediaRef {
@@ -2057,7 +2061,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.bin".to_string(),
@@ -2095,7 +2099,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.bin".to_string(),
@@ -2148,7 +2152,7 @@ mod tests {
         std::fs::write(&cas_file, b"fake png data").unwrap();
 
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.png".to_string(),
@@ -2221,7 +2225,7 @@ mod tests {
             base,
             media_refs,
             ResolvedBindings::default(),
-            RunContext::new(),
+            RunContext::new(nika_core::trust::InvocationSource::Test),
         )
     }
 
@@ -2393,7 +2397,7 @@ mod tests {
         use std::sync::Arc;
         use std::time::Duration;
 
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut task_result =
             TaskResult::success_str("LLM text output".to_string(), Duration::from_millis(100));
         task_result.media = vec![MediaRef {
@@ -2429,7 +2433,7 @@ mod tests {
         use std::sync::Arc;
         use std::time::Duration;
 
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut task_result =
             TaskResult::success_str("output".to_string(), Duration::from_millis(50));
         task_result.media = vec![MediaRef {
@@ -2461,7 +2465,7 @@ mod tests {
     #[test]
     fn test_path_bindings_media_without_source_task_unresolved() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let result = resolve_artifact_path_bindings(
             "output/{{with.img.media[0].hash}}.bin",
@@ -2492,7 +2496,7 @@ mod tests {
         let binary_data = b"\x89PNG fake image";
         std::fs::write(&cas_file, binary_data).unwrap();
 
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut task_result =
             TaskResult::success_str("generated image".to_string(), Duration::from_millis(100));
         task_result.media = vec![MediaRef {
@@ -2575,7 +2579,7 @@ mod tests {
         let binary_data = b"image bytes";
         std::fs::write(&cas_file, binary_data).unwrap();
 
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut task_result =
             TaskResult::success_str("done".to_string(), Duration::from_millis(50));
         task_result.media = vec![MediaRef {
@@ -2664,7 +2668,7 @@ mod tests {
         }];
 
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // NO format specified — should auto-detect Binary from media_refs
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -2722,7 +2726,7 @@ mod tests {
         }];
 
         let bindings = ResolvedBindings::default();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Explicit format: text — should NOT auto-promote
         let spec = ArtifactSpec::Single(ArtifactOutput {

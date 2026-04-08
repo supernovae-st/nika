@@ -42,7 +42,7 @@ mod prompt;
 mod records;
 mod rig_adapter;
 mod router;
-mod run;
+pub(crate) mod run;
 mod sleep;
 mod r#trait;
 mod yaml_validate;

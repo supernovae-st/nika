@@ -286,7 +286,10 @@ impl Runner {
             reason: format!("DAG construction failed: {e}"),
         })?;
         flow_graph.detect_cycles()?;
-        let mut datastore = RunContext::new();
+        // Default invocation source is Cli — overridable via builder
+        // (`with_invocation_source`) before `run()`. nika-serve and nika:run
+        // call the builder to set Serve / NestedRun respectively.
+        let mut datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
 
         // Load vault if available (for $vault.SERVICE.FIELD bindings)
         if let Some(vault) = crate::secrets::vault::try_open_vault() {
@@ -354,7 +357,8 @@ impl Runner {
             reason: format!("DAG construction failed: {e}"),
         })?;
         flow_graph.detect_cycles()?;
-        let mut datastore = RunContext::new();
+        // Default invocation source is Cli — overridable via builder.
+        let mut datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
 
         // Load vault if available (for $vault.SERVICE.FIELD bindings)
         if let Some(vault) = crate::secrets::vault::try_open_vault() {
@@ -408,6 +412,17 @@ impl Runner {
     /// All events are still emitted to the EventLog for TUI display.
     pub fn quiet(mut self) -> Self {
         self.quiet = true;
+        self
+    }
+
+    /// Override the workflow's invocation source — controls the trust floor
+    /// for `inputs:` bindings (Nika Shield).
+    ///
+    /// Use `InvocationSource::Cli` for direct CLI runs (default), `Serve`
+    /// for `nika serve`, `NestedRun { ceiling }` from inside `nika:run`, and
+    /// `Unknown` only when the embedding caller genuinely cannot tell.
+    pub fn with_invocation_source(mut self, source: nika_core::trust::InvocationSource) -> Self {
+        self.datastore.set_invocation_source(source);
         self
     }
 
@@ -2046,6 +2061,7 @@ impl Runner {
                                 failed: failed_count,
                             },
                             media: merged_media,
+                            trust_level: nika_core::trust::TrustLevel::Trusted,
                         }
                     } else {
                         // Total failure: no iterations succeeded

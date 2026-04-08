@@ -154,6 +154,14 @@ pub enum TransformOp {
     // -- jq expression --
     /// Full jq expression: `jq("[.[] | select(.score > 80)]")`
     Jq(String),
+
+    // -- Security escaping (Nika Shield) --
+    /// HTML entity escaping: `< > & " '`
+    HtmlEscape,
+    /// Markdown special character escaping
+    MdEscape,
+    /// Aggressive sanitization: strip common injection patterns
+    Sanitize,
 }
 
 /// A chain of transform operations: `sort | unique | first(3)`
@@ -228,6 +236,10 @@ pub static KNOWN_TRANSFORM_NAMES: &[&str] = &[
     "min_by",
     "max_by",
     "jq",
+    // Security (Nika Shield)
+    "html_escape",
+    "md_escape",
+    "sanitize",
 ];
 
 /// Error parsing a transform expression (NIKA-151)
@@ -1436,6 +1448,59 @@ impl TransformOp {
                     got: e,
                 })
             }
+
+            // ── Security escaping (Nika Shield) ────────────────
+            TransformOp::HtmlEscape => match value {
+                Value::Null => Err(TransformError::NullInput { op: "html_escape" }),
+                Value::String(s) => Ok(Value::String(
+                    s.replace('&', "&amp;")
+                        .replace('<', "&lt;")
+                        .replace('>', "&gt;")
+                        .replace('"', "&quot;")
+                        .replace('\'', "&#x27;"),
+                )),
+                _ => Err(type_mismatch("html_escape", "string", value)),
+            },
+            TransformOp::MdEscape => match value {
+                Value::Null => Err(TransformError::NullInput { op: "md_escape" }),
+                Value::String(s) => Ok(Value::String(
+                    s.replace('\\', "\\\\")
+                        .replace('`', "\\`")
+                        .replace('*', "\\*")
+                        .replace('_', "\\_")
+                        .replace('[', "\\[")
+                        .replace(']', "\\]")
+                        .replace('#', "\\#"),
+                )),
+                _ => Err(type_mismatch("md_escape", "string", value)),
+            },
+            TransformOp::Sanitize => match value {
+                Value::Null => Err(TransformError::NullInput { op: "sanitize" }),
+                Value::String(s) => {
+                    let mut result = s.clone();
+                    // Case-insensitive removal of common injection patterns
+                    let patterns = [
+                        "ignore previous",
+                        "ignore all previous",
+                        "disregard above",
+                        "disregard previous",
+                        "forget your instructions",
+                        "you are now",
+                        "new instructions:",
+                        "system prompt:",
+                    ];
+                    for pat in &patterns {
+                        // Case-insensitive single removal
+                        let lower = result.to_lowercase();
+                        if let Some(idx) = lower.find(pat) {
+                            // Byte-safe slicing since patterns are ASCII
+                            result = format!("{}{}", &result[..idx], &result[idx + pat.len()..]);
+                        }
+                    }
+                    Ok(Value::String(result.trim().to_string()))
+                }
+                _ => Err(type_mismatch("sanitize", "string", value)),
+            },
         }
     }
 }
@@ -1964,6 +2029,9 @@ fn parse_single_op(input: &str, full_input: &str) -> Result<TransformOp, Transfo
             "sum" => Ok(TransformOp::Sum),
             "avg" => Ok(TransformOp::Avg),
             "not" => Ok(TransformOp::Not),
+            "html_escape" => Ok(TransformOp::HtmlEscape),
+            "md_escape" => Ok(TransformOp::MdEscape),
+            "sanitize" => Ok(TransformOp::Sanitize),
             _ => {
                 let hint = crate::ast::analyzer::suggestions::find_similar(
                     trimmed,
@@ -2247,6 +2315,9 @@ impl fmt::Display for TransformOp {
             TransformOp::Has(key) => write!(f, "has('{}')", key),
             TransformOp::Not => write!(f, "not"),
             TransformOp::Jq(expr) => write!(f, "jq('{}')", expr),
+            TransformOp::HtmlEscape => write!(f, "html_escape"),
+            TransformOp::MdEscape => write!(f, "md_escape"),
+            TransformOp::Sanitize => write!(f, "sanitize"),
         }
     }
 }

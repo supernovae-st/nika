@@ -715,6 +715,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             });
         }
@@ -1010,6 +1011,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
             // Duplicate name — same "fetch" string but different TaskId
@@ -1039,6 +1041,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1067,6 +1070,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
         ];
@@ -1252,6 +1256,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1280,6 +1285,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
         ];
@@ -1339,6 +1345,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -1367,6 +1374,7 @@ mod tests {
                 preset: None,
                 routing: None,
                 when: None,
+                trust_elevated: false,
                 span: Span::dummy(),
             },
         ];
@@ -1417,6 +1425,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
+            trust_elevated: false,
             span: Span::dummy(),
         }
     }

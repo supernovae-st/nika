@@ -47,6 +47,8 @@ use crate::error::NikaError;
 pub struct SkillInjector {
     /// Cache: resolved_path -> file content
     cache: DashMap<String, Arc<str>>,
+    /// Integrity hashes: skill_path -> expected blake3 hash (from nika.toml [skills.integrity])
+    integrity_map: std::collections::HashMap<String, String>,
 }
 
 impl SkillInjector {
@@ -54,6 +56,18 @@ impl SkillInjector {
     pub fn new() -> Self {
         Self {
             cache: DashMap::new(),
+            integrity_map: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Create a SkillInjector with integrity verification (Nika Shield).
+    ///
+    /// The integrity map contains skill_path -> expected blake3 hash pairs
+    /// from `[skills.integrity]` in nika.toml.
+    pub fn with_integrity(integrity: std::collections::HashMap<String, String>) -> Self {
+        Self {
+            cache: DashMap::new(),
+            integrity_map: integrity,
         }
     }
 
@@ -115,6 +129,19 @@ impl SkillInjector {
                     skill: skill_path.to_string(),
                     reason: format!("Failed to read file '{}': {}", resolved_path.display(), e),
                 })?;
+
+        // Nika Shield: integrity verification (NIKA-271)
+        if let Some(expected_hash) = self.integrity_map.get(skill_path) {
+            let actual_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+            if actual_hash != *expected_hash {
+                return Err(NikaError::SkillIntegrityFailed {
+                    path: resolved_path.display().to_string(),
+                    expected: expected_hash.clone(),
+                    actual: actual_hash,
+                });
+            }
+            debug!(skill_path = %skill_path, hash = %actual_hash, "Skill integrity verified");
+        }
 
         let content: Arc<str> = content.into();
 

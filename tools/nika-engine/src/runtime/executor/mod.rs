@@ -25,6 +25,14 @@ mod tests;
 #[cfg(test)]
 mod tests_extract_e2e;
 #[cfg(test)]
+mod tests_shield_agent_restrict;
+#[cfg(test)]
+mod tests_shield_canary;
+#[cfg(test)]
+mod tests_shield_e2e;
+#[cfg(test)]
+mod tests_shield_spotlight;
+#[cfg(test)]
 mod tests_wiremock;
 pub(crate) mod verbs;
 
@@ -120,6 +128,9 @@ pub struct TaskExecutor {
     fetch_cache: Arc<crate::runtime::fetch_cache::FetchCache>,
     /// Workflow task list for on_error: fallback lookups.
     workflow_tasks: Arc<Vec<nika_core::ast::analyzed::AnalyzedTask>>,
+    /// Per-run Nika Shield state — fence + canary + policy refs behind a
+    /// single Arc. Cloned cheaply across task spawns. Sprint 2 Item 0.E.
+    pub(crate) shield: crate::runtime::shield::SecurityContext,
 }
 
 impl TaskExecutor {
@@ -215,6 +226,9 @@ impl TaskExecutor {
                 }
             }
         }
+        // Build per-run Nika Shield context BEFORE moving the policy into
+        // PolicyEnforcer so the borrow checker is happy.
+        let shield = crate::runtime::shield::SecurityContext::from_policy(&policy.security);
         let policy_enforcer = PolicyEnforcer::new(policy);
 
         // Create ToolContext for file tools
@@ -281,6 +295,7 @@ impl TaskExecutor {
             cookie_jar,
             fetch_cache,
             workflow_tasks: Arc::new(Vec::new()),
+            shield,
         })
     }
 
@@ -566,6 +581,43 @@ impl TaskExecutor {
         ))
     }
 
+    /// Check whether any of an agent task's `with:` bindings sources
+    /// untrusted upstream data. Used by Item 3a (`AgentToolPolicy::for_task`)
+    /// to decide whether to restrict the agent's tool list.
+    ///
+    /// A binding is untrusted when EITHER:
+    ///   - it tracks a source task whose output trust is `Untrusted` /
+    ///     `ModelTainted` (datastore.get_trust)
+    ///   - it is sourced from `inputs:` and the run was invoked from a
+    ///     mode whose input_trust is untrusted (Serve / Unknown)
+    ///   - it is sourced from a `for_each` loop var and the input source
+    ///     is untrusted (conservative — Sprint 3 will refine)
+    pub(crate) fn agent_has_untrusted_inputs(
+        &self,
+        bindings: &ResolvedBindings,
+        datastore: &RunContext,
+    ) -> bool {
+        use nika_core::trust::TrustLevel;
+
+        for (alias, _value) in bindings.iter() {
+            if let Some(src) = bindings.source_task_id(alias) {
+                if datastore
+                    .get_trust(src)
+                    .is_some_and(TrustLevel::is_untrusted)
+                {
+                    return true;
+                }
+                continue;
+            }
+            if (bindings.is_input_sourced(alias) || bindings.is_loop_var_sourced(alias))
+                && datastore.invocation_source().input_trust().is_untrusted()
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Run a task action with the given bindings
     ///
     /// The datastore is required for resolving lazy bindings during template substitution.
@@ -612,6 +664,38 @@ impl TaskExecutor {
                 }
             }
         }
+
+        // ── Nika Shield: canary detection (Item 2) ─────────────────────────
+        // Run on every LLM verb output. If a canary token leaks through,
+        // emit CanaryDetected and (in strict mode) hard-fail with NIKA-382.
+        let result = if is_llm_verb && self.shield.canary_enabled() {
+            match result {
+                Ok(output) => {
+                    if let Some(detection) = self.shield.canary().check_output(&output) {
+                        let match_type: &'static str = match detection.match_type {
+                            crate::runtime::canary::CanaryMatchType::Exact => "exact",
+                            crate::runtime::canary::CanaryMatchType::Substring => "substring",
+                            crate::runtime::canary::CanaryMatchType::CharSpaced => "char_spaced",
+                        };
+                        self.event_log.emit(EventKind::CanaryDetected {
+                            task_id: Arc::clone(task_id),
+                            match_type: match_type.to_string(),
+                        });
+                        if self.shield.is_strict() {
+                            return Err(NikaError::CanaryLeaked {
+                                task_id: task_id.to_string(),
+                                match_type,
+                                token_index: detection.token_index as u8,
+                            });
+                        }
+                    }
+                    Ok(output)
+                }
+                err @ Err(_) => err,
+            }
+        } else {
+            result
+        };
 
         result
     }

@@ -33,24 +33,90 @@ use super::BuiltinTool;
 use crate::ast::parse_analyzed;
 use crate::error::NikaError;
 use crate::runtime::Runner;
+use nika_core::trust::TrustLevel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::Cell;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 tokio::task_local! {
     /// Workflow nesting depth for the current execution context.
     /// Uses task_local! for proper isolation between concurrent workflows.
     /// Replaces global AtomicU32 which had race conditions.
-    static WORKFLOW_DEPTH: Cell<u32>;
+    pub(crate) static WORKFLOW_DEPTH: Cell<u32>;
+
+    /// ID of the task currently dispatching a builtin tool. Set by the
+    /// runner before each `BuiltinTool::call` so the called tool can
+    /// emit security errors that reference the calling task.
+    ///
+    /// `None` outside a runner-driven dispatch (e.g. CLI `nika invoke`).
+    pub(crate) static CURRENT_TASK_ID: Option<Arc<str>>;
+
+    /// Trust level of the calling task. Set by the runner before each
+    /// builtin dispatch. Used by Item 4 (`nika:run` ceiling), Item 3b
+    /// (path recon block), and downstream sprints.
+    ///
+    /// Defaults to `Trusted` outside a runner context.
+    pub(crate) static CURRENT_TASK_TRUST: TrustLevel;
+
+    /// Whether the calling task has `trust: elevated`. Set by the runner
+    /// before each builtin dispatch.
+    pub(crate) static CURRENT_TASK_ELEVATED: bool;
+
+    /// Canonical workflow file paths in the parent chain — for `nika:run`
+    /// cycle detection (Item 4). Each `nika:run` push its own canonical
+    /// path before scoping the nested invocation.
+    pub(crate) static PARENT_CHAIN: Vec<PathBuf>;
 }
 
 /// Get current workflow depth, returns 0 if not in a workflow context.
 fn current_depth() -> u32 {
     WORKFLOW_DEPTH.try_with(|d| d.get()).unwrap_or(0)
+}
+
+/// Get the calling task ID, or `None` outside a runner-driven dispatch.
+///
+/// Wired into Item 3b/4 in subsequent Sprint 2 commits.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_task_id() -> Option<Arc<str>> {
+    CURRENT_TASK_ID.try_with(|id| id.clone()).unwrap_or(None)
+}
+
+/// Get the calling task's trust level, or `Trusted` outside a runner-driven
+/// dispatch (which only happens in standalone tool invocations like
+/// `nika invoke nika:read foo.md`).
+///
+/// Wired into Item 3b/4 in subsequent Sprint 2 commits.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_task_trust() -> TrustLevel {
+    CURRENT_TASK_TRUST
+        .try_with(|t| *t)
+        .unwrap_or(TrustLevel::Trusted)
+}
+
+/// Whether the calling task has `trust: elevated`. Defaults to `false`
+/// (conservative — never auto-elevate when context is missing).
+///
+/// Used by run_infer for the spotlight bypass + Item 3b/4 path-recon.
+#[inline]
+pub(crate) fn current_task_elevated() -> bool {
+    CURRENT_TASK_ELEVATED.try_with(|e| *e).unwrap_or(false)
+}
+
+/// Snapshot of the parent workflow chain for `nika:run` cycle detection.
+/// Returns an empty vec outside a nested-run context.
+///
+/// Wired into Item 4 in a subsequent Sprint 2 commit.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn current_parent_chain() -> Vec<PathBuf> {
+    PARENT_CHAIN.try_with(|c| c.clone()).unwrap_or_default()
 }
 
 /// Maximum allowed recursion depth for nested workflows.
@@ -221,13 +287,48 @@ impl BuiltinTool for RunTool {
             // Check current depth using task_local! (race-condition-safe)
             let depth = current_depth();
             if depth >= max_depth {
-                return Err(NikaError::BuiltinToolError {
-                    tool: "nika_run".into(),
-                    reason: format!(
-                        "Maximum recursion depth ({}) reached at depth {}. Cannot execute nested workflow '{}'.",
-                        max_depth, depth, params.workflow
-                    ),
+                return Err(NikaError::RunDepthExceeded {
+                    depth: depth + 1,
+                    max: max_depth,
                 });
+            }
+
+            // ── Nika Shield Item 4: capability check ──────────────────────
+            // Tainted callers cannot launch nested workflows unless they
+            // carry `trust: elevated`. Reads the calling task's trust state
+            // from the task_local set by execute_task_iteration (Item 0.F).
+            let caller_trust = current_task_trust();
+            let caller_elevated = current_task_elevated();
+            if caller_trust.is_untrusted() && !caller_elevated {
+                let caller_id = current_task_id()
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "<top>".to_string());
+                return Err(NikaError::CapabilityDenied {
+                    task_id: caller_id,
+                    action: "nika:run".to_string(),
+                    reason: "parent task has untrusted inputs and is not trust: elevated"
+                        .to_string(),
+                });
+            }
+
+            // ── Nika Shield Item 4: cycle detection ───────────────────────
+            // Track canonical workflow paths in PARENT_CHAIN. Re-entering a
+            // workflow via nested call (workflow A → B → A) hard-fails with
+            // NIKA-387 even when within the depth limit. Pure cycle, not
+            // depth-based.
+            let canonical_for_cycle: Option<std::path::PathBuf> = if !is_inline {
+                let workflow_path = Path::new(&params.workflow);
+                workflow_path.canonicalize().ok()
+            } else {
+                None
+            };
+            let parent_chain = current_parent_chain();
+            if let Some(ref canon) = canonical_for_cycle {
+                if parent_chain.iter().any(|p| p == canon) {
+                    return Err(NikaError::RunCycleDetected {
+                        workflow_path: canon.display().to_string(),
+                    });
+                }
             }
 
             let next_depth = depth + 1;
@@ -315,16 +416,37 @@ impl BuiltinTool for RunTool {
                 runner = runner.with_base_path(dir);
             }
 
+            // ── Nika Shield Item 4: trust ceiling propagation ─────────────
+            // The nested workflow inherits the parent's trust ceiling via
+            // `InvocationSource::NestedRun { ceiling }`. This means the
+            // child workflow's `inputs:` bindings are trusted at MOST as
+            // much as the parent task that called nika:run. Propagates
+            // through arbitrary nesting because input_trust() returns
+            // the ceiling directly.
+            runner = runner.with_invocation_source(nika_core::trust::InvocationSource::NestedRun {
+                ceiling: caller_trust,
+            });
+
             // Inject parent context into child workflow's datastore
             if let Some(context) = params.get_context()? {
                 runner = runner.with_initial_context("__parent_context__", context);
             }
 
-            // Execute with task_local! depth tracking
-            // WORKFLOW_DEPTH.scope() provides automatic cleanup on panic/cancellation
+            // Execute with task_local! depth tracking + cycle-detection
+            // chain. WORKFLOW_DEPTH.scope() provides automatic cleanup on
+            // panic/cancellation; PARENT_CHAIN extends with the current
+            // workflow's canonical path so deeper nests can detect cycles.
+            let mut new_chain = parent_chain.clone();
+            if let Some(canon) = canonical_for_cycle {
+                new_chain.push(canon);
+            }
             let execution_result = WORKFLOW_DEPTH
                 .scope(Cell::new(next_depth), async {
-                    tokio::time::timeout(timeout_duration, runner.run()).await
+                    PARENT_CHAIN
+                        .scope(new_chain, async {
+                            tokio::time::timeout(timeout_duration, runner.run()).await
+                        })
+                        .await
                 })
                 .await;
 
@@ -373,6 +495,180 @@ impl BuiltinTool for RunTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// P0-5: outside any task_local scope, the helpers must return the
+    /// safe defaults (no calling task, Trusted floor, not elevated, empty
+    /// chain). This is the contract that lets `nika invoke nika:read foo.md`
+    /// work as a top-level CLI command.
+    #[tokio::test]
+    async fn task_local_helpers_return_safe_defaults_outside_scope() {
+        assert!(current_task_id().is_none());
+        assert_eq!(current_task_trust(), TrustLevel::Trusted);
+        assert!(!current_task_elevated());
+        assert!(current_parent_chain().is_empty());
+    }
+
+    /// Round-trip the task_local through a `.scope().await` and verify the
+    /// helpers see the scoped values from inside, then revert to defaults
+    /// outside the scope.
+    #[tokio::test]
+    async fn task_local_helpers_round_trip_through_scopes() {
+        let id: Arc<str> = Arc::from("task_a");
+        let id_for_scope = Arc::clone(&id);
+
+        CURRENT_TASK_ID
+            .scope(Some(id_for_scope), async {
+                CURRENT_TASK_TRUST
+                    .scope(TrustLevel::Untrusted, async {
+                        CURRENT_TASK_ELEVATED
+                            .scope(true, async {
+                                PARENT_CHAIN
+                                    .scope(
+                                        vec![std::path::PathBuf::from("/wf/a.nika.yaml")],
+                                        async {
+                                            assert_eq!(
+                                                current_task_id().as_deref(),
+                                                Some("task_a")
+                                            );
+                                            assert_eq!(current_task_trust(), TrustLevel::Untrusted);
+                                            assert!(current_task_elevated());
+                                            assert_eq!(current_parent_chain().len(), 1);
+                                        },
+                                    )
+                                    .await
+                            })
+                            .await
+                    })
+                    .await
+            })
+            .await;
+
+        // Outside the scope, defaults are restored.
+        assert!(current_task_id().is_none());
+        assert_eq!(current_task_trust(), TrustLevel::Trusted);
+        assert!(!current_task_elevated());
+        assert!(current_parent_chain().is_empty());
+    }
+
+    /// Sprint 2 Item 4: tainted callers cannot launch nested workflows
+    /// unless they carry `trust: elevated`. Returns NIKA-380.
+    #[tokio::test]
+    async fn nika_run_blocks_tainted_caller_without_elevation() {
+        let tool = RunTool;
+        let id: Arc<str> = Arc::from("parent");
+        let result = CURRENT_TASK_ID
+            .scope(Some(id), async {
+                CURRENT_TASK_TRUST
+                    .scope(TrustLevel::Untrusted, async {
+                        CURRENT_TASK_ELEVATED
+                            .scope(false, async {
+                                WORKFLOW_DEPTH
+                                    .scope(Cell::new(0), async {
+                                        tool.call(
+                                            r#"{"workflow":"some/path.nika.yaml"}"#.to_string(),
+                                        )
+                                        .await
+                                    })
+                                    .await
+                            })
+                            .await
+                    })
+                    .await
+            })
+            .await;
+        assert!(result.is_err(), "tainted caller must be blocked");
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-380");
+    }
+
+    /// Sprint 2 Item 4: tainted + elevated callers can launch nested
+    /// workflows. They still hit the file-not-found error but at least the
+    /// capability check passes.
+    #[tokio::test]
+    async fn nika_run_allows_tainted_elevated_caller() {
+        let tool = RunTool;
+        let id: Arc<str> = Arc::from("parent");
+        let result = CURRENT_TASK_ID
+            .scope(Some(id), async {
+                CURRENT_TASK_TRUST
+                    .scope(TrustLevel::Untrusted, async {
+                        CURRENT_TASK_ELEVATED
+                            .scope(true, async {
+                                WORKFLOW_DEPTH
+                                    .scope(Cell::new(0), async {
+                                        tool.call(
+                                            r#"{"workflow":"nonexistent.nika.yaml"}"#.to_string(),
+                                        )
+                                        .await
+                                    })
+                                    .await
+                            })
+                            .await
+                    })
+                    .await
+            })
+            .await;
+        // Should NOT fail with NIKA-380 (capability denied) — it should
+        // proceed past the capability check and hit the file resolution
+        // failure (NIKA-210 BuiltinToolError) instead.
+        let err = result.unwrap_err();
+        assert_ne!(
+            err.code(),
+            "NIKA-380",
+            "elevated caller must bypass capability check, got: {err}"
+        );
+    }
+
+    /// Sprint 2 Item 4: depth limit returns NIKA-386, not the old generic
+    /// BuiltinToolError. Hardcoded MAX_ALLOWED_DEPTH = 10 still applies as
+    /// the upper bound.
+    #[tokio::test]
+    async fn nika_run_depth_exceeded_returns_nika_386() {
+        let tool = RunTool;
+        let result = WORKFLOW_DEPTH
+            .scope(Cell::new(MAX_ALLOWED_DEPTH), async {
+                tool.call(r#"{"workflow":"some/path.nika.yaml","max_depth":3}"#.to_string())
+                    .await
+            })
+            .await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-386");
+    }
+
+    /// Sprint 2 Item 4: a workflow path already in PARENT_CHAIN cannot be
+    /// re-entered, even within the depth limit. Returns NIKA-387.
+    #[tokio::test]
+    async fn nika_run_cycle_detection_blocks_re_entry() {
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().expect("tempdir");
+        let workflow_path = dir.path().join("loop.nika.yaml");
+        std::fs::write(
+            &workflow_path,
+            "schema: \"nika/workflow@0.12\"\nworkflow: loop\ntasks:\n  - id: t\n    infer: \"x\"\n",
+        )
+        .expect("write workflow");
+
+        let canonical = workflow_path.canonicalize().expect("canonicalize");
+        let chain = vec![canonical.clone()];
+
+        let tool = RunTool;
+        let workflow_str = workflow_path.to_string_lossy().to_string();
+        let result = WORKFLOW_DEPTH
+            .scope(Cell::new(1), async {
+                PARENT_CHAIN
+                    .scope(chain, async {
+                        tool.call(format!(r#"{{"workflow":"{workflow_str}"}}"#))
+                            .await
+                    })
+                    .await
+            })
+            .await;
+        assert!(result.is_err(), "cycle must be blocked");
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-387");
+    }
 
     #[test]
     fn test_run_tool_name() {

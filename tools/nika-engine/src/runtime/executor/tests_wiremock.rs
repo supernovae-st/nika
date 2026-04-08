@@ -24,6 +24,7 @@ fn setup() -> (TaskExecutor, ResolvedBindings, RunContext, EventLog) {
         max_token_spend: None,
         allowed_hosts: vec!["127.0.0.1".to_string(), "localhost".to_string()],
         blocked_hosts: vec![],
+        security: Default::default(),
     };
     let executor = TaskExecutor::with_policy(
         "mock",
@@ -36,7 +37,7 @@ fn setup() -> (TaskExecutor, ResolvedBindings, RunContext, EventLog) {
     )
     .unwrap();
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
     (executor, bindings, datastore, event_log)
 }
 
@@ -1121,6 +1122,7 @@ async fn wiremock_fetch_template_resolved_in_url() {
         max_token_spend: None,
         allowed_hosts: vec!["127.0.0.1".to_string(), "localhost".to_string()],
         blocked_hosts: vec![],
+        security: Default::default(),
     };
     let executor = TaskExecutor::with_policy(
         "mock",
@@ -1134,7 +1136,7 @@ async fn wiremock_fetch_template_resolved_in_url() {
     .unwrap();
     let mut bindings = ResolvedBindings::new();
     bindings.set("item_id", serde_json::json!("42"));
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
     let task_id: Arc<str> = Arc::from("wm_tpl");
     let params = fetch_params(

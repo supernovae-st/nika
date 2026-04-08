@@ -279,6 +279,11 @@ impl Default for PolicyEnforcer {
 }
 
 impl PolicyEnforcer {
+    /// Access the underlying policy configuration.
+    pub fn config(&self) -> &PolicyConfig {
+        &self.config
+    }
+
     /// Create a new policy enforcer with configuration
     pub fn new(config: PolicyConfig) -> Self {
         let token_budget = TokenBudget::new(config.max_token_spend);

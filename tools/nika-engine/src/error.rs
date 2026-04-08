@@ -38,6 +38,7 @@
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
 //! - NIKA-310-319: Course errors (course system, exercises, progress)
 //! - NIKA-320-324: Record compression errors (compression, JSON parse, confidence, tokens, provider)
+//! - NIKA-380-389: Nika Shield security errors (capability, trust, canary, injection, depth, cycle, vision)
 
 use crate::mcp::types::McpErrorCode;
 use crate::serde_yaml;
@@ -832,6 +833,112 @@ pub enum NikaError {
         help("Add a 'summary' agent to the agents: block or configure a default provider")
     )]
     RecordNoProvider { task_id: String },
+
+    // ═══════════════════════════════════════════
+    // SECURITY ERRORS (271, 380-389) — Nika Shield
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-271] Skill file integrity check failed for '{path}': expected {expected}, got {actual}")]
+    #[diagnostic(
+        code(nika::skill_integrity_failed),
+        help("The skill file's blake3 hash does not match the recorded value. Either the file was modified or the manifest is stale.")
+    )]
+    SkillIntegrityFailed {
+        path: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("[NIKA-380] Capability denied for task '{task_id}': {action} — {reason}")]
+    #[diagnostic(
+        code(nika::capability_denied),
+        help("Add `trust: elevated` to the task if you trust the source, or remove the dangerous tool from `policy.security.dangerous_tools`.")
+    )]
+    CapabilityDenied {
+        task_id: String,
+        action: String,
+        reason: String,
+    },
+
+    #[error("[NIKA-381] Trust violation in task '{task_id}': {actual} but {required} required")]
+    #[diagnostic(
+        code(nika::trust_violation),
+        help("In strict mode, this task's trust level violates a security invariant.")
+    )]
+    TrustViolation {
+        task_id: String,
+        actual: String,
+        required: String,
+    },
+
+    #[error("[NIKA-382] Canary token leaked in task '{task_id}' output (match_type: {match_type}, token_index: {token_index})")]
+    #[diagnostic(
+        code(nika::canary_leaked),
+        help("The LLM output contained a canary token, indicating likely prompt injection or system prompt exfiltration. Inspect .nika/traces/ for the full event chain.")
+    )]
+    CanaryLeaked {
+        task_id: String,
+        match_type: &'static str,
+        token_index: u8,
+    },
+
+    #[error(
+        "[NIKA-383] Prompt injection detected in task '{task_id}': {category} (score={score:.2})"
+    )]
+    #[diagnostic(
+        code(nika::injection_detected),
+        help("The output scanner or ML detector flagged this content. Disable via `policy.security.scanner_action = warn` or sanitize the input.")
+    )]
+    InjectionDetected {
+        task_id: String,
+        category: String,
+        score: f64,
+    },
+
+    #[error(
+        "[NIKA-384] Spotlight required but disabled for task '{task_id}' processing untrusted data"
+    )]
+    #[diagnostic(
+        code(nika::spotlight_required),
+        help("Either enable `policy.security.spotlight = true` (default) or set `trust: elevated` if you trust the source.")
+    )]
+    SpotlightRequired { task_id: String },
+
+    #[error("[NIKA-385] ML model missing for task '{task_id}': {model_name}")]
+    #[diagnostic(
+        code(nika::ml_model_missing),
+        help(
+            "Run `nika shield download-model` to fetch the model, or disable `shield-ml` feature."
+        )
+    )]
+    MlModelMissing { task_id: String, model_name: String },
+
+    #[error("[NIKA-386] Workflow recursion depth exceeded: {depth} (max: {max})")]
+    #[diagnostic(
+        code(nika::run_depth_exceeded),
+        help("Increase `policy.security.max_run_depth` or refactor the workflow to avoid deep nesting.")
+    )]
+    RunDepthExceeded { depth: u32, max: u32 },
+
+    #[error("[NIKA-387] Workflow recursion cycle detected: {workflow_path}")]
+    #[diagnostic(
+        code(nika::run_cycle_detected),
+        help("A workflow attempted to invoke itself transitively via nika:run. Cycles are blocked unconditionally.")
+    )]
+    RunCycleDetected { workflow_path: String },
+
+    #[error("[NIKA-388] Canary leaked in extended thinking trace for task '{task_id}'")]
+    #[diagnostic(
+        code(nika::canary_in_thinking),
+        help("The model's reasoning trace contained a canary token. This is stronger evidence of system-prompt leakage than output-channel leaks.")
+    )]
+    CanaryInThinking { task_id: String },
+
+    #[error("[NIKA-389] Untrusted vision input rejected for task '{task_id}'")]
+    #[diagnostic(
+        code(nika::untrusted_vision),
+        help("Vision images from untrusted sources may contain adversarial perturbations. Set `trust: elevated` to override.")
+    )]
+    UntrustedVisionBlocked { task_id: String },
 }
 
 impl From<nika_core::error::CoreError> for NikaError {
@@ -1111,6 +1218,18 @@ impl NikaError {
             Self::BootFailed { .. } => "NIKA-166",
             // Runtime errors
             Self::DecomposeTimeout { .. } => "NIKA-171",
+            // Nika Shield security errors
+            Self::SkillIntegrityFailed { .. } => "NIKA-271",
+            Self::CapabilityDenied { .. } => "NIKA-380",
+            Self::TrustViolation { .. } => "NIKA-381",
+            Self::CanaryLeaked { .. } => "NIKA-382",
+            Self::InjectionDetected { .. } => "NIKA-383",
+            Self::SpotlightRequired { .. } => "NIKA-384",
+            Self::MlModelMissing { .. } => "NIKA-385",
+            Self::RunDepthExceeded { .. } => "NIKA-386",
+            Self::RunCycleDetected { .. } => "NIKA-387",
+            Self::CanaryInThinking { .. } => "NIKA-388",
+            Self::UntrustedVisionBlocked { .. } => "NIKA-389",
         }
     }
 
@@ -2655,5 +2774,98 @@ mod tests {
             "WorkflowTimeout display should include [NIKA-038], got: {}",
             msg,
         );
+    }
+
+    /// All 11 Nika Shield security error variants compile and map to the
+    /// expected codes (NIKA-271 + NIKA-380..389).
+    #[test]
+    fn test_shield_security_error_variants_have_correct_codes() {
+        let cases: Vec<(NikaError, &str)> = vec![
+            (
+                NikaError::SkillIntegrityFailed {
+                    path: "skills/x.md".into(),
+                    expected: "abc".into(),
+                    actual: "def".into(),
+                },
+                "NIKA-271",
+            ),
+            (
+                NikaError::CapabilityDenied {
+                    task_id: "t".into(),
+                    action: "nika:run".into(),
+                    reason: "untrusted".into(),
+                },
+                "NIKA-380",
+            ),
+            (
+                NikaError::TrustViolation {
+                    task_id: "t".into(),
+                    actual: "Untrusted".into(),
+                    required: "Trusted".into(),
+                },
+                "NIKA-381",
+            ),
+            (
+                NikaError::CanaryLeaked {
+                    task_id: "t".into(),
+                    match_type: "exact",
+                    token_index: 0,
+                },
+                "NIKA-382",
+            ),
+            (
+                NikaError::InjectionDetected {
+                    task_id: "t".into(),
+                    category: "instr_override".into(),
+                    score: 0.91,
+                },
+                "NIKA-383",
+            ),
+            (
+                NikaError::SpotlightRequired {
+                    task_id: "t".into(),
+                },
+                "NIKA-384",
+            ),
+            (
+                NikaError::MlModelMissing {
+                    task_id: "t".into(),
+                    model_name: "deberta-v3-base".into(),
+                },
+                "NIKA-385",
+            ),
+            (NikaError::RunDepthExceeded { depth: 4, max: 3 }, "NIKA-386"),
+            (
+                NikaError::RunCycleDetected {
+                    workflow_path: "/tmp/loop.nika.yaml".into(),
+                },
+                "NIKA-387",
+            ),
+            (
+                NikaError::CanaryInThinking {
+                    task_id: "t".into(),
+                },
+                "NIKA-388",
+            ),
+            (
+                NikaError::UntrustedVisionBlocked {
+                    task_id: "t".into(),
+                },
+                "NIKA-389",
+            ),
+        ];
+
+        for (err, expected_code) in &cases {
+            assert_eq!(err.code(), *expected_code, "wrong code for {:?}", err);
+            // Display must embed the bracketed code so log scrapers can find it.
+            let msg = err.to_string();
+            assert!(
+                msg.contains(&format!("[{}]", expected_code)),
+                "display for {:?} missing [{}] prefix: {}",
+                err,
+                expected_code,
+                msg
+            );
+        }
     }
 }

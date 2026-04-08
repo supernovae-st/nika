@@ -43,7 +43,7 @@ async fn run_exec(
     };
     let task_id: Arc<str> = Arc::from(task_id);
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -329,7 +329,7 @@ async fn test_exec_template_missing_binding() {
     };
     let task_id: Arc<str> = Arc::from("template_missing");
     let bindings = ResolvedBindings::new(); // Empty bindings
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)

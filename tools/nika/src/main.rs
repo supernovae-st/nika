@@ -415,6 +415,10 @@ enum Commands {
         /// Enable strict mode: connect to MCP servers and validate invoke params
         #[arg(long)]
         strict: bool,
+
+        /// Run Nika Shield taint analysis (trust propagation + security warnings)
+        #[arg(long)]
+        security: bool,
     },
 
     /// Test a workflow with mock provider (no API keys needed)
@@ -1541,11 +1545,15 @@ async fn main() {
             }
         }
 
-        Some(Commands::Check { file, strict }) => {
+        Some(Commands::Check {
+            file,
+            strict,
+            security,
+        }) => {
             if strict {
                 validate_workflow_strict(&file).await
             } else {
-                validate_workflow(&file, quiet).await
+                validate_workflow(&file, quiet, security).await
             }
         }
 
@@ -2672,7 +2680,7 @@ async fn evaluate_quality(
     let event_log = EventLog::new();
     let executor = TaskExecutor::new(eval_provider, Some(eval_model), None, event_log)?;
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Cli);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -3713,7 +3721,7 @@ async fn explain_workflow(file: &str) -> Result<(), NikaError> {
     Ok(())
 }
 
-async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
+async fn validate_workflow(file: &str, quiet: bool, security: bool) -> Result<(), NikaError> {
     use nika::display::{
         print_check_header, print_check_summary, print_check_warnings, print_phase,
         print_phase_skipped, PhaseResult,
@@ -3769,6 +3777,18 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
             reason: messages.join("; "),
         }
     })?;
+
+    // Run taint analysis on the analyzed AST (before lowering consumes it)
+    let taint_report = if security {
+        use nika::trust::InvocationSource;
+        Some(nika::ast::analyzer::taint::TaintAnalyzer::analyze(
+            &analyzed,
+            InvocationSource::Cli,
+        ))
+    } else {
+        None
+    };
+
     let workflow = nika::ast::lower::lower(analyzed)?;
     let parse_elapsed = t.elapsed();
     let includes_elapsed = std::time::Duration::ZERO;
@@ -4032,6 +4052,58 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
                 errors: provider_warnings.clone(),
                 hints: vec!["Run 'nika keys set <name>' to configure API keys".to_string()],
             });
+        }
+
+        // Phase 9: Nika Shield taint analysis (--security flag)
+        if let Some(ref report) = taint_report {
+            let summary = report.trust_summary();
+            let trusted = summary.get(&nika::trust::TrustLevel::Trusted).unwrap_or(&0);
+            let generated = summary
+                .get(&nika::trust::TrustLevel::ModelGenerated)
+                .unwrap_or(&0);
+            let tainted = summary
+                .get(&nika::trust::TrustLevel::ModelTainted)
+                .unwrap_or(&0);
+            let untrusted = summary
+                .get(&nika::trust::TrustLevel::Untrusted)
+                .unwrap_or(&0);
+
+            if report.is_clean() {
+                print_phase(&PhaseResult {
+                    name: "shield",
+                    passed: true,
+                    detail: format!(
+                        "{trusted} Trusted \u{00B7} {generated} ModelGenerated \u{00B7} {tainted} ModelTainted \u{00B7} {untrusted} Untrusted"
+                    ),
+                    duration_ms: 0,
+                    errors: vec![],
+                    hints: vec![],
+                });
+            } else {
+                let warning_msgs: Vec<String> = report
+                    .warnings
+                    .iter()
+                    .map(|w| {
+                        format!(
+                            "[{}] {}\n         Recommendation: {}",
+                            w.code(),
+                            w.message(),
+                            w.recommendation()
+                        )
+                    })
+                    .collect();
+                print_phase(&PhaseResult {
+                    name: "shield",
+                    passed: true, // warnings, not hard errors
+                    detail: format!(
+                        "{} warning(s) \u{00B7} {trusted}T {generated}G {tainted}M {untrusted}U",
+                        report.warnings.len()
+                    ),
+                    duration_ms: 0,
+                    errors: vec![],
+                    hints: warning_msgs,
+                });
+            }
         }
 
         // Show DAG visualization for multi-task workflows

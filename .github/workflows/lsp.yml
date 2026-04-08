@@ -127,7 +127,7 @@ jobs:
         run: cargo build --release --target "$TARGET"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v4
         env:
           TARGET: ${{ matrix.target }}
         with:

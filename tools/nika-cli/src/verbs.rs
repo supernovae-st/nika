@@ -371,7 +371,7 @@ pub async fn handle_infer(
     // Execute with spinner on TTY
     let (executor, event_log) = one_shot_executor(&provider_name, model_name.as_deref()).await?;
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
     let start = Instant::now();
 
     let spinner = if is_tty && !quiet {
@@ -507,7 +507,7 @@ pub async fn handle_fetch(
     // Fetch doesn't need a real LLM provider — use "mock"
     let (executor, _) = one_shot_executor("mock", None).await?;
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
     let start = Instant::now();
     let output = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -634,7 +634,7 @@ pub async fn handle_invoke(
 
     let (executor, _) = one_shot_executor("mock", None).await?;
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
     let start = Instant::now();
     let output = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -715,7 +715,7 @@ pub async fn handle_agent(
 
     let (executor, event_log) = one_shot_executor(&provider_name, model_name.as_deref()).await?;
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
     let start = Instant::now();
 
     let spinner = if is_tty && !quiet {

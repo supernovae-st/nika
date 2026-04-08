@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn not_a_binding_for_literal_array() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         match resolve_for_each_binding("[1, 2, 3]", &bindings, &datastore) {
             ForEachResolution::NotABinding => {} // expected
             ForEachResolution::Items(_) => panic!("Expected NotABinding, got Items"),
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn not_a_binding_for_plain_string() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         match resolve_for_each_binding("just a string", &bindings, &datastore) {
             ForEachResolution::NotABinding => {}
             _ => panic!("Expected NotABinding"),
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn dollar_inputs_resolves_from_datastore() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = rustc_hash::FxHashMap::default();
         inputs.insert("locales".to_string(), json!(["en", "fr", "de"]));
         datastore.set_inputs(inputs);
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn dollar_inputs_missing_fails() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         match resolve_for_each_binding("$inputs.nonexistent", &bindings, &datastore) {
             ForEachResolution::Failed(msg) => {
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     fn template_inputs_resolves() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = rustc_hash::FxHashMap::default();
         inputs.insert("items".to_string(), json!([1, 2, 3]));
         datastore.set_inputs(inputs);
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn dollar_alias_with_path_resolves() {
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         // Simulate a task output as JSON string
         datastore.insert(
             std::sync::Arc::from("prev_task"),
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn empty_alias_after_dollar_fails() {
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Test);
         match resolve_for_each_binding("$", &bindings, &datastore) {
             ForEachResolution::Failed(msg) => {
                 assert!(msg.contains("empty alias"), "Error: {msg}");

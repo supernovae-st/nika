@@ -159,7 +159,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_empty() {
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
         let tool = RecordsTool::new(ctx);
         let result = tool.call("{}".into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
@@ -168,7 +168,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_returns_all() {
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
         ctx.set_record("a".into(), make_record("a", 0.9));
         ctx.set_record("b".into(), make_record("b", 0.7));
         let tool = RecordsTool::new(ctx);
@@ -179,7 +179,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_filter_by_task_id() {
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
         ctx.set_record("a".into(), make_record("a", 0.9));
         ctx.set_record("b".into(), make_record("b", 0.7));
         let tool = RecordsTool::new(ctx);
@@ -191,7 +191,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_filter_by_confidence() {
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
         ctx.set_record("high".into(), make_record("high", 0.9));
         ctx.set_record("low".into(), make_record("low", 0.3));
         let tool = RecordsTool::new(ctx);

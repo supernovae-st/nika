@@ -90,10 +90,34 @@ impl TaskExecutor {
             None => None,
         };
 
-        // Create agent params with resolved prompt and system
+        // ── Nika Shield: agent tool restriction (Sprint 2 Item 3a) ─────────
+        // Compute the policy once at executor level, apply at agent dispatch.
+        // Replaces the (has_untrusted, elevated) boolean pair with a state-
+        // collapsed enum (R4) so the impossible "elevated AND restricted"
+        // combination is unrepresentable.
+        let task_trust_elevated = crate::runtime::builtin::run::current_task_elevated();
+        let has_untrusted = self.agent_has_untrusted_inputs(bindings, datastore);
+        let dangerous: Arc<[String]> = Arc::from(self.shield.dangerous_tools());
+        let tool_policy = nika_core::capabilities::AgentToolPolicy::for_task(
+            has_untrusted,
+            task_trust_elevated,
+            Arc::clone(&dangerous),
+        );
+        let (kept_tools, removed_tools) = tool_policy.apply_to(agent.tools.clone());
+        for removed in &removed_tools {
+            self.event_log.emit(EventKind::AgentToolRestricted {
+                task_id: Arc::clone(task_id),
+                removed_tool: removed.clone(),
+                reason: "task has untrusted inputs and is not trust: elevated".to_string(),
+            });
+        }
+
+        // Create agent params with resolved prompt, system, and the
+        // shield-filtered tool list.
         let resolved_agent = AgentParams {
             prompt: resolved_prompt,
             system: resolved_system,
+            tools: kept_tools,
             ..agent.clone()
         };
 
@@ -283,16 +307,26 @@ impl TaskExecutor {
             mcp_clients.insert(mcp_name.clone(), client);
         }
 
-        // Create rig-based agent loop (with policy enforcement for tool calls)
+        // Create rig-based agent loop (with policy enforcement for tool calls).
         // Pass workflow_base_dir so agent's builtin file tools (glob, read, etc.)
-        // operate in the workflow's directory, not the process cwd.
-        let agent_loop = RigAgentLoop::new(
+        // operate in the workflow's directory, not the process cwd. Sprint 2
+        // Item 3c: pass the shield so MCP tool descriptions from non-trusted
+        // servers get wrapped with the spotlight fence at construction time.
+        let trusted_mcp_servers: Option<Arc<[String]>> =
+            // Sprint 2: trusted MCP servers list comes from policy.security in
+            // a future commit. For now we treat all servers as untrusted (the
+            // safe default). Once `[mcp.trusted]` is wired through, this
+            // becomes `Some(Arc::from(self.shield.trusted_mcp_servers()))`.
+            None;
+        let agent_loop = RigAgentLoop::new_with_shield(
             task_id.to_string(),
             resolved_agent,
             self.event_log.clone(),
             mcp_clients,
             Some(Arc::clone(&self.policy_enforcer)),
             Some(self.workflow_base_dir.clone()),
+            Some(self.shield.clone()),
+            trusted_mcp_servers,
         )?;
 
         // Wire skill injection if the agent has skills and the workflow defines a skills map

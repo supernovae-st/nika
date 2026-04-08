@@ -1699,6 +1699,24 @@ impl LiveRenderer {
                     error
                 ));
             }
+
+            // Nika Shield security events — silent in live renderer (summary shows them)
+            EventKind::TaintAnalysisComplete { .. }
+            | EventKind::TrustLevelAssigned { .. }
+            | EventKind::TrustElevationUsed { .. }
+            | EventKind::SpotlightApplied { .. }
+            | EventKind::SpotlightSkipped { .. }
+            | EventKind::AgentToolRestricted { .. }
+            | EventKind::CanaryInjected { .. }
+            | EventKind::CanaryDetected { .. }
+            | EventKind::ScanFindingDetected { .. }
+            | EventKind::SkillIntegrityVerified { .. }
+            | EventKind::SkillIntegrityFailed { .. }
+            | EventKind::CapabilityDenied { .. }
+            | EventKind::MlDetectionRun { .. }
+            | EventKind::MlDetectionBlocked { .. } => {
+                // Shield events are rendered in the security summary, not per-event
+            }
         }
     }
 

@@ -22,8 +22,9 @@ fn format_cost_usd(cost: f64) -> String {
         format!("${:.2}", cost)
     }
 }
-use super::renderer::{format_bytes, RunStats};
+use super::renderer::{format_bytes, RunStats, ShieldStats};
 use super::DetailLevel;
+use nika_core::policy::{SecurityPolicyConfig, TaintMode};
 
 // Unicode box characters for lightweight framing.
 const TOP_LEFT: &str = "\u{250c}"; // ┌
@@ -309,6 +310,13 @@ pub fn format_run_summary(
         lines.extend(format_section_provider_breakdown(stats, w));
     }
 
+    // ── Nika Shield Summary (Sprint 2 Item 5) ──
+    // Render only when there's actual security activity OR taint_mode != off,
+    // so clean trusted runs aren't bloated with empty summary blocks.
+    if detail.show_full_summary() && stats.shield.has_activity() {
+        lines.extend(format_section_shield(&stats.shield, w));
+    }
+
     // Trace path
     if let Some(path) = trace_path {
         lines.push(format!(
@@ -340,6 +348,161 @@ pub fn print_run_summary(
             println!("{}", line);
         }
     }
+}
+
+// ── Nika Shield section (Sprint 2 Item 5) ────────────────────────────
+
+/// Security summary block — composes via `Display` so callers can use
+/// `write!`/`format!`/`print!` from any output backend.
+pub struct SecuritySummary<'a> {
+    pub stats: &'a ShieldStats,
+    pub policy: &'a SecurityPolicyConfig,
+}
+
+impl std::fmt::Display for SecuritySummary<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = self.stats;
+        let p = self.policy;
+        let has_activity = s.has_activity();
+        if !has_activity && matches!(p.taint_mode, TaintMode::Off) {
+            return Ok(());
+        }
+        writeln!(f, "-- Security Summary ----------------------------------")?;
+        writeln!(
+            f,
+            "Trust:        {} Trusted | {} Generated | {} Tainted | {} Untrusted",
+            s.trust.trusted, s.trust.model_generated, s.trust.model_tainted, s.trust.untrusted
+        )?;
+        writeln!(
+            f,
+            "Spotlight:    {} applied, {} skipped",
+            s.spotlight.applied, s.spotlight.skipped
+        )?;
+        if s.canary.detected > 0 {
+            writeln!(
+                f,
+                "Canary:       {} DETECTED  (LEAK — investigate trace)",
+                s.canary.detected
+            )?;
+        } else {
+            writeln!(
+                f,
+                "Canary:       {} injected, 0 detections",
+                s.canary.injected
+            )?;
+        }
+        writeln!(f, "Scan finds:   {}", s.findings)?;
+        writeln!(
+            f,
+            "Tool restrict:{} tool(s) removed from tainted agents",
+            s.restrictions
+        )?;
+        if s.capability_denied > 0 {
+            writeln!(f, "Capability:   {} denied", s.capability_denied)?;
+        }
+        if s.skill_integrity_failed > 0 {
+            writeln!(
+                f,
+                "Skill integ:  {} integrity failures",
+                s.skill_integrity_failed
+            )?;
+        }
+        writeln!(
+            f,
+            "Policy:       taint_mode={}, spotlight={}, canary={}",
+            p.taint_mode, p.spotlight, p.canary
+        )?;
+        write!(f, "------------------------------------------------------")?;
+        Ok(())
+    }
+}
+
+/// Inline section used by the box renderer. Pads each line to the box width
+/// so it composes with the rest of `format_run_summary`.
+fn format_section_shield(stats: &ShieldStats, w: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "  {} Shield {}",
+                "──".dimmed(),
+                "─".repeat(w.saturating_sub(15)).dimmed()
+            ),
+            w
+        )
+    ));
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "    trust  {} trusted, {} generated, {} tainted, {} untrusted",
+                stats.trust.trusted,
+                stats.trust.model_generated,
+                stats.trust.model_tainted,
+                stats.trust.untrusted
+            ),
+            w
+        )
+    ));
+    lines.push(format!(
+        "│{}│",
+        pad_right(
+            &format!(
+                "    spotlight  {} applied, {} skipped",
+                stats.spotlight.applied, stats.spotlight.skipped
+            ),
+            w
+        )
+    ));
+    let canary_line = if stats.canary.detected > 0 {
+        format!(
+            "    canary  {} injected, {} DETECTED",
+            stats.canary.injected,
+            stats.canary.detected.to_string().red()
+        )
+    } else {
+        format!("    canary  {} injected, 0 detected", stats.canary.injected)
+    };
+    lines.push(format!("│{}│", pad_right(&canary_line, w)));
+    if stats.findings > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(&format!("    scan    {} findings", stats.findings), w)
+        ));
+    }
+    if stats.restrictions > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!("    restrict  {} agent tools removed", stats.restrictions),
+                w
+            )
+        ));
+    }
+    if stats.capability_denied > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!("    capdeny  {} capability denied", stats.capability_denied),
+                w
+            )
+        ));
+    }
+    if stats.skill_integrity_failed > 0 {
+        lines.push(format!(
+            "│{}│",
+            pad_right(
+                &format!(
+                    "    skill    {} integrity failures",
+                    stats.skill_integrity_failed
+                ),
+                w
+            )
+        ));
+    }
+    lines.push(format!("│{}│", " ".repeat(w)));
+    lines
 }
 
 // ── Section extractors (pure helpers for format_run_summary) ─────────

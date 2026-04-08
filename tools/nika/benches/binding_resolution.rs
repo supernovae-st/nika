@@ -133,7 +133,7 @@ fn bench_resolved_bindings(c: &mut Criterion) {
     let mut group = c.benchmark_group("resolved_bindings");
 
     // Setup datastore with test data
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(
@@ -321,7 +321,7 @@ fn bench_binding_access(c: &mut Criterion) {
 fn bench_lazy_resolution(c: &mut Criterion) {
     let mut group = c.benchmark_group("lazy_resolution");
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("source"),
         TaskResult::success(

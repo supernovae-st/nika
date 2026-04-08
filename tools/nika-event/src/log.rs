@@ -1106,6 +1106,76 @@ pub enum EventKind {
         stage: String,
         error: String,
     },
+
+    // ═══════════════════════════════════════════
+    // NIKA SHIELD SECURITY EVENTS
+    // ═══════════════════════════════════════════
+    /// Taint analysis completed at check time.
+    TaintAnalysisComplete {
+        /// Number of tasks at each trust level.
+        trusted_count: usize,
+        model_generated_count: usize,
+        model_tainted_count: usize,
+        untrusted_count: usize,
+        /// Number of warnings generated.
+        warning_count: usize,
+    },
+    /// Trust level assigned to a task after execution.
+    TrustLevelAssigned {
+        task_id: Arc<str>,
+        trust_level: String,
+    },
+    /// Task uses `trust: elevated` — bypasses spotlight/capability restrictions.
+    TrustElevationUsed { task_id: Arc<str> },
+    /// Spotlight fence applied to untrusted binding in prompt.
+    SpotlightApplied {
+        task_id: Arc<str>,
+        binding_alias: String,
+        trust_level: String,
+    },
+    /// Spotlight skipped (disabled globally or elevated).
+    SpotlightSkipped { task_id: Arc<str>, reason: String },
+    /// Agent tool restricted due to trust chain.
+    AgentToolRestricted {
+        task_id: Arc<str>,
+        removed_tool: String,
+        reason: String,
+    },
+    /// Canary token injected into system prompt.
+    CanaryInjected { task_id: Arc<str> },
+    /// Canary token detected in LLM output — ALERT!
+    CanaryDetected {
+        task_id: Arc<str>,
+        match_type: String,
+    },
+    /// Output scanner finding (pattern detection).
+    ScanFindingDetected {
+        task_id: Arc<str>,
+        category: String,
+        severity: String,
+    },
+    /// Skill file integrity verified (blake3 hash match).
+    SkillIntegrityVerified { path: String, hash: String },
+    /// Skill file integrity failed (hash mismatch) — ALERT!
+    SkillIntegrityFailed {
+        path: String,
+        expected: String,
+        actual: String,
+    },
+    /// Capability denied at runtime.
+    CapabilityDenied {
+        task_id: Arc<str>,
+        action: String,
+        reason: String,
+    },
+    /// ML detection run (behind shield-ml feature flag).
+    MlDetectionRun {
+        task_id: Arc<str>,
+        score: f64,
+        latency_ms: u64,
+    },
+    /// ML detection blocked task (score above threshold).
+    MlDetectionBlocked { task_id: Arc<str>, score: f64 },
 }
 
 impl EventKind {
@@ -1176,7 +1246,18 @@ impl EventKind {
             | Self::TemplateResolutionFailed { task_id, .. }
             | Self::RateLimitDelay { task_id, .. }
             | Self::SchemaLoadFailed { task_id, .. }
-            | Self::VisionContentFailed { task_id, .. } => Some(task_id),
+            | Self::VisionContentFailed { task_id, .. }
+            | Self::TrustLevelAssigned { task_id, .. }
+            | Self::TrustElevationUsed { task_id, .. }
+            | Self::SpotlightApplied { task_id, .. }
+            | Self::SpotlightSkipped { task_id, .. }
+            | Self::AgentToolRestricted { task_id, .. }
+            | Self::CanaryInjected { task_id, .. }
+            | Self::CanaryDetected { task_id, .. }
+            | Self::ScanFindingDetected { task_id, .. }
+            | Self::CapabilityDenied { task_id, .. }
+            | Self::MlDetectionRun { task_id, .. }
+            | Self::MlDetectionBlocked { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -1200,7 +1281,10 @@ impl EventKind {
             | Self::OrchestratorRound { .. }
             | Self::OrchestratorSubWorkflow { .. }
             | Self::OrchestratorCompleted { .. }
-            | Self::OrchestratorFailed { .. } => None,
+            | Self::OrchestratorFailed { .. }
+            | Self::TaintAnalysisComplete { .. }
+            | Self::SkillIntegrityVerified { .. }
+            | Self::SkillIntegrityFailed { .. } => None,
         }
     }
 
