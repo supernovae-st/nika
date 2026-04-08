@@ -84,7 +84,7 @@ fn fetch_params_with_headers(
 
 /// Create empty bindings and datastore for tests
 fn empty_context() -> (ResolvedBindings, RunContext) {
-    (ResolvedBindings::new(), RunContext::new())
+    (ResolvedBindings::new(), RunContext::new(nika::trust::InvocationSource::Test))
 }
 
 // =============================================================================

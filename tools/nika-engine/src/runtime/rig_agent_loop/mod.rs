@@ -406,8 +406,12 @@ impl RigAgentLoop {
             ))));
         }
         if should_add_introspect("task_status") {
-            // TaskStatusTool needs a RunContext — create a minimal one for the agent
-            let agent_ctx = Arc::new(crate::store::RunContext::new());
+            // TaskStatusTool needs a RunContext — create a minimal one for the agent.
+            // Cli source is fine: the agent ctx is empty (no inputs/with bindings),
+            // so the trust floor never matters.
+            let agent_ctx = Arc::new(crate::store::RunContext::new(
+                nika_core::trust::InvocationSource::Cli,
+            ));
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                 TaskStatusTool::new(event_log.clone(), agent_ctx),
             ))));

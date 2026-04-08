@@ -519,7 +519,7 @@ mod tests {
     fn test_resolve_opt_f64_value_passthrough() {
         let field = Some(Templatable::Value(0.7));
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let result = resolve_opt_f64(&field, &bindings, &ctx, "temp").unwrap();
         assert_eq!(result, Some(Templatable::Value(0.7)));
     }
@@ -527,7 +527,7 @@ mod tests {
     #[test]
     fn test_resolve_opt_f64_none() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let result = resolve_opt_f64(&None, &bindings, &ctx, "temp").unwrap();
         assert_eq!(result, None);
     }
@@ -552,7 +552,7 @@ mod tests {
     #[test]
     fn test_range_validation_temperature() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         // In-range: no error
         let field = Some(Templatable::Value(1.5));
         let r = resolve_opt_f64_range(&field, &bindings, &ctx, "temperature", 0.0, 2.0);
@@ -562,14 +562,14 @@ mod tests {
     #[test]
     fn test_resolve_task_u32_none() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert_eq!(resolve_task_u32(&None, &bindings, &ctx, "x").unwrap(), None);
     }
 
     #[test]
     fn test_resolve_task_u32_value() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let field = Some(Templatable::Value(5u32));
         assert_eq!(
             resolve_task_u32(&field, &bindings, &ctx, "x").unwrap(),
@@ -580,7 +580,7 @@ mod tests {
     #[test]
     fn test_resolve_task_bool_value() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let field = Some(Templatable::Value(true));
         assert_eq!(
             resolve_task_bool(&field, &bindings, &ctx, "x").unwrap(),
@@ -591,7 +591,7 @@ mod tests {
     #[test]
     fn test_resolve_required_bool_value() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert!(
             !resolve_required_bool(&Templatable::Value(false), &bindings, &ctx, "x", true).unwrap()
         );
@@ -600,7 +600,7 @@ mod tests {
     #[test]
     fn test_resolve_required_u64_value() {
         let bindings = ResolvedBindings::new();
-        let ctx = RunContext::default();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         assert_eq!(
             resolve_required_u64(&Templatable::Value(3600), &bindings, &ctx, "x", 0).unwrap(),
             3600

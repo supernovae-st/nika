@@ -27,7 +27,7 @@ fn full_workflow_simple_path() {
     spec.insert("forecast".to_string(), entry);
 
     // 3. Populate datastore with task output
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(
@@ -58,7 +58,7 @@ fn full_workflow_with_default() {
     spec.insert("rating".to_string(), entry);
 
     // 3. Datastore WITHOUT rating field
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
@@ -81,7 +81,7 @@ fn full_workflow_nested_path() {
     let mut spec = BindingSpec::default();
     spec.insert("price".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("flights"),
         TaskResult::success(
@@ -113,7 +113,7 @@ fn full_workflow_multiple_aliases() {
         parse_binding_entry("flights.cheapest.price").unwrap(),
     );
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(json!({"city": "Paris", "temp": 25}), Duration::from_secs(1)),
@@ -139,7 +139,7 @@ fn full_workflow_string_default() {
     spec.insert("name".to_string(), entry);
 
     // No user task in store
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     // Should error without default
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store);
@@ -159,7 +159,7 @@ fn full_workflow_object_default() {
     let mut spec = BindingSpec::default();
     spec.insert("config".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(bindings.get("config"), Some(&json!({"debug": false})));
@@ -176,7 +176,7 @@ fn error_task_not_found_no_default() {
     let mut spec = BindingSpec::default();
     spec.insert("x".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     assert!(result.is_err());
@@ -191,7 +191,7 @@ fn error_path_not_found_no_default() {
     let mut spec = BindingSpec::default();
     spec.insert("x".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
@@ -208,7 +208,7 @@ fn error_null_value_no_default() {
     let mut spec = BindingSpec::default();
     spec.insert("temp".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(json!({"temp": null}), Duration::from_secs(1)),
@@ -222,7 +222,7 @@ fn error_null_value_no_default() {
 #[test]
 fn error_template_unknown_alias() {
     let bindings = ResolvedBindings::new();
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = template_resolve("Hello {{with.unknown}}", &bindings, &store);
     assert!(result.is_err());
@@ -283,7 +283,7 @@ name: 'user.name ?? "Guest"'
     assert_eq!(name.default, Some(json!("Guest")));
 
     // Now resolve against datastore
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(
@@ -310,7 +310,7 @@ name: 'user.name ?? "Guest"'
 #[test]
 fn edge_case_empty_template() {
     let bindings = ResolvedBindings::new();
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     let result = template_resolve("", &bindings, &store).unwrap();
     assert_eq!(result, "");
 }
@@ -318,7 +318,7 @@ fn edge_case_empty_template() {
 #[test]
 fn edge_case_no_templates() {
     let bindings = ResolvedBindings::new();
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     let result = template_resolve("Hello world!", &bindings, &store).unwrap();
     assert_eq!(result, "Hello world!");
 }
@@ -331,7 +331,7 @@ fn edge_case_entire_task_output() {
     let mut spec = BindingSpec::default();
     spec.insert("data".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("weather"),
         TaskResult::success(
@@ -354,7 +354,7 @@ fn edge_case_array_index() {
     let mut spec = BindingSpec::default();
     spec.insert("first".to_string(), entry);
 
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("results"),
         TaskResult::success(

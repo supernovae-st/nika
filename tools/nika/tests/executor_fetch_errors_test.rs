@@ -28,7 +28,7 @@ fn mock_executor() -> TaskExecutor {
 }
 
 fn test_context() -> (ResolvedBindings, RunContext) {
-    (ResolvedBindings::new(), RunContext::new())
+    (ResolvedBindings::new(), RunContext::new(nika::trust::InvocationSource::Test))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

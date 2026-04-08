@@ -44,7 +44,9 @@ impl CompressorLlm for ExecutorCompressorLlm<'_> {
     async fn infer(&self, prompt: &str) -> Result<String, NikaError> {
         let task_id: Arc<str> = Arc::from("_record_compress");
         let bindings = ResolvedBindings::new();
-        let datastore = RunContext::new();
+        // Internal infer call — no user inputs, source is unused but Cli
+        // matches the surrounding production-path semantics.
+        let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
 
         let action = TaskAction::Infer {
             infer: InferParams {

@@ -36,7 +36,7 @@ async fn test_executor_invoke_nika_sleep() {
     let task_id: Arc<str> = "test-sleep".into();
     let action = create_invoke_action("nika:sleep", json!({"duration": "1ms"}));
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -61,7 +61,7 @@ async fn test_executor_invoke_nika_log() {
         json!({"level": "info", "message": "Integration test"}),
     );
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -87,7 +87,7 @@ async fn test_executor_invoke_nika_emit() {
         json!({"name": "test_event", "payload": {"key": "value"}}),
     );
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -110,7 +110,7 @@ async fn test_executor_invoke_nika_assert_true() {
     let task_id: Arc<str> = "test-assert".into();
     let action = create_invoke_action("nika:assert", json!({"condition": true}));
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -131,7 +131,7 @@ async fn test_executor_invoke_nika_assert_false() {
         json!({"condition": false, "message": "Expected true"}),
     );
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -155,7 +155,7 @@ async fn test_executor_invoke_nika_prompt_with_default() {
         json!({"message": "Confirm?", "default": "yes"}),
     );
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -174,7 +174,7 @@ async fn test_executor_invoke_nika_prompt_without_default_errors() {
     let task_id: Arc<str> = "test-prompt".into();
     let action = create_invoke_action("nika:prompt", json!({"message": "Input needed"}));
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -197,7 +197,7 @@ async fn test_executor_invoke_nika_run_nonexistent_errors() {
     let task_id: Arc<str> = "test-run".into();
     let action = create_invoke_action("nika:run", json!({"workflow": "test.nika.yaml"}));
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -237,7 +237,7 @@ tasks:
         json!({"workflow": temp_file.path().to_str().unwrap()}),
     );
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -255,7 +255,7 @@ async fn test_executor_invoke_nika_run_invalid_extension() {
     let task_id: Arc<str> = "test-run".into();
     let action = create_invoke_action("nika:run", json!({"workflow": "test.yaml"}));
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -290,7 +290,7 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
     let mut bindings = ResolvedBindings::default();
     bindings.set("value", json!("resolved_value"));
 
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -316,7 +316,7 @@ async fn test_executor_invoke_builtin_emits_events() {
     let task_id: Arc<str> = "test-events".into();
     let action = create_invoke_action("nika:sleep", json!({"duration": "1ms"}));
     let bindings = ResolvedBindings::default();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)

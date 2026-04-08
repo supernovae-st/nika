@@ -25,7 +25,7 @@ mod template_fuzzing {
 
     /// Helper to create empty datastore for tests
     fn empty_datastore() -> RunContext {
-        RunContext::new()
+        RunContext::new(nika::trust::InvocationSource::Test)
     }
 
     prop_compose! {

@@ -1177,14 +1177,14 @@ mod tests {
 
     #[test]
     fn from_binding_spec_none() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let bindings = ResolvedBindings::from_binding_spec(None, &store).unwrap();
         assert!(bindings.is_empty());
     }
 
     #[test]
     fn from_with_spec_none() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let bindings = ResolvedBindings::from_with_spec(None, &store).unwrap();
         assert!(bindings.is_empty());
     }
@@ -1195,7 +1195,7 @@ mod tests {
 
     #[test]
     fn resolve_simple_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
@@ -1210,7 +1210,7 @@ mod tests {
 
     #[test]
     fn resolve_entire_task_output() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("weather"),
             TaskResult::success(
@@ -1231,7 +1231,7 @@ mod tests {
 
     #[test]
     fn resolve_nested_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("weather"),
             TaskResult::success(
@@ -1252,7 +1252,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_on_missing() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = BindingSpec::default();
         spec.insert(
@@ -1266,7 +1266,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_on_null() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
@@ -1284,7 +1284,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_object() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = BindingSpec::default();
         spec.insert(
@@ -1298,7 +1298,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_array() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = BindingSpec::default();
         spec.insert(
@@ -1316,7 +1316,7 @@ mod tests {
 
     #[test]
     fn resolve_path_not_found_error() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = BindingSpec::default();
         spec.insert("x".to_string(), BindingEntry::new("missing.path"));
@@ -1328,7 +1328,7 @@ mod tests {
 
     #[test]
     fn resolve_null_strict_error() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
@@ -1348,7 +1348,7 @@ mod tests {
 
     #[test]
     fn resolve_jsonpath_array_index() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("data"),
             TaskResult::success(
@@ -1569,7 +1569,7 @@ mod tests {
 
     #[test]
     fn get_does_not_resolve_lazy() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1592,7 +1592,7 @@ mod tests {
 
     #[test]
     fn get_resolved_eager_binding() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1608,7 +1608,7 @@ mod tests {
 
     #[test]
     fn get_resolved_lazy_binding() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "lazy_result"}), Duration::from_secs(1)),
@@ -1624,7 +1624,7 @@ mod tests {
 
     #[test]
     fn get_resolved_nonexistent_binding() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let bindings = ResolvedBindings::new();
         let result = bindings.get_resolved("missing", &store);
         assert!(result.is_err());
@@ -1633,7 +1633,7 @@ mod tests {
 
     #[test]
     fn get_resolved_lazy_with_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // No task in store - should use default
 
         let mut spec = BindingSpec::default();
@@ -1649,7 +1649,7 @@ mod tests {
 
     #[test]
     fn get_resolved_re_resolves_on_each_call() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
@@ -1681,7 +1681,7 @@ mod tests {
 
     #[test]
     fn is_lazy_for_eager_binding() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "test"}), Duration::from_secs(1)),
@@ -1696,7 +1696,7 @@ mod tests {
 
     #[test]
     fn is_lazy_for_lazy_binding() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut spec = BindingSpec::default();
         spec.insert("lazy".to_string(), BindingEntry::new_lazy("task.value"));
 
@@ -1712,7 +1712,7 @@ mod tests {
 
     #[test]
     fn is_lazy_after_resolution() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1740,7 +1740,7 @@ mod tests {
 
     #[test]
     fn iter_only_resolved_bindings() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1862,7 +1862,7 @@ mod tests {
 
     #[test]
     fn from_binding_spec_eager_missing_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut spec = BindingSpec::default();
         spec.insert("x".to_string(), BindingEntry::new("nonexistent.path"));
 
@@ -1872,7 +1872,7 @@ mod tests {
 
     #[test]
     fn from_binding_spec_lazy_does_not_fail_on_missing() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut spec = BindingSpec::default();
         spec.insert("x".to_string(), BindingEntry::new_lazy("nonexistent.path"));
 
@@ -1883,7 +1883,7 @@ mod tests {
 
     #[test]
     fn from_binding_spec_preserves_all_entries() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("task1"),
             TaskResult::success(json!({"a": 1}), Duration::from_secs(1)),
@@ -1910,7 +1910,7 @@ mod tests {
 
     #[test]
     fn mixed_eager_and_lazy_workflow() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("quick"),
             TaskResult::success(json!({"result": "fast"}), Duration::from_secs(1)),
@@ -1988,7 +1988,7 @@ mod tests {
     fn resolve_inputs_simple() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -2011,7 +2011,7 @@ mod tests {
     fn resolve_inputs_nested_field() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -2046,7 +2046,7 @@ mod tests {
 
     #[test]
     fn resolve_inputs_with_default_on_missing() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = BindingSpec::default();
         spec.insert(
@@ -2060,7 +2060,7 @@ mod tests {
 
     #[test]
     fn resolve_inputs_missing_no_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = BindingSpec::default();
         spec.insert("missing".to_string(), BindingEntry::new("inputs.missing"));
@@ -2074,7 +2074,7 @@ mod tests {
     fn resolve_inputs_lazy_binding() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -2105,7 +2105,7 @@ mod tests {
     fn resolve_inputs_mixed_with_task_outputs() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -2136,7 +2136,7 @@ mod tests {
     fn resolve_inputs_array_value() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -2161,7 +2161,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_simple() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"title": "Hello"}), Duration::from_secs(1)),
@@ -2179,7 +2179,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_entire_output() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"a": 1, "b": 2}), Duration::from_secs(1)),
@@ -2197,7 +2197,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_nested_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(
@@ -2218,7 +2218,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_with_default_on_missing() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // No step1 task in store
 
         let mut spec = WithSpec::default();
@@ -2236,7 +2236,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_with_default_on_null() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"data": null}), Duration::from_secs(1)),
@@ -2257,7 +2257,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_missing_no_default_error() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = WithSpec::default();
         spec.insert(
@@ -2273,7 +2273,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_null_no_default_error() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"data": null}), Duration::from_secs(1)),
@@ -2299,7 +2299,7 @@ mod tests {
     fn with_spec_input_simple() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "topic".to_string(),
@@ -2321,7 +2321,7 @@ mod tests {
     fn with_spec_input_nested() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "config".to_string(),
@@ -2346,7 +2346,7 @@ mod tests {
 
     #[test]
     fn with_spec_input_missing_with_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // No inputs set
 
         let mut spec = WithSpec::default();
@@ -2372,7 +2372,7 @@ mod tests {
         // Use a known env var
         std::env::set_var("NIKA_TEST_VAR_8A", "test_value_8a");
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut spec = WithSpec::default();
         spec.insert(
             "my_var".to_string(),
@@ -2387,7 +2387,7 @@ mod tests {
 
     #[test]
     fn with_spec_env_missing_with_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut spec = WithSpec::default();
         spec.insert(
             "missing_env".to_string(),
@@ -2403,7 +2403,7 @@ mod tests {
 
     #[test]
     fn with_spec_env_missing_no_default_error() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut spec = WithSpec::default();
         spec.insert(
             "missing".to_string(),
@@ -2419,7 +2419,7 @@ mod tests {
         // $env.MISSING | default("fallback") should resolve to "fallback"
         use nika_core::binding::transform::TransformExpr;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut entry = WithEntry::simple(
             BindingPath::parse("$env.NIKA_NONEXISTENT_TRANSFORM_DEFAULT_TEST").unwrap(),
         );
@@ -2437,7 +2437,7 @@ mod tests {
         // $env.MISSING | default("fallback") | upper → "FALLBACK"
         use nika_core::binding::transform::TransformExpr;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut entry =
             WithEntry::simple(BindingPath::parse("$env.NIKA_NONEXISTENT_CHAIN_TEST").unwrap());
         entry.transform = Some(TransformExpr::parse("default(\"hello\") | upper").unwrap());
@@ -2454,7 +2454,7 @@ mod tests {
         // $env.MISSING | upper should still fail (no default in chain)
         use nika_core::binding::transform::TransformExpr;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut entry =
             WithEntry::simple(BindingPath::parse("$env.NIKA_NONEXISTENT_UPPER_TEST").unwrap());
         entry.transform = Some(TransformExpr::parse("upper").unwrap());
@@ -2476,7 +2476,7 @@ mod tests {
     #[test]
     fn with_spec_context_file() {
         use crate::store::LoadedContext;
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut ctx = LoadedContext::new();
         ctx.files
             .insert("brand".to_string(), json!("Brand Guidelines v2"));
@@ -2495,7 +2495,7 @@ mod tests {
     #[test]
     fn with_spec_context_session() {
         use crate::store::LoadedContext;
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut ctx = LoadedContext::new();
         ctx.session = Some(json!({"last_run": "2025-01-01"}));
         store.set_context(ctx);
@@ -2515,7 +2515,7 @@ mod tests {
 
     #[test]
     fn with_spec_context_missing_with_default() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // No context files loaded
 
         let mut spec = WithSpec::default();
@@ -2537,7 +2537,7 @@ mod tests {
 
     #[test]
     fn with_spec_lazy_does_not_fail_on_missing() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = WithSpec::default();
         let mut entry = WithEntry::simple(BindingPath::parse("$step1.data").unwrap());
@@ -2553,7 +2553,7 @@ mod tests {
 
     #[test]
     fn with_spec_lazy_resolve_on_demand() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"data": "deferred"}), Duration::from_secs(1)),
@@ -2573,7 +2573,7 @@ mod tests {
 
     #[test]
     fn with_spec_lazy_re_resolves() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
@@ -2605,7 +2605,7 @@ mod tests {
 
     #[test]
     fn with_spec_with_transform() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": "  Hello World  "}), Duration::from_secs(1)),
@@ -2622,7 +2622,7 @@ mod tests {
 
     #[test]
     fn with_spec_transform_with_default_on_null() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": null}), Duration::from_secs(1)),
@@ -2735,7 +2735,7 @@ mod tests {
     #[test]
     fn with_spec_traced_transform_with_default_on_null() {
         // CQ-11: traced and untraced must behave identically for null+transform+default
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": null}), Duration::from_secs(1)),
@@ -2757,7 +2757,7 @@ mod tests {
 
     #[test]
     fn with_spec_transform_chain() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"items": [3, 1, 4, 1, 5, 9]}), Duration::from_secs(1)),
@@ -2779,7 +2779,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_string_valid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": "text"}), Duration::from_secs(1)),
@@ -2796,7 +2796,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_string_invalid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"count": 42}), Duration::from_secs(1)),
@@ -2815,7 +2815,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_array_valid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"items": [1, 2, 3]}), Duration::from_secs(1)),
@@ -2832,7 +2832,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_any_accepts_all() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"val": [1, "mixed"]}), Duration::from_secs(1)),
@@ -2849,7 +2849,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_object_valid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"cfg": {"debug": true}}), Duration::from_secs(1)),
@@ -2866,7 +2866,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_number_valid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"temp": 25.5}), Duration::from_secs(1)),
@@ -2883,7 +2883,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_integer_valid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"count": 42}), Duration::from_secs(1)),
@@ -2900,7 +2900,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_integer_rejects_float() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"val": 3.12}), Duration::from_secs(1)),
@@ -2918,7 +2918,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_boolean_valid() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"flag": true}), Duration::from_secs(1)),
@@ -2942,7 +2942,7 @@ mod tests {
     fn with_spec_mixed_sources() {
         use rustc_hash::FxHashMap;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Task output
         store.insert(
@@ -3003,7 +3003,7 @@ mod tests {
 
     #[test]
     fn env_binding_allows_secret_pattern_vars() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Set env vars with secret patterns (KEY, TOKEN, AUTH)
         std::env::set_var("NIKA_TEST_ELEVENLABS_API_KEY", "sk-test-123");
@@ -3041,7 +3041,7 @@ mod tests {
 
     #[test]
     fn env_binding_blocks_restricted_vars() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Set restricted env vars to known values
         std::env::set_var("SSH_AUTH_SOCK", "/tmp/test-agent.sock");
@@ -3071,7 +3071,7 @@ mod tests {
     #[test]
     fn env_binding_blocks_case_sensitive() {
         // Blocklist uses uppercase comparison
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         std::env::set_var("LD_PRELOAD", "/tmp/evil.so");
 
@@ -3088,7 +3088,7 @@ mod tests {
 
     #[test]
     fn env_binding_returns_error_for_missing_var() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = WithSpec::default();
         spec.insert(
@@ -3111,7 +3111,7 @@ mod tests {
 
     #[test]
     fn with_spec_loop_var_errors() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut spec = WithSpec::default();
         spec.insert(
@@ -3326,7 +3326,7 @@ mod tests {
         let mut spec = BindingSpec::default();
         spec.insert("forecast".to_string(), BindingEntry::new("weather.summary"));
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             std::sync::Arc::from("weather"),
             crate::store::TaskResult::success(
@@ -3356,7 +3356,7 @@ mod tests {
     /// Helper: populate a RunContext with a "gen" task that has media refs
     /// and a "thumb" task that has thumbnail JSON output.
     fn store_with_media_chain() -> RunContext {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Task "gen": produces an image with media refs in the side-channel
         let gen_media = vec![crate::media::MediaRef {
@@ -3582,7 +3582,7 @@ mod tests {
     fn binding_to_failed_task_returns_null_error() {
         // A failed task has Value::Null output — binding without default should
         // return NullValue error (and the warning is emitted before the error).
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("broken"),
             TaskResult::failed("something went wrong", Duration::from_secs(1)),
@@ -3599,7 +3599,7 @@ mod tests {
     #[test]
     fn binding_to_failed_task_uses_default() {
         // With a default, binding to failed task resolves to the default value
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("broken"),
             TaskResult::failed("something went wrong", Duration::from_secs(1)),
@@ -3616,7 +3616,7 @@ mod tests {
 
     #[test]
     fn binding_to_failed_task_typed_path() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             Arc::from("broken"),
             TaskResult::failed("oops", Duration::from_secs(1)),
@@ -3691,7 +3691,7 @@ mod tests {
         vault.set_credential("stripe", fields, None, None).unwrap();
 
         // Attach vault to RunContext
-        let mut store = RunContext::new();
+        let mut store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.set_vault(Arc::new(vault));
 
         // Build WithSpec with $vault.stripe.secret
@@ -3718,7 +3718,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let vault = nika_vault::NikaVault::new(dir.path());
 
-        let mut store = RunContext::new();
+        let mut store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.set_vault(Arc::new(vault));
 
         let path = BindingPath::parse("$vault.nonexistent.key").unwrap();
@@ -3745,7 +3745,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let vault = nika_vault::NikaVault::new(dir.path());
 
-        let mut store = RunContext::new();
+        let mut store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.set_vault(Arc::new(vault));
 
         let path = BindingPath::parse("$vault.missing_service.api_key").unwrap();
@@ -3772,7 +3772,7 @@ mod tests {
         let vault = nika_vault::NikaVault::new(dir.path());
         vault.set("anthropic", "sk-ant-secret").unwrap();
 
-        let mut store = RunContext::new();
+        let mut store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.set_vault(Arc::new(vault));
 
         let path = BindingPath::parse("$vault.anthropic.key").unwrap();
@@ -3808,7 +3808,7 @@ mod tests {
         let vault = nika_vault::NikaVault::new(dir.path());
         vault.set("anthropic", "sk-ant-test-12345").unwrap();
 
-        let mut store = RunContext::new();
+        let mut store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.set_vault(Arc::new(vault));
 
         let path = BindingPath::parse("$vault.anthropic.key").unwrap();
@@ -3829,7 +3829,7 @@ mod tests {
     #[test]
     fn vault_binding_no_vault_configured() {
         // When no vault is set on RunContext, $vault bindings should get None
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let path = BindingPath::parse("$vault.stripe.secret").unwrap();
         let entry = WithEntry {
@@ -3857,7 +3857,7 @@ mod tests {
     #[test]
     fn with_entry_missing_env_with_pipe_default() {
         // $env.NONEXISTENT | default("fallback") should return "fallback"
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let entry = WithEntry {
             source: BindingPath {
@@ -3879,7 +3879,7 @@ mod tests {
     #[test]
     fn with_entry_missing_env_no_default_errors() {
         // $env.NONEXISTENT without default should error
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let entry = WithEntry {
             source: BindingPath {

@@ -2053,7 +2053,7 @@ mod tests {
 
     /// Helper to create empty datastore for tests
     fn empty_datastore() -> RunContext {
-        RunContext::new()
+        RunContext::new(nika_core::trust::InvocationSource::Test)
     }
 
     #[test]
@@ -2361,7 +2361,7 @@ mod tests {
 
     /// Helper to create datastore with context for tests
     fn datastore_with_context() -> RunContext {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut context = LoadedContext::new();
         context.files.insert(
             "brand".to_string(),
@@ -2637,7 +2637,7 @@ mod tests {
 
     /// Helper to create datastore with inputs for tests
     fn datastore_with_inputs() -> RunContext {
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "topic".to_string(),
@@ -2721,7 +2721,7 @@ mod tests {
     fn resolve_inputs_with_context() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("msg", json!("Test"));
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Set both context and inputs
         let mut context = LoadedContext::new();
@@ -3038,7 +3038,7 @@ mod tests {
     fn injection_template_markers_in_context_path() {
         // Even context paths with template-like patterns should be safe
         let bindings = ResolvedBindings::new();
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         // File name that looks like template syntax - but file content is safe
@@ -3055,7 +3055,7 @@ mod tests {
     fn injection_context_value_with_template_syntax() {
         // Context file content with template syntax should NOT be re-evaluated
         let bindings = ResolvedBindings::new();
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context
@@ -3072,7 +3072,7 @@ mod tests {
     fn injection_input_value_with_template_syntax() {
         // Input values with template syntax should NOT be re-evaluated
         let bindings = ResolvedBindings::new();
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -3095,7 +3095,7 @@ mod tests {
         let mut bindings = ResolvedBindings::new();
         // Pass 1: use binding resolves to something with context syntax
         bindings.set("data", json!("{{context.files.secret}}"));
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut context = LoadedContext::new();
         context
@@ -3153,7 +3153,7 @@ mod v028_template_tests {
     use serde_json::json;
 
     fn empty_datastore() -> RunContext {
-        RunContext::new()
+        RunContext::new(nika_core::trust::InvocationSource::Test)
     }
 
     fn make_with(entries: &[(&str, Value)]) -> FxHashMap<String, Value> {
@@ -4032,7 +4032,7 @@ mod v028_template_tests {
     #[test]
     fn audit_resolve_for_shell_missing_inputs_support() {
         let bindings = ResolvedBindings::new();
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let mut inputs = FxHashMap::default();
         inputs.insert("topic".to_string(), json!("AI safety"));
@@ -4190,7 +4190,7 @@ mod v028_template_tests {
     fn media_template_fixtures() -> (RunContext, ResolvedBindings) {
         use crate::binding::{BindingEntry, BindingSpec};
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Task "gen": image generation with media refs
         let gen_media = vec![crate::media::MediaRef {
@@ -4320,7 +4320,7 @@ mod v028_template_tests {
         // When invoke output is stored as Value::Object (not Value::String),
         // template-level traversal works. This happens when the runner parses
         // JSON before storing in TaskResult (the Value variant, not success_str).
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             std::sync::Arc::from("thumb2"),
             crate::store::TaskResult::success(
@@ -4476,7 +4476,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_empty_media() {
         use crate::binding::BindingEntry;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         // Task with empty media array
         store.insert(
             std::sync::Arc::from("empty"),
@@ -4500,7 +4500,7 @@ mod v028_template_tests {
     fn media_template_full_task_binding_empty_media_indexed() {
         use crate::binding::BindingEntry;
 
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         store.insert(
             std::sync::Arc::from("empty"),
             crate::store::TaskResult::success(
@@ -4570,7 +4570,7 @@ mod v028_template_tests {
         // Simulate how nika:chart output is stored: MediaToolAdapter returns
         // a JSON string, run_invoke re-serializes it, make_task_result wraps
         // it as Value::String (no output: json policy for invoke tasks).
-        let store = RunContext::new();
+        let store = RunContext::new(nika_core::trust::InvocationSource::Test);
         let chart_output_json = serde_json::json!({
             "hash": "blake3:af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
             "path": "/tmp/cas/af/1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
@@ -4797,7 +4797,7 @@ mod v028_template_tests {
     fn template_injection_inputs_blocked_in_resolve() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("data", json!("{{inputs.secret}}"));
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = rustc_hash::FxHashMap::default();
         inputs.insert("topic".to_string(), json!("AI workflows"));
         inputs.insert("secret".to_string(), json!("sk-ant-SHOULD-NOT-LEAK"));
@@ -4819,7 +4819,7 @@ mod v028_template_tests {
     #[test]
     fn template_injection_inputs_blocked_in_resolve_with() {
         let with = make_with(&[("data", json!("{{inputs.secret}}"))]);
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut inputs = rustc_hash::FxHashMap::default();
         inputs.insert("topic".to_string(), json!("AI workflows"));
         inputs.insert("secret".to_string(), json!("sk-ant-SHOULD-NOT-LEAK"));
@@ -4842,7 +4842,7 @@ mod v028_template_tests {
         use crate::store::LoadedContext;
 
         let with = make_with(&[("user_input", json!("{{context.files.secret}}"))]);
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
         let mut ctx = LoadedContext::new();
         ctx.files.insert("brand".to_string(), json!("SuperNovae"));
         ctx.files
@@ -4873,7 +4873,7 @@ mod v028_template_tests {
     fn template_missing_key_with_default() {
         let mut with = FxHashMap::default();
         with.insert("obj".to_string(), json!({"name": "Alice"}));
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let result = resolve_with("Value: {{with.obj.missing | default(\"N/A\")}}", &with, &ds);
         assert_eq!(result.unwrap(), "Value: N/A");
@@ -4883,7 +4883,7 @@ mod v028_template_tests {
     fn template_missing_key_no_default_still_errors() {
         let mut with = FxHashMap::default();
         with.insert("obj".to_string(), json!({"name": "Alice"}));
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         let result = resolve_with("Value: {{with.obj.missing}}", &with, &ds);
         assert!(result.is_err());
@@ -4893,7 +4893,7 @@ mod v028_template_tests {
     fn template_missing_key_with_non_default_transform_errors() {
         let mut with = FxHashMap::default();
         with.insert("obj".to_string(), json!({"name": "Alice"}));
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // | trim on missing path should NOT silently succeed
         let result = resolve_with("Value: {{with.obj.missing | trim}}", &with, &ds);
@@ -4904,7 +4904,7 @@ mod v028_template_tests {
     fn template_missing_key_default_then_upper_works() {
         let mut with = FxHashMap::default();
         with.insert("obj".to_string(), json!({"name": "Alice"}));
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // default() first → "n/a", then upper → "N/A"
         let result = resolve_with(
@@ -4919,7 +4919,7 @@ mod v028_template_tests {
     fn template_missing_key_upper_then_default_errors() {
         let mut with = FxHashMap::default();
         with.insert("obj".to_string(), json!({"name": "Alice"}));
-        let ds = RunContext::new();
+        let ds = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // upper first fails on null → falls through to error (order matters)
         let result = resolve_with(

@@ -131,7 +131,7 @@ mod executor_unit_tests {
     #[tokio::test]
     async fn test_expand_decompose_static_with_array() {
         let executor = create_test_executor();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
         // Pre-populate bindings with locales array
         // Note: $alias (without .) resolves from bindings, not datastore
@@ -162,7 +162,7 @@ mod executor_unit_tests {
     #[tokio::test]
     async fn test_expand_decompose_static_with_max_items() {
         let executor = create_test_executor();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
         // Pre-populate bindings with 5 items
         let mut bindings = ResolvedBindings::default();
@@ -191,7 +191,7 @@ mod executor_unit_tests {
     #[tokio::test]
     async fn test_expand_decompose_static_non_array_fails() {
         let executor = create_test_executor();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
         // Pre-populate bindings with a string (not an array)
         let mut bindings = ResolvedBindings::default();
@@ -218,7 +218,7 @@ mod executor_unit_tests {
     #[tokio::test]
     async fn test_expand_decompose_nested_requires_mcp() {
         let executor = create_test_executor();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
         let spec = DecomposeSpec {
             strategy: DecomposeStrategy::Nested,
@@ -249,7 +249,7 @@ mod executor_unit_tests {
     #[tokio::test]
     async fn test_expand_decompose_semantic_missing_mcp_fails() {
         let executor = create_test_executor();
-        let datastore = RunContext::new();
+        let datastore = RunContext::new(nika::trust::InvocationSource::Test);
 
         // Pre-populate bindings with entity
         let mut bindings = ResolvedBindings::default();

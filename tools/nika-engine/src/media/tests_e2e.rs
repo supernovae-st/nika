@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn e2e_media_staging_set_then_take() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "test_task".into();
 
         let refs = vec![MediaRef {
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn e2e_media_staging_empty_vec_not_stored() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "empty_task".into();
 
         // set_media with empty vec should be a no-op
@@ -1374,7 +1374,7 @@ mod tests {
         let store = CasStore::new(dir.path());
         let budget = Arc::new(MediaBudget::new());
         let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "invoke_sim".into();
 
         // Simulate tool result with mixed content
@@ -1456,7 +1456,7 @@ mod tests {
     #[tokio::test]
     async fn e2e_invoke_simulation_text_only_no_media() {
         // Simulates a text-only MCP response — NO media processing should happen
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "text_invoke".into();
 
         let tool_result = ToolCallResult::success(vec![ContentBlock::text("Just text, no media")]);
@@ -1582,7 +1582,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     fn setup_ctx_with_media() -> (RunContext, Arc<str>) {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "gen_img".into();
         let tr = crate::store::TaskResult::success(
             serde_json::json!("image generated"),
@@ -1697,7 +1697,7 @@ mod tests {
 
     #[test]
     fn e2e_resolve_path_media_empty() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "no_media".into();
         let tr = crate::store::TaskResult::success(
             serde_json::json!("text only"),
@@ -1717,7 +1717,7 @@ mod tests {
 
     #[test]
     fn e2e_resolve_path_media_nonexistent_task() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let result = ctx.resolve_path("nonexistent.media");
         assert!(result.is_none(), "nonexistent task should return None");
     }
@@ -1725,7 +1725,7 @@ mod tests {
     #[test]
     fn e2e_resolve_path_normal_output_still_works() {
         // Verify media interception doesn't break normal output resolution
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "weather".into();
         let tr = crate::store::TaskResult::success(
             serde_json::json!({"temperature": 22, "city": "Paris"}),
@@ -2426,7 +2426,7 @@ mod tests {
     fn e2e_resolve_path_mediax_not_intercepted() {
         // "task.mediax" -- starts with "media" but is NOT a media path
         // Should resolve from task output, not media interception
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "task".into();
         let tr = crate::store::TaskResult::success(
             serde_json::json!({"mediax": "extra_value", "media_extra": 42}),
@@ -2447,7 +2447,7 @@ mod tests {
     fn e2e_resolve_path_media_extra_not_intercepted() {
         // "task.media_extra" -- starts with "media" prefix + underscore
         // Should NOT be intercepted by the media path logic
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "task".into();
         let tr = crate::store::TaskResult::success(
             serde_json::json!({"media_extra": "should_not_be_media"}),
@@ -2488,7 +2488,7 @@ mod tests {
 
     /// Helper: set up two tasks each with their own media refs
     fn setup_two_tasks_with_media() -> RunContext {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
 
         // Task A: 1 image
         let media_a = vec![MediaRef {
@@ -2627,7 +2627,7 @@ mod tests {
 
     #[test]
     fn e2e_output_and_media_coexist_no_collision() {
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "gen".into();
 
         // Task output has structured JSON AND media refs
@@ -2691,7 +2691,7 @@ mod tests {
     fn e2e_output_with_media_key_in_output() {
         // Edge case: task output itself has a "media" key
         // The media interception should still use TaskResult.media, not output.media
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "tricky".into();
 
         let media = vec![MediaRef {
@@ -2733,7 +2733,7 @@ mod tests {
     fn e2e_output_field_named_media_no_real_media() {
         // Task output has "media" field but TaskResult.media is empty
         // "task.media" should return empty array (from interception), not output.media
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "confusing".into();
         let tr = crate::store::TaskResult::success(
             serde_json::json!({
@@ -2874,7 +2874,7 @@ mod tests {
     fn e2e_mediaref_resolve_path_roundtrip_all_fields() {
         // Insert a TaskResult with media, then verify resolve_path returns
         // correct values for ALL 6 fields through the full pipeline
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "roundtrip".into();
         let media = vec![MediaRef {
             hash: "blake3:a1b2c3d4e5f60000".into(),
@@ -3449,7 +3449,7 @@ mod tests {
         let store = CasStore::new(dir.path());
         let budget = Arc::new(MediaBudget::with_max_per_run(100_000));
         let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "pipeline_test".into();
 
         // Step 2: Create a ContentBlock with real PNG data
@@ -3839,7 +3839,7 @@ mod tests {
         // Step 3: Stage in RunContext via set_media
         // ───────────────────────────────────────────────────
 
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "monster_task".into();
 
         ctx.set_media(&task_id, media_refs.clone());
@@ -4581,7 +4581,7 @@ mod tests {
 
         // Store MediaRef in a TaskResult and insert into RunContext
         use crate::store::TaskResult;
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "integrity_task".into();
         let tr = TaskResult::success(
             serde_json::json!("done"),
@@ -4838,7 +4838,7 @@ mod tests {
 
         // Verify TaskResult with all 3 media refs resolves correctly
         use crate::store::TaskResult;
-        let ctx = RunContext::new();
+        let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
         let task_id: Arc<str> = "multi_task".into();
         let tr = TaskResult::success(
             serde_json::json!("multi-output task"),

@@ -2680,7 +2680,7 @@ async fn evaluate_quality(
     let event_log = EventLog::new();
     let executor = TaskExecutor::new(eval_provider, Some(eval_model), None, event_log)?;
     let bindings = ResolvedBindings::new();
-    let datastore = RunContext::new();
+    let datastore = RunContext::new(nika::trust::InvocationSource::Cli);
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)

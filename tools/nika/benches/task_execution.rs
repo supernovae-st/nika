@@ -18,7 +18,7 @@ fn bench_datastore_operations(c: &mut Criterion) {
 
     // Insert operations
     group.bench_function("insert", |b| {
-        let store = RunContext::new();
+        let store = RunContext::new(nika::trust::InvocationSource::Test);
         let mut i = 0u64;
         b.iter(|| {
             let task_id = Arc::from(format!("task_{i}"));
@@ -30,7 +30,7 @@ fn bench_datastore_operations(c: &mut Criterion) {
 
     // Get operations (pre-populated store)
     {
-        let store = RunContext::new();
+        let store = RunContext::new(nika::trust::InvocationSource::Test);
         for i in 0..1000 {
             store.insert(
                 Arc::from(format!("task_{i}")),
@@ -55,7 +55,7 @@ fn bench_datastore_operations(c: &mut Criterion) {
 
     // Concurrent access simulation
     {
-        let store = Arc::new(RunContext::new());
+        let store = Arc::new(RunContext::new(nika::trust::InvocationSource::Test));
         for i in 0..100 {
             store.insert(
                 Arc::from(format!("task_{i}")),
@@ -160,7 +160,7 @@ fn bench_execution_flow(c: &mut Criterion) {
 
     // Simulate task execution: resolve bindings -> execute -> store result
     {
-        let store = RunContext::new();
+        let store = RunContext::new(nika::trust::InvocationSource::Test);
         store.insert(
             Arc::from("source"),
             TaskResult::success(
@@ -198,7 +198,7 @@ fn bench_execution_flow(c: &mut Criterion) {
 
     // Simulate parallel task completion tracking
     {
-        let store = Arc::new(RunContext::new());
+        let store = Arc::new(RunContext::new(nika::trust::InvocationSource::Test));
 
         group.bench_function("parallel_completion_10", |b| {
             b.iter(|| {
@@ -232,7 +232,7 @@ fn bench_for_each_simulation(c: &mut Criterion) {
 
     // Simulate collecting results from parallel iterations
     for item_count in [5, 10, 25, 50, 100].iter() {
-        let store = RunContext::new();
+        let store = RunContext::new(nika::trust::InvocationSource::Test);
 
         // Pre-populate with iteration results
         for i in 0..*item_count {

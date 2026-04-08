@@ -183,7 +183,7 @@ mod tests {
     #[tokio::test]
     async fn test_task_status_completed() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
 
         log.emit(EventKind::TaskScheduled {
             task_id: Arc::from("research"),
@@ -224,7 +224,7 @@ mod tests {
     #[tokio::test]
     async fn test_task_status_missing_returns_error() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
 
         let tool = TaskStatusTool::new(log, ctx);
         let result = tool.call(r#"{"task_id":"nonexistent"}"#.into()).await;

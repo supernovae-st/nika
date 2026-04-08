@@ -92,7 +92,7 @@ optional:
 fn test_lazy_binding_not_resolved_initially() {
     // Lazy bindings should NOT fail during from_binding_spec
     // even if the source task output doesn't exist yet
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // Note: "future" task NOT in store
 
     let mut spec = BindingSpec::default();
@@ -111,7 +111,7 @@ fn test_lazy_binding_not_resolved_initially() {
 
 #[test]
 fn test_lazy_binding_resolved_on_access() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // Initially empty - task1 hasn't run yet
 
     let mut spec = BindingSpec::default();
@@ -140,7 +140,7 @@ fn test_lazy_binding_resolved_on_access() {
 
 #[test]
 fn test_lazy_binding_with_path() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     let mut spec = BindingSpec::default();
     spec.insert(
@@ -163,7 +163,7 @@ fn test_lazy_binding_with_path() {
 
 #[test]
 fn test_lazy_binding_with_default_on_missing() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // Task never runs
 
     let mut spec = BindingSpec::default();
@@ -181,7 +181,7 @@ fn test_lazy_binding_with_default_on_missing() {
 
 #[test]
 fn test_lazy_binding_with_default_on_null() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("task1"),
         TaskResult::success(json!(null), Duration::from_secs(1)),
@@ -202,7 +202,7 @@ fn test_lazy_binding_with_default_on_null() {
 
 #[test]
 fn test_lazy_binding_error_on_missing_no_default() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // Task never runs, no default
 
     let mut spec = BindingSpec::default();
@@ -224,7 +224,7 @@ fn test_lazy_binding_error_on_missing_no_default() {
 
 #[test]
 fn test_mixed_eager_and_lazy_bindings() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
 
     // Add output for eager binding source
     store.insert(
@@ -260,7 +260,7 @@ fn test_mixed_eager_and_lazy_bindings() {
 
 #[test]
 fn test_eager_binding_fails_on_missing() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // No tasks in store
 
     let mut spec = BindingSpec::default();
@@ -277,7 +277,7 @@ fn test_eager_binding_fails_on_missing() {
 
 #[test]
 fn test_is_lazy_returns_false_for_resolved() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     store.insert(
         Arc::from("task1"),
         TaskResult::success(json!("value"), Duration::from_secs(1)),
@@ -294,7 +294,7 @@ fn test_is_lazy_returns_false_for_resolved() {
 
 #[test]
 fn test_is_lazy_returns_true_for_pending() {
-    let store = RunContext::new();
+    let store = RunContext::new(nika::trust::InvocationSource::Test);
     // No tasks
 
     let mut spec = BindingSpec::default();

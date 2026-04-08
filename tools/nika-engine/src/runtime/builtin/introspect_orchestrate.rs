@@ -160,7 +160,7 @@ mod tests {
     #[tokio::test]
     async fn test_orchestrate_basic_stats() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
 
         // 2 tasks, 1 completed
         log.emit(EventKind::TaskScheduled {
@@ -208,7 +208,7 @@ mod tests {
     #[tokio::test]
     async fn test_orchestrate_with_round_events() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
 
         log.emit(EventKind::OrchestratorStarted {
             goal: "Research AI".to_string(),
@@ -236,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn test_orchestrate_no_orchestrator_events() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new());
+        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
 
         // Only task events, no orchestrator events
         log.emit(EventKind::TaskScheduled {

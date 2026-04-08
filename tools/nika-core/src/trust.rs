@@ -58,6 +58,11 @@ impl std::fmt::Display for TrustLevel {
 /// CLI inputs are trusted (user typed them). HTTP inputs from `nika serve`
 /// are untrusted (arbitrary clients). This is the single most important
 /// trust decision — it determines the trust floor for the entire DAG.
+///
+/// **P0-3 hardening (Sprint 2 v2):** added `Unknown` variant which fails
+/// closed (`Untrusted`) so embedded SDK consumers that forget to set the
+/// source no longer get silent fail-open behavior. Also added `NestedRun`
+/// for `nika:run` recursion ceiling propagation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvocationSource {
     /// Direct CLI invocation: inputs = Trusted.
@@ -66,6 +71,13 @@ pub enum InvocationSource {
     Serve,
     /// Test/mock execution: inputs = Trusted.
     Test,
+    /// Nested workflow via `nika:run`. Inputs inherit the caller's trust
+    /// ceiling — propagates through arbitrary nesting.
+    NestedRun { ceiling: TrustLevel },
+    /// Embedded SDK consumer with no explicit source. **Fails closed**:
+    /// inputs are treated as `Untrusted` so the entire taint system stays
+    /// engaged even when the constructor is called incorrectly.
+    Unknown,
 }
 
 impl InvocationSource {
@@ -74,7 +86,8 @@ impl InvocationSource {
     pub fn input_trust(self) -> TrustLevel {
         match self {
             Self::Cli | Self::Test => TrustLevel::Trusted,
-            Self::Serve => TrustLevel::Untrusted,
+            Self::Serve | Self::Unknown => TrustLevel::Untrusted,
+            Self::NestedRun { ceiling } => ceiling,
         }
     }
 }
@@ -85,6 +98,8 @@ impl std::fmt::Display for InvocationSource {
             Self::Cli => write!(f, "cli"),
             Self::Serve => write!(f, "serve"),
             Self::Test => write!(f, "test"),
+            Self::NestedRun { ceiling } => write!(f, "nested_run({ceiling})"),
+            Self::Unknown => write!(f, "unknown"),
         }
     }
 }
@@ -290,6 +305,26 @@ mod tests {
         assert_eq!(
             InvocationSource::Serve.input_trust(),
             TrustLevel::Untrusted
+        );
+        // P0-3: Unknown must fail closed.
+        assert_eq!(
+            InvocationSource::Unknown.input_trust(),
+            TrustLevel::Untrusted
+        );
+        // NestedRun propagates the ceiling verbatim.
+        assert_eq!(
+            InvocationSource::NestedRun {
+                ceiling: TrustLevel::Untrusted
+            }
+            .input_trust(),
+            TrustLevel::Untrusted
+        );
+        assert_eq!(
+            InvocationSource::NestedRun {
+                ceiling: TrustLevel::Trusted
+            }
+            .input_trust(),
+            TrustLevel::Trusted
         );
     }
 
@@ -515,5 +550,13 @@ mod tests {
         assert_eq!(InvocationSource::Cli.to_string(), "cli");
         assert_eq!(InvocationSource::Serve.to_string(), "serve");
         assert_eq!(InvocationSource::Test.to_string(), "test");
+        assert_eq!(InvocationSource::Unknown.to_string(), "unknown");
+        assert_eq!(
+            InvocationSource::NestedRun {
+                ceiling: TrustLevel::Untrusted
+            }
+            .to_string(),
+            "nested_run(Untrusted)"
+        );
     }
 }
