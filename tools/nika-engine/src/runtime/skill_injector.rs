@@ -134,12 +134,10 @@ impl SkillInjector {
         if let Some(expected_hash) = self.integrity_map.get(skill_path) {
             let actual_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
             if actual_hash != *expected_hash {
-                return Err(NikaError::SkillLoadError {
-                    skill: skill_path.to_string(),
-                    reason: format!(
-                        "[NIKA-271] Skill integrity mismatch: expected {}, got {}",
-                        expected_hash, actual_hash
-                    ),
+                return Err(NikaError::SkillIntegrityFailed {
+                    path: resolved_path.display().to_string(),
+                    expected: expected_hash.clone(),
+                    actual: actual_hash,
                 });
             }
             debug!(skill_path = %skill_path, hash = %actual_hash, "Skill integrity verified");
