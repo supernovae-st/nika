@@ -344,56 +344,11 @@ impl Default for PolicyConfig {
     }
 }
 
-/// Nika Shield security configuration (from `[policy.security]` in nika.toml).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct SecurityPolicyConfig {
-    /// Taint analysis mode: "warn" | "strict" | "off"
-    pub taint_mode: TaintMode,
-    /// Block exec tasks that receive untrusted data
-    pub gate_untrusted_to_exec: bool,
-    /// Require structured: for infer tasks processing untrusted data
-    pub require_structured_for_untrusted: bool,
-    /// Dangerous tools that require elevated trust for agents
-    pub dangerous_tools: Vec<String>,
-    /// Maximum DAG hops from fetch to exec before warning
-    pub max_fetch_to_exec_depth: usize,
-    /// Glob patterns for env vars to treat as untrusted
-    pub untrusted_env: Vec<String>,
-    /// Enable automatic spotlighting of untrusted data in prompts
-    pub spotlight: bool,
-}
-
-impl Default for SecurityPolicyConfig {
-    fn default() -> Self {
-        Self {
-            taint_mode: TaintMode::Warn,
-            gate_untrusted_to_exec: false,
-            require_structured_for_untrusted: false,
-            dangerous_tools: vec![
-                "nika:write".into(),
-                "nika:exec".into(),
-                "nika:edit".into(),
-                "nika:run".into(),
-            ],
-            max_fetch_to_exec_depth: 3,
-            untrusted_env: vec![],
-            spotlight: true,
-        }
-    }
-}
-
-/// Taint analysis strictness mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TaintMode {
-    /// Emit warnings (default)
-    Warn,
-    /// Taint violations are errors (non-zero exit)
-    Strict,
-    /// Disable taint analysis
-    Off,
-}
+/// Re-exports for the Nika Shield security policy (canonical home: `nika_core::policy`).
+///
+/// Lives in nika-core (L0) so both nika-engine (which enforces it) and nika-display
+/// (which renders the security summary) can read it without violating diamond layering.
+pub use nika_core::policy::{SecurityPolicyConfig, TaintMode};
 
 /// Load just the `PolicyConfig` from `nika.toml` (sync, best-effort).
 ///

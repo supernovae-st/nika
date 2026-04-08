@@ -18,14 +18,16 @@ pub use serde_saphyr as serde_yaml;
 
 pub mod ast;
 pub mod binding;
+pub mod capabilities;
 pub mod catalogs;
 pub mod error;
 pub mod error_codes;
 pub mod mcp;
+pub mod policy;
 pub mod provider_name;
-pub mod capabilities;
 pub mod schema;
 pub mod source;
 pub mod trust;
 
+pub use policy::{SecurityPolicyConfig, TaintMode};
 pub use provider_name::ProviderName;
