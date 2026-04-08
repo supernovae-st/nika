@@ -25,6 +25,8 @@ mod tests;
 #[cfg(test)]
 mod tests_extract_e2e;
 #[cfg(test)]
+mod tests_shield_agent_restrict;
+#[cfg(test)]
 mod tests_shield_canary;
 #[cfg(test)]
 mod tests_shield_spotlight;
@@ -575,6 +577,43 @@ impl TaskExecutor {
              - Value types must match (strings, numbers, arrays, objects)",
             example_str
         ))
+    }
+
+    /// Check whether any of an agent task's `with:` bindings sources
+    /// untrusted upstream data. Used by Item 3a (`AgentToolPolicy::for_task`)
+    /// to decide whether to restrict the agent's tool list.
+    ///
+    /// A binding is untrusted when EITHER:
+    ///   - it tracks a source task whose output trust is `Untrusted` /
+    ///     `ModelTainted` (datastore.get_trust)
+    ///   - it is sourced from `inputs:` and the run was invoked from a
+    ///     mode whose input_trust is untrusted (Serve / Unknown)
+    ///   - it is sourced from a `for_each` loop var and the input source
+    ///     is untrusted (conservative — Sprint 3 will refine)
+    pub(crate) fn agent_has_untrusted_inputs(
+        &self,
+        bindings: &ResolvedBindings,
+        datastore: &RunContext,
+    ) -> bool {
+        use nika_core::trust::TrustLevel;
+
+        for (alias, _value) in bindings.iter() {
+            if let Some(src) = bindings.source_task_id(alias) {
+                if datastore
+                    .get_trust(src)
+                    .is_some_and(TrustLevel::is_untrusted)
+                {
+                    return true;
+                }
+                continue;
+            }
+            if (bindings.is_input_sourced(alias) || bindings.is_loop_var_sourced(alias))
+                && datastore.invocation_source().input_trust().is_untrusted()
+            {
+                return true;
+            }
+        }
+        false
     }
 
     /// Run a task action with the given bindings

@@ -109,6 +109,66 @@ pub fn restrict_agent_tools(
     (kept, removed)
 }
 
+// ── AgentToolPolicy ─────────────────────────────────────────────────────────
+
+use std::sync::Arc;
+
+/// Decision about how to filter an agent's tool list based on input trust
+/// and `trust: elevated`. Sprint 2 R4 hardening: replaces the
+/// `(has_untrusted_inputs, trust_elevated)` boolean pair with a
+/// state-collapsed enum so the impossible "elevated AND restricted"
+/// combination is unrepresentable.
+#[derive(Debug, Clone)]
+pub enum AgentToolPolicy {
+    /// All tools kept. Used when inputs are trusted, when the task carries
+    /// `trust: elevated`, or when the dangerous-tool list is empty.
+    Unrestricted,
+    /// Filter out tools matching the dangerous list.
+    RestrictDangerous { dangerous: Arc<[String]> },
+}
+
+impl AgentToolPolicy {
+    /// Apply this policy to a tool list, returning `(kept, removed)`.
+    /// `removed` is empty for `Unrestricted`.
+    #[must_use]
+    pub fn apply_to(&self, tools: Vec<String>) -> (Vec<String>, Vec<String>) {
+        match self {
+            Self::Unrestricted => (tools, Vec::new()),
+            Self::RestrictDangerous { dangerous } => {
+                let (removed, kept): (Vec<_>, Vec<_>) = tools
+                    .into_iter()
+                    .partition(|t| dangerous.iter().any(|d| d == t));
+                (kept, removed)
+            }
+        }
+    }
+
+    /// Compute the policy for a task given its trust state. Returns
+    /// `Unrestricted` whenever ANY of the bypass conditions hold:
+    ///   - the task has no untrusted inputs
+    ///   - `trust: elevated` is set on the task
+    ///   - the dangerous list is empty (policy disabled)
+    #[must_use]
+    pub fn for_task(
+        has_untrusted_inputs: bool,
+        trust_elevated: bool,
+        dangerous: Arc<[String]>,
+    ) -> Self {
+        if !has_untrusted_inputs || trust_elevated || dangerous.is_empty() {
+            Self::Unrestricted
+        } else {
+            Self::RestrictDangerous { dangerous }
+        }
+    }
+
+    /// True if this policy actually filters anything.
+    #[inline]
+    #[must_use]
+    pub fn is_restricted(&self) -> bool {
+        matches!(self, Self::RestrictDangerous { .. })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,6 +203,71 @@ mod tests {
         let tools = vec!["nika:write".to_string(), "novanet::search".to_string()];
         let dangerous = vec!["nika:write".to_string()];
         let (kept, removed) = restrict_agent_tools(tools, false, false, &dangerous);
+        assert_eq!(kept.len(), 2);
+        assert!(removed.is_empty());
+    }
+
+    // ── AgentToolPolicy tests (Sprint 2 R4) ────────────────────────────────
+
+    #[test]
+    fn agent_tool_policy_for_task_returns_unrestricted_when_trusted() {
+        let dangerous: Arc<[String]> = Arc::from(vec!["nika:write".to_string()]);
+        let p = AgentToolPolicy::for_task(false, false, Arc::clone(&dangerous));
+        assert!(matches!(p, AgentToolPolicy::Unrestricted));
+        assert!(!p.is_restricted());
+    }
+
+    #[test]
+    fn agent_tool_policy_for_task_returns_unrestricted_when_elevated() {
+        let dangerous: Arc<[String]> = Arc::from(vec!["nika:write".to_string()]);
+        let p = AgentToolPolicy::for_task(true, true, Arc::clone(&dangerous));
+        assert!(matches!(p, AgentToolPolicy::Unrestricted));
+    }
+
+    #[test]
+    fn agent_tool_policy_for_task_returns_unrestricted_when_no_dangerous_tools() {
+        let dangerous: Arc<[String]> = Arc::from(Vec::<String>::new());
+        let p = AgentToolPolicy::for_task(true, false, Arc::clone(&dangerous));
+        assert!(matches!(p, AgentToolPolicy::Unrestricted));
+    }
+
+    #[test]
+    fn agent_tool_policy_for_task_returns_restricted_when_tainted_and_not_elevated() {
+        let dangerous: Arc<[String]> = Arc::from(vec!["nika:write".to_string()]);
+        let p = AgentToolPolicy::for_task(true, false, Arc::clone(&dangerous));
+        assert!(p.is_restricted());
+    }
+
+    #[test]
+    fn agent_tool_policy_apply_to_partitions_dangerous_tools() {
+        let dangerous: Arc<[String]> = Arc::from(vec![
+            "nika:write".to_string(),
+            "nika:exec".to_string(),
+            "nika:run".to_string(),
+        ]);
+        let policy = AgentToolPolicy::RestrictDangerous {
+            dangerous: Arc::clone(&dangerous),
+        };
+        let tools = vec![
+            "nika:write".to_string(),
+            "novanet::search".to_string(),
+            "nika:exec".to_string(),
+            "nika:read".to_string(),
+        ];
+        let (kept, removed) = policy.apply_to(tools);
+        assert_eq!(kept.len(), 2);
+        assert!(kept.contains(&"novanet::search".to_string()));
+        assert!(kept.contains(&"nika:read".to_string()));
+        assert_eq!(removed.len(), 2);
+        assert!(removed.contains(&"nika:write".to_string()));
+        assert!(removed.contains(&"nika:exec".to_string()));
+    }
+
+    #[test]
+    fn agent_tool_policy_unrestricted_apply_to_keeps_all_tools() {
+        let policy = AgentToolPolicy::Unrestricted;
+        let tools = vec!["nika:write".to_string(), "nika:exec".to_string()];
+        let (kept, removed) = policy.apply_to(tools);
         assert_eq!(kept.len(), 2);
         assert!(removed.is_empty());
     }

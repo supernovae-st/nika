@@ -90,10 +90,34 @@ impl TaskExecutor {
             None => None,
         };
 
-        // Create agent params with resolved prompt and system
+        // ── Nika Shield: agent tool restriction (Sprint 2 Item 3a) ─────────
+        // Compute the policy once at executor level, apply at agent dispatch.
+        // Replaces the (has_untrusted, elevated) boolean pair with a state-
+        // collapsed enum (R4) so the impossible "elevated AND restricted"
+        // combination is unrepresentable.
+        let task_trust_elevated = crate::runtime::builtin::run::current_task_elevated();
+        let has_untrusted = self.agent_has_untrusted_inputs(bindings, datastore);
+        let dangerous: Arc<[String]> = Arc::from(self.shield.dangerous_tools());
+        let tool_policy = nika_core::capabilities::AgentToolPolicy::for_task(
+            has_untrusted,
+            task_trust_elevated,
+            Arc::clone(&dangerous),
+        );
+        let (kept_tools, removed_tools) = tool_policy.apply_to(agent.tools.clone());
+        for removed in &removed_tools {
+            self.event_log.emit(EventKind::AgentToolRestricted {
+                task_id: Arc::clone(task_id),
+                removed_tool: removed.clone(),
+                reason: "task has untrusted inputs and is not trust: elevated".to_string(),
+            });
+        }
+
+        // Create agent params with resolved prompt, system, and the
+        // shield-filtered tool list.
         let resolved_agent = AgentParams {
             prompt: resolved_prompt,
             system: resolved_system,
+            tools: kept_tools,
             ..agent.clone()
         };
 
