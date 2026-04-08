@@ -1072,7 +1072,10 @@ impl TaskExecutor {
                 tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
             }
 
-            let (tx, _rx) = mpsc::channel::<StreamChunk>(1);
+            // Non-streaming path: provider API still requires a channel, so we
+            // spawn a drain task to avoid SendError warnings in the provider.
+            let (tx, mut rx) = mpsc::channel::<StreamChunk>(32);
+            tokio::spawn(async move { while rx.recv().await.is_some() {} });
             let call_result = if let Some(ref opts) = options {
                 provider
                     .infer_stream_with_options(&prompt, tx, opts)
@@ -1274,7 +1277,9 @@ impl TaskExecutor {
         );
 
         let rf_params = build_response_format_params(schema_value);
-        let (tx_rf, _rx_rf) = mpsc::channel::<StreamChunk>(1); // Buffer=1: receiver is unused
+        // Non-streaming structured output path: drain receiver to avoid SendError warnings
+        let (tx_rf, mut rx_rf) = mpsc::channel::<StreamChunk>(32);
+        tokio::spawn(async move { while rx_rf.recv().await.is_some() {} });
         let rf_options = InferOptions {
             model: Some(model_id.to_string()),
             temperature: infer.temperature,
