@@ -552,7 +552,7 @@ pub fn resolve_with<'a>(
 
     // SECURITY: Collect trusted context paths from ORIGINAL template (same as resolve())
     if has_context && result.contains("{{") {
-        let trusted_context: std::collections::HashSet<String> = TEMPLATE_RE
+        let trusted_context: FxHashSet<String> = TEMPLATE_RE
             .captures_iter(template)
             .filter_map(|cap| {
                 let inner = cap[1].trim();
@@ -638,7 +638,7 @@ pub fn resolve_with<'a>(
 
     // SECURITY: Collect trusted input paths from the ORIGINAL template (same as resolve())
     if has_inputs && result.contains("{{") {
-        let trusted_inputs: std::collections::HashSet<String> = TEMPLATE_RE
+        let trusted_inputs: FxHashSet<String> = TEMPLATE_RE
             .captures_iter(template)
             .filter_map(|cap| {
                 let inner = cap[1].trim();
@@ -722,7 +722,7 @@ pub fn resolve_with<'a>(
 
     // SECURITY: Collect trusted skills paths from the ORIGINAL template
     if has_skills && result.contains("{{") {
-        let trusted_skills: std::collections::HashSet<String> = TEMPLATE_RE
+        let trusted_skills: FxHashSet<String> = TEMPLATE_RE
             .captures_iter(template)
             .filter_map(|cap| {
                 let inner = cap[1].trim();
@@ -1374,7 +1374,7 @@ pub fn resolve<'a>(
     // where LLM output containing {{context.files.secret}} is substituted
     // into with: bindings and then resolved here.
     if has_context && result.contains("context.") {
-        let trusted_context: std::collections::HashSet<String> = TEMPLATE_RE
+        let trusted_context: FxHashSet<String> = TEMPLATE_RE
             .captures_iter(template)
             .filter_map(|cap| {
                 let inner = cap[1].trim();
@@ -1473,7 +1473,7 @@ pub fn resolve<'a>(
     // where LLM output containing {{inputs.secret}} is substituted via
     // with: bindings and then resolved here.
     if has_inputs && result.contains("inputs.") {
-        let trusted_inputs: std::collections::HashSet<String> = TEMPLATE_RE
+        let trusted_inputs: FxHashSet<String> = TEMPLATE_RE
             .captures_iter(template)
             .filter_map(|cap| {
                 let inner = cap[1].trim();
@@ -1560,7 +1560,7 @@ pub fn resolve<'a>(
     // Pass 4: Resolve {{skills.name}}
     // ─────────────────────────────────────────────────────────────
     if has_skills && result.contains("skills.") {
-        let trusted_skills: std::collections::HashSet<String> = TEMPLATE_RE
+        let trusted_skills: FxHashSet<String> = TEMPLATE_RE
             .captures_iter(template)
             .filter_map(|cap| {
                 let inner = cap[1].trim();
