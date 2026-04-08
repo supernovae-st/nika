@@ -1702,6 +1702,39 @@ fn test_get_rig_provider_empty_name() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// GET_DYN_PROVIDER — Constellation Phase 11 keystone
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_get_dyn_provider_mock_returns_trait_object() {
+    use nika_kernel::provider::Provider;
+
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let dyn_provider = executor.get_dyn_provider("mock").unwrap();
+
+    // Prove the trait object is callable via the kernel trait
+    assert_eq!(Provider::name(dyn_provider.as_ref()), "mock");
+    let caps = Provider::capabilities(dyn_provider.as_ref(), "any-model");
+    assert!(caps.is_some(), "capabilities should return Some for mock");
+}
+
+#[test]
+fn test_get_dyn_provider_unknown_provider_errors() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
+    let result = executor.get_dyn_provider("nonexistent_provider");
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_dyn_provider_is_send_sync() {
+    // Compile-time assertion: Arc<dyn Provider> returned by get_dyn_provider
+    // must be Send + Sync so it can cross .await points and be shared between
+    // spawned tasks. This is the core requirement for Phase 12+ verb crates.
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<std::sync::Arc<dyn nika_kernel::provider::Provider>>();
+}
+
+// ═══════════════════════════════════════════════════════════════
 // RUN_INFER MOCK PROVIDER TESTS
 // ═══════════════════════════════════════════════════════════════
 

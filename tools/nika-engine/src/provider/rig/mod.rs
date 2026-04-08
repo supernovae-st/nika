@@ -317,6 +317,12 @@ macro_rules! dispatch_rig {
 mod construction;
 /// Non-streaming inference (infer, vision, tools, options) + capability checks
 mod inference;
+/// Bridge: `impl nika_kernel::provider::Provider for RigProvider`
+///
+/// Constellation Phase 11 keystone. Wraps this 9-variant enum in the
+/// kernel's unified Provider trait so downstream code can take
+/// `Arc<dyn Provider>` instead of `RigProvider` directly.
+mod kernel_bridge;
 /// Streaming inference (text, vision, with options)
 mod provider_streaming;
 

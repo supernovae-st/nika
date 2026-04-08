@@ -6013,6 +6013,7 @@ dependencies = [
  "nika-daemon",
  "nika-display",
  "nika-event",
+ "nika-kernel",
  "nika-lsp-core",
  "nika-mcp",
  "nika-media",
@@ -6083,6 +6084,7 @@ dependencies = [
  "nika-kernel",
  "tokio",
  "tracing",
+ "unicode-normalization",
 ]
 
 [[package]]

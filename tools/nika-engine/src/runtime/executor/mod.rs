@@ -873,6 +873,33 @@ impl TaskExecutor {
         }
     }
 
+    /// Get a cached provider as an `Arc<dyn Provider>` (kernel trait object).
+    ///
+    /// **Constellation Phase 11 — the keystone method.** Exposes the kernel
+    /// `Provider` trait to downstream code that doesn't need rig-specific
+    /// methods (vision, tool-injection, thinking). Used by the verb crates
+    /// extracted in Phase 12+ so they depend only on `nika-kernel`, not on
+    /// `nika-engine::provider::rig`.
+    ///
+    /// Internally, this looks up the concrete [`RigProvider`] via
+    /// [`Self::get_rig_provider`] and coerces the owned value into a trait
+    /// object. The kernel trait impl lives in `provider::rig::kernel_bridge`.
+    ///
+    /// # Connect, don't delete
+    ///
+    /// This does NOT replace `get_rig_provider`. Existing call sites continue
+    /// to use the concrete enum for rig-specific features (structured output
+    /// tool injection, vision via `infer_vision`, thinking capability probes).
+    /// Full cutover happens in Phase 12 when those features migrate into the
+    /// trait surface.
+    pub fn get_dyn_provider(
+        &self,
+        name: &str,
+    ) -> Result<std::sync::Arc<dyn nika_kernel::provider::Provider>, NikaError> {
+        let rig = self.get_rig_provider(name)?;
+        Ok(Arc::new(rig))
+    }
+
     /// Get the default provider name.
     pub fn default_provider(&self) -> &str {
         &self.default_provider
