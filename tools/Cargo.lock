@@ -6016,6 +6016,7 @@ dependencies = [
  "nika-event",
  "nika-kernel",
  "nika-lsp-core",
+ "nika-macros",
  "nika-mcp",
  "nika-media",
  "nika-vault",

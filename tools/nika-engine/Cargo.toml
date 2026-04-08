@@ -44,6 +44,7 @@ fetch-extract = ["fetch-html", "fetch-markdown"]
 # Core crates
 nika-core = { workspace = true }
 nika-kernel = { workspace = true }
+nika-macros = { workspace = true }
 nika-display = { workspace = true }
 nika-event = { workspace = true }
 nika-mcp = { workspace = true }

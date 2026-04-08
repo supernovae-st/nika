@@ -89,12 +89,13 @@ pub trait FixSuggestion {
 ///
 /// Implements both `thiserror::Error` for std error compatibility
 /// and `miette::Diagnostic` for fancy terminal error display.
-#[derive(Error, Debug, Diagnostic)]
+#[derive(Error, Debug, Diagnostic, nika_macros::NikaErrorCode)]
 #[diagnostic(url(docsrs))]
 pub enum NikaError {
     // ═══════════════════════════════════════════
     // WORKFLOW ERRORS (000-009)
     // ═══════════════════════════════════════════
+    #[nika_code("NIKA-001")]
     #[error("[NIKA-001] Failed to parse workflow: {details}")]
     #[diagnostic(
         code(nika::parse_error),
@@ -107,10 +108,12 @@ pub enum NikaError {
         code(nika::invalid_schema_version),
         help("Use 'nika/workflow@0.12' as the schema version")
     )]
+    #[nika_code("NIKA-002")]
     InvalidSchemaVersion { version: String },
 
     #[error("[NIKA-003] Workflow file not found: {path}")]
     #[diagnostic(code(nika::workflow_not_found), help("Check the file path exists"))]
+    #[nika_code("NIKA-003")]
     WorkflowNotFound { path: String },
 
     #[error("[NIKA-004] Workflow validation failed: {reason}")]
@@ -118,6 +121,7 @@ pub enum NikaError {
         code(nika::validation_error),
         help("Check workflow structure matches schema")
     )]
+    #[nika_code("NIKA-004")]
     ValidationError { reason: String },
 
     #[error("[NIKA-005] Schema validation failed: {}", format_schema_errors(.errors))]
@@ -125,6 +129,7 @@ pub enum NikaError {
         code(nika::schema_validation_failed),
         help("Check YAML against schemas/nika-workflow.schema.json")
     )]
+    #[nika_code("NIKA-005")]
     SchemaValidationFailed {
         errors: Vec<crate::ast::schema_validator::SchemaError>,
     },
@@ -134,6 +139,7 @@ pub enum NikaError {
         code(nika::home_directory_not_found),
         help("Set the NIKA_HOME environment variable to specify the Nika home directory")
     )]
+    #[nika_code("NIKA-006")]
     HomeDirectoryNotFound,
 
     // ═══════════════════════════════════════════
@@ -144,6 +150,7 @@ pub enum NikaError {
         code(nika::schema_file_not_found),
         help("Ensure the schema file exists relative to the workflow file")
     )]
+    #[nika_code("NIKA-013")]
     SchemaFileNotFound { task_id: String, path: String },
 
     #[error("[NIKA-014] Invalid JSON in schema file for task '{task_id}': {path}: {reason}")]
@@ -151,6 +158,7 @@ pub enum NikaError {
         code(nika::schema_file_invalid),
         help("Ensure the schema file contains valid JSON")
     )]
+    #[nika_code("NIKA-014")]
     SchemaFileInvalid {
         task_id: String,
         path: String,
@@ -161,9 +169,11 @@ pub enum NikaError {
     // DAG ERRORS (020-029)
     // ═══════════════════════════════════════════
     #[error("[NIKA-020] Cycle detected in DAG: {cycle}")]
+    #[nika_code("NIKA-020")]
     CycleDetected { cycle: String },
 
     #[error("[NIKA-021] Missing dependency: task '{task_id}' depends on unknown '{dep_id}'")]
+    #[nika_code("NIKA-021")]
     MissingDependency { task_id: String, dep_id: String },
 
     #[error("[NIKA-022] Duplicate task ID: '{task_id}' appears multiple times in workflow")]
@@ -171,6 +181,7 @@ pub enum NikaError {
         code(nika::duplicate_task_id),
         help("Each task must have a unique ID. Rename one of the duplicate tasks.")
     )]
+    #[nika_code("NIKA-022")]
     DuplicateTaskId { task_id: String },
 
     #[error("[NIKA-026] Dependency chain failed: {count} task(s) blocked by failed dependencies")]
@@ -178,6 +189,7 @@ pub enum NikaError {
         code(nika::dependency_chain_failed),
         help("One or more upstream tasks failed, blocking downstream tasks. Fix the failing tasks first.")
     )]
+    #[nika_code("NIKA-026")]
     DependencyChainFailed {
         /// Number of tasks blocked
         count: usize,
@@ -192,6 +204,7 @@ pub enum NikaError {
         code(nika::task_cancelled),
         help("Another task in the for_each batch failed with fail_fast=true, causing remaining tasks to be cancelled.")
     )]
+    #[nika_code("NIKA-027")]
     TaskCancelled { task_id: String, reason: String },
 
     #[error("[NIKA-028] Semaphore closed unexpectedly for task '{task_id}'")]
@@ -199,6 +212,7 @@ pub enum NikaError {
         code(nika::semaphore_closed),
         help("The concurrency semaphore was closed before the task could acquire a permit. This is an internal error.")
     )]
+    #[nika_code("NIKA-028")]
     SemaphoreClosed { task_id: String },
 
     // ═══════════════════════════════════════════
@@ -209,6 +223,7 @@ pub enum NikaError {
         code(nika::provider_not_configured),
         help("Run: nika provider list — to see available providers and their setup status")
     )]
+    #[nika_code("NIKA-030")]
     ProviderNotConfigured { provider: String },
 
     #[error("[NIKA-031] Provider API error: {message}")]
@@ -216,6 +231,7 @@ pub enum NikaError {
         code(nika::provider_api_error),
         help("Check your API key and network connection. Run: nika provider test <provider>")
     )]
+    #[nika_code("NIKA-031")]
     ProviderApiError { message: String },
 
     #[error("[NIKA-032] Missing API key for provider '{provider}'")]
@@ -225,9 +241,11 @@ pub enum NikaError {
             "Set it now:   nika keys set {provider} <your-key>\n  Or run:       nika setup   (interactive wizard)\n\n  Run:          nika provider list   to see required env vars for each provider"
         )
     )]
+    #[nika_code("NIKA-032")]
     MissingApiKey { provider: String },
 
     #[error("[NIKA-033] Invalid configuration: {message}")]
+    #[nika_code("NIKA-033")]
     InvalidConfig { message: String },
 
     #[error("[NIKA-035] Custom endpoint '{name}' not found in config -- add it to [endpoints.{name}] in ~/.config/nika/config.toml")]
@@ -235,6 +253,7 @@ pub enum NikaError {
         code(nika::endpoint_not_found),
         help("Add endpoint to config: nika config edit, or use a known provider name")
     )]
+    #[nika_code("NIKA-035")]
     EndpointNotFound { name: String },
 
     #[error("[NIKA-036] Cannot connect to custom endpoint '{endpoint}': {reason}")]
@@ -242,6 +261,7 @@ pub enum NikaError {
         code(nika::endpoint_connection_failed),
         help("Check that the endpoint URL is reachable and the API key is correct")
     )]
+    #[nika_code("NIKA-036")]
     EndpointConnectionFailed { endpoint: String, reason: String },
 
     /// All providers in the fallback chain failed.
@@ -250,6 +270,7 @@ pub enum NikaError {
         code(nika::fallback_chain_exhausted),
         help("Check that at least one provider in the fallback chain is available and working")
     )]
+    #[nika_code("NIKA-037")]
     FallbackChainExhausted {
         providers: String,
         last_error: String,
@@ -260,6 +281,7 @@ pub enum NikaError {
         "[NIKA-038] Workflow timed out after {duration_secs}s ({} tasks still running)",
         running_tasks.len()
     )]
+    #[nika_code("NIKA-038")]
     WorkflowTimeout {
         duration_secs: u64,
         running_tasks: Vec<String>,
@@ -270,9 +292,11 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     /// Simple execution error (catch-all for genuinely misc errors)
     #[error("[NIKA-096] Execution error: {0}")]
+    #[nika_code("NIKA-096")]
     Execution(String),
 
     #[error("[NIKA-041] Template error in '{template}': {reason}")]
+    #[nika_code("NIKA-041")]
     TemplateError { template: String, reason: String },
 
     /// [NIKA-044] Exec verb command error (spawn, cwd, shell)
@@ -281,6 +305,7 @@ pub enum NikaError {
         code(nika::exec_error),
         help("Check the command, working directory, and shell configuration")
     )]
+    #[nika_code("NIKA-044")]
     ExecError { reason: String },
 
     /// [NIKA-045] Fetch verb HTTP error (request, response, URL)
@@ -289,6 +314,7 @@ pub enum NikaError {
         code(nika::fetch_error),
         help("Check the URL, network connectivity, and response size limits")
     )]
+    #[nika_code("NIKA-045")]
     FetchError { reason: String },
 
     /// [NIKA-046] Fetch extract mode error (readability, feed, CSS, markdown)
@@ -297,6 +323,7 @@ pub enum NikaError {
         code(nika::extract_error),
         help("Check extract mode, selector syntax, and required features")
     )]
+    #[nika_code("NIKA-046")]
     ExtractError { reason: String },
 
     /// [NIKA-047] Invoke parameter serialization error
@@ -305,6 +332,7 @@ pub enum NikaError {
         code(nika::invoke_param_error),
         help("Check invoke params are valid JSON and template bindings resolve correctly")
     )]
+    #[nika_code("NIKA-047")]
     InvokeParamError { reason: String },
 
     /// [NIKA-097] Workflow cancelled by user
@@ -313,6 +341,7 @@ pub enum NikaError {
         code(nika::workflow_cancelled),
         help("The workflow was cancelled by user request or external signal")
     )]
+    #[nika_code("NIKA-097")]
     WorkflowCancelled { phase: String },
 
     /// [NIKA-098] Task panicked during execution
@@ -321,12 +350,15 @@ pub enum NikaError {
         code(nika::task_panicked),
         help("A task thread panicked unexpectedly. Check for bugs in task logic.")
     )]
+    #[nika_code("NIKA-098")]
     TaskPanicked { reason: String },
 
     #[error("[NIKA-042] Binding '{alias}' not found")]
+    #[nika_code("NIKA-042")]
     BindingNotFound { alias: String },
 
     #[error("[NIKA-043] Binding type mismatch at '{path}': expected {expected}, got {actual}")]
+    #[nika_code("NIKA-043")]
     BindingTypeMismatch {
         expected: String,
         actual: String,
@@ -337,9 +369,11 @@ pub enum NikaError {
     // PATH/TASK ERRORS (050-059)
     // ═══════════════════════════════════════════
     #[error("[NIKA-050] Invalid path syntax: {path}")]
+    #[nika_code("NIKA-050")]
     InvalidPath { path: String },
 
     #[error("[NIKA-052] Path '{path}' not found (task may not have JSON output)")]
+    #[nika_code("NIKA-052")]
     PathNotFound { path: String },
 
     #[error("[NIKA-053] Command blocked: '{command}' - {reason}")]
@@ -347,30 +381,37 @@ pub enum NikaError {
         code(nika::blocked_command),
         help("Use shell: true to opt-in to shell execution, or use a different command")
     )]
+    #[nika_code("NIKA-053")]
     BlockedCommand { command: String, reason: String },
 
     #[error("[NIKA-055] Invalid task ID '{id}': {reason}")]
+    #[nika_code("NIKA-055")]
     InvalidTaskId { id: String, reason: String },
 
     #[error("[NIKA-056] Invalid default value '{raw}': {reason}")]
+    #[nika_code("NIKA-056")]
     InvalidDefault { raw: String, reason: String },
 
     // ═══════════════════════════════════════════
     // OUTPUT ERRORS (060-069)
     // ═══════════════════════════════════════════
     #[error("[NIKA-060] Invalid JSON output: {details}")]
+    #[nika_code("NIKA-060")]
     InvalidJson { details: String },
 
     #[error("[NIKA-061] Schema validation failed: {details}")]
+    #[nika_code("NIKA-061")]
     SchemaFailed { details: String },
 
     #[error("[NIKA-062] Serialization error: {details}")]
+    #[nika_code("NIKA-062")]
     SerializationError { details: String },
 
     // ═══════════════════════════════════════════
     // BINDING VALIDATION (070-079)
     // ═══════════════════════════════════════════
     #[error("[NIKA-071] Unknown alias '{{{{with.{alias}}}}}' in task '{task_id}' — not declared in with: block{}", suggestion.as_ref().map(|s| format!(". Did you mean '{s}'?")).unwrap_or_default())]
+    #[nika_code("NIKA-071")]
     UnknownAlias {
         alias: String,
         task_id: String,
@@ -378,9 +419,11 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-072] Null value at path '{path}' (strict mode)")]
+    #[nika_code("NIKA-072")]
     NullValue { path: String, alias: String },
 
     #[error("[NIKA-075] Vault access failed for $vault.{service}.{field}: {reason}")]
+    #[nika_code("NIKA-075")]
     VaultAccess {
         service: String,
         field: String,
@@ -388,6 +431,7 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-073] Cannot traverse '{segment}' on {value_type} (expected object/array)")]
+    #[nika_code("NIKA-073")]
     InvalidTraversal {
         segment: String,
         value_type: String,
@@ -395,12 +439,14 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-074] Template parse error at position {position}: {details}")]
+    #[nika_code("NIKA-074")]
     TemplateParse { position: usize, details: String },
 
     // ═══════════════════════════════════════════
     // DAG VALIDATION (080-089)
     // ═══════════════════════════════════════════
     #[error("[NIKA-080] with.{alias} references unknown task '{from_task}'{}", suggestion.as_ref().map(|s| format!(". Did you mean '{s}'?")).unwrap_or_default())]
+    #[nika_code("NIKA-080")]
     WithUnknownTask {
         alias: String,
         from_task: String,
@@ -409,6 +455,7 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-081] with.{alias}='{from_task}' is not upstream of task '{task_id}'")]
+    #[nika_code("NIKA-081")]
     WithNotUpstream {
         alias: String,
         from_task: String,
@@ -416,6 +463,7 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-082] with.{alias}='{from_task}' creates circular dependency with '{task_id}'")]
+    #[nika_code("NIKA-082")]
     WithCircularDep {
         alias: String,
         from_task: String,
@@ -431,15 +479,19 @@ pub enum NikaError {
         code(nika::runtime_deadlock),
         help("Check for circular dependencies or unresolvable task graph structures")
     )]
+    #[nika_code("NIKA-083")]
     RuntimeDeadlock { details: String },
 
     #[error("[NIKA-090] JSONPath '{path}' uses unsupported syntax (use simple paths like $.a.b or $.a[0].b)")]
+    #[nika_code("NIKA-090")]
     JsonPathUnsupported { path: String },
 
     #[error("[NIKA-093] IO error: {0}")]
+    #[nika_code("NIKA-093")]
     IoError(#[from] std::io::Error),
 
     #[error("[NIKA-094] JSON error: {0}")]
+    #[nika_code("NIKA-094")]
     JsonError(#[from] serde_json::Error),
 
     #[error("[NIKA-095] YAML parse error: {0}")]
@@ -449,6 +501,7 @@ pub enum NikaError {
             "Check YAML syntax: indentation must be consistent, strings with special chars need quoting"
         )
     )]
+    #[nika_code("NIKA-095")]
     YamlParse(#[from] serde_yaml::Error),
 
     // ═══════════════════════════════════════════
@@ -459,6 +512,7 @@ pub enum NikaError {
         code(nika::mcp_not_connected),
         help("Check MCP server is running and configured correctly")
     )]
+    #[nika_code("NIKA-100")]
     McpNotConnected { name: String },
 
     #[error("[NIKA-101] MCP server '{name}' failed to start: {reason}")]
@@ -466,6 +520,7 @@ pub enum NikaError {
         code(nika::mcp_start_error),
         help("Check MCP command and args in workflow config")
     )]
+    #[nika_code("NIKA-101")]
     McpStartError { name: String, reason: String },
 
     #[error("[NIKA-102] MCP tool '{tool}' call failed{}: {reason}", error_code.map(|c| format!(" ({})", c)).unwrap_or_default())]
@@ -473,6 +528,7 @@ pub enum NikaError {
         code(nika::mcp_tool_error),
         help("Check tool parameters and MCP server logs")
     )]
+    #[nika_code("NIKA-102")]
     McpToolError {
         tool: String,
         reason: String,
@@ -481,18 +537,23 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-103] MCP resource '{uri}' not found")]
+    #[nika_code("NIKA-103")]
     McpResourceNotFound { uri: String },
 
     #[error("[NIKA-104] MCP protocol error: {reason}")]
+    #[nika_code("NIKA-104")]
     McpProtocolError { reason: String },
 
     #[error("[NIKA-105] MCP server '{name}' not configured in workflow")]
+    #[nika_code("NIKA-105")]
     McpNotConfigured { name: String },
 
     #[error("[NIKA-106] MCP tool '{tool}' returned invalid response: {reason}")]
+    #[nika_code("NIKA-106")]
     McpInvalidResponse { tool: String, reason: String },
 
     #[error("[NIKA-107] MCP parameter validation failed for '{tool}': {details}")]
+    #[nika_code("NIKA-107")]
     McpValidationFailed {
         tool: String,
         details: String,
@@ -503,11 +564,13 @@ pub enum NikaError {
     },
 
     #[error("[NIKA-108] MCP schema error for '{tool}': {reason}")]
+    #[nika_code("NIKA-108")]
     McpSchemaError { tool: String, reason: String },
 
     #[error(
         "[NIKA-109] MCP operation timed out for '{name}' ({operation}): exceeded {timeout_secs}s"
     )]
+    #[nika_code("NIKA-109")]
     McpTimeout {
         name: String,
         operation: String,
@@ -518,21 +581,26 @@ pub enum NikaError {
     // AGENT ERRORS (110-119)
     // ═══════════════════════════════════════════
     #[error("[NIKA-113] Agent validation failed: {reason}")]
+    #[nika_code("NIKA-113")]
     AgentValidationError { reason: String },
 
     #[error("[NIKA-115] Agent execution failed for task '{task_id}': {reason}")]
+    #[nika_code("NIKA-115")]
     AgentExecutionError { task_id: String, reason: String },
 
     #[error("[NIKA-116] Extended thinking capture failed: {reason}")]
+    #[nika_code("NIKA-116")]
     ThinkingCaptureFailed { reason: String },
 
     #[error("[NIKA-112] Guardrail violation in task '{task_id}': {}", violations.join(", "))]
+    #[nika_code("NIKA-112")]
     GuardrailViolation {
         task_id: String,
         violations: Vec<String>,
     },
 
     #[error("[NIKA-114] Agent limit exceeded: {limit_type} ({current} >= {maximum})")]
+    #[nika_code("NIKA-114")]
     AgentLimitExceeded {
         limit_type: String,
         current: f64,
@@ -543,15 +611,18 @@ pub enum NikaError {
     // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
+    #[nika_code("NIKA-121")]
     Timeout { operation: String, duration_ms: u64 },
 
     #[error("[NIKA-110] MCP tool call '{tool}' failed: {reason}")]
+    #[nika_code("NIKA-110")]
     McpToolCallFailed { tool: String, reason: String },
 
     // ═══════════════════════════════════════════
     // TUI ERRORS (130-139)
     // ═══════════════════════════════════════════
     #[error("[NIKA-130] TUI error: {reason}")]
+    #[nika_code("NIKA-130")]
     TuiError { reason: String },
 
     // ═══════════════════════════════════════════
@@ -559,6 +630,7 @@ pub enum NikaError {
     // Note: NIKA-140-149 is reserved for AST analyzer errors (see ast/analyzer/errors.rs)
     // ═══════════════════════════════════════════
     #[error("[NIKA-135] Config error: {reason}")]
+    #[nika_code("NIKA-135")]
     ConfigError { reason: String },
 
     // ═══════════════════════════════════════════
@@ -570,6 +642,7 @@ pub enum NikaError {
         code(nika::policy_violation),
         help("Check nika.toml [policy] section or use --allow flag")
     )]
+    #[nika_code("NIKA-165")]
     PolicyViolation { reason: String },
 
     #[error("[NIKA-166] Boot sequence failed in phase '{phase}': {reason}")]
@@ -577,9 +650,11 @@ pub enum NikaError {
         code(nika::boot_failed),
         help("Run 'nika doctor' to diagnose boot issues")
     )]
+    #[nika_code("NIKA-166")]
     BootFailed { phase: String, reason: String },
 
     #[error("[NIKA-167] Startup verification failed in '{phase}': {reason}")]
+    #[nika_code("NIKA-167")]
     StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
@@ -592,12 +667,14 @@ pub enum NikaError {
         code(nika::decompose_timeout),
         help("The decompose operation took too long. Consider reducing max_depth or max_items, or check MCP server performance.")
     )]
+    #[nika_code("NIKA-171")]
     DecomposeTimeout { task_id: String, timeout_secs: u64 },
 
     // ═══════════════════════════════════════════
     // TOOL ERRORS (200-209)
     // ═══════════════════════════════════════════
     #[error("[{code}] {message}")]
+    #[nika_code("NIKA-200")]
     ToolError { code: String, message: String },
 
     // ═══════════════════════════════════════════
@@ -608,6 +685,7 @@ pub enum NikaError {
         code(nika::builtin_tool_error),
         help("Check builtin tool parameters and configuration")
     )]
+    #[nika_code("NIKA-210")]
     BuiltinToolError { tool: String, reason: String },
 
     #[error("[NIKA-212] Builtin tool '{tool}' invalid parameters: {reason}")]
@@ -615,10 +693,12 @@ pub enum NikaError {
         code(nika::builtin_invalid_params),
         help("Check the parameter format matches the expected JSON schema")
     )]
+    #[nika_code("NIKA-212")]
     BuiltinInvalidParams { tool: String, reason: String },
 
     #[error("[NIKA-213] Assertion failed in nika:assert: {message}")]
     #[diagnostic(code(nika::assertion_failed), help("The condition evaluated to false"))]
+    #[nika_code("NIKA-213")]
     AssertionFailed { message: String, condition: String },
 
     // ═══════════════════════════════════════════
@@ -629,6 +709,7 @@ pub enum NikaError {
         code(nika::context_load_error),
         help("Check the file path exists and is readable")
     )]
+    #[nika_code("NIKA-250")]
     ContextLoadError {
         alias: String,
         path: String,
@@ -641,6 +722,7 @@ pub enum NikaError {
     /// Media pipeline error (NIKA-251..259)
     /// Note: miette diagnostic codes are forwarded via MediaError's own Diagnostic derive.
     #[error(transparent)]
+    #[nika_code(delegate)]
     MediaError(#[from] crate::media::error::MediaError),
 
     // ═══════════════════════════════════════════
@@ -651,6 +733,7 @@ pub enum NikaError {
         code(nika::invalid_pkg_uri),
         help("Format: pkg:@scope/name@version/path or pkg:@scope/name/path")
     )]
+    #[nika_code("NIKA-260")]
     InvalidPkgUri { uri: String, reason: String },
 
     #[error("[NIKA-261] Package '{name}@{version}' not found in registry")]
@@ -658,6 +741,7 @@ pub enum NikaError {
         code(nika::package_not_found),
         help("Install the package with: nika pkg install {name}@{version}")
     )]
+    #[nika_code("NIKA-261")]
     PackageNotFound { name: String, version: String },
 
     // ═══════════════════════════════════════════
@@ -668,6 +752,7 @@ pub enum NikaError {
         code(nika::skill_load_error),
         help("Ensure skill file exists and is readable. Check pkg: URI format if using packages.")
     )]
+    #[nika_code("NIKA-270")]
     SkillLoadError { skill: String, reason: String },
 
     // ═══════════════════════════════════════════
@@ -678,6 +763,7 @@ pub enum NikaError {
         code(nika::artifact_path_error),
         help("Check the artifact path is within the workflow directory and does not contain path traversal patterns")
     )]
+    #[nika_code("NIKA-280")]
     ArtifactPathError { path: String, reason: String },
 
     #[error("[NIKA-281] Artifact write failed for '{path}': {reason}")]
@@ -685,6 +771,7 @@ pub enum NikaError {
         code(nika::artifact_write_error),
         help("Check file permissions and disk space")
     )]
+    #[nika_code("NIKA-281")]
     ArtifactWriteError { path: String, reason: String },
 
     #[error("[NIKA-282] Artifact size exceeds limit: {size} bytes > {max_size} bytes")]
@@ -692,6 +779,7 @@ pub enum NikaError {
         code(nika::artifact_size_exceeded),
         help("Increase artifacts.max_size in workflow or reduce output size")
     )]
+    #[nika_code("NIKA-282")]
     ArtifactSizeExceeded {
         path: String,
         size: u64,
@@ -703,6 +791,7 @@ pub enum NikaError {
         code(nika::media_store_locked),
         help("A workflow is currently running. Use --force to override or wait for completion")
     )]
+    #[nika_code("NIKA-285")]
     MediaStoreLocked { reason: String },
 
     // ═══════════════════════════════════════════
@@ -715,6 +804,7 @@ pub enum NikaError {
         code(nika::structured_output_extraction_failed),
         help("Check the LLM response format matches the expected JSON Schema")
     )]
+    #[nika_code("NIKA-300")]
     StructuredOutputExtractionFailed {
         task_id: String,
         layer: String,
@@ -726,6 +816,7 @@ pub enum NikaError {
         code(nika::structured_output_validation_failed),
         help("Fix JSON output to match the declared schema")
     )]
+    #[nika_code("NIKA-301")]
     StructuredOutputValidationFailed {
         task_id: String,
         layer: String,
@@ -738,6 +829,7 @@ pub enum NikaError {
         code(nika::structured_output_repair_failed),
         help("The LLM could not repair the output. Consider simplifying the schema or providing more context.")
     )]
+    #[nika_code("NIKA-302")]
     StructuredOutputRepairFailed {
         task_id: String,
         original_errors: Vec<String>,
@@ -749,6 +841,7 @@ pub enum NikaError {
         code(nika::structured_output_all_layers_failed),
         help("All layers exhausted (L0: response_format/tool_injection, L2: validate, L3: retry, L4: repair). Suggestions: simplify the schema, add 'required' fields, increase max_retries, or provide clearer prompt context.")
     )]
+    #[nika_code("NIKA-303")]
     StructuredOutputAllLayersFailed {
         task_id: String,
         attempts: u32,
@@ -763,6 +856,7 @@ pub enum NikaError {
         code(nika::course_not_found),
         help("Run `nika init --course` to create a course")
     )]
+    #[nika_code("NIKA-310")]
     CourseNotFound { path: String },
 
     #[error("[NIKA-311] Course exercise check failed for '{exercise}': {reason}")]
@@ -770,6 +864,7 @@ pub enum NikaError {
         code(nika::course_check_failed),
         help("Review the exercise instructions and fix your workflow")
     )]
+    #[nika_code("NIKA-311")]
     CourseCheckFailed { exercise: String, reason: String },
 
     #[error("[NIKA-312] Course level '{level}' is locked (complete level {prerequisite} first)")]
@@ -777,6 +872,7 @@ pub enum NikaError {
         code(nika::course_level_locked),
         help("Complete all exercises in the prerequisite level before unlocking this one")
     )]
+    #[nika_code("NIKA-312")]
     CourseLevelLocked { level: String, prerequisite: u8 },
 
     #[error("[NIKA-313] Course progress corrupted: {reason}")]
@@ -784,6 +880,7 @@ pub enum NikaError {
         code(nika::course_progress_corrupted),
         help("Delete .nika/course-progress.json and restart the course")
     )]
+    #[nika_code("NIKA-313")]
     CourseProgressCorrupted { reason: String },
 
     #[error("[NIKA-314] Course watch error: {reason}")]
@@ -791,6 +888,7 @@ pub enum NikaError {
         code(nika::course_watch_error),
         help("Check file permissions and that the course directory exists")
     )]
+    #[nika_code("NIKA-314")]
     CourseWatchError { reason: String },
 
     // ── Record compression (NIKA-320-324) ────────────────────────
@@ -799,6 +897,7 @@ pub enum NikaError {
         code(nika::record_compression_failed),
         help("Compression is non-fatal — output was truncated instead")
     )]
+    #[nika_code("NIKA-320")]
     RecordCompressionFailed { task_id: String, reason: String },
 
     #[error("[NIKA-321] Record compression returned invalid JSON for task '{task_id}': {reason}")]
@@ -806,6 +905,7 @@ pub enum NikaError {
         code(nika::record_invalid_json),
         help("Ensure the compression model returns valid JSON")
     )]
+    #[nika_code("NIKA-321")]
     RecordInvalidJson { task_id: String, reason: String },
 
     #[error("[NIKA-322] Record confidence {confidence:.2} below threshold {threshold:.2} for task '{task_id}'")]
@@ -813,6 +913,7 @@ pub enum NikaError {
         code(nika::record_low_confidence),
         help("Lower the confidence_threshold or use a more capable compression model")
     )]
+    #[nika_code("NIKA-322")]
     RecordLowConfidence {
         task_id: String,
         confidence: f64,
@@ -824,6 +925,7 @@ pub enum NikaError {
         code(nika::record_tokens_exceeded),
         help("Increase max_tokens in the record: spec or use a shorter prompt")
     )]
+    #[nika_code("NIKA-323")]
     RecordTokensExceeded {
         task_id: String,
         tokens: u64,
@@ -835,6 +937,7 @@ pub enum NikaError {
         code(nika::record_no_provider),
         help("Add a 'summary' agent to the agents: block or configure a default provider")
     )]
+    #[nika_code("NIKA-324")]
     RecordNoProvider { task_id: String },
 
     // ═══════════════════════════════════════════
@@ -845,6 +948,7 @@ pub enum NikaError {
         code(nika::skill_integrity_failed),
         help("The skill file's blake3 hash does not match the recorded value. Either the file was modified or the manifest is stale.")
     )]
+    #[nika_code("NIKA-271")]
     SkillIntegrityFailed {
         path: String,
         expected: String,
@@ -856,6 +960,7 @@ pub enum NikaError {
         code(nika::capability_denied),
         help("Add `trust: elevated` to the task if you trust the source, or remove the dangerous tool from `policy.security.dangerous_tools`.")
     )]
+    #[nika_code("NIKA-380")]
     CapabilityDenied {
         task_id: String,
         action: String,
@@ -867,6 +972,7 @@ pub enum NikaError {
         code(nika::trust_violation),
         help("In strict mode, this task's trust level violates a security invariant.")
     )]
+    #[nika_code("NIKA-381")]
     TrustViolation {
         task_id: String,
         actual: String,
@@ -878,6 +984,7 @@ pub enum NikaError {
         code(nika::canary_leaked),
         help("The LLM output contained a canary token, indicating likely prompt injection or system prompt exfiltration. Inspect .nika/traces/ for the full event chain.")
     )]
+    #[nika_code("NIKA-382")]
     CanaryLeaked {
         task_id: String,
         match_type: &'static str,
@@ -891,6 +998,7 @@ pub enum NikaError {
         code(nika::injection_detected),
         help("The output scanner or ML detector flagged this content. Disable via `policy.security.scanner_action = warn` or sanitize the input.")
     )]
+    #[nika_code("NIKA-383")]
     InjectionDetected {
         task_id: String,
         category: String,
@@ -904,6 +1012,7 @@ pub enum NikaError {
         code(nika::spotlight_required),
         help("Either enable `policy.security.spotlight = true` (default) or set `trust: elevated` if you trust the source.")
     )]
+    #[nika_code("NIKA-384")]
     SpotlightRequired { task_id: String },
 
     #[error("[NIKA-385] ML model missing for task '{task_id}': {model_name}")]
@@ -913,6 +1022,7 @@ pub enum NikaError {
             "Run `nika shield download-model` to fetch the model, or disable `shield-ml` feature."
         )
     )]
+    #[nika_code("NIKA-385")]
     MlModelMissing { task_id: String, model_name: String },
 
     #[error("[NIKA-386] Workflow recursion depth exceeded: {depth} (max: {max})")]
@@ -920,6 +1030,7 @@ pub enum NikaError {
         code(nika::run_depth_exceeded),
         help("Increase `policy.security.max_run_depth` or refactor the workflow to avoid deep nesting.")
     )]
+    #[nika_code("NIKA-386")]
     RunDepthExceeded { depth: u32, max: u32 },
 
     #[error("[NIKA-387] Workflow recursion cycle detected: {workflow_path}")]
@@ -927,6 +1038,7 @@ pub enum NikaError {
         code(nika::run_cycle_detected),
         help("A workflow attempted to invoke itself transitively via nika:run. Cycles are blocked unconditionally.")
     )]
+    #[nika_code("NIKA-387")]
     RunCycleDetected { workflow_path: String },
 
     #[error("[NIKA-388] Canary leaked in extended thinking trace for task '{task_id}'")]
@@ -934,6 +1046,7 @@ pub enum NikaError {
         code(nika::canary_in_thinking),
         help("The model's reasoning trace contained a canary token. This is stronger evidence of system-prompt leakage than output-channel leaks.")
     )]
+    #[nika_code("NIKA-388")]
     CanaryInThinking { task_id: String },
 
     #[error("[NIKA-389] Untrusted vision input rejected for task '{task_id}'")]
@@ -941,6 +1054,7 @@ pub enum NikaError {
         code(nika::untrusted_vision),
         help("Vision images from untrusted sources may contain adversarial perturbations. Set `trust: elevated` to override.")
     )]
+    #[nika_code("NIKA-389")]
     UntrustedVisionBlocked { task_id: String },
 }
 
@@ -1085,157 +1199,6 @@ impl From<nika_media::tools::error::MediaToolError> for NikaError {
 }
 
 impl NikaError {
-    /// Get the error code (e.g., "NIKA-001")
-    pub fn code(&self) -> &'static str {
-        match self {
-            // Workflow errors
-            Self::ParseError { .. } => "NIKA-001",
-            Self::InvalidSchemaVersion { .. } => "NIKA-002",
-            Self::WorkflowNotFound { .. } => "NIKA-003",
-            Self::ValidationError { .. } => "NIKA-004",
-            Self::SchemaValidationFailed { .. } => "NIKA-005",
-            Self::HomeDirectoryNotFound => "NIKA-006",
-            // Schema errors
-            Self::SchemaFileNotFound { .. } => "NIKA-013",
-            Self::SchemaFileInvalid { .. } => "NIKA-014",
-            // DAG errors
-            Self::CycleDetected { .. } => "NIKA-020",
-            Self::MissingDependency { .. } => "NIKA-021",
-            Self::DuplicateTaskId { .. } => "NIKA-022",
-            Self::DependencyChainFailed { .. } => "NIKA-026",
-            Self::TaskCancelled { .. } => "NIKA-027",
-            Self::SemaphoreClosed { .. } => "NIKA-028",
-            // Provider errors
-            Self::ProviderNotConfigured { .. } => "NIKA-030",
-            Self::ProviderApiError { .. } => "NIKA-031",
-            Self::MissingApiKey { .. } => "NIKA-032",
-            Self::InvalidConfig { .. } => "NIKA-033",
-            Self::EndpointNotFound { .. } => "NIKA-035",
-            Self::EndpointConnectionFailed { .. } => "NIKA-036",
-            Self::FallbackChainExhausted { .. } => "NIKA-037",
-            Self::WorkflowTimeout { .. } => "NIKA-038",
-            // Binding/Template errors
-            Self::Execution(_) => "NIKA-096",
-            Self::TemplateError { .. } => "NIKA-041",
-            Self::ExecError { .. } => "NIKA-044",
-            Self::FetchError { .. } => "NIKA-045",
-            Self::ExtractError { .. } => "NIKA-046",
-            Self::InvokeParamError { .. } => "NIKA-047",
-            Self::WorkflowCancelled { .. } => "NIKA-097",
-            Self::TaskPanicked { .. } => "NIKA-098",
-            Self::BindingNotFound { .. } => "NIKA-042",
-            Self::BindingTypeMismatch { .. } => "NIKA-043",
-            // Path/Task errors
-            Self::InvalidPath { .. } => "NIKA-050",
-            Self::PathNotFound { .. } => "NIKA-052",
-            Self::BlockedCommand { .. } => "NIKA-053",
-            Self::InvalidTaskId { .. } => "NIKA-055",
-            Self::InvalidDefault { .. } => "NIKA-056",
-            // Output errors
-            Self::InvalidJson { .. } => "NIKA-060",
-            Self::SchemaFailed { .. } => "NIKA-061",
-            Self::SerializationError { .. } => "NIKA-062",
-            // With block errors
-            Self::UnknownAlias { .. } => "NIKA-071",
-            Self::NullValue { .. } => "NIKA-072",
-            Self::VaultAccess { .. } => "NIKA-075",
-            Self::InvalidTraversal { .. } => "NIKA-073",
-            Self::TemplateParse { .. } => "NIKA-074",
-            // DAG validation errors
-            Self::WithUnknownTask { .. } => "NIKA-080",
-            Self::WithNotUpstream { .. } => "NIKA-081",
-            Self::WithCircularDep { .. } => "NIKA-082",
-            Self::RuntimeDeadlock { .. } => "NIKA-083",
-            // JSONPath/IO errors
-            Self::JsonPathUnsupported { .. } => "NIKA-090",
-            Self::IoError(_) => "NIKA-093",
-            Self::JsonError(_) => "NIKA-094",
-            Self::YamlParse(_) => "NIKA-095",
-            // MCP errors
-            Self::McpNotConnected { .. } => "NIKA-100",
-            Self::McpStartError { .. } => "NIKA-101",
-            Self::McpToolError { .. } => "NIKA-102",
-            Self::McpResourceNotFound { .. } => "NIKA-103",
-            Self::McpProtocolError { .. } => "NIKA-104",
-            Self::McpNotConfigured { .. } => "NIKA-105",
-            Self::McpInvalidResponse { .. } => "NIKA-106",
-            Self::McpValidationFailed { .. } => "NIKA-107",
-            Self::McpSchemaError { .. } => "NIKA-108",
-            Self::McpTimeout { .. } => "NIKA-109",
-            // Agent errors
-            Self::AgentValidationError { .. } => "NIKA-113",
-            Self::AgentExecutionError { .. } => "NIKA-115",
-            Self::ThinkingCaptureFailed { .. } => "NIKA-116",
-            Self::GuardrailViolation { .. } => "NIKA-112",
-            Self::AgentLimitExceeded { .. } => "NIKA-114",
-            // Resilience errors
-            Self::Timeout { .. } => "NIKA-121",
-            Self::McpToolCallFailed { .. } => "NIKA-110",
-            // TUI errors
-            Self::TuiError { .. } => "NIKA-130",
-            // Config errors
-            Self::ConfigError { .. } => "NIKA-135",
-            // Startup errors
-            Self::StartupError { .. } => "NIKA-167",
-            // Tool errors (code is dynamic)
-            Self::ToolError { .. } => "NIKA-200",
-            // Builtin tool errors
-            Self::BuiltinToolError { .. } => "NIKA-210",
-            Self::BuiltinInvalidParams { .. } => "NIKA-212",
-            Self::AssertionFailed { .. } => "NIKA-213",
-            // Context errors
-            Self::ContextLoadError { .. } => "NIKA-250",
-            // Media errors
-            Self::MediaError(e) => e.code(),
-            // Pkg URI errors
-            Self::InvalidPkgUri { .. } => "NIKA-260",
-            // Package errors
-            Self::PackageNotFound { .. } => "NIKA-261",
-
-            // Skill errors
-            Self::SkillLoadError { .. } => "NIKA-270",
-            // Artifact errors
-            Self::ArtifactPathError { .. } => "NIKA-280",
-            Self::ArtifactWriteError { .. } => "NIKA-281",
-            Self::ArtifactSizeExceeded { .. } => "NIKA-282",
-            Self::MediaStoreLocked { .. } => "NIKA-285",
-            // Structured Output errors
-            Self::StructuredOutputExtractionFailed { .. } => "NIKA-300",
-            Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
-            Self::StructuredOutputRepairFailed { .. } => "NIKA-302",
-            Self::StructuredOutputAllLayersFailed { .. } => "NIKA-303",
-            // Course errors
-            Self::CourseNotFound { .. } => "NIKA-310",
-            Self::CourseCheckFailed { .. } => "NIKA-311",
-            Self::CourseLevelLocked { .. } => "NIKA-312",
-            Self::CourseProgressCorrupted { .. } => "NIKA-313",
-            Self::CourseWatchError { .. } => "NIKA-314",
-            // Record compression errors
-            Self::RecordCompressionFailed { .. } => "NIKA-320",
-            Self::RecordInvalidJson { .. } => "NIKA-321",
-            Self::RecordLowConfidence { .. } => "NIKA-322",
-            Self::RecordTokensExceeded { .. } => "NIKA-323",
-            Self::RecordNoProvider { .. } => "NIKA-324",
-            // Policy errors (renumbered from 160/161 to avoid ParseErrorKind collision)
-            Self::PolicyViolation { .. } => "NIKA-165",
-            Self::BootFailed { .. } => "NIKA-166",
-            // Runtime errors
-            Self::DecomposeTimeout { .. } => "NIKA-171",
-            // Nika Shield security errors
-            Self::SkillIntegrityFailed { .. } => "NIKA-271",
-            Self::CapabilityDenied { .. } => "NIKA-380",
-            Self::TrustViolation { .. } => "NIKA-381",
-            Self::CanaryLeaked { .. } => "NIKA-382",
-            Self::InjectionDetected { .. } => "NIKA-383",
-            Self::SpotlightRequired { .. } => "NIKA-384",
-            Self::MlModelMissing { .. } => "NIKA-385",
-            Self::RunDepthExceeded { .. } => "NIKA-386",
-            Self::RunCycleDetected { .. } => "NIKA-387",
-            Self::CanaryInThinking { .. } => "NIKA-388",
-            Self::UntrustedVisionBlocked { .. } => "NIKA-389",
-        }
-    }
-
     /// Convenience: look up fix suggestion by error code string (e.g., "NIKA-044").
     ///
     /// Used by the display layer which only has the error code from TaskFailed events.
