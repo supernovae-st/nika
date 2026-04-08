@@ -42,6 +42,7 @@ pub mod schedule;
 pub mod schema;
 pub mod workflow;
 
+pub mod check;
 pub mod eval;
 pub mod inputs;
 pub mod keys;

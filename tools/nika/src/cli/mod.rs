@@ -9,6 +9,7 @@
 // Re-export all handlers from nika-cli
 #[cfg(unix)]
 pub use nika_cli::cache_cmd;
+pub use nika_cli::check;
 pub use nika_cli::clean;
 pub use nika_cli::config;
 pub use nika_cli::course;

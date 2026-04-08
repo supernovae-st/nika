@@ -5875,6 +5875,7 @@ dependencies = [
  "nika-mcp",
  "nika-storage",
  "nika-vault",
+ "rand 0.8.5",
  "regex",
  "rustc-hash 2.1.2",
  "secrecy",
