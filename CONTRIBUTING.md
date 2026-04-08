@@ -1,6 +1,6 @@
 # Contributing to Nika
 
-Thank you for your interest in contributing to Nika! Whether you're filing a bug, proposing a feature, improving docs, or submitting code -- every contribution matters.
+Thank you for your interest in contributing to Nika! Whether you're filing a bug, proposing a feature, improving docs, or submitting code, every contribution matters.
 
 Nika is an open-source project licensed under **AGPL-3.0-or-later**. By submitting a pull request, you agree to our [Contributor License Agreement (CLA)](https://cla-assistant.io/supernovae-st/nika). The CLA lets us offer Nika under dual licensing (AGPL + commercial) while you retain full copyright of your work.
 
@@ -277,7 +277,7 @@ Each logical change gets its own commit. Don't batch unrelated fixes. Exception:
 3. **Run quality gates** locally (fmt, clippy, test)
 4. **Push** and open a PR
 5. **Fill out the PR template** completely
-6. **Wait for CI** -- all jobs must pass
+6. **Wait for CI.** All jobs must pass
 7. **Address review feedback**
 8. **Squash merge** when approved
 
@@ -305,7 +305,7 @@ Use the [Bug Report template](https://github.com/supernovae-st/nika/issues/new?t
 
 - Nika version (`nika --version`)
 - Your OS and provider
-- The workflow file (sanitized -- remove API keys)
+- The workflow file (sanitized, remove API keys)
 - Full error output
 - Steps to reproduce
 
@@ -362,10 +362,10 @@ We use AI tools (Claude, Copilot, etc.) to build Nika. You can too.
 
 **What we expect from AI-assisted PRs:**
 
-- **You reviewed every line.** AI-generated code that you haven't read is not a contribution — it's a liability. If you can't explain why a line exists, don't submit it.
-- **You tested it.** `cargo test --workspace --lib` passes. Not "it should work" — it works.
+- **You reviewed every line.** AI-generated code that you haven't read is not a contribution. It's a liability. If you can't explain why a line exists, don't submit it.
+- **You tested it.** `cargo test --workspace --lib` passes. Not "it should work." It works.
 - **You made the design decisions.** AI can write a function. You decide whether that function should exist at all.
-- **Use the co-author convention.** If AI helped write the code, add a co-author line in your commit. We do it on every commit — `Co-Authored-By: Nika 🦋 <nika@supernovae.studio>` — and we expect the same honesty from contributors.
+- **Use the co-author convention.** If AI helped write the code, add a co-author line in your commit. We do it on every commit (`Co-Authored-By: Nika 🦋 <nika@supernovae.studio>`) and we expect the same honesty from contributors.
 
 **What we reject:**
 
@@ -373,11 +373,11 @@ We use AI tools (Claude, Copilot, etc.) to build Nika. You can too.
 - PRs where the contributor can't answer questions about their own code
 - "I asked ChatGPT to fix this" without understanding what changed
 
-**The bottom line:** AI is a power tool, like cargo-clippy or rust-analyzer. The value is in the decisions — what to build, what to reject, how things compose. Use AI to go faster. But own the result.
+**The bottom line:** AI is a power tool, like cargo-clippy or rust-analyzer. The value is in the decisions: what to build, what to reject, how things compose. Use AI to go faster. But own the result.
 
 ## Contributor License Agreement
 
-When you open your first pull request, the CLA-assistant bot will ask you to sign our [CLA](https://cla-assistant.io/supernovae-st/nika). This is a one-time process — comment "I have read the CLA Document and I hereby sign the CLA" on the PR and you're done.
+When you open your first pull request, the CLA-assistant bot will ask you to sign our [CLA](https://cla-assistant.io/supernovae-st/nika). This is a one-time process. Comment "I have read the CLA Document and I hereby sign the CLA" on the PR and you're done.
 
 The CLA grants SuperNovae a license to distribute your contributions under AGPL and commercial licenses. **You retain full copyright.** See the [full CLA text](https://cla-assistant.io/supernovae-st/nika) for details.
 

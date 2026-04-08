@@ -10,7 +10,7 @@
 
 - **AI is locked** behind code, subscriptions, and vendor walls. Most people can't use it.
 - **Nika is a single binary** that reads a YAML file and executes AI tasks. No code. No subscription.
-- **5 verbs** — `infer`, `fetch`, `exec`, `invoke`, `agent` — describe any automation you can imagine.
+- **5 verbs** (`infer`, `fetch`, `exec`, `invoke`, `agent`) describe any automation you can imagine.
 - **19 providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
 - **The mission**: the gap between "AI exists" and "I can use AI" should be **zero**.
 
@@ -29,9 +29,9 @@ automations on *their* servers, with *their* limits, under *their* terms. They c
 accessible. We call it a new middleman. Here's what real people hear when they ask
 "How do I use AI to automate my work?":
 
-- **"Learn Python."** — 6 months minimum.
-- **"Use our platform."** — $49/mo, 1,000 runs, their cloud, their rules.
-- **"Just copy-paste into ChatGPT."** — For one thing. Manually. Every single time.
+- **"Learn Python."** Six months minimum.
+- **"Use our platform."** $49/mo, 1,000 runs, their cloud, their rules.
+- **"Just copy-paste into ChatGPT."** For one thing. Manually. Every single time.
 
 > **None of these are real answers. None of them are freedom.**
 
@@ -76,10 +76,10 @@ feature request. This is a fundamental belief:
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
 timeline
     title The AI Liberation Timeline
-    2023 : ChatGPT era begins — AI hype explodes, few can build
-    2024 : Agent frameworks multiply — complexity grows, not access
+    2023 : ChatGPT era begins. AI hype explodes, few can build
+    2024 : Agent frameworks multiply. Complexity grows, not access
     2025 : LangChain CVEs, vendor lock-in deepens, $49/mo is the norm
-    2026 : Nika launches — open source fights back, 5 verbs, zero lock-in
+    2026 : Nika launches. Open source fights back, 5 verbs, zero lock-in
 ```
 
 ---
@@ -115,15 +115,15 @@ tasks:
 
 Three steps. Two AI providers. Zero lines of code.
 
-> **That's the entire idea.** Describe steps in a text file. Nika handles execution —
-> parallel tasks, retries, error handling, streaming, cost tracking — so you don't have to.
+> **That's the entire idea.** Describe steps in a text file. Nika handles execution --
+> parallel tasks, retries, error handling, streaming, cost tracking. So you don't have to.
 
 ### Five verbs. That's the whole language.
 
 | Verb | What it does |
 |------|-------------|
 | `infer:` | Ask any AI to generate text, analyze images, think |
-| `fetch:` | Pull data from the web — pages, APIs, feeds |
+| `fetch:` | Pull data from the web: pages, APIs, feeds |
 | `exec:` | Run shell commands on your machine |
 | `invoke:` | Call external tools via MCP protocol |
 | `agent:` | Launch an autonomous AI agent with guardrails |
@@ -175,7 +175,7 @@ Nika is licensed under **AGPL-3.0-or-later**. Not MIT. Not Apache. AGPL. Here's 
 
 MIT and Apache are gifts to corporations. They let Amazon, Google, and Microsoft take
 open-source projects, wrap them in a managed service, and contribute nothing back.
-Redis, Elasticsearch, MongoDB — the pattern: community builds, corporation captures.
+Redis, Elasticsearch, MongoDB. The pattern repeats: community builds, corporation captures.
 
 > **AGPL breaks that pattern.** If you modify Nika and run it as a service, you must
 > release your changes. The code stays free. The community stays in control.
@@ -187,7 +187,7 @@ license prevents it.
 ### The principles
 
 - **Multi-provider by design.** Claude, GPT, Mistral, Gemini, Groq, xAI, DeepSeek,
-  local GGUF — all of them. You choose. You switch. No lock-in. Ever.
+  local GGUF. All of them. You choose. You switch. No lock-in. Ever.
 - **Your machine, your data.** Nika runs locally. Your files never touch our servers
   (we don't have servers). Your API keys stay in your OS keychain.
 - **Community-owned.** No VC exit strategy. No "open core" bait-and-switch. The full
@@ -221,7 +221,7 @@ A Raspberry Pi can run Nika. A GitHub Action can run Nika. A $5/month VPS can ru
 ## 6. The Numbers
 
 Real benchmarks. Real tasks. No cherry-picking.
-### RAM usage — "Summarize 10 web pages" task
+### RAM usage: "Summarize 10 web pages" task
 
 | Tool | **Peak RAM** | **Cold start** | **Lines of config** |
 |------|----------|------------|-----------------|
@@ -233,7 +233,7 @@ Real benchmarks. Real tasks. No cherry-picking.
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#3b82f6', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#2563eb', 'secondaryColor': '#6366f1', 'tertiaryColor': '#0f172a', 'lineColor': '#64748b', 'textColor': '#e2e8f0', 'mainBkg': '#1e293b', 'nodeBorder': '#3b82f6'}}}%%
 xychart-beta
-    title "Peak RAM Usage (MB) — Summarize 10 Web Pages"
+    title "Peak RAM Usage (MB), Summarize 10 Web Pages"
     x-axis ["Nika (Rust)", "LangGraph", "LangChain", "CrewAI"]
     y-axis "RAM in MB" 0 --> 300
     bar [45, 210, 230, 280]
@@ -241,7 +241,7 @@ xychart-beta
 
 > Nika uses **5x less RAM** than LangChain for the same task.
 
-### Agent reliability — multi-step autonomous tasks
+### Agent reliability: multi-step autonomous tasks
 
 | Tool | **Completion rate** | **Guardrails** | **Retry built-in** |
 |------|----------------|------------|----------------|
@@ -280,21 +280,21 @@ pie title Monthly Cost of AI Automation
 
 ## 7. The Name
 
-In an old legend, there is a warrior who goes from place to place — not conquering,
+In an old legend, there is a warrior who goes from place to place. Not conquering,
 not ruling, but **liberating**. Not with weapons. Not with force. With joy.
 
 > **The people called this warrior Nika.**
 
 We chose this name because that's what this tool is for. Not to conquer a market.
-Not to build an empire. To **liberate** — AI from the labs, automation from the
+Not to build an empire. To **liberate**: AI from the labs, automation from the
 coders, power from the platforms. The butterfly 🦋 is the symbol.
 
-A butterfly is fragile, beautiful, and free. It transforms completely — from
+A butterfly is fragile, beautiful, and free. It transforms completely, from
 something earthbound to something that flies. And a single butterfly can start a
 storm on the other side of the world.
 
 Nika is a butterfly. Small. Light. Free. And when enough people use it, when enough
-people realize that a 10-line text file can do what a $49/month platform does —
+people realize that a 10-line text file can do what a $49/month platform does --
 
 > **That's a storm.**
 
@@ -305,13 +305,13 @@ people realize that a 10-line text file can do what a $49/month platform does �
 Nika is an AI tool, built with AI. We eat our own dogfood.
 
 Every commit in this repository carries `Co-Authored-By: Nika 🦋`. That's not
-a disclaimer — it's a statement. We use Claude, Copilot, and other AI tools
+a disclaimer. It's a statement. We use Claude, Copilot, and other AI tools
 extensively. We don't hide it. We don't apologize for it. We ship.
 
 **This is not AI slop.**
 
 AI slop is what happens when there's no human in the loop. No architecture. No
-taste. No "no." Generate, paste, push, pray. The output compiles — maybe — and
+taste. No "no." Generate, paste, push, pray. The output compiles (maybe) and
 nobody reviewed it. Nobody tested it. Nobody asked "is this the right
 abstraction?" That's not engineering. That's autocomplete with a deploy button.
 
@@ -319,10 +319,10 @@ What we do is different:
 
 - **10,666 tests** don't write themselves by accident. Every test validates a
   design decision, not just a code path.
-- **5 verbs — not 4, not 6** — is a constraint that no AI suggests. An AI will
+- **5 verbs, not 4, not 6.** That's a constraint no AI suggests. An AI will
   happily generate a sixth verb. A human says "no, five is the design."
 - **A 6-layer security defense** with academic citations, threat models, and
-  deferred items tracked by ID — that's architecture, not generation.
+  deferred items tracked by ID. That's architecture, not generation.
 - **Every error message is crafted** to help the person reading it. AI generates
   error messages. Humans decide what they should say.
 

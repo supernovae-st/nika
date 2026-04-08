@@ -24,7 +24,7 @@ Write AI workflows in YAML. Run them anywhere.
 <br>
 
 ```yaml
-# news.nika.yaml — Scrape Hacker News and summarize the top stories
+# news.nika.yaml -- Scrape Hacker News and summarize the top stories
 schema: "nika/workflow@0.12"
 provider: claude                  # or: openai, mistral, groq, gemini, deepseek, xai, local
 
@@ -45,9 +45,9 @@ nika run news.nika.yaml
 
 ## What is Nika?
 
-Nika is a workflow engine where each step is a YAML task with exactly **one verb** -- `infer`, `exec`, `fetch`, `invoke`, or `agent`. Write your steps in a `.nika.yaml` file, run `nika run`, and Nika handles the rest: parallel execution, data flow between tasks, retries, structured output, and multi-provider LLM routing.
+Nika is a workflow engine where each step is a YAML task with exactly **one verb**: `infer`, `exec`, `fetch`, `invoke`, or `agent`. Write your steps in a `.nika.yaml` file, run `nika run`, and Nika handles the rest: parallel execution, data flow between tasks, retries, structured output, and multi-provider LLM routing.
 
-**Inference as Code.** The same shift that Terraform brought to infrastructure -- describe your intent in a file, let a runtime handle execution. Your workflow is a YAML file that you commit, review in a PR, diff, and version. Five verbs describe any automation, from a 3-step summary to a 50-task parallel pipeline across multiple AI providers.
+**Inference as Code.** The same shift that Terraform brought to infrastructure. Describe your intent in a file, let a runtime handle execution. Your workflow is a YAML file that you commit, review in a PR, diff, and version. Five verbs describe any automation, from a 3-step summary to a 50-task parallel pipeline across multiple AI providers.
 
 | | Without Nika | With Nika |
 |:---:|---|---|
@@ -126,13 +126,13 @@ flowchart LR
     AGENT[agent]:::verb --> LOOP["Agentic Loop + Guardrails"]:::target
 ```
 
-Five words. Not fifty abstractions. If you've used Terraform, GitHub Actions, or Docker Compose, this will feel familiar -- because the pattern is the same. Declare what you want, let the engine figure out how.
+Five words. Not fifty abstractions. If you've used Terraform, GitHub Actions, or Docker Compose, this will feel familiar. The pattern is the same. Declare what you want, let the engine figure out how.
 
 ---
 
 ## Examples
 
-### Scrape, summarize, translate -- in parallel
+### Scrape, summarize, translate (in parallel)
 
 ```yaml
 schema: "nika/workflow@0.12"
@@ -154,7 +154,7 @@ tasks:
     infer: "Translate to {{with.lang}}: {{with.summary}}"
 ```
 
-### Multi-provider fan-out -- same question, three perspectives
+### Multi-provider fan-out: same question, three perspectives
 
 ```yaml
 schema: "nika/workflow@0.12"
@@ -183,7 +183,7 @@ tasks:
     infer: "Synthesize these 3 perspectives: {{with.claude}} / {{with.gpt}} / {{with.gemini}}"
 ```
 
-### Structured data extraction -- guaranteed valid JSON
+### Structured data extraction, guaranteed valid JSON
 
 ```yaml
 schema: "nika/workflow@0.12"
@@ -204,7 +204,7 @@ tasks:
       max_retries: 3
 ```
 
-The prompt is natural language -- never mention JSON. The 5-layer defense handles extraction, validation, retry, and LLM repair automatically. Same result on all 9 providers.
+The prompt is natural language. Never mention JSON. The 5-layer defense handles extraction, validation, retry, and LLM repair automatically. Same result on all 9 providers.
 
 ### AI agent with guardrails and cost limits
 
@@ -264,7 +264,7 @@ tasks:
 
 ## Key Features
 
-### Providers -- 9 backends, zero lock-in
+### Providers: 9 backends, zero lock-in
 
 Switch providers in one line. Same workflow, any AI.
 
@@ -278,11 +278,11 @@ Switch providers in one line. Same workflow, any AI.
 | **DeepSeek** | deepseek-chat, deepseek-reasoner | `DEEPSEEK_API_KEY` |
 | **xAI** | grok-3 | `XAI_API_KEY` |
 | **Native** | Any GGUF model locally via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) | -- |
-| **Mock** | Deterministic test responses -- no API calls, no keys | -- |
+| **Mock** | Deterministic test responses, no API calls, no keys | -- |
 
 Connect to any **OpenAI-compatible** endpoint (vLLM, Ollama, LiteLLM, SGLang) via named endpoints in `nika.toml` or slash syntax: `model: myserver/llama-3.3-70b`.
 
-### Structured Output -- 5-layer defense
+### Structured Output: 5-layer defense
 
 Get guaranteed schema-valid JSON from any provider. No prompt hacking required.
 
@@ -295,7 +295,7 @@ Get guaranteed schema-valid JSON from any provider. No prompt hacking required.
 
 Same result on all 9 providers. No exceptions.
 
-### Data Flow -- 64 transforms, bindings, parallel loops
+### Data Flow: 65 transforms, bindings, parallel loops
 
 ```yaml
 tasks:
@@ -324,10 +324,10 @@ tasks:
 
 ### 63 Builtin Tools
 
-All accessible via `invoke: nika:*` -- no external dependencies.
+All accessible via `invoke: nika:*`, no external dependencies.
 
 <details>
-<summary><strong>Media tools</strong> -- import, resize, convert, optimize, metadata, charts, QR, C2PA</summary>
+<summary><strong>Media tools</strong>: import, resize, convert, optimize, metadata, charts, QR, C2PA</summary>
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -355,7 +355,7 @@ All accessible via `invoke: nika:*` -- no external dependencies.
 </details>
 
 <details>
-<summary><strong>Data tools</strong> -- jq, merge, filter, map, chunk, aggregate, flatten</summary>
+<summary><strong>Data tools</strong>: jq, merge, filter, map, chunk, aggregate, flatten</summary>
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -375,7 +375,7 @@ All accessible via `invoke: nika:*` -- no external dependencies.
 </details>
 
 <details>
-<summary><strong>Web extraction tools</strong> -- HTML to Markdown, CSS selectors, metadata, links, readability</summary>
+<summary><strong>Web extraction tools</strong>: HTML to Markdown, CSS selectors, metadata, links, readability</summary>
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -388,7 +388,7 @@ All accessible via `invoke: nika:*` -- no external dependencies.
 </details>
 
 <details>
-<summary><strong>File & core tools</strong> -- read, write, edit, glob, grep, sleep, log, assert</summary>
+<summary><strong>File & core tools</strong>: read, write, edit, glob, grep, sleep, log, assert</summary>
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -428,7 +428,7 @@ tasks:
       max_turns: 10
 ```
 
-### `nika serve` -- workflows as HTTP endpoints
+### `nika serve`: workflows as HTTP endpoints
 
 Expose any workflow as a REST API. SDKs for Rust, Node.js, and Python.
 
@@ -489,7 +489,7 @@ nika course hint
 
 | Level | Name | What You Learn |
 |:------|:-----|:---------------|
-| 01 | Jailbreak | exec, fetch, infer -- the 3 core verbs |
+| 01 | Jailbreak | exec, fetch, infer: the 3 core verbs |
 | 02 | Hot Wire | Data bindings, transforms, templates |
 | 03 | Fork Bomb | DAG patterns, parallel execution |
 | 04 | Root Access | Context files, imports, inputs |
@@ -500,7 +500,7 @@ nika course hint
 | 09 | Data Heist | Web scraping, 9 extraction modes |
 | 10 | Open Protocol | MCP integration |
 | 11 | Pixel Pirate | Media pipeline, vision |
-| 12 | SuperNovae | Boss battle -- everything combined |
+| 12 | SuperNovae | Boss battle, everything combined |
 
 ---
 
@@ -508,7 +508,7 @@ nika course hint
 
 Real benchmarks. Real tasks. No cherry-picking.
 
-### RAM usage -- "Summarize 10 web pages" task
+### RAM usage: "Summarize 10 web pages" task
 
 | Tool | Peak RAM | Cold start | Lines of config |
 |:-----|:---------|:-----------|:----------------|
@@ -519,7 +519,7 @@ Real benchmarks. Real tasks. No cherry-picking.
 
 > Nika uses **5x less RAM** than LangChain for the same task.
 
-### Nika vs. Python -- the deployment story
+### Nika vs. Python: the deployment story
 
 | Metric | **Nika** | Python equivalent |
 |:-------|:---------|:------------------|
@@ -704,7 +704,7 @@ cargo clippy -- -D warnings       # zero warnings policy
 
 > **Note:** `cargo test` without `--lib` runs contract tests that trigger macOS Keychain popups. Always use `--lib`.
 
-Nika is built with AI assistance — every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,666 tests that prove it works. See the [Manifesto](MANIFESTO.md#8-built-with-ai) for our stance on AI-assisted development.
+Nika is built with AI assistance. Every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,666 tests that prove it works. See the [Manifesto](MANIFESTO.md#8-built-with-ai) for our stance on AI-assisted development.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
@@ -712,7 +712,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE) -- Nika is free software. Use it, study it, share it, improve it.
+[AGPL-3.0-or-later](LICENSE). Nika is free software. Use it, study it, share it, improve it.
 
 The AGPL protects the commons: if you modify Nika and offer it as a hosted service, you share your changes back. For CLI usage, there are zero restrictions. Commercial use is welcome.
 
