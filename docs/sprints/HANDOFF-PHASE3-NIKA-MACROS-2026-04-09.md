@@ -1,7 +1,7 @@
 # Phase 3 — nika-macros — MEGA HANDOFF
 
 > **Copy-paste this ENTIRE file as context for a fresh Claude Code session.**
-> **Launch this in a SEPARATE terminal from Phase 15 (they don't conflict).**
+> **Launch this in a SEPARATE terminal. Use a git worktree for isolation.**
 >
 > **Philosophy:** `perfection > timing`. TDD mandatory. Zero shortcuts.
 
@@ -9,11 +9,52 @@
 
 ## 0. META — READ THIS FIRST
 
+### 0.0 WORKTREE SETUP (MANDATORY — Phase 15 runs in parallel)
+
+Phase 15 (main.rs migration) is running in the main worktree right now.
+You MUST use a git worktree to avoid build lock conflicts and file collisions.
+
+```bash
+# Step 1: Create worktree from current main
+cd /Users/thibaut/dev/supernovae/nika
+git worktree add ../nika-phase3 main
+
+# Step 2: Navigate to the worktree
+cd /Users/thibaut/dev/supernovae/nika-phase3/tools/nika
+
+# Step 3: Verify you're in the worktree (NOT the main repo)
+git rev-parse --show-toplevel
+# Expected: /Users/thibaut/dev/supernovae/nika-phase3
+
+# Step 4: Confirm branch
+git branch --show-current
+# Expected: main (detached worktree copy)
+```
+
+**Why worktree:**
+- Phase 15 modifies `tools/nika/src/main.rs` + `tools/nika-cli/src/*.rs`
+- Phase 3 creates `tools/nika-macros/` + modifies `tools/Cargo.toml` (workspace members)
+- Both compile to `target/` — same dir = cargo lock file conflict
+- Worktree = separate `target/`, separate files, zero interference
+
+**File conflict analysis:**
+```
+Phase 15 touches:              Phase 3 touches:
+tools/nika/src/main.rs         tools/nika-macros/       ← NEW (no conflict)
+tools/nika-cli/src/*.rs        tools/Cargo.toml         ← workspace members
+                               tools/nika-engine/src/error.rs
+                               tools/nika-event/src/log.rs
+                               tools/nika-core/src/binding/transform/
+```
+
+**Only potential conflict:** `tools/Cargo.toml` if Phase 15 adds workspace deps.
+Phase 15 is moving code between existing crates — it should NOT touch workspace Cargo.toml.
+If it does, resolve at merge time (both additions are valid).
+
 ### 0.1 Baseline verification (run BEFORE touching anything)
 
 ```bash
-cd /Users/thibaut/dev/supernovae/nika/tools/nika
-git log --oneline -5                        # confirm you're on main
+cd /Users/thibaut/dev/supernovae/nika-phase3/tools/nika
 cargo test --workspace --lib 2>&1 | grep -E "^test result: ok" | awk '{s+=$4} END{print s}'
 # Expected: ≥10790
 cargo clippy --workspace --lib -- -D warnings 2>&1 | tail -3
@@ -760,7 +801,7 @@ trybuild = "1"
 
 ```bash
 # Per-commit
-cd /Users/thibaut/dev/supernovae/nika/tools/nika
+cd /Users/thibaut/dev/supernovae/nika-phase3/tools/nika
 cargo test -p nika-macros                      # macro tests only
 cargo test --workspace --lib 2>&1 | grep -E "^test result: ok" | awk '{s+=$4} END{print s}'
 cargo clippy --workspace --lib -- -D warnings 2>&1 | tail -3
@@ -818,4 +859,149 @@ wc -l tools/nika-core/src/binding/transform/apply.rs  # should drop ~500+ LOC
 >
 > **Do NOT push** unless explicitly asked. Do NOT rewrite existing builtins — that's Phase 12.
 >
+> **WORKTREE:** you are in `nika-phase3/` — when done, merge into main (Section 12).
+>
 > GOOO
+
+---
+
+## 12. WORKTREE MERGE PROCEDURE (run when ALL 7 commits are done)
+
+**This section is your EXIT procedure.** After all 7 commits pass verification,
+merge your worktree work back into the main repo autonomously.
+
+### 12.1 Pre-merge verification (MANDATORY)
+
+```bash
+# In the worktree
+cd /Users/thibaut/dev/supernovae/nika-phase3/tools/nika
+
+# Full test suite
+cargo test --workspace --lib 2>&1 | grep -E "^test result: ok" | awk '{s+=$4} END{print s}'
+# MUST be ≥ baseline (10790 + your new tests)
+
+# Clippy clean
+cargo clippy --workspace --lib -- -D warnings 2>&1 | tail -3
+# MUST be zero warnings
+
+# Verify all 7 commits exist
+git log --oneline -10
+# Should show your 7 commits on top of the base
+
+# Verify LOC reductions
+wc -l tools/nika-engine/src/error.rs           # should be ~200 less
+wc -l tools/nika-event/src/log.rs              # should be ~100 less
+wc -l tools/nika-core/src/binding/transform/apply.rs  # should be ~500+ less
+```
+
+**If ANY check fails, fix it BEFORE merging. Do not merge broken code.**
+
+### 12.2 Check if Phase 15 has committed ahead
+
+```bash
+# Fetch latest main from the MAIN repo (not the worktree)
+cd /Users/thibaut/dev/supernovae/nika
+git fetch origin
+git log --oneline origin/main -10
+
+# Compare: is origin/main ahead of your worktree base?
+cd /Users/thibaut/dev/supernovae/nika-phase3
+git log --oneline HEAD..origin/main
+# If empty → no Phase 15 commits to rebase on. Skip to 12.3.
+# If NOT empty → Phase 15 committed. Continue to 12.2b.
+```
+
+### 12.2b Rebase onto Phase 15 commits (if needed)
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika-phase3
+
+# Rebase your 7 commits on top of whatever Phase 15 pushed
+git fetch origin
+git rebase origin/main
+
+# If conflicts:
+#   - tools/Cargo.toml → accept BOTH additions (your workspace member + their changes)
+#   - Any other file → Phase 3 and Phase 15 don't touch the same files, so no conflict expected
+#   - If unexpected conflict → READ both sides, understand, resolve manually
+
+# After rebase: re-run verification
+cargo test --workspace --lib 2>&1 | grep -E "^test result: ok" | awk '{s+=$4} END{print s}'
+cargo clippy --workspace --lib -- -D warnings
+```
+
+### 12.3 Merge into main repo
+
+```bash
+# Go to the MAIN repo
+cd /Users/thibaut/dev/supernovae/nika
+
+# Pull latest (in case Phase 15 pushed)
+git pull origin main
+
+# Merge your worktree branch
+# The worktree is on a detached branch — find the commit range
+WORKTREE_HEAD=$(cd /Users/thibaut/dev/supernovae/nika-phase3 && git rev-parse HEAD)
+WORKTREE_BASE=$(cd /Users/thibaut/dev/supernovae/nika-phase3 && git merge-base HEAD origin/main)
+
+# Cherry-pick your commits (preserves individual commit history)
+cd /Users/thibaut/dev/supernovae/nika
+git cherry-pick ${WORKTREE_BASE}..${WORKTREE_HEAD}
+
+# If cherry-pick conflicts → same resolution as rebase above
+
+# Verify in main repo
+cargo test --workspace --lib 2>&1 | grep -E "^test result: ok" | awk '{s+=$4} END{print s}'
+cargo clippy --workspace --lib -- -D warnings
+```
+
+### 12.4 Push
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika
+git push origin main
+```
+
+### 12.5 Cleanup worktree
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika
+git worktree remove ../nika-phase3
+# If it says "contains modified or untracked files":
+git worktree remove --force ../nika-phase3
+```
+
+### 12.6 Verify final state
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika/tools/nika
+cargo test --workspace --lib 2>&1 | grep -E "^test result: ok" | awk '{s+=$4} END{print s}'
+# Should be: baseline + Phase 15 tests + Phase 3 tests (≥10820+)
+git log --oneline -15
+# Should show: Phase 3 commits + Phase 15 commits interleaved or sequential
+ls tools/nika-macros/src/
+# Should show: lib.rs, nika_error_code.rs, event_task_id.rs, builtin_tool.rs
+```
+
+**Done. Phase 3 merged. Worktree cleaned. Main repo green.**
+
+---
+
+### 12.7 ALTERNATIVE: If worktree setup fails
+
+If `git worktree add` fails (e.g., branch conflict), use a fresh branch instead:
+
+```bash
+cd /Users/thibaut/dev/supernovae/nika
+git checkout -b phase3-nika-macros
+# Work here. Phase 15 is on main — no conflict as long as you don't switch branches.
+# When done:
+git checkout main
+git pull origin main
+git merge phase3-nika-macros
+git branch -d phase3-nika-macros
+git push origin main
+```
+
+This is simpler but means you can't run Phase 15 AND Phase 3 simultaneously
+(same `target/` directory). **Worktree is strongly preferred.**
