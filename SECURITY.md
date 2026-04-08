@@ -286,3 +286,46 @@ If you find a security issue:
    anonymity
 
 Do NOT open public GitHub issues for unpatched vulnerabilities.
+
+## Known Security Gaps (V2.2 Audit, 2026-04-08)
+
+Source: `docs/sprints/CONSTELLATION-V2.2-TECH-DEBT-ADDENDUM.md` §3 + §9.5
+
+### P0 — Effect Crate Bugs (in scope for fix)
+
+| ID | Crate | Issue | Fix |
+|----|-------|-------|-----|
+| H1 | nika-http | HTTP header injection via `\r\n` — request smuggling | `HeaderName::try_from` + `HeaderValue::try_from` validation |
+| H2 | nika-http | No max response body size — 10GB streaming OOM | Content-Length check + streaming read with 50MB cap |
+| H4 | nika-http | No SSRF re-check on redirect targets — `evil.com` → 302 → `169.254.169.254` | Custom redirect policy re-validates each hop |
+| H5 | nika-http | `follow_redirects` field silently ignored | Two pre-built Client instances |
+| FS1 | nika-fs | No path traversal sandbox — `TokioFs` reads `/etc/passwd` | `TokioFs::sandboxed(roots)` with canonicalize |
+| FS2 | nika-fs | No symlink loop protection in glob | Use `ignore::WalkBuilder` (loop detection built-in) |
+| FS3 | nika-fs | No size cap on read — user-controlled path OOM | Pre-check `metadata().len` against 100MB limit |
+| FS4 | nika-fs | TOCTOU in write — `create_dir_all` + `fs::write` not atomic | Write to `.tmp.<pid>.<rand>` + fsync + rename |
+| EX1 | nika-exec-runner | Pipe deadlock — `wait()` before `read_to_end` | `tokio::try_join!(wait, read_stdout, read_stderr)` |
+| EX2 | nika-exec-runner | Orphan grandchildren — `child.kill()` only kills immediate | `command-group` crate for process group kill |
+| EX3 | nika-exec-runner | Unbounded output OOM — no cap on stdout read | `read_capped` with 10 MiB limit |
+| EX4 | nika-exec-runner | Hard SIGKILL only — no graceful shutdown | SIGTERM → 500ms grace → SIGKILL |
+
+### Planned Security Hardening (not yet implemented)
+
+| Feature | Crate | Description |
+|---------|-------|-------------|
+| **Process sandbox** | nika-exec-runner | landlock (Linux) + sandbox-exec (macOS) + Job Objects (Windows) |
+| **cap-std file API** | nika-fs | TOCTOU-safe Dir handles via `openat` — eliminates path traversal class |
+| **TLS root pinning** | nika-http | Custom RootCertStore with ~6 provider CAs only |
+| **Fuzz targets** | workspace | YAML parser, template engine, shell blocklist, jq, SSRF URL parser |
+| **cargo-vet** | CI | Supply chain attestation (Mozilla + Google + Bytecode Alliance registries) |
+
+### Current Security Posture (6/9 target clauses true)
+
+✅ Shield 6-layer prompt injection defense  
+✅ DNS pre-resolution + pinning (SSRF)  
+✅ Encrypted vault (XChaCha20 + Argon2i)  
+✅ Unsafe-code-zero in kernel crate  
+✅ rustls-only (no OpenSSL)  
+✅ CI: cargo-audit + cargo-deny + CodeQL + Semgrep  
+⬜ Process sandbox for exec verb  
+⬜ cap-std TOCTOU-safe file ops  
+⬜ TLS root pinning for providers
