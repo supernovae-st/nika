@@ -300,7 +300,46 @@ people realize that a 10-line text file can do what a $49/month platform does �
 
 ---
 
-## 8. Join Us
+## 8. Built With AI
+
+Nika is an AI tool, built with AI. We eat our own dogfood.
+
+Every commit in this repository carries `Co-Authored-By: Nika 🦋`. That's not
+a disclaimer — it's a statement. We use Claude, Copilot, and other AI tools
+extensively. We don't hide it. We don't apologize for it. We ship.
+
+**This is not AI slop.**
+
+AI slop is what happens when there's no human in the loop. No architecture. No
+taste. No "no." Generate, paste, push, pray. The output compiles — maybe — and
+nobody reviewed it. Nobody tested it. Nobody asked "is this the right
+abstraction?" That's not engineering. That's autocomplete with a deploy button.
+
+What we do is different:
+
+- **10,666 tests** don't write themselves by accident. Every test validates a
+  design decision, not just a code path.
+- **5 verbs — not 4, not 6** — is a constraint that no AI suggests. An AI will
+  happily generate a sixth verb. A human says "no, five is the design."
+- **A 6-layer security defense** with academic citations, threat models, and
+  deferred items tracked by ID — that's architecture, not generation.
+- **Every error message is crafted** to help the person reading it. AI generates
+  error messages. Humans decide what they should say.
+
+The value is in the decisions, not the keystrokes. What to build, what to
+reject, how things compose, where to draw boundaries. AI accelerates the
+execution. Humans own the judgment.
+
+> In 2000, writing assembly by hand was "real programming." In 2010, using
+> frameworks was "cheating." In 2020, copy-pasting from Stack Overflow was
+> "not real work." In 2026, AI-assisted development is Tuesday.
+
+A carpenter is not less of a carpenter because they use a power drill. The
+house still needs an architect.
+
+---
+
+## 9. Join Us
 
 Nika is not a product. It's a movement.
 

@@ -698,11 +698,13 @@ nika showcase list               # browse 115 example workflows
 git clone https://github.com/supernovae-st/nika.git
 cd nika
 cargo build                       # build all 17 crates
-cargo test --workspace --lib      # 10,434 tests (safe, no keychain popups)
+cargo test --workspace --lib      # 10,666 tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # zero warnings policy
 ```
 
 > **Note:** `cargo test` without `--lib` runs contract tests that trigger macOS Keychain popups. Always use `--lib`.
+
+Nika is built with AI assistance — every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,666 tests that prove it works. See the [Manifesto](MANIFESTO.md#8-built-with-ai) for our stance on AI-assisted development.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 

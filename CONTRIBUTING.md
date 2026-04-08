@@ -356,6 +356,25 @@ Nika uses `NikaError` with `NIKA-XXX` codes, not `anyhow`. When adding error cas
 
 See [CONVENTIONS.md](CONVENTIONS.md) for workflow authoring conventions.
 
+## AI-Assisted Development
+
+We use AI tools (Claude, Copilot, etc.) to build Nika. You can too.
+
+**What we expect from AI-assisted PRs:**
+
+- **You reviewed every line.** AI-generated code that you haven't read is not a contribution — it's a liability. If you can't explain why a line exists, don't submit it.
+- **You tested it.** `cargo test --workspace --lib` passes. Not "it should work" — it works.
+- **You made the design decisions.** AI can write a function. You decide whether that function should exist at all.
+- **Use the co-author convention.** If AI helped write the code, add a co-author line in your commit. We do it on every commit — `Co-Authored-By: Nika 🦋 <nika@supernovae.studio>` — and we expect the same honesty from contributors.
+
+**What we reject:**
+
+- AI slop: unreviewed, untested, generated-and-pasted code with no human judgment
+- PRs where the contributor can't answer questions about their own code
+- "I asked ChatGPT to fix this" without understanding what changed
+
+**The bottom line:** AI is a power tool, like cargo-clippy or rust-analyzer. The value is in the decisions — what to build, what to reject, how things compose. Use AI to go faster. But own the result.
+
 ## Contributor License Agreement
 
 When you open your first pull request, the CLA-assistant bot will ask you to sign our [CLA](https://cla-assistant.io/supernovae-st/nika). This is a one-time process — comment "I have read the CLA Document and I hereby sign the CLA" on the PR and you're done.
