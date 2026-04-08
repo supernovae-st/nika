@@ -64,6 +64,7 @@ jobs:
           RUSTDOCFLAGS: -Dwarnings
 
       - name: Version lock (must stay 0.x.x forever)
+        shell: bash
         run: |
           VERSION=$(grep '^version = ' tools/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
@@ -104,6 +105,7 @@ jobs:
 
       - name: Run unit tests (--lib, all workspace crates)
         working-directory: tools/nika
+        shell: bash
         run: |
           set -o pipefail
           cargo nextest run --workspace --lib 2>&1 | tee /tmp/test-results.txt
@@ -114,6 +116,7 @@ jobs:
 
       - name: Output test summary
         if: always()
+        shell: bash
         run: |
           PASSED=$(grep -oE '[0-9]+ passed' /tmp/test-results.txt | grep -oE '[0-9]+' | head -1 || echo '0')
           echo "### Tests (${{ matrix.os }})" >> "$GITHUB_STEP_SUMMARY"
