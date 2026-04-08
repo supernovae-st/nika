@@ -14,8 +14,10 @@ pub use nika_cli::daemon;
 pub use nika_cli::doctor;
 pub use nika_cli::eval;
 #[cfg(unix)]
+#[cfg(unix)]
 pub use nika_cli::every;
 pub use nika_cli::init;
+#[cfg(unix)]
 #[cfg(unix)]
 pub use nika_cli::jobs;
 pub use nika_cli::keys;
@@ -28,6 +30,7 @@ pub use nika_cli::new_cmd;
 pub use nika_cli::onboarding;
 pub use nika_cli::pkg;
 pub use nika_cli::provider;
+#[cfg(unix)]
 pub use nika_cli::schedule;
 pub use nika_cli::schema;
 pub use nika_cli::showcase;
