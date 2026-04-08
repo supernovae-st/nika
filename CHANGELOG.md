@@ -7,10 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  NIKA v0.78.0 — PROGRESSIVE DISCOVERY                                     ║
-║  AI rules architecture: shared modules, 12 assemblers, 10 tools | 10,520  ║
+║  NIKA v0.79.0 — SHIELD                                                    ║
+║  6-layer prompt injection defense stack | 65 transforms | 10,666 tests    ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
+
+## [0.79.0] — 2026-04-08
+
+### Added
+- **Nika Shield — 6-layer prompt injection defense** fully wired into the runner:
+  - L0 Policy: `[policy.security]` in nika.toml (taint_mode, spotlight, canary, capabilities)
+  - L1 Taint Analysis: compile-time trust propagation via `nika check --security`
+  - L2 Spotlighting: auto-wrap untrusted data with randomized fence markers (per Microsoft Research)
+  - L3 Structured Output: pre-existing 5-layer JSON schema enforcement
+  - L4 Capabilities: per-task tool restriction based on trust chain (`AgentToolPolicy`)
+  - L5 Validation + Audit: canary tokens (3x16-char suffix), output scanner, 14 security events
+- **SecurityPolicyConfig** in nika-core (`policy.rs`) — diamond-layered so nika-display can read it
+- **SecurityContext** aggregate in nika-engine (`runtime/shield.rs`) — SpotlightFence + CanarySystem
+- **4 trust categories** for builtins: Propagating (23), Reference (18), Pure (12), External (1)
+- **check_path_readable** — untrusted agents blocked from reading nika.toml, .mcp.json, .env, *.nika.yaml
+- **8 security lint rules** (L-SEC-001..008) in `nika lint` via TaintAnalyzer
+- **11 new error variants**: NIKA-271 (SkillIntegrityFailed), NIKA-380..389 (Shield security)
+- **3 security transforms**: `html_escape`, `md_escape`, `sanitize` (65 transforms total)
+- **SecuritySummary** in `nika run` output
+- **Per-binding spotlight wrapping** + canary SUFFIX injection
+- **nika:run trust ceiling** + cycle detection (`InvocationSource::NestedRun`)
+
+### Fixed
+- 3 HIGH gaps post-audit: TrustLevelAssigned emission, NestedRun ceiling, per-stream canary
+- SpotlightFence::wrap renamed to wrap_untrusted (debug_assert on non-untrusted)
+- Redacted Debug impls for SecurityContext/CanarySystem (prevents tracing exfil)
+
+### Status
+- 10,666 tests GREEN (+101 new Shield tests), 17 crates
+- Shield coverage: ~87%, 9 items deferred to Sprint 3
+- SECURITY.md: comprehensive threat model document
 
 ## [0.78.0] — 2026-04-07
 
