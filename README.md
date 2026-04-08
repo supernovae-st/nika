@@ -608,6 +608,27 @@ tools/
 
 ---
 
+## EU AI Act Ready
+
+Nika ships native compliance infrastructure for the EU AI Act (Regulation 2024/1689).
+No plugins. No add-ons. Built in.
+
+| Nika Feature | EU AI Act Article | What it does |
+|:-------------|:-----------------|:-------------|
+| `nika:provenance` | Art. 50(2) | C2PA content credentials: sign AI-generated images with cryptographic provenance |
+| `nika:verify` | Art. 50(2) | Verify C2PA manifests, returns `eu_ai_act_compliant: true/false` |
+| NDJSON execution traces | Art. 12 | 58+ event types logged per workflow run. Full audit trail. |
+| Nika Shield (6-layer) | Art. 9 | Prompt injection defense: taint analysis, spotlighting, canary tokens, capabilities |
+| Trust levels (4-tier) | Art. 50(2) | Every data binding classified: Trusted, ModelGenerated, ModelTainted, Untrusted |
+| Agent guardrails | Art. 14 | max_turns, cost limits, LLM judge, schema validation. Human oversight by design. |
+| `nika init --course` | Art. 4 | 12-level interactive course. AI literacy built into the tool. |
+| AGPL open source | Art. 13 | Fully auditable. Every line of code. Every decision reviewable. |
+
+Article 50 enters enforcement on **August 2, 2026**. Penalties up to 7.5M EUR.
+No other AI workflow engine ships these features natively.
+
+---
+
 ## Install
 
 | Method | Command |
@@ -704,7 +725,7 @@ cargo clippy -- -D warnings       # zero warnings policy
 
 > **Note:** `cargo test` without `--lib` runs contract tests that trigger macOS Keychain popups. Always use `--lib`.
 
-Nika is built with AI assistance. Every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,666 tests that prove it works. See the [Manifesto](MANIFESTO.md#8-built-with-ai) for our stance on AI-assisted development.
+Nika is built with AI assistance. Every commit says so (`Co-Authored-By: Nika 🦋`). AI accelerates the keystrokes. Humans own the architecture, the design decisions, and the 10,666 tests that prove it works. See the [Manifesto](MANIFESTO.md#9-built-with-ai) for our stance on AI-assisted development.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 

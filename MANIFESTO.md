@@ -195,7 +195,43 @@ license prevents it.
 
 ---
 
-## 5. Why Rust
+## 5. EU AI Act Ready
+
+On August 2, 2026, the EU AI Act (Regulation 2024/1689) starts enforcing
+transparency obligations for AI-generated content. Every company using AI
+to generate text, images, or media in the EU must mark and trace that content.
+Penalties: up to 7.5 million EUR or 1.5% of global turnover.
+
+Most AI tools treat compliance as an afterthought. Nika ships it as infrastructure.
+
+**What's built in, today:**
+
+- **C2PA content credentials.** `nika:provenance` signs AI-generated images with
+  cryptographic provenance manifests (Article 50). `nika:verify` checks them and
+  returns `eu_ai_act_compliant: true` or `false`. No external service needed.
+- **Automatic audit trails.** Every workflow execution produces NDJSON traces with
+  58+ event types: what model was called, what it returned, how much it cost, how
+  long it took, what security events fired. Full traceability (Article 12).
+- **Trust classification.** Every piece of data flowing through a workflow carries
+  a trust level: Trusted, ModelGenerated, ModelTainted, or Untrusted. You always
+  know what came from a human and what came from a model (Article 50).
+- **Prompt injection defense.** 6-layer Nika Shield with taint analysis, spotlight
+  fencing, canary tokens, and capability restrictions. Risk management by design,
+  not by policy document (Article 9).
+- **Human oversight.** Agent guardrails, turn limits, cost caps, LLM judge,
+  structured output validation. The machine does not run unsupervised (Article 14).
+- **AI literacy.** A 12-level interactive course ships with the binary. Run
+  `nika init --course` and learn (Article 4).
+
+No other AI orchestration tool ships these features natively. Not LangChain.
+Not CrewAI. Not n8n. The market is empty. Nika fills it.
+
+> **Compliance should not be a premium feature.
+> It should be the default. It should be open source. It should be free.**
+
+---
+
+## 6. Why Rust
 
 > **Performance is not a luxury. Performance is freedom.**
 
@@ -218,7 +254,7 @@ A Raspberry Pi can run Nika. A GitHub Action can run Nika. A $5/month VPS can ru
 
 ---
 
-## 6. The Numbers
+## 7. The Numbers
 
 Real benchmarks. Real tasks. No cherry-picking.
 ### RAM usage: "Summarize 10 web pages" task
@@ -278,7 +314,7 @@ pie title Monthly Cost of AI Automation
 
 ---
 
-## 7. The Name
+## 8. The Name
 
 In an old legend, there is a warrior who goes from place to place. Not conquering,
 not ruling, but **liberating**. Not with weapons. Not with force. With joy.
@@ -300,7 +336,7 @@ people realize that a 10-line text file can do what a $49/month platform does --
 
 ---
 
-## 8. Built With AI
+## 9. Built With AI
 
 Nika is an AI tool, built with AI. We eat our own dogfood.
 
@@ -339,7 +375,7 @@ house still needs an architect.
 
 ---
 
-## 9. Join Us
+## 10. Join Us
 
 Nika is not a product. It's a movement.
 
