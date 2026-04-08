@@ -50,10 +50,14 @@ pub use detail::DetailLevel;
 pub use live::LiveRenderer;
 pub use renderer::{CliRenderer, Renderer};
 pub use run_renderer::{auto_renderer, classic_renderer, live_renderer};
+pub use renderer::{CanaryCounters, ShieldStats, SpotlightCounters, TrustCounters};
 pub use summary::{
     format_doctor_header, format_doctor_summary, format_done_summary, format_run_summary,
     print_doctor_header, print_doctor_summary, print_done_summary, print_run_summary,
+    SecuritySummary,
 };
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_shield_summary;

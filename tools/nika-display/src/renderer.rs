@@ -149,6 +149,116 @@ pub struct RunStats {
     /// Tracks the last ProviderCalled per task_id so ProviderResponded can join provider/model.
     #[doc(hidden)]
     pub pending_providers: HashMap<String, (String, String)>,
+    /// Nika Shield aggregate counters (Sprint 2 Item 5).
+    pub shield: ShieldStats,
+}
+
+// ── Nika Shield aggregate stats (Sprint 2 Item 5) ─────────────────────────
+
+#[derive(Debug, Default, Clone)]
+pub struct TrustCounters {
+    pub trusted: u32,
+    pub model_generated: u32,
+    pub model_tainted: u32,
+    pub untrusted: u32,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct SpotlightCounters {
+    pub applied: u32,
+    pub skipped: u32,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct CanaryCounters {
+    pub injected: u32,
+    pub detected: u32,
+}
+
+/// Per-run shield activity counters. Wired into `RunStats::apply_event` so
+/// every relevant security `EventKind` increments the right field. The
+/// `SecuritySummary` `Display` impl in `summary.rs` reads from this struct
+/// to render the end-of-run security block.
+#[derive(Debug, Default, Clone)]
+pub struct ShieldStats {
+    pub trust: TrustCounters,
+    pub spotlight: SpotlightCounters,
+    pub canary: CanaryCounters,
+    pub findings: u32,
+    pub restrictions: u32,
+    pub capability_denied: u32,
+    pub skill_integrity_failed: u32,
+}
+
+impl ShieldStats {
+    /// Update counters from a security event. Returns `true` when the event
+    /// matched a security variant — caller can use the return value to
+    /// avoid double-handling in the per-renderer match arms.
+    pub fn apply_event(&mut self, kind: &EventKind) -> bool {
+        match kind {
+            EventKind::TrustLevelAssigned { trust_level, .. } => {
+                match trust_level.as_str() {
+                    "Trusted" => self.trust.trusted = self.trust.trusted.saturating_add(1),
+                    "ModelGenerated" => {
+                        self.trust.model_generated = self.trust.model_generated.saturating_add(1)
+                    }
+                    "ModelTainted" => {
+                        self.trust.model_tainted = self.trust.model_tainted.saturating_add(1)
+                    }
+                    "Untrusted" => self.trust.untrusted = self.trust.untrusted.saturating_add(1),
+                    _ => {}
+                }
+                true
+            }
+            EventKind::SpotlightApplied { .. } => {
+                self.spotlight.applied = self.spotlight.applied.saturating_add(1);
+                true
+            }
+            EventKind::SpotlightSkipped { .. } => {
+                self.spotlight.skipped = self.spotlight.skipped.saturating_add(1);
+                true
+            }
+            EventKind::CanaryInjected { .. } => {
+                self.canary.injected = self.canary.injected.saturating_add(1);
+                true
+            }
+            EventKind::CanaryDetected { .. } => {
+                self.canary.detected = self.canary.detected.saturating_add(1);
+                true
+            }
+            EventKind::SecurityScanFinding { .. } => {
+                self.findings = self.findings.saturating_add(1);
+                true
+            }
+            EventKind::AgentToolRestricted { .. } => {
+                self.restrictions = self.restrictions.saturating_add(1);
+                true
+            }
+            EventKind::CapabilityDenied { .. } => {
+                self.capability_denied = self.capability_denied.saturating_add(1);
+                true
+            }
+            EventKind::SkillIntegrityFailed { .. } => {
+                self.skill_integrity_failed = self.skill_integrity_failed.saturating_add(1);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// True when ANY shield activity occurred during the run. Used by the
+    /// renderer to decide whether to print the Security Summary block.
+    pub fn has_activity(&self) -> bool {
+        (self.spotlight.applied
+            | self.canary.detected
+            | self.findings
+            | self.restrictions
+            | self.capability_denied
+            | self.skill_integrity_failed
+            | self.trust.untrusted
+            | self.trust.model_tainted)
+            != 0
+    }
 }
 
 #[derive(Debug)]
@@ -188,6 +298,12 @@ impl RunStats {
     /// Renderers call this at the top of their render method, then only handle
     /// display-specific logic (printing, progress bars, etc.) in their match arms.
     pub fn apply_event(&mut self, event: &nika_event::Event) {
+        // Sprint 2 Item 5: route security events into the shield aggregate.
+        // Returns true when the variant matched a security event so the
+        // outer match below can short-circuit (avoids double-counting).
+        if self.shield.apply_event(&event.kind) {
+            return;
+        }
         match &event.kind {
             EventKind::ProviderCalled {
                 task_id,

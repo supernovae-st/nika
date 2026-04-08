@@ -2192,6 +2192,7 @@ fn make_stats() -> RunStats {
             cost: 0.0042,
         }],
         pending_providers: std::collections::HashMap::new(),
+        shield: super::renderer::ShieldStats::default(),
     }
 }
 
