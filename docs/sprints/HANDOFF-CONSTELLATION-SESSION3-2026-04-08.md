@@ -9,7 +9,7 @@
 
 - **Version:** v0.79.0 (unchanged — no version bump yet)
 - **Branch:** main
-- **Last commit:** `6390be306` refactor(engine): split template.rs
+- **Last commit:** `da76a7752` fix(kernel): address code review P0+P1 findings
 - **Tests:** 10,693 passed, 0 failed, 1 ignored (`cargo test --workspace --lib`)
 - **Clippy:** Zero warnings (`cargo clippy --workspace -- -D warnings`)
 - **Crates:** 19 workspace members (17 original + nika-kernel + nika-kernel-mock)
@@ -96,6 +96,34 @@ requires Phase 14 VerbExecutor restructure, not just mechanical file extraction.
 | `nika-core/src/ast/analyzer/analyze.rs` | 5,531 | Split into 11 files | Phase 17 |
 | `nika-engine/src/runtime/runner/mod.rs` | 2,344 | Restructure with VerbExecutor | Phase 14 |
 | `nika-engine/src/binding/template/mod.rs` | 2,053 | Source halves tightly coupled | Phase 14+ |
+
+---
+
+## CODE REVIEW FINDINGS (SESSION 2 final review — ALL FIXED)
+
+### P0s FIXED in `da76a7752`:
+1. **EventEmitter signature divergence**: nika-kernel had incompatible `EventEmitter(kind_name: &str, payload: Value)`
+   vs nika-event's `EventEmitter(kind: EventKind)`. FIXED: removed from nika-kernel entirely.
+2. **Capabilities conflicts with ModelCapabilities**: nika-kernel defined its own `Capabilities` struct overlapping
+   nika-core's `ModelCapabilities`. FIXED: replaced with re-export of `nika_core::catalogs::ModelCapabilities`.
+
+### P1s FIXED in same commit:
+3. `InMemoryFs::glob` used broken `contains()` — FIXED: suffix matching with `ends_with`
+4. `InvocationContext::source` returned `&T` for a `Copy` type — FIXED: returns by value
+5. `TaskOutput` missing status — FIXED: added `TaskOutcome` enum (Success/Failed/Skipped)
+6. `InMemoryFs::exists` didn't detect directories — FIXED: checks prefix paths
+
+### P2s TRACKED (not fixed, low priority):
+7. `MemoryBlobStore::hash` collision-prone (first 32 bytes only) — document or use seahash
+8. No `MockEventEmitter` in nika-kernel-mock — add when verb crates need it
+9. `HttpRequest::post_json` uses `to_string()` not `to_vec()` — functionally correct
+10. `ResponseFormat`/`InferRequest`/`ProviderExtras` missing `Serialize`/`Deserialize` — add when caching needs it
+
+### Design validations (reviewer confirmed correct):
+- TaskScope 6 splinter traits + blanket umbrella: sound approach
+- MockClock Arc<Mutex> shared state: correct pattern
+- transform.rs 5-file split: clean, no circular imports
+- `publish = false` on nika-kernel-mock: correct
 
 ---
 
