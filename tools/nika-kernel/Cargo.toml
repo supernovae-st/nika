@@ -1,0 +1,25 @@
+[package]
+name = "nika-kernel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika kernel — trait definitions for all side effects (L0.5 layer)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-core = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+futures-core = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+
+[lints]
+workspace = true

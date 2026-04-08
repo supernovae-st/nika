@@ -6064,6 +6064,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-kernel"
+version = "0.79.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-core",
+ "nika-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "nika-lsp"
 version = "0.79.0"
 dependencies = [

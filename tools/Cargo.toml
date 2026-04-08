@@ -20,6 +20,7 @@ members = [
     # nika-napi and nika-py removed from workspace — cause link failures
     # and are deprecated in favor of nika-sdk
     "nika-vault",
+    "nika-kernel",
 ]
 
 [workspace.package]
@@ -47,6 +48,7 @@ nika-serve = { path = "nika-serve", version = "0.79.0" }
 nika-lsp-core = { path = "nika-lsp-core", version = "0.79.0" }
 nika-sdk = { path = "nika-sdk", version = "0.79.0" }
 nika-vault = { path = "nika-vault", version = "0.79.0" }
+nika-kernel = { path = "nika-kernel", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
@@ -63,6 +65,7 @@ tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", 
 tokio-util = "0.7"
 tokio-stream = "0.1"
 futures-util = "0.3"
+futures-core = "0.3"
 async-stream = "0.3"
 async-trait = "0.1"
 backon = "1.3"
