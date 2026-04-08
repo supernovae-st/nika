@@ -278,4 +278,6 @@ panic = "unwind"  # BUG-9: allow catch_unwind in nika-serve embedded executor
 split-debuginfo = "unpacked"
 
 [profile.test]
-opt-level = 1
+# opt-level = 0 (dev default) avoids ARM64 linker symbol errors
+# caused by 3 conflicting html5ever versions in the dependency graph
+lto = false
