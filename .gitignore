@@ -60,3 +60,7 @@ generated/
 docs/podcast/
 docs/reports/
 tests/e2e-overnight/output/
+# No audio at repo root — belongs in docs/podcast/ (gitignored) or external
+/*.mp3
+/*.wav
+/*.m4a
