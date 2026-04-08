@@ -54,7 +54,7 @@ All editors must highlight the same set of keywords, extracted from the Rust sou
 | Category | Source of Truth | Count |
 |----------|----------------|-------|
 | **Verbs** | `nika-core/src/ast/raw/action.rs` | 5 |
-| **Transforms** | `nika-core/src/binding/transform.rs` (`KNOWN_TRANSFORM_NAMES`) | 62 |
+| **Transforms** | `nika-core/src/binding/transform.rs` (`KNOWN_TRANSFORM_NAMES`) | 65 |
 | **Builtin tools** | `nika-core/src/catalogs/builtins.rs` (`KNOWN_BUILTIN_TOOLS`) | 63 |
 | **Workflow keys** | `nika-core/src/ast/raw/parser.rs` (`known_workflow_keys`) | 20 |
 | **Task keys** | `nika-core/src/ast/raw/parser.rs` (`KNOWN_TASK_KEYS`) | 35 |

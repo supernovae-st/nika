@@ -11,7 +11,7 @@
 - **AI is locked** behind code, subscriptions, and vendor walls. Most people can't use it.
 - **Nika is a single binary** that reads a YAML file and executes AI tasks. No code. No subscription.
 - **5 verbs** (`infer`, `fetch`, `exec`, `invoke`, `agent`) describe any automation you can imagine.
-- **19 providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
+- **9 providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
 - **The mission**: the gap between "AI exists" and "I can use AI" should be **zero**.
 
 ---

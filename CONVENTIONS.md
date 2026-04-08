@@ -123,7 +123,7 @@ data: $task.result | default("none") | upper
 
 ## Structured Output
 
-Enforces schema-validated JSON with automatic retry and repair. The prompt must be natural language -- never mention JSON or the schema.
+Enforces schema-validated JSON with automatic retry and repair. The prompt must be natural language. Never mention JSON or the schema.
 
 ```yaml
 - id: extract
@@ -215,7 +215,7 @@ All `timeout:` values are in **seconds** (the engine converts internally).
 
 ## Path Resolution
 
-All relative paths (context, skills, exec commands) resolve from the **project root** -- the directory containing `nika.toml`, or the directory from which `nika run` is invoked.
+All relative paths (context, skills, exec commands) resolve from the **project root**: the directory containing `nika.toml`, or the directory from which `nika run` is invoked.
 
 ## Security
 

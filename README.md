@@ -11,7 +11,7 @@ Write AI workflows in YAML. Run them anywhere.
 
 [![Crates.io](https://img.shields.io/crates/v/nika?style=flat-square&logo=rust&logoColor=white&color=e6522c)](https://crates.io/crates/nika)
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&label=CI)](https://github.com/supernovae-st/nika/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-10%2C435-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-10%2C666-10b981?style=flat-square)](https://github.com/supernovae-st/nika/actions)
 [![Crates](https://img.shields.io/badge/crates-17-3b82f6?style=flat-square)](https://github.com/supernovae-st/nika/tree/main/tools)
 [![License](https://img.shields.io/badge/AGPL--3.0--or--later-22c55e?style=flat-square&logo=gnu&logoColor=white)](LICENSE)
 [![Docker](https://img.shields.io/docker/pulls/supernovae/nika?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/supernovae/nika)
@@ -310,7 +310,7 @@ tasks:
     infer: "First user: {{with.name | upper | trim}}"
 ```
 
-**64 pipe transforms**: `upper`, `lower`, `trim`, `join(",")`, `split(",")`, `sort`, `unique`, `flatten`, `first`, `last`, `length`, `to_json`, `parse_json`, `parse_yaml`, `default("x")`, `pluck(field)`, `where(field, val)`, `sort_by(field)`, `pick(f1,f2)`, `omit(f1,f2)`, `jq(expr)`, `regex(pattern)`, and [40+ more](tools/nika/CHANGELOG.md).
+**65 pipe transforms**: `upper`, `lower`, `trim`, `join(",")`, `split(",")`, `sort`, `unique`, `flatten`, `first`, `last`, `length`, `to_json`, `parse_json`, `parse_yaml`, `default("x")`, `pluck(field)`, `where(field, val)`, `sort_by(field)`, `pick(f1,f2)`, `omit(f1,f2)`, `jq(expr)`, `regex(pattern)`, `html_escape`, `sanitize`, and [40+ more](tools/nika/CHANGELOG.md).
 
 **Parallel loops** with `for_each` + `concurrency`:
 
@@ -620,7 +620,7 @@ tools/
 | **Source** | `git clone https://github.com/supernovae-st/nika && cargo install --path nika/tools/nika` |
 
 ```bash
-nika --version       # nika 0.77.0
+nika --version       # nika 0.79.0
 nika doctor          # full system health check
 ```
 
