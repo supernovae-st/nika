@@ -244,6 +244,21 @@ impl TaskExecutor {
             _ => resolved_system, // Text, None, or structured: handles its own format
         };
 
+        // ── Nika Shield: canary token injection (Item 2) ───────────────────
+        // Suffix-only injection (P0-1) preserves the provider prefix-cache
+        // hit rate. The injected `[trace_id=…]` block is the canary the
+        // detector looks for in LLM responses.
+        let resolved_system = if self.shield.canary_enabled() {
+            let base = resolved_system.as_deref().unwrap_or("");
+            let injected = self.shield.canary().inject_into_system_prompt(base);
+            self.event_log.emit(EventKind::CanaryInjected {
+                task_id: Arc::clone(task_id),
+            });
+            Some(injected)
+        } else {
+            resolved_system
+        };
+
         // Validate resolved prompt is not empty (could happen if template resolves to empty)
         // Skip this check when content is present (vision mode — prompt is optional)
         let has_content = infer.content.as_ref().is_some_and(|c| !c.is_empty());

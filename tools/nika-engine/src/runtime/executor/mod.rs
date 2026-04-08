@@ -25,6 +25,8 @@ mod tests;
 #[cfg(test)]
 mod tests_extract_e2e;
 #[cfg(test)]
+mod tests_shield_canary;
+#[cfg(test)]
 mod tests_shield_spotlight;
 #[cfg(test)]
 mod tests_wiremock;
@@ -621,6 +623,38 @@ impl TaskExecutor {
                 }
             }
         }
+
+        // ── Nika Shield: canary detection (Item 2) ─────────────────────────
+        // Run on every LLM verb output. If a canary token leaks through,
+        // emit CanaryDetected and (in strict mode) hard-fail with NIKA-382.
+        let result = if is_llm_verb && self.shield.canary_enabled() {
+            match result {
+                Ok(output) => {
+                    if let Some(detection) = self.shield.canary().check_output(&output) {
+                        let match_type: &'static str = match detection.match_type {
+                            crate::runtime::canary::CanaryMatchType::Exact => "exact",
+                            crate::runtime::canary::CanaryMatchType::Substring => "substring",
+                            crate::runtime::canary::CanaryMatchType::CharSpaced => "char_spaced",
+                        };
+                        self.event_log.emit(EventKind::CanaryDetected {
+                            task_id: Arc::clone(task_id),
+                            match_type: match_type.to_string(),
+                        });
+                        if self.shield.is_strict() {
+                            return Err(NikaError::CanaryLeaked {
+                                task_id: task_id.to_string(),
+                                match_type,
+                                token_index: detection.token_index as u8,
+                            });
+                        }
+                    }
+                    Ok(output)
+                }
+                err @ Err(_) => err,
+            }
+        } else {
+            result
+        };
 
         result
     }

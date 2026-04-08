@@ -20,6 +20,18 @@ pub struct CanarySystem {
     detections: AtomicU32,
 }
 
+impl std::fmt::Debug for CanarySystem {
+    /// Sprint 2 P0-1 hardening: redact tokens. Otherwise tracing logs and
+    /// `dbg!()` from anywhere in the stack would leak the per-run secrets
+    /// the canary check relies on for adversarial detection.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CanarySystem")
+            .field("tokens", &"<3 tokens redacted>")
+            .field("detection_count", &self.detection_count())
+            .finish()
+    }
+}
+
 impl CanarySystem {
     /// Create a new canary system with 3 random tokens.
     ///
@@ -39,15 +51,39 @@ impl CanarySystem {
         }
     }
 
-    /// Inject canary tokens into a system prompt.
+    /// Append canary tokens to the END of a system prompt as metadata footer.
     ///
-    /// Tokens are placed at beginning, middle, and end to maximize coverage.
+    /// **Sprint 2 P0-1 hardening:** suffix-only injection preserves the
+    /// provider's prefix-cache hit rate. Anthropic / OpenAI / Mistral cache
+    /// exact-match prefixes — placing per-run random tokens at the START
+    /// would invalidate the cache on every call (50–90 % cost regression
+    /// on cached prompts). The trade-off is that the canary now appears
+    /// AFTER any injection payload that flips the model's instruction
+    /// hierarchy, but the suffix-cached `[trace_id=…]` block still gets
+    /// echoed when the model is fully exfiltrating its system prompt —
+    /// the only adversarial scenario where canary detection actually fires.
+    #[must_use]
     pub fn inject_into_system_prompt(&self, system_prompt: &str) -> String {
-        // Put tokens in metadata-style comments the LLM is unlikely to repeat
-        format!(
-            "[internal_session_id={}]\n{}\n[verification={}]\n[trace={}]",
-            self.tokens[0], system_prompt, self.tokens[1], self.tokens[2]
-        )
+        let mut out = String::with_capacity(system_prompt.len() + 192);
+        out.push_str(system_prompt);
+        if !system_prompt.is_empty() && !system_prompt.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push_str("\n[trace_id=");
+        out.push_str(&self.tokens[0]);
+        out.push_str("]\n[session=");
+        out.push_str(&self.tokens[1]);
+        out.push_str("]\n[verify=");
+        out.push_str(&self.tokens[2]);
+        out.push(']');
+        out
+    }
+
+    /// Test-only: peek at a token so tests can craft mock LLM responses
+    /// that contain the token verbatim (Sprint 2 Item 2).
+    #[cfg(test)]
+    pub fn peek_token(&self, idx: usize) -> &str {
+        &self.tokens[idx]
     }
 
     /// Check LLM output for canary leakage (exact + substring + char-spaced).
@@ -209,6 +245,40 @@ mod tests {
         assert_eq!(canary.detection_count(), 0);
         canary.check_output(&output);
         assert_eq!(canary.detection_count(), 1);
+    }
+
+    /// Sprint 2 P0-1 regression: the prompt prefix MUST be preserved
+    /// verbatim so the provider's prefix-cache hit rate stays high. A
+    /// 50–90 % cost regression on cached prompts is the alternative.
+    #[test]
+    fn test_canary_inject_preserves_prefix_for_provider_cache() {
+        let canary = CanarySystem::new();
+        let base = "You are a helpful assistant. Always respond in JSON.";
+        let injected = canary.inject_into_system_prompt(base);
+        assert!(
+            injected.starts_with(base),
+            "prefix must be preserved verbatim for provider cache"
+        );
+        assert!(injected.contains("[trace_id="), "canary must appear in suffix");
+        assert!(injected.contains("[session="), "session token must appear");
+        assert!(injected.contains("[verify="), "verify token must appear");
+        assert!(injected.len() > base.len(), "suffix added");
+        assert!(injected.len() < base.len() + 256, "suffix is bounded");
+    }
+
+    /// Sprint 2 P0-1 hardening: Debug must NOT leak the canary tokens.
+    #[test]
+    fn test_canary_debug_redacts_tokens() {
+        let canary = CanarySystem::new();
+        let dbg = format!("{canary:?}");
+        for token in &canary.tokens {
+            assert!(
+                !dbg.contains(token),
+                "Debug must not leak token {token}: {dbg}"
+            );
+        }
+        assert!(dbg.contains("redacted"));
+        assert!(dbg.contains("CanarySystem"));
     }
 
     #[test]
