@@ -358,7 +358,7 @@ See [CONVENTIONS.md](CONVENTIONS.md) for workflow authoring conventions.
 
 ## AI-Assisted Development
 
-We use AI tools (Claude, Copilot, etc.) to build Nika. You can too.
+We use AI tools (Mistral, Copilot, Kimi, Claude, and others) to build Nika. You can too.
 
 **What we expect from AI-assisted PRs:**
 

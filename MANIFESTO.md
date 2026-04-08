@@ -305,7 +305,7 @@ people realize that a 10-line text file can do what a $49/month platform does --
 Nika is an AI tool, built with AI. We eat our own dogfood.
 
 Every commit in this repository carries `Co-Authored-By: Nika 🦋`. That's not
-a disclaimer. It's a statement. We use Claude, Copilot, and other AI tools
+a disclaimer. It's a statement. We use Mistral, Copilot, Kimi, Claude, and other AI tools
 extensively. We don't hide it. We don't apologize for it. We ship.
 
 **This is not AI slop.**
