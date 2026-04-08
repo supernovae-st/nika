@@ -121,6 +121,8 @@ impl RigAgentLoop {
         let mut cached_input_tokens: u64 = 0;
         // Streaming token counter for live progress display
         let mut streaming_tokens: u64 = 0;
+        // PERF: Hoist Arc allocation out of the streaming loop
+        let task_id_arc: Arc<str> = Arc::from(self.task_id.as_str());
         // TTFT: capture time before first token arrives
         let stream_start = Instant::now();
         let mut ttft_ms: Option<u64> = None;
@@ -165,7 +167,7 @@ impl RigAgentLoop {
                         // Emit StreamingDelta for live progress (every ~10 tokens to avoid flood)
                         if streaming_tokens % 10 < delta {
                             self.event_log.emit(EventKind::StreamingDelta {
-                                task_id: Arc::from(self.task_id.as_str()),
+                                task_id: Arc::clone(&task_id_arc),
                                 delta_tokens: delta,
                                 total_tokens: streaming_tokens,
                             });
@@ -250,7 +252,7 @@ impl RigAgentLoop {
                         crate::runtime::canary::CanaryMatchType::CharSpaced => "char_spaced",
                     };
                     self.event_log.emit(EventKind::CanaryDetected {
-                        task_id: Arc::from(self.task_id.as_str()),
+                        task_id: Arc::clone(&task_id_arc),
                         match_type: match_type.to_string(),
                     });
                     if shield.is_strict() {
@@ -268,7 +270,7 @@ impl RigAgentLoop {
                         // We tag the match type as "thinking" so the
                         // SecuritySummary + lint can attribute the source.
                         self.event_log.emit(EventKind::CanaryDetected {
-                            task_id: Arc::from(self.task_id.as_str()),
+                            task_id: Arc::clone(&task_id_arc),
                             match_type: "thinking".to_string(),
                         });
                         if shield.is_strict() {
@@ -587,6 +589,8 @@ impl RigAgentLoop {
         let mut streaming_tokens: u64 = 0;
         let tui_stream_start = Instant::now();
         let mut tui_ttft_ms: Option<u64> = None;
+        // PERF: Hoist Arc allocation out of the streaming loop
+        let task_id_arc: Arc<str> = Arc::from(self.task_id.as_str());
 
         // Per-chunk timeout to prevent hanging streams
         loop {
@@ -644,7 +648,7 @@ impl RigAgentLoop {
                         streaming_tokens += delta;
                         if streaming_tokens % 10 < delta {
                             self.event_log.emit(EventKind::StreamingDelta {
-                                task_id: Arc::from(self.task_id.as_str()),
+                                task_id: Arc::clone(&task_id_arc),
                                 delta_tokens: delta,
                                 total_tokens: streaming_tokens,
                             });
@@ -679,7 +683,7 @@ impl RigAgentLoop {
 
                         // Log event for observability
                         self.event_log.emit(EventKind::McpInvoke {
-                            task_id: Arc::from(self.task_id.as_str()),
+                            task_id: Arc::clone(&task_id_arc),
                             call_id,
                             mcp_server: "agent".to_string(),
                             tool: Some(tool_name),
