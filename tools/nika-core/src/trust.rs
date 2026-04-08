@@ -213,9 +213,7 @@ pub const TRUST_PURE_BUILTINS: &[&str] = &[
 
 /// Builtins whose output is always `Untrusted` regardless of input (external
 /// data sources). Output is fetched from outside the workflow (HTTP, MCP).
-pub const TRUST_EXTERNAL_BUILTINS: &[&str] = &[
-    "nika:fetch",
-];
+pub const TRUST_EXTERNAL_BUILTINS: &[&str] = &["nika:fetch"];
 
 /// Check if a builtin tool propagates input trust (vs producing trusted output).
 pub fn is_trust_propagating_builtin(tool: &str) -> bool {
@@ -302,10 +300,7 @@ mod tests {
     fn test_invocation_source_trust() {
         assert_eq!(InvocationSource::Cli.input_trust(), TrustLevel::Trusted);
         assert_eq!(InvocationSource::Test.input_trust(), TrustLevel::Trusted);
-        assert_eq!(
-            InvocationSource::Serve.input_trust(),
-            TrustLevel::Untrusted
-        );
+        assert_eq!(InvocationSource::Serve.input_trust(), TrustLevel::Untrusted);
         // P0-3: Unknown must fail closed.
         assert_eq!(
             InvocationSource::Unknown.input_trust(),

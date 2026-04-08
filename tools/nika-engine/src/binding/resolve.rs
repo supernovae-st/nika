@@ -115,6 +115,14 @@ pub struct ResolvedBindings {
     source_tasks: FxHashMap<String, String>,
     /// Aliases whose values were resolved from $env — must be masked in traces.
     env_sourced: rustc_hash::FxHashSet<String>,
+    /// Aliases whose values came from `inputs:` (workflow inputs) — used by
+    /// the Nika Shield spotlight pre-pass to know whether to wrap based on
+    /// `RunContext::invocation_source().input_trust()`.
+    input_sourced: rustc_hash::FxHashSet<String>,
+    /// Aliases whose values came from a `for_each` loop variable. The
+    /// spotlight pre-pass treats these as untrusted unless the parent
+    /// for_each iterator is trusted (Sprint 3 will refine this).
+    loop_var_sourced: rustc_hash::FxHashSet<String>,
 }
 
 impl ResolvedBindings {
@@ -225,6 +233,18 @@ impl ResolvedBindings {
                 bindings.env_sourced.insert(alias.clone());
             }
 
+            // Track Input + LoopVar sources so the Nika Shield spotlight pre-pass
+            // can decide whether to wrap based on the run's invocation source.
+            match &entry.source.source {
+                BindingSource::Input(_) => {
+                    bindings.input_sourced.insert(alias.clone());
+                }
+                BindingSource::LoopVar(_) => {
+                    bindings.loop_var_sourced.insert(alias.clone());
+                }
+                _ => {}
+            }
+
             if entry.is_lazy() {
                 bindings.bindings.insert(
                     alias.clone(),
@@ -273,6 +293,17 @@ impl ResolvedBindings {
                 BindingSource::Env(_) | BindingSource::Vault { .. }
             ) {
                 bindings.env_sourced.insert(alias.clone());
+            }
+
+            // Track Input + LoopVar sources for the Nika Shield spotlight pre-pass.
+            match &entry.source.source {
+                BindingSource::Input(_) => {
+                    bindings.input_sourced.insert(alias.clone());
+                }
+                BindingSource::LoopVar(_) => {
+                    bindings.loop_var_sourced.insert(alias.clone());
+                }
+                _ => {}
             }
 
             if entry.is_lazy() {
@@ -330,6 +361,22 @@ impl ResolvedBindings {
     /// Used by artifact processor to resolve media paths and binary artifact sources.
     pub fn source_task_id(&self, alias: &str) -> Option<&str> {
         self.source_tasks.get(alias).map(|s| s.as_str())
+    }
+
+    /// True if the binding was sourced from a workflow `inputs:` parameter.
+    /// Used by the Nika Shield spotlight pre-pass to derive trust from
+    /// `RunContext::invocation_source().input_trust()`.
+    #[inline]
+    pub fn is_input_sourced(&self, alias: &str) -> bool {
+        self.input_sourced.contains(alias)
+    }
+
+    /// True if the binding was sourced from a `for_each` loop variable.
+    /// Currently treated as untrusted in the spotlight pre-pass; Sprint 3
+    /// will refine this once `for_each` carries upstream trust through.
+    #[inline]
+    pub fn is_loop_var_sourced(&self, alias: &str) -> bool {
+        self.loop_var_sourced.contains(alias)
     }
 
     /// Get a resolved value (only works for already-resolved bindings)

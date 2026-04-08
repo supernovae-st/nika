@@ -146,12 +146,7 @@ impl TaintAnalyzer {
                     let dangerous: Vec<String> = agent
                         .tools
                         .iter()
-                        .filter(|t| {
-                            matches!(
-                                t.as_str(),
-                                "nika:write" | "nika:edit" | "nika:run"
-                            )
-                        })
+                        .filter(|t| matches!(t.as_str(), "nika:write" | "nika:edit" | "nika:run"))
                         .cloned()
                         .collect();
                     if !dangerous.is_empty() {
@@ -339,9 +334,7 @@ impl TaintWarning {
             Self::UntrustedToExec {
                 source_task,
                 exec_task,
-            } => format!(
-                "Untrusted data from '{source_task}' flows to exec task '{exec_task}'"
-            ),
+            } => format!("Untrusted data from '{source_task}' flows to exec task '{exec_task}'"),
             Self::UntrustedToAgentTools {
                 source_task,
                 agent_task,
@@ -630,8 +623,11 @@ mod tests {
 
     #[test]
     fn test_agent_always_model_tainted() {
-        let wf =
-            make_workflow(vec![make_agent_task("research", vec![], WithSpec::default())]);
+        let wf = make_workflow(vec![make_agent_task(
+            "research",
+            vec![],
+            WithSpec::default(),
+        )]);
         let report = TaintAnalyzer::analyze(&wf, InvocationSource::Cli);
         assert_eq!(report.trust_map["research"], TrustLevel::ModelTainted);
     }

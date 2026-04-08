@@ -25,6 +25,8 @@ mod tests;
 #[cfg(test)]
 mod tests_extract_e2e;
 #[cfg(test)]
+mod tests_shield_spotlight;
+#[cfg(test)]
 mod tests_wiremock;
 pub(crate) mod verbs;
 
@@ -120,6 +122,9 @@ pub struct TaskExecutor {
     fetch_cache: Arc<crate::runtime::fetch_cache::FetchCache>,
     /// Workflow task list for on_error: fallback lookups.
     workflow_tasks: Arc<Vec<nika_core::ast::analyzed::AnalyzedTask>>,
+    /// Per-run Nika Shield state — fence + canary + policy refs behind a
+    /// single Arc. Cloned cheaply across task spawns. Sprint 2 Item 0.E.
+    pub(crate) shield: crate::runtime::shield::SecurityContext,
 }
 
 impl TaskExecutor {
@@ -215,6 +220,9 @@ impl TaskExecutor {
                 }
             }
         }
+        // Build per-run Nika Shield context BEFORE moving the policy into
+        // PolicyEnforcer so the borrow checker is happy.
+        let shield = crate::runtime::shield::SecurityContext::from_policy(&policy.security);
         let policy_enforcer = PolicyEnforcer::new(policy);
 
         // Create ToolContext for file tools
@@ -281,6 +289,7 @@ impl TaskExecutor {
             cookie_jar,
             fetch_cache,
             workflow_tasks: Arc::new(Vec::new()),
+            shield,
         })
     }
 

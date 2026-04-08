@@ -834,10 +834,7 @@ mod tests {
         // Default fails closed (Unknown → Untrusted).
         let def = RunContext::default();
         assert_eq!(def.invocation_source(), InvocationSource::Unknown);
-        assert_eq!(
-            def.invocation_source().input_trust(),
-            TrustLevel::Untrusted
-        );
+        assert_eq!(def.invocation_source().input_trust(), TrustLevel::Untrusted);
     }
 
     /// `set_invocation_source` is the builder hook used by `Runner`.
@@ -849,10 +846,7 @@ mod tests {
         ctx.set_invocation_source(InvocationSource::NestedRun {
             ceiling: TrustLevel::Untrusted,
         });
-        assert_eq!(
-            ctx.invocation_source().input_trust(),
-            TrustLevel::Untrusted
-        );
+        assert_eq!(ctx.invocation_source().input_trust(), TrustLevel::Untrusted);
     }
 
     #[test]

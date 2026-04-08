@@ -13,6 +13,21 @@ pub(crate) fn estimate_tokens(char_len: usize) -> u64 {
     char_len.div_ceil(4) as u64
 }
 
+/// Convert a binding `Value` into the prompt-substitution string form.
+///
+/// Returns owned `String` (not `Cow<'_, str>`) to avoid borrow conflicts
+/// when the caller needs to subsequently mutate the bindings map (P0-2
+/// hardening — the borrow-checker would otherwise reject the spotlight
+/// pre-pass that wraps each untrusted binding individually).
+#[inline]
+pub(crate) fn value_as_prompt_str(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Null => String::new(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
 /// Estimate the serialized size of a JSON Value without allocating a String.
 ///
 /// Walks the Value tree recursively. Approximate (doesn't account for escaping

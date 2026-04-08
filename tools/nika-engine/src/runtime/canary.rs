@@ -144,7 +144,9 @@ mod tests {
         for token in &canary.tokens {
             assert_eq!(token.len(), 16);
             assert!(token.chars().all(|c| c.is_ascii_alphanumeric()));
-            assert!(token.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+            assert!(token
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
         }
     }
 
@@ -213,6 +215,9 @@ mod tests {
     fn test_canary_uniqueness() {
         let c1 = CanarySystem::new();
         let c2 = CanarySystem::new();
-        assert_ne!(c1.tokens, c2.tokens, "Canary tokens should be unique per instance");
+        assert_ne!(
+            c1.tokens, c2.tokens,
+            "Canary tokens should be unique per instance"
+        );
     }
 }

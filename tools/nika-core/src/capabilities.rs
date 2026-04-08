@@ -120,10 +120,7 @@ mod tests {
             "novanet::search".to_string(),
             "nika:exec".to_string(),
         ];
-        let dangerous = vec![
-            "nika:write".to_string(),
-            "nika:exec".to_string(),
-        ];
+        let dangerous = vec!["nika:write".to_string(), "nika:exec".to_string()];
         let (kept, removed) = restrict_agent_tools(tools, true, false, &dangerous);
         assert_eq!(kept, vec!["novanet::search".to_string()]);
         assert_eq!(

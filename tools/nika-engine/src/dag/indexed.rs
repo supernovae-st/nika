@@ -513,7 +513,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
-                trust_elevated: false,
+            trust_elevated: false,
             span: Span::dummy(),
         };
 
@@ -594,7 +594,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
-                trust_elevated: false,
+            trust_elevated: false,
             span: Span::dummy(),
         });
 
@@ -625,7 +625,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
-                trust_elevated: false,
+            trust_elevated: false,
             span: Span::dummy(),
         });
 
@@ -767,7 +767,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
-                trust_elevated: false,
+            trust_elevated: false,
             span: Span::dummy(),
         };
 
@@ -824,7 +824,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
-                trust_elevated: false,
+            trust_elevated: false,
             span: Span::dummy(),
         });
 
@@ -855,7 +855,7 @@ mod tests {
             preset: None,
             routing: None,
             when: None,
-                trust_elevated: false,
+            trust_elevated: false,
             span: Span::dummy(),
         });
 

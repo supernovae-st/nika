@@ -80,8 +80,101 @@ impl TaskExecutor {
         // Validate infer params (empty prompt, invalid temperature)
         infer.validate()?;
 
+        // Read the calling task's `trust: elevated` flag from the
+        // task_local set by execute_task_iteration (Item 0.F). Avoids
+        // threading a new param through the run_infer signature.
+        let task_trust_elevated =
+            crate::runtime::builtin::run::current_task_elevated();
+
+        // ── Nika Shield: per-binding spotlight wrapping (Item 1) ───────────
+        // Hybrid trust resolution (R1 corrected):
+        //   1. Fast path — `bindings.source_task_id(alias)` for Task-sourced
+        //      bindings, look up trust via `datastore.get_trust(task_id)`.
+        //   2. Slow path — `bindings.is_input_sourced(alias)` for Input
+        //      sources, derive trust from `datastore.invocation_source()`.
+        //   3. LoopVar — conservatively wrap unless elevated (Sprint 3 will
+        //      thread for_each parent trust through).
+        //
+        // Owned `String` from `value_as_prompt_str` (P0-2) — borrow checker
+        // would otherwise reject the clone-on-mutate pattern.
+        use nika_core::trust::TrustLevel;
+        use std::borrow::Cow;
+
+        let wrapped_cow: Cow<'_, ResolvedBindings> = 'spotlight: {
+            if !self.shield.spotlight_enabled() || task_trust_elevated {
+                let reason = if !self.shield.spotlight_enabled() {
+                    "policy.spotlight=false"
+                } else {
+                    "trust: elevated"
+                };
+                self.event_log.emit(EventKind::SpotlightSkipped {
+                    task_id: Arc::clone(task_id),
+                    reason: reason.to_string(),
+                });
+                break 'spotlight Cow::Borrowed(bindings);
+            }
+
+            // Pre-pass: collect aliases that need wrapping. SmallVec keeps
+            // the trusted-path zero-allocation (4 untrusted bindings is the
+            // common ceiling for fan-in tasks).
+            let mut untrusted: smallvec::SmallVec<[(String, TrustLevel, String); 4]> =
+                smallvec::SmallVec::new();
+            for (alias, _value) in bindings.iter() {
+                // Fast path: Task source via set_with_source.
+                if let Some(src_task_id) = bindings.source_task_id(alias) {
+                    if let Some(t) = datastore.get_trust(src_task_id) {
+                        if t.is_untrusted() {
+                            untrusted.push((alias.to_string(), t, src_task_id.to_string()));
+                        }
+                    }
+                    continue;
+                }
+                // Slow path: workflow inputs.
+                if bindings.is_input_sourced(alias) {
+                    let trust = datastore.invocation_source().input_trust();
+                    if trust.is_untrusted() {
+                        untrusted.push((alias.to_string(), trust, format!("input.{alias}")));
+                    }
+                    continue;
+                }
+                // for_each loop var — conservative wrap when invocation
+                // source is untrusted. Sprint 3 will refine.
+                if bindings.is_loop_var_sourced(alias) {
+                    let trust = datastore.invocation_source().input_trust();
+                    if trust.is_untrusted() {
+                        untrusted.push((alias.to_string(), trust, format!("loop.{alias}")));
+                    }
+                }
+            }
+
+            if untrusted.is_empty() {
+                break 'spotlight Cow::Borrowed(bindings);
+            }
+
+            // Clone-on-mutate: rewrite each untrusted binding with the
+            // fenced version. Owned String from value_as_prompt_str.
+            let mut wrapped = bindings.clone();
+            for (alias, trust, label) in &untrusted {
+                let Some(value) = wrapped.get(alias) else {
+                    continue;
+                };
+                let raw = super::verbs::value_as_prompt_str(value);
+                let fenced = self.shield.fence().wrap_untrusted(&raw, label, *trust);
+                wrapped.set(alias.clone(), serde_json::Value::String(fenced));
+                self.event_log.emit(EventKind::SpotlightApplied {
+                    task_id: Arc::clone(task_id),
+                    binding_alias: alias.clone(),
+                    trust_level: trust.to_string(),
+                });
+            }
+            Cow::Owned(wrapped)
+        };
+        let prompt_bindings: &ResolvedBindings = wrapped_cow.as_ref();
+
         // Resolve {{with.alias}} templates in prompt and system prompt (Bug 1)
-        let mut prompt = match template_resolve(&infer.prompt, bindings, datastore) {
+        // — both use the spotlight-wrapped bindings so untrusted content is
+        // fenced before substitution.
+        let mut prompt = match template_resolve(&infer.prompt, prompt_bindings, datastore) {
             Ok(resolved) => resolved.into_owned(),
             Err(e) => {
                 self.event_log.emit(EventKind::TemplateResolutionFailed {
@@ -93,7 +186,7 @@ impl TaskExecutor {
             }
         };
         let resolved_system = match &infer.system {
-            Some(sys) => match template_resolve(sys, bindings, datastore) {
+            Some(sys) => match template_resolve(sys, prompt_bindings, datastore) {
                 Ok(resolved) => Some(resolved.into_owned()),
                 Err(e) => {
                     self.event_log.emit(EventKind::TemplateResolutionFailed {
@@ -106,11 +199,6 @@ impl TaskExecutor {
             },
             None => None,
         };
-
-        // Nika Shield: Spotlight — prepend re-anchoring instruction when untrusted data
-        // flows into this infer task. Checks binding aliases against RunContext trust levels.
-        // NOTE: alias→task_id mapping is approximate (alias == task_id for simple bindings).
-        // Full per-binding spotlight wrapping will be added when WithSpec is threaded here.
 
         // Auto-inject workflow-level skills into infer system prompt.
         // Skills are prepended so the LLM sees domain instructions before the task prompt.

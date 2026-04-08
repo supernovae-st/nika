@@ -421,10 +421,7 @@ impl Runner {
     /// Use `InvocationSource::Cli` for direct CLI runs (default), `Serve`
     /// for `nika serve`, `NestedRun { ceiling }` from inside `nika:run`, and
     /// `Unknown` only when the embedding caller genuinely cannot tell.
-    pub fn with_invocation_source(
-        mut self,
-        source: nika_core::trust::InvocationSource,
-    ) -> Self {
+    pub fn with_invocation_source(mut self, source: nika_core::trust::InvocationSource) -> Self {
         self.datastore.set_invocation_source(source);
         self
     }

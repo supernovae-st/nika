@@ -881,7 +881,9 @@ pub enum NikaError {
         token_index: u8,
     },
 
-    #[error("[NIKA-383] Prompt injection detected in task '{task_id}': {category} (score={score:.2})")]
+    #[error(
+        "[NIKA-383] Prompt injection detected in task '{task_id}': {category} (score={score:.2})"
+    )]
     #[diagnostic(
         code(nika::injection_detected),
         help("The output scanner or ML detector flagged this content. Disable via `policy.security.scanner_action = warn` or sanitize the input.")
@@ -892,7 +894,9 @@ pub enum NikaError {
         score: f64,
     },
 
-    #[error("[NIKA-384] Spotlight required but disabled for task '{task_id}' processing untrusted data")]
+    #[error(
+        "[NIKA-384] Spotlight required but disabled for task '{task_id}' processing untrusted data"
+    )]
     #[diagnostic(
         code(nika::spotlight_required),
         help("Either enable `policy.security.spotlight = true` (default) or set `trust: elevated` if you trust the source.")
@@ -902,12 +906,11 @@ pub enum NikaError {
     #[error("[NIKA-385] ML model missing for task '{task_id}': {model_name}")]
     #[diagnostic(
         code(nika::ml_model_missing),
-        help("Run `nika shield download-model` to fetch the model, or disable `shield-ml` feature.")
+        help(
+            "Run `nika shield download-model` to fetch the model, or disable `shield-ml` feature."
+        )
     )]
-    MlModelMissing {
-        task_id: String,
-        model_name: String,
-    },
+    MlModelMissing { task_id: String, model_name: String },
 
     #[error("[NIKA-386] Workflow recursion depth exceeded: {depth} (max: {max})")]
     #[diagnostic(
@@ -2819,7 +2822,9 @@ mod tests {
                 "NIKA-383",
             ),
             (
-                NikaError::SpotlightRequired { task_id: "t".into() },
+                NikaError::SpotlightRequired {
+                    task_id: "t".into(),
+                },
                 "NIKA-384",
             ),
             (
@@ -2829,10 +2834,7 @@ mod tests {
                 },
                 "NIKA-385",
             ),
-            (
-                NikaError::RunDepthExceeded { depth: 4, max: 3 },
-                "NIKA-386",
-            ),
+            (NikaError::RunDepthExceeded { depth: 4, max: 3 }, "NIKA-386"),
             (
                 NikaError::RunCycleDetected {
                     workflow_path: "/tmp/loop.nika.yaml".into(),
@@ -2840,11 +2842,15 @@ mod tests {
                 "NIKA-387",
             ),
             (
-                NikaError::CanaryInThinking { task_id: "t".into() },
+                NikaError::CanaryInThinking {
+                    task_id: "t".into(),
+                },
                 "NIKA-388",
             ),
             (
-                NikaError::UntrustedVisionBlocked { task_id: "t".into() },
+                NikaError::UntrustedVisionBlocked {
+                    task_id: "t".into(),
+                },
                 "NIKA-389",
             ),
         ];

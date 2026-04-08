@@ -1134,10 +1134,7 @@ pub enum EventKind {
         trust_level: String,
     },
     /// Spotlight skipped (disabled globally or elevated).
-    SpotlightSkipped {
-        task_id: Arc<str>,
-        reason: String,
-    },
+    SpotlightSkipped { task_id: Arc<str>, reason: String },
     /// Agent tool restricted due to trust chain.
     AgentToolRestricted {
         task_id: Arc<str>,
@@ -1158,10 +1155,7 @@ pub enum EventKind {
         severity: String,
     },
     /// Skill file integrity verified (blake3 hash match).
-    SkillIntegrityVerified {
-        path: String,
-        hash: String,
-    },
+    SkillIntegrityVerified { path: String, hash: String },
     /// Skill file integrity failed (hash mismatch) — ALERT!
     SkillIntegrityFailed {
         path: String,
@@ -1181,10 +1175,7 @@ pub enum EventKind {
         latency_ms: u64,
     },
     /// ML detection blocked task (score above threshold).
-    MlDetectionBlocked {
-        task_id: Arc<str>,
-        score: f64,
-    },
+    MlDetectionBlocked { task_id: Arc<str>, score: f64 },
 }
 
 impl EventKind {

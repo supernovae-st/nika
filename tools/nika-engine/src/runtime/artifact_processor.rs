@@ -1824,8 +1824,12 @@ mod tests {
         let long_value = "a".repeat(300);
         bindings.set("name", serde_json::json!(long_value));
 
-        let result =
-            resolve_artifact_path_bindings("{{with.name}}.txt", "", &bindings, &RunContext::new(nika_core::trust::InvocationSource::Test));
+        let result = resolve_artifact_path_bindings(
+            "{{with.name}}.txt",
+            "",
+            &bindings,
+            &RunContext::new(nika_core::trust::InvocationSource::Test),
+        );
         // sanitize_for_path truncates to 200 chars
         assert!(result.len() <= 204); // 200 + ".txt"
     }

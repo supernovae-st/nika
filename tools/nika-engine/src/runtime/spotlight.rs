@@ -50,7 +50,20 @@ impl SpotlightFence {
     }
 
     /// Wrap untrusted content with randomized fence markers.
-    pub fn wrap(&self, content: &str, source_label: &str, trust: TrustLevel) -> String {
+    ///
+    /// Sprint 2 P0-2 hardening: renamed from `wrap` to `wrap_untrusted`
+    /// and asserts the trust level is actually untrusted in debug builds
+    /// so accidental wraps of trusted data trip in tests.
+    pub fn wrap_untrusted(
+        &self,
+        content: &str,
+        source_label: &str,
+        trust: TrustLevel,
+    ) -> String {
+        debug_assert!(
+            trust.is_untrusted(),
+            "wrap_untrusted called with non-untrusted data: {trust:?}"
+        );
         format!(
             "---NIKA-FENCE-{fence}--- [source={source}, trust={trust}]\n\
              {content}\n\
@@ -85,7 +98,7 @@ mod tests {
     #[test]
     fn test_fence_format() {
         let fence = SpotlightFence::new();
-        let wrapped = fence.wrap("Hello world", "fetch_article", TrustLevel::Untrusted);
+        let wrapped = fence.wrap_untrusted("Hello world", "fetch_article", TrustLevel::Untrusted);
         assert!(wrapped.contains(&format!("---NIKA-FENCE-{}---", fence.fence_id)));
         assert!(wrapped.contains("Hello world"));
         assert!(wrapped.contains("source=fetch_article"));
@@ -96,7 +109,10 @@ mod tests {
     fn test_fence_unique_per_run() {
         let f1 = SpotlightFence::new();
         let f2 = SpotlightFence::new();
-        assert_ne!(f1.fence_id, f2.fence_id, "Each fence should have a unique ID");
+        assert_ne!(
+            f1.fence_id, f2.fence_id,
+            "Each fence should have a unique ID"
+        );
     }
 
     #[test]
@@ -108,15 +124,18 @@ mod tests {
     #[test]
     fn test_reanchor_from_pool() {
         let fence = SpotlightFence::new();
-        let wrapped = fence.wrap("data", "task", TrustLevel::Untrusted);
+        let wrapped = fence.wrap_untrusted("data", "task", TrustLevel::Untrusted);
         let has_reanchor = RE_ANCHOR_POOL.iter().any(|r| wrapped.contains(r));
-        assert!(has_reanchor, "Wrapped content should include a re-anchoring instruction");
+        assert!(
+            has_reanchor,
+            "Wrapped content should include a re-anchoring instruction"
+        );
     }
 
     #[test]
     fn test_wrap_contains_both_fences() {
         let fence = SpotlightFence::new();
-        let wrapped = fence.wrap("content", "src", TrustLevel::ModelTainted);
+        let wrapped = fence.wrap_untrusted("content", "src", TrustLevel::ModelTainted);
         let fence_marker = format!("---NIKA-FENCE-{}---", fence.fence_id);
         let count = wrapped.matches(&fence_marker).count();
         assert_eq!(count, 2, "Should have opening and closing fence markers");

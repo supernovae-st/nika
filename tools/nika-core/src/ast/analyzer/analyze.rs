@@ -1304,10 +1304,7 @@ fn analyze_task(
                 ctx.errors.push(AnalyzeError::new(
                     AnalyzeErrorKind::InvalidValue,
                     s.span,
-                    format!(
-                        "invalid trust value '{}', expected 'elevated'",
-                        s.value
-                    ),
+                    format!("invalid trust value '{}', expected 'elevated'", s.value),
                 ));
                 false
             }

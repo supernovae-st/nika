@@ -103,8 +103,7 @@ pub(crate) fn current_task_trust() -> TrustLevel {
 /// Whether the calling task has `trust: elevated`. Defaults to `false`
 /// (conservative — never auto-elevate when context is missing).
 ///
-/// Wired into Item 3b/4 in subsequent Sprint 2 commits.
-#[allow(dead_code)]
+/// Used by run_infer for the spotlight bypass + Item 3b/4 path-recon.
 #[inline]
 pub(crate) fn current_task_elevated() -> bool {
     CURRENT_TASK_ELEVATED.try_with(|e| *e).unwrap_or(false)
