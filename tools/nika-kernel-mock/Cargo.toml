@@ -1,0 +1,25 @@
+[package]
+name = "nika-kernel-mock"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Hand-written mocks for nika-kernel traits — dev-dependency only"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+nika-kernel = { workspace = true }
+nika-core = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time"] }
+parking_lot = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+
+[lints]
+workspace = true

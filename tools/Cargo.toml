@@ -21,6 +21,7 @@ members = [
     # and are deprecated in favor of nika-sdk
     "nika-vault",
     "nika-kernel",
+    "nika-kernel-mock",
 ]
 
 [workspace.package]
@@ -49,6 +50,7 @@ nika-lsp-core = { path = "nika-lsp-core", version = "0.79.0" }
 nika-sdk = { path = "nika-sdk", version = "0.79.0" }
 nika-vault = { path = "nika-vault", version = "0.79.0" }
 nika-kernel = { path = "nika-kernel", version = "0.79.0" }
+nika-kernel-mock = { path = "nika-kernel-mock", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
