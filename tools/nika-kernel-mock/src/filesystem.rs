@@ -99,15 +99,23 @@ impl Filesystem for InMemoryFs {
     }
 
     async fn exists(&self, path: &Path) -> bool {
-        self.files.read().contains_key(path)
+        let files = self.files.read();
+        files.contains_key(path) || files.keys().any(|k| k.starts_with(path) && k != path)
     }
 
     async fn glob(&self, root: &Path, pattern: &str) -> std::io::Result<Vec<PathBuf>> {
+        // Simple glob: support `*.ext` and `**/*.ext` patterns.
+        // For full glob semantics, use the `globset` crate (in workspace).
+        let suffix = pattern
+            .trim_start_matches("**/")
+            .trim_start_matches("*/")
+            .trim_start_matches('*');
         let files = self.files.read();
         let mut matches: Vec<PathBuf> = files
             .keys()
             .filter(|p| {
-                p.starts_with(root) && p.to_string_lossy().contains(pattern.trim_matches('*'))
+                p.starts_with(root)
+                    && (suffix.is_empty() || p.to_string_lossy().ends_with(suffix))
             })
             .cloned()
             .collect();

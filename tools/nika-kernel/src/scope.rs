@@ -70,7 +70,7 @@ pub trait VaultLookup: Send + Sync {
 /// Workflow invocation context (read-only metadata).
 pub trait InvocationContext: Send + Sync {
     /// The invocation source (CLI, serve, nested run, etc.)
-    fn source(&self) -> &nika_core::trust::InvocationSource;
+    fn source(&self) -> nika_core::trust::InvocationSource;
 
     /// Working directory for the workflow.
     fn working_dir(&self) -> PathBuf;
@@ -106,10 +106,19 @@ impl<T> TaskScope for T where
 // Shared output type
 // ─────────────────────────────────────────────────────────────────────
 
+/// Whether a task succeeded or failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskOutcome {
+    Success,
+    Failed,
+    Skipped,
+}
+
 /// Output from a completed task.
 #[derive(Debug, Clone)]
 pub struct TaskOutput {
     pub value: Value,
     pub duration: Duration,
     pub trust: TrustLevel,
+    pub outcome: TaskOutcome,
 }

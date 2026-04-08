@@ -154,17 +154,11 @@ pub enum InferEvent {
     Done(StopReason),
 }
 
-/// Model capabilities descriptor.
-#[derive(Debug, Clone)]
-pub struct Capabilities {
-    pub supports_tools: bool,
-    pub supports_vision: bool,
-    pub supports_streaming: bool,
-    pub supports_thinking: bool,
-    pub supports_structured_output: bool,
-    pub max_context: u32,
-    pub max_output: u32,
-}
+/// Re-export the canonical model capabilities from nika-core.
+///
+/// Do NOT define a separate Capabilities struct here — nika-core's
+/// `ModelCapabilities` is the source of truth for the static catalog.
+pub use nika_core::catalogs::ModelCapabilities;
 
 // ─────────────────────────────────────────────────────────────────────
 // Provider trait
@@ -203,7 +197,7 @@ pub trait Provider: Send + Sync {
     fn name(&self) -> &str;
 
     /// Model capabilities for the given model ID.
-    fn capabilities(&self, model: &str) -> Option<Capabilities>;
+    fn capabilities(&self, model: &str) -> Option<ModelCapabilities>;
 
     /// Run inference (non-streaming).
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError>;
