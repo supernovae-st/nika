@@ -57,7 +57,7 @@ nika test wf.nika.yaml --golden snap.json  # Compare output to golden file
 nika test wf.nika.yaml --golden snap.json --update-snapshot  # Update golden
 nika eval wf.nika.yaml --dataset data.json  # Evaluate against assertions
 nika eval wf.nika.yaml --dataset d.json --provider anthropic --format json
-nika lint workflow.nika.yaml           # Best-practice linting (10 rules)
+nika lint workflow.nika.yaml           # Best-practice linting (19 rules incl. L-SEC-001..008)
 nika explain workflow.nika.yaml        # Human-readable summary
 nika check workflow.nika.yaml          # Validate syntax + DAG
 nika check workflow.nika.yaml --strict # + test MCP connections
