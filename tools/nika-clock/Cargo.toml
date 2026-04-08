@@ -1,0 +1,21 @@
+[package]
+name = "nika-clock"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "SystemClock — production Clock trait implementation via tokio::time"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-kernel = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+
+[lints]
+workspace = true

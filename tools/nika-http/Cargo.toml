@@ -1,0 +1,25 @@
+[package]
+name = "nika-http"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "ReqwestClient — production HttpClient trait implementation via reqwest"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-kernel = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+bytes = { workspace = true }
+url = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,26 @@
+[package]
+name = "nika-blob"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "DiskBlobStore — production BlobStore trait implementation with blake3 CAS"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-kernel = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
+bytes = { workspace = true }
+blake3 = { workspace = true }
+tracing = { workspace = true }
+infer = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "fs"] }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

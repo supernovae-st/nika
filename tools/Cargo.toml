@@ -22,6 +22,11 @@ members = [
     "nika-vault",
     "nika-kernel",
     "nika-kernel-mock",
+    "nika-clock",
+    "nika-fs",
+    "nika-blob",
+    "nika-http",
+    "nika-exec-runner",
 ]
 
 [workspace.package]
@@ -51,6 +56,11 @@ nika-sdk = { path = "nika-sdk", version = "0.79.0" }
 nika-vault = { path = "nika-vault", version = "0.79.0" }
 nika-kernel = { path = "nika-kernel", version = "0.79.0" }
 nika-kernel-mock = { path = "nika-kernel-mock", version = "0.79.0" }
+nika-clock = { path = "nika-clock", version = "0.79.0" }
+nika-fs = { path = "nika-fs", version = "0.79.0" }
+nika-blob = { path = "nika-blob", version = "0.79.0" }
+nika-http = { path = "nika-http", version = "0.79.0" }
+nika-exec-runner = { path = "nika-exec-runner", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }

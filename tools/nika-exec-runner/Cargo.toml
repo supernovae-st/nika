@@ -1,0 +1,22 @@
+[package]
+name = "nika-exec-runner"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "TokioShell — production ShellExecutor trait implementation via tokio::process"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-kernel = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["process", "time"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time", "process"] }
+
+[lints]
+workspace = true
