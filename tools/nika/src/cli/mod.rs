@@ -21,7 +21,6 @@ pub use nika_cli::eval;
 #[cfg(unix)]
 pub use nika_cli::every;
 pub use nika_cli::init;
-pub use nika_cli::inputs;
 #[cfg(unix)]
 #[cfg(unix)]
 pub use nika_cli::jobs;
@@ -35,12 +34,12 @@ pub use nika_cli::new_cmd;
 pub use nika_cli::onboarding;
 pub use nika_cli::pkg;
 pub use nika_cli::provider;
+pub use nika_cli::run;
 #[cfg(unix)]
 pub use nika_cli::schedule;
 pub use nika_cli::schema;
 pub use nika_cli::showcase;
 pub use nika_cli::switch;
-pub use nika_cli::task_filter;
 pub use nika_cli::token;
 pub use nika_cli::tools_cmd;
 pub use nika_cli::trace;

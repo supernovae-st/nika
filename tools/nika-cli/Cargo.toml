@@ -60,6 +60,9 @@ indicatif = { workspace = true }
 # Secrets
 secrecy = { workspace = true }
 
+# Random (gen_id in run headers)
+rand = { workspace = true }
+
 # Utilities
 colored = { workspace = true }
 chrono = { workspace = true }

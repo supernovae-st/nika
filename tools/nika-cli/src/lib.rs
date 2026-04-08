@@ -50,6 +50,7 @@ pub mod machine;
 pub mod new_cmd;
 pub mod onboarding;
 pub mod provider;
+pub mod run;
 pub mod switch;
 pub mod task_filter;
 pub mod token;
