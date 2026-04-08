@@ -97,6 +97,15 @@ impl ReadTool {
         // Validate path
         let path = self.ctx.validate_path(&params.file_path)?;
 
+        // Nika Shield Item 3b: tainted agents cannot read sensitive files
+        // (.mcp.json, nika.toml, .env*, *.nika.yaml). Trust + elevation are
+        // read from the task_local set by execute_task_iteration.
+        super::check_path_readable(
+            &path,
+            crate::runtime::builtin::run::current_task_trust(),
+            crate::runtime::builtin::run::current_task_elevated(),
+        )?;
+
         // Check permission (reads are usually allowed, but respect Deny mode)
         if self.ctx.permission_mode() == super::context::PermissionMode::Deny {
             return Err(NikaError::ToolError {
