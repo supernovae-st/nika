@@ -185,9 +185,16 @@ impl BlobStore for DiskBlobStore {
             .await
             .map_err(|e| io_to_blob_error(e, hash, "stat"))?;
 
-        // Try to detect mime type from stored data
-        let data = tokio::fs::read(&path).await.unwrap_or_default();
-        let mime_type = Self::detect_mime(&data);
+        // Read only the first 512 bytes for MIME detection (infer only needs magic bytes)
+        let mime_type = match tokio::fs::File::open(&path).await {
+            Ok(mut file) => {
+                use tokio::io::AsyncReadExt;
+                let mut buf = vec![0u8; 512];
+                let n = file.read(&mut buf).await.unwrap_or(0);
+                Self::detect_mime(&buf[..n])
+            }
+            Err(_) => "application/octet-stream".to_string(),
+        };
 
         Ok(BlobMetadata {
             hash: hash.to_string(),

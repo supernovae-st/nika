@@ -9,7 +9,7 @@
 use bytes::Bytes;
 
 /// Metadata about a stored blob.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlobMetadata {
     /// Blake3 hash of the content.
     pub hash: String,

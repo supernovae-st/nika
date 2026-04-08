@@ -14,6 +14,7 @@ nika-kernel = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["process", "time"] }
 tracing = { workspace = true }
+unicode-normalization = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros", "time", "process"] }

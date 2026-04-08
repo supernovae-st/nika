@@ -31,13 +31,18 @@ impl TokioShell {
 #[async_trait::async_trait]
 impl ShellExecutor for TokioShell {
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError> {
-        // Security: check blocklist
+        // Security: check blocklist (always) + shell-mode blocklist (when shell: true)
         let full_command = if command.shell {
             format!("{} {}", command.program, command.args.join(" "))
         } else {
-            command.program.clone()
+            // Also scan args in non-shell mode (e.g. program: "rm", args: ["-rf", "/"])
+            format!("{} {}", command.program, command.args.join(" "))
         };
         blocklist::check_command(&full_command)?;
+
+        if command.shell {
+            blocklist::check_shell_mode(&full_command)?;
+        }
 
         let start = Instant::now();
 

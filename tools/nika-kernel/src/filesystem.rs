@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 
 /// Metadata about a filesystem entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileMetadata {
     pub len: u64,
     pub is_file: bool,
