@@ -195,7 +195,7 @@ jobs:
           cargo llvm-cov report --workspace --lib --summary-only | tee /tmp/coverage-summary.txt
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: tools/nika/lcov.info
