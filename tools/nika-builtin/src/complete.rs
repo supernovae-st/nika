@@ -168,7 +168,7 @@ impl BuiltinTool for CompleteTool {
                     "description": "Explanation of how you arrived at this result"
                 }
             },
-            "required": ["result", "confidence", "reasoning"],
+            "required": ["result"],
             "additionalProperties": false
         })
     }
@@ -208,12 +208,18 @@ impl BuiltinTool for CompleteTool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Check if a tool call response indicates completion.
+///
+/// Parses the JSON response and checks the `marker` field exactly — substring
+/// search would cause false positives if COMPLETION_MARKER appears in
+/// user-controlled content processed by the agent.
 pub fn is_completion_signal(tool_name: &str, response: &str) -> bool {
     if tool_name != "nika:complete" && tool_name != "complete" {
         return false;
     }
 
-    response.contains(COMPLETION_MARKER)
+    serde_json::from_str::<CompleteResponse>(response)
+        .map(|r| r.marker == COMPLETION_MARKER)
+        .unwrap_or(false)
 }
 
 /// Parse a completion response from tool output.
@@ -388,6 +394,28 @@ mod tests {
     fn test_is_completion_signal_negative_no_marker() {
         let response = r#"{"completed": true}"#;
         assert!(!is_completion_signal("nika:complete", response));
+    }
+
+    #[test]
+    fn test_is_completion_signal_no_false_positive_from_marker_in_content() {
+        // A document that contains the marker string in its text content must NOT
+        // trigger completion — only a genuine CompleteResponse.marker field should.
+        let poisoned = format!(
+            r#"{{"summary": "result: {}", "completed": false}}"#,
+            COMPLETION_MARKER
+        );
+        assert!(!is_completion_signal("nika:complete", &poisoned));
+    }
+
+    #[test]
+    fn test_schema_required_only_result() {
+        // confidence + reasoning must be optional — OpenAI rejects tool calls
+        // that don't include all required fields, breaking agents that omit them.
+        let tool = CompleteTool;
+        let schema = tool.parameters_schema();
+        let required = schema["required"].as_array().expect("required must be array");
+        assert_eq!(required.len(), 1, "only 'result' should be required");
+        assert_eq!(required[0], "result");
     }
 
     #[test]
