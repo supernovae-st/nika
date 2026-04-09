@@ -171,14 +171,12 @@ impl BuiltinTool for TreeDataTool {
             let prefix = params.name_prefix.unwrap_or_default();
             let sort_desc = params.sort.as_deref() != Some("asc");
 
-            // Primary grouping
+            // Primary grouping — use extract_field for dot-path support
+            // (item.get() only does single-level lookup; "address.city" would never match)
             let mut groups: indexmap::IndexMap<String, Vec<&Value>> = indexmap::IndexMap::new();
             for item in &params.array {
-                let key = item
-                    .get(&params.group_by)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
+                let field_val = extract_field(item, &params.group_by);
+                let key = field_val.as_str().unwrap_or("unknown").to_string();
                 groups.entry(key).or_default().push(item);
             }
 
@@ -190,11 +188,8 @@ impl BuiltinTool for TreeDataTool {
                     let mut sub_groups: indexmap::IndexMap<String, usize> =
                         indexmap::IndexMap::new();
                     for item in items {
-                        let sub_key = item
-                            .get(sub_field)
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("other")
-                            .to_string();
+                        let sub_val = extract_field(item, sub_field);
+                        let sub_key = sub_val.as_str().unwrap_or("other").to_string();
                         *sub_groups.entry(sub_key).or_insert(0) += 1;
                     }
 
