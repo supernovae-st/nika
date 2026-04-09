@@ -1,6 +1,6 @@
 # Nika
 
-Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 65 transforms | 63 builtin tools | [QR Code AI](https://qrcode-ai.com)
+Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 24 crates | 65 transforms | 63 builtin tools
 
 ## 5 Verbs
 
@@ -93,10 +93,9 @@ nika showcase extract <name>           # Extract showcase to current dir
 # Project
 nika init                              # Interactive project setup
 nika config list                       # Show configuration
-nika pkg list                          # Package management
 nika media stats                       # Media store stats
 
-# System
+# System (Unix-only: daemon, cache, every, schedule, jobs)
 nika version                           # Version, channel, build info
 nika env                               # Environment debug view
 nika doctor --fix                      # System health + auto-repair
@@ -173,3 +172,26 @@ Tests must be INTELLIGENT, not superficial:
 - Prompts in tests must be NATURAL — never mention JSON format
 - Check EventLog for correct events (StructuredOutputSuccess, ProviderResponded)
 - E2E: parse YAML → analyze → run → validate output → verify events
+
+## Architecture — 24 Crates, Diamond Layering
+
+```
+L0    nika-core (23k)         Pure types, AST, catalogs — ZERO I/O
+L0.5  nika-kernel (717)       10 trait defs — ZERO impls
+L1    5 effect crates          Clock, Fs, Blob, HttpClient, ShellExecutor
+      nika-event (4.5k)       EventLog + EventEmitter blanket
+L2    nika-engine (160k)      Monolith — extraction target (<=100k LOC)
+      + kernel_bridge.rs      impl Provider for RigProvider
+      nika-media, nika-mcp, nika-vault, nika-storage, nika-display
+L3    nika-daemon (7k)
+L4    nika-cli, nika-tui, nika-serve, nika-lsp, nika-sdk, nika-init
+L5    nika (<900 LOC target)
+```
+
+Key: every side effect behind a trait. `TaskExecutor::get_dyn_provider()`
+returns `Arc<dyn Provider>`. Phase 12+ verb crates consume traits, not concrete types.
+
+See `docs/sprints/CONSTELLATION-V2.3-AGGRESSIVE-TARGETS.md` for firm targets.
+
+> **Platform:** macOS and Linux. Daemon features (scheduling, background jobs,
+> cache) require Unix. Core features work on all platforms.

@@ -2,7 +2,7 @@
 
 Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 
-## Workspace Structure (24 crates)
+## Workspace Structure (26 crates)
 
 ```
 tools/
@@ -26,6 +26,7 @@ tools/
 ├── nika-engine/        Execution engine (160k) — providers, builtins, runtime
 │   └── provider/rig/kernel_bridge.rs  — impl Provider for RigProvider
 │   └── runtime/executor: get_dyn_provider() → Arc<dyn Provider>
+├── nika-builtin/       27 builtin tools (6.4k) — core, data, introspection (Phase 12)
 ├── nika-display/       CLI renderers, formatters (13k)
 ├── nika-media/         CAS store, image processor (13k)
 ├── nika-mcp/           MCP client, rmcp (9k)
