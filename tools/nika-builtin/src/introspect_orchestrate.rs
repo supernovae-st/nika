@@ -3,7 +3,7 @@
 
 //! nika:orchestrate — Introspection tool returning aggregate workflow stats.
 //!
-//! Aggregates from `EventLog` and `RunContext` to provide a high-level
+//! Aggregates from `EventLog` and `RecordQuery` to provide a high-level
 //! overview of the current workflow execution.
 //!
 //! # Parameters
@@ -24,28 +24,27 @@
 //! }
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
-use crate::store::RunContext;
-use nika_event::{EventKind, EventLog};
-use rustc_hash::FxHashSet;
-use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use nika_kernel::builtin::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::scope::RecordQuery;
+use nika_event::{EventKind, EventLog};
+use rustc_hash::FxHashSet;
+use serde::Serialize;
+
 /// nika:orchestrate builtin tool — aggregate workflow stats.
 pub struct OrchestrateTool {
     event_log: EventLog,
-    datastore: Arc<RunContext>,
+    records: Arc<dyn RecordQuery>,
 }
 
+impl __sealed::Sealed for OrchestrateTool {}
+
 impl OrchestrateTool {
-    pub fn new(event_log: EventLog, datastore: Arc<RunContext>) -> Self {
-        Self {
-            event_log,
-            datastore,
-        }
+    pub fn new(event_log: EventLog, records: Arc<dyn RecordQuery>) -> Self {
+        Self { event_log, records }
     }
 }
 
@@ -90,7 +89,7 @@ impl BuiltinTool for OrchestrateTool {
     fn call<'a>(
         &'a self,
         _args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let mut all_tasks: FxHashSet<String> = FxHashSet::default();
             let mut completed: FxHashSet<String> = FxHashSet::default();
@@ -101,38 +100,33 @@ impl BuiltinTool for OrchestrateTool {
 
             self.event_log.with_events(|events| {
                 for event in events {
-                    match &event.kind {
-                        EventKind::TaskScheduled { task_id, .. }
-                        | EventKind::TaskStarted { task_id, .. }
-                        | EventKind::TaskFailed { task_id, .. } => {
-                            all_tasks.insert(task_id.to_string());
-                        }
-                        EventKind::TaskCompleted { task_id, .. } => {
-                            all_tasks.insert(task_id.to_string());
-                            completed.insert(task_id.to_string());
-                        }
-                        EventKind::ProviderResponded {
-                            input_tokens,
-                            output_tokens,
-                            cost_usd,
-                            ..
-                        } => {
-                            total_tokens = total_tokens
-                                .saturating_add(input_tokens.saturating_add(*output_tokens));
-                            total_cost_usd += cost_usd;
-                        }
-                        EventKind::OrchestratorStarted { goal: g, .. } => {
-                            goal = Some(g.clone());
-                        }
-                        EventKind::OrchestratorRound { round, .. } => {
-                            latest_round = Some(*round);
-                        }
-                        _ => {}
+                    if let EventKind::TaskScheduled { task_id, .. }
+                    | EventKind::TaskStarted { task_id, .. }
+                    | EventKind::TaskFailed { task_id, .. } = &event.kind
+                    {
+                        all_tasks.insert(task_id.to_string());
+                    } else if let EventKind::TaskCompleted { task_id, .. } = &event.kind {
+                        all_tasks.insert(task_id.to_string());
+                        completed.insert(task_id.to_string());
+                    } else if let EventKind::ProviderResponded {
+                        input_tokens,
+                        output_tokens,
+                        cost_usd,
+                        ..
+                    } = &event.kind
+                    {
+                        total_tokens = total_tokens
+                            .saturating_add(input_tokens.saturating_add(*output_tokens));
+                        total_cost_usd += cost_usd;
+                    } else if let EventKind::OrchestratorStarted { goal: g, .. } = &event.kind {
+                        goal = Some(g.clone());
+                    } else if let EventKind::OrchestratorRound { round, .. } = &event.kind {
+                        latest_round = Some(*round);
                     }
                 }
             });
 
-            let records_count = self.datastore.iter_records().len();
+            let records_count = self.records.record_count();
 
             let response = OrchestrateResponse {
                 total_tasks: all_tasks.len(),
@@ -142,11 +136,11 @@ impl BuiltinTool for OrchestrateTool {
                 records_count,
                 round: latest_round,
                 goal,
-                confidence_target: None, // Set by caller if orchestrator mode
-                cost_limit_usd: None,    // Set by caller if orchestrator mode
+                confidence_target: None,
+                cost_limit_usd: None,
             };
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:orchestrate".into(),
                 reason: format!("Failed to serialize orchestrate response: {e}"),
             })
@@ -157,15 +151,14 @@ impl BuiltinTool for OrchestrateTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_event::{EventKind, EventLog};
-    use std::sync::Arc;
+    use nika_kernel::scope::RecordView;
+    use nika_kernel_mock::MockRecordStore;
 
     #[tokio::test]
     async fn test_orchestrate_basic_stats() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
+        let records = Arc::new(MockRecordStore::new());
 
-        // 2 tasks, 1 completed
         log.emit(EventKind::TaskScheduled {
             task_id: Arc::from("a"),
             dependencies: vec![],
@@ -195,7 +188,7 @@ mod tests {
             duration_ms: 200,
         });
 
-        let tool = OrchestrateTool::new(log, ctx);
+        let tool = OrchestrateTool::new(log, records);
         let result = tool.call("{}".into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["total_tasks"], 2);
@@ -203,7 +196,6 @@ mod tests {
         assert_eq!(v["total_tokens"], 1500);
         assert!((v["total_cost_usd"].as_f64().unwrap() - 0.003).abs() < 1e-10);
         assert_eq!(v["records_count"], 0);
-        // No orchestrator events → fields absent
         assert!(v.get("round").is_none());
         assert!(v.get("goal").is_none());
     }
@@ -211,7 +203,7 @@ mod tests {
     #[tokio::test]
     async fn test_orchestrate_with_round_events() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
+        let records = Arc::new(MockRecordStore::new());
 
         log.emit(EventKind::OrchestratorStarted {
             goal: "Research AI".to_string(),
@@ -229,7 +221,7 @@ mod tests {
             cost_usd: 0.10,
         });
 
-        let tool = OrchestrateTool::new(log, ctx);
+        let tool = OrchestrateTool::new(log, records);
         let result = tool.call("{}".into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["round"], 2);
@@ -237,17 +229,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_orchestrate_with_records() {
+        let log = EventLog::new();
+        let records = Arc::new(MockRecordStore::new());
+        records.seed(RecordView {
+            task_id: "a".into(),
+            summary: "s".into(),
+            key_findings: vec![],
+            confidence: 0.9,
+            compression_ratio: 0.05,
+        });
+        records.seed(RecordView {
+            task_id: "b".into(),
+            summary: "t".into(),
+            key_findings: vec![],
+            confidence: 0.7,
+            compression_ratio: 0.10,
+        });
+
+        let tool = OrchestrateTool::new(log, records);
+        let result = tool.call("{}".into()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["records_count"], 2);
+    }
+
+    #[tokio::test]
     async fn test_orchestrate_no_orchestrator_events() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
+        let records = Arc::new(MockRecordStore::new());
 
-        // Only task events, no orchestrator events
         log.emit(EventKind::TaskScheduled {
             task_id: Arc::from("x"),
             dependencies: vec![],
         });
 
-        let tool = OrchestrateTool::new(log, ctx);
+        let tool = OrchestrateTool::new(log, records);
         let result = tool.call("{}".into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("round").is_none());

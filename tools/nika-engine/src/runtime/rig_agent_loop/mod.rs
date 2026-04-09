@@ -350,7 +350,7 @@ impl RigAgentLoop {
         // Add builtin nika:* tools
         use super::builtin::{
             AssertTool, CompleteTool, CostTool, DagInfoTool, EmitTool, LogTool,
-            NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool, TaskStatusTool, ThreadsTool,
+            NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool, ThreadsTool,
         };
 
         // Create Arc wrappers for sharing with builtin tools
@@ -451,14 +451,17 @@ impl RigAgentLoop {
             ))));
         }
         if should_add_introspect("task_status") {
-            // TaskStatusTool needs a RunContext — create a minimal one for the agent.
+            // TaskStatusTool needs a RecordQuery — create a minimal RunContext for the agent.
             // Cli source is fine: the agent ctx is empty (no inputs/with bindings),
             // so the trust floor never matters.
-            let agent_ctx = Arc::new(crate::store::RunContext::new(
-                nika_core::trust::InvocationSource::Cli,
-            ));
+            let agent_ctx: Arc<dyn nika_kernel::scope::RecordQuery> = Arc::new(
+                crate::store::RunContext::new(nika_core::trust::InvocationSource::Cli),
+            );
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                TaskStatusTool::new(event_log.clone(), agent_ctx),
+                KernelToolAdapter(nika_builtin::TaskStatusTool::new(
+                    event_log.clone(),
+                    agent_ctx,
+                )),
             ))));
         }
         if should_add_introspect("threads") {

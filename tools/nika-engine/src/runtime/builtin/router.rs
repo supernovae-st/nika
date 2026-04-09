@@ -20,7 +20,7 @@ use super::{
     AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool, CostTool, DagInfoTool,
     EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
     JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool, LogTool,
-    MapTool, PromptTool, RecordsTool, SetDiffTool, SleepTool, ThreadsTool, TokenCountTool,
+    MapTool, PromptTool, SetDiffTool, SleepTool, ThreadsTool, TokenCountTool,
     TreeDataTool, YamlValidateTool, ZipTool,
 };
 use crate::runtime::hitl::HitlHandler;
@@ -28,6 +28,7 @@ use crate::runtime::run_executor::EngineRunExecutor;
 use crate::error::NikaError;
 use crate::tools::ToolContext;
 use nika_event::EventLog;
+use nika_kernel::scope::RecordQuery;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -254,48 +255,31 @@ impl BuiltinToolRouter {
         self
     }
 
-    /// Add nika:records introspection tool (requires RunContext for record queries).
-    ///
-    /// Deferred in commit 12.5 — same blocker as `task_status`/`orchestrate`
-    /// (needs `RecordView` DTO in nika-core before migration to nika-builtin).
-    pub fn with_records_tool(mut self, datastore: Arc<crate::store::RunContext>) -> Self {
-        self.register(RecordsTool::new(datastore));
+    /// Add nika:records introspection tool (requires RecordQuery for record queries).
+    pub fn with_records_tool(mut self, records: Arc<dyn RecordQuery>) -> Self {
+        self.register(KernelToolAdapter(nika_builtin::RecordsTool::new(records)));
         self
     }
 
-    /// Add introspection tools (dag_info, task_status, threads, orchestrate).
+    /// Add all introspection tools (dag_info, task_status, threads, orchestrate, records).
     ///
-    /// # Migration status (commit 12.5 — deferred)
-    ///
-    /// - `dag_info` and `threads` — MIGRATED to nika-builtin (kernel BuiltinTool)
-    /// - `task_status`, `records`, `orchestrate` — DEFERRED pending `RecordView` DTO in nika-core
-    ///
-    /// **Blocker:** These 3 tools depend on the `Record` struct from
-    /// `nika-engine::runtime::record` (fields: `key_findings`, `compression_ratio()`, etc.).
-    /// Moving them to nika-builtin without promoting `Record` to nika-core would create
-    /// a nika-builtin → nika-engine dependency cycle.
-    ///
-    /// **Resolution path:** Define a lightweight `RecordView` DTO in nika-core (L0):
-    /// ```ignore
-    /// pub struct RecordView { pub task_id: String, pub summary: String, pub key_findings: Vec<String>, ... }
-    /// ```
-    /// Then add `impl From<Record> for RecordView` in nika-engine and define
-    /// `pub trait RecordQuery` in nika-kernel. Estimated in Phase 12.5 (post-Session 7).
+    /// All 6 introspection tools now live in nika-builtin (kernel BuiltinTool).
+    /// Migrated in Session 9 (commit 12.16).
     pub fn with_introspection(
         mut self,
         event_log: EventLog,
-        datastore: Arc<crate::store::RunContext>,
+        records: Arc<dyn RecordQuery>,
     ) -> Self {
-        use super::{OrchestrateTool, TaskStatusTool};
-        // dag_info + threads: migrated to nika-builtin (kernel BuiltinTool)
         self.register(KernelToolAdapter(DagInfoTool::new(event_log.clone())));
         self.register(KernelToolAdapter(ThreadsTool::new(event_log.clone())));
-        // task_status + orchestrate: deferred — see doc comment above (commit 12.5)
-        self.register(TaskStatusTool::new(
+        self.register(KernelToolAdapter(nika_builtin::TaskStatusTool::new(
             event_log.clone(),
-            Arc::clone(&datastore),
-        ));
-        self.register(OrchestrateTool::new(event_log, datastore));
+            Arc::clone(&records),
+        )));
+        self.register(KernelToolAdapter(nika_builtin::OrchestrateTool::new(
+            event_log,
+            records,
+        )));
         self
     }
 

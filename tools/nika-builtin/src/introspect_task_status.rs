@@ -25,27 +25,26 @@
 //! }
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
-use crate::store::RunContext;
-use nika_event::{EventKind, EventLog};
-use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use nika_kernel::builtin::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::scope::RecordQuery;
+use nika_event::{EventKind, EventLog};
+use serde::{Deserialize, Serialize};
+
 /// nika:task_status builtin tool — reports status of a specific task.
 pub struct TaskStatusTool {
     event_log: EventLog,
-    datastore: Arc<RunContext>,
+    records: Arc<dyn RecordQuery>,
 }
 
+impl __sealed::Sealed for TaskStatusTool {}
+
 impl TaskStatusTool {
-    pub fn new(event_log: EventLog, datastore: Arc<RunContext>) -> Self {
-        Self {
-            event_log,
-            datastore,
-        }
+    pub fn new(event_log: EventLog, records: Arc<dyn RecordQuery>) -> Self {
+        Self { event_log, records }
     }
 }
 
@@ -90,10 +89,10 @@ impl BuiltinTool for TaskStatusTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: TaskStatusParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinInvalidParams {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:task_status".into(),
                     reason: format!("Invalid JSON parameters: {e}"),
                 })?;
@@ -107,58 +106,64 @@ impl BuiltinTool for TaskStatusTool {
 
             self.event_log.with_events(|events| {
                 for event in events {
-                    match &event.kind {
-                        EventKind::TaskScheduled { task_id, .. } if task_id.as_ref() == tid => {
+                    if let EventKind::TaskScheduled { task_id, .. } = &event.kind {
+                        if task_id.as_ref() == tid {
                             status = "pending".to_string();
                             found = true;
                         }
-                        EventKind::TaskStarted { task_id, .. } if task_id.as_ref() == tid => {
+                    } else if let EventKind::TaskStarted { task_id, .. } = &event.kind {
+                        if task_id.as_ref() == tid {
                             status = "running".to_string();
                             found = true;
                         }
-                        EventKind::TaskCompleted {
-                            task_id,
-                            duration_ms: dur,
-                            ..
-                        } if task_id.as_ref() == tid => {
+                    } else if let EventKind::TaskCompleted {
+                        task_id,
+                        duration_ms: dur,
+                        ..
+                    } = &event.kind
+                    {
+                        if task_id.as_ref() == tid {
                             status = "completed".to_string();
                             duration_ms = *dur;
                             found = true;
                         }
-                        EventKind::TaskFailed {
-                            task_id,
-                            duration_ms: dur,
-                            ..
-                        } if task_id.as_ref() == tid => {
+                    } else if let EventKind::TaskFailed {
+                        task_id,
+                        duration_ms: dur,
+                        ..
+                    } = &event.kind
+                    {
+                        if task_id.as_ref() == tid {
                             status = "failed".to_string();
                             duration_ms = *dur;
                             found = true;
                         }
-                        EventKind::ProviderResponded {
-                            task_id,
-                            input_tokens,
-                            output_tokens,
-                            cost_usd: cost,
-                            ..
-                        } if task_id.as_ref() == tid => {
+                    } else if let EventKind::ProviderResponded {
+                        task_id,
+                        input_tokens,
+                        output_tokens,
+                        cost_usd: cost,
+                        ..
+                    } = &event.kind
+                    {
+                        if task_id.as_ref() == tid {
                             tokens = tokens
                                 .saturating_add(*input_tokens)
                                 .saturating_add(*output_tokens);
                             cost_usd += cost;
                         }
-                        _ => {}
                     }
                 }
             });
 
             if !found {
-                return Err(NikaError::BuiltinToolError {
+                return Err(BuiltinError::Other {
                     tool: "nika:task_status".into(),
                     reason: format!("Task '{}' not found in event log", tid),
                 });
             }
 
-            let has_record = self.datastore.has_record(tid);
+            let has_record = self.records.has_record(tid);
 
             let response = TaskStatusResponse {
                 task_id: tid.clone(),
@@ -169,7 +174,7 @@ impl BuiltinTool for TaskStatusTool {
                 has_record,
             };
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:task_status".into(),
                 reason: format!("Failed to serialize task status: {e}"),
             })
@@ -180,13 +185,12 @@ impl BuiltinTool for TaskStatusTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_event::{EventKind, EventLog};
-    use std::sync::Arc;
+    use nika_kernel_mock::MockRecordStore;
 
     #[tokio::test]
     async fn test_task_status_completed() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
+        let records = Arc::new(MockRecordStore::new());
 
         log.emit(EventKind::TaskScheduled {
             task_id: Arc::from("research"),
@@ -213,7 +217,7 @@ mod tests {
             duration_ms: 1234,
         });
 
-        let tool = TaskStatusTool::new(log, ctx);
+        let tool = TaskStatusTool::new(log, records);
         let result = tool.call(r#"{"task_id":"research"}"#.into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["task_id"], "research");
@@ -225,15 +229,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_task_status_with_record() {
+        let log = EventLog::new();
+        let records = Arc::new(MockRecordStore::new());
+        records.seed(nika_kernel::scope::RecordView {
+            task_id: "research".into(),
+            summary: "s".into(),
+            key_findings: vec![],
+            confidence: 0.9,
+            compression_ratio: 0.05,
+        });
+
+        log.emit(EventKind::TaskScheduled {
+            task_id: Arc::from("research"),
+            dependencies: vec![],
+        });
+
+        let tool = TaskStatusTool::new(log, records);
+        let result = tool.call(r#"{"task_id":"research"}"#.into()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["has_record"], true);
+    }
+
+    #[tokio::test]
     async fn test_task_status_missing_returns_error() {
         let log = EventLog::new();
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
+        let records = Arc::new(MockRecordStore::new());
 
-        let tool = TaskStatusTool::new(log, ctx);
+        let tool = TaskStatusTool::new(log, records);
         let result = tool.call(r#"{"task_id":"nonexistent"}"#.into()).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_task_status_invalid_params() {
+        let log = EventLog::new();
+        let records = Arc::new(MockRecordStore::new());
+        let tool = TaskStatusTool::new(log, records);
+
+        let result = tool.call("not json".into()).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-212"));
     }
 }

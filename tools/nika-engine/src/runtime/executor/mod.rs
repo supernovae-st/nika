@@ -314,21 +314,26 @@ impl TaskExecutor {
     pub fn wire_introspection_tools(&mut self, datastore: Arc<crate::store::RunContext>) {
         if let Some(router) = Arc::get_mut(&mut self.builtin_router) {
             use super::builtin::r#trait::KernelToolAdapter;
-            router.register(super::builtin::RecordsTool::new(Arc::clone(&datastore)));
-            router.register(KernelToolAdapter(super::builtin::DagInfoTool::new(
+            // All 6 introspection tools are now in nika-builtin (kernel trait).
+            // RunContext implements RecordQuery — coerce to trait object.
+            let records: Arc<dyn nika_kernel::scope::RecordQuery> = datastore;
+            router.register(KernelToolAdapter(nika_builtin::RecordsTool::new(
+                Arc::clone(&records),
+            )));
+            router.register(KernelToolAdapter(nika_builtin::DagInfoTool::new(
                 self.event_log.clone(),
             )));
-            router.register(super::builtin::TaskStatusTool::new(
+            router.register(KernelToolAdapter(nika_builtin::TaskStatusTool::new(
                 self.event_log.clone(),
-                Arc::clone(&datastore),
-            ));
-            router.register(KernelToolAdapter(super::builtin::ThreadsTool::new(
+                Arc::clone(&records),
+            )));
+            router.register(KernelToolAdapter(nika_builtin::ThreadsTool::new(
                 self.event_log.clone(),
             )));
-            router.register(super::builtin::OrchestrateTool::new(
+            router.register(KernelToolAdapter(nika_builtin::OrchestrateTool::new(
                 self.event_log.clone(),
-                datastore,
-            ));
+                records,
+            )));
         } else {
             tracing::warn!("Could not wire introspection tools — router already shared");
         }

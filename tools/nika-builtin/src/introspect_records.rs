@@ -25,22 +25,24 @@
 //! ]
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
-use crate::store::RunContext;
-use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use nika_kernel::builtin::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::scope::RecordQuery;
+use serde::Deserialize;
+
 /// nika:records builtin tool — queries compressed records from the current workflow.
 pub struct RecordsTool {
-    datastore: Arc<RunContext>,
+    records: Arc<dyn RecordQuery>,
 }
 
+impl __sealed::Sealed for RecordsTool {}
+
 impl RecordsTool {
-    pub fn new(datastore: Arc<RunContext>) -> Self {
-        Self { datastore }
+    pub fn new(records: Arc<dyn RecordQuery>) -> Self {
+        Self { records }
     }
 }
 
@@ -50,15 +52,6 @@ struct RecordsParams {
     task_id: Option<String>,
     #[serde(default)]
     min_confidence: Option<f64>,
-}
-
-#[derive(Debug, Serialize)]
-struct RecordSummary {
-    task_id: String,
-    summary: String,
-    confidence: f64,
-    compression_ratio: f64,
-    key_findings: Vec<String>,
 }
 
 impl BuiltinTool for RecordsTool {
@@ -90,48 +83,31 @@ impl BuiltinTool for RecordsTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: RecordsParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinInvalidParams {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:records".into(),
                     reason: format!("Invalid JSON parameters: {e}"),
                 })?;
 
-            // Fast-path: single task_id lookup avoids cloning all records
-            let results: Vec<RecordSummary> = if let Some(ref tid) = params.task_id {
-                self.datastore
-                    .get_record(tid)
+            // RecordView is already Serialize — collect and filter
+            let results: Vec<nika_kernel::scope::RecordView> = if let Some(ref tid) = params.task_id
+            {
+                self.records
+                    .get_record_view(tid)
                     .filter(|r| params.min_confidence.is_none_or(|min| r.confidence >= min))
                     .into_iter()
-                    .map(|record| RecordSummary {
-                        task_id: tid.clone(),
-                        summary: record.summary.clone(),
-                        confidence: record.confidence,
-                        compression_ratio: record.compression_ratio(),
-                        key_findings: record.key_findings.clone(),
-                    })
                     .collect()
             } else {
-                self.datastore
-                    .iter_records()
+                self.records
+                    .iter_record_views()
                     .into_iter()
-                    .filter(|(_, record)| {
-                        params
-                            .min_confidence
-                            .is_none_or(|min| record.confidence >= min)
-                    })
-                    .map(|(tid, record)| RecordSummary {
-                        task_id: tid.to_string(),
-                        summary: record.summary.clone(),
-                        confidence: record.confidence,
-                        compression_ratio: record.compression_ratio(),
-                        key_findings: record.key_findings.clone(),
-                    })
+                    .filter(|r| params.min_confidence.is_none_or(|min| r.confidence >= min))
                     .collect()
             };
 
-            serde_json::to_string(&results).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&results).map_err(|e| BuiltinError::Other {
                 tool: "nika:records".into(),
                 reason: format!("Failed to serialize records: {e}"),
             })
@@ -142,28 +118,23 @@ impl BuiltinTool for RecordsTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::record::Record;
-    use crate::store::RunContext;
+    use nika_kernel::scope::RecordView;
+    use nika_kernel_mock::MockRecordStore;
 
-    fn make_record(task_id: &str, confidence: f64) -> Record {
-        Record {
-            task_id: Arc::from(task_id),
+    fn make_view(task_id: &str, confidence: f64) -> RecordView {
+        RecordView {
+            task_id: task_id.into(),
             summary: format!("Summary of {task_id}"),
-            key_findings: vec!["finding1".to_string()],
-            raw_output: None,
+            key_findings: vec!["finding1".into()],
             confidence,
-            tokens_original: 1000,
-            tokens_compressed: 100,
-            compression_model: "mock".to_string(),
-            compression_cost_usd: 0.0,
-            compression_duration: std::time::Duration::ZERO,
+            compression_ratio: 0.05,
         }
     }
 
     #[tokio::test]
     async fn test_records_tool_empty() {
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
-        let tool = RecordsTool::new(ctx);
+        let records = Arc::new(MockRecordStore::new());
+        let tool = RecordsTool::new(records);
         let result = tool.call("{}".into()).await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v.as_array().unwrap().len(), 0);
@@ -171,10 +142,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_returns_all() {
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
-        ctx.set_record("a".into(), make_record("a", 0.9));
-        ctx.set_record("b".into(), make_record("b", 0.7));
-        let tool = RecordsTool::new(ctx);
+        let records = Arc::new(MockRecordStore::new());
+        records.seed(make_view("a", 0.9));
+        records.seed(make_view("b", 0.7));
+        let tool = RecordsTool::new(records);
         let result = tool.call("{}".into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 2);
@@ -182,10 +153,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_filter_by_task_id() {
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
-        ctx.set_record("a".into(), make_record("a", 0.9));
-        ctx.set_record("b".into(), make_record("b", 0.7));
-        let tool = RecordsTool::new(ctx);
+        let records = Arc::new(MockRecordStore::new());
+        records.seed(make_view("a", 0.9));
+        records.seed(make_view("b", 0.7));
+        let tool = RecordsTool::new(records);
         let result = tool.call(r#"{"task_id":"a"}"#.into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 1);
@@ -194,13 +165,46 @@ mod tests {
 
     #[tokio::test]
     async fn test_records_tool_filter_by_confidence() {
-        let ctx = Arc::new(RunContext::new(nika_core::trust::InvocationSource::Test));
-        ctx.set_record("high".into(), make_record("high", 0.9));
-        ctx.set_record("low".into(), make_record("low", 0.3));
-        let tool = RecordsTool::new(ctx);
+        let records = Arc::new(MockRecordStore::new());
+        records.seed(make_view("high", 0.9));
+        records.seed(make_view("low", 0.3));
+        let tool = RecordsTool::new(records);
         let result = tool.call(r#"{"min_confidence":0.5}"#.into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["task_id"], "high");
+    }
+
+    #[tokio::test]
+    async fn test_records_tool_invalid_params() {
+        let records = Arc::new(MockRecordStore::new());
+        let tool = RecordsTool::new(records);
+        let result = tool.call("not json".into()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-212"));
+    }
+
+    #[tokio::test]
+    async fn test_records_tool_combined_filters() {
+        let records = Arc::new(MockRecordStore::new());
+        records.seed(make_view("a", 0.9));
+        records.seed(make_view("b", 0.3));
+        let tool = RecordsTool::new(records);
+        // Filter by task_id AND min_confidence — "a" exists with 0.9 > 0.5
+        let result = tool
+            .call(r#"{"task_id":"a","min_confidence":0.5}"#.into())
+            .await
+            .unwrap();
+        let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0]["task_id"], "a");
+
+        // Filter by task_id AND min_confidence — "b" exists but 0.3 < 0.5
+        let result = tool
+            .call(r#"{"task_id":"b","min_confidence":0.5}"#.into())
+            .await
+            .unwrap();
+        let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
+        assert_eq!(v.len(), 0);
     }
 }

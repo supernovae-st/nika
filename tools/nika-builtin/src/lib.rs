@@ -73,13 +73,19 @@ pub use self::json_verify::JsonVerifyTool;
 pub use self::locale_lookup::LocaleLookupTool;
 pub use self::yaml_validate::YamlValidateTool;
 
-// ─── Introspection tools (3 of 6 — EventLog-only, no RunContext deps) ───
+// ─── Introspection tools (6 of 6 — all migrated) ───
 mod cost;
 mod introspect_dag;
+mod introspect_orchestrate;
+mod introspect_records;
+mod introspect_task_status;
 mod introspect_threads;
 
 pub use self::cost::CostTool;
 pub use self::introspect_dag::DagInfoTool;
+pub use self::introspect_orchestrate::OrchestrateTool;
+pub use self::introspect_records::RecordsTool;
+pub use self::introspect_task_status::TaskStatusTool;
 pub use self::introspect_threads::ThreadsTool;
 
 #[cfg(test)]
