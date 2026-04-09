@@ -17,10 +17,10 @@ use super::media::create_media_tool_adapters;
 use crate::runtime::media_context::EngineMediaContext;
 use super::r#trait::KernelToolAdapter;
 use super::{
-    AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool, CostTool, DagInfoTool,
+    AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool, CostTool,
     EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
     JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool, LogTool,
-    MapTool, PromptTool, SetDiffTool, SleepTool, ThreadsTool, TokenCountTool,
+    MapTool, PromptTool, SetDiffTool, SleepTool, TokenCountTool,
     TreeDataTool, YamlValidateTool, ZipTool,
 };
 use crate::runtime::hitl::HitlHandler;
@@ -28,7 +28,6 @@ use crate::runtime::run_executor::EngineRunExecutor;
 use crate::error::NikaError;
 use crate::tools::ToolContext;
 use nika_event::EventLog;
-use nika_kernel::scope::RecordQuery;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -252,34 +251,6 @@ impl BuiltinToolRouter {
     /// Add nika:cost introspection tool (requires EventLog for token/cost queries).
     pub fn with_cost_tool(mut self, event_log: EventLog) -> Self {
         self.register(KernelToolAdapter(CostTool::new(event_log)));
-        self
-    }
-
-    /// Add nika:records introspection tool (requires RecordQuery for record queries).
-    pub fn with_records_tool(mut self, records: Arc<dyn RecordQuery>) -> Self {
-        self.register(KernelToolAdapter(nika_builtin::RecordsTool::new(records)));
-        self
-    }
-
-    /// Add all introspection tools (dag_info, task_status, threads, orchestrate, records).
-    ///
-    /// All 6 introspection tools now live in nika-builtin (kernel BuiltinTool).
-    /// Migrated in Session 9 (commit 12.16).
-    pub fn with_introspection(
-        mut self,
-        event_log: EventLog,
-        records: Arc<dyn RecordQuery>,
-    ) -> Self {
-        self.register(KernelToolAdapter(DagInfoTool::new(event_log.clone())));
-        self.register(KernelToolAdapter(ThreadsTool::new(event_log.clone())));
-        self.register(KernelToolAdapter(nika_builtin::TaskStatusTool::new(
-            event_log.clone(),
-            Arc::clone(&records),
-        )));
-        self.register(KernelToolAdapter(nika_builtin::OrchestrateTool::new(
-            event_log,
-            records,
-        )));
         self
     }
 
