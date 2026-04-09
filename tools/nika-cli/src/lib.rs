@@ -30,6 +30,7 @@ pub mod clean;
 pub mod config;
 #[cfg(unix)]
 pub mod daemon;
+pub mod demo;
 pub mod discover;
 pub mod doctor;
 #[cfg(unix)]

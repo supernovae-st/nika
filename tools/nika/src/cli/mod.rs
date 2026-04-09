@@ -16,6 +16,7 @@ pub use nika_cli::config;
 pub use nika_cli::course;
 #[cfg(unix)]
 pub use nika_cli::daemon;
+pub use nika_cli::demo;
 pub use nika_cli::discover;
 pub use nika_cli::doctor;
 pub use nika_cli::eval;
