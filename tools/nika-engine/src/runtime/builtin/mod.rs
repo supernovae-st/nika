@@ -25,7 +25,6 @@
 //! ```
 
 mod fetch_tool;
-mod file_adapter;
 pub(crate) mod media;
 mod rig_adapter;
 mod router;
@@ -52,7 +51,6 @@ pub use nika_builtin::{
 
 // ── Local exports (tools that remain in nika-engine) ──
 pub use fetch_tool::FetchTool;
-pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use r#trait::BuiltinTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;

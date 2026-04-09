@@ -54,9 +54,7 @@ use crate::provider::rig::{AgentMediaStaging, NikaMcpTool, NikaMcpToolDef};
 use crate::runtime::limit_tracker::LimitTracker;
 use crate::runtime::submit_tool::DynamicSubmitTool;
 use crate::runtime::SkillInjector;
-use crate::tools::{
-    EditTool, GlobTool, GrepTool, PermissionMode, ReadTool, ToolContext, WriteTool,
-};
+use nika_builtin::file::FileToolContext;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RigAgentLoop
@@ -503,9 +501,9 @@ impl RigAgentLoop {
             // so they can see all project files — same as invoke: nika:glob.
             // workflow_base_dir is only used for spawn tool propagation (line 295).
             let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
-            let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::Plan));
+            let file_ctx = Arc::new(FileToolContext::new(working_dir));
 
-            use super::builtin::FileToolAdapter;
+            use super::builtin::r#trait::KernelToolAdapter;
 
             let should_add_file = |name: &str| -> bool {
                 if has_explicit_filter {
@@ -517,27 +515,27 @@ impl RigAgentLoop {
 
             if should_add_file("nika:read") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                    FileToolAdapter::new(ReadTool::new(Arc::clone(&tool_ctx))),
+                    KernelToolAdapter(nika_builtin::ReadTool::new(Arc::clone(&file_ctx))),
                 ))));
             }
             if should_add_file("nika:write") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                    FileToolAdapter::new(WriteTool::new(Arc::clone(&tool_ctx))),
+                    KernelToolAdapter(nika_builtin::WriteTool::new(Arc::clone(&file_ctx))),
                 ))));
             }
             if should_add_file("nika:edit") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                    FileToolAdapter::new(EditTool::new(Arc::clone(&tool_ctx))),
+                    KernelToolAdapter(nika_builtin::EditTool::new(Arc::clone(&file_ctx))),
                 ))));
             }
             if should_add_file("nika:glob") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                    FileToolAdapter::new(GlobTool::new(Arc::clone(&tool_ctx))),
+                    KernelToolAdapter(nika_builtin::GlobTool::new(Arc::clone(&file_ctx))),
                 ))));
             }
             if should_add_file("nika:grep") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                    FileToolAdapter::new(GrepTool::new(tool_ctx)),
+                    KernelToolAdapter(nika_builtin::GrepTool::new(file_ctx)),
                 ))));
             }
         }
