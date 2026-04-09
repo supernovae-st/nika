@@ -45,9 +45,11 @@ impl BuiltinTool for JsonDiffTool {
           "required": ["source", "target"],
           "properties": {
             "source": {
+              "type": "object",
               "description": "Source JSON object (original language)"
             },
             "target": {
+              "type": "object",
               "description": "Target JSON object (translated)"
             }
           },
@@ -65,6 +67,15 @@ impl BuiltinTool for JsonDiffTool {
                     tool: "nika:json_diff".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
+
+            if !params.source.is_object() || !params.target.is_object() {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:json_diff".into(),
+                    reason: "source and target must be JSON objects — arrays, strings, and \
+                             other types are not supported"
+                        .into(),
+                });
+            }
 
             let source = flatten_json(&params.source, "");
             let target = flatten_json(&params.target, "");
@@ -328,6 +339,17 @@ mod tests {
         assert_eq!(parsed["modified_values"], json!([]));
         assert_eq!(parsed["added_keys"], json!([]));
         assert_eq!(parsed["removed_keys"], json!([]));
+    }
+
+    #[tokio::test]
+    async fn json_diff_rejects_non_objects() {
+        let tool = JsonDiffTool;
+        // Array input must be rejected — previously returned empty diff silently.
+        let result = tool
+            .call(serde_json::to_string(&json!({"source": [1,2,3], "target": {"a": "b"}})).unwrap())
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must be JSON objects"));
     }
 
     #[test]

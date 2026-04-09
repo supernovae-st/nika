@@ -186,14 +186,13 @@ impl BuiltinTool for SetDiffTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
-            // Use string representation for comparison (handles mixed types)
-            let b_strings: std::collections::HashSet<String> =
-                params.b.iter().map(|v| v.to_string()).collect();
-
+            // Use serde_json::Value PartialEq for structurally correct comparison.
+            // to_string() was order-dependent for objects: {"a":1,"b":2} != {"b":2,"a":1}
+            // even though they are semantically equal. PartialEq handles key order correctly.
             let diff: Vec<Value> = params
                 .a
                 .into_iter()
-                .filter(|v| !b_strings.contains(&v.to_string()))
+                .filter(|v| !params.b.contains(v))
                 .collect();
 
             serde_json::to_string(&diff).map_err(|e| BuiltinError::Other {
@@ -352,6 +351,19 @@ mod tests {
             .unwrap();
         let parsed: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed, json!([1, 2, 3]));
+    }
+
+    #[tokio::test]
+    async fn set_diff_objects_key_order_independent() {
+        // {"b":1,"a":2} and {"a":2,"b":1} are semantically equal — must be treated as equal.
+        // The old to_string() comparison was order-dependent and would return a non-empty diff.
+        let tool = SetDiffTool;
+        let result = tool
+            .call(r#"{"a": [{"b":1,"a":2}], "b": [{"a":2,"b":1}]}"#.into())
+            .await
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed, json!([]), "set_diff must treat key-order-different objects as equal");
     }
 
     #[tokio::test]

@@ -51,7 +51,8 @@ impl BuiltinTool for ChunkTool {
                 "chunk_size": {
                     "type": "integer",
                     "description": "Maximum characters per chunk (default: 1000)",
-                    "default": 1000
+                    "default": 1000,
+                    "minimum": 1
                 },
                 "overlap": {
                     "type": "integer",
@@ -79,6 +80,13 @@ impl BuiltinTool for ChunkTool {
                     tool: "nika:chunk".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
+
+            if params.chunk_size == 0 {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:chunk".into(),
+                    reason: "chunk_size must be at least 1".into(),
+                });
+            }
 
             if params.text.is_empty() {
                 return serde_json::to_string(&serde_json::json!({
@@ -297,6 +305,16 @@ mod tests {
         // 17 chars (h-é-l-l-o- -c-a-f-é- -r-é-s-u-m-é), not 20 bytes
         assert_eq!(parsed["characters"], 17);
         assert_eq!(parsed["tokens"], 4); // 17/4 = 4
+    }
+
+    #[tokio::test]
+    async fn chunk_size_zero_errors() {
+        let tool = ChunkTool;
+        let result = tool
+            .call(r#"{"text": "hello", "chunk_size": 0}"#.into())
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("chunk_size must be at least 1"));
     }
 
     #[tokio::test]
