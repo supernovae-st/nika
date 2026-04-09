@@ -1,9 +1,0 @@
-name: ''
-version: 0.1.0
-description: null
-authors: []
-license: null
-repository: null
-dependencies:
-  '@workflows/fun/movie-night': ^1.0.0
-dev-dependencies: {}
