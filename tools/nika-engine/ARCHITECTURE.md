@@ -1,9 +1,9 @@
 # nika-engine Architecture
 
 The embeddable workflow engine: parses YAML, builds a DAG, resolves bindings,
-dispatches tasks to providers, and streams results. ~168k LOC (incl. tests).
+dispatches tasks to providers, and streams results. ~152k LOC (incl. tests).
 
-Post-Session 6 (Constellation v2.3). Last updated 2026-04-09.
+Post-Session 10 (Constellation v2.3). Last updated 2026-04-09.
 
 ## Crate Dependencies (downward only)
 
@@ -135,10 +135,10 @@ pipeline and provider auto-retry logic.
 
 **Still in nika-engine runtime/builtin/ (26 tools):**
 - `router.rs` — Dispatch by tool name (sealed trait, `BuiltinToolRouter`)
-- `trait.rs` — Engine `BuiltinTool` trait definition (adapts kernel trait)
-- `media/` — 24 media tools via MediaToolAdapter (import, thumbnail, chart, etc.)
+- `trait.rs` — Engine `BuiltinTool` trait + `KernelToolAdapter<T>` bridge
+- `media/` — 25 media tools via MediaToolAdapter (import, decode, thumbnail, chart, etc.)
 - `fetch_tool.rs` — nika:fetch (SSRF + extract, coupled to PolicyEnforcer)
-- `file_adapter.rs`, `rig_adapter.rs` — adapter wrappers
+- `rig_adapter.rs` — `NikaBuiltinToolAdapter` wraps BuiltinTool as rig ToolDyn
 
 #### Security Layer (`runtime/shield.rs`, `canary.rs`, `spotlight.rs`)
 
@@ -221,7 +221,7 @@ RigProvider directly.
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `tools/` | ~4300 | File tools (read, write, edit, glob, grep) + `check_path_readable` (Shield) |
+| `tools/` | ~450 | ToolContext, PermissionMode, `check_path_readable` (Shield), DynamicSubmitTool |
 | `io/` | ~2680 | Atomic file I/O, security checks, template I/O |
 | `core/` | ~2290 | Internal re-exports, MCP config, paths, storage backend |
 | `new/` | ~2600 | `nika new` workflow scaffolding + templates |
@@ -284,17 +284,21 @@ Phase 11 (Provider bridge) shipped in Session 4 — `kernel_bridge.rs` (725 LOC)
 implements `nika_kernel::provider::Provider` for `RigProvider`, enabling
 downstream crates to consume `Arc<dyn Provider>` without rig-core dependency.
 
-Phase 12 (nika-builtin) started in Session 6 — 27/63 builtin tools extracted
+Phase 12 (nika-builtin) started in Session 6 — 37/63 builtin tools extracted
 into `nika-builtin` crate. Uses `KernelToolAdapter<T>` to bridge kernel
 `BuiltinTool` trait (returns `BuiltinError`) to engine `BuiltinTool` trait
 (returns `NikaError`). Sealed trait prevents external implementations.
+
+Session 10: engine-side file tools deleted (-4k LOC). Agent loop migrated
+to nika-builtin file tools. FileToolAdapter, RigFileTool, FileTool trait
+all removed.
 
 ### Next Phases
 
 | Phase | Target | What | Status |
 |-------|--------|------|--------|
 | 3 | `nika-macros` | 4 derives + 1 declarative macro (syn 2 + darling) | Done (S5) |
-| 12 | `nika-builtin` | Extract all 63 builtin tools (~22-24k LOC) | 27/63 done (S6) |
+| 12 | `nika-builtin` | 37/63 tools migrated. Remaining 26 (media+fetch) stay in engine. | Substantially complete |
 | 13 | verb crates | `nika-verb-{infer,exec,fetch,invoke,agent}` + dedup | Planned |
 | 14 | `nika-runtime` | Runner + executor extraction (~30k LOC) | Planned |
 | 15 | post-launch | `nika-binding` + `nika-dag` to L0 kernel (~15k LOC) | Planned |
@@ -302,7 +306,7 @@ into `nika-builtin` crate. Uses `KernelToolAdapter<T>` to bridge kernel
 ### Size Targets (V2.3, research-backed)
 
 ```
-Pre-launch (May 5):  nika-engine <= 100k LOC  (from 168k, after Phase 14)
+Pre-launch (May 5):  nika-engine <= 100k LOC  (from 152k, after Phase 14)
 Post-launch:         nika-engine <  80k LOC   (after Phase 15 binding/dag split)
 ```
 

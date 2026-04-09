@@ -5862,6 +5862,7 @@ dependencies = [
  "nika-core",
  "nika-event",
  "nika-kernel",
+ "nika-kernel-mock",
  "parking_lot",
  "regex",
  "rustc-hash 2.1.2",
@@ -6175,7 +6176,9 @@ name = "nika-kernel-mock"
 version = "0.79.0"
 dependencies = [
  "async-trait",
+ "blake3",
  "bytes",
+ "dashmap",
  "nika-core",
  "nika-kernel",
  "parking_lot",
