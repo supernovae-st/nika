@@ -183,23 +183,35 @@ impl BuiltinToolRouter {
         self
     }
 
+    /// Register all media tools via `Arc<dyn MediaContext>`.
+    ///
+    /// Builder method — chainable with other `with_*` methods:
+    /// ```rust,ignore
+    /// let ctx: Arc<dyn MediaContext> = Arc::new(EngineMediaContext::new(media_ctx));
+    /// let router = BuiltinToolRouter::new()
+    ///     .with_file_tools(file_ctx)
+    ///     .with_media(ctx);
+    /// ```
+    pub(crate) fn with_media(
+        mut self,
+        ctx: Arc<EngineMediaContext>,
+    ) -> Self {
+        for tool in create_media_tool_adapters(ctx) {
+            self.tools.insert(tool.name(), Arc::from(tool));
+        }
+        self
+    }
+
     /// Create a router with all builtin tools (base + file + N media).
     ///
-    /// Media tools require a `MediaToolContext` for CAS access, budget, and compute pool.
-    /// Wraps `MediaToolContext` in `EngineMediaContext` for the kernel trait bridge.
+    /// Convenience method — equivalent to `with_file_tools(file_ctx).with_media(engine_ctx)`.
+    /// Wraps `MediaToolContext` in `EngineMediaContext` internally.
     pub fn with_all_tools(
         file_ctx: Arc<ToolContext>,
         media_ctx: Arc<nika_media::tools::context::MediaToolContext>,
     ) -> Self {
         let engine_ctx = Arc::new(EngineMediaContext::new(media_ctx));
-        let mut router = Self::with_file_tools(file_ctx);
-
-        // Register media tools
-        for tool in create_media_tool_adapters(engine_ctx) {
-            router.tools.insert(tool.name(), Arc::from(tool));
-        }
-
-        router
+        Self::with_file_tools(file_ctx).with_media(engine_ctx)
     }
 
     /// Check if a tool name is a builtin (has nika: prefix).
