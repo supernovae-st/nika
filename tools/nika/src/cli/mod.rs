@@ -21,11 +21,9 @@ pub use nika_cli::discover;
 pub use nika_cli::doctor;
 pub use nika_cli::eval;
 #[cfg(unix)]
-#[cfg(unix)]
 pub use nika_cli::every;
 pub use nika_cli::explain;
 pub use nika_cli::init;
-#[cfg(unix)]
 #[cfg(unix)]
 pub use nika_cli::jobs;
 pub use nika_cli::keys;
