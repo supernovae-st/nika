@@ -602,7 +602,8 @@ mod tests {
             PermissionMode::YoloMode,
         ));
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let router = BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx);
+        let router = BuiltinToolRouter::with_file_tools(tool_ctx)
+            .with_media(engine_ctx(media_ctx));
 
         // Media tools should be registered
         assert!(router.has_tool("dimensions"), "dimensions not in router");
@@ -629,7 +630,8 @@ mod tests {
             PermissionMode::YoloMode,
         ));
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let router = BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx);
+        let router = BuiltinToolRouter::with_file_tools(tool_ctx)
+            .with_media(engine_ctx(media_ctx));
 
         let names = router.tool_names();
         // 7 core + 5 file + N media

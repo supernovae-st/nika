@@ -75,7 +75,8 @@ mod tests {
             PermissionMode::YoloMode,
         ));
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let router = BuiltinToolRouter::with_all_tools(tool_ctx, Arc::clone(&media_ctx));
+        let router = BuiltinToolRouter::with_file_tools(tool_ctx)
+            .with_media(engine_ctx(Arc::clone(&media_ctx)));
         (dir, router, media_ctx)
     }
 
@@ -864,10 +865,10 @@ mod tests {
             PermissionMode::YoloMode,
         ));
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let router = Arc::new(BuiltinToolRouter::with_all_tools(
-            tool_ctx,
-            Arc::clone(&media_ctx),
-        ));
+        let router = Arc::new(
+            BuiltinToolRouter::with_file_tools(tool_ctx)
+                .with_media(engine_ctx(Arc::clone(&media_ctx))),
+        );
         let hash = store_fixture(&media_ctx, &fixture_png_100x50()).await;
 
         let handles: Vec<_> = (0..5)

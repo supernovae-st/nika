@@ -202,18 +202,6 @@ impl BuiltinToolRouter {
         self
     }
 
-    /// Create a router with all builtin tools (base + file + N media).
-    ///
-    /// Convenience method — equivalent to `with_file_tools(file_ctx).with_media(engine_ctx)`.
-    /// Wraps `MediaToolContext` in `EngineMediaContext` internally.
-    pub fn with_all_tools(
-        file_ctx: Arc<ToolContext>,
-        media_ctx: Arc<nika_media::tools::context::MediaToolContext>,
-    ) -> Self {
-        let engine_ctx = Arc::new(EngineMediaContext::new(media_ctx));
-        Self::with_file_tools(file_ctx).with_media(engine_ctx)
-    }
-
     /// Check if a tool name is a builtin (has nika: prefix).
     ///
     /// # Example
