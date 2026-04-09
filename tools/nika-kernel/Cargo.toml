@@ -17,6 +17,8 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 futures-core = { workspace = true }
 bytes = { workspace = true }
+# task_local! (used in task_local.rs) requires the "rt" feature.
+tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros", "time"] }

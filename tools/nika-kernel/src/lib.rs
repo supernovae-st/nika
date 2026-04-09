@@ -23,3 +23,4 @@ pub mod provider;
 pub mod scope;
 pub mod shell;
 pub mod store;
+pub mod task_local;
