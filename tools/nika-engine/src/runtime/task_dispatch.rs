@@ -130,25 +130,35 @@ pub(crate) async fn execute_task_iteration(
         .unwrap_or(nika_core::trust::TrustLevel::Trusted);
     let shield_task_elevated = task.trust_elevated;
     let shield_task_id_arc = Arc::clone(&task_id);
+    // Use the executor's effective working dir for file tools. This respects
+    // with_base_path() and with_working_dir_mode("project") so that relative
+    // paths like ./data.txt resolve to the correct directory.
+    let working_dir_for_scope = executor.file_tool_working_dir();
     crate::runtime::builtin::run::CURRENT_TASK_ID
         .scope(Some(shield_task_id_arc), async move {
             crate::runtime::builtin::run::CURRENT_TASK_TRUST
                 .scope(shield_task_trust, async move {
                     crate::runtime::builtin::run::CURRENT_TASK_ELEVATED
                         .scope(shield_task_elevated, async move {
-                            execute_task_iteration_inner(
-                                task,
-                                task_id,
-                                parent_task_id,
-                                datastore,
-                                executor,
-                                event_log,
-                                for_each_binding,
-                                workflow_artifacts,
-                                base_path,
-                                is_fallback_execution,
-                            )
-                            .await
+                            // Scope the current working dir for nika-builtin file tools.
+                            // FileToolContext.validate_path() reads this to resolve paths.
+                            nika_kernel::task_local::CURRENT_WORKING_DIR
+                                .scope(Some(working_dir_for_scope), async move {
+                                    execute_task_iteration_inner(
+                                        task,
+                                        task_id,
+                                        parent_task_id,
+                                        datastore,
+                                        executor,
+                                        event_log,
+                                        for_each_binding,
+                                        workflow_artifacts,
+                                        base_path,
+                                        is_fallback_execution,
+                                    )
+                                    .await
+                                })
+                                .await
                         })
                         .await
                 })

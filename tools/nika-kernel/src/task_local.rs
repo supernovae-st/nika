@@ -55,6 +55,14 @@ tokio::task_local! {
     /// Used by `nika:run` for cycle detection: re-entering a workflow that is
     /// already in the chain triggers NIKA-387.
     pub static PARENT_CHAIN: Vec<PathBuf>;
+
+    /// Working directory for builtin file tools.
+    ///
+    /// Set by `TaskExecutor` before each builtin dispatch so that file tools
+    /// always use the current workflow base_path (which may change via
+    /// `with_base_path()` after router construction). `None` outside a
+    /// runner-driven dispatch — file tools fall back to `FileToolContext.working_dir`.
+    pub static CURRENT_WORKING_DIR: Option<PathBuf>;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -94,6 +102,13 @@ pub fn current_task_elevated() -> bool {
 #[inline]
 pub fn current_parent_chain() -> Vec<PathBuf> {
     PARENT_CHAIN.try_with(|c| c.clone()).unwrap_or_default()
+}
+
+/// Current working directory for builtin file tools. Returns `None` outside
+/// a runner-driven dispatch.
+#[inline]
+pub fn current_working_dir() -> Option<PathBuf> {
+    CURRENT_WORKING_DIR.try_with(|d| d.clone()).unwrap_or(None)
 }
 
 // ─────────────────────────────────────────────────────────────────────

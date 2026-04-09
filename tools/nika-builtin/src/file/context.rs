@@ -8,6 +8,7 @@
 
 use crate::BuiltinError;
 use dashmap::DashMap;
+use nika_kernel::task_local::current_working_dir;
 use std::path::{Path, PathBuf};
 
 /// Shared context for builtin file tools.
@@ -45,18 +46,27 @@ impl FileToolContext {
         self.read_files.contains_key(&canonical)
     }
 
-    /// Validate that `raw_path` is absolute and lies within the working directory.
+    /// Validate that `raw_path` lies within the working directory.
+    ///
+    /// Accepts both absolute and relative paths. Relative paths are resolved
+    /// against the effective working directory, which is:
+    /// 1. `CURRENT_WORKING_DIR` task_local (set by TaskExecutor before each dispatch),
+    ///    so that `with_base_path()` changes after router construction are respected.
+    /// 2. `self.working_dir` as fallback (used outside a runner context, e.g. tests).
     ///
     /// Returns the canonicalized (or lexically-normalized) path on success.
     pub fn validate_path(&self, raw_path: &str) -> Result<PathBuf, BuiltinError> {
-        let path = Path::new(raw_path);
+        let input = Path::new(raw_path);
 
-        if !path.is_absolute() {
-            return Err(BuiltinError::InvalidArgs {
-                tool: "file-tool".into(),
-                reason: format!("[NIKA-211] Path must be absolute, got: {raw_path}"),
-            });
-        }
+        // Use task_local working dir if available (keeps in sync with with_base_path())
+        let effective_dir = current_working_dir().unwrap_or_else(|| self.working_dir.clone());
+
+        // Resolve relative paths against effective_dir
+        let path = if input.is_absolute() {
+            input.to_path_buf()
+        } else {
+            effective_dir.join(input)
+        };
 
         // Canonicalize to resolve symlinks and `..` components so that
         // `/work/../../etc/passwd` cannot escape the boundary.
@@ -70,13 +80,12 @@ impl FileToolContext {
                 reason: format!("Failed to canonicalize path {raw_path}: {e}"),
             })?
         } else {
-            canonicalize_best_effort(path)
+            canonicalize_best_effort(&path)
         };
 
-        let work_canonical = self
-            .working_dir
+        let work_canonical = effective_dir
             .canonicalize()
-            .unwrap_or_else(|_| self.working_dir.clone());
+            .unwrap_or_else(|_| effective_dir.clone());
 
         if !canonical.starts_with(&work_canonical) {
             return Err(BuiltinError::InvalidArgs {
@@ -181,12 +190,13 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_relative_path_rejected() {
-        let (_d, ctx) = temp_ctx();
+    fn test_validate_relative_path_resolves_in_working_dir() {
+        let (d, ctx) = temp_ctx();
+        // Relative paths are resolved against working_dir — should succeed (no NIKA-211)
         let result = ctx.validate_path("relative/path.txt");
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("NIKA-211") || msg.contains("absolute"), "{msg}");
+        assert!(result.is_ok(), "relative path should resolve within working_dir: {:?}", result);
+        // The resolved path should be within the working dir
+        assert!(result.unwrap().starts_with(d.path().canonicalize().unwrap()));
     }
 
     #[test]

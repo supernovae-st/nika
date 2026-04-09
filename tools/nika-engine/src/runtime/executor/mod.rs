@@ -437,6 +437,18 @@ impl TaskExecutor {
         self
     }
 
+    /// Return the effective working directory for builtin file tools.
+    ///
+    /// This is the `ToolContext` working directory, which is updated by:
+    /// - `with_base_path(path)` → sets to workflow directory
+    /// - `with_project_root(root)` + `with_working_dir_mode("project")` → sets to project root
+    ///
+    /// Used by `task_dispatch.rs` to set `CURRENT_WORKING_DIR` before each
+    /// builtin dispatch so that relative file paths resolve correctly.
+    pub(super) fn file_tool_working_dir(&self) -> std::path::PathBuf {
+        self.tool_ctx.working_dir()
+    }
+
     /// Resolve the effective default cwd for exec tasks based on working_dir_mode.
     ///
     /// Returns `None` when mode is "none" (inherit process cwd).
