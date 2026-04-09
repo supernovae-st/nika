@@ -28,6 +28,7 @@ members = [
     "nika-http",
     "nika-exec-runner",
     "nika-macros",
+    "nika-builtin",
 ]
 
 [workspace.package]
@@ -63,6 +64,7 @@ nika-blob = { path = "nika-blob", version = "0.79.0" }
 nika-http = { path = "nika-http", version = "0.79.0" }
 nika-exec-runner = { path = "nika-exec-runner", version = "0.79.0" }
 nika-macros = { path = "nika-macros", version = "0.79.0" }
+nika-builtin = { path = "nika-builtin", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }

@@ -5849,6 +5849,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-builtin"
+version = "0.79.0"
+dependencies = [
+ "async-trait",
+ "humantime",
+ "nika-core",
+ "nika-event",
+ "nika-kernel",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "nika-cli"
 version = "0.79.0"
 dependencies = [

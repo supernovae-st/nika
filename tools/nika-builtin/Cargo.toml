@@ -1,0 +1,27 @@
+[package]
+name = "nika-builtin"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika builtin tools — 63 nika:* tools for the workflow engine"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-core = { workspace = true }
+nika-kernel = { workspace = true }
+nika-event = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+humantime = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+
+[lints]
+workspace = true
