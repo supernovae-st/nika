@@ -13,7 +13,9 @@ pub mod clock;
 pub mod filesystem;
 pub mod http;
 pub mod media;
+pub mod record;
 pub mod shell;
 pub mod store;
 
 pub use media::MockMediaContext;
+pub use record::MockRecordStore;
