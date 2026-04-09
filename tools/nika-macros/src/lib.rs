@@ -11,6 +11,7 @@
 
 extern crate proc_macro;
 
+mod builtin_tool;
 mod event_task_id;
 mod nika_error_code;
 
@@ -49,4 +50,28 @@ pub fn derive_nika_error_code(input: proc_macro::TokenStream) -> proc_macro::Tok
 pub fn derive_event_task_id(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     event_task_id::derive(&input).into()
+}
+
+/// Attribute macro that generates a `BuiltinTool` impl from an async function.
+///
+/// # Attributes
+///
+/// - `name = "..."` (required) — tool name without `nika:` prefix
+/// - `description = "..."` — tool description
+/// - `error = "..."` — error type path (default: `crate::NikaError`)
+/// - `trait_path = "..."` — trait path (default: `crate::runtime::builtin::BuiltinTool`)
+///
+/// # Example
+///
+/// ```ignore
+/// #[builtin_tool(name = "sleep", description = "Pause execution")]
+/// async fn sleep_tool(params: SleepParams) -> Result<SleepResponse, NikaError> { ... }
+/// // Generates: pub struct SleepStub; impl BuiltinTool for SleepStub { ... }
+/// ```
+#[proc_macro_attribute]
+pub fn builtin_tool(
+    attr: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    builtin_tool::expand(attr.into(), item.into()).into()
 }
