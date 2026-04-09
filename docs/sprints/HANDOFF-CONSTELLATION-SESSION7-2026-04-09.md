@@ -465,46 +465,119 @@ No code change. One commit updating the comment.
 
 ## 5. SESSIONS 8-9 PREVIEW (Media tools + router migration)
 
-### Commit 12.9 — MediaContext trait + Tier 1 (5 tools)
+> **Critical discovery from async architectural analysis:** MediaOp implementations
+> ALREADY live in `nika-media/src/tools/`, NOT in nika-engine. nika-engine only has a
+> thin adapter layer (~319 LOC in `runtime/builtin/media/mod.rs`).
+>
+> **Recommended approach: Option 3** — keep MediaOp implementations in nika-media,
+> expose via `MediaContext` trait in nika-kernel. Do NOT move image processing code to nika-builtin
+> (would add `image`, `fast_image_resize`, `webp`, etc. as nika-builtin deps).
+>
+> **LOC reduction from 12.9-12.13:** ~4k-5k lines from nika-engine (NOT 28k).
+> Major reduction (to ≤100k target) requires Phase 14 (runtime + executor extraction).
 
-**Tier 1 (always-on):** import, decode, dimensions, thumbhash, dominant_color
+### Commit 12.9 — Expand MediaContext trait + wire EngineMediaContext
 
-`MediaContext` trait in `nika-kernel/src/media.rs` needs:
-- `store_blob(data: &[u8], mime: &str) -> Result<BlobHash, BuiltinError>`
-- `read_blob(hash: &str) -> Result<Vec<u8>, BuiltinError>`
-- `blob_size(hash: &str) -> Result<u64, BuiltinError>`
-- `detect_mime(data: &[u8]) -> Option<String>`
+**Current state:** `MediaContext` in `nika-kernel/src/scope.rs` is a forward declaration
+with only `blob_store()` + `working_dir()`. Too thin for any real tool.
 
-**Async hazard:** Image dimension detection (imagesize crate) is sync CPU work.
-Wrap in `tokio::task::spawn_blocking` inside call() for Tier 1+ tools.
-
-### Commit 12.12 — BuiltinToolRouter Bundle pattern
-
-After all tools are in nika-builtin, the router constructor changes to:
+**Define the FULL trait in commit 12.9** (or all subsequent commits need to widen it mid-migration):
 
 ```rust
-// Instead of individual registrations, use a Bundle struct:
-pub struct BuiltinBundle {
-    pub run_executor: Arc<dyn RunExecutor>,
-    pub hitl: Option<Arc<dyn HitlPrompt>>,
-    pub media: Option<Arc<dyn MediaContext>>,
-    pub file_io: Arc<FileIoState>,
-}
+// nika-kernel/src/media.rs (new file, re-export in scope.rs)
+pub struct StoreResult { pub hash: String, pub size: u64, pub deduplicated: bool }
 
-impl BuiltinToolRouter {
-    pub fn new(bundle: BuiltinBundle) -> Self { ... }
+#[async_trait::async_trait]
+pub trait MediaContext: Send + Sync {
+    async fn read_blob(&self, hash: &str) -> Result<Vec<u8>, BuiltinError>;
+    async fn store_blob(&self, data: &[u8], task_id: &str) -> Result<StoreResult, BuiltinError>;
+    fn working_dir(&self) -> Option<&std::path::Path>;
+    fn is_cancelled(&self) -> bool;
+    // Rayon bridge — CPU-bound image ops MUST go through this, never block tokio
+    async fn compute_blocking<F, T>(&self, f: F) -> Result<T, BuiltinError>
+    where F: FnOnce() -> T + Send + 'static, T: Send + 'static;
 }
 ```
 
-This makes it impossible to forget to inject a dependency — compiler catches it.
+**Also in 12.9:** Introduce `EngineMediaContext` in nika-engine (NOT deferred to 12.12):
+
+```rust
+// nika-engine/src/runtime/media_context.rs
+pub struct EngineMediaContext { inner: Arc<MediaToolContext> }
+impl MediaContext for EngineMediaContext { ... }
+```
+
+Then update `create_media_tool_adapters()` to use `Arc<dyn MediaContext>` instead of
+`Arc<MediaToolContext>`.
+
+**Tests:** Verify existing 24 media tool tests still pass (no behavior change in 12.9).
+
+### Commits 12.10–12.11 — Media tool refactor (NOT full migration)
+
+Since MediaOp impls stay in nika-media, these commits refactor the adapter layer to use
+`Arc<dyn MediaContext>` instead of `Arc<MediaToolContext>`. The tools themselves don't move.
+
+**3 async hazards to fix in nika-media as part of this (found in code review):**
+
+1. **`import.rs`: `path.canonicalize()` is blocking in async context.**
+   Replace with `tokio::fs::canonicalize()`:
+   ```rust
+   // Before (blocking syscall on tokio thread):
+   let canonical = path.canonicalize()?;
+   // After:
+   let canonical = tokio::fs::canonicalize(&path).await.map_err(|e| ...)?;
+   ```
+
+2. **`thumbnail.rs`: `WorkingMemoryBudget` not acquired before rayon dispatch.**
+   Under `concurrency: 10` with 4K images, 10 × 33MB decode buffers = 330MB untracked.
+   Fix: acquire budget guard on tokio side before dispatching to rayon:
+   ```rust
+   let estimated_size = data.len() * 4;
+   let _guard = ctx.working_memory.acquire(estimated_size).map_err(|e| ...)?;
+   let output = ctx.compute.compute(move || { /* decode + resize + encode */ }).await??;
+   // _guard drops here — releases working memory
+   ```
+
+3. **`ComputePool` panic handler loses panic message.**
+   Fix: extract message from `Box<dyn Any + Send>`:
+   ```rust
+   .panic_handler(|info| {
+       let msg = info.downcast_ref::<&str>().copied()
+           .or_else(|| info.downcast_ref::<String>().map(|s| s.as_str()))
+           .unwrap_or("unknown panic");
+       tracing::error!("media compute thread panicked: {msg}");
+   })
+   ```
+
+**Commit 12.11 should be split:**
+- 12.11a: Always-on Tier 3 tools (chart, pipeline, phash, compare, provenance)
+- 12.11b: Web extraction tools (css_select, extract_links, extract_metadata, html_to_md, readability)
+  Different feature flags, different MediaContext access patterns — split reduces CI risk.
+
+### Commit 12.12 — BuiltinToolRouter consuming builder
+
+**Do NOT use a Bundle struct** — it forces callers to provide all fields even when only a subset
+is needed (harder to test). Extend the existing consuming builder pattern:
+
+```rust
+// After 12.12, production wiring in executor/mod.rs:
+let router = BuiltinToolRouter::new()
+    .with_file_tools(file_ctx)
+    .with_media(Arc::new(EngineMediaContext::new(media_tool_ctx)))  // ← trait, not concrete
+    .with_cost_tool(event_log.clone())
+    .with_introspection(event_log, Arc::clone(&datastore))
+    .with_run(Arc::new(EngineRunExecutor::new()))
+    .with_prompt(Arc::new(HitlBridge::new(hitl_handler)));
+```
 
 ### Commit 12.13 — Cleanup
 
-After all tools migrated:
-- Delete `nika-engine/src/runtime/builtin/` files that were moved (keep `router.rs`, `trait.rs`)
-- Delete `nika-engine/src/tools/` directory (file tools moved to nika-builtin)
-- Run `cargo test --workspace --lib` — must reach ≥11,000 tests
-- Verify `nika-engine` LOC reduction: ~28k LOC removed
+After all refactors:
+- Delete adapter files in `nika-engine/src/runtime/builtin/media/` that are replaced
+- **DO NOT delete test files** (8 integration test modules reference engine-internal types)
+- The `runtime/builtin/media/mod.rs` survives as a minimal shim (test re-exports) until Phase 14
+- `nika-engine/src/tools/` can be deleted once file tools are migrated (12.6)
+- Run `cargo test --workspace --lib` — verify ≥11,000 tests
 
 ---
 
