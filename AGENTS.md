@@ -36,10 +36,6 @@ project/
 
 `with:` for bindings, `{{with.alias}}` for templates, `.nika.yaml` extension.
 
-## Integration with NovaNet
-
-Nika connects to NovaNet via MCP only (Zero Cypher rule). Use `invoke:` verb.
-
 ## TUI Views
 
 `1/s` Studio | `2/c` Command | `3/x` Control

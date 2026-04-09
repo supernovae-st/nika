@@ -1,8 +1,8 @@
 # nika-builtin
 
-Extracted builtin tools for the Nika workflow engine. L2 crate, 6440 LOC, 178 tests.
+Extracted builtin tools for the Nika workflow engine. L2 crate, ~9300 LOC, ~250+ tests.
 
-Created in Constellation Phase 12 (Session 6). Contains 27/63 builtin tools that have
+Created in Constellation Phase 12 (Session 7). Contains 34/63 builtin tools that have
 no deep coupling to nika-engine internals (Runner, RunContext, media CAS).
 
 ## Architecture
@@ -94,7 +94,7 @@ In `nika-kernel`, not yet consumed (for future tool migrations):
 ## Testing
 
 ```bash
-cargo test -p nika-builtin --lib        # 178 tests, safe (no keychain)
+cargo test -p nika-builtin --lib        # ~250+ tests, safe (no keychain)
 ```
 
 All tools have unit tests validating:

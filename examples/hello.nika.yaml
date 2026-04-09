@@ -11,6 +11,6 @@ tasks:
   - id: response
     depends_on: [greeting]
     with:
-      msg: greeting
+      msg: $greeting
     infer:
       prompt: "Reply to: {{with.msg}}"

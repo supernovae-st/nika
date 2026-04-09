@@ -1,9 +1,9 @@
 {
   "$schema": "https://claude.ai/schemas/claude-plugin@1.json",
   "name": "nika",
-  "version": "0.40.2",
+  "version": "0.79.0",
   "displayName": "Nika Workflow Engine",
-  "description": "Claude Code plugin for Nika — semantic YAML workflow engine for AI tasks. Provides interactive workflow creation, diagnostics, course tutoring, MCP configuration, and auto-validation hooks.",
+  "description": "Claude Code plugin for Nika \u2014 semantic YAML workflow engine for AI tasks. Provides interactive workflow creation, diagnostics, course tutoring, MCP configuration, and auto-validation hooks.",
   "publisher": {
     "name": "SuperNovae Studio",
     "url": "https://supernovae.studio",
@@ -40,8 +40,13 @@
     }
   ],
   "activation": {
-    "filePatterns": ["*.nika.yaml", ".nika/**"],
-    "commands": ["nika"]
+    "filePatterns": [
+      "*.nika.yaml",
+      ".nika/**"
+    ],
+    "commands": [
+      "nika"
+    ]
   },
   "configuration": {
     "nika.binary": {

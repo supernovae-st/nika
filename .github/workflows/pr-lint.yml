@@ -31,7 +31,6 @@ jobs:
             chore
             revert
           scopes: |
-            novanet
             nika
             studio
             core

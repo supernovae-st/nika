@@ -1,7 +1,7 @@
 # Nika Roadmap
 
 > Last updated: 2026-04-04
-> Current version: **v0.65.1** | Schema: `nika/workflow@0.12`
+> Current version: **v0.79.0** | Schema: `nika/workflow@0.12`
 > Nika stays 0.x.x forever.
 
 ## Current: v0.65 -- Native JQ + Dashboard (DONE)
