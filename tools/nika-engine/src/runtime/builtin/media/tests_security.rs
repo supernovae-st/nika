@@ -25,6 +25,12 @@ mod tests {
     use crate::runtime::builtin::media::MediaOpResult;
     use crate::runtime::builtin::media::{MediaOp, MediaToolAdapter};
     use crate::runtime::builtin::BuiltinTool;
+    use crate::runtime::media_context::EngineMediaContext;
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: std::sync::Arc<nika_media::tools::context::MediaToolContext>) -> std::sync::Arc<EngineMediaContext> {
+        std::sync::Arc::new(EngineMediaContext::new(ctx))
+    }
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
@@ -1088,7 +1094,7 @@ mod tests {
     async fn inject_adapter_malformed_json() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let adapter = MediaToolAdapter::new(Arc::new(DimensionsOp), ctx);
+        let adapter = MediaToolAdapter::new(Arc::new(DimensionsOp), engine_ctx(ctx));
 
         let malformed_inputs = vec![
             "",

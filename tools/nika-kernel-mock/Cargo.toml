@@ -17,6 +17,7 @@ async-trait = { workspace = true }
 bytes = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
 parking_lot = { workspace = true }
+blake3 = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros", "time"] }

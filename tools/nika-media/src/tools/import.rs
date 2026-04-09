@@ -53,7 +53,11 @@ const SENSITIVE_HOME_DIRS: &[&str] = &[
 ///
 /// When `working_dir` is set, the canonical path must be within it (project confinement).
 /// The blocklist is defense-in-depth for when working_dir is not set (e.g. tests).
-fn validate_import_path(
+///
+/// Uses `tokio::fs::canonicalize` (async, non-blocking) instead of the sync
+/// `std::path::Path::canonicalize` to avoid blocking the tokio thread on slow
+/// or networked filesystems. Fixes H1.
+async fn validate_import_path(
     path: &std::path::Path,
     working_dir: Option<&std::path::Path>,
 ) -> Result<(), MediaToolError> {
@@ -70,7 +74,6 @@ fn validate_import_path(
     }
 
     // Reject reads from sensitive system directories (check both raw and canonical paths)
-    let path_str = path.to_string_lossy();
     for prefix in SENSITIVE_PREFIXES {
         if path_str.starts_with(prefix) {
             return Err(security_violation(
@@ -80,7 +83,9 @@ fn validate_import_path(
         }
     }
 
-    if let Ok(canonical) = path.canonicalize() {
+    // tokio::fs::canonicalize is non-blocking (unlike std::path::canonicalize).
+    // Returns Ok(canonical) when path exists, Err when not — both handled here.
+    if let Ok(canonical) = tokio::fs::canonicalize(path).await {
         let canonical_str = canonical.to_string_lossy();
         for prefix in SENSITIVE_PREFIXES {
             if canonical_str.starts_with(prefix) {
@@ -107,7 +112,8 @@ fn validate_import_path(
 
         // Working directory confinement: canonical path must be under working_dir
         if let Some(wd) = working_dir {
-            if let Ok(wd_canonical) = wd.canonicalize() {
+            // Non-blocking canonicalize for the working directory too.
+            if let Ok(wd_canonical) = tokio::fs::canonicalize(wd).await {
                 if !canonical.starts_with(&wd_canonical) {
                     return Err(security_violation(
                         "import",
@@ -161,8 +167,9 @@ impl MediaOp for ImportOp {
 
             let path = PathBuf::from(path_str);
 
-            // Security: reject path traversal, sensitive paths, and out-of-scope paths
-            validate_import_path(&path, ctx.working_dir.as_deref())?;
+            // Security: reject path traversal, sensitive paths, and out-of-scope paths.
+            // validate_import_path is async (tokio::fs::canonicalize, non-blocking).
+            validate_import_path(&path, ctx.working_dir.as_deref()).await?;
 
             // Async metadata check (no blocking I/O, no TOCTOU)
             let metadata = tokio::fs::metadata(&path)
@@ -525,24 +532,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn validate_path_rejects_dotdot() {
+    #[tokio::test]
+    async fn validate_path_rejects_dotdot() {
         let path = std::path::Path::new("../../etc/passwd");
-        assert!(validate_import_path(path, None).is_err());
+        assert!(validate_import_path(path, None).await.is_err());
     }
 
-    #[test]
-    fn validate_path_allows_normal() {
+    #[tokio::test]
+    async fn validate_path_allows_normal() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        assert!(validate_import_path(tmp.path(), None).is_ok());
+        assert!(validate_import_path(tmp.path(), None).await.is_ok());
     }
 
-    #[test]
-    fn validate_path_rejects_outside_working_dir() {
+    #[tokio::test]
+    async fn validate_path_rejects_outside_working_dir() {
         let wd = tempfile::tempdir().unwrap();
         let outside = tempfile::NamedTempFile::new().unwrap();
         // File exists but is outside working_dir
-        let result = validate_import_path(outside.path(), Some(wd.path()));
+        let result = validate_import_path(outside.path(), Some(wd.path())).await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -552,22 +559,22 @@ mod tests {
         assert!(err.contains("outside project directory"));
     }
 
-    #[test]
-    fn validate_path_allows_inside_working_dir() {
+    #[tokio::test]
+    async fn validate_path_allows_inside_working_dir() {
         let wd = tempfile::tempdir().unwrap();
         let file_path = wd.path().join("test.png");
         std::fs::write(&file_path, b"test").unwrap();
-        assert!(validate_import_path(&file_path, Some(wd.path())).is_ok());
+        assert!(validate_import_path(&file_path, Some(wd.path())).await.is_ok());
     }
 
-    #[test]
-    fn validate_path_rejects_ssh_dir() {
+    #[tokio::test]
+    async fn validate_path_rejects_ssh_dir() {
         if let Some(home) = dirs::home_dir() {
             let ssh_key = home.join(".ssh/id_rsa");
             // We can't rely on the file existing, but we can test the path
             // validation if it does. If not, test the prefix logic directly.
             if ssh_key.exists() {
-                let result = validate_import_path(&ssh_key, None);
+                let result = validate_import_path(&ssh_key, None).await;
                 assert!(result.is_err());
                 assert!(result.unwrap_err().to_string().contains("NIKA-297"));
             }

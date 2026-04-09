@@ -265,8 +265,12 @@ impl TaskExecutor {
         let fetch_cache = Arc::new(crate::runtime::fetch_cache::FetchCache::new());
 
         // Build router before struct init to avoid borrow-after-move on event_log
+        let engine_media_ctx = Arc::new(
+            crate::runtime::media_context::EngineMediaContext::new(media_ctx),
+        );
         let builtin_router = Arc::new(
-            BuiltinToolRouter::with_all_tools(tool_ctx.clone(), media_ctx)
+            BuiltinToolRouter::with_file_tools(tool_ctx.clone())
+                .with_media(engine_media_ctx)
                 .with_cost_tool(event_log.clone()),
         );
 

@@ -114,9 +114,15 @@ impl ComputePool {
                 .num_threads(num_cpus().min(4))
                 .thread_name(|idx| format!("nika-media-{idx}"))
                 .panic_handler(|info| {
-                    // Log the panic for debugging, then absorb — the oneshot channel
-                    // receiver gets RecvError which is mapped to a MediaToolError.
-                    tracing::error!("media compute thread panicked: {info:?}");
+                    // Extract and log the panic message. `info` is `&dyn Any` — downcast
+                    // to `&str` (string literals) or `String` (format! panics) to get
+                    // the actual message. Fixes H3: `{info:?}` on `dyn Any` was opaque.
+                    let msg = info
+                        .downcast_ref::<&str>()
+                        .copied()
+                        .or_else(|| info.downcast_ref::<String>().map(String::as_str))
+                        .unwrap_or("unknown panic");
+                    tracing::error!(target: "nika_media", "compute thread panicked: {msg}");
                 })
                 .build()
                 .map_err(|e| {

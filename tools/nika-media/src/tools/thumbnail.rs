@@ -77,6 +77,18 @@ impl MediaOp for ThumbnailOp {
 
             let data = ctx.read_media(hash).await?;
 
+            // Acquire working memory budget BEFORE dispatching to rayon.
+            // A 4K image can require ~33 MB of decode buffer (RGBA: width × height × 4).
+            // Without this guard, concurrency:10 with 4K images = 330 MB of untracked buffers.
+            //
+            // IMPORTANT: use `let _budget_guard` (named binding starting with _) — this keeps
+            // the RAII guard alive until end of scope. `let _ = …` would drop it IMMEDIATELY.
+            let estimated_decode_bytes = (data.len() * 4).max(4096);
+            let _budget_guard = ctx
+                .working_memory
+                .acquire(estimated_decode_bytes)
+                .map_err(|e| tool_error("thumbnail", format!("memory budget exceeded: {e}")))?;
+
             let output = ctx
                 .compute
                 .compute(

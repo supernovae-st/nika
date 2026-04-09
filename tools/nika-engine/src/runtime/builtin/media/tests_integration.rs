@@ -11,9 +11,15 @@ mod tests {
     use crate::runtime::builtin::media::safety::sanitize_svg;
     use crate::runtime::builtin::media::thumbhash_tool::ThumbhashOp;
     use crate::runtime::builtin::media::MediaOp;
+    use crate::runtime::media_context::EngineMediaContext;
     #[cfg(feature = "media-thumbnail")]
     use crate::runtime::builtin::media::MediaOpResult;
     use std::sync::Arc;
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: std::sync::Arc<nika_media::tools::context::MediaToolContext>) -> std::sync::Arc<EngineMediaContext> {
+        std::sync::Arc::new(EngineMediaContext::new(ctx))
+    }
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
@@ -531,7 +537,7 @@ mod tests {
     #[tokio::test]
     async fn feature_all_tools_registered() {
         let (_dir, ctx) = setup().await;
-        let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
+        let tools = crate::runtime::builtin::media::create_media_tool_adapters(engine_ctx(ctx));
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
         // Always-on tools must be present
@@ -596,7 +602,8 @@ mod tests {
             PermissionMode::YoloMode,
         ));
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let router = BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx);
+        let router = BuiltinToolRouter::with_file_tools(tool_ctx)
+            .with_media(engine_ctx(media_ctx));
 
         // Media tools should be registered
         assert!(router.has_tool("dimensions"), "dimensions not in router");
@@ -623,7 +630,8 @@ mod tests {
             PermissionMode::YoloMode,
         ));
         let media_ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let router = BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx);
+        let router = BuiltinToolRouter::with_file_tools(tool_ctx)
+            .with_media(engine_ctx(media_ctx));
 
         let names = router.tool_names();
         // 7 core + 5 file + N media

@@ -13,7 +13,8 @@
 //!   json_flatten, json_unflatten
 //! **Media (N):** import, dimensions, thumbhash, dominant_color, pipeline, ...
 
-use super::media::{context::MediaToolContext, create_media_tool_adapters};
+use super::media::create_media_tool_adapters;
+use crate::runtime::media_context::EngineMediaContext;
 use super::r#trait::KernelToolAdapter;
 use super::{
     AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool, CostTool, DagInfoTool,
@@ -182,18 +183,23 @@ impl BuiltinToolRouter {
         self
     }
 
-    /// Create a router with all builtin tools (base + file + N media).
+    /// Register all media tools via `Arc<dyn MediaContext>`.
     ///
-    /// Media tools require a `MediaToolContext` for CAS access, budget, and compute pool.
-    pub fn with_all_tools(file_ctx: Arc<ToolContext>, media_ctx: Arc<MediaToolContext>) -> Self {
-        let mut router = Self::with_file_tools(file_ctx);
-
-        // Register media tools
-        for tool in create_media_tool_adapters(media_ctx) {
-            router.tools.insert(tool.name(), Arc::from(tool));
+    /// Builder method — chainable with other `with_*` methods:
+    /// ```rust,ignore
+    /// let ctx: Arc<dyn MediaContext> = Arc::new(EngineMediaContext::new(media_ctx));
+    /// let router = BuiltinToolRouter::new()
+    ///     .with_file_tools(file_ctx)
+    ///     .with_media(ctx);
+    /// ```
+    pub(crate) fn with_media(
+        mut self,
+        ctx: Arc<EngineMediaContext>,
+    ) -> Self {
+        for tool in create_media_tool_adapters(ctx) {
+            self.tools.insert(tool.name(), Arc::from(tool));
         }
-
-        router
+        self
     }
 
     /// Check if a tool name is a builtin (has nika: prefix).
