@@ -11,6 +11,13 @@
 //! Generates:
 //! - `pub struct EchoToolStub;` (ZST)
 //! - `impl BuiltinTool for EchoToolStub` with name, description, call
+//!
+//! # Error type contract
+//!
+//! The error type (default: `crate::NikaError`, configurable via `error = "..."`)
+//! must have these two constructors:
+//! - `fn invalid_params(tool: &str, reason: impl Display) -> Self`
+//! - `fn tool_error(tool: &str, reason: impl Display) -> Self`
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -41,24 +48,41 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error(),
     };
 
+    // Parse paths with proper error handling (no .expect())
+    let error_path: syn::Path = match syn::parse_str(
+        attrs.error.as_deref().unwrap_or("crate::NikaError"),
+    ) {
+        Ok(p) => p,
+        Err(e) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("invalid error path: {e}"),
+            )
+            .to_compile_error();
+        }
+    };
+    let trait_path: syn::Path = match syn::parse_str(
+        attrs
+            .trait_path
+            .as_deref()
+            .unwrap_or("crate::runtime::builtin::BuiltinTool"),
+    ) {
+        Ok(p) => p,
+        Err(e) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("invalid trait_path: {e}"),
+            )
+            .to_compile_error();
+        }
+    };
+
     // Generate stub struct name from function name
     let fn_name = &func.sig.ident;
     let stub_name = generate_stub_name(fn_name);
 
     let tool_name = &attrs.name;
     let tool_desc = attrs.description.as_deref().unwrap_or("");
-    let error_path: syn::Path = syn::parse_str(
-        attrs.error.as_deref().unwrap_or("crate::NikaError"),
-    )
-    .expect("default error path is valid");
-    let trait_path: syn::Path = syn::parse_str(
-        attrs
-            .trait_path
-            .as_deref()
-            .unwrap_or("crate::runtime::builtin::BuiltinTool"),
-    )
-    .expect("default trait path is valid");
-
     let nika_prefix = format!("nika:{}", tool_name);
 
     quote! {

@@ -6199,7 +6199,6 @@ dependencies = [
 name = "nika-macros"
 version = "0.79.0"
 dependencies = [
- "darling 0.20.11",
  "proc-macro2",
  "quote",
  "serde",
