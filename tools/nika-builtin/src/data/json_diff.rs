@@ -61,7 +61,7 @@ impl BuiltinTool for JsonDiffTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: JsonDiffParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:json_diff".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

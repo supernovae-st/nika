@@ -71,7 +71,7 @@ impl BuiltinTool for LocaleLookupTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: LocaleLookupParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:locale_lookup".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

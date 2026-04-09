@@ -78,7 +78,7 @@ impl BuiltinTool for JsonVerifyTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: JsonVerifyParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:json_verify".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

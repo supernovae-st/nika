@@ -90,7 +90,7 @@ impl BuiltinTool for MapTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: MapParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:map".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -98,7 +98,7 @@ impl BuiltinTool for MapTool {
             let array = params
                 .array
                 .as_array()
-                .ok_or_else(|| BuiltinError::Other {
+                .ok_or_else(|| BuiltinError::InvalidArgs {
                     tool: "nika:map".into(),
                     reason: "Expected array for 'array' parameter".into(),
                 })?;
@@ -202,7 +202,7 @@ impl BuiltinTool for EnrichTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: EnrichParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:enrich".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -354,7 +354,7 @@ impl BuiltinTool for FilterTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: FilterParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:filter".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -362,7 +362,7 @@ impl BuiltinTool for FilterTool {
             let array = params
                 .array
                 .as_array()
-                .ok_or_else(|| BuiltinError::Other {
+                .ok_or_else(|| BuiltinError::InvalidArgs {
                     tool: "nika:filter".into(),
                     reason: "Expected array for 'array' parameter".into(),
                 })?;

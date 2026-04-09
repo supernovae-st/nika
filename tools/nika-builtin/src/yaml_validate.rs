@@ -75,7 +75,7 @@ impl BuiltinTool for YamlValidateTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: YamlValidateParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:yaml_validate".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

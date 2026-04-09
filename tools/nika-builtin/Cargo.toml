@@ -12,7 +12,6 @@ publish = true
 [dependencies]
 nika-core = { workspace = true }
 nika-kernel = { workspace = true }
-nika-event = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 async-trait = { workspace = true }

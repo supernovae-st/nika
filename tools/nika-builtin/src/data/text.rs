@@ -75,7 +75,7 @@ impl BuiltinTool for ChunkTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: ChunkParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:chunk".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -177,7 +177,7 @@ impl BuiltinTool for TokenCountTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: TokenCountParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:token_count".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

@@ -60,7 +60,7 @@ impl BuiltinTool for JsonMergeTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: JsonMergeParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:json_merge".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -181,7 +181,7 @@ impl BuiltinTool for SetDiffTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: SetDiffParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:set_diff".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -253,7 +253,7 @@ impl BuiltinTool for ZipTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: ZipParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:zip".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

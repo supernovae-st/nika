@@ -56,7 +56,7 @@ impl BuiltinTool for JqTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + '_>> {
         Box::pin(async move {
             let params: JqParams =
-                serde_json::from_str(&params_json).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&params_json).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:jq".into(),
                     reason: format!("Invalid params: {e}"),
                 })?;

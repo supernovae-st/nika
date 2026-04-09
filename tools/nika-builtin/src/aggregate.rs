@@ -64,7 +64,7 @@ impl BuiltinTool for AggregateTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: AggregateParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:aggregate".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

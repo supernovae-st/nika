@@ -5857,7 +5857,6 @@ dependencies = [
  "humantime",
  "indexmap 2.13.0",
  "nika-core",
- "nika-event",
  "nika-kernel",
  "regex",
  "serde",

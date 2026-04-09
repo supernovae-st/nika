@@ -66,7 +66,7 @@ impl BuiltinTool for JsonFlattenTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: FlattenParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:json_flatten".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -158,7 +158,7 @@ impl BuiltinTool for JsonUnflattenTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: UnflattenParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:json_unflatten".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;

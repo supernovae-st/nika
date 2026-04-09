@@ -55,7 +55,7 @@ impl BuiltinTool for InjectTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + '_>> {
         Box::pin(async move {
             let params: InjectParams =
-                serde_json::from_str(&params_json).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&params_json).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:inject".into(),
                     reason: format!("Invalid params: {e}"),
                 })?;
@@ -80,12 +80,12 @@ impl BuiltinTool for InjectTool {
                             ))
                         }
                     })
-                    .map_err(|e| BuiltinError::Other {
+                    .map_err(|e| BuiltinError::Io {
                         tool: "nika:inject".into(),
                         reason: format!("{label} path '{}' not found: {e}", path),
                     })?;
                 if !canonical.starts_with(&cwd) {
-                    return Err(BuiltinError::Other {
+                    return Err(BuiltinError::Denied {
                         tool: "nika:inject".into(),
                         reason: format!("{label} path '{}' is outside working directory", path),
                     });
@@ -97,7 +97,7 @@ impl BuiltinTool for InjectTool {
 
             let template = tokio::fs::read_to_string(&template_path)
                 .await
-                .map_err(|e| BuiltinError::Other {
+                .map_err(|e| BuiltinError::Io {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot read template '{}': {e}", params.template),
                 })?;
@@ -134,7 +134,7 @@ impl BuiltinTool for InjectTool {
             }
 
             tokio::fs::write(&output_path, &output).await.map_err(|e| {
-                BuiltinError::Other {
+                BuiltinError::Io {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot write '{}': {e}", params.output),
                 }

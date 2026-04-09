@@ -4,7 +4,7 @@
 //! Builtin Tools Module — 60 nika:* tools across 6 tiers
 //!
 //! **Core (7):** sleep, log, emit, assert, prompt, run, complete
-//! **Data (12):** json_merge, set_diff, zip, map, filter, group_by,
+//! **Data (13):** json_merge, json_diff, set_diff, zip, map, filter, group_by,
 //!   chunk, token_count, enrich, jq, tree_data, inject
 //! **Data Sprint 2 (6):** json_verify, yaml_validate, locale_lookup, aggregate,
 //!   json_flatten, json_unflatten

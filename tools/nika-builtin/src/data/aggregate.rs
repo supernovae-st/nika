@@ -54,7 +54,7 @@ impl BuiltinTool for GroupByTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: GroupByParams =
-                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:group_by".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -62,7 +62,7 @@ impl BuiltinTool for GroupByTool {
             let array = params
                 .array
                 .as_array()
-                .ok_or_else(|| BuiltinError::Other {
+                .ok_or_else(|| BuiltinError::InvalidArgs {
                     tool: "nika:group_by".into(),
                     reason: "Expected array for 'array' parameter".into(),
                 })?;
@@ -163,7 +163,7 @@ impl BuiltinTool for TreeDataTool {
     ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + '_>> {
         Box::pin(async move {
             let params: TreeDataParams =
-                serde_json::from_str(&params_json).map_err(|e| BuiltinError::Other {
+                serde_json::from_str(&params_json).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:tree_data".into(),
                     reason: format!("Invalid params: {e}"),
                 })?;

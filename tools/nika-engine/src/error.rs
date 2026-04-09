@@ -1216,8 +1216,8 @@ impl From<nika_kernel::builtin::BuiltinError> for NikaError {
             },
             nika_kernel::builtin::BuiltinError::Denied { tool, reason } => {
                 NikaError::CapabilityDenied {
-                    task_id: tool,
-                    action: "builtin tool call".to_string(),
+                    task_id: String::new(),
+                    action: tool,
                     reason,
                 }
             }
