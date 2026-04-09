@@ -1040,12 +1040,22 @@ pub fn eval_jq(expr: &str, data: &Value) -> Result<Value, String> {
     let jaq_val: jaq_json::Val =
         serde_json::from_value(data.clone()).map_err(|e| format!("jq input error: {e}"))?;
 
+    // Safety cap: jq expressions like `def r:.,r; null|r` produce infinite
+    // iterators. Without this limit, such expressions exhaust memory before
+    // catch_unwind can intervene.
+    const JQ_MAX_RESULTS: usize = 100_000;
+
     // Wrap in catch_unwind to convert panics into clean errors.
     let run_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let ctx: jaq_core::Ctx<jaq_core::data::JustLut<jaq_json::Val>> =
             jaq_core::Ctx::new(&filter.lut, jaq_core::Vars::new([]));
         let mut results: Vec<Value> = Vec::new();
         for r in filter.id.run((ctx, jaq_val)) {
+            if results.len() >= JQ_MAX_RESULTS {
+                return Err(format!(
+                    "jq expression produced more than {JQ_MAX_RESULTS} results (possible infinite loop)"
+                ));
+            }
             match r {
                 Ok(val) => {
                     let json_str = format!("{val}");
