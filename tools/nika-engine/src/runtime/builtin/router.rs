@@ -249,22 +249,42 @@ impl BuiltinToolRouter {
     }
 
     /// Add nika:records introspection tool (requires RunContext for record queries).
+    ///
+    /// Deferred in commit 12.5 — same blocker as `task_status`/`orchestrate`
+    /// (needs `RecordView` DTO in nika-core before migration to nika-builtin).
     pub fn with_records_tool(mut self, datastore: Arc<crate::store::RunContext>) -> Self {
         self.register(RecordsTool::new(datastore));
         self
     }
 
-    /// Add 4 introspection tools (dag_info, task_status, threads, orchestrate).
+    /// Add introspection tools (dag_info, task_status, threads, orchestrate).
+    ///
+    /// # Migration status (commit 12.5 — deferred)
+    ///
+    /// - `dag_info` and `threads` — MIGRATED to nika-builtin (kernel BuiltinTool)
+    /// - `task_status`, `records`, `orchestrate` — DEFERRED pending `RecordView` DTO in nika-core
+    ///
+    /// **Blocker:** These 3 tools depend on the `Record` struct from
+    /// `nika-engine::runtime::record` (fields: `key_findings`, `compression_ratio()`, etc.).
+    /// Moving them to nika-builtin without promoting `Record` to nika-core would create
+    /// a nika-builtin → nika-engine dependency cycle.
+    ///
+    /// **Resolution path:** Define a lightweight `RecordView` DTO in nika-core (L0):
+    /// ```ignore
+    /// pub struct RecordView { pub task_id: String, pub summary: String, pub key_findings: Vec<String>, ... }
+    /// ```
+    /// Then add `impl From<Record> for RecordView` in nika-engine and define
+    /// `pub trait RecordQuery` in nika-kernel. Estimated in Phase 12.5 (post-Session 7).
     pub fn with_introspection(
         mut self,
         event_log: EventLog,
         datastore: Arc<crate::store::RunContext>,
     ) -> Self {
         use super::{OrchestrateTool, TaskStatusTool};
-        // 2 migrated to nika-builtin (kernel trait) — wrapped with KernelToolAdapter
+        // dag_info + threads: migrated to nika-builtin (kernel BuiltinTool)
         self.register(KernelToolAdapter(DagInfoTool::new(event_log.clone())));
         self.register(KernelToolAdapter(ThreadsTool::new(event_log.clone())));
-        // 2 remain in nika-engine (depend on Arc<RunContext>)
+        // task_status + orchestrate: deferred — see doc comment above (commit 12.5)
         self.register(TaskStatusTool::new(
             event_log.clone(),
             Arc::clone(&datastore),
