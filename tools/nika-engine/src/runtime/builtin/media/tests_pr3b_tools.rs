@@ -10,7 +10,13 @@ mod tests {
     use crate::runtime::builtin::media::import::ImportOp;
     use crate::runtime::builtin::media::{MediaOp, MediaOpResult, MediaToolAdapter};
     use crate::runtime::builtin::BuiltinTool;
+    use crate::runtime::media_context::EngineMediaContext;
     use std::sync::Arc;
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: std::sync::Arc<nika_media::tools::context::MediaToolContext>) -> std::sync::Arc<EngineMediaContext> {
+        std::sync::Arc::new(EngineMediaContext::new(ctx))
+    }
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
@@ -48,7 +54,7 @@ mod tests {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmp.path(), &png).unwrap();
 
-        let adapter = MediaToolAdapter::new(Arc::new(ImportOp), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(ImportOp), engine_ctx(Arc::clone(&ctx)));
 
         let json_str = adapter
             .call(serde_json::json!({"path": tmp.path().to_string_lossy()}).to_string())
@@ -64,7 +70,7 @@ mod tests {
     #[tokio::test]
     async fn import_via_adapter_invalid_json() {
         let (_dir, ctx) = setup().await;
-        let adapter = MediaToolAdapter::new(Arc::new(ImportOp), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(ImportOp), engine_ctx(Arc::clone(&ctx)));
 
         let result = adapter.call("not valid json".to_string()).await;
         assert!(result.is_err());
@@ -74,7 +80,7 @@ mod tests {
     #[tokio::test]
     async fn import_adapter_name_and_schema() {
         let (_dir, ctx) = setup().await;
-        let adapter = MediaToolAdapter::new(Arc::new(ImportOp), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(ImportOp), engine_ctx(Arc::clone(&ctx)));
 
         assert_eq!(adapter.name(), "import");
         assert!(adapter.description().contains("Import"));
@@ -459,7 +465,7 @@ mod tests {
         #[tokio::test]
         async fn chart_via_adapter() {
             let (_dir, ctx) = setup().await;
-            let adapter = MediaToolAdapter::new(Arc::new(ChartOp), Arc::clone(&ctx));
+            let adapter = MediaToolAdapter::new(Arc::new(ChartOp), engine_ctx(Arc::clone(&ctx)));
 
             let json_str = adapter
                 .call(
@@ -612,7 +618,7 @@ mod tests {
             let jpeg = fixture_jpeg(40, 40, 128, 128, 128);
             let sr = ctx.cas.store(&jpeg).await.unwrap();
 
-            let adapter = MediaToolAdapter::new(Arc::new(ProvenanceOp), Arc::clone(&ctx));
+            let adapter = MediaToolAdapter::new(Arc::new(ProvenanceOp), engine_ctx(Arc::clone(&ctx)));
             let json_str = adapter
                 .call(
                     serde_json::json!({
@@ -737,7 +743,7 @@ mod tests {
 
         let (_dir, ctx) = setup().await;
 
-        let adapter = MediaToolAdapter::new(Arc::new(ChartOp), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(ChartOp), engine_ctx(Arc::clone(&ctx)));
 
         let json_str = adapter
             .call(
@@ -796,7 +802,7 @@ mod tests {
             let png = fixture_png(50, 50, 255, 0, 0);
             let sr = ctx.cas.store(&png).await.unwrap();
 
-            let adapter = MediaToolAdapter::new(Arc::new(PhashOp), Arc::clone(&ctx));
+            let adapter = MediaToolAdapter::new(Arc::new(PhashOp), engine_ctx(Arc::clone(&ctx)));
             let json_str = adapter
                 .call(serde_json::json!({"hash": sr.hash}).to_string())
                 .await
@@ -825,7 +831,7 @@ mod tests {
             let sr_a = ctx.cas.store(&png_a).await.unwrap();
             let sr_b = ctx.cas.store(&png_b).await.unwrap();
 
-            let adapter = MediaToolAdapter::new(Arc::new(CompareOp), Arc::clone(&ctx));
+            let adapter = MediaToolAdapter::new(Arc::new(CompareOp), engine_ctx(Arc::clone(&ctx)));
             let json_str = adapter
                 .call(
                     serde_json::json!({
@@ -862,7 +868,7 @@ mod tests {
             let pdf = fixture_pdf();
             let sr = ctx.cas.store(&pdf).await.unwrap();
 
-            let adapter = MediaToolAdapter::new(Arc::new(PdfExtractOp), Arc::clone(&ctx));
+            let adapter = MediaToolAdapter::new(Arc::new(PdfExtractOp), engine_ctx(Arc::clone(&ctx)));
             let result = adapter
                 .call(serde_json::json!({"hash": sr.hash}).to_string())
                 .await;
@@ -938,7 +944,7 @@ mod tests {
     fn import_is_in_tool_list() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
+        let tools = crate::runtime::builtin::media::create_media_tool_adapters(engine_ctx(ctx));
 
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
         assert!(
@@ -955,7 +961,7 @@ mod tests {
     fn all_tool_names_unique() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
+        let tools = crate::runtime::builtin::media::create_media_tool_adapters(engine_ctx(ctx));
 
         let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
         let mut sorted = names.clone();
@@ -973,7 +979,7 @@ mod tests {
     fn all_tools_have_description() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
+        let tools = crate::runtime::builtin::media::create_media_tool_adapters(engine_ctx(ctx));
 
         for tool in &tools {
             assert!(
@@ -988,7 +994,7 @@ mod tests {
     fn all_tools_have_valid_schema() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let tools = crate::runtime::builtin::media::create_media_tool_adapters(ctx);
+        let tools = crate::runtime::builtin::media::create_media_tool_adapters(engine_ctx(ctx));
 
         for tool in &tools {
             let schema = tool.parameters_schema();

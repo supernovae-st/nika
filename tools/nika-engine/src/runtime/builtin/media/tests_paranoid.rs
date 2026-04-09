@@ -13,7 +13,13 @@ mod tests {
     use crate::runtime::builtin::media::dimensions::DimensionsOp;
     use crate::runtime::builtin::media::safety::sanitize_svg;
     use crate::runtime::builtin::media::{create_media_tool_adapters, MediaOp};
+    use crate::runtime::media_context::EngineMediaContext;
     use std::sync::Arc;
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: std::sync::Arc<nika_media::tools::context::MediaToolContext>) -> std::sync::Arc<EngineMediaContext> {
+        std::sync::Arc::new(EngineMediaContext::new(ctx))
+    }
 
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
@@ -429,7 +435,7 @@ mod tests {
     #[tokio::test]
     async fn adapter_all_tools_have_name() {
         let (_dir, ctx) = setup().await;
-        let tools = create_media_tool_adapters(ctx);
+        let tools = create_media_tool_adapters(engine_ctx(ctx));
         for tool in &tools {
             let name = tool.name();
             assert!(!name.is_empty(), "tool name must not be empty");
@@ -443,7 +449,7 @@ mod tests {
     #[tokio::test]
     async fn adapter_all_tools_have_description() {
         let (_dir, ctx) = setup().await;
-        let tools = create_media_tool_adapters(ctx);
+        let tools = create_media_tool_adapters(engine_ctx(ctx));
         for tool in &tools {
             let desc = tool.description();
             assert!(
@@ -457,7 +463,7 @@ mod tests {
     #[tokio::test]
     async fn adapter_all_tools_have_schema() {
         let (_dir, ctx) = setup().await;
-        let tools = create_media_tool_adapters(ctx);
+        let tools = create_media_tool_adapters(engine_ctx(ctx));
         for tool in &tools {
             let schema = tool.parameters_schema();
             assert!(
@@ -482,7 +488,7 @@ mod tests {
     #[tokio::test]
     async fn adapter_all_tools_reject_empty_json() {
         let (_dir, ctx) = setup().await;
-        let tools = create_media_tool_adapters(ctx);
+        let tools = create_media_tool_adapters(engine_ctx(ctx));
         for tool in &tools {
             let result = tool.call("{}".to_string()).await;
             // All tools require at least "hash", so empty JSON should error
@@ -497,7 +503,7 @@ mod tests {
     #[tokio::test]
     async fn adapter_all_tools_reject_invalid_json() {
         let (_dir, ctx) = setup().await;
-        let tools = create_media_tool_adapters(ctx);
+        let tools = create_media_tool_adapters(engine_ctx(ctx));
         for tool in &tools {
             let result = tool.call("not json at all".to_string()).await;
             assert!(
@@ -519,7 +525,7 @@ mod tests {
         let (_dir, ctx) = setup().await;
         ctx.cancel.cancel();
 
-        let tools = create_media_tool_adapters(Arc::clone(&ctx));
+        let tools = create_media_tool_adapters(engine_ctx(Arc::clone(&ctx)));
         for tool in &tools {
             let result = tool.call(r#"{"hash":"blake3:abc"}"#.to_string()).await;
             assert!(
@@ -605,7 +611,7 @@ mod tests {
     #[tokio::test]
     async fn panic_all_tools_random_100_bytes() {
         let (_dir, ctx) = setup().await;
-        let tools = create_media_tool_adapters(Arc::clone(&ctx));
+        let tools = create_media_tool_adapters(engine_ctx(Arc::clone(&ctx)));
 
         for tool in &tools {
             for i in 1..20u8 {

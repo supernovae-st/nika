@@ -71,6 +71,8 @@ use std::time::Duration;
 
 use super::BuiltinTool;
 use crate::error::NikaError;
+use crate::runtime::media_context::EngineMediaContext;
+use nika_kernel::scope::MediaContext;
 use nika_media::tools::error::{invalid_args, timeout_error, tool_error};
 
 /// Default timeout for media operations (30 seconds).
@@ -79,14 +81,34 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Adapter that bridges `MediaOp` → `BuiltinTool`.
 ///
 /// Handles: JSON arg parsing, timeout wrapping, CAS write, serialization.
+///
+/// Holds BOTH the concrete `Arc<MediaToolContext>` (for `MediaOp::execute`)
+/// and the trait object `Arc<dyn MediaContext>` (for router injection and
+/// future nika-builtin consumers). `MediaOp::execute` keeps its existing
+/// `&MediaToolContext` signature — media tools still use the concrete type.
 pub(crate) struct MediaToolAdapter {
     op: Arc<dyn MediaOp>,
-    ctx: Arc<MediaToolContext>,
+    /// Concrete context: passed to `MediaOp::execute(&ctx)`.
+    concrete_ctx: Arc<MediaToolContext>,
+    /// Trait object: shared backing data as `concrete_ctx`. Kept for router
+    /// injection and future consumers that only need the trait API.
+    #[allow(dead_code)] // used by router.with_media() in 12.12
+    _trait_ctx: Arc<dyn MediaContext>,
 }
 
 impl MediaToolAdapter {
-    pub fn new(op: Arc<dyn MediaOp>, ctx: Arc<MediaToolContext>) -> Self {
-        Self { op, ctx }
+    /// Create an adapter from an `EngineMediaContext`.
+    ///
+    /// Extracts the concrete `Arc<MediaToolContext>` for `MediaOp::execute`
+    /// and the `Arc<dyn MediaContext>` for trait-based consumers.
+    pub(crate) fn new(op: Arc<dyn MediaOp>, engine_ctx: Arc<EngineMediaContext>) -> Self {
+        let concrete_ctx = Arc::clone(engine_ctx.inner_arc());
+        let _trait_ctx: Arc<dyn MediaContext> = engine_ctx;
+        Self {
+            op,
+            concrete_ctx,
+            _trait_ctx,
+        }
     }
 }
 
@@ -115,7 +137,7 @@ impl BuiltinTool for MediaToolAdapter {
             tokio::time::timeout(DEFAULT_TIMEOUT, async {
                 let result = self
                     .op
-                    .execute(parsed, &self.ctx)
+                    .execute(parsed, &self.concrete_ctx)
                     .await
                     .map_err(NikaError::from)?;
 
@@ -130,7 +152,7 @@ impl BuiltinTool for MediaToolAdapter {
                         metadata,
                     } => {
                         let store_result = self
-                            .ctx
+                            .concrete_ctx
                             .store_media(&data, "media_tool")
                             .await
                             .map_err(NikaError::from)?;
@@ -158,7 +180,12 @@ impl BuiltinTool for MediaToolAdapter {
 }
 
 /// Create all media tool adapters for registration in the BuiltinToolRouter.
-pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<dyn BuiltinTool>> {
+///
+/// Takes an `Arc<EngineMediaContext>` which shares a single backing
+/// `MediaToolContext` across all 24+ media tools.
+pub(crate) fn create_media_tool_adapters(
+    ctx: Arc<EngineMediaContext>,
+) -> Vec<Box<dyn BuiltinTool>> {
     nika_media::tools::create_all_media_ops()
         .into_iter()
         .map(|op| {
@@ -171,7 +198,13 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
 mod tests {
     use super::*;
     use crate::media::CasStore;
+    use crate::runtime::media_context::EngineMediaContext;
     use nika_media::tools::error::MediaToolError;
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: Arc<MediaToolContext>) -> Arc<EngineMediaContext> {
+        Arc::new(EngineMediaContext::new(ctx))
+    }
 
     /// Dummy MediaOp for testing the adapter pattern.
     struct DummyOp;
@@ -220,7 +253,7 @@ mod tests {
     async fn media_tool_adapter_dispatches() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let adapter = MediaToolAdapter::new(Arc::new(DummyOp), ctx);
+        let adapter = MediaToolAdapter::new(Arc::new(DummyOp), engine_ctx(ctx));
 
         let result = adapter
             .call(r#"{"value":"hello"}"#.to_string())
@@ -276,7 +309,8 @@ mod tests {
             }
         }
 
-        let adapter = MediaToolAdapter::new(Arc::new(BinaryOp), Arc::clone(&ctx));
+        let ectx = engine_ctx(Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(BinaryOp), ectx);
         let result = adapter.call("{}".to_string()).await.unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
 
@@ -294,7 +328,7 @@ mod tests {
     async fn adapter_invalid_json_returns_error() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let adapter = MediaToolAdapter::new(Arc::new(DummyOp), ctx);
+        let adapter = MediaToolAdapter::new(Arc::new(DummyOp), engine_ctx(ctx));
 
         let result = adapter.call("not json".to_string()).await;
         assert!(result.is_err());
@@ -305,7 +339,7 @@ mod tests {
     async fn create_media_tool_adapters_returns_tools() {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let tools = create_media_tool_adapters(ctx);
+        let tools = create_media_tool_adapters(engine_ctx(ctx));
 
         assert!(tools.len() >= 4, "expected >= 4 tools, got {}", tools.len());
 

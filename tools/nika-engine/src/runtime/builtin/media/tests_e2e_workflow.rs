@@ -19,7 +19,13 @@ mod tests {
     use crate::runtime::builtin::media::context::MediaToolContext;
     use crate::runtime::builtin::media::{MediaOpResult, MediaToolAdapter};
     use crate::runtime::builtin::BuiltinToolRouter;
+    use crate::runtime::media_context::EngineMediaContext;
     use crate::tools::{PermissionMode, ToolContext};
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: std::sync::Arc<nika_media::tools::context::MediaToolContext>) -> std::sync::Arc<EngineMediaContext> {
+        std::sync::Arc::new(EngineMediaContext::new(ctx))
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // FIXTURES
@@ -429,7 +435,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-        let adapter = MediaToolAdapter::new(Arc::new(SlowOp), ctx);
+        let adapter = MediaToolAdapter::new(Arc::new(SlowOp), engine_ctx(ctx));
 
         let start = std::time::Instant::now();
         let result = adapter.call("{}".to_string()).await;
@@ -457,7 +463,7 @@ mod tests {
         let hash = store_fixture(&ctx, &fixture_png_10x10_red()).await;
 
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
-        let adapter = MediaToolAdapter::new(Arc::new(op), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(op), engine_ctx(Arc::clone(&ctx)));
 
         let result = adapter
             .call(serde_json::json!({"hash": hash}).to_string())
@@ -480,7 +486,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
-        let adapter = MediaToolAdapter::new(Arc::new(op), ctx);
+        let adapter = MediaToolAdapter::new(Arc::new(op), engine_ctx(ctx));
 
         let result = adapter.call("not valid json".to_string()).await;
         assert!(result.is_err());
@@ -494,7 +500,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
-        let adapter = MediaToolAdapter::new(Arc::new(op), ctx);
+        let adapter = MediaToolAdapter::new(Arc::new(op), engine_ctx(ctx));
 
         let result = adapter.call(String::new()).await;
         assert!(result.is_err());
@@ -513,7 +519,7 @@ mod tests {
         let hash = store_fixture(&ctx, &fixture_png_100x50()).await;
 
         let op = crate::runtime::builtin::media::thumbnail::ThumbnailOp;
-        let adapter = MediaToolAdapter::new(Arc::new(op), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(op), engine_ctx(Arc::clone(&ctx)));
 
         let result = adapter
             .call(serde_json::json!({"hash": hash, "width": 30}).to_string())
@@ -551,7 +557,7 @@ mod tests {
         ctx.cancel.cancel();
 
         let op = crate::runtime::builtin::media::dimensions::DimensionsOp;
-        let adapter = MediaToolAdapter::new(Arc::new(op), Arc::clone(&ctx));
+        let adapter = MediaToolAdapter::new(Arc::new(op), engine_ctx(Arc::clone(&ctx)));
 
         let result = adapter
             .call(serde_json::json!({"hash": hash}).to_string())

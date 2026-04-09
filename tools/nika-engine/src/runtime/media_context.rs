@@ -43,17 +43,10 @@ use nika_media::tools::context::MediaToolContext;
 /// Wraps `Arc<MediaToolContext>` — the concrete nika-media context shared
 /// across all media tool invocations in a single workflow run.
 ///
-/// # Status
-///
-/// Added in commit 12.9. Wired into `MediaToolAdapter` in commit 12.11
-/// and into `BuiltinToolRouter::with_media()` in commit 12.12. The
-/// dead_code suppression below is temporary and removed in 12.11.
-#[allow(dead_code)]
 pub(crate) struct EngineMediaContext {
     inner: Arc<MediaToolContext>,
 }
 
-#[allow(dead_code)]
 impl EngineMediaContext {
     /// Create from a shared `MediaToolContext`.
     pub(crate) fn new(ctx: Arc<MediaToolContext>) -> Self {
@@ -64,6 +57,7 @@ impl EngineMediaContext {
     ///
     /// Use sparingly — prefer trait methods when possible. Required when
     /// `MediaToolAdapter` needs to call `op.execute(args, &self.concrete_ctx)`.
+    #[allow(dead_code)] // used by tests; production code uses inner_arc()
     pub(crate) fn inner(&self) -> &MediaToolContext {
         &self.inner
     }

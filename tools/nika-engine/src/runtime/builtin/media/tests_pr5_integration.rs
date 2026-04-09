@@ -21,6 +21,12 @@ mod tests {
     use crate::runtime::builtin::media::context::MediaToolContext;
     #[allow(unused_imports)]
     use crate::runtime::builtin::media::{MediaOp, MediaOpResult};
+    use crate::runtime::media_context::EngineMediaContext;
+
+    /// Helper: wrap a MediaToolContext in EngineMediaContext for tests.
+    fn engine_ctx(ctx: std::sync::Arc<nika_media::tools::context::MediaToolContext>) -> std::sync::Arc<EngineMediaContext> {
+        std::sync::Arc::new(EngineMediaContext::new(ctx))
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // SETUP + FIXTURES
@@ -865,7 +871,7 @@ mod tests {
         fn all_media_tool_adapters_created() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
 
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
@@ -897,7 +903,7 @@ mod tests {
         fn tier2_thumbnail_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(names.contains(&"thumbnail"), "missing thumbnail: {names:?}");
@@ -910,7 +916,7 @@ mod tests {
         fn tier2_metadata_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(names.contains(&"metadata"), "missing metadata: {names:?}");
@@ -921,7 +927,7 @@ mod tests {
         fn tier2_optimize_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(names.contains(&"optimize"), "missing optimize: {names:?}");
@@ -932,7 +938,7 @@ mod tests {
         fn tier2_svg_render_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -946,7 +952,7 @@ mod tests {
         fn tier3_phash_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(names.contains(&"phash"), "missing phash: {names:?}");
@@ -958,7 +964,7 @@ mod tests {
         fn tier3_pdf_extract_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -972,7 +978,7 @@ mod tests {
         fn tier3_chart_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(names.contains(&"chart"), "missing chart: {names:?}");
@@ -983,7 +989,7 @@ mod tests {
         fn tier3_provenance_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -998,7 +1004,7 @@ mod tests {
         fn tier3_qr_validate_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -1012,7 +1018,7 @@ mod tests {
         fn tier3_quality_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(names.contains(&"quality"), "missing quality: {names:?}");
@@ -1023,7 +1029,7 @@ mod tests {
         fn pr5_html_tools_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -1045,7 +1051,7 @@ mod tests {
         fn pr5_html_to_md_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -1059,7 +1065,7 @@ mod tests {
         fn pr5_readability_tool_registered() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
 
             assert!(
@@ -1073,7 +1079,7 @@ mod tests {
         fn all_registered_tool_names_unique() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
 
             let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
             let mut seen = std::collections::HashSet::new();
@@ -1090,7 +1096,7 @@ mod tests {
         fn all_registered_tools_have_valid_schema() {
             let dir = tempfile::tempdir().unwrap();
             let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
-            let tools = create_media_tool_adapters(ctx);
+            let tools = create_media_tool_adapters(engine_ctx(ctx));
 
             for tool in &tools {
                 let schema = tool.parameters_schema();
