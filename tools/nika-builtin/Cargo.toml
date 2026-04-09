@@ -20,8 +20,12 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 humantime = { workspace = true }
 tokio = { workspace = true }
+indexmap = { workspace = true }
+text-splitter = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

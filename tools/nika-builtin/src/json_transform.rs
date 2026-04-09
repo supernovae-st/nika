@@ -6,8 +6,7 @@
 //! - `json_flatten`: `{"a": {"b": 1}}` → `{"a.b": 1}`
 //! - `json_unflatten`: `{"a.b": 1}` → `{"a": {"b": 1}}`
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
@@ -18,6 +17,8 @@ use std::pin::Pin;
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct JsonFlattenTool;
+
+impl __sealed::Sealed for JsonFlattenTool {}
 
 #[derive(Debug, Deserialize)]
 struct FlattenParams {
@@ -62,17 +63,17 @@ impl BuiltinTool for JsonFlattenTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: FlattenParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:json_flatten".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
             let result = flatten(&params.data, "", &params.separator);
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:json_flatten".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -113,6 +114,8 @@ fn flatten(value: &Value, prefix: &str, sep: &str) -> Value {
 
 pub struct JsonUnflattenTool;
 
+impl __sealed::Sealed for JsonUnflattenTool {}
+
 #[derive(Debug, Deserialize)]
 struct UnflattenParams {
     /// Flattened JSON object to unflatten
@@ -152,18 +155,22 @@ impl BuiltinTool for JsonUnflattenTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: UnflattenParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:json_unflatten".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
             let map = match &params.data {
                 Value::Object(m) => m,
-                _ => {
-                    return Err(NikaError::BuiltinToolError {
+                Value::Null
+                | Value::Bool(_)
+                | Value::Number(_)
+                | Value::String(_)
+                | Value::Array(_) => {
+                    return Err(BuiltinError::Other {
                         tool: "nika:json_unflatten".into(),
                         reason: "Expected a JSON object".into(),
                     });
@@ -177,7 +184,7 @@ impl BuiltinTool for JsonUnflattenTool {
                 set_nested(&mut result, &parts, value.clone());
             }
 
-            serde_json::to_string(&Value::Object(result)).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&Value::Object(result)).map_err(|e| BuiltinError::Other {
                 tool: "nika:json_unflatten".into(),
                 reason: format!("Serialization failed: {e}"),
             })

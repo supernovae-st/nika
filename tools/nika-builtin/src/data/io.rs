@@ -3,13 +3,14 @@
 
 //! I/O tools: inject (template marker replacement)
 
-use super::super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct InjectTool;
+
+impl __sealed::Sealed for InjectTool {}
 
 #[derive(Debug, Deserialize)]
 struct InjectParams {
@@ -51,17 +52,17 @@ impl BuiltinTool for InjectTool {
     fn call(
         &self,
         params_json: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + '_>> {
         Box::pin(async move {
             let params: InjectParams =
-                serde_json::from_str(&params_json).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&params_json).map_err(|e| BuiltinError::Other {
                     tool: "nika:inject".into(),
                     reason: format!("Invalid params: {e}"),
                 })?;
 
             // Security: validate paths against directory traversal
             let cwd = std::env::current_dir().unwrap_or_default();
-            let validate = |path: &str, label: &str| -> Result<std::path::PathBuf, NikaError> {
+            let validate = |path: &str, label: &str| -> Result<std::path::PathBuf, BuiltinError> {
                 let resolved = cwd.join(path);
                 let canonical = resolved
                     .canonicalize()
@@ -79,12 +80,12 @@ impl BuiltinTool for InjectTool {
                             ))
                         }
                     })
-                    .map_err(|e| NikaError::BuiltinToolError {
+                    .map_err(|e| BuiltinError::Other {
                         tool: "nika:inject".into(),
                         reason: format!("{label} path '{}' not found: {e}", path),
                     })?;
                 if !canonical.starts_with(&cwd) {
-                    return Err(NikaError::BuiltinToolError {
+                    return Err(BuiltinError::Other {
                         tool: "nika:inject".into(),
                         reason: format!("{label} path '{}' is outside working directory", path),
                     });
@@ -96,7 +97,7 @@ impl BuiltinTool for InjectTool {
 
             let template = tokio::fs::read_to_string(&template_path)
                 .await
-                .map_err(|e| NikaError::BuiltinToolError {
+                .map_err(|e| BuiltinError::Other {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot read template '{}': {e}", params.template),
                 })?;
@@ -123,7 +124,7 @@ impl BuiltinTool for InjectTool {
             }
 
             if skipping {
-                return Err(NikaError::BuiltinToolError {
+                return Err(BuiltinError::Other {
                     tool: "nika:inject".into(),
                     reason: format!(
                         "End marker '{}' not found in template after start marker '{}'",
@@ -133,7 +134,7 @@ impl BuiltinTool for InjectTool {
             }
 
             tokio::fs::write(&output_path, &output).await.map_err(|e| {
-                NikaError::BuiltinToolError {
+                BuiltinError::Other {
                     tool: "nika:inject".into(),
                     reason: format!("Cannot write '{}': {e}", params.output),
                 }

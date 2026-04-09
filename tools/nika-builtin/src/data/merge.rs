@@ -3,8 +3,7 @@
 
 //! Merge tools: json_merge, set_diff, zip
 
-use super::super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
@@ -14,6 +13,8 @@ use std::pin::Pin;
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct JsonMergeTool;
+
+impl __sealed::Sealed for JsonMergeTool {}
 
 #[derive(Debug, Deserialize)]
 struct JsonMergeParams {
@@ -56,10 +57,10 @@ impl BuiltinTool for JsonMergeTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: JsonMergeParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:json_merge".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -83,7 +84,11 @@ impl BuiltinTool for JsonMergeTool {
                     for item in &params.items {
                         match item {
                             Value::Array(arr) => merged.extend(arr.iter().cloned()),
-                            other => merged.push(other.clone()),
+                            other @ (Value::Null
+                            | Value::Bool(_)
+                            | Value::Number(_)
+                            | Value::String(_)
+                            | Value::Object(_)) => merged.push(other.clone()),
                         }
                     }
                     Value::Array(merged)
@@ -94,7 +99,7 @@ impl BuiltinTool for JsonMergeTool {
                         if let Value::Object(obj) = item {
                             deep_merge_objects(&mut base, obj);
                         } else {
-                            return Err(NikaError::BuiltinToolError {
+                            return Err(BuiltinError::Other {
                                 tool: "nika:json_merge".into(),
                                 reason: "deep_merge mode requires all items to be objects".into(),
                             });
@@ -103,14 +108,14 @@ impl BuiltinTool for JsonMergeTool {
                     Value::Object(base)
                 }
                 _ => {
-                    return Err(NikaError::BuiltinToolError {
+                    return Err(BuiltinError::Other {
                         tool: "nika:json_merge".into(),
                         reason: format!("Unknown mode: {mode}. Use 'concat' or 'deep_merge'."),
                     });
                 }
             };
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:json_merge".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -132,6 +137,8 @@ fn deep_merge_objects(
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct SetDiffTool;
+
+impl __sealed::Sealed for SetDiffTool {}
 
 #[derive(Debug, Deserialize)]
 struct SetDiffParams {
@@ -171,10 +178,10 @@ impl BuiltinTool for SetDiffTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: SetDiffParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:set_diff".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -189,7 +196,7 @@ impl BuiltinTool for SetDiffTool {
                 .filter(|v| !b_strings.contains(&v.to_string()))
                 .collect();
 
-            serde_json::to_string(&diff).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&diff).map_err(|e| BuiltinError::Other {
                 tool: "nika:set_diff".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -202,6 +209,8 @@ impl BuiltinTool for SetDiffTool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct ZipTool;
+
+impl __sealed::Sealed for ZipTool {}
 
 #[derive(Debug, Deserialize)]
 struct ZipParams {
@@ -241,10 +250,10 @@ impl BuiltinTool for ZipTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: ZipParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:zip".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -270,7 +279,7 @@ impl BuiltinTool for ZipTool {
                 }
             }
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:zip".into(),
                 reason: format!("Serialization failed: {e}"),
             })

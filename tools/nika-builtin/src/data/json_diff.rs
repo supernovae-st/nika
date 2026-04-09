@@ -11,8 +11,7 @@
 //! - `length_ratios`: per-key string length comparison
 //! - `suspicious`: keys flagged for review (untranslated or extreme ratio)
 
-use super::super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -20,6 +19,8 @@ use std::future::Future;
 use std::pin::Pin;
 
 pub struct JsonDiffTool;
+
+impl __sealed::Sealed for JsonDiffTool {}
 
 #[derive(Debug, Deserialize)]
 struct JsonDiffParams {
@@ -57,10 +58,10 @@ impl BuiltinTool for JsonDiffTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: JsonDiffParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:json_diff".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -144,7 +145,7 @@ impl BuiltinTool for JsonDiffTool {
               "suspicious": suspicious,
             });
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:json_diff".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -167,13 +168,21 @@ fn flatten_json(value: &Value, prefix: &str) -> std::collections::BTreeMap<Strin
                     Value::Object(_) => {
                         result.extend(flatten_json(v, &key));
                     }
-                    _ => {
+                    Value::Null
+                    | Value::Bool(_)
+                    | Value::Number(_)
+                    | Value::String(_)
+                    | Value::Array(_) => {
                         result.insert(key, v.clone());
                     }
                 }
             }
         }
-        _ => {
+        Value::Null
+        | Value::Bool(_)
+        | Value::Number(_)
+        | Value::String(_)
+        | Value::Array(_) => {
             if !prefix.is_empty() {
                 result.insert(prefix.to_string(), value.clone());
             }

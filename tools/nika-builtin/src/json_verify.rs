@@ -11,8 +11,7 @@
 //!
 //! Replaces `verify-translation.py`.
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -29,6 +28,8 @@ static HTML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 pub struct JsonVerifyTool;
+
+impl __sealed::Sealed for JsonVerifyTool {}
 
 #[derive(Debug, Deserialize)]
 struct JsonVerifyParams {
@@ -74,17 +75,17 @@ impl BuiltinTool for JsonVerifyTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: JsonVerifyParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:json_verify".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
             let result = verify(&params.source, &params.translation, params.strict);
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:json_verify".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -119,7 +120,9 @@ fn extract_placeholders(val: &Value) -> BTreeSet<String> {
             .find_iter(s)
             .map(|m| m.as_str().to_string())
             .collect(),
-        _ => BTreeSet::new(),
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::Array(_) | Value::Object(_) => {
+            BTreeSet::new()
+        }
     }
 }
 
@@ -134,7 +137,9 @@ fn extract_html_tags(val: &Value) -> Vec<String> {
             tags.sort();
             tags
         }
-        _ => Vec::new(),
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::Array(_) | Value::Object(_) => {
+            Vec::new()
+        }
     }
 }
 

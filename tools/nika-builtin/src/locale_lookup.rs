@@ -6,14 +6,15 @@
 //! Two-level lookup: exact match → language prefix fallback → error.
 //! Replaces `nllb-terms.py` and `nllb-translate.sh` (the lookup part).
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct LocaleLookupTool;
+
+impl __sealed::Sealed for LocaleLookupTool {}
 
 #[derive(Debug, Deserialize)]
 struct LocaleLookupParams {
@@ -67,18 +68,22 @@ impl BuiltinTool for LocaleLookupTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: LocaleLookupParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:locale_lookup".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
             let map = match &params.mapping {
                 Value::Object(m) => m,
-                _ => {
-                    return Err(NikaError::BuiltinToolError {
+                Value::Null
+                | Value::Bool(_)
+                | Value::Number(_)
+                | Value::String(_)
+                | Value::Array(_) => {
+                    return Err(BuiltinError::Other {
                         tool: "nika:locale_lookup".into(),
                         reason: "mapping must be a JSON object".into(),
                     });
@@ -115,7 +120,7 @@ impl BuiltinTool for LocaleLookupTool {
             }
 
             // No match found
-            Err(NikaError::BuiltinToolError {
+            Err(BuiltinError::Other {
                 tool: "nika:locale_lookup".into(),
                 reason: format!(
                     "No mapping found for locale '{}' (strategy: {})",

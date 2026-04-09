@@ -3,13 +3,14 @@
 
 //! Text tools: chunk, token_count
 
-use super::super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct ChunkTool;
+
+impl __sealed::Sealed for ChunkTool {}
 
 #[derive(Debug, Deserialize)]
 struct ChunkParams {
@@ -71,10 +72,10 @@ impl BuiltinTool for ChunkTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: ChunkParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:chunk".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -87,7 +88,7 @@ impl BuiltinTool for ChunkTool {
                     "chunk_size": params.chunk_size,
                     "overlap": params.overlap,
                 }))
-                .map_err(|e| NikaError::BuiltinToolError {
+                .map_err(|e| BuiltinError::Other {
                     tool: "nika:chunk".into(),
                     reason: format!("Serialization failed: {e}"),
                 });
@@ -96,7 +97,7 @@ impl BuiltinTool for ChunkTool {
             use text_splitter::{ChunkConfig, MarkdownSplitter, TextSplitter};
             let config = ChunkConfig::new(params.chunk_size)
                 .with_overlap(params.overlap)
-                .map_err(|e| NikaError::BuiltinToolError {
+                .map_err(|e| BuiltinError::Other {
                     tool: "nika:chunk".into(),
                     reason: format!("Invalid chunk config: {e}"),
                 })?;
@@ -115,7 +116,7 @@ impl BuiltinTool for ChunkTool {
                 "overlap": params.overlap,
             });
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:chunk".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -128,6 +129,8 @@ impl BuiltinTool for ChunkTool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct TokenCountTool;
+
+impl __sealed::Sealed for TokenCountTool {}
 
 #[derive(Debug, Deserialize)]
 struct TokenCountParams {
@@ -171,10 +174,10 @@ impl BuiltinTool for TokenCountTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: TokenCountParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:token_count".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -190,7 +193,7 @@ impl BuiltinTool for TokenCountTool {
                 "model": params.model,
             });
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:token_count".into(),
                 reason: format!("Serialization failed: {e}"),
             })

@@ -3,8 +3,7 @@
 
 //! JQ tool via jaq-core (full jq stdlib)
 
-use super::super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
@@ -15,6 +14,8 @@ use std::pin::Pin;
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct JqTool;
+
+impl __sealed::Sealed for JqTool {}
 
 #[derive(Debug, Deserialize)]
 struct JqParams {
@@ -52,22 +53,22 @@ impl BuiltinTool for JqTool {
     fn call(
         &self,
         params_json: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + '_>> {
         Box::pin(async move {
             let params: JqParams =
-                serde_json::from_str(&params_json).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&params_json).map_err(|e| BuiltinError::Other {
                     tool: "nika:jq".into(),
                     reason: format!("Invalid params: {e}"),
                 })?;
 
             let result = nika_core::binding::eval_jq(&params.expr, &params.data).map_err(|e| {
-                NikaError::BuiltinToolError {
+                BuiltinError::Other {
                     tool: "nika:jq".into(),
                     reason: e,
                 }
             })?;
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:jq".into(),
                 reason: format!("Serialization failed: {e}"),
             })

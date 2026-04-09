@@ -5,14 +5,15 @@
 //!
 //! Replaces `infer: temperature: 0.0` workarounds for trivial math.
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct AggregateTool;
+
+impl __sealed::Sealed for AggregateTool {}
 
 #[derive(Debug, Deserialize)]
 struct AggregateParams {
@@ -60,10 +61,10 @@ impl BuiltinTool for AggregateTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: AggregateParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:aggregate".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -113,7 +114,7 @@ impl BuiltinTool for AggregateTool {
                         .map(to_json_number)
                         .unwrap_or(Value::Null),
                     other => {
-                        return Err(NikaError::BuiltinToolError {
+                        return Err(BuiltinError::Other {
                             tool: "nika:aggregate".into(),
                             reason: format!(
                                 "Unknown operation: {other}. Use sum, avg, min, max, count."
@@ -124,7 +125,7 @@ impl BuiltinTool for AggregateTool {
                 result.insert(op.clone(), val);
             }
 
-            serde_json::to_string(&Value::Object(result)).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&Value::Object(result)).map_err(|e| BuiltinError::Other {
                 tool: "nika:aggregate".into(),
                 reason: format!("Serialization failed: {e}"),
             })

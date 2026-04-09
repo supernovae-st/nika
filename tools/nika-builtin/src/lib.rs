@@ -41,6 +41,27 @@ pub use self::emit::EmitTool;
 pub use self::log::{LogLevel, LogTool};
 pub use self::sleep::{SleepTool, MAX_SLEEP_DURATION};
 
+// ─── Data tools (13 — 7 in data/ + jq, json_diff, io) ───
+pub mod data;
+
+pub use data::{
+    ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
+    JsonMergeTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
+};
+
+// ─── Data Sprint 2 tools (6) ───
+mod aggregate;
+mod json_transform;
+mod json_verify;
+mod locale_lookup;
+mod yaml_validate;
+
+pub use self::aggregate::AggregateTool;
+pub use self::json_transform::{JsonFlattenTool, JsonUnflattenTool};
+pub use self::json_verify::JsonVerifyTool;
+pub use self::locale_lookup::LocaleLookupTool;
+pub use self::yaml_validate::YamlValidateTool;
+
 #[cfg(test)]
 mod tests {
     use super::*;

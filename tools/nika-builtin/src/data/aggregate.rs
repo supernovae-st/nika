@@ -3,15 +3,16 @@
 
 //! Aggregate tools: group_by, tree_data
 
-use super::super::BuiltinTool;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use super::transform::extract_field;
-use crate::error::NikaError;
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct GroupByTool;
+
+impl __sealed::Sealed for GroupByTool {}
 
 #[derive(Debug, Deserialize)]
 struct GroupByParams {
@@ -50,10 +51,10 @@ impl BuiltinTool for GroupByTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: GroupByParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:group_by".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -61,7 +62,7 @@ impl BuiltinTool for GroupByTool {
             let array = params
                 .array
                 .as_array()
-                .ok_or_else(|| NikaError::BuiltinToolError {
+                .ok_or_else(|| BuiltinError::Other {
                     tool: "nika:group_by".into(),
                     reason: "Expected array for 'array' parameter".into(),
                 })?;
@@ -74,7 +75,7 @@ impl BuiltinTool for GroupByTool {
                     Value::Number(n) => n.to_string(),
                     Value::Bool(b) => b.to_string(),
                     Value::Null => "null".to_string(),
-                    _ => key_val.to_string(),
+                    Value::Array(_) | Value::Object(_) => key_val.to_string(),
                 };
                 groups.entry(key_str).or_default().push(item.clone());
             }
@@ -84,7 +85,7 @@ impl BuiltinTool for GroupByTool {
                 .map(|(k, v)| (k, Value::Array(v)))
                 .collect();
 
-            serde_json::to_string(&Value::Object(result)).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&Value::Object(result)).map_err(|e| BuiltinError::Other {
                 tool: "nika:group_by".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -97,6 +98,8 @@ impl BuiltinTool for GroupByTool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct TreeDataTool;
+
+impl __sealed::Sealed for TreeDataTool {}
 
 #[derive(Debug, Deserialize)]
 struct TreeDataParams {
@@ -157,10 +160,10 @@ impl BuiltinTool for TreeDataTool {
     fn call(
         &self,
         params_json: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + '_>> {
         Box::pin(async move {
             let params: TreeDataParams =
-                serde_json::from_str(&params_json).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&params_json).map_err(|e| BuiltinError::Other {
                     tool: "nika:tree_data".into(),
                     reason: format!("Invalid params: {e}"),
                 })?;
@@ -247,7 +250,7 @@ impl BuiltinTool for TreeDataTool {
                 result.sort_by_key(|v| total_of(v));
             }
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:tree_data".into(),
                 reason: format!("Serialization failed: {e}"),
             })

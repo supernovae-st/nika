@@ -16,8 +16,11 @@
 use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use super::r#trait::KernelToolAdapter;
 use super::{
-    create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, CostTool, EmitTool, LogTool,
-    PromptTool, RecordsTool, RunTool, SleepTool,
+    create_file_tool_adapters, AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool,
+    CostTool, EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
+    JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool, LogTool,
+    MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool, TokenCountTool,
+    TreeDataTool, YamlValidateTool, ZipTool,
 };
 use crate::error::NikaError;
 use crate::tools::ToolContext;
@@ -62,36 +65,28 @@ impl BuiltinToolRouter {
         tools.insert("prompt", Arc::new(PromptTool::default()));
         tools.insert("run", Arc::new(RunTool));
 
-        // Register 13 data processing tools (split into builtin/data/)
-        use super::data::{
-            ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
-            JsonMergeTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
-        };
-        tools.insert("json_merge", Arc::new(JsonMergeTool));
-        tools.insert("set_diff", Arc::new(SetDiffTool));
-        tools.insert("zip", Arc::new(ZipTool));
-        tools.insert("map", Arc::new(MapTool));
-        tools.insert("filter", Arc::new(FilterTool));
-        tools.insert("group_by", Arc::new(GroupByTool));
-        tools.insert("chunk", Arc::new(ChunkTool));
-        tools.insert("token_count", Arc::new(TokenCountTool));
-        tools.insert("enrich", Arc::new(EnrichTool));
-        tools.insert("jq", Arc::new(JqTool));
-        tools.insert("tree_data", Arc::new(TreeDataTool));
-        tools.insert("inject", Arc::new(InjectTool));
-        tools.insert("json_diff", Arc::new(JsonDiffTool));
+        // Register 13 data processing tools (migrated to nika-builtin)
+        tools.insert("json_merge", Arc::new(KernelToolAdapter(JsonMergeTool)));
+        tools.insert("set_diff", Arc::new(KernelToolAdapter(SetDiffTool)));
+        tools.insert("zip", Arc::new(KernelToolAdapter(ZipTool)));
+        tools.insert("map", Arc::new(KernelToolAdapter(MapTool)));
+        tools.insert("filter", Arc::new(KernelToolAdapter(FilterTool)));
+        tools.insert("group_by", Arc::new(KernelToolAdapter(GroupByTool)));
+        tools.insert("chunk", Arc::new(KernelToolAdapter(ChunkTool)));
+        tools.insert("token_count", Arc::new(KernelToolAdapter(TokenCountTool)));
+        tools.insert("enrich", Arc::new(KernelToolAdapter(EnrichTool)));
+        tools.insert("jq", Arc::new(KernelToolAdapter(JqTool)));
+        tools.insert("tree_data", Arc::new(KernelToolAdapter(TreeDataTool)));
+        tools.insert("inject", Arc::new(KernelToolAdapter(InjectTool)));
+        tools.insert("json_diff", Arc::new(KernelToolAdapter(JsonDiffTool)));
 
-        // Register 6 Sprint 2 data tools
-        use super::{
-            AggregateTool, JsonFlattenTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool,
-            YamlValidateTool,
-        };
-        tools.insert("json_verify", Arc::new(JsonVerifyTool));
-        tools.insert("yaml_validate", Arc::new(YamlValidateTool));
-        tools.insert("locale_lookup", Arc::new(LocaleLookupTool));
-        tools.insert("aggregate", Arc::new(AggregateTool));
-        tools.insert("json_flatten", Arc::new(JsonFlattenTool));
-        tools.insert("json_unflatten", Arc::new(JsonUnflattenTool));
+        // Register 6 Sprint 2 data tools (migrated to nika-builtin)
+        tools.insert("json_verify", Arc::new(KernelToolAdapter(JsonVerifyTool)));
+        tools.insert("yaml_validate", Arc::new(KernelToolAdapter(YamlValidateTool)));
+        tools.insert("locale_lookup", Arc::new(KernelToolAdapter(LocaleLookupTool)));
+        tools.insert("aggregate", Arc::new(KernelToolAdapter(AggregateTool)));
+        tools.insert("json_flatten", Arc::new(KernelToolAdapter(JsonFlattenTool)));
+        tools.insert("json_unflatten", Arc::new(KernelToolAdapter(JsonUnflattenTool)));
 
         Self { tools }
     }

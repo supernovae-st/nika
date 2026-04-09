@@ -3,9 +3,8 @@
 
 //! Transform tools: map, filter, enrich
 
-use super::super::BuiltinTool;
-use crate::binding::TransformExpr;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
+use nika_core::binding::transform::TransformExpr;
 use nika_core::binding::transform::navigate_dot_path;
 use serde::Deserialize;
 use serde_json::Value;
@@ -13,6 +12,8 @@ use std::future::Future;
 use std::pin::Pin;
 
 pub struct MapTool;
+
+impl __sealed::Sealed for MapTool {}
 
 #[derive(Debug, Deserialize)]
 struct MapParams {
@@ -86,10 +87,10 @@ impl BuiltinTool for MapTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: MapParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:map".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -97,7 +98,7 @@ impl BuiltinTool for MapTool {
             let array = params
                 .array
                 .as_array()
-                .ok_or_else(|| NikaError::BuiltinToolError {
+                .ok_or_else(|| BuiltinError::Other {
                     tool: "nika:map".into(),
                     reason: "Expected array for 'array' parameter".into(),
                 })?;
@@ -107,7 +108,7 @@ impl BuiltinTool for MapTool {
                 .transform
                 .as_deref()
                 .map(|chain| {
-                    TransformExpr::parse(chain).map_err(|e| NikaError::BuiltinToolError {
+                    TransformExpr::parse(chain).map_err(|e| BuiltinError::Other {
                         tool: "nika:map".into(),
                         reason: format!("Invalid transform: {e}"),
                     })
@@ -126,7 +127,7 @@ impl BuiltinTool for MapTool {
                 })
                 .collect();
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:map".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -140,6 +141,8 @@ impl BuiltinTool for MapTool {
 
 pub struct EnrichTool;
 
+impl __sealed::Sealed for EnrichTool {}
+
 #[derive(Debug, Deserialize)]
 struct EnrichParams {
     /// Array of objects to enrich
@@ -150,12 +153,12 @@ struct EnrichParams {
 
 /// Parse a field expression like "extracted.title | default('') | lower" into
 /// a (dot_path, Option<TransformExpr>) pair.
-fn parse_field_expr(expr: &str) -> Result<(&str, Option<TransformExpr>), NikaError> {
+fn parse_field_expr(expr: &str) -> Result<(&str, Option<TransformExpr>), BuiltinError> {
     // Split at first ` | ` to separate dot-path from transform chain
     if let Some(pipe_pos) = expr.find(" | ") {
         let selector = expr[..pipe_pos].trim();
         let chain = &expr[pipe_pos..]; // includes the leading " | "
-        let transform = TransformExpr::parse(chain).map_err(|e| NikaError::BuiltinToolError {
+        let transform = TransformExpr::parse(chain).map_err(|e| BuiltinError::Other {
             tool: "nika:enrich".into(),
             reason: format!("Invalid transform in field expression: {e}"),
         })?;
@@ -196,10 +199,10 @@ impl BuiltinTool for EnrichTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: EnrichParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:enrich".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -212,7 +215,7 @@ impl BuiltinTool for EnrichTool {
                     let (selector, transform) = parse_field_expr(expr)?;
                     Ok((name.as_str(), selector, transform))
                 })
-                .collect::<Result<Vec<_>, NikaError>>()?;
+                .collect::<Result<Vec<_>, BuiltinError>>()?;
 
             let result: Vec<Value> = params
                 .array
@@ -225,7 +228,11 @@ impl BuiltinTool for EnrichTool {
                     // Non-object elements pass through
                     let mut obj = match elem {
                         Value::Object(map) => map,
-                        other => return other,
+                        other @ (Value::Null
+                        | Value::Bool(_)
+                        | Value::Number(_)
+                        | Value::String(_)
+                        | Value::Array(_)) => return other,
                     };
 
                     for &(name, selector, ref transform) in &parsed_fields {
@@ -242,7 +249,7 @@ impl BuiltinTool for EnrichTool {
                 })
                 .collect();
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:enrich".into(),
                 reason: format!("Serialization failed: {e}"),
             })
@@ -255,6 +262,8 @@ impl BuiltinTool for EnrichTool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 pub struct FilterTool;
+
+impl __sealed::Sealed for FilterTool {}
 
 #[derive(Debug, Deserialize)]
 struct FilterParams {
@@ -342,10 +351,10 @@ impl BuiltinTool for FilterTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: FilterParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:filter".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -353,7 +362,7 @@ impl BuiltinTool for FilterTool {
             let array = params
                 .array
                 .as_array()
-                .ok_or_else(|| NikaError::BuiltinToolError {
+                .ok_or_else(|| BuiltinError::Other {
                     tool: "nika:filter".into(),
                     reason: "Expected array for 'array' parameter".into(),
                 })?;
@@ -364,7 +373,7 @@ impl BuiltinTool for FilterTool {
                 .cloned()
                 .collect();
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:filter".into(),
                 reason: format!("Serialization failed: {e}"),
             })

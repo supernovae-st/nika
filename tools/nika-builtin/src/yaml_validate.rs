@@ -6,14 +6,15 @@
 //! Globs YAML files, checks required dot-path fields exist, reports failures.
 //! Replaces `validate-all-locales.py`.
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinTool, BuiltinError, __sealed};
 use serde::Deserialize;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
 pub struct YamlValidateTool;
+
+impl __sealed::Sealed for YamlValidateTool {}
 
 #[derive(Debug, Deserialize)]
 struct YamlValidateParams {
@@ -71,10 +72,10 @@ impl BuiltinTool for YamlValidateTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: YamlValidateParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinToolError {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::Other {
                     tool: "nika:yaml_validate".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
@@ -112,7 +113,7 @@ impl BuiltinTool for YamlValidateTool {
                 "failures": failures,
             });
 
-            serde_json::to_string(&result).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
                 tool: "nika:yaml_validate".into(),
                 reason: format!("Serialization failed: {e}"),
             })

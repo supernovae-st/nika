@@ -24,18 +24,13 @@
 //!                            └── dispatch to appropriate tool
 //! ```
 
-mod aggregate;
 mod cost;
-mod data;
 mod fetch_tool;
 mod file_adapter;
 mod introspect_dag;
 mod introspect_orchestrate;
 mod introspect_task;
 mod introspect_threads;
-mod json_transform;
-mod json_verify;
-mod locale_lookup;
 pub(crate) mod media;
 mod prompt;
 mod records;
@@ -43,9 +38,8 @@ mod rig_adapter;
 mod router;
 pub(crate) mod run;
 pub(crate) mod r#trait;
-mod yaml_validate;
 
-// ── Re-exports from nika-builtin (5 core tools moved in Phase 12) ──
+// ── Re-exports from nika-builtin (5 core + 13 data + 6 sprint2 tools) ──
 pub use nika_builtin::AssertTool;
 pub use nika_builtin::{
     is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse, CompleteTool,
@@ -54,30 +48,27 @@ pub use nika_builtin::{
 pub use nika_builtin::EmitTool;
 pub use nika_builtin::{LogLevel, LogTool};
 pub use nika_builtin::SleepTool;
+pub use nika_builtin::{
+    AggregateTool, ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool,
+    JsonDiffTool, JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool,
+    LocaleLookupTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, YamlValidateTool,
+    ZipTool,
+};
 
 // ── Local exports (tools that remain in nika-engine) ──
-pub use aggregate::AggregateTool;
 pub use cost::CostTool;
-pub use data::{
-    ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonMergeTool, MapTool,
-    SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
-};
 pub use fetch_tool::FetchTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use introspect_dag::DagInfoTool;
 pub use introspect_orchestrate::OrchestrateTool;
 pub use introspect_task::TaskStatusTool;
 pub use introspect_threads::ThreadsTool;
-pub use json_transform::{JsonFlattenTool, JsonUnflattenTool};
-pub use json_verify::JsonVerifyTool;
-pub use locale_lookup::LocaleLookupTool;
 pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use r#trait::BuiltinTool;
 pub use records::RecordsTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;
 pub use run::{RunParams, RunResponse, RunTool};
-pub use yaml_validate::YamlValidateTool;
 
 #[cfg(test)]
 mod tests {
