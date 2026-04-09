@@ -102,6 +102,8 @@ impl BuiltinTool for EmitTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
+        // No additionalProperties:false — allows payload/data direct JSON fields
+        // alongside the OpenAI-compat payload_json/data_json string fields
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -118,8 +120,7 @@ impl BuiltinTool for EmitTool {
                     "description": "Alias for payload_json — event payload as JSON string"
                 }
             },
-            "required": ["name"],
-            "additionalProperties": false
+            "required": ["name"]
         })
     }
 
@@ -187,7 +188,8 @@ mod tests {
         assert!(schema["properties"]["name"].is_object());
         assert!(schema["properties"]["payload_json"].is_object());
         assert!(schema["properties"]["data_json"].is_object());
-        assert_eq!(schema["additionalProperties"], false);
+        // No additionalProperties:false — allows payload/data direct JSON fields
+        assert!(schema.get("additionalProperties").is_none());
         assert_eq!(schema["required"].as_array().unwrap().len(), 1);
     }
 

@@ -61,7 +61,10 @@ impl BuiltinTool for InjectTool {
                 })?;
 
             // Security: validate paths against directory traversal
-            let cwd = std::env::current_dir().unwrap_or_default();
+            let cwd = std::env::current_dir().map_err(|e| BuiltinError::Io {
+                tool: "nika:inject".into(),
+                reason: format!("Cannot determine working directory: {e}"),
+            })?;
             let validate = |path: &str, label: &str| -> Result<std::path::PathBuf, BuiltinError> {
                 let resolved = cwd.join(path);
                 let canonical = resolved

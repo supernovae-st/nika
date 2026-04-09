@@ -359,6 +359,21 @@ impl BuiltinTool for FilterTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
+            // Validate operator before entering the filter loop
+            const KNOWN_OPS: &[&str] = &[
+                "eq", "ne", "gt", "lt", "gte", "lte", "contains", "starts_with", "ends_with",
+            ];
+            if !KNOWN_OPS.contains(&params.op.as_str()) {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:filter".into(),
+                    reason: format!(
+                        "Unknown operator '{}'. Valid: {}",
+                        params.op,
+                        KNOWN_OPS.join(", ")
+                    ),
+                });
+            }
+
             let array = params
                 .array
                 .as_array()
