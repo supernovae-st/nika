@@ -23,7 +23,7 @@ tools/
 ├── nika-exec-runner/   TokioShell — 100+ pattern blocklist (692)
 │
 │ L2 — ENGINES (runtime, providers, tools)
-├── nika-engine/        Execution engine (135k) — providers, builtins, runtime
+├── nika-engine/        Execution engine (160k) — providers, builtins, runtime
 │   └── provider/rig/kernel_bridge.rs  — impl Provider for RigProvider
 │   └── runtime/executor: get_dyn_provider() → Arc<dyn Provider>
 ├── nika-display/       CLI renderers, formatters (13k)
