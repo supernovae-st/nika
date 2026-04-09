@@ -1215,8 +1215,11 @@ impl From<nika_kernel::builtin::BuiltinError> for NikaError {
                 reason: "timed out".to_string(),
             },
             nika_kernel::builtin::BuiltinError::Denied { tool, reason } => {
+                // task_id is not available inside BuiltinTool::call — use a sentinel
+                // so the NIKA-380 error message says "task '(builtin)'" instead of
+                // "task ''" which is ambiguous and hard to grep in logs.
                 NikaError::CapabilityDenied {
-                    task_id: String::new(),
+                    task_id: "(builtin)".to_string(),
                     action: tool,
                     reason,
                 }
