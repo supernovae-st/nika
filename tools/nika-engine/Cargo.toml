@@ -49,6 +49,7 @@ nika-display = { workspace = true }
 nika-event = { workspace = true }
 nika-mcp = { workspace = true }
 nika-media = { workspace = true }
+nika-builtin = { workspace = true }
 nika-vault = { workspace = true }
 
 # Async

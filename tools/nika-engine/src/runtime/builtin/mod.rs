@@ -25,11 +25,8 @@
 //! ```
 
 mod aggregate;
-mod assert;
-mod complete;
 mod cost;
 mod data;
-mod emit;
 mod fetch_tool;
 mod file_adapter;
 mod introspect_dag;
@@ -39,29 +36,32 @@ mod introspect_threads;
 mod json_transform;
 mod json_verify;
 mod locale_lookup;
-mod log;
 pub(crate) mod media;
 mod prompt;
 mod records;
 mod rig_adapter;
 mod router;
 pub(crate) mod run;
-mod sleep;
-mod r#trait;
+pub(crate) mod r#trait;
 mod yaml_validate;
 
-pub use aggregate::AggregateTool;
-pub use assert::AssertTool;
-pub use complete::{
-    is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse,
-    CompleteTool, COMPLETION_MARKER,
+// ── Re-exports from nika-builtin (5 core tools moved in Phase 12) ──
+pub use nika_builtin::AssertTool;
+pub use nika_builtin::{
+    is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse, CompleteTool,
+    COMPLETION_MARKER,
 };
+pub use nika_builtin::EmitTool;
+pub use nika_builtin::{LogLevel, LogTool};
+pub use nika_builtin::SleepTool;
+
+// ── Local exports (tools that remain in nika-engine) ──
+pub use aggregate::AggregateTool;
 pub use cost::CostTool;
 pub use data::{
     ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonMergeTool, MapTool,
     SetDiffTool, TokenCountTool, TreeDataTool, ZipTool,
 };
-pub use emit::EmitTool;
 pub use fetch_tool::FetchTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use introspect_dag::DagInfoTool;
@@ -71,14 +71,12 @@ pub use introspect_threads::ThreadsTool;
 pub use json_transform::{JsonFlattenTool, JsonUnflattenTool};
 pub use json_verify::JsonVerifyTool;
 pub use locale_lookup::LocaleLookupTool;
-pub use log::{LogLevel, LogTool};
 pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use r#trait::BuiltinTool;
 pub use records::RecordsTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;
 pub use run::{RunParams, RunResponse, RunTool};
-pub use sleep::SleepTool;
 pub use yaml_validate::YamlValidateTool;
 
 #[cfg(test)]

@@ -18,9 +18,11 @@ use nika::ast::completion::{
 use nika::ast::AgentParams;
 use nika::event::EventLog;
 use nika::runtime::builtin::{
-    is_completion_signal, parse_completion_response, BuiltinTool, CompleteTool, COMPLETION_MARKER,
+    is_completion_signal, parse_completion_response, CompleteTool, COMPLETION_MARKER,
 };
+// CompleteTool implements kernel BuiltinTool, not engine BuiltinTool
 use nika::runtime::{RigAgentLoop, RigAgentStatus};
+use nika_kernel::builtin::BuiltinTool;
 use rustc_hash::FxHashMap;
 
 // ============================================================================

@@ -14,6 +14,7 @@
 //! **Media (N):** import, dimensions, thumbhash, dominant_color, pipeline, ...
 
 use super::media::{context::MediaToolContext, create_media_tool_adapters};
+use super::r#trait::KernelToolAdapter;
 use super::{
     create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, CostTool, EmitTool, LogTool,
     PromptTool, RecordsTool, RunTool, SleepTool,
@@ -51,13 +52,15 @@ impl BuiltinToolRouter {
         let mut tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>> = FxHashMap::default();
 
         // Register 7 core builtin tools
-        tools.insert("sleep", Arc::new(SleepTool));
-        tools.insert("log", Arc::new(LogTool));
-        tools.insert("emit", Arc::new(EmitTool));
-        tools.insert("assert", Arc::new(AssertTool));
+        // 5 migrated to nika-builtin (kernel trait) → wrapped with KernelToolAdapter
+        tools.insert("sleep", Arc::new(KernelToolAdapter(SleepTool)));
+        tools.insert("log", Arc::new(KernelToolAdapter(LogTool)));
+        tools.insert("emit", Arc::new(KernelToolAdapter(EmitTool)));
+        tools.insert("assert", Arc::new(KernelToolAdapter(AssertTool)));
+        tools.insert("complete", Arc::new(KernelToolAdapter(CompleteTool)));
+        // 2 remain in nika-engine (deep deps: Runner, HitlHandler)
         tools.insert("prompt", Arc::new(PromptTool::default()));
         tools.insert("run", Arc::new(RunTool));
-        tools.insert("complete", Arc::new(CompleteTool));
 
         // Register 13 data processing tools (split into builtin/data/)
         use super::data::{

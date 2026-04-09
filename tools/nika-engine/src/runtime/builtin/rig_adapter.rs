@@ -355,13 +355,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_log_tool_emits_event() {
-        use super::super::LogTool;
+        use super::super::{LogTool, r#trait::KernelToolAdapter};
         use rig::tool::ToolDyn;
 
         let event_log = Arc::new(EventLog::new());
         let task_id: Arc<str> = "test-task-1".into();
 
-        let adapter = NikaBuiltinToolAdapter::new(Arc::new(LogTool))
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(KernelToolAdapter(LogTool)))
             .with_event_log(Arc::clone(&event_log), Arc::clone(&task_id));
 
         // Call the log tool
@@ -397,13 +397,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_emit_tool_emits_custom_event() {
-        use super::super::EmitTool;
+        use super::super::{EmitTool, r#trait::KernelToolAdapter};
         use rig::tool::ToolDyn;
 
         let event_log = Arc::new(EventLog::new());
         let task_id: Arc<str> = "test-task-2".into();
 
-        let adapter = NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(KernelToolAdapter(EmitTool)))
             .with_event_log(Arc::clone(&event_log), Arc::clone(&task_id));
 
         // Call the emit tool
@@ -439,11 +439,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_adapter_without_event_log_does_not_emit() {
-        use super::super::LogTool;
+        use super::super::{LogTool, r#trait::KernelToolAdapter};
         use rig::tool::ToolDyn;
 
         // Create adapter WITHOUT event_log
-        let adapter = NikaBuiltinToolAdapter::new(Arc::new(LogTool));
+        let adapter = NikaBuiltinToolAdapter::new(Arc::new(KernelToolAdapter(LogTool)));
 
         // Call should succeed but no events emitted
         let result = adapter

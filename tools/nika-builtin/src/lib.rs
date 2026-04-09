@@ -25,6 +25,22 @@
 // Re-export the trait and error from nika-kernel for convenience.
 pub use nika_kernel::builtin::{BuiltinError, BuiltinTool, __sealed};
 
+// ─── Core tools (5 of 7 — prompt and run stay in nika-engine) ───
+mod assert;
+pub mod complete;
+mod emit;
+mod log;
+mod sleep;
+
+pub use self::assert::AssertTool;
+pub use self::complete::{
+    is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse, CompleteTool,
+    COMPLETION_MARKER,
+};
+pub use self::emit::EmitTool;
+pub use self::log::{LogLevel, LogTool};
+pub use self::sleep::{SleepTool, MAX_SLEEP_DURATION};
+
 #[cfg(test)]
 mod tests {
     use super::*;

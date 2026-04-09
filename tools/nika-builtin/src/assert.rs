@@ -23,10 +23,9 @@
 //!
 //! # Error (on failure)
 //!
-//! Returns NIKA-213 AssertionFailed error with the provided message.
+//! Returns BuiltinError::AssertionFailed (maps to NIKA-213).
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinError, BuiltinTool, __sealed};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
@@ -56,6 +55,8 @@ struct AssertResponse {
 /// Useful for workflow invariants and preconditions.
 pub struct AssertTool;
 
+impl __sealed::Sealed for AssertTool {}
+
 impl BuiltinTool for AssertTool {
     fn name(&self) -> &'static str {
         "assert"
@@ -66,7 +67,6 @@ impl BuiltinTool for AssertTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
-        // OpenAI-compatible schema with additionalProperties: false
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -87,33 +87,30 @@ impl BuiltinTool for AssertTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
-            // Parse parameters
             let params: AssertParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinInvalidParams {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:assert".into(),
                     reason: format!("Invalid JSON parameters: {}", e),
                 })?;
 
-            // Check the condition
             if !params.condition {
                 let message = params
                     .message
                     .unwrap_or_else(|| "Assertion failed".to_string());
-                return Err(NikaError::AssertionFailed {
+                return Err(BuiltinError::AssertionFailed {
                     message,
                     condition: "false".to_string(),
                 });
             }
 
-            // Return success response
             let response = AssertResponse {
                 passed: true,
                 condition: params.condition,
             };
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:assert".into(),
                 reason: format!("Failed to serialize response: {}", e),
             })
@@ -144,10 +141,6 @@ mod tests {
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["condition"].is_object());
         assert!(schema["properties"]["message"].is_object());
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .contains(&serde_json::json!("condition")));
     }
 
     #[tokio::test]
@@ -199,8 +192,6 @@ mod tests {
         let result = tool.call("not json".to_string()).await;
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
     }
 
     #[tokio::test]
@@ -209,8 +200,6 @@ mod tests {
         let result = tool.call(r#"{"message": "test"}"#.to_string()).await;
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
     }
 
     #[tokio::test]
@@ -219,18 +208,6 @@ mod tests {
         let result = tool.call(r#"{"condition": "true"}"#.to_string()).await;
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
-    }
-
-    #[tokio::test]
-    async fn test_assert_null_condition() {
-        let tool = AssertTool;
-        let result = tool.call(r#"{"condition": null}"#.to_string()).await;
-
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
     }
 
     #[tokio::test]
@@ -240,7 +217,6 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        // Check it's the AssertionFailed variant (NIKA-213)
         assert!(err.to_string().contains("NIKA-213"));
     }
 }

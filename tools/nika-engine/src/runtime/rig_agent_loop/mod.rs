@@ -387,23 +387,29 @@ impl RigAgentLoop {
         };
 
         // Core builtin tools (filtered by scope or explicit list)
+        // 5 migrated tools use KernelToolAdapter to bridge kernel→engine trait
+        use crate::runtime::builtin::r#trait::KernelToolAdapter;
         if should_add_core("sleep") {
-            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                KernelToolAdapter(SleepTool),
+            ))));
         }
         if should_add_core("log") {
             tools.push(Arc::new(
-                NikaBuiltinToolAdapter::new(Arc::new(LogTool))
+                NikaBuiltinToolAdapter::new(Arc::new(KernelToolAdapter(LogTool)))
                     .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
             ));
         }
         if should_add_core("emit") {
             tools.push(Arc::new(
-                NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
+                NikaBuiltinToolAdapter::new(Arc::new(KernelToolAdapter(EmitTool)))
                     .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
             ));
         }
         if should_add_core("assert") {
-            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                KernelToolAdapter(AssertTool),
+            ))));
         }
         if should_add_core("prompt") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
@@ -415,7 +421,7 @@ impl RigAgentLoop {
         }
         if should_add_core("complete") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                CompleteTool,
+                KernelToolAdapter(CompleteTool),
             ))));
         }
 

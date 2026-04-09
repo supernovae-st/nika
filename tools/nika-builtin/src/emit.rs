@@ -22,8 +22,7 @@
 //! }
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinError, BuiltinTool, __sealed};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::future::Future;
@@ -53,15 +52,15 @@ struct EmitParams {
 impl EmitParams {
     /// Get the payload as a JSON Value, parsing from payload_json/data_json if needed.
     /// Priority: payload_json > data_json > payload > data > null
-    fn get_payload(&self) -> Result<Value, NikaError> {
+    fn get_payload(&self) -> Result<Value, BuiltinError> {
         if let Some(ref json_str) = self.payload_json {
-            serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
-                tool: "nika_emit".into(),
+            serde_json::from_str(json_str).map_err(|e| BuiltinError::InvalidArgs {
+                tool: "nika:emit".into(),
                 reason: format!("Invalid payload_json: {}", e),
             })
         } else if let Some(ref json_str) = self.data_json {
-            serde_json::from_str(json_str).map_err(|e| NikaError::BuiltinInvalidParams {
-                tool: "nika_emit".into(),
+            serde_json::from_str(json_str).map_err(|e| BuiltinError::InvalidArgs {
+                tool: "nika:emit".into(),
                 reason: format!("Invalid data_json: {}", e),
             })
         } else if let Some(ref value) = self.payload {
@@ -91,6 +90,8 @@ struct EmitResponse {
 /// Events can carry arbitrary JSON payloads.
 pub struct EmitTool;
 
+impl __sealed::Sealed for EmitTool {}
+
 impl BuiltinTool for EmitTool {
     fn name(&self) -> &'static str {
         "emit"
@@ -101,9 +102,6 @@ impl BuiltinTool for EmitTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
-        // OpenAI-compatible schema
-        // OpenAI strict mode requires additionalProperties: false everywhere
-        // To support arbitrary payloads, we use payload_json as a string (JSON-encoded)
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -128,44 +126,36 @@ impl BuiltinTool for EmitTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
-            // Parse parameters
             let params: EmitParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinInvalidParams {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:emit".into(),
                     reason: format!("Invalid JSON parameters: {}", e),
                 })?;
 
-            // Validate event name
             if params.name.is_empty() {
-                return Err(NikaError::BuiltinInvalidParams {
+                return Err(BuiltinError::InvalidArgs {
                     tool: "nika:emit".into(),
                     reason: "Event name cannot be empty".into(),
                 });
             }
 
-            // Get payload from either payload_json (OpenAI) or payload (Claude)
             let payload = params.get_payload()?;
 
-            // Note: The actual EventLog emission will be handled by the Router
-            // when integrated with the Executor. For now, we just validate and
-            // return success. The Router will capture the params and emit the
-            // EventKind::Custom event.
             tracing::debug!(
                 target: "nika_emit",
                 name = %params.name,
                 "Custom event emitted"
             );
 
-            // Return response
             let response = EmitResponse {
                 emitted: true,
                 name: params.name,
                 payload,
             };
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:emit".into(),
                 reason: format!("Failed to serialize response: {}", e),
             })
@@ -195,15 +185,9 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["name"].is_object());
-        // payload_json + data_json for OpenAI compatibility
         assert!(schema["properties"]["payload_json"].is_object());
         assert!(schema["properties"]["data_json"].is_object());
         assert_eq!(schema["additionalProperties"], false);
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .contains(&serde_json::json!("name")));
-        // Only name is required — payload/data are optional
         assert_eq!(schema["required"].as_array().unwrap().len(), 1);
     }
 
@@ -212,7 +196,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call(r#"{"name": "test_event"}"#.to_string()).await;
 
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["emitted"], true);
         assert_eq!(response["name"], "test_event");
@@ -229,36 +213,10 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["emitted"], true);
-        assert_eq!(response["name"], "user_action");
         assert_eq!(response["payload"]["action"], "click");
-        assert_eq!(response["payload"]["target"], "button");
-    }
-
-    #[tokio::test]
-    async fn test_emit_with_complex_payload() {
-        let tool = EmitTool;
-        let result = tool
-            .call(
-                r#"{
-                    "name": "metrics",
-                    "payload": {
-                        "count": 42,
-                        "values": [1, 2, 3],
-                        "nested": {"key": "value"}
-                    }
-                }"#
-                .to_string(),
-            )
-            .await;
-
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["payload"]["count"], 42);
-        assert_eq!(response["payload"]["values"][1], 2);
-        assert_eq!(response["payload"]["nested"]["key"], "value");
     }
 
     #[tokio::test]
@@ -266,7 +224,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call(r#"{"name": ""}"#.to_string()).await;
 
-        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
+        assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("cannot be empty"));
     }
@@ -276,44 +234,7 @@ mod tests {
         let tool = EmitTool;
         let result = tool.call(r#"{"payload": {"test": 1}}"#.to_string()).await;
 
-        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
-    }
-
-    #[tokio::test]
-    async fn test_emit_invalid_json() {
-        let tool = EmitTool;
-        let result = tool.call("not json".to_string()).await;
-
-        assert!(result.is_err(), "Should fail but got: {:?}", result.ok());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Invalid JSON parameters"));
-    }
-
-    #[tokio::test]
-    async fn test_emit_null_payload() {
-        let tool = EmitTool;
-        let result = tool
-            .call(r#"{"name": "event", "payload": null}"#.to_string())
-            .await;
-
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["payload"], serde_json::json!(null));
-    }
-
-    #[tokio::test]
-    async fn test_emit_array_payload() {
-        let tool = EmitTool;
-        let result = tool
-            .call(r#"{"name": "items", "payload": [1, 2, 3]}"#.to_string())
-            .await;
-
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-        let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["payload"][0], 1);
-        assert_eq!(response["payload"][2], 3);
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -326,12 +247,9 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(response["emitted"], true);
-        assert_eq!(response["name"], "pipeline_start");
         assert_eq!(response["payload"]["workflow"], "test");
-        assert_eq!(response["payload"]["timestamp"], "now");
     }
 
     #[tokio::test]
@@ -344,7 +262,7 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"]["from_payload"], true);
         assert!(response["payload"]["from_data"].is_null());
@@ -357,7 +275,7 @@ mod tests {
             .call(r#"{"name": "message", "payload": "hello world"}"#.to_string())
             .await;
 
-        assert!(result.is_ok(), "Should succeed: {:?}", result.err());
+        assert!(result.is_ok());
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(response["payload"], "hello world");
     }

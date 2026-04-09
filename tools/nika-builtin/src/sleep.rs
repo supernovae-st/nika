@@ -24,8 +24,7 @@
 //! Maximum sleep duration is 5 minutes (300 seconds) to prevent workflow blocking.
 //! Attempts to sleep longer will return an error.
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinError, BuiltinTool, __sealed};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
@@ -56,6 +55,8 @@ struct SleepResponse {
 /// Pauses execution for the specified duration.
 pub struct SleepTool;
 
+impl __sealed::Sealed for SleepTool {}
+
 impl BuiltinTool for SleepTool {
     fn name(&self) -> &'static str {
         "sleep"
@@ -66,7 +67,6 @@ impl BuiltinTool for SleepTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
-        // OpenAI-compatible schema with additionalProperties: false
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -83,26 +83,23 @@ impl BuiltinTool for SleepTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
-            // Parse parameters
             let params: SleepParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinInvalidParams {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:sleep".into(),
                     reason: format!("Invalid JSON parameters: {}", e),
                 })?;
 
-            // Parse duration using humantime
             let duration = humantime::parse_duration(&params.duration).map_err(|e| {
-                NikaError::BuiltinInvalidParams {
+                BuiltinError::InvalidArgs {
                     tool: "nika:sleep".into(),
                     reason: format!("Invalid duration '{}': {}", params.duration, e),
                 }
             })?;
 
-            // Enforce maximum sleep duration (Bug fix: prevent indefinite blocking)
             if duration > MAX_SLEEP_DURATION {
-                return Err(NikaError::BuiltinInvalidParams {
+                return Err(BuiltinError::InvalidArgs {
                     tool: "nika:sleep".into(),
                     reason: format!(
                         "Sleep duration '{}' exceeds maximum allowed {} seconds. \
@@ -113,15 +110,13 @@ impl BuiltinTool for SleepTool {
                 });
             }
 
-            // Sleep
             tokio::time::sleep(duration).await;
 
-            // Return response
             let response = SleepResponse {
                 slept_for_ms: duration.as_millis() as u64,
             };
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:sleep".into(),
                 reason: format!("Failed to serialize response: {}", e),
             })
@@ -166,7 +161,6 @@ mod tests {
 
         assert!(result.is_ok());
         let elapsed = start.elapsed();
-        // Should have slept at least 10ms (allow some tolerance)
         assert!(elapsed.as_millis() >= 10);
 
         let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -185,7 +179,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_sleep_parses_complex_duration() {
-        // Test humantime's ability to parse complex durations
         let duration = humantime::parse_duration("1s500ms");
         assert!(duration.is_ok());
         assert_eq!(duration.unwrap().as_millis(), 1500);
@@ -223,10 +216,6 @@ mod tests {
         assert!(err.to_string().contains("Invalid JSON parameters"));
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // MAX_SLEEP_DURATION Tests
-    // ═══════════════════════════════════════════════════════════════
-
     #[test]
     fn test_max_sleep_duration_is_5_minutes() {
         assert_eq!(MAX_SLEEP_DURATION.as_secs(), 300);
@@ -236,7 +225,6 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_rejects_excessive_duration_hours() {
         let tool = SleepTool;
-        // 1000 hours would block forever without this check
         let result = tool.call(r#"{"duration": "1000h"}"#.to_string()).await;
 
         assert!(result.is_err());
@@ -249,7 +237,6 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_rejects_6_minutes() {
         let tool = SleepTool;
-        // 6 minutes exceeds the 5 minute limit
         let result = tool.call(r#"{"duration": "6m"}"#.to_string()).await;
 
         assert!(result.is_err());
@@ -260,8 +247,6 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_accepts_5_minutes() {
         let _tool = SleepTool;
-        // 5 minutes is exactly at the limit - should be accepted
-        // We can't actually wait 5 minutes in a test, but we can verify parsing works
         let duration = humantime::parse_duration("5m").unwrap();
         assert!(duration <= MAX_SLEEP_DURATION);
     }
@@ -269,7 +254,6 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_accepts_4_minutes() {
         let _tool = SleepTool;
-        // 4 minutes is under the limit
         let duration = humantime::parse_duration("4m").unwrap();
         assert!(duration < MAX_SLEEP_DURATION);
     }
@@ -277,7 +261,6 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_accepts_just_under_limit() {
         let _tool = SleepTool;
-        // 299 seconds is just under 5 minutes
         let duration = humantime::parse_duration("299s").unwrap();
         assert!(duration < MAX_SLEEP_DURATION);
     }
@@ -285,7 +268,6 @@ mod tests {
     #[tokio::test]
     async fn test_sleep_rejects_just_over_limit() {
         let tool = SleepTool;
-        // 301 seconds is just over 5 minutes
         let result = tool.call(r#"{"duration": "301s"}"#.to_string()).await;
 
         assert!(result.is_err());

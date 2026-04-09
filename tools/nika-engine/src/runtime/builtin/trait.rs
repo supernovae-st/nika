@@ -7,10 +7,14 @@ use crate::error::NikaError;
 use std::future::Future;
 use std::pin::Pin;
 
-/// Trait for builtin nika:* tools.
+/// Trait for builtin nika:* tools (engine-level, returns `NikaError`).
 ///
 /// All builtin tools must be Send + Sync to support concurrent execution
 /// in the DAG runner.
+///
+/// Tools moving to `nika-builtin` implement the kernel-level trait
+/// (`nika_kernel::builtin::BuiltinTool`, returns `BuiltinError`) instead.
+/// Use [`KernelToolAdapter`] to bridge them into this trait.
 pub trait BuiltinTool: Send + Sync {
     /// Tool name (without nika: prefix).
     ///
@@ -49,4 +53,41 @@ pub trait BuiltinTool: Send + Sync {
         &'a self,
         args: String,
     ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>>;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// KernelToolAdapter — bridges kernel BuiltinTool → engine BuiltinTool
+// ─────────────────────────────────────────────────────────────────────
+
+/// Adapter that wraps a kernel-level `BuiltinTool` (returns `BuiltinError`)
+/// into an engine-level `BuiltinTool` (returns `NikaError`).
+///
+/// This is the bridge that allows tools migrated to `nika-builtin` to
+/// work with the existing `BuiltinToolRouter` without changing the router.
+pub struct KernelToolAdapter<T: nika_kernel::builtin::BuiltinTool>(pub T);
+
+impl<T: nika_kernel::builtin::BuiltinTool + 'static> BuiltinTool for KernelToolAdapter<T> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn description(&self) -> &'static str {
+        self.0.description()
+    }
+
+    fn parameters_schema(&self) -> serde_json::Value {
+        self.0.parameters_schema()
+    }
+
+    fn call<'a>(
+        &'a self,
+        args: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+        Box::pin(async move {
+            self.0
+                .call(args)
+                .await
+                .map_err(NikaError::from)
+        })
+    }
 }
