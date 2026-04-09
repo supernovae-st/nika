@@ -16,12 +16,8 @@
 .DS_Store
 Thumbs.db
 
-# Claude Code - PRIVATE DX (symlinked to dx/.claude/nika/)
-# All DX content is in private supernovae-agi/dx/ repo
-.claude/
-
-# Only CLAUDE.md is public (project context for contributors)
-!CLAUDE.md
+# Claude Code — project config is public, local overrides are private
+.claude/settings.local.json
 
 # MCP config (machine-specific local paths)
 .mcp.json

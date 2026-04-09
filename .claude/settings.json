@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo:*)",
+      "Bash(git:*)",
+      "mcp__nika__*"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); CMD=$(printf '%s' \"$INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))\" 2>/dev/null); if printf '%s' \"$CMD\" | grep -qE 'git\\s+(push|tag).*v[1-9]'; then echo 'BLOCKED: Cannot push/tag version >=1.0.0 — Nika uses 0.x.x forever' >&2; exit 2; fi; exit 0",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE=$(printf '%s' \"$INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); case \"$FILE\" in *Cargo.toml) VERSION=$(grep -E '^version\\s*=\\s*\"' \"$CLAUDE_PROJECT_DIR/tools/nika/Cargo.toml\" 2>/dev/null | head -1 | sed 's/.*\"\\(.*\\)\".*/\\1/'); if [ -n \"$VERSION\" ] && echo \"$VERSION\" | grep -qE '^[1-9]'; then echo \"VERSION LOCK: $VERSION detected — Nika must stay 0.x.x\" >&2; exit 2; fi;; *CHANGELOG.md) if ! head -50 \"$FILE\" | grep -q '╔═'; then echo 'CHANGELOG: Missing ASCII banner — see release-formatting rule' >&2; exit 2; fi;; esac; exit 0",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "nika": {
+      "command": "nika",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
