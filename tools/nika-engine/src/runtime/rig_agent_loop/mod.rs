@@ -413,7 +413,7 @@ impl RigAgentLoop {
         }
         if should_add_core("prompt") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                PromptTool::default(),
+                KernelToolAdapter(PromptTool::new_headless()),
             ))));
         }
         if should_add_core("run") {

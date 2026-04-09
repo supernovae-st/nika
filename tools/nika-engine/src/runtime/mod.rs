@@ -42,6 +42,7 @@ pub mod executor_compressor;
 pub mod fetch_cache;
 pub(crate) mod for_each;
 pub mod hitl;
+pub mod hitl_bridge;
 pub mod limit_tracker;
 pub(crate) mod mock_json;
 pub mod orchestrate;
@@ -81,6 +82,7 @@ pub use context::WorkflowMeta;
 pub use context_loader::{load_context, LoadedContext};
 pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
+pub use hitl_bridge::HitlBridge;
 pub use output::make_task_result;
 pub use resolver::{
     resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills,

@@ -29,14 +29,13 @@ mod file_adapter;
 mod introspect_orchestrate;
 mod introspect_task;
 pub(crate) mod media;
-mod prompt;
 mod records;
 mod rig_adapter;
 mod router;
 pub(crate) mod run;
 pub(crate) mod r#trait;
 
-// ── Re-exports from nika-builtin (5 core + 13 data + 6 sprint2 tools) ──
+// ── Re-exports from nika-builtin (6 core + 13 data + 6 sprint2 tools) ──
 pub use nika_builtin::AssertTool;
 pub use nika_builtin::{
     is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse, CompleteTool,
@@ -44,6 +43,7 @@ pub use nika_builtin::{
 };
 pub use nika_builtin::EmitTool;
 pub use nika_builtin::{LogLevel, LogTool};
+pub use nika_builtin::{PromptParams, PromptResponse, PromptTool};
 pub use nika_builtin::SleepTool;
 pub use nika_builtin::{
     AggregateTool, ChunkTool, CostTool, DagInfoTool, EnrichTool, FilterTool, GroupByTool,
@@ -57,7 +57,6 @@ pub use fetch_tool::FetchTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use introspect_orchestrate::OrchestrateTool;
 pub use introspect_task::TaskStatusTool;
-pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use r#trait::BuiltinTool;
 pub use records::RecordsTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;

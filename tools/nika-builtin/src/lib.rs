@@ -25,11 +25,12 @@
 // Re-export the trait and error from nika-kernel for convenience.
 pub use nika_kernel::builtin::{BuiltinError, BuiltinTool, __sealed};
 
-// ─── Core tools (5 of 7 — prompt and run stay in nika-engine) ───
+// ─── Core tools (6 of 7 — run stays in nika-engine until commit 12.7) ───
 mod assert;
 pub mod complete;
 mod emit;
 mod log;
+pub mod prompt;
 mod sleep;
 
 pub use self::assert::AssertTool;
@@ -39,6 +40,7 @@ pub use self::complete::{
 };
 pub use self::emit::EmitTool;
 pub use self::log::{LogLevel, LogTool};
+pub use self::prompt::{PromptParams, PromptResponse, PromptTool};
 pub use self::sleep::{SleepTool, MAX_SLEEP_DURATION};
 
 // ─── Data tools (13 — 7 in data/ + jq, json_diff, io) ───

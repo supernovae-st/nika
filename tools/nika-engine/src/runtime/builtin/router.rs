@@ -22,6 +22,7 @@ use super::{
     LocaleLookupTool, LogTool, MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool,
     ThreadsTool, TokenCountTool, TreeDataTool, YamlValidateTool, ZipTool,
 };
+use crate::runtime::hitl::HitlHandler;
 use crate::error::NikaError;
 use crate::tools::ToolContext;
 use nika_event::EventLog;
@@ -55,14 +56,15 @@ impl BuiltinToolRouter {
     pub fn new() -> Self {
         let mut tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>> = FxHashMap::default();
 
-        // 7 core tools: 5 migrated to nika-builtin (kernel trait) → wrapped with KernelToolAdapter
+        // 7 core tools: 6 migrated to nika-builtin (kernel trait) → wrapped with KernelToolAdapter
         tools.insert("sleep", Arc::new(KernelToolAdapter(SleepTool)));
         tools.insert("log", Arc::new(KernelToolAdapter(LogTool)));
         tools.insert("emit", Arc::new(KernelToolAdapter(EmitTool)));
         tools.insert("assert", Arc::new(KernelToolAdapter(AssertTool)));
         tools.insert("complete", Arc::new(KernelToolAdapter(CompleteTool)));
-        // 2 remain in nika-engine (deep deps: Runner, HitlHandler)
-        tools.insert("prompt", Arc::new(PromptTool::default()));
+        // Headless default — override with with_hitl() for TUI / interactive mode
+        tools.insert("prompt", Arc::new(KernelToolAdapter(PromptTool::new_headless())));
+        // run still in nika-engine until commit 12.7 (needs RunSpec + EngineRunExecutor)
         tools.insert("run", Arc::new(RunTool));
 
         // Register 13 data processing tools (migrated to nika-builtin)
@@ -120,6 +122,32 @@ impl BuiltinToolRouter {
         }
 
         router
+    }
+
+    /// Replace the default headless `nika:prompt` with an interactive handler.
+    ///
+    /// Called by the TUI to inject its HITL channel. The `HitlBridge` in
+    /// `nika-engine/src/runtime/hitl_bridge.rs` adapts the engine's
+    /// `HitlHandler` into the kernel's `HitlPrompt` trait.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use crate::runtime::hitl_bridge::HitlBridge;
+    ///
+    /// let tui_handler: Arc<dyn HitlHandler> = /* … */;
+    /// let router = BuiltinToolRouter::new()
+    ///     .with_hitl(tui_handler);
+    /// ```
+    pub fn with_hitl(mut self, handler: Arc<dyn HitlHandler>) -> Self {
+        use crate::runtime::hitl_bridge::HitlBridge;
+        self.tools.insert(
+            "prompt",
+            Arc::new(KernelToolAdapter(PromptTool::new(Arc::new(
+                HitlBridge::new(handler),
+            )))),
+        );
+        self
     }
 
     /// Create a router with all builtin tools (base + file + N media).
