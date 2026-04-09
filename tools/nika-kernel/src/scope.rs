@@ -103,6 +103,61 @@ impl<T> TaskScope for T where
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Phase 12 traits — builtin tool dependencies
+// ─────────────────────────────────────────────────────────────────────
+
+/// Execute a nested workflow (nika:run).
+///
+/// Breaks the cycle: nika-builtin → nika-engine → nika-builtin.
+/// nika-engine provides `EngineRunExecutor` wrapping `Runner`.
+#[async_trait::async_trait]
+pub trait RunExecutor: Send + Sync {
+    /// Execute a workflow by path with inputs.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the .nika.yaml workflow file
+    /// * `inputs` - Workflow inputs as JSON
+    /// * `depth` - Current nesting depth (for cycle detection)
+    /// * `max_depth` - Maximum allowed nesting depth
+    /// * `timeout` - Maximum execution time
+    async fn run_workflow(
+        &self,
+        path: &std::path::Path,
+        inputs: Value,
+        depth: u32,
+        max_depth: u32,
+        timeout: Duration,
+    ) -> Result<Value, crate::builtin::BuiltinError>;
+}
+
+/// Human-in-the-loop prompt (nika:prompt).
+///
+/// nika-engine provides an impl via `HitlHandler`.
+#[async_trait::async_trait]
+pub trait HitlPrompt: Send + Sync {
+    /// Ask the user a question and return their response.
+    ///
+    /// In headless mode, returns the default value if provided.
+    async fn ask(
+        &self,
+        message: &str,
+        default: Option<&str>,
+    ) -> Result<String, crate::builtin::BuiltinError>;
+}
+
+/// Media CAS + compute context for media tools.
+///
+/// Provides access to the content-addressable store and compute pool.
+/// nika-engine provides a concrete impl wrapping `MediaToolContext`.
+pub trait MediaContext: Send + Sync {
+    /// Get a reference to the blob store.
+    fn blob_store(&self) -> &dyn crate::store::BlobStore;
+
+    /// Get the working directory for media operations.
+    fn working_dir(&self) -> &std::path::Path;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Shared output type
 // ─────────────────────────────────────────────────────────────────────
 

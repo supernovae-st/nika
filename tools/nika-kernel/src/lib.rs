@@ -14,6 +14,7 @@
 //! **Zero implementations live here.** This crate defines contracts only.
 //! Implementations live in their respective crates (nika-provider, nika-http, etc.)
 
+pub mod builtin;
 pub mod clock;
 pub mod events;
 pub mod filesystem;

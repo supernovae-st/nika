@@ -1198,6 +1198,36 @@ impl From<nika_media::tools::error::MediaToolError> for NikaError {
     }
 }
 
+impl From<nika_kernel::builtin::BuiltinError> for NikaError {
+    fn from(e: nika_kernel::builtin::BuiltinError) -> Self {
+        match e {
+            nika_kernel::builtin::BuiltinError::InvalidArgs { tool, reason } => {
+                NikaError::BuiltinInvalidParams { tool, reason }
+            }
+            nika_kernel::builtin::BuiltinError::Io { tool, reason }
+            | nika_kernel::builtin::BuiltinError::Parse { tool, reason }
+            | nika_kernel::builtin::BuiltinError::Schema { tool, reason }
+            | nika_kernel::builtin::BuiltinError::Other { tool, reason } => {
+                NikaError::BuiltinToolError { tool, reason }
+            }
+            nika_kernel::builtin::BuiltinError::Timeout { tool } => NikaError::BuiltinToolError {
+                tool,
+                reason: "timed out".to_string(),
+            },
+            nika_kernel::builtin::BuiltinError::Denied { tool, reason } => {
+                NikaError::CapabilityDenied {
+                    task_id: tool,
+                    action: "builtin tool call".to_string(),
+                    reason,
+                }
+            }
+            nika_kernel::builtin::BuiltinError::AssertionFailed { message, condition } => {
+                NikaError::AssertionFailed { message, condition }
+            }
+        }
+    }
+}
+
 impl NikaError {
     /// Convenience: look up fix suggestion by error code string (e.g., "NIKA-044").
     ///
