@@ -22,8 +22,7 @@
 //! }
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinError, BuiltinTool, __sealed};
 use nika_event::{EventKind, EventLog};
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -34,6 +33,8 @@ use std::pin::Pin;
 pub struct DagInfoTool {
     event_log: EventLog,
 }
+
+impl __sealed::Sealed for DagInfoTool {}
 
 impl DagInfoTool {
     pub fn new(event_log: EventLog) -> Self {
@@ -69,7 +70,7 @@ impl BuiltinTool for DagInfoTool {
     fn call<'a>(
         &'a self,
         _args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let mut total_task_count: Option<usize> = None;
             let mut for_each_expansion: usize = 0;
@@ -80,12 +81,12 @@ impl BuiltinTool for DagInfoTool {
 
             self.event_log.with_events(|events| {
                 for event in events {
+                    #[allow(clippy::wildcard_enum_match_arm)]
                     match &event.kind {
                         EventKind::WorkflowStarted { task_count, .. } => {
                             total_task_count = Some(*task_count);
                         }
                         EventKind::ForEachStarted { item_count, .. } => {
-                            // Each for_each replaces 1 YAML definition with N iterations
                             for_each_expansion += item_count.saturating_sub(1);
                         }
                         EventKind::TaskScheduled { task_id, .. } => {
@@ -130,7 +131,7 @@ impl BuiltinTool for DagInfoTool {
                 pending,
             };
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:dag_info".into(),
                 reason: format!("Failed to serialize DAG info: {e}"),
             })

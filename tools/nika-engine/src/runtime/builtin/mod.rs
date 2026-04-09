@@ -24,13 +24,10 @@
 //!                            └── dispatch to appropriate tool
 //! ```
 
-mod cost;
 mod fetch_tool;
 mod file_adapter;
-mod introspect_dag;
 mod introspect_orchestrate;
 mod introspect_task;
-mod introspect_threads;
 pub(crate) mod media;
 mod prompt;
 mod records;
@@ -49,20 +46,17 @@ pub use nika_builtin::EmitTool;
 pub use nika_builtin::{LogLevel, LogTool};
 pub use nika_builtin::SleepTool;
 pub use nika_builtin::{
-    AggregateTool, ChunkTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool,
-    JsonDiffTool, JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool,
-    LocaleLookupTool, MapTool, SetDiffTool, TokenCountTool, TreeDataTool, YamlValidateTool,
-    ZipTool,
+    AggregateTool, ChunkTool, CostTool, DagInfoTool, EnrichTool, FilterTool, GroupByTool,
+    InjectTool, JqTool, JsonDiffTool, JsonFlattenTool, JsonMergeTool, JsonUnflattenTool,
+    JsonVerifyTool, LocaleLookupTool, MapTool, SetDiffTool, ThreadsTool, TokenCountTool,
+    TreeDataTool, YamlValidateTool, ZipTool,
 };
 
 // ── Local exports (tools that remain in nika-engine) ──
-pub use cost::CostTool;
 pub use fetch_tool::FetchTool;
 pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
-pub use introspect_dag::DagInfoTool;
 pub use introspect_orchestrate::OrchestrateTool;
 pub use introspect_task::TaskStatusTool;
-pub use introspect_threads::ThreadsTool;
 pub use prompt::{PromptParams, PromptResponse, PromptTool};
 pub use r#trait::BuiltinTool;
 pub use records::RecordsTool;

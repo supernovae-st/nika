@@ -11,6 +11,7 @@ publish = true
 
 [dependencies]
 nika-core = { workspace = true }
+nika-event = { workspace = true }
 nika-kernel = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -22,6 +23,7 @@ tokio = { workspace = true }
 indexmap = { workspace = true }
 text-splitter = { workspace = true }
 regex = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

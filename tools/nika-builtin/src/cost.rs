@@ -23,8 +23,7 @@
 //! }
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinError, BuiltinTool, __sealed};
 use nika_event::EventLog;
 use rustc_hash::FxHashMap;
 use serde::Serialize;
@@ -37,6 +36,8 @@ use std::pin::Pin;
 pub struct CostTool {
     event_log: EventLog,
 }
+
+impl __sealed::Sealed for CostTool {}
 
 impl CostTool {
     pub fn new(event_log: EventLog) -> Self {
@@ -83,7 +84,7 @@ impl BuiltinTool for CostTool {
     fn call<'a>(
         &'a self,
         _args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let mut response = CostResponse {
                 total_input_tokens: 0,
@@ -126,7 +127,7 @@ impl BuiltinTool for CostTool {
                 }
             });
 
-            serde_json::to_string(&response).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
                 tool: "nika:cost".into(),
                 reason: format!("Failed to serialize cost response: {e}"),
             })

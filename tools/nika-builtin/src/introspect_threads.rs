@@ -21,8 +21,7 @@
 //! ]
 //! ```
 
-use super::BuiltinTool;
-use crate::error::NikaError;
+use crate::{BuiltinError, BuiltinTool, __sealed};
 use nika_event::{EventKind, EventLog};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -33,6 +32,8 @@ use std::pin::Pin;
 pub struct ThreadsTool {
     event_log: EventLog,
 }
+
+impl __sealed::Sealed for ThreadsTool {}
 
 impl ThreadsTool {
     pub fn new(event_log: EventLog) -> Self {
@@ -79,10 +80,10 @@ impl BuiltinTool for ThreadsTool {
     fn call<'a>(
         &'a self,
         args: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
         Box::pin(async move {
             let params: ThreadsParams =
-                serde_json::from_str(&args).map_err(|e| NikaError::BuiltinInvalidParams {
+                serde_json::from_str(&args).map_err(|e| BuiltinError::InvalidArgs {
                     tool: "nika:threads".into(),
                     reason: format!("Invalid JSON parameters: {e}"),
                 })?;
@@ -92,6 +93,7 @@ impl BuiltinTool for ThreadsTool {
 
             self.event_log.with_events(|events| {
                 for event in events {
+                    #[allow(clippy::wildcard_enum_match_arm)]
                     match &event.kind {
                         EventKind::TaskScheduled { task_id, .. } => {
                             status_map
@@ -143,7 +145,7 @@ impl BuiltinTool for ThreadsTool {
             // Sort by task_id for deterministic output
             entries.sort_by(|a, b| a.task_id.cmp(&b.task_id));
 
-            serde_json::to_string(&entries).map_err(|e| NikaError::BuiltinToolError {
+            serde_json::to_string(&entries).map_err(|e| BuiltinError::Other {
                 tool: "nika:threads".into(),
                 reason: format!("Failed to serialize threads: {e}"),
             })

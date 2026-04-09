@@ -62,6 +62,15 @@ pub use self::json_verify::JsonVerifyTool;
 pub use self::locale_lookup::LocaleLookupTool;
 pub use self::yaml_validate::YamlValidateTool;
 
+// ─── Introspection tools (3 of 6 — EventLog-only, no RunContext deps) ───
+mod cost;
+mod introspect_dag;
+mod introspect_threads;
+
+pub use self::cost::CostTool;
+pub use self::introspect_dag::DagInfoTool;
+pub use self::introspect_threads::ThreadsTool;
+
 #[cfg(test)]
 mod tests {
     use super::*;

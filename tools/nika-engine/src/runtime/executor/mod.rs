@@ -309,13 +309,18 @@ impl TaskExecutor {
     /// because no other references exist at this point in initialization.
     pub fn wire_introspection_tools(&mut self, datastore: Arc<crate::store::RunContext>) {
         if let Some(router) = Arc::get_mut(&mut self.builtin_router) {
+            use super::builtin::r#trait::KernelToolAdapter;
             router.register(super::builtin::RecordsTool::new(Arc::clone(&datastore)));
-            router.register(super::builtin::DagInfoTool::new(self.event_log.clone()));
+            router.register(KernelToolAdapter(super::builtin::DagInfoTool::new(
+                self.event_log.clone(),
+            )));
             router.register(super::builtin::TaskStatusTool::new(
                 self.event_log.clone(),
                 Arc::clone(&datastore),
             ));
-            router.register(super::builtin::ThreadsTool::new(self.event_log.clone()));
+            router.register(KernelToolAdapter(super::builtin::ThreadsTool::new(
+                self.event_log.clone(),
+            )));
             router.register(super::builtin::OrchestrateTool::new(
                 self.event_log.clone(),
                 datastore,

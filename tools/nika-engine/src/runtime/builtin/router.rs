@@ -17,10 +17,10 @@ use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use super::r#trait::KernelToolAdapter;
 use super::{
     create_file_tool_adapters, AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool,
-    CostTool, EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
-    JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool, LogTool,
-    MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool, TokenCountTool,
-    TreeDataTool, YamlValidateTool, ZipTool,
+    CostTool, DagInfoTool, EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool,
+    JsonDiffTool, JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool,
+    LocaleLookupTool, LogTool, MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool,
+    ThreadsTool, TokenCountTool, TreeDataTool, YamlValidateTool, ZipTool,
 };
 use crate::error::NikaError;
 use crate::tools::ToolContext;
@@ -184,7 +184,7 @@ impl BuiltinToolRouter {
 
     /// Add nika:cost introspection tool (requires EventLog for token/cost queries).
     pub fn with_cost_tool(mut self, event_log: EventLog) -> Self {
-        self.register(CostTool::new(event_log));
+        self.register(KernelToolAdapter(CostTool::new(event_log)));
         self
     }
 
@@ -200,13 +200,15 @@ impl BuiltinToolRouter {
         event_log: EventLog,
         datastore: Arc<crate::store::RunContext>,
     ) -> Self {
-        use super::{DagInfoTool, OrchestrateTool, TaskStatusTool, ThreadsTool};
-        self.register(DagInfoTool::new(event_log.clone()));
+        use super::{OrchestrateTool, TaskStatusTool};
+        // 2 migrated to nika-builtin (kernel trait) — wrapped with KernelToolAdapter
+        self.register(KernelToolAdapter(DagInfoTool::new(event_log.clone())));
+        self.register(KernelToolAdapter(ThreadsTool::new(event_log.clone())));
+        // 2 remain in nika-engine (depend on Arc<RunContext>)
         self.register(TaskStatusTool::new(
             event_log.clone(),
             Arc::clone(&datastore),
         ));
-        self.register(ThreadsTool::new(event_log.clone()));
         self.register(OrchestrateTool::new(event_log, datastore));
         self
     }

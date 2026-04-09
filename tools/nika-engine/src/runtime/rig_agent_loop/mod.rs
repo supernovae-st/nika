@@ -447,7 +447,7 @@ impl RigAgentLoop {
 
         if should_add_introspect("dag_info") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                DagInfoTool::new(event_log.clone()),
+                KernelToolAdapter(DagInfoTool::new(event_log.clone())),
             ))));
         }
         if should_add_introspect("task_status") {
@@ -463,12 +463,12 @@ impl RigAgentLoop {
         }
         if should_add_introspect("threads") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                ThreadsTool::new(event_log.clone()),
+                KernelToolAdapter(ThreadsTool::new(event_log.clone())),
             ))));
         }
         if should_add_introspect("cost") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
-                CostTool::new(event_log.clone()),
+                KernelToolAdapter(CostTool::new(event_log.clone())),
             ))));
         }
 
