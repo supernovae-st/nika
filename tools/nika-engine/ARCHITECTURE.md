@@ -3,7 +3,7 @@
 The embeddable workflow engine: parses YAML, builds a DAG, resolves bindings,
 dispatches tasks to providers, and streams results. ~168k LOC (incl. tests).
 
-Post-Session 4 (Constellation v2.3). Last updated 2026-04-08.
+Post-Session 6 (Constellation v2.3). Last updated 2026-04-09.
 
 ## Crate Dependencies (downward only)
 
@@ -12,6 +12,7 @@ nika-engine
 ├── nika-kernel      Effect traits (Provider, Fs, Clock, Shell, Http, BlobStore)
 ├── nika-core        AST types, catalogs, policy, trust
 ├── nika-event       EventLog, TraceWriter
+├── nika-builtin     27 builtin tools (core, data, introspection) — Phase 12
 ├── nika-media       CAS store, image/document processing
 ├── nika-mcp         MCP client (rmcp)
 ├── nika-vault       Encrypted secrets (XChaCha20 + Argon2i)
@@ -120,15 +121,24 @@ One file per verb:
 **Key file:** `infer.rs` (~2160 LOC) contains the 5-layer structured output
 pipeline and provider auto-retry logic.
 
-#### Builtin Tools (`runtime/builtin/`) — ~31k LOC
+#### Builtin Tools (`runtime/builtin/`) — Split Across Two Crates
 
-63 tools accessible via `invoke: nika:*`:
+63 tools accessible via `invoke: nika:*`. Phase 12 (Constellation) split them:
 
+**nika-builtin crate (27 tools, 6440 LOC, 178 tests):**
+- Core (5): sleep, log, emit, assert, complete
+- Data (13): jq, map, filter, group_by, chunk, token_count, enrich, zip, set_diff, json_merge, json_diff, tree_data, inject
+- Data Sprint 2 (6): json_verify, yaml_validate, locale_lookup, aggregate, json_flatten, json_unflatten
+- Introspection (3): cost, dag_info, threads
+- Bridged to engine via `KernelToolAdapter<T>` (kernel BuiltinError -> NikaError)
+
+**Still in nika-engine runtime/builtin/ (36 tools):**
 - `router.rs` — Dispatch by tool name (sealed trait, `BuiltinToolRouter`)
-- `trait.rs` — `BuiltinTool` trait definition
-- `data/` — 13 data tools (jq, map, filter, merge, inject, etc.)
+- `trait.rs` — Engine `BuiltinTool` trait definition (adapts kernel trait)
+- `data/` — Remaining data tools (decode — CAS-dependent)
 - `media/` — 24 media tools (import, thumbnail, chart, provenance, etc.)
-- Individual files for core tools (sleep, log, emit, assert, run, etc.)
+- Individual files for engine-coupled tools (run, prompt, task_status, records, orchestrate)
+- File tools in `tools/` (read, write, edit, glob, grep)
 
 #### Security Layer (`runtime/shield.rs`, `canary.rs`, `spotlight.rs`)
 
@@ -255,9 +265,9 @@ These exist but are not yet fully wired:
 
 ## Constellation Refactor — Current State
 
-### Already Extracted (Sessions 2-4)
+### Already Extracted (Sessions 2-6)
 
-7 new crates created since Session 1:
+8 new crates created since Session 1:
 
 | Crate | Layer | LOC | Session |
 |-------|-------|-----|---------|
@@ -268,20 +278,26 @@ These exist but are not yet fully wired:
 | `nika-blob` | L1 | ~250 | S3 |
 | `nika-http` | L1 | ~300 | S3 |
 | `nika-exec-runner` | L1 | ~200 | S3 |
+| `nika-builtin` | L2 | 6440 | S6 |
 
 Phase 11 (Provider bridge) shipped in Session 4 — `kernel_bridge.rs` (725 LOC)
 implements `nika_kernel::provider::Provider` for `RigProvider`, enabling
 downstream crates to consume `Arc<dyn Provider>` without rig-core dependency.
 
+Phase 12 (nika-builtin) started in Session 6 — 27/63 builtin tools extracted
+into `nika-builtin` crate. Uses `KernelToolAdapter<T>` to bridge kernel
+`BuiltinTool` trait (returns `BuiltinError`) to engine `BuiltinTool` trait
+(returns `NikaError`). Sealed trait prevents external implementations.
+
 ### Next Phases
 
-| Phase | Target | What |
-|-------|--------|------|
-| 3 | `nika-macros` | 4 derives + 1 declarative macro (syn 2 + darling) |
-| 12 | `nika-builtin` | Extract all 63 builtin tools (~22-24k LOC) |
-| 13 | verb crates | `nika-verb-{infer,exec,fetch,invoke,agent}` + `nika-http`/`nika-exec-runner` dedup |
-| 14 | `nika-runtime` | Runner + executor extraction (~30k LOC) |
-| 15 | post-launch | `nika-binding` + `nika-dag` to L0 kernel (~15k LOC) |
+| Phase | Target | What | Status |
+|-------|--------|------|--------|
+| 3 | `nika-macros` | 4 derives + 1 declarative macro (syn 2 + darling) | Done (S5) |
+| 12 | `nika-builtin` | Extract all 63 builtin tools (~22-24k LOC) | 27/63 done (S6) |
+| 13 | verb crates | `nika-verb-{infer,exec,fetch,invoke,agent}` + dedup | Planned |
+| 14 | `nika-runtime` | Runner + executor extraction (~30k LOC) | Planned |
+| 15 | post-launch | `nika-binding` + `nika-dag` to L0 kernel (~15k LOC) | Planned |
 
 ### Size Targets (V2.3, research-backed)
 

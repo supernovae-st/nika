@@ -73,9 +73,13 @@ impl BuiltinTool for InjectTool {
                         // Output file may not exist yet — canonicalize parent
                         if let Some(parent) = resolved.parent() {
                             std::fs::create_dir_all(parent).ok();
-                            parent
-                                .canonicalize()
-                                .map(|p| p.join(resolved.file_name().unwrap_or_default()))
+                            let fname = resolved.file_name().ok_or_else(|| {
+                                std::io::Error::new(
+                                    std::io::ErrorKind::InvalidInput,
+                                    "path has no filename component",
+                                )
+                            })?;
+                            parent.canonicalize().map(|p| p.join(fname))
                         } else {
                             Err(std::io::Error::new(
                                 std::io::ErrorKind::NotFound,
