@@ -155,7 +155,7 @@ petgraph = { version = "0.6", features = ["serde-1"] }
 rmcp = { version = "0.16", features = ["client", "server", "transport-child-process", "transport-io"] }
 
 # LLM
-rig-core = { version = "0.33", features = ["rmcp"] }
+rig-core = { version = "0.34", features = ["rmcp"] }
 
 # CLI
 clap = { version = "4.6", features = ["derive", "suggestions", "error-context"] }

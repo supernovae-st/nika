@@ -169,7 +169,7 @@ impl RigAgentLoop {
     /// **Note:** Token tracking uses char-based estimation (Chat trait returns
     /// only String, no usage metadata). Use `run()` for single-turn requests
     /// for single-turn requests with full streaming token tracking.
-    async fn chat_continue_with_model<M: CompletionModel>(
+    async fn chat_continue_with_model<M: CompletionModel + 'static>(
         &mut self,
         prompt: &str,
         model: M,
