@@ -60,3 +60,26 @@ tests/e2e-overnight/output/
 /*.mp3
 /*.wav
 /*.m4a
+
+# ─── Private docs (strategy, research, session handoffs) ──────────────
+# These stay on disk for local context but MUST NOT be in the public repo.
+# Public docs: docs/ARCHITECTURE.md, docs/marketing/, docs/guides/,
+#              docs/reference/, docs/adr/, docs/llms*.txt
+docs/research/
+docs/plans/
+docs/sprints/
+docs/vision/
+docs/content/
+docs/content-suite/
+docs/archive/
+docs/bugs/
+docs/outreach/
+# Loose private files at docs/ root
+docs/competitive-landscape*.md
+docs/gpu-cloud-landscape*.md
+docs/audio-nika-vision-brainstorm.md
+docs/podcast-script*.md
+docs/notebooklm-podcast-pack.md
+docs/language-bible.md
+docs/design-system.md
+docs/nika-ai-context.md
