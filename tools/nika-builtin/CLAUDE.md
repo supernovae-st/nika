@@ -77,7 +77,7 @@ In `nika-kernel`, not yet consumed (for future tool migrations):
 ### Data Sprint 2 (6)
 | Tool | File | Purpose |
 |------|------|---------|
-| `nika:json_verify` | `json_verify.rs` | Validate JSON against schema |
+| `nika:json_verify` | `json_verify.rs` | Verify translated JSON structure against source (keys, placeholders, HTML tags) |
 | `nika:yaml_validate` | `yaml_validate.rs` | Validate YAML structure |
 | `nika:locale_lookup` | `locale_lookup.rs` | i18n locale resolution |
 | `nika:aggregate` | `aggregate.rs` | Statistical aggregation (sum, avg, min, max) |
@@ -110,7 +110,7 @@ All tools have unit tests validating:
 - `serde_json` — JSON manipulation
 - `jaq-core` + `jaq-std` — jq implementation (for JqTool)
 - `tiktoken-rs` — Token counting (for TokenCountTool)
-- `jsonschema` — JSON Schema validation (for JsonVerifyTool)
+- `serde_json` — JSON manipulation (JsonVerifyTool uses structural comparison, not JSON Schema)
 
 - `nika-event` (L1) — EventLog for introspection tools (cost, dag_info, threads)
 - `rustc-hash` — FxHashMap/FxHashSet for fast lookups

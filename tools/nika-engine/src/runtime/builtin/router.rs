@@ -48,14 +48,14 @@ pub struct BuiltinToolRouter {
 }
 
 impl BuiltinToolRouter {
-    /// Create a new router with 7 core builtin tools (no file tools).
+    /// Create a new router with the base builtin tools (no file or media tools).
     ///
+    /// Registers: 7 core + 13 data + 6 Sprint 2 + 3 introspection = 26 tools (Phase 12 partial).
     /// For file tools (read, write, edit, glob, grep), use `with_file_tools()`.
     pub fn new() -> Self {
         let mut tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>> = FxHashMap::default();
 
-        // Register 7 core builtin tools
-        // 5 migrated to nika-builtin (kernel trait) → wrapped with KernelToolAdapter
+        // 7 core tools: 5 migrated to nika-builtin (kernel trait) → wrapped with KernelToolAdapter
         tools.insert("sleep", Arc::new(KernelToolAdapter(SleepTool)));
         tools.insert("log", Arc::new(KernelToolAdapter(LogTool)));
         tools.insert("emit", Arc::new(KernelToolAdapter(EmitTool)));
@@ -91,7 +91,7 @@ impl BuiltinToolRouter {
         Self { tools }
     }
 
-    /// Create a router with all 12 builtin tools (7 core + 5 file tools).
+    /// Create a router with base tools + 5 file tools (read, write, edit, glob, grep).
     ///
     /// File tools require a `ToolContext` for working directory and permissions.
     ///
@@ -122,7 +122,7 @@ impl BuiltinToolRouter {
         router
     }
 
-    /// Create a router with all builtin tools (7 core + 5 file + N media).
+    /// Create a router with all builtin tools (base + file + N media).
     ///
     /// Media tools require a `MediaToolContext` for CAS access, budget, and compute pool.
     pub fn with_all_tools(file_ctx: Arc<ToolContext>, media_ctx: Arc<MediaToolContext>) -> Self {

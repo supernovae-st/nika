@@ -90,8 +90,14 @@ impl BuiltinTool for AggregateTool {
                 let val = match op.as_str() {
                     "count" => Value::Number(total_count.into()),
                     "sum" => {
-                        let sum: f64 = numbers.iter().sum();
-                        to_json_number(sum)
+                        // Return null for empty numeric set (consistent with avg/min/max)
+                        // to distinguish "sum of zeros" from "no numeric inputs found".
+                        if numbers.is_empty() {
+                            Value::Null
+                        } else {
+                            let sum: f64 = numbers.iter().sum();
+                            to_json_number(sum)
+                        }
                     }
                     "avg" => {
                         if numbers.is_empty() {
@@ -203,7 +209,9 @@ mod tests {
         let result: Value =
             serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
         assert_eq!(result["count"], 0);
-        assert_eq!(result["sum"], 0);
+        // sum/avg/min/max all return null for empty — consistent, avoids
+        // "sum of zeros" vs "no numeric inputs" ambiguity.
+        assert_eq!(result["sum"], Value::Null);
         assert_eq!(result["avg"], Value::Null);
         assert_eq!(result["min"], Value::Null);
         assert_eq!(result["max"], Value::Null);
