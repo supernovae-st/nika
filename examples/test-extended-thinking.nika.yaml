@@ -27,7 +27,7 @@ model: claude-sonnet-4-20250514
 
 mcp:
   novanet:
-    command: /Users/thibaut/.cargo/bin/novanet-mcp
+    command: novanet-mcp
     args: []
     env:
       NOVANET_MCP_NEO4J_URI: bolt://localhost:7687

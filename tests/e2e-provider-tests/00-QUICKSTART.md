@@ -20,7 +20,7 @@ Complete end-to-end testing suite for all 9 LLM providers in Nika. Everything yo
 Run this right now (no API keys needed):
 
 ```bash
-cd /Users/thibaut/dev/supernovae/nika
+cd <project-root>
 nika run tests/e2e-provider-tests/09-mock-provider-deterministic.nika.yaml
 ```
 
@@ -85,25 +85,25 @@ done
 
 ### Instant Test (Right Now, No Setup)
 ```bash
-cd /Users/thibaut/dev/supernovae/nika && nika run tests/e2e-provider-tests/09-mock-provider-deterministic.nika.yaml
+cd <project-root> && nika run tests/e2e-provider-tests/09-mock-provider-deterministic.nika.yaml
 ```
 
 ### With Mistral (Cheapest)
 ```bash
 export MISTRAL_API_KEY="your-mistral-key-here"
-cd /Users/thibaut/dev/supernovae/nika && nika run tests/e2e-provider-tests/05-mistral-standard-inference.nika.yaml
+cd <project-root> && nika run tests/e2e-provider-tests/05-mistral-standard-inference.nika.yaml
 ```
 
 ### With Groq (Fastest)
 ```bash
 export GROQ_API_KEY="your-groq-key-here"
-cd /Users/thibaut/dev/supernovae/nika && nika run tests/e2e-provider-tests/04-groq-ultra-fast-inference.nika.yaml
+cd <project-root> && nika run tests/e2e-provider-tests/04-groq-ultra-fast-inference.nika.yaml
 ```
 
 ### With Anthropic (Most Features)
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
-cd /Users/thibaut/dev/supernovae/nika && nika run tests/e2e-provider-tests/01-anthropic-extended-thinking.nika.yaml
+cd <project-root> && nika run tests/e2e-provider-tests/01-anthropic-extended-thinking.nika.yaml
 ```
 
 ## What You'll See

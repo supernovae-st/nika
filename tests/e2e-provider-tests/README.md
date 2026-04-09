@@ -23,7 +23,7 @@ Comprehensive workflow tests exercising each LLM provider's unique capabilities 
 ### Run All E2E Tests (with API keys)
 
 ```bash
-cd /Users/thibaut/dev/supernovae/nika
+cd <project-root>
 
 # Test individual providers
 nika run tests/e2e-provider-tests/01-anthropic-extended-thinking.nika.yaml

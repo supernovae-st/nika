@@ -5,7 +5,7 @@ Complete test suite for the Nika workflow engine covering boundary conditions, e
 ## Quick Start
 
 ```bash
-cd /Users/thibaut/dev/supernovae/nika/docs/tests
+cd <project-root>/docs/tests
 
 # Validate a single test
 nika check edge-case-001-empty-workflow.nika.yaml
@@ -351,13 +351,13 @@ nika workflow graph <file>
 ## References
 
 - **Nika Schema**: `nika/workflow@0.12`
-- **Documentation**: See `/Users/thibaut/dev/supernovae/nika/CLAUDE.md`
+- **Documentation**: See `<project-root>/CLAUDE.md`
 - **Complete syntax reference**: `dx/.claude/rules/nika-workflows.md`
 - **Error codes**: NIKA-010 through NIKA-319
 
 ## Contact & Contribution
 
 Created: 2026-03-29
-Location: `/Users/thibaut/dev/supernovae/nika/docs/tests/`
+Location: `<project-root>/docs/tests/`
 
 For more information, see `EDGE_CASE_TESTS.md`.

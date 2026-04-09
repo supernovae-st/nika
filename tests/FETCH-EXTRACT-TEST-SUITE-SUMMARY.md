@@ -233,7 +233,7 @@ All URLs are stable, well-established, and regularly tested:
 
 ### Run All Tests
 ```bash
-cd /Users/thibaut/dev/supernovae/nika
+cd <project-root>
 nika run tests/workflows/fetch-extract-comprehensive-suite.nika.yaml
 ```
 
@@ -262,7 +262,7 @@ nika run tests/workflows/fetch-extract-mode-02-article.nika.yaml --timeout 30
 ## File Structure
 
 ```
-/Users/thibaut/dev/supernovae/nika/tests/
+<project-root>/tests/
 ├── workflows/
 │   ├── fetch-extract-comprehensive-suite.nika.yaml    ← Run all 15 tests
 │   ├── fetch-extract-mode-01-markdown.nika.yaml

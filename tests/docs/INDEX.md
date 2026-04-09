@@ -103,7 +103,7 @@ Navigation and structure of the entire test suite.
 
 ### Run All Tests
 ```bash
-cd /Users/thibaut/dev/supernovae/nika
+cd <project-root>
 nika run tests/workflows/fetch-extract-comprehensive-suite.nika.yaml
 ```
 
@@ -154,7 +154,7 @@ nika run tests/workflows/fetch-extract-comprehensive-suite.nika.yaml --provider 
 ## File Structure
 
 ```
-/Users/thibaut/dev/supernovae/nika/tests/
+<project-root>/tests/
 ├── workflows/
 │   ├── fetch-extract-comprehensive-suite.nika.yaml    [Master suite: runs all 15 tests]
 │   ├── fetch-extract-mode-01-markdown.nika.yaml       [Mode 1: markdown]

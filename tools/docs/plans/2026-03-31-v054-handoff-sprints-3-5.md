@@ -143,7 +143,7 @@
 # Sprint 3: Runner Robustness (4 items, ~6h)
 
 Context: Nika workflow engine v0.54.0, Rust, 12 crates, 9038 tests.
-Working directory: /Users/thibaut/dev/supernovae/nika/tools
+Working directory: <path>
 
 ## Task
 
@@ -183,7 +183,7 @@ Fix 4 runner bugs from the 20-agent deep audit:
 # Sprint 4: Quality + Perf (7 items, ~6h)
 
 Context: Nika workflow engine v0.54.0, Rust, 12 crates, 9038 tests.
-Working directory: /Users/thibaut/dev/supernovae/nika/tools
+Working directory: <path>
 
 ## Task
 
@@ -226,7 +226,7 @@ Fix 7 quality/perf items from the 20-agent audit:
 # Sprint 5: DX + Parser (3 items, ~2h)
 
 Context: Nika workflow engine v0.54.0, Rust, 12 crates, 9038 tests.
-Working directory: /Users/thibaut/dev/supernovae/nika/tools
+Working directory: <path>
 
 ## Task
 
@@ -369,7 +369,7 @@ Save to: `docs/research/2026-03-31-library-docs.md`
 # Overnight Autonomous: Sprints 3-5 + Research
 
 You are starting a long autonomous session on Nika v0.54.0.
-Working directory: /Users/thibaut/dev/supernovae/nika/tools
+Working directory: <path>
 
 ## Phase 1: Sprint 3 — Runner Robustness (~6h)
 [Paste Prompt 1 content here]

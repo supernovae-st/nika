@@ -171,11 +171,11 @@ grep -B5 -A3 'Must not panic' nika-engine/src/dag/flow.rs
 
 ## Files Requiring Changes
 
-1. `/Users/thibaut/dev/supernovae/nika/tools/nika-engine/src/runtime/rig_agent_loop/streaming.rs` — 9 fixes
+1. `/path/to/project — 9 fixes
 
 ## Audit Command
 
 ```bash
-cd /Users/thibaut/dev/supernovae/nika/tools
+cd /path/to/project
 grep -rn 'let _ =' nika-engine/src/ --include='*.rs' | grep -v test | grep -v target
 ```

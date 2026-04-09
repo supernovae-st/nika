@@ -88,7 +88,7 @@ run_session() {
     plan_content=$(cat "$plan_file")
 
     local prompt="You are executing a quality improvement session on the Nika workflow engine.
-Workspace: /Users/thibaut/dev/supernovae/nika/tools/ (12 Rust crates)
+Workspace: $HOME/.nika (12 Rust crates)
 
 ## CRITICAL RULES
 - ALWAYS use \`cargo test --workspace --lib\` (--lib to avoid keychain popups)
@@ -103,9 +103,9 @@ Workspace: /Users/thibaut/dev/supernovae/nika/tools/ (12 Rust crates)
 $plan_content
 
 ## AFTER ALL FIXES
-1. Run: cd /Users/thibaut/dev/supernovae/nika/tools && cargo test --workspace --lib
+1. Run: cd $HOME/.nika && cargo test --workspace --lib
 2. Run: cargo clippy --workspace -- -D warnings
-3. Push: cd /Users/thibaut/dev/supernovae/nika && git push
+3. Push: cd $HOME/.nika && git push
 4. Report: count of bugs fixed, tests added, total test count"
 
     # Run Claude in headless mode

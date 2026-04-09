@@ -570,7 +570,7 @@ nika run edge-case-015-timeout-error.nika.yaml --provider anthropic
 
 ### Run All Tests
 ```bash
-cd /Users/thibaut/dev/supernovae/nika/docs/tests
+cd <project-root>/docs/tests
 
 # Validate all
 for f in edge-case-*.nika.yaml; do

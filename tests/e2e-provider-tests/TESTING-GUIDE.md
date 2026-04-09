@@ -6,7 +6,7 @@ Complete walkthrough for running, understanding, and extending Nika provider E2E
 
 ### Option 1: Run Mock Tests (Instant, No API Keys)
 ```bash
-cd /Users/thibaut/dev/supernovae/nika
+cd <project-root>
 nika run tests/e2e-provider-tests/09-mock-provider-deterministic.nika.yaml
 ```
 
