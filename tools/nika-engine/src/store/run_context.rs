@@ -818,6 +818,45 @@ impl RunContext {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// RecordQuery trait impl (nika-kernel L0.5)
+// ─────────────────────────────────────────────────────────────────────
+
+impl nika_kernel::scope::RecordQuery for RunContext {
+    fn has_record(&self, task_id: &str) -> bool {
+        self.records.contains_key(task_id)
+    }
+
+    fn get_record_view(&self, task_id: &str) -> Option<nika_kernel::scope::RecordView> {
+        self.records.get(task_id).map(|r| record_to_view(task_id, r.value()))
+    }
+
+    fn iter_record_views(&self) -> Vec<nika_kernel::scope::RecordView> {
+        self.records
+            .iter()
+            .map(|r| record_to_view(r.key(), r.value()))
+            .collect()
+    }
+
+    fn record_count(&self) -> usize {
+        self.records.len()
+    }
+}
+
+/// Map engine `Record` → kernel `RecordView`.
+fn record_to_view(
+    task_id: &str,
+    record: &crate::runtime::record::Record,
+) -> nika_kernel::scope::RecordView {
+    nika_kernel::scope::RecordView {
+        task_id: task_id.to_string(),
+        summary: record.summary.clone(),
+        key_findings: record.key_findings.clone(),
+        confidence: record.confidence,
+        compression_ratio: record.compression_ratio(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1999,5 +2038,77 @@ mod tests {
             result.output_size_estimate() < TaskResult::MAX_OUTPUT_SIZE,
             "Truncated output should be under limit"
         );
+    }
+
+    // ── RecordQuery trait impl tests ──
+
+    mod record_query {
+        use super::*;
+        use crate::runtime::record::Record;
+        use nika_kernel::scope::RecordQuery;
+
+        fn make_record(task_id: &str, confidence: f64) -> Record {
+            Record {
+                task_id: Arc::from(task_id),
+                summary: format!("Summary of {task_id}"),
+                key_findings: vec!["finding1".into()],
+                raw_output: None,
+                confidence,
+                tokens_original: 1000,
+                tokens_compressed: 50,
+                compression_model: "mock".into(),
+                compression_cost_usd: 0.0,
+                compression_duration: std::time::Duration::ZERO,
+            }
+        }
+
+        #[test]
+        fn has_record_delegates() {
+            let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
+            assert!(!ctx.has_record("a"));
+            ctx.set_record("a".into(), make_record("a", 0.9));
+            assert!(ctx.has_record("a"));
+        }
+
+        #[test]
+        fn get_record_view_maps_fields() {
+            let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
+            ctx.set_record("r".into(), make_record("r", 0.85));
+
+            let view = ctx.get_record_view("r").expect("should exist");
+            assert_eq!(view.task_id, "r");
+            assert_eq!(view.summary, "Summary of r");
+            assert_eq!(view.key_findings, vec!["finding1"]);
+            assert!((view.confidence - 0.85).abs() < f64::EPSILON);
+            // compression_ratio = 50 / 1000 = 0.05
+            assert!((view.compression_ratio - 0.05).abs() < f64::EPSILON);
+        }
+
+        #[test]
+        fn get_record_view_missing() {
+            let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
+            assert!(ctx.get_record_view("nope").is_none());
+        }
+
+        #[test]
+        fn iter_record_views_returns_all() {
+            let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
+            ctx.set_record("a".into(), make_record("a", 0.9));
+            ctx.set_record("b".into(), make_record("b", 0.7));
+
+            let views = ctx.iter_record_views();
+            assert_eq!(views.len(), 2);
+            let ids: Vec<&str> = views.iter().map(|v| v.task_id.as_str()).collect();
+            assert!(ids.contains(&"a"));
+            assert!(ids.contains(&"b"));
+        }
+
+        #[test]
+        fn record_count_matches() {
+            let ctx = RunContext::new(nika_core::trust::InvocationSource::Test);
+            assert_eq!(ctx.record_count(), 0);
+            ctx.set_record("x".into(), make_record("x", 0.5));
+            assert_eq!(ctx.record_count(), 1);
+        }
     }
 }
