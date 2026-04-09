@@ -16,11 +16,11 @@
 use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use super::r#trait::KernelToolAdapter;
 use super::{
-    create_file_tool_adapters, AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool,
-    CostTool, DagInfoTool, EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool,
-    JsonDiffTool, JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool,
-    LocaleLookupTool, LogTool, MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool,
-    ThreadsTool, TokenCountTool, TreeDataTool, YamlValidateTool, ZipTool,
+    AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool, CostTool, DagInfoTool,
+    EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
+    JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool, LogTool,
+    MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool, ThreadsTool, TokenCountTool,
+    TreeDataTool, YamlValidateTool, ZipTool,
 };
 use crate::runtime::hitl::HitlHandler;
 use crate::error::NikaError;
@@ -95,7 +95,9 @@ impl BuiltinToolRouter {
 
     /// Create a router with base tools + 5 file tools (read, write, edit, glob, grep).
     ///
-    /// File tools require a `ToolContext` for working directory and permissions.
+    /// File tools use `nika-builtin`'s kernel-level implementations with Shield
+    /// path checking via `nika_kernel::task_local`. The working directory is
+    /// extracted from the provided `ToolContext`.
     ///
     /// # Example
     ///
@@ -114,13 +116,37 @@ impl BuiltinToolRouter {
     /// assert!(router.has_tool("write"));
     /// ```
     pub fn with_file_tools(ctx: Arc<ToolContext>) -> Self {
+        use nika_builtin::file::FileToolContext;
+        let file_ctx = Arc::new(FileToolContext::new(ctx.working_dir()));
+        Self::with_file_tool_context(file_ctx)
+    }
+
+    /// Create a router with base tools + 5 file tools using an explicit `FileToolContext`.
+    ///
+    /// Used internally by `with_file_tools()` and directly by tests that work
+    /// with `FileToolContext` without a full `ToolContext`.
+    pub fn with_file_tool_context(file_ctx: Arc<nika_builtin::file::FileToolContext>) -> Self {
         let mut router = Self::new();
-
-        // Register 5 file tools via adapter
-        for tool in create_file_tool_adapters(ctx) {
-            router.tools.insert(tool.name(), Arc::from(tool));
-        }
-
+        router.tools.insert(
+            "read",
+            Arc::new(KernelToolAdapter(nika_builtin::ReadTool::new(Arc::clone(&file_ctx)))),
+        );
+        router.tools.insert(
+            "write",
+            Arc::new(KernelToolAdapter(nika_builtin::WriteTool::new(Arc::clone(&file_ctx)))),
+        );
+        router.tools.insert(
+            "edit",
+            Arc::new(KernelToolAdapter(nika_builtin::EditTool::new(Arc::clone(&file_ctx)))),
+        );
+        router.tools.insert(
+            "glob",
+            Arc::new(KernelToolAdapter(nika_builtin::GlobTool::new(Arc::clone(&file_ctx)))),
+        );
+        router.tools.insert(
+            "grep",
+            Arc::new(KernelToolAdapter(nika_builtin::GrepTool::new(file_ctx))),
+        );
         router
     }
 
@@ -156,7 +182,7 @@ impl BuiltinToolRouter {
     pub fn with_all_tools(file_ctx: Arc<ToolContext>, media_ctx: Arc<MediaToolContext>) -> Self {
         let mut router = Self::with_file_tools(file_ctx);
 
-        // Register media tools via adapter
+        // Register media tools
         for tool in create_media_tool_adapters(media_ctx) {
             router.tools.insert(tool.name(), Arc::from(tool));
         }

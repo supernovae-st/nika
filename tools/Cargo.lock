@@ -5854,11 +5854,15 @@ name = "nika-builtin"
 version = "0.79.0"
 dependencies = [
  "async-trait",
+ "dashmap",
+ "glob",
  "humantime",
+ "ignore",
  "indexmap 2.13.0",
  "nika-core",
  "nika-event",
  "nika-kernel",
+ "parking_lot",
  "regex",
  "rustc-hash 2.1.2",
  "serde",

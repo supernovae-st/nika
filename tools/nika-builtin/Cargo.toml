@@ -24,6 +24,10 @@ indexmap = { workspace = true }
 text-splitter = { workspace = true }
 regex = { workspace = true }
 rustc-hash = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+glob = { workspace = true }
+ignore = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

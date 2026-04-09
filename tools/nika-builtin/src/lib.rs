@@ -25,6 +25,11 @@
 // Re-export the trait and error from nika-kernel for convenience.
 pub use nika_kernel::builtin::{BuiltinError, BuiltinTool, __sealed};
 
+// ─── File tools (5) ───
+pub mod file;
+
+pub use file::{EditTool, FileToolContext, GlobTool, GrepTool, ReadTool, WriteTool};
+
 // ─── Core tools (6 of 7 — run stays in nika-engine until commit 12.7) ───
 mod assert;
 pub mod complete;
