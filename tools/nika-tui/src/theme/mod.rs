@@ -107,7 +107,7 @@ impl ThemeMode {
 // THEME STRUCT
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// NovaNet-inspired color theme for the TUI
+/// Nika TUI color theme (dark Solarized palette with cosmic accents)
 #[derive(Debug, Clone)]
 pub struct Theme {
     // ═══════════════════════════════════════════
@@ -246,7 +246,12 @@ impl Default for Theme {
 }
 
 impl Theme {
-    /// Create the default NovaNet theme (dark)
+    /// Create dark theme (default Nika theme)
+    pub fn default_dark() -> Self {
+        Self::dark()
+    }
+
+    #[deprecated(since = "0.79.0", note = "use Theme::dark() instead")]
     pub fn novanet() -> Self {
         Self::dark()
     }
@@ -417,29 +422,29 @@ mod tests {
 
     #[test]
     fn test_mcp_tool_color_matches_tool_name() {
-        let theme = Theme::novanet();
-        assert_eq!(theme.mcp_tool_color("novanet_describe"), theme.mcp_describe);
-        assert_eq!(theme.mcp_tool_color("novanet_search"), theme.mcp_search);
+        let theme = Theme::dark();
+        assert_eq!(theme.mcp_tool_color("nika_describe"), theme.mcp_describe);
+        assert_eq!(theme.mcp_tool_color("nika_search"), theme.mcp_search);
         assert_eq!(
-            theme.mcp_tool_color("novanet_introspect"),
+            theme.mcp_tool_color("nika_introspect"),
             theme.mcp_describe
         );
-        assert_eq!(theme.mcp_tool_color("novanet_context"), theme.mcp_context);
-        assert_eq!(theme.mcp_tool_color("novanet_write"), theme.mcp_write);
-        assert_eq!(theme.mcp_tool_color("novanet_audit"), theme.mcp_audit);
-        assert_eq!(theme.mcp_tool_color("novanet_batch"), theme.mcp_search);
+        assert_eq!(theme.mcp_tool_color("nika_context"), theme.mcp_context);
+        assert_eq!(theme.mcp_tool_color("nika_write"), theme.mcp_write);
+        assert_eq!(theme.mcp_tool_color("nika_audit"), theme.mcp_audit);
+        assert_eq!(theme.mcp_tool_color("nika_batch"), theme.mcp_search);
     }
 
     #[test]
     fn test_status_style_returns_correct_color() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let style = theme.status_style(TaskStatus::Running);
         assert_eq!(style.fg, Some(theme.status_running));
     }
 
     #[test]
     fn test_border_style_focused_vs_unfocused() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let focused = theme.border_style(true);
         let unfocused = theme.border_style(false);
         assert_ne!(focused.fg, unfocused.fg);
@@ -485,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_theme_verb_color_methods() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
 
         // verb_color should return full RGB
         assert_eq!(theme.verb_color(VerbColor::Infer), Color::Rgb(139, 92, 246));
@@ -517,12 +522,12 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_novanet_is_dark() {
-        let novanet = Theme::novanet();
+    fn test_theme_dark_is_default() {
+        let dark = Theme::dark();
         let dark = Theme::dark();
 
-        assert_eq!(novanet.background, dark.background);
-        assert_eq!(novanet.text_primary, dark.text_primary);
+        assert_eq!(dark.background, dark.background);
+        assert_eq!(dark.text_primary, dark.text_primary);
     }
 
     #[test]
@@ -603,14 +608,14 @@ mod tests {
     #[test]
     fn test_theme_mcp_tool_color_describe() {
         let theme = Theme::default();
-        assert_eq!(theme.mcp_tool_color("novanet_describe"), theme.mcp_describe);
+        assert_eq!(theme.mcp_tool_color("nika_describe"), theme.mcp_describe);
         assert_eq!(theme.mcp_tool_color("describe"), theme.mcp_describe);
     }
 
     #[test]
     fn test_theme_mcp_tool_color_context() {
         let theme = Theme::default();
-        assert_eq!(theme.mcp_tool_color("novanet_context"), theme.mcp_context);
+        assert_eq!(theme.mcp_tool_color("nika_context"), theme.mcp_context);
     }
 
     #[test]
@@ -622,14 +627,14 @@ mod tests {
 
     #[test]
     fn test_theme_status_style_pending() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let style = theme.status_style(TaskStatus::Pending);
         assert_eq!(style.fg, Some(theme.status_pending));
     }
 
     #[test]
     fn test_theme_status_style_all_variants() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
 
         let pending = theme.status_style(TaskStatus::Pending);
         assert_eq!(pending.fg, Some(theme.status_pending));
@@ -649,7 +654,7 @@ mod tests {
 
     #[test]
     fn test_theme_border_style_focused_has_bold() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let focused = theme.border_style(true);
         assert!(focused.add_modifier.contains(Modifier::BOLD));
         assert_eq!(focused.fg, Some(theme.border_focused));
@@ -657,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_theme_border_style_unfocused_no_bold() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let unfocused = theme.border_style(false);
         assert!(!unfocused.add_modifier.contains(Modifier::BOLD));
         assert_eq!(unfocused.fg, Some(theme.border_normal));
@@ -665,28 +670,28 @@ mod tests {
 
     #[test]
     fn test_theme_text_style_primary() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let style = theme.text_style();
         assert_eq!(style.fg, Some(theme.text_primary));
     }
 
     #[test]
     fn test_theme_text_secondary_style() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let style = theme.text_secondary_style();
         assert_eq!(style.fg, Some(theme.text_secondary));
     }
 
     #[test]
     fn test_theme_text_muted_style() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let style = theme.text_muted_style();
         assert_eq!(style.fg, Some(theme.text_muted));
     }
 
     #[test]
     fn test_theme_highlight_style_has_bold() {
-        let theme = Theme::novanet();
+        let theme = Theme::dark();
         let style = theme.highlight_style();
         assert!(style.add_modifier.contains(Modifier::BOLD));
         assert_eq!(style.fg, Some(theme.highlight));
