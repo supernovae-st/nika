@@ -106,27 +106,45 @@ impl<T> TaskScope for T where
 // Phase 12 traits — builtin tool dependencies
 // ─────────────────────────────────────────────────────────────────────
 
+/// All the state needed to execute a nested workflow.
+///
+/// Constructed by `RunTool` in nika-builtin (after Shield checks and
+/// task_local reads), passed to `EngineRunExecutor` in nika-engine.
+#[derive(Debug)]
+pub struct RunSpec {
+    /// Path to the workflow file (mutually exclusive with `yaml_content`).
+    pub path: Option<PathBuf>,
+    /// Inline YAML content (mutually exclusive with `path`).
+    pub yaml_content: Option<String>,
+    /// Label used for logging when `yaml_content` is set.
+    pub label: String,
+    /// Trust level of the calling task (for ceiling propagation).
+    pub caller_trust: nika_core::trust::TrustLevel,
+    /// Optional context passed into the child workflow.
+    pub parent_context: Option<Value>,
+    /// Nesting depth at which to execute (depth + 1 from caller).
+    pub depth: u32,
+    /// Maximum allowed depth (clamped by RunTool before construction).
+    pub max_depth: u32,
+    /// Execution timeout.
+    pub timeout: Duration,
+    /// Parent chain for cycle detection (already includes the new path).
+    pub parent_chain: Vec<PathBuf>,
+}
+
 /// Execute a nested workflow (nika:run).
 ///
 /// Breaks the cycle: nika-builtin → nika-engine → nika-builtin.
 /// nika-engine provides `EngineRunExecutor` wrapping `Runner`.
 #[async_trait::async_trait]
 pub trait RunExecutor: Send + Sync {
-    /// Execute a workflow by path with inputs.
+    /// Execute a nested workflow described by `spec`.
     ///
-    /// # Arguments
-    /// * `path` - Path to the .nika.yaml workflow file
-    /// * `inputs` - Workflow inputs as JSON
-    /// * `depth` - Current nesting depth (for cycle detection)
-    /// * `max_depth` - Maximum allowed nesting depth
-    /// * `timeout` - Maximum execution time
+    /// The executor handles YAML parsing, Runner creation, and task_local
+    /// scoping (WORKFLOW_DEPTH + PARENT_CHAIN).
     async fn run_workflow(
         &self,
-        path: &std::path::Path,
-        inputs: Value,
-        depth: u32,
-        max_depth: u32,
-        timeout: Duration,
+        spec: RunSpec,
     ) -> Result<Value, crate::builtin::BuiltinError>;
 }
 

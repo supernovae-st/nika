@@ -44,6 +44,7 @@ pub(crate) mod for_each;
 pub mod hitl;
 pub mod hitl_bridge;
 pub mod limit_tracker;
+pub mod run_executor;
 pub(crate) mod mock_json;
 pub mod orchestrate;
 pub mod output;
@@ -75,7 +76,6 @@ mod tests_e2e_workflow;
 pub use builtin::{
     AssertTool, BuiltinTool, BuiltinToolRouter, EmitTool, LogLevel, LogTool,
     NikaBuiltinToolAdapter, PromptParams, PromptResponse, PromptTool, RunParams, RunResponse,
-    RunTool,
 };
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
 pub use context::WorkflowMeta;
@@ -83,6 +83,7 @@ pub use context_loader::{load_context, LoadedContext};
 pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
 pub use hitl_bridge::HitlBridge;
+pub use run_executor::EngineRunExecutor;
 pub use output::make_task_result;
 pub use resolver::{
     resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills,

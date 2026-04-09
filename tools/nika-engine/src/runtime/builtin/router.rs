@@ -19,10 +19,11 @@ use super::{
     AggregateTool, AssertTool, BuiltinTool, ChunkTool, CompleteTool, CostTool, DagInfoTool,
     EmitTool, EnrichTool, FilterTool, GroupByTool, InjectTool, JqTool, JsonDiffTool,
     JsonFlattenTool, JsonMergeTool, JsonUnflattenTool, JsonVerifyTool, LocaleLookupTool, LogTool,
-    MapTool, PromptTool, RecordsTool, RunTool, SetDiffTool, SleepTool, ThreadsTool, TokenCountTool,
+    MapTool, PromptTool, RecordsTool, SetDiffTool, SleepTool, ThreadsTool, TokenCountTool,
     TreeDataTool, YamlValidateTool, ZipTool,
 };
 use crate::runtime::hitl::HitlHandler;
+use crate::runtime::run_executor::EngineRunExecutor;
 use crate::error::NikaError;
 use crate::tools::ToolContext;
 use nika_event::EventLog;
@@ -64,8 +65,13 @@ impl BuiltinToolRouter {
         tools.insert("complete", Arc::new(KernelToolAdapter(CompleteTool)));
         // Headless default — override with with_hitl() for TUI / interactive mode
         tools.insert("prompt", Arc::new(KernelToolAdapter(PromptTool::new_headless())));
-        // run still in nika-engine until commit 12.7 (needs RunSpec + EngineRunExecutor)
-        tools.insert("run", Arc::new(RunTool));
+        // RunTool migrated to nika-builtin (commit 12.7) — backed by EngineRunExecutor
+        tools.insert(
+            "run",
+            Arc::new(KernelToolAdapter(nika_builtin::KernelRunTool::new(Arc::new(
+                EngineRunExecutor::new(),
+            )))),
+        );
 
         // Register 13 data processing tools (migrated to nika-builtin)
         tools.insert("json_merge", Arc::new(KernelToolAdapter(JsonMergeTool)));

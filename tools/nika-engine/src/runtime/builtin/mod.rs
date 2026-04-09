@@ -35,7 +35,7 @@ mod router;
 pub(crate) mod run;
 pub(crate) mod r#trait;
 
-// ── Re-exports from nika-builtin (6 core + 13 data + 6 sprint2 tools) ──
+// ── Re-exports from nika-builtin (7 core + 13 data + 6 sprint2 tools) ──
 pub use nika_builtin::AssertTool;
 pub use nika_builtin::{
     is_completion_signal, parse_completion_response, CompleteParams, CompleteResponse, CompleteTool,
@@ -44,6 +44,8 @@ pub use nika_builtin::{
 pub use nika_builtin::EmitTool;
 pub use nika_builtin::{LogLevel, LogTool};
 pub use nika_builtin::{PromptParams, PromptResponse, PromptTool};
+// RunTool migrated to nika-builtin (commit 12.7) — re-exported for backward compat
+pub use nika_builtin::{RunParams, RunResponse};
 pub use nika_builtin::SleepTool;
 pub use nika_builtin::{
     AggregateTool, ChunkTool, CostTool, DagInfoTool, EnrichTool, FilterTool, GroupByTool,
@@ -61,7 +63,8 @@ pub use r#trait::BuiltinTool;
 pub use records::RecordsTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;
-pub use run::{RunParams, RunResponse, RunTool};
+// Engine-level RunTool kept for rig_agent_loop (agent tool calls); router uses KernelRunTool.
+pub use run::RunTool;
 
 #[cfg(test)]
 mod tests {

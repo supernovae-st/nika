@@ -30,7 +30,11 @@ pub mod file;
 
 pub use file::{EditTool, FileToolContext, GlobTool, GrepTool, ReadTool, WriteTool};
 
-// ─── Core tools (6 of 7 — run stays in nika-engine until commit 12.7) ───
+// ─── Run tool (7th core tool — moved in commit 12.7) ───
+pub mod run_tool;
+pub use self::run_tool::{RunParams, RunResponse, RunTool as KernelRunTool};
+
+// ─── Core tools (7 of 7 now in nika-builtin) ───
 mod assert;
 pub mod complete;
 mod emit;
