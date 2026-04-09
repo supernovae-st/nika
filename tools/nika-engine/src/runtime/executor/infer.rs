@@ -86,7 +86,7 @@ impl TaskExecutor {
         // Read the calling task's `trust: elevated` flag from the
         // task_local set by execute_task_iteration (Item 0.F). Avoids
         // threading a new param through the run_infer signature.
-        let task_trust_elevated = crate::runtime::builtin::run::current_task_elevated();
+        let task_trust_elevated = nika_kernel::task_local::current_task_elevated();
 
         // ── Nika Shield: per-binding spotlight wrapping (Item 1) ───────────
         // Hybrid trust resolution (R1 corrected):

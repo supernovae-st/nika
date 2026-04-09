@@ -134,11 +134,11 @@ pub(crate) async fn execute_task_iteration(
     // with_base_path() and with_working_dir_mode("project") so that relative
     // paths like ./data.txt resolve to the correct directory.
     let working_dir_for_scope = executor.file_tool_working_dir();
-    crate::runtime::builtin::run::CURRENT_TASK_ID
+    nika_kernel::task_local::CURRENT_TASK_ID
         .scope(Some(shield_task_id_arc), async move {
-            crate::runtime::builtin::run::CURRENT_TASK_TRUST
+            nika_kernel::task_local::CURRENT_TASK_TRUST
                 .scope(shield_task_trust, async move {
-                    crate::runtime::builtin::run::CURRENT_TASK_ELEVATED
+                    nika_kernel::task_local::CURRENT_TASK_ELEVATED
                         .scope(shield_task_elevated, async move {
                             // Scope the current working dir for nika-builtin file tools.
                             // FileToolContext.validate_path() reads this to resolve paths.

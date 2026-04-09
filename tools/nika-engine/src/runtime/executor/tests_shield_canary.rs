@@ -37,7 +37,7 @@ where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = T>,
 {
-    use crate::runtime::builtin::run::{
+    use nika_kernel::task_local::{
         CURRENT_TASK_ELEVATED, CURRENT_TASK_ID, CURRENT_TASK_TRUST,
     };
     let id: Arc<str> = Arc::from("test_task");

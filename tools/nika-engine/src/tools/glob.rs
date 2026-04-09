@@ -104,8 +104,8 @@ impl GlobTool {
         // Nika Shield Item 3b: tainted agents have sensitive files filtered
         // out of glob results. Trust + elevation are read from the task_local
         // set by execute_task_iteration.
-        let caller_trust = crate::runtime::builtin::run::current_task_trust();
-        let caller_elevated = crate::runtime::builtin::run::current_task_elevated();
+        let caller_trust = nika_kernel::task_local::current_task_trust();
+        let caller_elevated = nika_kernel::task_local::current_task_elevated();
 
         for entry in walker.filter_map(Result::ok) {
             let path = entry.path();

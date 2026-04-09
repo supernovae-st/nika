@@ -29,7 +29,6 @@ mod file_adapter;
 pub(crate) mod media;
 mod rig_adapter;
 mod router;
-pub(crate) mod run;
 pub(crate) mod r#trait;
 
 // ── Re-exports from nika-builtin (7 core + 13 data + 6 sprint2 + 6 introspection) ──
@@ -57,8 +56,6 @@ pub use file_adapter::{create_file_tool_adapters, FileToolAdapter};
 pub use r#trait::BuiltinTool;
 pub use rig_adapter::NikaBuiltinToolAdapter;
 pub use router::BuiltinToolRouter;
-// Engine-level RunTool kept for rig_agent_loop (agent tool calls); router uses KernelRunTool.
-pub use run::RunTool;
 
 #[cfg(test)]
 mod tests {

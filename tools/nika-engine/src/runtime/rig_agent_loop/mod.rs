@@ -350,7 +350,7 @@ impl RigAgentLoop {
         // Add builtin nika:* tools
         use super::builtin::{
             AssertTool, CompleteTool, CostTool, DagInfoTool, EmitTool, LogTool,
-            NikaBuiltinToolAdapter, PromptTool, RunTool, SleepTool, ThreadsTool,
+            NikaBuiltinToolAdapter, PromptTool, SleepTool, ThreadsTool,
         };
 
         // Create Arc wrappers for sharing with builtin tools
@@ -417,7 +417,12 @@ impl RigAgentLoop {
             ))));
         }
         if should_add_core("run") {
-            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
+            use crate::runtime::run_executor::EngineRunExecutor;
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
+                KernelToolAdapter(nika_builtin::KernelRunTool::new(Arc::new(
+                    EngineRunExecutor::new(),
+                ))),
+            ))));
         }
         if should_add_core("complete") {
             tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(

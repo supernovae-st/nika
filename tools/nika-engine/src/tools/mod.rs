@@ -131,7 +131,7 @@ pub fn check_path_readable(
         || is_dotenv_family(file_name);
 
     if blocked {
-        let task_id = crate::runtime::builtin::run::current_task_id()
+        let task_id = nika_kernel::task_local::current_task_id()
             .map(|id| id.to_string())
             .unwrap_or_else(|| "<unknown>".to_string());
         return Err(NikaError::CapabilityDenied {

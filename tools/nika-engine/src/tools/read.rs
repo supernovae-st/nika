@@ -105,8 +105,8 @@ impl ReadTool {
         // read from the task_local set by execute_task_iteration.
         super::check_path_readable(
             &path,
-            crate::runtime::builtin::run::current_task_trust(),
-            crate::runtime::builtin::run::current_task_elevated(),
+            nika_kernel::task_local::current_task_trust(),
+            nika_kernel::task_local::current_task_elevated(),
         )?;
 
         // Check permission (reads are usually allowed, but respect Deny mode)

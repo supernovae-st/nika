@@ -98,7 +98,7 @@ impl TaskExecutor {
         // Replaces the (has_untrusted, elevated) boolean pair with a state-
         // collapsed enum (R4) so the impossible "elevated AND restricted"
         // combination is unrepresentable.
-        let task_trust_elevated = crate::runtime::builtin::run::current_task_elevated();
+        let task_trust_elevated = nika_kernel::task_local::current_task_elevated();
         let has_untrusted = self.agent_has_untrusted_inputs(bindings, datastore);
         let dangerous: Arc<[String]> = Arc::from(self.shield.dangerous_tools());
         let tool_policy = nika_core::capabilities::AgentToolPolicy::for_task(
