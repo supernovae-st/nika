@@ -60,7 +60,17 @@ impl BuiltinTool for InjectTool {
                     reason: format!("Invalid params: {e}"),
                 })?;
 
-            // Security: validate paths against directory traversal
+            // Validate marker strings before any I/O.
+            if params.start_marker.is_empty() || params.end_marker.is_empty() {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:inject".into(),
+                    reason: "start_marker and end_marker must not be empty strings".into(),
+                });
+            }
+
+            // Security: validate paths against directory traversal.
+            // NOTE: create_dir_all is intentionally deferred to after validation so
+            // that attacker-supplied paths outside cwd do NOT create directories on disk.
             let cwd = std::env::current_dir().map_err(|e| BuiltinError::Io {
                 tool: "nika:inject".into(),
                 reason: format!("Cannot determine working directory: {e}"),
@@ -70,22 +80,19 @@ impl BuiltinTool for InjectTool {
                 let canonical = resolved
                     .canonicalize()
                     .or_else(|_| {
-                        // Output file may not exist yet — canonicalize parent
-                        if let Some(parent) = resolved.parent() {
-                            std::fs::create_dir_all(parent).ok();
-                            let fname = resolved.file_name().ok_or_else(|| {
-                                std::io::Error::new(
-                                    std::io::ErrorKind::InvalidInput,
-                                    "path has no filename component",
-                                )
-                            })?;
-                            parent.canonicalize().map(|p| p.join(fname))
-                        } else {
-                            Err(std::io::Error::new(
-                                std::io::ErrorKind::NotFound,
-                                "no parent",
-                            ))
-                        }
+                        // Output file may not exist yet — canonicalize parent only.
+                        // Do NOT create_dir_all here: that side effect must happen only
+                        // after the containment check passes (see below).
+                        let parent = resolved.parent().ok_or_else(|| {
+                            std::io::Error::new(std::io::ErrorKind::NotFound, "no parent")
+                        })?;
+                        let fname = resolved.file_name().ok_or_else(|| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::InvalidInput,
+                                "path has no filename component",
+                            )
+                        })?;
+                        parent.canonicalize().map(|p| p.join(fname))
                     })
                     .map_err(|e| BuiltinError::Io {
                         tool: "nika:inject".into(),
@@ -138,6 +145,15 @@ impl BuiltinTool for InjectTool {
                         params.end_marker, params.start_marker
                     ),
                 });
+            }
+
+            // Create parent directory now — after the containment check has
+            // already passed — so we never create dirs for rejected paths.
+            if let Some(parent) = output_path.parent() {
+                tokio::fs::create_dir_all(parent).await.map_err(|e| BuiltinError::Io {
+                    tool: "nika:inject".into(),
+                    reason: format!("Cannot create parent directory for '{}': {e}", params.output),
+                })?;
             }
 
             tokio::fs::write(&output_path, &output).await.map_err(|e| {
