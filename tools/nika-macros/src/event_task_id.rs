@@ -74,6 +74,26 @@ pub fn derive(input: &DeriveInput) -> TokenStream {
             }
         };
 
+        // Validate that the field actually exists in the variant
+        let fields = match &variant.fields {
+            Fields::Named(f) => f,
+            Fields::Unnamed(_) | Fields::Unit => unreachable!("guarded above"),
+        };
+        let field_exists = fields
+            .named
+            .iter()
+            .any(|f| f.ident.as_ref().is_some_and(|i| *i == field_name));
+        if !field_exists {
+            return syn::Error::new_spanned(
+                variant_ident,
+                format!(
+                    "variant `{}` has #[has_task_id] but no field named `{}`",
+                    variant_ident, field_name
+                ),
+            )
+            .to_compile_error();
+        }
+
         let field_ident = format_ident!("{}", field_name);
 
         if is_optional {
@@ -103,7 +123,7 @@ pub fn derive(input: &DeriveInput) -> TokenStream {
     }
 }
 
-/// Parse arguments inside `#[has_task_id(...)]`.
+/// Parse arguments inside `#[has_task_id(...)]` using proper syn parsing.
 ///
 /// Supported forms:
 /// - `#[has_task_id(optional)]` → `("task_id", true)`
@@ -113,37 +133,82 @@ pub fn derive(input: &DeriveInput) -> TokenStream {
 fn parse_has_task_id_args(
     list: &syn::MetaList,
 ) -> Result<(String, bool), TokenStream> {
-    let tokens_str = list.tokens.to_string();
-    let trimmed = tokens_str.trim();
-
-    // #[has_task_id(optional)]
-    if trimmed == "optional" {
-        return Ok(("task_id".to_string(), true));
+    // Try parsing as a single identifier first: #[has_task_id(optional)]
+    if let Ok(ident) = syn::parse2::<syn::Ident>(list.tokens.clone()) {
+        if ident == "optional" {
+            return Ok(("task_id".to_string(), true));
+        }
+        return Err(syn::Error::new_spanned(
+            &ident,
+            format!("unknown argument `{ident}`, expected `optional` or `field = \"name\"`"),
+        )
+        .to_compile_error());
     }
 
-    // #[has_task_id(field = "name")]
-    if let Some(rest) = trimmed.strip_prefix("field") {
-        let rest = rest.trim();
-        if let Some(rest) = rest.strip_prefix('=') {
-            let rest = rest.trim();
-            // Find the quoted field name — handle both `"name"` and `"name" , optional`
-            if let Some(after_quote) = rest.strip_prefix('"') {
-                if let Some(end_idx) = after_quote.find('"') {
-                    let field_name = &after_quote[..end_idx];
-                    // Check if there's a trailing ", optional" after the closing quote
-                    let remainder = after_quote[end_idx + 1..].trim();
-                    let is_optional = remainder.strip_prefix(',')
-                        .map(str::trim)
-                        .is_some_and(|r| r == "optional");
-                    return Ok((field_name.to_string(), is_optional));
+    // Parse as punctuated MetaNameValue: #[has_task_id(field = "name")]
+    let pairs: syn::punctuated::Punctuated<syn::Meta, syn::Token![,]> =
+        match syn::parse::Parser::parse2(
+            syn::punctuated::Punctuated::parse_terminated,
+            list.tokens.clone(),
+        ) {
+            Ok(p) => p,
+            Err(e) => return Err(e.to_compile_error()),
+        };
+
+    let mut field_name = None;
+    let mut is_optional = false;
+
+    for meta in &pairs {
+        match meta {
+            // `optional` (bare identifier)
+            syn::Meta::Path(path) if path.is_ident("optional") => {
+                is_optional = true;
+            }
+            // `field = "name"`
+            syn::Meta::NameValue(nv) if nv.path.is_ident("field") => {
+                #[allow(clippy::wildcard_enum_match_arm)]
+                match &nv.value {
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(s),
+                        ..
+                    }) => {
+                        field_name = Some(s.value());
+                    }
+                    _ => {
+                        return Err(syn::Error::new_spanned(
+                            &nv.value,
+                            "expected string literal for field name",
+                        )
+                        .to_compile_error());
+                    }
                 }
+            }
+            syn::Meta::Path(p) => {
+                return Err(syn::Error::new_spanned(
+                    p,
+                    "expected `optional` or `field = \"name\"`",
+                )
+                .to_compile_error());
+            }
+            syn::Meta::List(l) => {
+                return Err(syn::Error::new_spanned(
+                    l,
+                    "expected `optional` or `field = \"name\"`",
+                )
+                .to_compile_error());
+            }
+            syn::Meta::NameValue(nv) => {
+                return Err(syn::Error::new_spanned(
+                    &nv.path,
+                    "expected `optional` or `field = \"name\"`",
+                )
+                .to_compile_error());
             }
         }
     }
 
-    Err(syn::Error::new_spanned(
-        list,
-        "expected #[has_task_id(optional)] or #[has_task_id(field = \"name\")]",
-    )
-    .to_compile_error())
+    Ok((
+        field_name.unwrap_or_else(|| "task_id".to_string()),
+        is_optional,
+    ))
 }

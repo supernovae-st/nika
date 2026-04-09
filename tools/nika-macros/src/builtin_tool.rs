@@ -42,6 +42,18 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             .to_compile_error();
     }
 
+    // Validate: exactly one parameter
+    if func.sig.inputs.len() != 1 {
+        return syn::Error::new_spanned(
+            &func.sig,
+            format!(
+                "#[builtin_tool] function must have exactly one parameter, found {}",
+                func.sig.inputs.len()
+            ),
+        )
+        .to_compile_error();
+    }
+
     // Extract params type from first argument
     let params_type = match extract_params_type(&func) {
         Ok(ty) => ty,

@@ -57,10 +57,13 @@ pub fn derive(input: &DeriveInput) -> TokenStream {
             }
         };
 
-        // Check if it's delegate or a string literal
-        let tokens_str = meta.tokens.to_string();
+        // Check if it's `delegate` (identifier) or a string literal
+        // Use syn::parse2 instead of TokenStream::to_string() for robustness
+        let is_delegate = syn::parse2::<syn::Ident>(meta.tokens.clone())
+            .map(|ident| ident == "delegate")
+            .unwrap_or(false);
 
-        if tokens_str.trim() == "delegate" {
+        if is_delegate {
             // Delegation pattern: call .code() on the inner value
             match &variant.fields {
                 Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {

@@ -5,7 +5,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 58 variants across 15 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup/vision/boot)
+//! - EventKind: 100 variants across 20 categories (workflow/task/fine-grained/MCP/context/agent/nested-agent/record/guardrails/builtin/artifact/media/structured-output/vision/http/exec/fetch/routing/policy/boot/security)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
