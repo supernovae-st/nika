@@ -163,16 +163,72 @@ pub trait HitlPrompt: Send + Sync {
     ) -> Result<String, crate::builtin::BuiltinError>;
 }
 
-/// Media CAS + compute context for media tools.
+/// Minimal result from a successful blob store operation.
 ///
-/// Provides access to the content-addressable store and compute pool.
-/// nika-engine provides a concrete impl wrapping `MediaToolContext`.
-pub trait MediaContext: Send + Sync {
-    /// Get a reference to the blob store.
-    fn blob_store(&self) -> &dyn crate::store::BlobStore;
+/// Projects the 3 fields that external consumers (nika-builtin, tests,
+/// future verb crates) actually need. The full `StoreResult` (with
+/// `path`, `verified`, `pipeline_ms`) is only available by downcasting
+/// to the concrete `EngineMediaContext` via `inner()`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlobStoreResult {
+    /// Algorithm-prefixed hash (e.g. "blake3:af1349…").
+    pub hash: String,
+    /// Stored size in bytes.
+    pub size: u64,
+    /// True when the same bytes were already in the store.
+    pub deduplicated: bool,
+}
 
-    /// Get the working directory for media operations.
-    fn working_dir(&self) -> &std::path::Path;
+/// Media CAS + cancellation context for media tools.
+///
+/// Object-safe: every method is either `async` (via `async_trait`) or
+/// returns a non-generic type. `compute_blocking<F,T>` is intentionally
+/// NOT on this trait — generic methods break vtable dispatch. Media tools
+/// access `MediaToolContext.compute` directly inside nika-media.
+///
+/// nika-engine provides `EngineMediaContext` as the production impl.
+/// nika-kernel-mock provides `MockMediaContext` for unit tests.
+#[async_trait::async_trait]
+pub trait MediaContext: Send + Sync {
+    // ── CAS read ────────────────────────────────────────────────────
+    /// Read a blob by its blake3 hash. Returns raw bytes.
+    ///
+    /// Returns `BuiltinError::Io` if the hash is unknown or I/O fails.
+    async fn read_blob(&self, hash: &str) -> Result<Vec<u8>, crate::builtin::BuiltinError>;
+
+    // ── CAS write with budget enforcement ───────────────────────────
+    /// Store bytes in CAS with budget enforcement.
+    ///
+    /// `task_id` is used for budget attribution. On CAS failure the
+    /// budget is automatically rolled back. Returns `BuiltinError::Io`
+    /// on failure.
+    async fn store_blob(
+        &self,
+        data: &[u8],
+        task_id: &str,
+    ) -> Result<BlobStoreResult, crate::builtin::BuiltinError>;
+
+    // ── Path confinement ────────────────────────────────────────────
+    /// Working directory boundary for import path validation.
+    ///
+    /// Returns `None` in REPL mode or when no project root is set.
+    fn working_dir(&self) -> Option<&std::path::Path>;
+
+    // ── Cancellation (hot path — non-allocating) ─────────────────────
+    /// Returns `true` if the workflow has been cancelled.
+    ///
+    /// Called before and after every expensive operation. Note: rayon
+    /// closures already dispatched will run to completion — cancellation
+    /// checks happen BEFORE `compute.compute()` dispatch.
+    fn is_cancelled(&self) -> bool;
+}
+
+#[cfg(test)]
+mod _object_safety_asserts {
+    use super::*;
+    /// Compile-time guard: if someone adds a generic method to
+    /// MediaContext this function declaration fails to compile.
+    fn _assert_object_safe(_: &dyn MediaContext) {}
 }
 
 // ─────────────────────────────────────────────────────────────────────
