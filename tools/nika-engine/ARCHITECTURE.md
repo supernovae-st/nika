@@ -12,7 +12,7 @@ nika-engine
 ├── nika-kernel      Effect traits (Provider, Fs, Clock, Shell, Http, BlobStore)
 ├── nika-core        AST types, catalogs, policy, trust
 ├── nika-event       EventLog, TraceWriter
-├── nika-builtin     27 builtin tools (core, data, introspection) — Phase 12
+├── nika-builtin     37 builtin tools (core, file, data, introspection) — Phase 12
 ├── nika-media       CAS store, image/document processing
 ├── nika-mcp         MCP client (rmcp)
 ├── nika-vault       Encrypted secrets (XChaCha20 + Argon2i)
@@ -125,20 +125,20 @@ pipeline and provider auto-retry logic.
 
 63 tools accessible via `invoke: nika:*`. Phase 12 (Constellation) split them:
 
-**nika-builtin crate (27 tools, 6440 LOC, 178 tests):**
-- Core (5): sleep, log, emit, assert, complete
+**nika-builtin crate (37 tools, ~10k LOC, 264 tests):**
+- Core (7): sleep, log, emit, assert, complete, prompt, run
+- File (5): read, write, edit, glob, grep
 - Data (13): jq, map, filter, group_by, chunk, token_count, enrich, zip, set_diff, json_merge, json_diff, tree_data, inject
 - Data Sprint 2 (6): json_verify, yaml_validate, locale_lookup, aggregate, json_flatten, json_unflatten
-- Introspection (3): cost, dag_info, threads
+- Introspection (6): cost, dag_info, threads, task_status, records, orchestrate
 - Bridged to engine via `KernelToolAdapter<T>` (kernel BuiltinError -> NikaError)
 
-**Still in nika-engine runtime/builtin/ (36 tools):**
+**Still in nika-engine runtime/builtin/ (26 tools):**
 - `router.rs` — Dispatch by tool name (sealed trait, `BuiltinToolRouter`)
 - `trait.rs` — Engine `BuiltinTool` trait definition (adapts kernel trait)
-- `data/` — Remaining data tools (decode — CAS-dependent)
-- `media/` — 24 media tools (import, thumbnail, chart, provenance, etc.)
-- Individual files for engine-coupled tools (run, prompt, task_status, records, orchestrate)
-- File tools in `tools/` (read, write, edit, glob, grep)
+- `media/` — 24 media tools via MediaToolAdapter (import, thumbnail, chart, etc.)
+- `fetch_tool.rs` — nika:fetch (SSRF + extract, coupled to PolicyEnforcer)
+- `file_adapter.rs`, `rig_adapter.rs` — adapter wrappers
 
 #### Security Layer (`runtime/shield.rs`, `canary.rs`, `spotlight.rs`)
 

@@ -274,16 +274,11 @@ pub trait RecordQuery: Send + Sync {
     }
 }
 
-#[cfg(test)]
-mod _object_safety_asserts {
-    use super::*;
-    /// Compile-time guard: if someone adds a generic method to
-    /// MediaContext this function declaration fails to compile.
-    fn _assert_object_safe(_: &dyn MediaContext) {}
-
-    /// Compile-time guard for RecordQuery object safety.
-    fn _assert_record_query_object_safe(_: &dyn RecordQuery) {}
-}
+// ── Object-safety compile guards (always compiled, not just tests) ──
+// If someone adds a generic method to these traits, these declarations
+// fail to compile — surfacing the error on `cargo check`, not just `cargo test`.
+const _: fn(&dyn MediaContext) = |_| {};
+const _: fn(&dyn RecordQuery) = |_| {};
 
 // ─────────────────────────────────────────────────────────────────────
 // Shared output type
