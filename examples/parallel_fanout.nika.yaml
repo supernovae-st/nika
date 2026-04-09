@@ -11,30 +11,30 @@ tasks:
   - id: analyst_a
     depends_on: [start]
     with:
-      topic: start
+      topic: $start
     infer:
       prompt: "Analyze '{{with.topic}}' from economic perspective"
 
   - id: analyst_b
     depends_on: [start]
     with:
-      topic: start
+      topic: $start
     infer:
       prompt: "Analyze '{{with.topic}}' from social perspective"
 
   - id: analyst_c
     depends_on: [start]
     with:
-      topic: start
+      topic: $start
     infer:
       prompt: "Analyze '{{with.topic}}' from environmental perspective"
 
   - id: synthesize
     depends_on: [analyst_a, analyst_b, analyst_c]
     with:
-      economic: analyst_a
-      social: analyst_b
-      environmental: analyst_c
+      economic: $analyst_a
+      social: $analyst_b
+      environmental: $analyst_c
     infer:
       prompt: |
         Combine these analyses:

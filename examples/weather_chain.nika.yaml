@@ -13,8 +13,8 @@ tasks:
   - id: recommend
     depends_on: [get_weather]
     with:
-      weather: get_weather
-      temp: get_weather.temp ?? 20
+      weather: $get_weather
+      temp: "$get_weather.temp ?? 20"
     infer:
       prompt: |
         Weather: {{with.weather}}
