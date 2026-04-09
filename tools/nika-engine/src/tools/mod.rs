@@ -58,7 +58,6 @@ mod edit;
 mod glob;
 mod grep;
 mod read;
-mod rig_adapter;
 mod submit_tool;
 #[cfg(test)]
 mod tests_shield_path_check;
@@ -69,7 +68,6 @@ pub use edit::{EditParams, EditResult, EditTool};
 pub use glob::{GlobParams, GlobResult, GlobTool};
 pub use grep::{GrepOutputMode, GrepParams, GrepResult, GrepTool};
 pub use read::{ReadParams, ReadResult, ReadTool};
-pub use rig_adapter::{create_rig_file_tools, RigFileTool};
 pub use submit_tool::{DynamicSubmitTool, ToolDefinition};
 pub use write::{WriteParams, WriteResult, WriteTool};
 
