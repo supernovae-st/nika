@@ -81,7 +81,11 @@ impl BuiltinTool for YamlValidateTool {
                 })?;
 
             let total = params.data.len();
-            let mut failures = Vec::new();
+            // Consolidate failures per label so each failing entry appears once with
+            // ALL its missing fields listed. This avoids duplicate label entries that
+            // confuse callers trying to count failing entries from the array.
+            let mut failure_map: std::collections::BTreeMap<String, Vec<String>> =
+                std::collections::BTreeMap::new();
 
             for (i, entry) in params.data.iter().enumerate() {
                 let label = if entry.label.is_empty() {
@@ -92,20 +96,27 @@ impl BuiltinTool for YamlValidateTool {
 
                 for field in &params.required_fields {
                     if !has_dot_path(&entry.content, field) {
-                        failures.push(serde_json::json!({
-                            "label": label,
-                            "error": format!("missing field: {}", field),
-                        }));
+                        failure_map
+                            .entry(label.clone())
+                            .or_default()
+                            .push(format!("missing field: {}", field));
                     }
                 }
             }
 
-            let valid = total
-                - failures
-                    .iter()
-                    .map(|f| f["label"].as_str().unwrap_or(""))
-                    .collect::<std::collections::HashSet<_>>()
-                    .len();
+            let failures: Vec<serde_json::Value> = failure_map
+                .iter()
+                .map(|(label, errors)| {
+                    serde_json::json!({
+                        "label": label,
+                        "errors": errors,
+                        // Kept for backwards compat: first error as a single string.
+                        "error": errors.first().cloned().unwrap_or_default(),
+                    })
+                })
+                .collect();
+
+            let valid = total - failures.len();
 
             let result = serde_json::json!({
                 "total": total,
@@ -190,6 +201,29 @@ mod tests {
             serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
         assert_eq!(result["total"], 0);
         assert_eq!(result["valid"], 0);
+    }
+
+    #[tokio::test]
+    async fn yaml_validate_multi_field_failure_consolidated() {
+        // Entry "en" is missing 2 fields — must produce 1 failure entry (not 2).
+        // Callers computing `total - failures.len()` must get correct results.
+        let tool = YamlValidateTool;
+        let args = json!({
+            "data": [
+                {"label": "en", "content": {}},
+                {"label": "fr", "content": {"locale": {"key": "fr", "language": "French"}}}
+            ],
+            "required_fields": ["locale.key", "locale.language"]
+        });
+        let result: Value =
+            serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
+        assert_eq!(result["total"], 2);
+        assert_eq!(result["valid"], 1);
+        let failures = result["failures"].as_array().unwrap();
+        assert_eq!(failures.len(), 1, "multi-field failure must be consolidated into 1 entry");
+        assert_eq!(failures[0]["label"], "en");
+        let errors = failures[0]["errors"].as_array().unwrap();
+        assert_eq!(errors.len(), 2, "both missing fields listed in errors array");
     }
 
     #[test]

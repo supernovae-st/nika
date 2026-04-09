@@ -88,6 +88,22 @@ impl BuiltinTool for ThreadsTool {
                     reason: format!("Invalid JSON parameters: {e}"),
                 })?;
 
+            // Validate filter value before iterating — the schema declares an enum but serde
+            // doesn't enforce it (deserialized as plain String). Wrong case ("RUNNING") would
+            // silently return an empty list, which is hard to diagnose during agent tool use.
+            const VALID_STATUSES: &[&str] = &["pending", "running", "completed", "failed"];
+            if let Some(ref filter) = params.status {
+                if !VALID_STATUSES.contains(&filter.as_str()) {
+                    return Err(BuiltinError::InvalidArgs {
+                        tool: "nika:threads".into(),
+                        reason: format!(
+                            "Invalid status filter '{filter}': must be one of \
+                             pending, running, completed, failed"
+                        ),
+                    });
+                }
+            }
+
             // Track status and verb per task
             let mut status_map: FxHashMap<String, (String, String)> = FxHashMap::default();
 
@@ -166,6 +182,16 @@ mod tests {
         let result = tool.call("{}".into()).await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();
         assert_eq!(v.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_threads_invalid_status_filter_errors() {
+        let log = EventLog::new();
+        let tool = ThreadsTool::new(log);
+        // Wrong case must error — not silently return empty results.
+        let result = tool.call(r#"{"status":"RUNNING"}"#.into()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid status filter"));
     }
 
     #[tokio::test]

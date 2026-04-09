@@ -71,6 +71,13 @@ impl BuiltinTool for JsonFlattenTool {
                     reason: format!("Invalid parameters: {e}"),
                 })?;
 
+            if params.separator.is_empty() {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:json_flatten".into(),
+                    reason: "separator must not be empty".into(),
+                });
+            }
+
             let result = flatten(&params.data, "", &params.separator);
 
             serde_json::to_string(&result).map_err(|e| BuiltinError::Other {
@@ -162,6 +169,13 @@ impl BuiltinTool for JsonUnflattenTool {
                     tool: "nika:json_unflatten".into(),
                     reason: format!("Invalid parameters: {e}"),
                 })?;
+
+            if params.separator.is_empty() {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:json_unflatten".into(),
+                    reason: "separator must not be empty".into(),
+                });
+            }
 
             let map = match &params.data {
                 Value::Object(m) => m,
@@ -336,6 +350,26 @@ mod tests {
             serde_json::from_str(&tool.call(args.to_string()).await.unwrap()).unwrap();
         // "a" was a scalar 1, but "a.b" forces it to become an object
         assert_eq!(result["a"]["b"], 2);
+    }
+
+    #[tokio::test]
+    async fn flatten_empty_separator_errors() {
+        let tool = JsonFlattenTool;
+        let result = tool
+            .call(json!({"data": {"a": {"b": 1}}, "separator": ""}).to_string())
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("separator must not be empty"));
+    }
+
+    #[tokio::test]
+    async fn unflatten_empty_separator_errors() {
+        let tool = JsonUnflattenTool;
+        let result = tool
+            .call(json!({"data": {"a.b": 1}, "separator": ""}).to_string())
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("separator must not be empty"));
     }
 
     #[tokio::test]

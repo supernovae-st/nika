@@ -112,8 +112,12 @@ impl BuiltinTool for SleepTool {
 
             tokio::time::sleep(duration).await;
 
+            // as_millis() truncates sub-millisecond durations to 0.
+            // Report at least 1 ms for any non-zero sleep so callers never see
+            // slept_for_ms: 0 when a real sleep occurred (e.g., "500us").
+            let ms = duration.as_millis() as u64;
             let response = SleepResponse {
-                slept_for_ms: duration.as_millis() as u64,
+                slept_for_ms: if ms == 0 && duration.as_nanos() > 0 { 1 } else { ms },
             };
 
             serde_json::to_string(&response).map_err(|e| BuiltinError::Other {
