@@ -22,10 +22,19 @@ const ADVANCED: &str = include_str!("../rules/shared/advanced.md");
 // ─── Assemblers ────────────────────────────────────────────────────────────────
 
 /// Assemble Claude Code rules (~/.claude/rules/nika.md).
+///
 /// Full reference: identity + verbs + data_flow + structured + mistakes + providers + advanced.
+///
+/// The `paths:` YAML frontmatter tells Claude Code to load this rule file lazily,
+/// only when the user is working on Nika-related files. Without it, the ~580-line
+/// reference would load into every Claude Code session globally — wasting ~5,600
+/// tokens of context even when working on unrelated projects.
+///
+/// Claude Code rules documentation:
+/// https://docs.anthropic.com/en/docs/claude-code/memory#rules-files
 pub fn assemble_claude_rules() -> String {
     format!(
-        "# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{STRUCTURED_OUTPUT}\n\n{COMMON_MISTAKES}\n\n{PROVIDERS}\n\n{ADVANCED}\n"
+        "---\npaths:\n  - \"**/*.nika.yaml\"\n  - \"**/nika.toml\"\n  - \"**/.nika/**\"\n  - \"**/tools/nika-*/**\"\n  - \"**/supernovae/nika/**\"\n---\n\n# Nika Workflow Engine\n\n{IDENTITY}\n\n{VERBS}\n\n{DATA_FLOW}\n\n{STRUCTURED_OUTPUT}\n\n{COMMON_MISTAKES}\n\n{PROVIDERS}\n\n{ADVANCED}\n"
     )
 }
 
@@ -135,6 +144,38 @@ mod tests {
         let claude = assemble_claude_rules();
         let lines = claude.lines().count();
         assert!(lines < 600, "Claude rules too long: {lines} lines");
+    }
+
+    #[test]
+    fn assembled_claude_has_paths_frontmatter() {
+        let claude = assemble_claude_rules();
+        // Must start with YAML frontmatter containing paths: for lazy loading
+        assert!(
+            claude.starts_with("---\n"),
+            "Claude rules must start with YAML frontmatter"
+        );
+        assert!(
+            claude.contains("paths:"),
+            "Claude rules must have paths: frontmatter for lazy loading"
+        );
+        // Verify the key globs are present
+        assert!(
+            claude.contains("**/*.nika.yaml"),
+            "Claude rules must match .nika.yaml workflows"
+        );
+        assert!(
+            claude.contains("**/nika.toml"),
+            "Claude rules must match nika.toml project files"
+        );
+        // Identity must come AFTER the frontmatter
+        let frontmatter_end = claude.find("---\n\n").or_else(|| claude.find("---\n"));
+        assert!(frontmatter_end.is_some(), "Frontmatter must be closed with ---");
+        let body_start = frontmatter_end.unwrap() + "---\n".len();
+        let body = &claude[body_start..];
+        assert!(
+            body.contains("# Nika Workflow Engine"),
+            "Body content must follow the frontmatter"
+        );
     }
 
     #[test]
