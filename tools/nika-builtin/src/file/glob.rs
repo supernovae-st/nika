@@ -6,7 +6,7 @@
 use super::context::FileToolContext;
 use super::shield::is_sensitive_file_name;
 use crate::{BuiltinError, BuiltinTool, __sealed};
-use nika_kernel::task_local::{current_task_elevated, current_task_trust};
+use nika_kernel::task_local::current_is_tainted;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::PathBuf;
@@ -111,7 +111,7 @@ impl BuiltinTool for GlobTool {
             // Shield Item 3b extension (S11.A2): capture trust state BEFORE
             // spawn_blocking. Skip sensitive files in the untrusted case so
             // they never appear in glob results.
-            let untrusted = current_task_trust().is_untrusted() && !current_task_elevated();
+            let untrusted = current_is_tainted();
 
             let files: Vec<String> = {
                 let pattern = full_pattern.clone();

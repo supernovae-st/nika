@@ -5,7 +5,7 @@
 
 use super::context::FileToolContext;
 use crate::{BuiltinError, BuiltinTool, __sealed};
-use nika_kernel::task_local::{current_task_elevated, current_task_trust};
+use nika_kernel::task_local::current_is_tainted;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
@@ -93,15 +93,15 @@ impl BuiltinTool for WriteTool {
             // Shield Item 3a restoration: untrusted tasks cannot write files.
             // Preserves the pre-S10 PermissionMode::Plan behavior via the Shield
             // trust system. See S11.A1 / project_s10_security_findings.md.
-            if current_task_trust().is_untrusted() && !current_task_elevated() {
-                return Err(BuiltinError::Denied {
-                    tool: "nika:write".into(),
-                    reason: format!(
+            if current_is_tainted() {
+                return Err(BuiltinError::denied(
+                    "nika:write",
+                    format!(
                         "tainted agent cannot write files. Elevate the task with \
                          `trust: elevated` if this is intentional. Requested path: {}",
                         params.file_path
                     ),
-                });
+                ));
             }
 
             let path = self.ctx.validate_path(&params.file_path)?;

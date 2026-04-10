@@ -97,6 +97,21 @@ pub fn current_task_elevated() -> bool {
     CURRENT_TASK_ELEVATED.try_with(|e| *e).unwrap_or(false)
 }
 
+/// Is the calling task **tainted** — i.e. running under an untrusted trust
+/// level AND not explicitly elevated?
+///
+/// S12.P1 — consolidates the `current_task_trust().is_untrusted() &&
+/// !current_task_elevated()` pattern that was duplicated across the 4
+/// Shield-guarded file tools (write, edit, grep, glob). Single source of
+/// truth for "should this operation be denied by Shield Item 3b?"
+///
+/// Returns `false` outside a runner context (default Trusted + not elevated),
+/// so standalone `nika invoke` calls are never spuriously blocked.
+#[inline]
+pub fn current_is_tainted() -> bool {
+    current_task_trust().is_untrusted() && !current_task_elevated()
+}
+
 /// Snapshot of the parent workflow chain. Returns an empty vec outside a
 /// nested-run context.
 #[inline]
@@ -184,5 +199,52 @@ mod tests {
             .scope(chain.clone(), async { current_parent_chain() })
             .await;
         assert_eq!(result, chain);
+    }
+
+    // ── S12.P1 — current_is_tainted() helper ──
+
+    #[tokio::test]
+    async fn test_current_is_tainted_default_is_false() {
+        // Outside a runner context: default is Trusted + not elevated.
+        assert!(!current_is_tainted());
+    }
+
+    #[tokio::test]
+    async fn test_current_is_tainted_untrusted_and_not_elevated() {
+        let tainted = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(false, async { current_is_tainted() })
+                    .await
+            })
+            .await;
+        assert!(tainted, "untrusted + not elevated should be tainted");
+    }
+
+    #[tokio::test]
+    async fn test_current_is_tainted_untrusted_but_elevated_is_not_tainted() {
+        let tainted = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(true, async { current_is_tainted() })
+                    .await
+            })
+            .await;
+        assert!(
+            !tainted,
+            "elevated override should suppress the tainted flag"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_current_is_tainted_trusted_is_never_tainted() {
+        let tainted = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Trusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(false, async { current_is_tainted() })
+                    .await
+            })
+            .await;
+        assert!(!tainted, "trusted is never tainted");
     }
 }

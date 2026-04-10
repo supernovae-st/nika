@@ -6,7 +6,7 @@
 use super::context::FileToolContext;
 use super::shield::is_sensitive_file_name;
 use crate::{BuiltinError, BuiltinTool, __sealed};
-use nika_kernel::task_local::{current_task_elevated, current_task_trust};
+use nika_kernel::task_local::current_is_tainted;
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -111,7 +111,7 @@ impl BuiltinTool for GrepTool {
             // spawn_blocking. task_local does not propagate across thread
             // boundaries, so we snapshot it here and move the bool into the
             // closure to filter sensitive files inside the walker.
-            let untrusted = current_task_trust().is_untrusted() && !current_task_elevated();
+            let untrusted = current_is_tainted();
 
             let (grep_matches, files_searched) =
                 tokio::task::spawn_blocking(move || -> Result<(Vec<GrepMatch>, usize), BuiltinError> {

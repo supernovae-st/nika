@@ -152,6 +152,18 @@ impl BuiltinError {
             reason: reason.to_string(),
         }
     }
+
+    /// Create a `Denied` error (NIKA-380 — Shield capability denial).
+    ///
+    /// S12.P1 — replaces the repeated `BuiltinError::Denied { tool: ...,
+    /// reason: ... }` struct construction across the 4 Shield-guarded file
+    /// tools. The `Display` impl prefixes `[NIKA-380]` automatically.
+    pub fn denied(tool: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::Denied {
+            tool: tool.into(),
+            reason: reason.into(),
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -249,6 +261,22 @@ mod tests {
             }
             other => panic!("expected Other, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_denied_constructor() {
+        // S12.P1 — `denied()` builds BuiltinError::Denied with [NIKA-380]
+        // surfaced via the Display impl.
+        let err = BuiltinError::denied("nika:write", "tainted agent cannot write");
+        match &err {
+            BuiltinError::Denied { tool, reason } => {
+                assert_eq!(tool, "nika:write");
+                assert_eq!(reason, "tainted agent cannot write");
+            }
+            other => panic!("expected Denied, got {:?}", other),
+        }
+        assert!(err.to_string().contains("NIKA-380"));
+        assert!(err.to_string().contains("nika:write"));
     }
 
     // ── BuiltinTool trait: object safety + Send + Sync ──
