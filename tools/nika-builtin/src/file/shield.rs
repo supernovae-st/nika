@@ -20,8 +20,20 @@ pub const SENSITIVE_FILE_NAMES: &[&str] = &[".mcp.json", "nika.toml"];
 pub const SENSITIVE_FILE_SUFFIXES: &[&str] = &[".nika.yaml", ".nika.yml"];
 
 #[inline]
-fn is_dotenv_family(name: &str) -> bool {
+pub(crate) fn is_dotenv_family(name: &str) -> bool {
     name == ".env" || name.starts_with(".env.")
+}
+
+/// Is the file name on the Shield Item 3b sensitive list?
+///
+/// Used by grep/glob to filter results for untrusted callers. Shares the
+/// same name list as `check_path_readable` so the policy is consistent
+/// across file tools.
+#[inline]
+pub(crate) fn is_sensitive_file_name(name: &str) -> bool {
+    SENSITIVE_FILE_NAMES.contains(&name)
+        || SENSITIVE_FILE_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
+        || is_dotenv_family(name)
 }
 
 /// Check whether `path` is readable by the calling task.

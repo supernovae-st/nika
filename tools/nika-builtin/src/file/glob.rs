@@ -4,7 +4,9 @@
 //! nika:glob — Find files matching a glob pattern.
 
 use super::context::FileToolContext;
+use super::shield::is_sensitive_file_name;
 use crate::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::task_local::{current_task_elevated, current_task_trust};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::PathBuf;
@@ -90,6 +92,11 @@ impl BuiltinTool for GlobTool {
                 params.pattern
             );
 
+            // Shield Item 3b extension (S11.A2): capture trust state BEFORE
+            // spawn_blocking. Skip sensitive files in the untrusted case so
+            // they never appear in glob results.
+            let untrusted = current_task_trust().is_untrusted() && !current_task_elevated();
+
             let files: Vec<String> = {
                 let pattern = full_pattern.clone();
                 tokio::task::spawn_blocking(move || -> Result<Vec<String>, BuiltinError> {
@@ -100,6 +107,16 @@ impl BuiltinTool for GlobTool {
                         })?
                         .filter_map(|r| r.ok())
                         .filter(|p| p.is_file())
+                        .filter(|p| {
+                            if !untrusted {
+                                return true;
+                            }
+                            let name = p
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("");
+                            !is_sensitive_file_name(name)
+                        })
                         .collect();
                     Ok(paths
                         .into_iter()
@@ -192,6 +209,53 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-204"));
+    }
+
+    // ── S11.A2 Shield 3b extension: skip sensitive files for untrusted ──
+
+    #[tokio::test]
+    async fn test_glob_skips_sensitive_files_for_untrusted() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
+
+        let (d, ctx) = setup();
+        std::fs::write(d.path().join(".env"), "SECRET=1").unwrap();
+        std::fs::write(d.path().join(".env.local"), "SECRET=2").unwrap();
+        std::fs::write(d.path().join("nika.toml"), "[project]").unwrap();
+        std::fs::write(d.path().join("workflow.nika.yaml"), "schema: x").unwrap();
+        std::fs::write(d.path().join("data.json"), "{}").unwrap();
+
+        let tool = GlobTool::new(ctx);
+        let args = serde_json::json!({
+            "pattern": "*",
+            "path": d.path().to_string_lossy()
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(false, async { tool.call(args).await })
+                    .await
+            })
+            .await;
+
+        assert!(result.is_ok(), "{:?}", result);
+        let v: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        let files = v["files"].as_array().unwrap();
+        let names: Vec<&str> = files
+            .iter()
+            .filter_map(|f| f.as_str())
+            .map(|p| p.rsplit('/').next().unwrap_or(p))
+            .collect();
+        assert!(!names.contains(&".env"), "files: {names:?}");
+        assert!(!names.contains(&".env.local"), "files: {names:?}");
+        assert!(!names.contains(&"nika.toml"), "files: {names:?}");
+        assert!(
+            !names.contains(&"workflow.nika.yaml"),
+            "files: {names:?}"
+        );
+        assert!(names.contains(&"data.json"), "files: {names:?}");
     }
 
     #[tokio::test]

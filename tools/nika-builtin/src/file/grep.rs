@@ -4,7 +4,9 @@
 //! nika:grep — Search file contents with a regex pattern.
 
 use super::context::FileToolContext;
+use super::shield::is_sensitive_file_name;
 use crate::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::task_local::{current_task_elevated, current_task_trust};
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -105,6 +107,11 @@ impl BuiltinTool for GrepTool {
 
             let file_filter = params.file_filter.clone();
             let root = search_root.clone();
+            // Shield Item 3b extension (S11.A2): capture trust state BEFORE
+            // spawn_blocking. task_local does not propagate across thread
+            // boundaries, so we snapshot it here and move the bool into the
+            // closure to filter sensitive files inside the walker.
+            let untrusted = current_task_trust().is_untrusted() && !current_task_elevated();
 
             let (grep_matches, files_searched) =
                 tokio::task::spawn_blocking(move || -> Result<(Vec<GrepMatch>, usize), BuiltinError> {
@@ -124,6 +131,19 @@ impl BuiltinTool for GrepTool {
                         let path = entry.path();
                         if !path.is_file() {
                             continue;
+                        }
+
+                        // Shield Item 3b extension: skip sensitive files when
+                        // caller is untrusted. Prevents .env / nika.toml / .mcp.json
+                        // / *.nika.yaml contents from leaking through grep results.
+                        if untrusted {
+                            let name = path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("");
+                            if is_sensitive_file_name(name) {
+                                continue;
+                            }
                         }
 
                         // Apply file filter if provided
@@ -287,6 +307,41 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-204"));
+    }
+
+    // ── S11.A2 Shield 3b extension: skip sensitive files for untrusted ──
+
+    #[tokio::test]
+    async fn test_grep_skips_sensitive_files_for_untrusted() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
+
+        let (d, ctx) = setup();
+        std::fs::write(d.path().join(".env"), "SECRET_KEY=leak_me").unwrap();
+        std::fs::write(d.path().join("normal.txt"), "SECRET_KEY=this_is_fine").unwrap();
+
+        let tool = GrepTool::new(ctx);
+        let args = serde_json::json!({
+            "pattern": "SECRET_KEY",
+            "path": d.path().to_string_lossy()
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(false, async { tool.call(args).await })
+                    .await
+            })
+            .await;
+
+        assert!(result.is_ok(), "{:?}", result);
+        let body = result.unwrap();
+        assert!(!body.contains("leak_me"), ".env contents must not leak: {body}");
+        assert!(
+            body.contains("this_is_fine"),
+            "normal.txt must still be grepped: {body}"
+        );
     }
 
     #[tokio::test]
