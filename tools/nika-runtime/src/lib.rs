@@ -25,11 +25,16 @@ pub mod capabilities;
 pub mod dispatch;
 pub mod error;
 pub mod verb_exec;
+pub mod verb_fetch;
 pub mod verb_invoke;
 
 /// Re-export of the exec verb crate so callers can build `ExecInput`
 /// without depending on `nika-verb-exec` directly.
 pub use nika_verb_exec as exec;
+
+/// Re-export of the fetch verb crate so callers can build `FetchInput`
+/// without depending on `nika-verb-fetch` directly.
+pub use nika_verb_fetch as fetch;
 
 /// Re-export of the invoke verb crate so callers can build `InvokeInput`
 /// without depending on `nika-verb-invoke` directly.

@@ -51,8 +51,12 @@ pub async fn dispatch(
             Err(RuntimeError::NotImplemented { verb: "exec" })
         }
         AnalyzedTaskAction::Fetch(_) => {
-            // S13-D3: nika_verb_fetch::run(...)
-            todo!("S13-D3: wire nika-verb-fetch dispatch")
+            // S13-D2: Fetch arm — the actual call lives in
+            // `crate::verb_fetch::run_fetch(input, caps, event_log)`.
+            // Template resolution lives in nika-engine, so this match
+            // arm cannot build FetchInput from AnalyzedFetchAction
+            // directly during S13. Session 14 wires this fully.
+            Err(RuntimeError::NotImplemented { verb: "fetch" })
         }
         AnalyzedTaskAction::Invoke(_) => {
             // S13-C3: Invoke arm — the actual call lives in

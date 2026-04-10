@@ -15,6 +15,7 @@ nika-kernel = { workspace = true }
 nika-event = { workspace = true }
 nika-verb-exec = { workspace = true }
 nika-verb-invoke = { workspace = true }
+nika-verb-fetch = { workspace = true }
 tokio-util = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
