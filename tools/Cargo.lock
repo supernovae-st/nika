@@ -6047,6 +6047,7 @@ dependencies = [
  "nika-macros",
  "nika-mcp",
  "nika-media",
+ "nika-policy",
  "nika-vault",
  "nix 0.31.2",
  "parking_lot",
@@ -6315,6 +6316,20 @@ dependencies = [
  "url",
  "usvg",
  "zstd",
+]
+
+[[package]]
+name = "nika-policy"
+version = "0.79.0"
+dependencies = [
+ "nika-core",
+ "nika-kernel",
+ "parking_lot",
+ "reqwest 0.13.2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]

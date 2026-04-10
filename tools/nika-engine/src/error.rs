@@ -1231,6 +1231,15 @@ impl From<nika_kernel::builtin::BuiltinError> for NikaError {
     }
 }
 
+impl From<nika_policy::PolicyError> for NikaError {
+    fn from(e: nika_policy::PolicyError) -> Self {
+        match e {
+            nika_policy::PolicyError::Violation(reason) => NikaError::PolicyViolation { reason },
+            nika_policy::PolicyError::DnsFailed(reason) => NikaError::FetchError { reason },
+        }
+    }
+}
+
 impl NikaError {
     /// Convenience: look up fix suggestion by error code string (e.g., "NIKA-044").
     ///

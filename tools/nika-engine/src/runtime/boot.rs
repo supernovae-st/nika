@@ -304,54 +304,12 @@ fn default_max_traces() -> u32 {
     100
 }
 
-/// Policy configuration for security enforcement
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PolicyConfig {
-    /// Allow exec: verb
-    #[serde(default = "default_true")]
-    pub allow_exec: bool,
-    /// Allow fetch: verb (network access)
-    #[serde(default = "default_true")]
-    pub allow_network: bool,
-    /// Blocked shell commands (substrings)
-    #[serde(default)]
-    pub blocked_commands: Vec<String>,
-    /// Maximum token spend per workflow run
-    pub max_token_spend: Option<u64>,
-    /// Allowed hosts for fetch:
-    #[serde(default)]
-    pub allowed_hosts: Vec<String>,
-    /// Blocked hosts for fetch:
-    #[serde(default)]
-    pub blocked_hosts: Vec<String>,
-    /// Nika Shield security configuration
-    #[serde(default)]
-    pub security: SecurityPolicyConfig,
-}
-
-impl Default for PolicyConfig {
-    fn default() -> Self {
-        Self {
-            allow_exec: true,
-            allow_network: true,
-            blocked_commands: vec![
-                "rm -rf /".to_string(),
-                "sudo".to_string(),
-                "chmod 777".to_string(),
-            ],
-            max_token_spend: None,
-            allowed_hosts: vec![],
-            blocked_hosts: vec![],
-            security: SecurityPolicyConfig::default(),
-        }
-    }
-}
-
-/// Re-exports for the Nika Shield security policy (canonical home: `nika_core::policy`).
+/// Re-exports for policy configuration (canonical home: `nika_core::policy`).
 ///
-/// Lives in nika-core (L0) so both nika-engine (which enforces it) and nika-display
-/// (which renders the security summary) can read it without violating diamond layering.
-pub use nika_core::policy::{SecurityPolicyConfig, TaintMode};
+/// `PolicyConfig` lives in nika-core (L0) so nika-policy (L1) can enforce
+/// it and nika-engine / nika-runtime can pass it through without violating
+/// diamond layering.
+pub use nika_core::policy::{PolicyConfig, SecurityPolicyConfig, TaintMode};
 
 /// Load just the `PolicyConfig` from `nika.toml` (sync, best-effort).
 ///

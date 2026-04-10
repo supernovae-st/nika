@@ -1,0 +1,23 @@
+[package]
+name = "nika-policy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika security policy enforcement (SSRF, exec blocklist, token budgets)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-core = { workspace = true }
+nika-kernel = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["net", "time"] }
+parking_lot = { workspace = true }
+reqwest = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true
