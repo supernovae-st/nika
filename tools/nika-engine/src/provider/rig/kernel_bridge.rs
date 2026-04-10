@@ -175,6 +175,14 @@ fn convert_error(e: super::error::RigInferError) -> ProviderError {
 // ─────────────────────────────────────────────────────────────────────
 
 /// Build an InferResponse from a plain text result.
+///
+/// The `request_id` and `cost_usd` fields stay `None` — the underlying
+/// `RigProvider::infer_with_options` returns only a `String`, so neither
+/// the provider's response identifier nor the per-request token usage
+/// is available at this call site. Populating those fields requires
+/// plumbing token usage back through the RigProvider async boundary,
+/// which is scheduled for W14-B2 when the engine's infer.rs refactors
+/// into nika-verb-infer via the trait.
 fn text_response(text: String, start: Instant) -> InferResponse {
     let mut response = InferResponse::new(
         vec![ContentBlock::Text { text }],
@@ -287,6 +295,10 @@ impl nika_kernel::provider::Provider for RigProvider {
                 .map_err(convert_error)?;
             Ok(text_response(text, start))
         }
+    }
+
+    fn supports_response_format(&self) -> bool {
+        RigProvider::supports_native_structured_output(self)
     }
 
     async fn infer_stream(
