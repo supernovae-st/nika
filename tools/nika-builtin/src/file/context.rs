@@ -10,6 +10,7 @@ use crate::BuiltinError;
 use dashmap::DashMap;
 use nika_kernel::task_local::current_working_dir;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 /// Shared context for builtin file tools.
 ///
@@ -18,6 +19,11 @@ use std::path::{Path, PathBuf};
 pub struct FileToolContext {
     /// Working directory — all paths must fall within this boundary.
     pub working_dir: PathBuf,
+    /// Cached canonical form of `working_dir` (S12.E1). Populated once on
+    /// first `validate_path` call. Only used when the `CURRENT_WORKING_DIR`
+    /// task_local is `None`; when set, `with_base_path()` rotates the
+    /// effective dir at runtime and the cache would be stale.
+    working_dir_canonical: OnceLock<PathBuf>,
     /// Tracks files that have been read. EditTool enforces a read-before-edit
     /// contract to prevent blind overwrites.
     read_files: DashMap<PathBuf, bool>,
@@ -28,8 +34,44 @@ impl FileToolContext {
     pub fn new(working_dir: PathBuf) -> Self {
         Self {
             working_dir,
+            working_dir_canonical: OnceLock::new(),
             read_files: DashMap::new(),
         }
+    }
+
+    /// Return the cached canonical form of `self.working_dir`.
+    ///
+    /// S12.D3 — failure is a hard error (`BuiltinError::Io`), never a
+    /// silent fall-back to the non-canonical path. The previous
+    /// `unwrap_or_else(_ → effective_dir.clone())` let the boundary check
+    /// compare against a non-canonical path, which defeated symlink
+    /// resolution on macOS `/var` ↔ `/private/var`.
+    ///
+    /// S12.E1 — populated on first use via `OnceLock::get_or_init` style
+    /// (manual check + set so we can return a `BuiltinError` rather than
+    /// requiring nightly `get_or_try_init`).
+    fn cached_work_canonical(&self) -> Result<PathBuf, BuiltinError> {
+        if let Some(cached) = self.working_dir_canonical.get() {
+            return Ok(cached.clone());
+        }
+        let canonical =
+            self.working_dir.canonicalize().map_err(|e| BuiltinError::Io {
+                tool: "file-tool".into(),
+                reason: format!(
+                    "[NIKA-200] Failed to canonicalize working_dir {}: {e}",
+                    self.working_dir.display()
+                ),
+            })?;
+        // Best-effort set — if another thread won the race, both values
+        // are identical, so returning our own clone is fine.
+        let _ = self.working_dir_canonical.set(canonical.clone());
+        Ok(canonical)
+    }
+
+    /// Test-only accessor: is the canonical form cached yet?
+    #[cfg(test)]
+    pub(crate) fn is_work_canonical_cached(&self) -> bool {
+        self.working_dir_canonical.get().is_some()
     }
 
     /// Mark a path as having been read. Called by ReadTool after a successful read.
@@ -58,8 +100,12 @@ impl FileToolContext {
     pub fn validate_path(&self, raw_path: &str) -> Result<PathBuf, BuiltinError> {
         let input = Path::new(raw_path);
 
-        // Use task_local working dir if available (keeps in sync with with_base_path())
-        let effective_dir = current_working_dir().unwrap_or_else(|| self.working_dir.clone());
+        // Use task_local working dir if available (keeps in sync with with_base_path()).
+        // `tl` is `Some` when a runner has set a per-task override; in that
+        // case we cannot use the cached canonical form because the override
+        // rotates between tasks.
+        let tl = current_working_dir();
+        let effective_dir = tl.clone().unwrap_or_else(|| self.working_dir.clone());
 
         // Resolve relative paths against effective_dir
         let path = if input.is_absolute() {
@@ -83,9 +129,19 @@ impl FileToolContext {
             canonicalize_best_effort(&path)
         };
 
-        let work_canonical = effective_dir
-            .canonicalize()
-            .unwrap_or_else(|_| effective_dir.clone());
+        // S12.D3 + E1 — cached hard-error canonicalization of the working dir.
+        // The task-local override path is not cached (it rotates).
+        let work_canonical = if tl.is_none() {
+            self.cached_work_canonical()?
+        } else {
+            effective_dir.canonicalize().map_err(|e| BuiltinError::Io {
+                tool: "file-tool".into(),
+                reason: format!(
+                    "[NIKA-200] Failed to canonicalize task working_dir {}: {e}",
+                    effective_dir.display()
+                ),
+            })?
+        };
 
         if !canonical.starts_with(&work_canonical) {
             return Err(BuiltinError::InvalidArgs {
@@ -214,5 +270,54 @@ mod tests {
         assert!(!ctx.has_been_read(&path));
         ctx.mark_read(&path);
         assert!(ctx.has_been_read(&path));
+    }
+
+    // ── S12.E1 + S12.D3 — canonicalize cache + hard error ──
+
+    #[test]
+    fn test_working_dir_canonical_cached_after_first_validate() {
+        let (_d, ctx) = temp_ctx();
+        assert!(
+            !ctx.is_work_canonical_cached(),
+            "cache must start empty"
+        );
+        // Any validate_path call against the struct-level working_dir
+        // (no task_local override) populates the cache.
+        let _ = ctx.validate_path("file.txt");
+        assert!(
+            ctx.is_work_canonical_cached(),
+            "cache must be populated after first validate_path"
+        );
+    }
+
+    #[test]
+    fn test_working_dir_canonical_hard_error_when_missing() {
+        // S12.D3: canonicalize failure on the struct-level working_dir is a
+        // hard error (BuiltinError::Io), never a silent fall-back.
+        // Build a tempdir, capture its path, then destroy it so the
+        // canonicalize call hits ENOENT.
+        let tmp = TempDir::new().unwrap();
+        let dead_dir = tmp.path().to_path_buf();
+        drop(tmp);
+        let ctx = FileToolContext::new(dead_dir.clone());
+
+        let result = ctx.validate_path("anything.txt");
+        match result {
+            Err(BuiltinError::Io { tool, reason }) => {
+                assert_eq!(tool, "file-tool");
+                assert!(
+                    reason.contains("NIKA-200")
+                        && reason.contains("canonicalize")
+                        && reason.contains("working_dir"),
+                    "unexpected reason: {reason}"
+                );
+            }
+            other => panic!("expected BuiltinError::Io hard error, got {other:?}"),
+        }
+        // A hard error must NOT populate the cache.
+        assert!(
+            !ctx.is_work_canonical_cached(),
+            "cache must not be populated on canonicalize failure"
+        );
     }
 }
