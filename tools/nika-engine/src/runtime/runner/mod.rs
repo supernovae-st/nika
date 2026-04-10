@@ -2342,3 +2342,6 @@ impl Runner {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tests_golden_verbs;

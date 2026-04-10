@@ -1,0 +1,9 @@
+---
+source: nika-engine/src/runtime/runner/tests_golden_verbs.rs
+expression: lifecycle
+---
+- WorkflowStarted
+- TaskScheduled(log_message)
+- TaskStarted(log_message)
+- TaskCompleted(log_message)
+- WorkflowCompleted
