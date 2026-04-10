@@ -119,7 +119,7 @@ impl MediaContext for EngineMediaContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_media::{store::CasStore, types::MediaBudget, MediaType};
+    use nika_media::{store::CasStore, types::MediaBudget};
     use nika_media::tools::context::{ComputePool, WorkingMemoryBudget};
     use tokio_util::sync::CancellationToken;
 

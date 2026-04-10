@@ -726,13 +726,6 @@ pub(crate) fn sensitive_env_vars() -> Vec<&'static str> {
     vars
 }
 
-/// Remove sensitive API key env vars from a Command before spawning.
-pub(crate) fn strip_sensitive_env_vars(cmd: &mut tokio::process::Command) {
-    for var in sensitive_env_vars() {
-        cmd.env_remove(var);
-    }
-}
-
 /// Full security validation for exec commands
 ///
 /// Combines control character validation and blocklist checking.

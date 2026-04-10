@@ -49,6 +49,9 @@ pub struct ExecInput<'a> {
     pub timeout: Option<Duration>,
     /// Environment variables (already resolved + validated).
     pub env: Vec<(String, String)>,
+    /// Environment variable names to REMOVE from the child's inherited env
+    /// (e.g., sensitive API key env vars).
+    pub env_remove: Vec<String>,
     /// Maximum stdout size in bytes before truncation.
     pub max_stdout: Option<u64>,
     /// Task ID for event emission.
@@ -92,6 +95,13 @@ pub async fn run(
             shlex_args(input.command)?
         },
         env: input.env.iter().cloned().collect(),
+        env_remove: input.env_remove.clone(),
+        // The engine bridge calls `validate_exec_command_full` with raw-template
+        // intent detection BEFORE building ExecInput, so the command has already
+        // been vetted by the smart blocklist. Skip the executor's basic pattern
+        // check which cannot distinguish interpreter patterns (python3 -c) from
+        // injection attempts.
+        pre_validated: true,
         cwd: effective_cwd,
         timeout: input.timeout,
         stdin: None,
@@ -294,6 +304,7 @@ mod tests {
             cwd: None,
             timeout: Some(Duration::from_secs(5)),
             env: vec![],
+            env_remove: vec![],
             max_stdout: None,
             task_id: Arc::from("test_exec"),
         };
@@ -338,6 +349,7 @@ mod tests {
             cwd: None,
             timeout: None,
             env: vec![],
+            env_remove: vec![],
             max_stdout: None,
             task_id: Arc::from("test_fail"),
         };

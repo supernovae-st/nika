@@ -6038,11 +6038,14 @@ dependencies = [
  "miette",
  "mistralrs",
  "nika-builtin",
+ "nika-clock",
  "nika-core",
  "nika-daemon",
  "nika-display",
  "nika-event",
+ "nika-exec-runner",
  "nika-extract",
+ "nika-fs",
  "nika-kernel",
  "nika-lsp-core",
  "nika-macros",
@@ -6050,6 +6053,7 @@ dependencies = [
  "nika-media",
  "nika-policy",
  "nika-vault",
+ "nika-verb-exec",
  "nix 0.31.2",
  "parking_lot",
  "petgraph",
@@ -6352,6 +6356,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-runtime"
+version = "0.79.0"
+dependencies = [
+ "nika-core",
+ "nika-event",
+ "nika-kernel",
+ "nika-kernel-mock",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "nika-sdk"
 version = "0.79.0"
 dependencies = [
@@ -6489,6 +6508,21 @@ dependencies = [
  "tracing",
  "whoami",
  "zeroize",
+]
+
+[[package]]
+name = "nika-verb-exec"
+version = "0.79.0"
+dependencies = [
+ "nika-event",
+ "nika-kernel",
+ "nika-kernel-mock",
+ "serde_json",
+ "shlex",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]

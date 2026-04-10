@@ -32,17 +32,18 @@ impl TokioShell {
 #[async_trait::async_trait]
 impl ShellExecutor for TokioShell {
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError> {
-        // Security: check blocklist (always) + shell-mode blocklist (when shell: true)
-        let full_command = if command.shell {
-            format!("{} {}", command.program, command.args.join(" "))
-        } else {
-            // Also scan args in non-shell mode (e.g. program: "rm", args: ["-rf", "/"])
-            format!("{} {}", command.program, command.args.join(" "))
-        };
-        blocklist::check_command(&full_command)?;
+        // Security: check blocklist unless the caller has already performed
+        // intelligent validation. The engine bridge sets `pre_validated: true`
+        // because it uses `validate_exec_command_full` which honors raw-template
+        // intent for interpreter patterns (e.g. `python3 -c`) that this basic
+        // pattern blocklist cannot distinguish from injection attempts.
+        if !command.pre_validated {
+            let full_command = format!("{} {}", command.program, command.args.join(" "));
+            blocklist::check_command(&full_command)?;
 
-        if command.shell {
-            blocklist::check_shell_mode(&full_command)?;
+            if command.shell {
+                blocklist::check_shell_mode(&full_command)?;
+            }
         }
 
         let start = Instant::now();
@@ -65,6 +66,12 @@ impl ShellExecutor for TokioShell {
         // Environment
         for (key, value) in &command.env {
             cmd.env(key, value);
+        }
+
+        // Remove sensitive inherited env vars (called after env to ensure
+        // removal wins if the same key appears in both lists).
+        for key in &command.env_remove {
+            cmd.env_remove(key);
         }
 
         // Working directory
@@ -208,6 +215,8 @@ mod tests {
                 program: "echo".to_string(),
                 args: vec!["hello".to_string()],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
@@ -229,6 +238,8 @@ mod tests {
                 program: "echo hello | tr a-z A-Z".to_string(),
                 args: vec![],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
@@ -250,6 +261,8 @@ mod tests {
                 program: "false".to_string(),
                 args: vec![],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
@@ -271,6 +284,8 @@ mod tests {
                 program: "sleep".to_string(),
                 args: vec!["60".to_string()],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_millis(100)),
                 stdin: None,
@@ -290,6 +305,8 @@ mod tests {
                 program: "nonexistent_binary_xyz_123".to_string(),
                 args: vec![],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
@@ -312,6 +329,8 @@ mod tests {
                 program: "echo $MY_VAR".to_string(),
                 args: vec![],
                 env,
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
@@ -333,6 +352,8 @@ mod tests {
                 program: "cat".to_string(),
                 args: vec![],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: Some("piped input".to_string()),
@@ -354,6 +375,8 @@ mod tests {
                 program: "true".to_string(),
                 args: vec![],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
@@ -390,6 +413,8 @@ mod tests {
                 program: "sleep".into(),
                 args: vec!["10".into()],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: None,
                 stdin: None,
@@ -413,6 +438,8 @@ mod tests {
                 program: "yes x | head -c 1048576".into(),
                 args: vec![],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: Some(Duration::from_secs(30)),
                 stdin: None,
@@ -444,6 +471,8 @@ mod tests {
                 program: "sleep".into(),
                 args: vec!["5".into()],
                 env: Default::default(),
+                env_remove: Default::default(),
+                pre_validated: false,
                 cwd: None,
                 timeout: None,
                 stdin: None,

@@ -17,11 +17,27 @@ pub struct ShellCommand {
     pub program: String,
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
+    /// Environment variable names to REMOVE from the child's inherited env.
+    ///
+    /// Applied AFTER `env` so callers can explicitly strip sensitive variables
+    /// (API keys, tokens) that would otherwise be inherited from the parent.
+    pub env_remove: Vec<String>,
     pub cwd: Option<PathBuf>,
     pub timeout: Option<Duration>,
     pub stdin: Option<String>,
     /// If true, run via `sh -c` (allows pipes, redirects).
     pub shell: bool,
+    /// If true, skip the default blocklist check in the executor.
+    ///
+    /// Callers that have already performed intelligent validation (e.g.,
+    /// the engine's `validate_exec_command_full` which honors raw-template
+    /// intent for interpreter patterns like `python3 -c`) should set this
+    /// to `true` to avoid false positives from the executor's basic
+    /// pattern blocklist.
+    ///
+    /// Defaults to `false` (blocklist enforced) so naive callers remain
+    /// protected by defense-in-depth.
+    pub pre_validated: bool,
     /// Cooperative cancellation token. When triggered, the executor kills the
     /// child process and returns `ShellError::Cancelled`.
     pub cancel: Option<CancellationToken>,
@@ -34,10 +50,12 @@ impl ShellCommand {
             program: program.into(),
             args: Vec::new(),
             env: HashMap::new(),
+            env_remove: Vec::new(),
             cwd: None,
             timeout: None,
             stdin: None,
             shell: false,
+            pre_validated: false,
             cancel: None,
         }
     }

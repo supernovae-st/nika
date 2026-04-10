@@ -1,14 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Exec verb implementation for TaskExecutor
+//! Exec verb bridge — delegates to `nika-verb-exec` (S13-B2).
 //!
-//! Contains `run_exec` for shell command execution.
+//! This file is now a thin bridge: template resolution + security
+//! validation + policy checks stay here (engine-internal helpers),
+//! then subprocess execution is delegated to `nika_verb_exec::run()`
+//! via the `ShellExecutor` kernel trait (TokioShell).
+//!
+//! The actual execution logic lives in the `nika-verb-exec` crate.
+//! Session 14 dissolves this bridge when `TaskExecutor` is deleted.
 
 use std::sync::Arc;
-use std::time::Instant;
 
 use tracing::instrument;
+
+use nika_clock::SystemClock;
+use nika_exec_runner::TokioShell;
+use nika_fs::TokioFs;
+use nika_kernel::caps::ExecCaps;
+use nika_verb_exec::{ExecInput, VerbExecError};
 
 use crate::ast::ExecParams;
 use crate::binding::{template_resolve, ResolvedBindings};
@@ -151,253 +162,127 @@ impl TaskExecutor {
             result: redact_for_event(&resolved_cmd),
         });
 
-        // Use per-task timeout if specified, otherwise fall back to global default
+        // ═══════════════════════════════════════════════════════════════
+        // PHASE 2: resolve cwd + env with security checks
+        // ═══════════════════════════════════════════════════════════════
+
+        // Resolve explicit cwd with security check against workflow_base_dir.
+        let explicit_cwd = if let Some(ref cwd) = params.cwd {
+            let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
+            let resolved = std::path::Path::new(resolved_cwd.as_ref())
+                .canonicalize()
+                .map_err(|e| NikaError::ExecError {
+                    reason: format!("Invalid cwd '{}': {}", resolved_cwd, e),
+                })?;
+            let working_dir = self
+                .workflow_base_dir
+                .canonicalize()
+                .unwrap_or_else(|_| self.workflow_base_dir.clone());
+            if !resolved.starts_with(&working_dir) {
+                return Err(ExecutionError::ExecFailed {
+                    reason: format!(
+                        "Security: exec cwd '{}' escapes working directory '{}'",
+                        resolved_cwd,
+                        working_dir.display()
+                    ),
+                }
+                .into());
+            }
+            Some(resolved)
+        } else {
+            None
+        };
+
+        // Resolve env vars with template expansion + validation.
+        let resolved_env: Vec<(String, String)> = if let Some(ref env_vars) = params.env {
+            let pairs: Vec<(String, String)> = env_vars
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            crate::runtime::security::validate_env_vars(&pairs)?;
+            let mut out = Vec::with_capacity(pairs.len());
+            for (key, value) in env_vars {
+                let resolved_value = template_resolve(value, bindings, datastore)?;
+                out.push((key.clone(), resolved_value.into_owned()));
+            }
+            out
+        } else {
+            Vec::new()
+        };
+
+        // Sensitive env vars to strip from the child's inherited environment.
+        let env_remove: Vec<String> = crate::runtime::security::sensitive_env_vars()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        // ═══════════════════════════════════════════════════════════════
+        // PHASE 3: delegate to nika-verb-exec (GATE-S13-3 workaround)
+        //
+        // We clone PolicyEnforcer out of the RwLock BEFORE building ExecCaps.
+        // parking_lot::RwLockReadGuard is !Send — holding it across the
+        // nika_verb_exec::run() await would break on multi-threaded tokio.
+        // The clone is cheap (PolicyConfig + TokenBudget).
+        // ═══════════════════════════════════════════════════════════════
+
+        let policy_clone = self.policy_enforcer.read().clone();
+        let shell = TokioShell;
+        let clock = SystemClock;
+        let fs = TokioFs;
+
+        let caps = ExecCaps::new(
+            &shell,
+            &policy_clone,
+            &clock,
+            &fs,
+            &self.cancel_token,
+            &self.workflow_base_dir,
+            self.working_dir_mode.as_deref(),
+            self.project_root.as_deref(),
+        );
+
         let exec_deadline = params
             .timeout
             .map(std::time::Duration::from_secs)
             .unwrap_or(EXEC_TIMEOUT);
 
-        // Shell-free execution by default, opt-in to shell mode
-        // Support for env vars
-        let exec_start = Instant::now();
-        let output = if params.shell == Some(true) {
-            // Shell mode: sh -c on Unix, cmd.exe /C on Windows
-            let (shell, flag) = if cfg!(windows) {
-                ("cmd", "/C")
-            } else {
-                ("sh", "-c")
-            };
-            tracing::debug!(task_id = %task_id, "exec: using shell mode ({shell})");
-            let mut cmd = tokio::process::Command::new(shell);
-            cmd.arg(flag).arg(resolved_cmd.as_ref());
-
-            // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
-            cmd.stdout(std::process::Stdio::piped());
-            cmd.stderr(std::process::Stdio::piped());
-
-            // Strip sensitive env vars from child process
-            crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
-
-            // Set working directory: explicit cwd (with security check) or default from config
-            if let Some(ref cwd) = params.cwd {
-                let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
-                let resolved = std::path::Path::new(resolved_cwd.as_ref())
-                    .canonicalize()
-                    .map_err(|e| NikaError::ExecError {
-                        reason: format!("Invalid cwd '{}': {}", resolved_cwd, e),
-                    })?;
-                let working_dir = self
-                    .workflow_base_dir
-                    .canonicalize()
-                    .unwrap_or_else(|_| self.workflow_base_dir.clone());
-                if !resolved.starts_with(&working_dir) {
-                    return Err(ExecutionError::ExecFailed {
-                        reason: format!(
-                            "Security: exec cwd '{}' escapes working directory '{}'",
-                            resolved_cwd,
-                            working_dir.display()
-                        ),
-                    }
-                    .into());
-                }
-                cmd.current_dir(resolved);
-            } else if let Some(default_cwd) = self.resolve_default_exec_cwd() {
-                // Apply default cwd from [tools] working_dir config
-                cmd.current_dir(default_cwd);
-            }
-
-            // Add environment variables if specified (validate first)
-            if let Some(ref env_vars) = params.env {
-                let pairs: Vec<(String, String)> = env_vars
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                crate::runtime::security::validate_env_vars(&pairs)?;
-                for (key, value) in env_vars {
-                    let resolved_value = template_resolve(value, bindings, datastore)?;
-                    cmd.env(key, resolved_value.as_ref());
-                }
-            }
-
-            // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
-            cmd.kill_on_drop(true);
-            let child = cmd.spawn().map_err(|e| NikaError::ExecError {
-                reason: format!("Failed to spawn command: {}", e),
-            })?;
-            let exec_fut = tokio::time::timeout(exec_deadline, child.wait_with_output());
-            tokio::select! {
-                biased;
-                _ = self.cancel_token.cancelled() => {
-                    // child is dropped here -> kill_on_drop sends SIGKILL
-                    return Err(NikaError::TaskCancelled {
-                        task_id: task_id.to_string(),
-                        reason: "workflow cancelled during exec".to_string(),
-                    });
-                }
-                result = exec_fut => match result {
-                    Ok(Ok(out)) => out,
-                    Ok(Err(e)) => {
-                        return Err(ExecutionError::ExecFailed {
-                            reason: format!("Failed to execute command: {}", e),
-                        }
-                        .into());
-                    }
-                    Err(_) => {
-                        // child is dropped here -> kill_on_drop sends SIGKILL
-                        return Err(ExecutionError::ExecFailed {
-                            reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
-                        }
-                        .into());
-                    }
-                }
-            }
-        } else {
-            // Shell-free mode (default): parse with shlex, execute directly
-            tracing::debug!(task_id = %task_id, "exec: using shell-free mode (shlex)");
-            let parts = shlex::split(&resolved_cmd).ok_or_else(|| NikaError::ExecError {
-                reason: format!(
-                    "Failed to parse command (unbalanced quotes?): {}",
-                    resolved_cmd
-                ),
-            })?;
-
-            if parts.is_empty() {
-                return Err(ExecutionError::ExecFailed {
-                    reason: "Empty command".to_string(),
-                }
-                .into());
-            }
-
-            let mut cmd = tokio::process::Command::new(&parts[0]);
-            cmd.args(&parts[1..]);
-
-            // Pipe stdout/stderr for capture (required by spawn + wait_with_output)
-            cmd.stdout(std::process::Stdio::piped());
-            cmd.stderr(std::process::Stdio::piped());
-
-            // Strip sensitive env vars from child process
-            crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
-
-            // Set working directory: explicit cwd (with security check) or default from config
-            if let Some(ref cwd) = params.cwd {
-                let resolved_cwd = template_resolve(cwd, bindings, datastore)?;
-                let resolved = std::path::Path::new(resolved_cwd.as_ref())
-                    .canonicalize()
-                    .map_err(|e| NikaError::ExecError {
-                        reason: format!("Invalid cwd '{}': {}", resolved_cwd, e),
-                    })?;
-                let working_dir = self
-                    .workflow_base_dir
-                    .canonicalize()
-                    .unwrap_or_else(|_| self.workflow_base_dir.clone());
-                if !resolved.starts_with(&working_dir) {
-                    return Err(ExecutionError::ExecFailed {
-                        reason: format!(
-                            "Security: exec cwd '{}' escapes working directory '{}'",
-                            resolved_cwd,
-                            working_dir.display()
-                        ),
-                    }
-                    .into());
-                }
-                cmd.current_dir(resolved);
-            } else if let Some(default_cwd) = self.resolve_default_exec_cwd() {
-                // Apply default cwd from [tools] working_dir config
-                cmd.current_dir(default_cwd);
-            }
-
-            // Add environment variables if specified (validate first)
-            if let Some(ref env_vars) = params.env {
-                let pairs: Vec<(String, String)> = env_vars
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                crate::runtime::security::validate_env_vars(&pairs)?;
-                for (key, value) in env_vars {
-                    let resolved_value = template_resolve(value, bindings, datastore)?;
-                    cmd.env(key, resolved_value.as_ref());
-                }
-            }
-
-            // kill_on_drop ensures child is killed when dropped on timeout (prevents orphans)
-            cmd.kill_on_drop(true);
-            let child = cmd.spawn().map_err(|e| NikaError::ExecError {
-                reason: format!("Failed to spawn command: {}", e),
-            })?;
-            let exec_fut = tokio::time::timeout(exec_deadline, child.wait_with_output());
-            tokio::select! {
-                biased;
-                _ = self.cancel_token.cancelled() => {
-                    // child is dropped here -> kill_on_drop sends SIGKILL
-                    return Err(NikaError::TaskCancelled {
-                        task_id: task_id.to_string(),
-                        reason: "workflow cancelled during exec".to_string(),
-                    });
-                }
-                result = exec_fut => match result {
-                    Ok(Ok(out)) => out,
-                    Ok(Err(e)) => {
-                        return Err(ExecutionError::ExecFailed {
-                            reason: format!("Failed to execute command: {}", e),
-                        }
-                        .into());
-                    }
-                    Err(_) => {
-                        // child is dropped here -> kill_on_drop sends SIGKILL
-                        return Err(ExecutionError::ExecFailed {
-                            reason: format!("Command timed out after {}s", exec_deadline.as_secs()),
-                        }
-                        .into());
-                    }
-                }
-            }
-        };
-
-        // EMIT: ExecCompleted (emitted for both success and failure)
-        let exec_duration_ms = exec_start.elapsed().as_millis() as u64;
-        let exit_code = output.status.code().unwrap_or(-1);
-        self.event_log.emit(EventKind::ExecCompleted {
+        let input = ExecInput {
+            command: &resolved_cmd,
+            shell: params.shell == Some(true),
+            cwd: explicit_cwd.as_deref(),
+            timeout: Some(exec_deadline),
+            env: resolved_env,
+            env_remove,
+            max_stdout: params.max_stdout,
             task_id: Arc::clone(task_id),
-            exit_code,
-            stdout_len: output.stdout.len(),
-            stderr_len: output.stderr.len(),
-            duration_ms: exec_duration_ms,
-        });
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(ExecutionError::ExecFailed {
-                reason: format!("Command failed: {}", stderr),
-            }
-            .into());
-        }
-
-        // Truncate stdout if it exceeds max_stdout (default: 50 MB)
-        const DEFAULT_MAX_STDOUT: u64 = 50 * 1024 * 1024;
-        let max = params.max_stdout.unwrap_or(DEFAULT_MAX_STDOUT) as usize;
-        let stdout = if output.stdout.len() > max {
-            tracing::warn!(
-                task_id = %task_id,
-                stdout_bytes = output.stdout.len(),
-                limit_bytes = max,
-                "exec: stdout truncated ({} bytes > {} limit)",
-                output.stdout.len(),
-                max,
-            );
-            // Truncate to max bytes, then find a valid UTF-8 boundary
-            let truncated = &output.stdout[..max];
-            let s = String::from_utf8_lossy(truncated);
-            format!(
-                "{}\n... [truncated: {} bytes total, {} byte limit]",
-                s.trim_end(),
-                output.stdout.len(),
-                max,
-            )
-        } else {
-            String::from_utf8_lossy(&output.stdout).trim().to_string()
         };
 
-        Ok(stdout)
+        nika_verb_exec::run(&input, &caps, &self.event_log)
+            .await
+            .map_err(map_verb_exec_error)
+    }
+}
+
+/// Convert a `VerbExecError` to the engine's `NikaError` at the bridge boundary.
+fn map_verb_exec_error(err: VerbExecError) -> NikaError {
+    match err {
+        VerbExecError::NonZeroExit { stderr, .. } => ExecutionError::ExecFailed {
+            reason: format!("Command failed: {}", stderr),
+        }
+        .into(),
+        VerbExecError::Cancelled { task_id } => NikaError::TaskCancelled {
+            task_id,
+            reason: "workflow cancelled during exec".to_string(),
+        },
+        VerbExecError::Timeout { duration_ms } => ExecutionError::ExecFailed {
+            reason: format!("Command timed out after {}s", duration_ms / 1000),
+        }
+        .into(),
+        VerbExecError::NotFound { program } => NikaError::ExecError {
+            reason: format!("Failed to spawn command: program '{}' not found", program),
+        },
+        VerbExecError::Parse { reason } => NikaError::ExecError { reason },
+        VerbExecError::Shell { reason } => ExecutionError::ExecFailed { reason }.into(),
     }
 }
 

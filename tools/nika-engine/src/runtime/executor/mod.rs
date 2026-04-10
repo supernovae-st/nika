@@ -457,21 +457,6 @@ impl TaskExecutor {
         self.tool_ctx.working_dir()
     }
 
-    /// Resolve the effective default cwd for exec tasks based on working_dir_mode.
-    ///
-    /// Returns `None` when mode is "none" (inherit process cwd).
-    pub(super) fn resolve_default_exec_cwd(&self) -> Option<&std::path::Path> {
-        match self.working_dir_mode.as_deref() {
-            Some("project") => self
-                .project_root
-                .as_deref()
-                .or(Some(self.workflow_base_dir.as_path())),
-            Some("none") => None,
-            // "workflow" or None (default) → use workflow_base_dir
-            _ => Some(self.workflow_base_dir.as_path()),
-        }
-    }
-
     /// Set the resolved agent presets from the workflow's `agents:` block.
     pub fn with_resolved_agents(
         mut self,
