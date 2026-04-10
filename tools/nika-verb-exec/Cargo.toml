@@ -1,0 +1,26 @@
+[package]
+name = "nika-verb-exec"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika exec: verb — shell command execution via ShellExecutor trait"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-kernel = { workspace = true }
+nika-event = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+shlex = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+nika-kernel-mock = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+
+[lints]
+workspace = true

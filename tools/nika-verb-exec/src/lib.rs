@@ -1,0 +1,350 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Nika `exec:` verb — shell command execution.
+//!
+//! This crate contains the core execution logic for the `exec:` verb.
+//! It receives **pre-validated, pre-resolved** inputs from the engine
+//! bridge and delegates subprocess execution to `ShellExecutor` via
+//! the kernel trait.
+//!
+//! ## What this crate does
+//!
+//! - Resolves default working directory from `working_dir_mode`
+//! - Builds a `ShellCommand` from the input
+//! - Calls `caps.shell.run(cmd)` (delegates to `TokioShell` in prod)
+//! - Emits `ExecCompleted` events via `EventLog`
+//! - Truncates stdout if it exceeds `max_stdout`
+//!
+//! ## What the engine bridge does (NOT this crate)
+//!
+//! - Template resolution (`{{with.alias}}` → concrete values)
+//! - Security validation (SEC-2, command blocklist, shell injection)
+//! - Error mapping (`VerbExecError` → `NikaError`)
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+
+use nika_event::{EventKind, EventLog};
+use nika_kernel::caps::ExecCaps;
+use nika_kernel::shell::{ShellCommand, ShellError};
+
+mod error;
+pub use error::VerbExecError;
+
+/// Pre-validated, pre-resolved inputs for the exec verb.
+///
+/// The engine bridge builds this from `ExecParams` after template
+/// resolution and security validation. The verb crate never sees
+/// raw templates.
+pub struct ExecInput<'a> {
+    /// Resolved command string (templates already expanded).
+    pub command: &'a str,
+    /// Run through shell (`sh -c`).
+    pub shell: bool,
+    /// Explicit working directory (already resolved + security-validated).
+    pub cwd: Option<&'a Path>,
+    /// Timeout for the command.
+    pub timeout: Option<Duration>,
+    /// Environment variables (already resolved + validated).
+    pub env: Vec<(String, String)>,
+    /// Maximum stdout size in bytes before truncation.
+    pub max_stdout: Option<u64>,
+    /// Task ID for event emission.
+    pub task_id: Arc<str>,
+}
+
+/// Execute a shell command.
+///
+/// # Arguments
+/// * `input` — pre-validated input from the engine bridge
+/// * `caps` — borrowed capability slice (shell, policy, clock, etc.)
+/// * `event_log` — for emitting `ExecCompleted` events
+///
+/// # Returns
+/// Trimmed stdout on success, or `VerbExecError` on failure.
+pub async fn run(
+    input: &ExecInput<'_>,
+    caps: &ExecCaps<'_>,
+    event_log: &EventLog,
+) -> Result<String, VerbExecError> {
+    // Resolve the effective working directory.
+    let effective_cwd = input.cwd.map(PathBuf::from).or_else(|| {
+        resolve_default_cwd(
+            caps.working_dir_mode,
+            caps.project_root,
+            caps.workflow_base_dir,
+        )
+    });
+
+    // Build the ShellCommand for the kernel executor.
+    let cmd = ShellCommand {
+        program: if input.shell {
+            input.command.to_string()
+        } else {
+            // Shell-free: first token is the program.
+            shlex_program(input.command)?
+        },
+        args: if input.shell {
+            Vec::new()
+        } else {
+            shlex_args(input.command)?
+        },
+        env: input.env.iter().cloned().collect(),
+        cwd: effective_cwd,
+        timeout: input.timeout,
+        stdin: None,
+        shell: input.shell,
+        cancel: Some(caps.cancel.clone()),
+    };
+
+    let start = std::time::Instant::now();
+    let result = caps.shell.run(cmd).await;
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok(shell_result) => {
+            // Emit ExecCompleted event.
+            event_log.emit(EventKind::ExecCompleted {
+                task_id: Arc::clone(&input.task_id),
+                exit_code: shell_result.status,
+                stdout_len: shell_result.stdout.len(),
+                stderr_len: shell_result.stderr.len(),
+                duration_ms,
+            });
+
+            if !shell_result.success() {
+                return Err(VerbExecError::NonZeroExit {
+                    exit_code: shell_result.status,
+                    stderr: shell_result.stderr.clone(),
+                });
+            }
+
+            // Truncate stdout if needed.
+            let stdout = truncate_stdout(
+                &shell_result.stdout,
+                input.max_stdout.unwrap_or(DEFAULT_MAX_STDOUT),
+                &input.task_id,
+            );
+
+            Ok(stdout)
+        }
+        Err(ShellError::Cancelled) => Err(VerbExecError::Cancelled {
+            task_id: input.task_id.to_string(),
+        }),
+        Err(ShellError::Timeout { duration_ms: ms }) => Err(VerbExecError::Timeout {
+            duration_ms: ms,
+        }),
+        Err(ShellError::NotFound { program }) => Err(VerbExecError::NotFound { program }),
+        Err(e) => Err(VerbExecError::Shell {
+            reason: e.to_string(),
+        }),
+    }
+}
+
+const DEFAULT_MAX_STDOUT: u64 = 50 * 1024 * 1024; // 50 MB
+
+/// Resolve the default cwd based on working_dir_mode config.
+fn resolve_default_cwd(
+    mode: Option<&str>,
+    project_root: Option<&Path>,
+    workflow_base_dir: &Path,
+) -> Option<PathBuf> {
+    match mode {
+        Some("project") => project_root.map(PathBuf::from),
+        Some("none") => None,
+        // "workflow" or None → use workflow_base_dir
+        _ => Some(workflow_base_dir.to_path_buf()),
+    }
+}
+
+/// Extract the program name from a command string using shlex.
+fn shlex_program(command: &str) -> Result<String, VerbExecError> {
+    let parts = shlex::split(command).ok_or_else(|| VerbExecError::Parse {
+        reason: format!("Failed to parse command (unbalanced quotes?): {command}"),
+    })?;
+    parts.into_iter().next().ok_or_else(|| VerbExecError::Parse {
+        reason: "Empty command".to_string(),
+    })
+}
+
+/// Extract the arguments from a command string using shlex (skip program).
+fn shlex_args(command: &str) -> Result<Vec<String>, VerbExecError> {
+    let parts = shlex::split(command).ok_or_else(|| VerbExecError::Parse {
+        reason: format!("Failed to parse command (unbalanced quotes?): {command}"),
+    })?;
+    Ok(parts.into_iter().skip(1).collect())
+}
+
+/// Truncate stdout if it exceeds the limit.
+fn truncate_stdout(stdout: &str, max_bytes: u64, task_id: &str) -> String {
+    let max = max_bytes as usize;
+    if stdout.len() > max {
+        tracing::warn!(
+            task_id = %task_id,
+            stdout_bytes = stdout.len(),
+            limit_bytes = max,
+            "exec: stdout truncated"
+        );
+        let truncated = &stdout.as_bytes()[..max];
+        let s = String::from_utf8_lossy(truncated);
+        format!(
+            "{}\n... [truncated: {} bytes total, {} byte limit]",
+            s.trim_end(),
+            stdout.len(),
+            max,
+        )
+    } else {
+        stdout.trim().to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_cwd_project_mode() {
+        let cwd = resolve_default_cwd(
+            Some("project"),
+            Some(Path::new("/project")),
+            Path::new("/workflow"),
+        );
+        assert_eq!(cwd, Some(PathBuf::from("/project")));
+    }
+
+    #[test]
+    fn resolve_cwd_workflow_mode() {
+        let cwd = resolve_default_cwd(
+            Some("workflow"),
+            Some(Path::new("/project")),
+            Path::new("/workflow"),
+        );
+        assert_eq!(cwd, Some(PathBuf::from("/workflow")));
+    }
+
+    #[test]
+    fn resolve_cwd_none_mode() {
+        let cwd = resolve_default_cwd(Some("none"), Some(Path::new("/project")), Path::new("/wf"));
+        assert_eq!(cwd, None);
+    }
+
+    #[test]
+    fn resolve_cwd_default() {
+        let cwd = resolve_default_cwd(None, Some(Path::new("/project")), Path::new("/workflow"));
+        assert_eq!(cwd, Some(PathBuf::from("/workflow")));
+    }
+
+    #[test]
+    fn shlex_program_extracts_first_token() {
+        assert_eq!(shlex_program("echo hello world").unwrap(), "echo");
+    }
+
+    #[test]
+    fn shlex_args_skips_program() {
+        let args = shlex_args("echo hello world").unwrap();
+        assert_eq!(args, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn shlex_empty_command_errors() {
+        assert!(shlex_program("").is_err());
+    }
+
+    #[test]
+    fn truncate_stdout_within_limit() {
+        let result = truncate_stdout("hello", 1000, "test");
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn truncate_stdout_exceeds_limit() {
+        let big = "x".repeat(100);
+        let result = truncate_stdout(&big, 50, "test");
+        assert!(result.contains("truncated"));
+        assert!(result.contains("100 bytes total"));
+    }
+
+    #[tokio::test]
+    async fn run_echo_via_mock_shell() {
+        use nika_kernel_mock::policy::MockPolicyChecker;
+        use nika_kernel_mock::shell::MockShell;
+        use nika_kernel_mock::clock::MockClock;
+        use nika_kernel_mock::filesystem::InMemoryFs;
+
+        let shell = MockShell::new();
+        shell.enqueue_ok("hello golden\n");
+
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let fs = InMemoryFs::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let workflow_dir = PathBuf::from("/tmp/test");
+
+        let caps = ExecCaps::new(
+            &shell, &policy, &clock, &fs, &cancel,
+            &workflow_dir, None, None,
+        );
+
+        let event_log = EventLog::new();
+        let input = ExecInput {
+            command: "echo hello golden",
+            shell: false,
+            cwd: None,
+            timeout: Some(Duration::from_secs(5)),
+            env: vec![],
+            max_stdout: None,
+            task_id: Arc::from("test_exec"),
+        };
+
+        let result = run(&input, &caps, &event_log).await;
+        assert!(result.is_ok(), "run failed: {result:?}");
+        assert_eq!(result.unwrap(), "hello golden");
+
+        // Verify ExecCompleted event was emitted.
+        let events = event_log.events();
+        let exec_completed = events.iter().find(|e| {
+            matches!(e.kind, EventKind::ExecCompleted { .. })
+        });
+        assert!(exec_completed.is_some(), "ExecCompleted event not emitted");
+    }
+
+    #[tokio::test]
+    async fn run_nonzero_exit_returns_error() {
+        use nika_kernel_mock::policy::MockPolicyChecker;
+        use nika_kernel_mock::shell::MockShell;
+        use nika_kernel_mock::clock::MockClock;
+        use nika_kernel_mock::filesystem::InMemoryFs;
+
+        let shell = MockShell::new();
+        shell.enqueue_fail(1, "command failed");
+
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let fs = InMemoryFs::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let workflow_dir = PathBuf::from("/tmp/test");
+
+        let caps = ExecCaps::new(
+            &shell, &policy, &clock, &fs, &cancel,
+            &workflow_dir, None, None,
+        );
+
+        let event_log = EventLog::new();
+        let input = ExecInput {
+            command: "false",
+            shell: false,
+            cwd: None,
+            timeout: None,
+            env: vec![],
+            max_stdout: None,
+            task_id: Arc::from("test_fail"),
+        };
+
+        let result = run(&input, &caps, &event_log).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, VerbExecError::NonZeroExit { .. }));
+    }
+}

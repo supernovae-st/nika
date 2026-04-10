@@ -32,6 +32,7 @@ members = [
     "nika-policy",
     "nika-extract",
     "nika-runtime",
+    "nika-verb-exec",
 ]
 
 [workspace.package]
@@ -71,6 +72,7 @@ nika-builtin = { path = "nika-builtin", version = "0.79.0" }
 nika-policy = { path = "nika-policy", version = "0.79.0" }
 nika-extract = { path = "nika-extract", version = "0.79.0" }
 nika-runtime = { path = "nika-runtime", version = "0.79.0" }
+nika-verb-exec = { path = "nika-verb-exec", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
