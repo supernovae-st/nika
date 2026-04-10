@@ -12,6 +12,9 @@ use std::sync::Arc;
 
 const DEFAULT_LIMIT: usize = 2000;
 const MAX_LINE_LENGTH: usize = 2000;
+/// DoS pre-check — reject files larger than this before read_to_string.
+/// Mirrors the pre-S10 engine-side ReadTool limit.
+const MAX_READ_SIZE: u64 = 50 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReadParams {
@@ -99,6 +102,24 @@ impl BuiltinTool for ReadTool {
                 return Err(BuiltinError::Io {
                     tool: "nika:read".into(),
                     reason: format!("[NIKA-208] File not found: {}", path.display()),
+                });
+            }
+
+            // DoS pre-check (S11.A3): stat before read_to_string so a 2 GB file
+            // cannot be loaded fully into memory just to be trimmed by offset/limit.
+            let metadata = tokio::fs::metadata(&path).await.map_err(|e| BuiltinError::Io {
+                tool: "nika:read".into(),
+                reason: format!("[NIKA-200] Failed to stat {}: {e}", path.display()),
+            })?;
+            if metadata.len() > MAX_READ_SIZE {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:read".into(),
+                    reason: format!(
+                        "[NIKA-200] File too large: {} bytes (max {} bytes / 50 MB). \
+                         Use offset/limit on a narrower range or split the file.",
+                        metadata.len(),
+                        MAX_READ_SIZE
+                    ),
                 });
             }
 
@@ -260,6 +281,42 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-204"));
+    }
+
+    // ── S11.A3 DoS pre-check: reject files >50MB before read_to_string ──
+
+    #[tokio::test]
+    async fn test_read_rejects_oversized_file() {
+        let (d, ctx) = setup();
+        let path = d.path().join("huge.bin");
+
+        // Create a 51 MB sparse file via set_len (no actual write).
+        let f = std::fs::File::create(&path).unwrap();
+        f.set_len(51 * 1024 * 1024).unwrap();
+        drop(f);
+
+        let tool = ReadTool::new(ctx);
+        let args = serde_json::json!({ "file_path": path.to_string_lossy() }).to_string();
+        let result = tool.call(args).await;
+
+        assert!(result.is_err(), "51 MB file must be rejected");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("50") || err.to_lowercase().contains("too large") || err.to_lowercase().contains("size"),
+            "error should mention size limit: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_accepts_small_file_after_size_check() {
+        let (d, ctx) = setup();
+        let path = d.path().join("tiny.txt");
+        std::fs::write(&path, "hello").unwrap();
+
+        let tool = ReadTool::new(ctx);
+        let args = serde_json::json!({ "file_path": path.to_string_lossy() }).to_string();
+        let result = tool.call(args).await;
+        assert!(result.is_ok(), "{:?}", result);
     }
 
     #[tokio::test]
