@@ -16,6 +16,8 @@ pub mod grep;
 pub(crate) mod limits;
 pub mod read;
 pub mod shield;
+#[cfg(test)]
+pub(crate) mod test_util;
 pub mod write;
 
 pub use context::FileToolContext;

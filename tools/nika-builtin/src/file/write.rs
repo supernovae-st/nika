@@ -268,8 +268,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_blocked_for_untrusted_task() {
+        use super::super::test_util::run_as;
         use nika_core::trust::TrustLevel;
-        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
 
         let (d, ctx) = setup();
         let path = d.path().join("target.txt");
@@ -281,13 +281,7 @@ mod tests {
         })
         .to_string();
 
-        let result = CURRENT_TASK_TRUST
-            .scope(TrustLevel::Untrusted, async {
-                CURRENT_TASK_ELEVATED
-                    .scope(false, async { tool.call(args).await })
-                    .await
-            })
-            .await;
+        let result = run_as(TrustLevel::Untrusted, false, tool.call(args)).await;
 
         assert!(result.is_err(), "untrusted write must be denied");
         let err = result.unwrap_err().to_string();
@@ -297,8 +291,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_allowed_for_elevated_untrusted() {
+        use super::super::test_util::run_as;
         use nika_core::trust::TrustLevel;
-        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
 
         let (d, ctx) = setup();
         let path = d.path().join("elevated.txt");
@@ -309,21 +303,15 @@ mod tests {
         })
         .to_string();
 
-        let result = CURRENT_TASK_TRUST
-            .scope(TrustLevel::Untrusted, async {
-                CURRENT_TASK_ELEVATED
-                    .scope(true, async { tool.call(args).await })
-                    .await
-            })
-            .await;
+        let result = run_as(TrustLevel::Untrusted, true, tool.call(args)).await;
         assert!(result.is_ok(), "elevated untrusted must pass: {:?}", result);
         assert!(path.exists());
     }
 
     #[tokio::test]
     async fn test_write_allowed_for_trusted_task() {
+        use super::super::test_util::run_as;
         use nika_core::trust::TrustLevel;
-        use nika_kernel::task_local::CURRENT_TASK_TRUST;
 
         let (d, ctx) = setup();
         let path = d.path().join("trusted.txt");
@@ -334,9 +322,7 @@ mod tests {
         })
         .to_string();
 
-        let result = CURRENT_TASK_TRUST
-            .scope(TrustLevel::Trusted, async { tool.call(args).await })
-            .await;
+        let result = run_as(TrustLevel::Trusted, false, tool.call(args)).await;
         assert!(result.is_ok(), "trusted caller must pass: {:?}", result);
         assert!(path.exists());
     }

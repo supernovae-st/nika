@@ -313,8 +313,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_grep_skips_sensitive_files_for_untrusted() {
+        use super::super::test_util::run_as;
         use nika_core::trust::TrustLevel;
-        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
 
         let (d, ctx) = setup();
         std::fs::write(d.path().join(".env"), "SECRET_KEY=leak_me").unwrap();
@@ -327,13 +327,7 @@ mod tests {
         })
         .to_string();
 
-        let result = CURRENT_TASK_TRUST
-            .scope(TrustLevel::Untrusted, async {
-                CURRENT_TASK_ELEVATED
-                    .scope(false, async { tool.call(args).await })
-                    .await
-            })
-            .await;
+        let result = run_as(TrustLevel::Untrusted, false, tool.call(args)).await;
 
         assert!(result.is_ok(), "{:?}", result);
         let body = result.unwrap();
