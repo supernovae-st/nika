@@ -293,30 +293,24 @@ impl TaskExecutor {
             None => None,
         };
 
-        // EMIT: McpInvoke event (with RESOLVED params for TUI display)
-        let mcp_server = resolved_mcp
-            .clone()
-            .unwrap_or_else(|| "builtin".to_string());
-        self.event_log.emit(EventKind::McpInvoke {
-            task_id: Arc::clone(task_id),
-            call_id: call_id.clone(),
-            mcp_server,
-            tool: resolved_tool.clone(),
-            resource: resolved_resource.clone(),
-            params: resolved_params.as_ref().map(|p| Arc::new(redact_value(p))),
-        });
+        // S14-BUG2: The McpInvoke event is emitted by nika-verb-invoke::run()
+        // for the builtin path, and by the inline MCP code below for the
+        // non-builtin path. Emitting here would duplicate for builtins.
+        //
+        // KNOWN REGRESSION (tracked for S15): the verb crate's McpInvoke
+        // emission does not currently apply `redact_secrets` to params.
+        // When dispatch() becomes the live path in S15, add a redaction
+        // hook field to InvokeInput (params_display: Option<Arc<Value>>)
+        // so the bridge can pre-redact before handing off.
 
         // ═══════════════════════════════════════════════════════════════
         // Builtin path — delegate to nika-verb-invoke via BuiltinRouter trait.
         //
-        // The verb crate emits McpInvoke + McpResponse itself, but we've
-        // ALREADY emitted McpInvoke above (for TUI display parity). The
-        // verb crate's duplicate emission is benign — both carry the same
-        // call_id and EventLog deduplication is the runner's job.
+        // The verb crate is the canonical emitter for McpInvoke + McpResponse.
         //
         // Media staging stays in the bridge because MediaRef construction
         // couples to nika-media types that don't belong in the verb crate
-        // (S14 extracts this via an InvokeCaps media channel).
+        // (S14+ extracts this via an InvokeCaps media channel).
         // ═══════════════════════════════════════════════════════════════
         if let Some(tool) = &resolved_tool {
             if is_nika_builtin(tool) {
