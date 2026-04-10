@@ -660,16 +660,6 @@ enum Commands {
         topic: Option<String>,
     },
 
-    /// Manage installed packages (workflows, skills, schemas)
-    ///
-    /// List, add, remove, and install packages from the SuperNovae registry.
-    /// Packages are stored in ~/.nika/packages/
-    #[command(next_help_heading = "PROJECT", visible_alias = "p")]
-    Pkg {
-        #[command(subcommand)]
-        action: cli::pkg::PkgAction,
-    },
-
     /// Manage media store (list, stats, clean)
     ///
     /// List, inspect, and garbage-collect binary files stored in the
@@ -1757,8 +1747,6 @@ async fn main() {
             }
             Ok(())
         }
-
-        Some(Commands::Pkg { action }) => cli::pkg::handle_pkg_command(action, quiet).await,
 
         Some(Commands::Completion { shell }) => {
             clap_complete::generate(shell, &mut Cli::command(), "nika", &mut std::io::stdout());

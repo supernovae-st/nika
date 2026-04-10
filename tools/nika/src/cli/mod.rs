@@ -34,7 +34,6 @@ pub use nika_cli::media;
 pub use nika_cli::model_cmd;
 pub use nika_cli::new_cmd;
 pub use nika_cli::onboarding;
-pub use nika_cli::pkg;
 pub use nika_cli::provider;
 pub use nika_cli::run;
 #[cfg(unix)]

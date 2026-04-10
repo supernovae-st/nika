@@ -28,7 +28,6 @@
 
 mod mcp_contracts;
 mod model_contracts;
-mod pkg_contracts;
 mod provider_contracts;
 mod setup_contracts;
 mod sync_contracts;
