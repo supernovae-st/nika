@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Production [`Filesystem`] implementation via `tokio::fs`.
+//! Production [`FsRead`] + [`FsWrite`] implementation via `tokio::fs`.
 //!
 //! This crate sits at L1 in the dependency graph — it implements the
-//! [`nika_kernel::filesystem::Filesystem`] trait using real filesystem I/O.
+//! [`nika_kernel::filesystem::FsRead`] and [`nika_kernel::filesystem::FsWrite`]
+//! splinter traits (and thus the umbrella [`nika_kernel::filesystem::Filesystem`])
+//! using real filesystem I/O.
 //!
 //! # Example
 //!
 //! ```rust,no_run
 //! use nika_fs::TokioFs;
-//! use nika_kernel::filesystem::Filesystem;
+//! use nika_kernel::filesystem::FsRead;
 //! use std::path::Path;
 //!
 //! # async fn example() -> std::io::Result<()> {
@@ -24,7 +26,7 @@
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
-use nika_kernel::filesystem::{FileMetadata, Filesystem};
+use nika_kernel::filesystem::{FileMetadata, FsRead, FsWrite};
 
 /// Production filesystem backed by `tokio::fs`.
 ///
@@ -33,7 +35,7 @@ use nika_kernel::filesystem::{FileMetadata, Filesystem};
 pub struct TokioFs;
 
 #[async_trait::async_trait]
-impl Filesystem for TokioFs {
+impl FsRead for TokioFs {
     async fn read(&self, path: &Path) -> std::io::Result<Bytes> {
         let data = tokio::fs::read(path).await?;
         Ok(Bytes::from(data))
@@ -43,16 +45,6 @@ impl Filesystem for TokioFs {
         tokio::fs::read_to_string(path).await
     }
 
-    async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                tokio::fs::create_dir_all(parent).await?;
-            }
-        }
-        tokio::fs::write(path, contents).await
-    }
-
     async fn metadata(&self, path: &Path) -> std::io::Result<FileMetadata> {
         let meta = tokio::fs::metadata(path).await?;
         Ok(FileMetadata {
@@ -60,14 +52,6 @@ impl Filesystem for TokioFs {
             is_file: meta.is_file(),
             is_dir: meta.is_dir(),
         })
-    }
-
-    async fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
-        tokio::fs::create_dir_all(path).await
-    }
-
-    async fn remove_file(&self, path: &Path) -> std::io::Result<()> {
-        tokio::fs::remove_file(path).await
     }
 
     async fn exists(&self, path: &Path) -> bool {
@@ -89,6 +73,27 @@ impl Filesystem for TokioFs {
 
     async fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf> {
         tokio::fs::canonicalize(path).await
+    }
+}
+
+#[async_trait::async_trait]
+impl FsWrite for TokioFs {
+    async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
+        // Ensure parent directory exists
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+        }
+        tokio::fs::write(path, contents).await
+    }
+
+    async fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+        tokio::fs::create_dir_all(path).await
+    }
+
+    async fn remove_file(&self, path: &Path) -> std::io::Result<()> {
+        tokio::fs::remove_file(path).await
     }
 }
 

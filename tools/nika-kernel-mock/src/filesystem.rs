@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use parking_lot::RwLock;
 
-use nika_kernel::filesystem::{FileMetadata, Filesystem};
+use nika_kernel::filesystem::{FileMetadata, FsRead, FsWrite};
 
 /// In-memory filesystem backed by a HashMap.
 ///
@@ -42,7 +42,7 @@ impl InMemoryFs {
 }
 
 #[async_trait::async_trait]
-impl Filesystem for InMemoryFs {
+impl FsRead for InMemoryFs {
     async fn read(&self, path: &Path) -> std::io::Result<Bytes> {
         self.files
             .read()
@@ -55,11 +55,6 @@ impl Filesystem for InMemoryFs {
         let bytes = self.read(path).await?;
         String::from_utf8(bytes.to_vec())
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-    }
-
-    async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
-        self.files.write().insert(path.to_path_buf(), contents.to_vec());
-        Ok(())
     }
 
     async fn metadata(&self, path: &Path) -> std::io::Result<FileMetadata> {
@@ -83,19 +78,6 @@ impl Filesystem for InMemoryFs {
                 Err(std::io::Error::new(std::io::ErrorKind::NotFound, path.display().to_string()))
             }
         }
-    }
-
-    async fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
-        // In-memory: directories are implicit from file paths.
-        Ok(())
-    }
-
-    async fn remove_file(&self, path: &Path) -> std::io::Result<()> {
-        self.files
-            .write()
-            .remove(path)
-            .map(|_| ())
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, path.display().to_string()))
     }
 
     async fn exists(&self, path: &Path) -> bool {
@@ -126,6 +108,27 @@ impl Filesystem for InMemoryFs {
     async fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf> {
         // In-memory: no symlinks, just return the path as-is.
         Ok(path.to_path_buf())
+    }
+}
+
+#[async_trait::async_trait]
+impl FsWrite for InMemoryFs {
+    async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
+        self.files.write().insert(path.to_path_buf(), contents.to_vec());
+        Ok(())
+    }
+
+    async fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+        // In-memory: directories are implicit from file paths.
+        Ok(())
+    }
+
+    async fn remove_file(&self, path: &Path) -> std::io::Result<()> {
+        self.files
+            .write()
+            .remove(path)
+            .map(|_| ())
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, path.display().to_string()))
     }
 }
 
