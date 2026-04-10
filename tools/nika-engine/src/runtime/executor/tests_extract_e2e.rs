@@ -11,7 +11,16 @@
 use crate::ast::extract::ExtractMode;
 use crate::ast::parse_workflow;
 use crate::ast::{FetchParams, TaskAction};
-use crate::runtime::executor::extract::apply_extract;
+
+/// Local test-only helper that delegates to `nika_extract::extract` without
+/// a base URL (preserves the old 3-arg signature used by this file).
+fn apply_extract(
+    body: &str,
+    extract: Option<ExtractMode>,
+    selector: Option<&str>,
+) -> Result<String, nika_extract::ExtractError> {
+    nika_extract::extract(body, extract, selector, None)
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helper: parse a minimal workflow YAML and extract the FetchParams

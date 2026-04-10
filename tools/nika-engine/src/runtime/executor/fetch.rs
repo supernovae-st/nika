@@ -704,7 +704,7 @@ impl TaskExecutor {
                                 }
                                 None => None,
                             };
-                            let extract_result = super::extract::apply_extract_with_base(
+                            let extract_result = nika_extract::extract(
                                 &body,
                                 fetch.extract,
                                 resolved_selector.as_deref(),
@@ -778,7 +778,7 @@ impl TaskExecutor {
                                 }
                                 None => None,
                             };
-                            let extract_result = super::extract::apply_extract_with_base(
+                            let extract_result = nika_extract::extract(
                                 &body,
                                 fetch.extract,
                                 resolved_selector.as_deref(),
@@ -1048,12 +1048,13 @@ impl TaskExecutor {
                         Some(s) => Some(template_resolve(s, bindings, datastore)?.into_owned()),
                         None => None,
                     };
-                    let extract_result = super::extract::apply_extract_with_base(
+                    let extract_result: Result<String, NikaError> = nika_extract::extract(
                         &raw_body,
                         fetch.extract,
                         resolved_selector.as_deref(),
                         Some(&response_url),
-                    );
+                    )
+                    .map_err(Into::into);
                     // EMIT: ExtractApplied (if an extract mode was specified)
                     if let Some(mode) = fetch.extract {
                         let output_len = extract_result.as_ref().map(|s| s.len()).unwrap_or(0);
@@ -1154,7 +1155,7 @@ fn merge_link_hreflang(
     }
     let result_str = result?;
     let mut parsed: serde_json::Value = serde_json::from_str(&result_str).unwrap_or_default();
-    let link_hreflang = super::extract::parse_link_header_hreflang(link_headers);
+    let link_hreflang = nika_extract::parse_link_header_hreflang(link_headers);
     if !link_hreflang.is_empty() {
         let hreflang = parsed.as_object_mut().and_then(|obj| {
             obj.entry("hreflang")
@@ -1179,7 +1180,7 @@ fn merge_link_hreflang_value(
     if !matches!(extract_mode, Some(ExtractMode::Metadata)) || link_headers.is_empty() {
         return extracted;
     }
-    let link_hreflang = super::extract::parse_link_header_hreflang(link_headers);
+    let link_hreflang = nika_extract::parse_link_header_hreflang(link_headers);
     if !link_hreflang.is_empty() {
         if let Some(obj) = extracted.as_object_mut() {
             let arr = obj.entry("hreflang").or_insert(serde_json::json!([]));

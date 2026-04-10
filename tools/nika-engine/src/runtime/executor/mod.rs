@@ -19,7 +19,6 @@
 mod agent;
 mod decompose;
 mod exec;
-mod extract;
 mod fetch;
 mod infer;
 mod invoke;
