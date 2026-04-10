@@ -266,8 +266,8 @@ impl TaskExecutor {
 /// Convert a `VerbExecError` to the engine's `NikaError` at the bridge boundary.
 fn map_verb_exec_error(err: VerbExecError) -> NikaError {
     match err {
-        VerbExecError::NonZeroExit { stderr, .. } => ExecutionError::ExecFailed {
-            reason: format!("Command failed: {}", stderr),
+        VerbExecError::NonZeroExit { exit_code, stderr } => ExecutionError::ExecFailed {
+            reason: format!("Command failed (exit {exit_code}): {stderr}"),
         }
         .into(),
         VerbExecError::Cancelled { task_id } => NikaError::TaskCancelled {
