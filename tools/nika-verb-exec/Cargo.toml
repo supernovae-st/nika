@@ -20,6 +20,7 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 nika-kernel-mock = { workspace = true }
+nika-exec-runner = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "time"] }
 
 [lints]

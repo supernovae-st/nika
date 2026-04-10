@@ -321,6 +321,68 @@ mod tests {
         assert!(exec_completed.is_some(), "ExecCompleted event not emitted");
     }
 
+    /// **GATE-S13-1 regression test** — subprocess must not deadlock on >1 MB output.
+    ///
+    /// Goes end-to-end through `nika_verb_exec::run()` → `TokioShell::run()`
+    /// to verify the G1 pattern (tokio::try_join! concurrent pipe drain +
+    /// kill_on_drop) is preserved in the verb-crate execution path.
+    ///
+    /// Without the fix, this test hangs forever (pipe buffer full → child
+    /// blocks on write → wait() blocks waiting for child → deadlock).
+    /// Sacred invariant #13: every subprocess code MUST be regression-tested
+    /// with >1 MB output.
+    #[tokio::test]
+    async fn subprocess_does_not_deadlock_on_large_output() {
+        use nika_exec_runner::TokioShell;
+        use nika_kernel_mock::clock::MockClock;
+        use nika_kernel_mock::filesystem::InMemoryFs;
+        use nika_kernel_mock::policy::MockPolicyChecker;
+
+        // Real TokioShell — not MockShell — because we need actual subprocess I/O
+        // to reproduce the pipe-buffer deadlock condition.
+        let shell = TokioShell;
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let fs = InMemoryFs::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let workflow_dir = std::env::temp_dir();
+
+        let caps = ExecCaps::new(
+            &shell, &policy, &clock, &fs, &cancel,
+            &workflow_dir, None, None,
+        );
+
+        let event_log = EventLog::new();
+        let input = ExecInput {
+            // Emit 1 MB to stdout via `yes` + `head`.
+            command: "yes x | head -c 1048576",
+            shell: true,
+            cwd: None,
+            // 30-second timeout: if the fix is broken, test hangs until here.
+            timeout: Some(Duration::from_secs(30)),
+            env: vec![],
+            env_remove: vec![],
+            max_stdout: None,
+            task_id: Arc::from("gate_s13_1_deadlock"),
+        };
+
+        let result = run(&input, &caps, &event_log).await;
+        assert!(
+            result.is_ok(),
+            "1 MB output must not deadlock — got: {result:?}"
+        );
+        let output = result.unwrap();
+        // Output passes through truncate_stdout which trims; the 1 MB is
+        // under the default 50 MB limit so the full content returns.
+        // After trim(), trailing newlines are removed — but the content is
+        // still ~1 MB of 'x\n' pairs.
+        assert!(
+            output.len() > 1_000_000,
+            "expected ~1 MB of output, got {} bytes",
+            output.len()
+        );
+    }
+
     #[tokio::test]
     async fn run_nonzero_exit_returns_error() {
         use nika_kernel_mock::policy::MockPolicyChecker;

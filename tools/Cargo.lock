@@ -6515,6 +6515,7 @@ name = "nika-verb-exec"
 version = "0.79.0"
 dependencies = [
  "nika-event",
+ "nika-exec-runner",
  "nika-kernel",
  "nika-kernel-mock",
  "serde_json",
