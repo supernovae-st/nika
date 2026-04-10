@@ -171,11 +171,69 @@ mod tests {
         assert!(result.is_ok(), "fetch failed: {result:?}");
         assert_eq!(result.unwrap(), "hello world");
 
-        // Verify HttpResponse event.
+        // W14-A2: assert on concrete HttpResponse fields, not just the
+        // variant. A 404 event leaking into a happy-path test would
+        // pass a `matches!(.., HttpResponse { .. })` check but fail this.
         let events = event_log.events();
-        assert!(events
+        let http_response = events
             .iter()
-            .any(|e| matches!(e.kind, EventKind::HttpResponse { .. })));
+            .find_map(|e| match &e.kind {
+                EventKind::HttpResponse {
+                    status_code,
+                    content_length,
+                    ..
+                } => Some((*status_code, *content_length)),
+                _ => None,
+            })
+            .expect("expected HttpResponse event");
+        assert_eq!(http_response.0, 200, "status_code should be 200");
+        assert_eq!(
+            http_response.1,
+            Some(b"hello world".len() as u64),
+            "content_length should match body size"
+        );
+    }
+
+    /// W14-A2: exercise the `extract:` path using the zero-dep jsonpath
+    /// mode. Earlier the extract wiring was uncovered — any regression
+    /// in `nika_extract::extract()` or the selector/base_url plumbing
+    /// would slip past the other tests.
+    #[tokio::test]
+    async fn fetch_extract_jsonpath_returns_selected_value() {
+        let http = MockHttpClient::default();
+        http.enqueue_ok(
+            200,
+            r#"{"user": {"name": "Alice", "age": 30}}"#,
+        );
+
+        let policy = MockPolicyChecker::allow_all();
+        let blobs = MemoryBlobStore::default();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+
+        let caps = FetchCaps::new(&http, &policy, &blobs, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = FetchInput {
+            url: "https://api.example.com/user",
+            method: HttpMethod::Get,
+            headers: vec![],
+            body: None,
+            timeout: None,
+            follow_redirects: true,
+            extract: Some(ExtractMode::Jsonpath),
+            extract_selector: Some("$.user.name".to_string()),
+            task_id: Arc::from("fetch_jsonpath"),
+        };
+
+        let result = run(&input, &caps, &event_log).await;
+        let extracted = result.expect("extract should succeed");
+        // The jsonpath extractor returns a JSON value; "Alice" serializes
+        // as a JSON string with surrounding quotes.
+        assert!(
+            extracted.contains("Alice"),
+            "expected extracted value to contain 'Alice', got: {extracted}"
+        );
     }
 
     #[tokio::test]
