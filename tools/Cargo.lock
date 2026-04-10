@@ -6206,6 +6206,7 @@ dependencies = [
  "blake3",
  "bytes",
  "dashmap",
+ "futures-util",
  "nika-core",
  "nika-kernel",
  "parking_lot",

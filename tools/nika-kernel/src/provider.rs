@@ -114,13 +114,43 @@ pub struct InferRequest {
 }
 
 /// Inference response.
+///
+/// Constructed via [`InferResponse::new`]; `#[non_exhaustive]` prevents
+/// struct-literal construction so future fields can be added without
+/// breaking downstream code.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct InferResponse {
     pub content: Vec<ContentBlock>,
     pub usage: TokenUsage,
     pub stop_reason: StopReason,
     pub ttft_ms: Option<u64>,
     pub cached_tokens: Option<u32>,
+    /// Provider-assigned request identifier (e.g., OpenAI `response.id`).
+    ///
+    /// Surfaced in the `ProviderResponded` event for correlation with
+    /// provider-side logs and billing dashboards.
+    pub request_id: Option<String>,
+    /// Computed cost in USD for the request.
+    ///
+    /// Populated by the bridge from `ModelCapabilities` pricing; `None`
+    /// when pricing data is unavailable for the model.
+    pub cost_usd: Option<f64>,
+}
+
+impl InferResponse {
+    /// Minimal constructor — all optional fields default to `None`.
+    pub fn new(content: Vec<ContentBlock>, usage: TokenUsage, stop_reason: StopReason) -> Self {
+        Self {
+            content,
+            usage,
+            stop_reason,
+            ttft_ms: None,
+            cached_tokens: None,
+            request_id: None,
+            cost_usd: None,
+        }
+    }
 }
 
 /// Token usage statistics.
@@ -204,4 +234,15 @@ pub trait Provider: Send + Sync {
 
     /// Run inference with streaming events.
     async fn infer_stream(&self, request: InferRequest) -> Result<InferStream, ProviderError>;
+
+    /// True if the provider supports native structured output via
+    /// `response_format: json_schema`.
+    ///
+    /// Used by `nika-verb-infer`'s Layer 0a structured-output strategy
+    /// to decide whether to route via native response_format or fall back
+    /// to prompt-based schema injection. Defaults to `false` — each
+    /// provider opts in.
+    fn supports_response_format(&self) -> bool {
+        false
+    }
 }

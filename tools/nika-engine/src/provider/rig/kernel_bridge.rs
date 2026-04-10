@@ -176,13 +176,13 @@ fn convert_error(e: super::error::RigInferError) -> ProviderError {
 
 /// Build an InferResponse from a plain text result.
 fn text_response(text: String, start: Instant) -> InferResponse {
-    InferResponse {
-        content: vec![ContentBlock::Text { text }],
-        usage: TokenUsage::default(),
-        stop_reason: StopReason::EndTurn,
-        ttft_ms: Some(start.elapsed().as_millis() as u64),
-        cached_tokens: None,
-    }
+    let mut response = InferResponse::new(
+        vec![ContentBlock::Text { text }],
+        TokenUsage::default(),
+        StopReason::EndTurn,
+    );
+    response.ttft_ms = Some(start.elapsed().as_millis() as u64);
+    response
 }
 
 // ─────────────────────────────────────────────────────────────────────
