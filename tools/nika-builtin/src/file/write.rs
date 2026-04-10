@@ -4,14 +4,13 @@
 //! nika:write — Create or overwrite files.
 
 use super::context::FileToolContext;
+use super::limits::MAX_WRITE_BYTES;
 use crate::{BuiltinError, BuiltinTool, __sealed};
 use nika_kernel::task_local::current_is_tainted;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-
-const MAX_WRITE_SIZE: usize = 10 * 1024 * 1024; // 10 MB
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WriteParams {
@@ -106,7 +105,7 @@ impl BuiltinTool for WriteTool {
 
             let path = self.ctx.validate_path(&params.file_path)?;
 
-            if params.content.len() > MAX_WRITE_SIZE {
+            if (params.content.len() as u64) > MAX_WRITE_BYTES {
                 return Err(BuiltinError::InvalidArgs {
                     tool: "nika:write".into(),
                     reason: format!(

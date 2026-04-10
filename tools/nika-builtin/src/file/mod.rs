@@ -13,6 +13,7 @@ pub mod context;
 pub mod edit;
 pub mod glob;
 pub mod grep;
+pub(crate) mod limits;
 pub mod read;
 pub mod shield;
 pub mod write;

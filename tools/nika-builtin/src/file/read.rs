@@ -3,6 +3,7 @@
 
 //! nika:read — Read files with optional line numbers, offset, and limit.
 
+use super::limits::MAX_READ_BYTES;
 use super::{context::FileToolContext, shield::check_path_readable};
 use crate::{BuiltinError, BuiltinTool, __sealed};
 use serde::{Deserialize, Serialize};
@@ -12,9 +13,6 @@ use std::sync::Arc;
 
 const DEFAULT_LIMIT: usize = 2000;
 const MAX_LINE_LENGTH: usize = 2000;
-/// DoS pre-check — reject files larger than this before read_to_string.
-/// Mirrors the pre-S10 engine-side ReadTool limit.
-const MAX_READ_SIZE: u64 = 50 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReadParams {
@@ -111,14 +109,14 @@ impl BuiltinTool for ReadTool {
                 tool: "nika:read".into(),
                 reason: format!("[NIKA-200] Failed to stat {}: {e}", path.display()),
             })?;
-            if metadata.len() > MAX_READ_SIZE {
+            if metadata.len() > MAX_READ_BYTES {
                 return Err(BuiltinError::InvalidArgs {
                     tool: "nika:read".into(),
                     reason: format!(
                         "[NIKA-200] File too large: {} bytes (max {} bytes / 50 MB). \
                          Use offset/limit on a narrower range or split the file.",
                         metadata.len(),
-                        MAX_READ_SIZE
+                        MAX_READ_BYTES
                     ),
                 });
             }
