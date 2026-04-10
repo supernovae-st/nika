@@ -195,8 +195,30 @@ fn map_verb_invoke_error(err: VerbInvokeError) -> NikaError {
             },
             reason: e.to_string(),
         },
-        VerbInvokeError::Mcp(e) => NikaError::InvokeParamError {
-            reason: e.to_string(),
+        // W14-B0: unreachable in S14 (bridge handles the MCP path inline
+        // via McpClient directly; see run_invoke's non-builtin branch).
+        // Pre-emptively mapped to accurate semantics for when dispatch()
+        // becomes the live path in S15. InvokeParamError was wrong — MCP
+        // failures are runtime/connectivity issues, not user-param bugs.
+        VerbInvokeError::Mcp(e) => match e {
+            nika_kernel::mcp::McpError::ServerNotFound { server } => NikaError::McpNotConnected {
+                name: server,
+            },
+            nika_kernel::mcp::McpError::ToolCallFailed {
+                tool, reason, ..
+            } => NikaError::McpToolError {
+                tool,
+                reason,
+                error_code: None,
+            },
+            nika_kernel::mcp::McpError::ResourceFailed { uri, reason } => {
+                NikaError::McpResourceNotFound {
+                    uri: format!("{uri} ({reason})"),
+                }
+            }
+            nika_kernel::mcp::McpError::Connection { reason } => NikaError::McpProtocolError {
+                reason,
+            },
         },
         VerbInvokeError::Cancelled { task_id } => NikaError::TaskCancelled {
             task_id,
