@@ -6042,6 +6042,7 @@ dependencies = [
  "nika-daemon",
  "nika-display",
  "nika-event",
+ "nika-extract",
  "nika-kernel",
  "nika-lsp-core",
  "nika-macros",
@@ -6118,6 +6119,24 @@ dependencies = [
  "tokio-util",
  "tracing",
  "unicode-normalization",
+]
+
+[[package]]
+name = "nika-extract"
+version = "0.79.0"
+dependencies = [
+ "dom_smoothie",
+ "feed-rs",
+ "htmd",
+ "nika-core",
+ "quick-xml 0.37.5",
+ "regex",
+ "scraper 0.26.0",
+ "serde_json",
+ "serde_json_path",
+ "thiserror 2.0.18",
+ "tracing",
+ "url",
 ]
 
 [[package]]

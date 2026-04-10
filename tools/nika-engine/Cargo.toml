@@ -32,7 +32,10 @@ media-provenance = ["nika-media/media-provenance"]
 media-qr = ["nika-media/media-qr"]
 media-compression = ["nika-media/media-compression"]
 media-iqa = ["nika-media/media-iqa"]
-# Web extraction — forwarded to nika-media
+# Web extraction — forwarded to nika-media (for media operations).
+# Note: nika-extract is unconditionally depended on and enables all its
+# fetch-* features by default, so engine's fetch-* features only need to
+# control engine-local `dep:X` and nika-media/fetch-X activation.
 fetch-html = ["nika-media/fetch-html", "dep:scraper"]
 fetch-markdown = ["nika-media/fetch-markdown", "dep:htmd"]
 fetch-article = ["nika-media/fetch-article", "dep:dom_smoothie", "dep:scraper"]
@@ -51,6 +54,7 @@ nika-mcp = { workspace = true }
 nika-media = { workspace = true }
 nika-builtin = { workspace = true }
 nika-policy = { workspace = true }
+nika-extract = { workspace = true }
 nika-vault = { workspace = true }
 
 # Async

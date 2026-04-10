@@ -1240,6 +1240,14 @@ impl From<nika_policy::PolicyError> for NikaError {
     }
 }
 
+impl From<nika_extract::ExtractError> for NikaError {
+    fn from(e: nika_extract::ExtractError) -> Self {
+        NikaError::ExtractError {
+            reason: e.to_string(),
+        }
+    }
+}
+
 impl NikaError {
     /// Convenience: look up fix suggestion by error code string (e.g., "NIKA-044").
     ///

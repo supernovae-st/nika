@@ -1,0 +1,43 @@
+[package]
+name = "nika-extract"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika fetch: post-processing — HTML/markdown/article/feed/metadata/jsonpath extraction (pure, zero I/O)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[features]
+default = [
+    "fetch-markdown",
+    "fetch-html",
+    "fetch-article",
+    "fetch-feed",
+    "fetch-sitemap",
+]
+fetch-markdown = ["dep:htmd", "dep:regex"]
+fetch-html = ["dep:scraper", "dep:regex"]
+fetch-article = ["dep:dom_smoothie", "dep:scraper"]
+fetch-feed = ["dep:feed-rs"]
+fetch-sitemap = ["dep:quick-xml"]
+
+[dependencies]
+nika-core = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+serde_json_path = { workspace = true }
+url = { workspace = true }
+
+# Feature-gated extraction libs
+htmd = { workspace = true, optional = true }
+scraper = { workspace = true, optional = true }
+dom_smoothie = { workspace = true, optional = true }
+feed-rs = { workspace = true, optional = true }
+quick-xml = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
+
+[lints]
+workspace = true

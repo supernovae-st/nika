@@ -30,6 +30,7 @@ members = [
     "nika-macros",
     "nika-builtin",
     "nika-policy",
+    "nika-extract",
 ]
 
 [workspace.package]
@@ -67,6 +68,7 @@ nika-exec-runner = { path = "nika-exec-runner", version = "0.79.0" }
 nika-macros = { path = "nika-macros", version = "0.79.0" }
 nika-builtin = { path = "nika-builtin", version = "0.79.0" }
 nika-policy = { path = "nika-policy", version = "0.79.0" }
+nika-extract = { path = "nika-extract", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
