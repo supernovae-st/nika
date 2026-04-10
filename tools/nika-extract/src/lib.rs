@@ -127,6 +127,21 @@ pub fn apply_extract(
 }
 
 /// Apply extraction with an optional base URL for resolving relative links.
+//
+// `base_url` and `selector` are only consumed by feature-gated extract arms
+// (fetch-html, fetch-article, etc.). When all fetch-* features are disabled,
+// the parameters become unused. Silence the warning at the function level
+// rather than annotating each parameter.
+#[cfg_attr(
+    not(any(
+        feature = "fetch-markdown",
+        feature = "fetch-html",
+        feature = "fetch-article",
+        feature = "fetch-feed",
+        feature = "fetch-sitemap"
+    )),
+    allow(unused_variables)
+)]
 pub fn apply_extract_with_base(
     body: &str,
     extract: Option<ExtractMode>,
