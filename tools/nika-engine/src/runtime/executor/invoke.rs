@@ -1,15 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Invoke verb implementation for TaskExecutor
+//! Invoke verb bridge for TaskExecutor.
 //!
-//! Contains `run_invoke` for MCP tool calls and resource reads.
+//! - `nika:*` builtin path → delegates to `nika_verb_invoke::run()` via
+//!   the `BuiltinRouter` kernel trait (S13-C2).
+//! - MCP path → stays inline in this file (media processing coupling
+//!   deferred to S14).
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::instrument;
 use uuid::Uuid;
+
+use nika_kernel::builtin::{BuiltinError, BuiltinRouter as KernelBuiltinRouter};
+use nika_kernel::caps::InvokeCaps;
+use nika_kernel::mcp::{McpError, McpPool};
+use nika_verb_invoke::{is_builtin as is_nika_builtin, InvokeInput, VerbInvokeError};
 
 use crate::ast::InvokeParams;
 use crate::binding::{template_resolve, ResolvedBindings};
@@ -21,6 +31,186 @@ use crate::store::RunContext;
 use crate::util::INVOKE_TASK_DEADLINE;
 
 use super::verbs::coerce_json_types;
+
+// ═══════════════════════════════════════════════════════════════════════
+// BuiltinRouterAdapter — bridges engine's concrete BuiltinToolRouter
+// to the nika-kernel BuiltinRouter trait expected by nika-verb-invoke.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Adapter that implements `nika_kernel::builtin::BuiltinRouter` over the
+/// engine's concrete `BuiltinToolRouter`.
+///
+/// The adapter re-adds the `nika:` prefix (the kernel trait receives bare
+/// tool names like `"log"`; the engine router expects `"nika:log"`) and
+/// maps `NikaError` to `BuiltinError::Other`.
+#[derive(Clone)]
+struct BuiltinRouterAdapter {
+    inner: Arc<BuiltinToolRouter>,
+}
+
+impl std::fmt::Debug for BuiltinRouterAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BuiltinRouterAdapter").finish_non_exhaustive()
+    }
+}
+
+impl KernelBuiltinRouter for BuiltinRouterAdapter {
+    fn dispatch<'a>(
+        &'a self,
+        tool: &'a str,
+        args: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, BuiltinError>> + Send + 'a>> {
+        let inner = Arc::clone(&self.inner);
+        let tool_with_prefix = format!("nika:{tool}");
+        Box::pin(async move {
+            inner.dispatch(&tool_with_prefix, args).await.map_err(|e| {
+                BuiltinError::Other {
+                    tool: tool_with_prefix,
+                    reason: e.to_string(),
+                }
+            })
+        })
+    }
+
+    fn knows(&self, tool: &str) -> bool {
+        // Engine's is_builtin takes the prefixed name.
+        BuiltinToolRouter::is_builtin(&format!("nika:{tool}"))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NoopMcpPool — MCP dispatch still lives in the engine bridge (S13).
+// The verb crate's non-builtin path is unreachable in S13 because the
+// bridge checks `is_builtin` before calling `run()`. This noop pool only
+// exists to satisfy `InvokeCaps::new()`'s type requirements.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Null `BlobStore` shim — the builtin path doesn't actually use blobs,
+/// but `InvokeCaps::new` requires a `&dyn BlobStore` parameter.
+#[derive(Debug)]
+struct NullBlobStore;
+
+#[async_trait::async_trait]
+impl nika_kernel::store::BlobStore for NullBlobStore {
+    async fn put(
+        &self,
+        _data: tokio_util::bytes::Bytes,
+        _mime_type: &str,
+    ) -> Result<nika_kernel::store::BlobMetadata, nika_kernel::store::BlobError> {
+        Err(nika_kernel::store::BlobError::Io {
+            reason: "null blob store (engine bridge shim)".to_string(),
+        })
+    }
+
+    async fn get(
+        &self,
+        _hash: &str,
+    ) -> Result<tokio_util::bytes::Bytes, nika_kernel::store::BlobError> {
+        Err(nika_kernel::store::BlobError::NotFound {
+            hash: "(null)".to_string(),
+        })
+    }
+
+    async fn exists(&self, _hash: &str) -> bool {
+        false
+    }
+
+    async fn delete(&self, _hash: &str) -> Result<(), nika_kernel::store::BlobError> {
+        Ok(())
+    }
+
+    async fn stat(
+        &self,
+        _hash: &str,
+    ) -> Result<nika_kernel::store::BlobMetadata, nika_kernel::store::BlobError> {
+        Err(nika_kernel::store::BlobError::NotFound {
+            hash: "(null)".to_string(),
+        })
+    }
+}
+
+/// Null `HttpClient` shim — same rationale as `NullBlobStore`.
+#[derive(Debug)]
+struct NullHttpClient;
+
+#[async_trait::async_trait]
+impl nika_kernel::http::HttpClient for NullHttpClient {
+    async fn send(
+        &self,
+        _request: nika_kernel::http::HttpRequest,
+    ) -> Result<nika_kernel::http::HttpResponse, nika_kernel::http::HttpError> {
+        Err(nika_kernel::http::HttpError::Unsupported {
+            feature: "null http client (engine bridge shim)".to_string(),
+        })
+    }
+}
+
+#[derive(Debug)]
+struct NoopMcpPool;
+
+impl McpPool for NoopMcpPool {
+    fn call_tool<'a>(
+        &'a self,
+        server: &'a str,
+        _tool: &'a str,
+        _args: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, McpError>> + Send + 'a>> {
+        Box::pin(async move {
+            Err(McpError::ServerNotFound {
+                server: server.to_string(),
+            })
+        })
+    }
+
+    fn read_resource<'a>(
+        &'a self,
+        uri: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<String, McpError>> + Send + 'a>> {
+        Box::pin(async move {
+            Err(McpError::ResourceFailed {
+                uri: uri.to_string(),
+                reason: "engine bridge routes MCP inline in S13".to_string(),
+            })
+        })
+    }
+
+    fn has_server(&self, _server: &str) -> bool {
+        false
+    }
+}
+
+/// Convert a `VerbInvokeError` to `NikaError` at the bridge boundary.
+fn map_verb_invoke_error(err: VerbInvokeError) -> NikaError {
+    match err {
+        VerbInvokeError::Builtin(e) => NikaError::BuiltinToolError {
+            tool: match &e {
+                BuiltinError::InvalidArgs { tool, .. }
+                | BuiltinError::Io { tool, .. }
+                | BuiltinError::Parse { tool, .. }
+                | BuiltinError::Timeout { tool }
+                | BuiltinError::Schema { tool, .. }
+                | BuiltinError::Denied { tool, .. }
+                | BuiltinError::Other { tool, .. } => tool.clone(),
+                BuiltinError::AssertionFailed { .. } => "nika:assert".to_string(),
+            },
+            reason: e.to_string(),
+        },
+        VerbInvokeError::Mcp(e) => NikaError::InvokeParamError {
+            reason: e.to_string(),
+        },
+        VerbInvokeError::Cancelled { task_id } => NikaError::TaskCancelled {
+            task_id,
+            reason: "workflow cancelled during invoke".to_string(),
+        },
+        VerbInvokeError::Timeout { duration_ms } => NikaError::McpTimeout {
+            name: "builtin".to_string(),
+            operation: "invoke".to_string(),
+            timeout_secs: duration_ms / 1000,
+        },
+        VerbInvokeError::InvalidParams { reason } => NikaError::InvokeParamError { reason },
+        VerbInvokeError::Validation { reason } => NikaError::ValidationError { reason },
+    }
+}
 
 /// Recursively redact secrets from a JSON value for safe event logging.
 fn redact_value(value: &serde_json::Value) -> serde_json::Value {
@@ -116,33 +306,87 @@ impl TaskExecutor {
             params: resolved_params.as_ref().map(|p| Arc::new(redact_value(p))),
         });
 
-        // Check for builtin nika_* tools
+        // ═══════════════════════════════════════════════════════════════
+        // Builtin path — delegate to nika-verb-invoke via BuiltinRouter trait.
+        //
+        // The verb crate emits McpInvoke + McpResponse itself, but we've
+        // ALREADY emitted McpInvoke above (for TUI display parity). The
+        // verb crate's duplicate emission is benign — both carry the same
+        // call_id and EventLog deduplication is the runner's job.
+        //
+        // Media staging stays in the bridge because MediaRef construction
+        // couples to nika-media types that don't belong in the verb crate
+        // (S14 extracts this via an InvokeCaps media channel).
+        // ═══════════════════════════════════════════════════════════════
         if let Some(tool) = &resolved_tool {
-            if BuiltinToolRouter::is_builtin(tool) {
-                // Use already-resolved params
-                let params = resolved_params
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|| "{}".to_string());
+            if is_nika_builtin(tool) {
+                let adapter = BuiltinRouterAdapter {
+                    inner: Arc::clone(&self.builtin_router),
+                };
+                let noop_mcp = NoopMcpPool;
+                let clock = nika_clock::SystemClock;
+                let fs = nika_fs::TokioFs;
+                // Need a blob store — use the engine's CAS for consistency.
+                // BlobStore trait isn't yet used by the builtin path, but
+                // InvokeCaps::new requires it for the type.
+                use nika_kernel::store::BlobStore;
+                let blob_shim = NullBlobStore;
+                let blobs: &dyn BlobStore = &blob_shim;
+                // HttpClient also required by InvokeCaps — use a noop.
+                let http_shim = NullHttpClient;
+                use nika_kernel::http::HttpClient;
+                let http: &dyn HttpClient = &http_shim;
+                // Policy: clone the enforcer to avoid !Send RwLockReadGuard
+                // across .await (GATE-S13-3).
+                let policy_clone = self.policy_enforcer.read().clone();
 
-                // Dispatch to builtin router
-                let dispatch_result = self.builtin_router.dispatch(tool, params).await;
-                let duration_ms = start_time.elapsed().as_millis() as u64;
+                let caps = InvokeCaps::new(
+                    &adapter,
+                    &noop_mcp,
+                    &fs,
+                    &fs,
+                    http,
+                    blobs,
+                    &policy_clone,
+                    &clock,
+                    &self.cancel_token,
+                );
 
-                match dispatch_result {
-                    Ok(result) => {
-                        let result_value: serde_json::Value = serde_json::from_str(&result)
-                            .unwrap_or_else(|_| serde_json::Value::String(result.clone()));
+                let input = InvokeInput {
+                    tool: Some(tool.clone()),
+                    resource: None,
+                    mcp_server: None,
+                    params: resolved_params.clone(),
+                    task_id: Arc::clone(task_id),
+                    call_id: call_id.clone(),
+                };
 
-                        // Stage MediaRef if the builtin tool returned CAS media data.
-                        // Without this, artifact format: binary gets empty media_refs -> NIKA-281.
+                // The bridge has already emitted McpInvoke above; the verb
+                // crate emits its own, but we only need its McpResponse.
+                // Accept the extra McpInvoke — no TUI impact.
+                match nika_verb_invoke::run(&input, &caps, &self.event_log).await {
+                    Ok(result_str) => {
+                        // Parse the returned JSON string for media staging.
+                        let result_value: serde_json::Value =
+                            serde_json::from_str(&result_str)
+                                .unwrap_or_else(|_| serde_json::Value::String(result_str.clone()));
+
+                        // Stage MediaRef if the builtin tool returned CAS
+                        // media data (same as before — bridge responsibility
+                        // because MediaRef lives in nika-media).
                         if let serde_json::Value::Object(ref obj) = result_value {
                             if let (Some(hash), Some(mime_type)) = (
                                 obj.get("hash").and_then(|v| v.as_str()),
                                 obj.get("mime_type").and_then(|v| v.as_str()),
                             ) {
-                                let size_bytes =
-                                    obj.get("size_bytes").and_then(|v| v.as_u64()).unwrap_or_else(|| {
-                                        tracing::warn!(hash = %hash, "size_bytes missing from media tool result — defaulting to 0");
+                                let size_bytes = obj
+                                    .get("size_bytes")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or_else(|| {
+                                        tracing::warn!(
+                                            hash = %hash,
+                                            "size_bytes missing from media tool result — defaulting to 0"
+                                        );
                                         0
                                     });
                                 let path = obj
@@ -174,33 +418,10 @@ impl TaskExecutor {
                             }
                         }
 
-                        // EMIT: McpResponse event for builtin tool (success)
-                        self.event_log.emit(EventKind::McpResponse {
-                            task_id: Arc::clone(task_id),
-                            call_id,
-                            output_len: result.len(),
-                            duration_ms,
-                            cached: false,
-                            is_error: false,
-                            response: Some(Arc::new(redact_value(&result_value))),
-                        });
-
-                        return Ok(result_value.to_string());
+                        return Ok(result_str);
                     }
                     Err(e) => {
-                        // EMIT: McpResponse event for builtin tool (error)
-                        let err_val = serde_json::json!({"error": e.to_string()});
-                        self.event_log.emit(EventKind::McpResponse {
-                            task_id: Arc::clone(task_id),
-                            call_id,
-                            output_len: 0,
-                            duration_ms,
-                            cached: false,
-                            is_error: true,
-                            response: Some(Arc::new(redact_value(&err_val))),
-                        });
-
-                        return Err(e);
+                        return Err(map_verb_invoke_error(e));
                     }
                 }
             }

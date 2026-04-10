@@ -57,6 +57,7 @@ nika-policy = { workspace = true }
 nika-extract = { workspace = true }
 nika-vault = { workspace = true }
 nika-verb-exec = { workspace = true }
+nika-verb-invoke = { workspace = true }
 nika-exec-runner = { workspace = true }
 nika-clock = { workspace = true }
 nika-fs = { workspace = true }
