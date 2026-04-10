@@ -63,37 +63,64 @@ progressive disclosure — not a single monolithic dump.
 **Rule:** Don't dump 500 lines. Let the AI discover via MCP tools + focused rule files.
 **Rule:** Content lives in `shared/` modules. Tool-specific files are assembled, not duplicated.
 
-## Crate Architecture (Current: 24 Crates, Target: ~32 Crates)
+## Crate Architecture (Current: 28 Crates post-S12 Foundation, Target: 35-36 post-S14)
 
-### Current Diamond Pattern (v0.79.3, post-Constellation Session 4)
+### Current Diamond Pattern (v0.79.x, post-Constellation Session 12 Foundation)
+
+Status: 22 S12 commits pushed 2026-04-10 (D/P/E + 11 Foundation + 3 Gap fixes). Session 13 NOT YET STARTED.
 
 ```
-L0    nika-core (23K)         — AST, types, catalogs, policy, trust, capabilities — ZERO I/O
-L0.5  nika-kernel (717)       — 10 trait defs — ZERO impls                        NEW S2
-      nika-kernel-mock (744)  — 5 hand-written mocks (dev-dep)                    NEW S2
-L1    nika-clock              — SystemClock (tokio::time, ZST)                     NEW S3
-      nika-fs                 — TokioFs (tokio::fs + globset, ZST)                 NEW S3
-      nika-blob               — DiskBlobStore (blake3 CAS)                         NEW S3
-      nika-http               — ReqwestClient (SSRF: IPv4/v6/CGN/meta)             NEW S3
-      nika-exec-runner        — TokioShell (100+ pattern blocklist + NFKC)         NEW S3
-      nika-event (4.5K)       — EventLog + EventEmitter blanket impl
-      nika-lsp-core (12K)     — LSP intelligence (pure functions)
-L2    nika-engine (160K)      — MONOLITH: providers, builtins, runtime, http, exec
-      + kernel_bridge.rs      — impl Provider for RigProvider                      NEW S4
-      + get_dyn_provider()    — Arc<dyn Provider> keystone method                  NEW S4
-      ├── runtime/shield.rs   — SecurityContext aggregate (SpotlightFence + CanarySystem)
-      ├── runtime/canary.rs   — Canary token system
-      └── runtime/spotlight.rs — Untrusted data fencing
+L0    nika-core (~23K)         — AST, types, catalogs, PolicyConfig, trust — ZERO I/O
+      nika-event (~4K)         — EventLog, EventKind, TraceWriter
+L0.5  nika-kernel              — Trait defs: Provider, FsRead/FsWrite splinters,
+                                 HttpClient (+send_streaming), ShellExecutor (+cancel),
+                                 BlobStore, Clock, PolicyChecker (NEW S12-F1),
+                                 caps module (NEW S12-F9). ZERO impls.
+      nika-kernel-mock         — Hand-written mocks for all kernel traits (dev-dep only)
+L1    nika-clock               — SystemClock (tokio::time, ZST)
+      nika-fs                  — TokioFs (FsRead + FsWrite splinter impls, S12-F4)
+      nika-blob                — DiskBlobStore (blake3 CAS)
+      nika-http                — ReqwestClient (SSRF defense + send_streaming surface)
+      nika-exec-runner         — TokioShell with kill_on_drop(true) + tokio::try_join!
+                                 concurrent pipe drain (S12-G1 fixes)
+      nika-policy              — ⭐ NEW S12-F5 — PolicyEnforcer + SSRF helpers (~1263 LOC moved from engine)
+      nika-lsp-core            — LSP intelligence (pure functions)
+L2    nika-engine (~146.5K)    — MONOLITH (−2.3K from S12, target ≤100k by Phase 15)
+      + runtime/runner/tests_golden_verbs.rs — 5-verb golden regression oracle (S12-F11/G2)
+      nika-builtin             — 37/63 builtin tools (Phase 12 substantially done)
+      nika-extract             — ⭐ NEW S12-F7 — Pure 9-mode fetch extraction (~1327 LOC moved from engine)
       nika-display (13K), nika-media (14K), nika-mcp (9K)
-      nika-daemon (7K), nika-storage (1K), nika-vault (1.2K)
-L3    nika-cli (8K), nika-tui (88K), nika-serve (4K)
+      nika-storage (1K), nika-vault (1.2K)
+L3    nika-daemon (7K)
+L4    nika-cli (8K), nika-tui (88K), nika-serve (4K)
       nika-lsp (2.5K), nika-sdk (3K), nika-init (21K)
-L5    nika (5.5K)             — Binary entry point (Phase 15: shrinking to <900)
+L5    nika (5.5K)              — Binary entry point (target <900 LOC by Phase 15)
 ```
 
-**Diamond layering note:** `SecurityPolicyConfig` lives in nika-core (L0) so that nika-display (L2) can read security policy without depending on nika-engine. The runtime `SecurityContext` aggregate lives in nika-engine.
+**Diamond layering note:** `PolicyConfig` + `SecurityPolicyConfig` live in nika-core (L0). `PolicyEnforcer` concrete impl lives in nika-policy (L1). `nika-kernel::policy::PolicyChecker` trait is object-safe with 4 methods; verb crates consume the trait only.
 
-**Constellation progress (S1-S4):** 7 new crates, 6 production trait impls, 3 god files split, 10,790 tests. Provider bridge enables verb crate extraction (Phase 12+).
+**Constellation progress:** S1-S11 = 11 sessions of cleanup + trait extension. S12 Foundation (2026-04-10) = kernel trait surface + 2 new crates (nika-policy, nika-extract). S13 = verb extraction pass 1 (PLANNED). S14 = verb extraction pass 2 + TaskExecutor dissolution (PLANNED).
+
+### Session 12 Sacred Invariants (post-G1/G2/G3)
+
+Every subsequent session must respect these rules learned from S12:
+
+11. **Every `tokio::process::Command` MUST set `cmd.kill_on_drop(true)`** before spawn. G1 lesson.
+12. **Every concurrent pipe-reading code MUST use `tokio::try_join!`** with drain futures. NEVER sequential `wait().then().read_to_end()`. G1 lesson.
+13. **Every subprocess spawning code MUST be regression-tested with >1 MB output.** G1 lesson.
+14. **Golden test oracle MUST capture BOTH lifecycle AND output.** G2 lesson — never weaken for convenience.
+15. **Verification ritual MUST include `cargo check --no-default-features`** for crates with feature flags. G3 lesson.
+16. **`parking_lot::RwLockReadGuard` is !Send** — NEVER hold across `.await`. Use `Arc<T>` with interior mutability.
+
+### Multi-session refactor protocol (for S13+)
+
+For any session that's part of a multi-commit architectural refactor:
+- **Phase 0** — re-absorb context (read plans, ADRs, prior commits, lessons) ~45 min
+- **Phase 1** — dispatch 4 review agents IN PARALLEL (code-reviewer, rust-pro, code-explorer, rust-architect) ~20 min
+- **Phase 2** — synthesize findings + user sign-off on GATE items ~30 min
+- **Phase 3** — execute plan with TDD + golden oracle after every commit
+
+Skipping Phase 1 = shipping bugs that Phase 1 would have caught. Proven in S12 (2× P0 shipped, caught in post-hoc review, fixed as G1/G2).
 
 ### Target Architecture (Constellation refactor, in flight 2026-04-08)
 
