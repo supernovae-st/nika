@@ -8,6 +8,7 @@
 
 use super::context::FileToolContext;
 use crate::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::task_local::{current_task_elevated, current_task_trust};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
@@ -71,6 +72,20 @@ impl BuiltinTool for EditTool {
         Box::pin(async move {
             let params: EditParams = serde_json::from_str(&args)
                 .map_err(|e| BuiltinError::invalid_params("nika:edit", e))?;
+
+            // Shield Item 3a restoration: untrusted tasks cannot edit files.
+            // Preserves the pre-S10 PermissionMode::Plan behavior via the Shield
+            // trust system. See S11.A1 / project_s10_security_findings.md.
+            if current_task_trust().is_untrusted() && !current_task_elevated() {
+                return Err(BuiltinError::Denied {
+                    tool: "nika:edit".into(),
+                    reason: format!(
+                        "tainted agent cannot edit files. Elevate the task with \
+                         `trust: elevated` if this is intentional. Requested path: {}",
+                        params.file_path
+                    ),
+                });
+            }
 
             let path = self.ctx.validate_path(&params.file_path)?;
 
@@ -273,6 +288,96 @@ mod tests {
             .await;
         assert!(result.is_ok());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "baz bar baz");
+    }
+
+    // ── S11.A1 Shield trust gate ──
+
+    #[tokio::test]
+    async fn test_edit_blocked_for_untrusted_task() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
+
+        let (d, ctx) = setup();
+        let path = d.path().join("target.txt");
+        std::fs::write(&path, "original content").unwrap();
+        // Seed read-tracking via ReadTool under default (trusted) scope
+        read_file(Arc::clone(&ctx), &path).await;
+
+        let tool = EditTool::new(Arc::clone(&ctx));
+        let args = serde_json::json!({
+            "file_path": path.to_string_lossy(),
+            "old_string": "original",
+            "new_string": "tainted"
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(false, async { tool.call(args).await })
+                    .await
+            })
+            .await;
+
+        assert!(result.is_err(), "untrusted edit must be denied");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("NIKA-380"), "expected NIKA-380, got: {err}");
+        // Original content preserved
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "original content");
+    }
+
+    #[tokio::test]
+    async fn test_edit_allowed_for_elevated_untrusted() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
+
+        let (d, ctx) = setup();
+        let path = d.path().join("elevated.txt");
+        std::fs::write(&path, "before").unwrap();
+        read_file(Arc::clone(&ctx), &path).await;
+
+        let tool = EditTool::new(Arc::clone(&ctx));
+        let args = serde_json::json!({
+            "file_path": path.to_string_lossy(),
+            "old_string": "before",
+            "new_string": "after"
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(true, async { tool.call(args).await })
+                    .await
+            })
+            .await;
+        assert!(result.is_ok(), "elevated untrusted must pass: {:?}", result);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "after");
+    }
+
+    #[tokio::test]
+    async fn test_edit_allowed_for_trusted_task() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::CURRENT_TASK_TRUST;
+
+        let (d, ctx) = setup();
+        let path = d.path().join("trusted.txt");
+        std::fs::write(&path, "hello").unwrap();
+        read_file(Arc::clone(&ctx), &path).await;
+
+        let tool = EditTool::new(Arc::clone(&ctx));
+        let args = serde_json::json!({
+            "file_path": path.to_string_lossy(),
+            "old_string": "hello",
+            "new_string": "bonjour"
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Trusted, async { tool.call(args).await })
+            .await;
+        assert!(result.is_ok(), "trusted caller must pass: {:?}", result);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "bonjour");
     }
 
     #[tokio::test]

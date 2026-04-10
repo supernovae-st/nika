@@ -5,6 +5,7 @@
 
 use super::context::FileToolContext;
 use crate::{BuiltinError, BuiltinTool, __sealed};
+use nika_kernel::task_local::{current_task_elevated, current_task_trust};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
@@ -88,6 +89,20 @@ impl BuiltinTool for WriteTool {
         Box::pin(async move {
             let params: WriteParams = serde_json::from_str(&args)
                 .map_err(|e| BuiltinError::invalid_params("nika:write", e))?;
+
+            // Shield Item 3a restoration: untrusted tasks cannot write files.
+            // Preserves the pre-S10 PermissionMode::Plan behavior via the Shield
+            // trust system. See S11.A1 / project_s10_security_findings.md.
+            if current_task_trust().is_untrusted() && !current_task_elevated() {
+                return Err(BuiltinError::Denied {
+                    tool: "nika:write".into(),
+                    reason: format!(
+                        "tainted agent cannot write files. Elevate the task with \
+                         `trust: elevated` if this is intentional. Requested path: {}",
+                        params.file_path
+                    ),
+                });
+            }
 
             let path = self.ctx.validate_path(&params.file_path)?;
 
@@ -248,6 +263,83 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-204"));
+    }
+
+    // ── S11.A1 Shield trust gate ──
+
+    #[tokio::test]
+    async fn test_write_blocked_for_untrusted_task() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
+
+        let (d, ctx) = setup();
+        let path = d.path().join("target.txt");
+
+        let tool = WriteTool::new(ctx);
+        let args = serde_json::json!({
+            "file_path": path.to_string_lossy(),
+            "content": "should be blocked"
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(false, async { tool.call(args).await })
+                    .await
+            })
+            .await;
+
+        assert!(result.is_err(), "untrusted write must be denied");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("NIKA-380"), "expected NIKA-380, got: {err}");
+        assert!(!path.exists(), "no file must be created when write is denied");
+    }
+
+    #[tokio::test]
+    async fn test_write_allowed_for_elevated_untrusted() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::{CURRENT_TASK_ELEVATED, CURRENT_TASK_TRUST};
+
+        let (d, ctx) = setup();
+        let path = d.path().join("elevated.txt");
+        let tool = WriteTool::new(ctx);
+        let args = serde_json::json!({
+            "file_path": path.to_string_lossy(),
+            "content": "allowed because elevated"
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Untrusted, async {
+                CURRENT_TASK_ELEVATED
+                    .scope(true, async { tool.call(args).await })
+                    .await
+            })
+            .await;
+        assert!(result.is_ok(), "elevated untrusted must pass: {:?}", result);
+        assert!(path.exists());
+    }
+
+    #[tokio::test]
+    async fn test_write_allowed_for_trusted_task() {
+        use nika_core::trust::TrustLevel;
+        use nika_kernel::task_local::CURRENT_TASK_TRUST;
+
+        let (d, ctx) = setup();
+        let path = d.path().join("trusted.txt");
+        let tool = WriteTool::new(ctx);
+        let args = serde_json::json!({
+            "file_path": path.to_string_lossy(),
+            "content": "trusted caller ok"
+        })
+        .to_string();
+
+        let result = CURRENT_TASK_TRUST
+            .scope(TrustLevel::Trusted, async { tool.call(args).await })
+            .await;
+        assert!(result.is_ok(), "trusted caller must pass: {:?}", result);
+        assert!(path.exists());
     }
 
     #[tokio::test]
