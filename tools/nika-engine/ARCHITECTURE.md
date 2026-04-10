@@ -3,18 +3,24 @@
 The embeddable workflow engine: parses YAML, builds a DAG, resolves bindings,
 dispatches tasks to providers, and streams results. ~146k LOC (incl. tests).
 
-Post-Session 12 Foundation (Constellation v2.3). Last updated 2026-04-10.
+Post-Session 13 (Constellation v2.3). Last updated 2026-04-10.
 
 ## Crate Dependencies (downward only)
 
 ```
 nika-engine
-├── nika-kernel      Effect traits (Provider, Fs, Clock, Shell, Http, BlobStore, Policy) + per-verb Caps
+├── nika-kernel      Effect traits + 5 per-verb Caps structs
 ├── nika-core        AST types, catalogs, policy config, trust
 ├── nika-event       EventLog, TraceWriter
 ├── nika-builtin     37 builtin tools (core, file, data, introspection) — Phase 12
-├── nika-policy      PolicyEnforcer + SSRF helpers (L1, NEW S12-F5)
-├── nika-extract     Fetch post-processing — 9 extract modes (L2, NEW S12-F7)
+├── nika-policy      PolicyEnforcer + SSRF helpers (L1, S12-F5)
+├── nika-extract     Fetch post-processing — 9 extract modes (L2, S12-F7)
+├── nika-verb-exec   exec: verb crate (L2, NEW S13-B1) — ShellExecutor trait
+├── nika-verb-invoke invoke: verb crate (L2, NEW S13-C1) — BuiltinRouter trait
+├── nika-verb-fetch  fetch: verb crate (L2, NEW S13-D1) — HttpClient trait
+├── nika-exec-runner TokioShell L1 impl (bridge uses directly for engine→verb handoff)
+├── nika-clock       SystemClock L1 impl (bridge uses directly)
+├── nika-fs          TokioFs L1 impl (bridge uses directly)
 ├── nika-media       CAS store, image/document processing
 ├── nika-mcp         MCP client (rmcp)
 ├── nika-vault       Encrypted secrets (XChaCha20 + Argon2i)
@@ -22,6 +28,12 @@ nika-engine
 ├── nika-display     CLI renderers (Renderer trait)
 └── nika-lsp-core    LSP intelligence (opt-in feature "lsp")
 ```
+
+`nika-runtime` (L3) sits **above** nika-engine in the diamond — it depends
+on the verb crates + kernel + event + core, and provides `VerbCapabilities`
++ `dispatch()`. The engine bridges verb execution to `nika-verb-*::run()`
+directly during S13; in S14 the Runner will call `nika-runtime::dispatch`
+as the live path.
 
 nika-kernel (L0.5) was added in Session 4 (Phase 11). It defines pure traits
 with zero I/O — nika-engine implements them via concrete types (RigProvider,
@@ -63,6 +75,52 @@ two pure crates to make Session 13 verb extraction mechanical:
 **Diamond verified:** `cargo tree -p nika-policy --no-default-features` and
 `cargo tree -p nika-extract --no-default-features` both have zero nika-engine
 dependency. Both crates compile without nika-engine in their dep graph.
+
+## Constellation Session 13 — 2026-04-10
+
+S13 created `nika-runtime` (L3) and extracted 3 verb crates (exec, invoke,
+fetch). The verb crates consume kernel traits only; engine bridges delegate
+verb execution to `nika_verb_*::run()` after doing template resolution +
+security validation.
+
+| Commit | Purpose |
+|--------|---------|
+| S13-A0 | nika-kernel: expand Caps structs (+ cancel, workflow_base_dir, working_dir_mode, project_root); add BuiltinRouter + McpPool traits; MockPolicyChecker in nika-kernel-mock |
+| S13-A1 | **New nika-runtime L3 crate** — VerbCapabilities bundle + dispatch() match + RuntimeError |
+| S13-B1 | **New nika-verb-exec crate** — run() via ShellExecutor trait + 11 tests |
+| S13-B2 | engine bridge: run_exec delegates to nika_verb_exec::run via TokioShell; ShellCommand gains env_remove + pre_validated fields |
+| S13-B3 | GATE-S13-1 regression: >1MB subprocess deadlock test through full bridge |
+| S13-B4 | nika-runtime::verb_exec::run_exec adapter + RuntimeError::Exec variant |
+| S13-C1 | **New nika-verb-invoke crate** — builtin routing via BuiltinRouter trait + 6 tests |
+| S13-C2 | engine bridge: builtin path delegates to nika_verb_invoke::run via BuiltinRouterAdapter (MCP path stays inline for S13) |
+| S13-C3 | nika-runtime::verb_invoke::run_invoke adapter + RuntimeError::Invoke variant |
+| S13-D1 | **New nika-verb-fetch crate** — HTTP fetch via HttpClient trait + nika-extract pipeline + 4 tests |
+| S13-D2 | nika-runtime::verb_fetch::run_fetch adapter + RuntimeError::Fetch variant |
+| S13-E1 | docs: this update + session memory |
+
+**Engine LOC:** 146,473 → 146,557 (+84 — exec bridge -322, invoke adapter +271 for BuiltinRouterAdapter/NullBlobStore/NullHttpClient shims, expected to drop in S14 when MCP+media extract)
+**Crate count:** 28 → **32** (+nika-runtime L3, +3 verb crates L2)
+**Tests:** 10,805 → **10,840** (+35 across the new crates)
+**Diamond verified:** all 4 new crates have zero `nika-engine` in their dep
+graph (`cargo tree -p nika-runtime | grep nika-engine` → empty for each).
+**Golden oracle:** 5/5 green throughout the session — `golden_exec_hello`,
+`golden_invoke_builtin_log`, and `golden_fetch_placeholder` all exercise
+the bridge paths and prove observable output is preserved.
+
+### GATE-S13 resolutions
+
+- **S13-1** (deadlock test): added `subprocess_does_not_deadlock_on_large_output`
+  in nika-verb-exec end-to-end through TokioShell (B3).
+- **S13-2** (Runner move): deferred to S14 — Runner stays in nika-engine
+  during S13 per AMEND-4 (dispatch is parallel, not live).
+- **S13-3** (PolicyEnforcer !Send): engine bridge clones PolicyEnforcer out
+  of the RwLock BEFORE building Caps to avoid holding `parking_lot::RwLockReadGuard`
+  across `.await`. Compile-time Send test on each verb adapter future.
+- **S13-4/5** (BuiltinRouter/McpPool traits): added in S13-A0 to nika-kernel.
+- **S13-6** (error message format): pre-flight grep found no tests asserting
+  on exact error substrings in nika-engine test modules. No impact.
+- **S13-7** (Caps expansion): done in S13-A0 with constructors to work
+  around `#[non_exhaustive]` construction rules.
 
 ## Module Map
 
