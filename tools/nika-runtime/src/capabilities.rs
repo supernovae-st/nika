@@ -13,12 +13,13 @@ use std::sync::Arc;
 
 use nika_event::EventLog;
 use nika_kernel::builtin::BuiltinRouter;
-use nika_kernel::caps::{ExecCaps, FetchCaps, InvokeCaps};
+use nika_kernel::caps::{ExecCaps, FetchCaps, InferCaps, InvokeCaps};
 use nika_kernel::clock::Clock;
 use nika_kernel::filesystem::{FsRead, FsWrite};
 use nika_kernel::http::HttpClient;
 use nika_kernel::mcp::McpPool;
 use nika_kernel::policy::PolicyChecker;
+use nika_kernel::provider::Provider;
 use nika_kernel::shell::ShellExecutor;
 use nika_kernel::store::BlobStore;
 use tokio_util::sync::CancellationToken;
@@ -49,6 +50,18 @@ pub struct VerbCapabilities {
     // ── Invoke infrastructure ────────────────────────────────────────
     pub(crate) builtin_router: Arc<dyn BuiltinRouter>,
     pub(crate) mcp_pool: Arc<dyn McpPool>,
+
+    // ── Infer infrastructure ─────────────────────────────────────────
+    /// LLM provider for `infer:` tasks.
+    ///
+    /// This is the **workflow default** provider. Per-task provider
+    /// chain resolution (with fallback) happens in the engine bridge
+    /// during S14; dispatch() does not yet handle the chain. In S15
+    /// when template resolution moves to nika-runtime, this field
+    /// will be accompanied by a `Fn(&str) -> Arc<dyn Provider>`
+    /// factory that the task-dispatch pipeline invokes per-task
+    /// based on the resolved provider name.
+    pub(crate) provider: Arc<dyn Provider>,
 
     // ── Run-scoped context ───────────────────────────────────────────
     pub(crate) workflow_base_dir: PathBuf,
@@ -97,6 +110,22 @@ impl VerbCapabilities {
             &*self.policy,
             &*self.clock,
             &self.cancel_token,
+        )
+    }
+
+    /// Borrow an `InferCaps` slice from this bundle.
+    ///
+    /// Clones the provider `Arc` to satisfy `InferCaps::provider:
+    /// Arc<dyn Provider>` — the only non-`&self`-tied field. All
+    /// other fields borrow from `&self`.
+    pub fn infer_caps(&self) -> InferCaps<'_> {
+        InferCaps::new(
+            Arc::clone(&self.provider),
+            &*self.fs_read,
+            &*self.policy,
+            &*self.clock,
+            &self.cancel_token,
+            &self.workflow_base_dir,
         )
     }
 

@@ -22,7 +22,11 @@ pub enum RuntimeError {
     #[error(transparent)]
     Fetch(#[from] nika_verb_fetch::VerbFetchError),
 
+    /// Infer verb error.
+    #[error(transparent)]
+    Infer(#[from] nika_verb_infer::VerbInferError),
+
     /// A verb that has not been extracted yet was dispatched.
-    #[error("verb '{verb}' dispatch not yet implemented (deferred to S14)")]
+    #[error("verb '{verb}' dispatch not yet implemented")]
     NotImplemented { verb: &'static str },
 }

@@ -71,7 +71,22 @@ pub async fn dispatch(
             // `nika_verb_invoke::run()` directly for the builtin path.
             Err(RuntimeError::NotImplemented { verb: "invoke" })
         }
-        AnalyzedTaskAction::Infer(_) => Err(RuntimeError::NotImplemented { verb: "infer" }),
+        AnalyzedTaskAction::Infer(_) => {
+            // W14-B3: Infer arm — the actual call lives in
+            // `crate::verb_infer::run_infer(input, caps, event_log)`,
+            // which takes a pre-built `InferInput`. This match arm
+            // cannot build the `InferInput` from `AnalyzedInferAction`
+            // directly because template resolution, provider chain
+            // resolution, skills loading, spotlight wrapping, canary
+            // injection, and schema instruction are all engine-internal.
+            //
+            // Session 15 wires this fully when the orchestration layer
+            // moves from engine's task_dispatch into nika-runtime.
+            // Until then, the engine bridge will call
+            // `nika_verb_infer::run()` directly after doing the Shield
+            // setup pipeline.
+            Err(RuntimeError::NotImplemented { verb: "infer" })
+        }
         AnalyzedTaskAction::Agent(_) => Err(RuntimeError::NotImplemented { verb: "agent" }),
     }
 }
@@ -127,6 +142,7 @@ mod tests {
             cancel_token: tokio_util::sync::CancellationToken::new(),
             builtin_router: Arc::new(NoopBuiltinRouter),
             mcp_pool: Arc::new(NoopMcpPool),
+            provider: Arc::new(nika_kernel_mock::MockProvider::new("test")),
             workflow_base_dir: std::path::PathBuf::from("/tmp/test"),
             working_dir_mode: None,
             project_root: None,
