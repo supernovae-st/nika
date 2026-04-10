@@ -6530,6 +6530,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-verb-fetch"
+version = "0.79.0"
+dependencies = [
+ "bytes",
+ "nika-core",
+ "nika-event",
+ "nika-extract",
+ "nika-kernel",
+ "nika-kernel-mock",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "nika-verb-invoke"
 version = "0.79.0"
 dependencies = [

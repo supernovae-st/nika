@@ -1,0 +1,28 @@
+[package]
+name = "nika-verb-fetch"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika fetch: verb — HTTP fetch via HttpClient trait + nika-extract"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-core = { workspace = true }
+nika-kernel = { workspace = true }
+nika-event = { workspace = true }
+nika-extract = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
+tokio-util = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+nika-kernel-mock = { workspace = true }
+
+[lints]
+workspace = true
