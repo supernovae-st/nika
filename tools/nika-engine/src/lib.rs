@@ -48,7 +48,6 @@ pub mod mcp;
 pub mod media;
 pub mod new;
 pub mod provider;
-pub mod registry;
 pub mod runtime;
 pub mod store;
 pub mod tools;
