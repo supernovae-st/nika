@@ -1,9 +1,9 @@
 # nika-engine Architecture
 
 The embeddable workflow engine: parses YAML, builds a DAG, resolves bindings,
-dispatches tasks to providers, and streams results. ~152k LOC (incl. tests).
+dispatches tasks to providers, and streams results. ~149k LOC (incl. tests).
 
-Post-Session 10 (Constellation v2.3). Last updated 2026-04-09.
+Post-Session 11 (Constellation v2.3). Last updated 2026-04-10.
 
 ## Crate Dependencies (downward only)
 
@@ -221,11 +221,10 @@ RigProvider directly.
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `tools/` | ~450 | ToolContext, PermissionMode, `check_path_readable` (Shield), DynamicSubmitTool |
+| `tools/` | ~150 | ToolContext + PermissionMode only (check_path_readable + submit_tool removed in S11) |
 | `io/` | ~2680 | Atomic file I/O, security checks, template I/O |
 | `core/` | ~2290 | Internal re-exports, MCP config, paths, storage backend |
 | `new/` | ~2600 | `nika new` workflow scaffolding + templates |
-| `registry/` | ~2870 | Package registry client (MARKED FOR REMOVAL) |
 | `secrets/` | ~1080 | Daemon IPC + vault fallback |
 | `source/` | ~6 | Source span re-exports |
 | `util/` | ~860 | Constants, fs helpers, string interner |
@@ -259,9 +258,6 @@ These exist but are not yet fully wired:
 - `EventEmitter` trait: defined with 27 structs and 351 emit sites. Partially
   wired — blanket impl for `Arc<T>` shipped in Session 2 (Phase 5.1). Events
   still go through `EventLog` directly in most paths.
-- `registry/` (resolver.rs, operations.rs, lockfile.rs, api.rs, types.rs):
-  ~2870 LOC package registry client. MARKED FOR REMOVAL — `nika pkg nuke`
-  decision means this entire module will be deleted.
 
 ## Constellation Refactor — Current State
 
@@ -289,9 +285,14 @@ into `nika-builtin` crate. Uses `KernelToolAdapter<T>` to bridge kernel
 `BuiltinTool` trait (returns `BuiltinError`) to engine `BuiltinTool` trait
 (returns `NikaError`). Sealed trait prevents external implementations.
 
-Session 10: engine-side file tools deleted (-4k LOC). Agent loop migrated
+Session 10: engine-side file tools deleted (−4k LOC). Agent loop migrated
 to nika-builtin file tools. FileToolAdapter, RigFileTool, FileTool trait
 all removed.
+
+Session 11: P0 security fixes from S10 verification (3 regressions: write/edit
+trust gate, grep/glob sensitive file skip, ReadTool 50MB DoS pre-check) +
+registry NUKE (−3,427 LOC). Engine: 152,219 → 148,792 LOC. Rust-security
+agent re-verified all three P0 fixes green.
 
 ### Next Phases
 
@@ -306,7 +307,7 @@ all removed.
 ### Size Targets (V2.3, research-backed)
 
 ```
-Pre-launch (May 5):  nika-engine <= 100k LOC  (from 152k, after Phase 14)
+Pre-launch (May 5):  nika-engine <= 100k LOC  (from 149k, after Phase 14)
 Post-launch:         nika-engine <  80k LOC   (after Phase 15 binding/dag split)
 ```
 
