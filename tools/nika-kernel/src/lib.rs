@@ -19,6 +19,7 @@ pub mod clock;
 pub mod events;
 pub mod filesystem;
 pub mod http;
+pub mod policy;
 pub mod provider;
 pub mod scope;
 pub mod shell;
