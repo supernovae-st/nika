@@ -12,12 +12,10 @@
 //! - [`DynamicSubmitTool`] — structured output tool injection (Layer 0b)
 
 mod context;
-mod submit_tool;
 #[cfg(test)]
 mod tests_shield_path_check;
 
 pub use context::{PermissionMode, ToolContext};
-pub use submit_tool::{DynamicSubmitTool, ToolDefinition};
 
 use crate::error::NikaError;
 use std::path::{Path, PathBuf};
