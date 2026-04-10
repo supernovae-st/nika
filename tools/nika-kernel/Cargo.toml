@@ -16,6 +16,7 @@ serde = { workspace = true, features = ["derive"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 futures-core = { workspace = true }
+tokio-util = { workspace = true }
 bytes = { workspace = true }
 # task_local! (used in task_local.rs) requires the "rt" feature.
 tokio = { workspace = true, features = ["rt"] }

@@ -13,6 +13,7 @@ mod blocklist;
 use std::time::Instant;
 
 use nika_kernel::shell::{ShellCommand, ShellError, ShellExecutor, ShellResult};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 /// Production shell executor backed by `tokio::process::Command`.
@@ -97,66 +98,77 @@ impl ShellExecutor for TokioShell {
         // Write stdin if provided
         if let Some(stdin_data) = &command.stdin {
             if let Some(mut stdin) = child.stdin.take() {
-                use tokio::io::AsyncWriteExt;
                 let _ = stdin.write_all(stdin_data.as_bytes()).await;
                 drop(stdin);
             }
         }
 
-        // Wait with optional timeout
-        let output = match command.timeout {
-            Some(timeout) => {
-                // Use wait() + read stdout/stderr separately to allow kill on timeout
-                let stdout_handle = child.stdout.take();
-                let stderr_handle = child.stderr.take();
+        // Wait with optional timeout + cancellation
+        let cancel = command.cancel.clone();
 
-                let wait_result = tokio::time::timeout(timeout, async {
-                    let status = child.wait().await?;
-                    let stdout = match stdout_handle {
-                        Some(mut out) => {
-                            use tokio::io::AsyncReadExt;
-                            let mut buf = Vec::new();
-                            out.read_to_end(&mut buf).await?;
-                            buf
-                        }
-                        None => Vec::new(),
-                    };
-                    let stderr = match stderr_handle {
-                        Some(mut err) => {
-                            use tokio::io::AsyncReadExt;
-                            let mut buf = Vec::new();
-                            err.read_to_end(&mut buf).await?;
-                            buf
-                        }
-                        None => Vec::new(),
-                    };
-                    Ok::<_, std::io::Error>((status, stdout, stderr))
-                })
-                .await;
+        let child_fut = async {
+            let stdout_handle = child.stdout.take();
+            let stderr_handle = child.stderr.take();
+            let status = child.wait().await?;
+            let stdout = match stdout_handle {
+                Some(mut out) => {
+                    let mut buf = Vec::new();
+                    out.read_to_end(&mut buf).await?;
+                    buf
+                }
+                None => Vec::new(),
+            };
+            let stderr = match stderr_handle {
+                Some(mut err) => {
+                    let mut buf = Vec::new();
+                    err.read_to_end(&mut buf).await?;
+                    buf
+                }
+                None => Vec::new(),
+            };
+            Ok::<_, std::io::Error>(std::process::Output { status, stdout, stderr })
+        };
 
-                match wait_result {
-                    Ok(Ok((status, stdout, stderr))) => std::process::Output {
-                        status,
-                        stdout,
-                        stderr,
-                    },
+        let output = match (command.timeout, cancel) {
+            (None, None) => child_fut.await.map_err(|e| ShellError::Other {
+                reason: e.to_string(),
+            })?,
+            (Some(t), None) => {
+                match tokio::time::timeout(t, child_fut).await {
+                    Ok(Ok(out)) => out,
                     Ok(Err(e)) => {
                         return Err(ShellError::Other {
                             reason: e.to_string(),
                         });
                     }
                     Err(_) => {
-                        // Kill the process on timeout
-                        let _ = child.kill().await;
                         return Err(ShellError::Timeout {
-                            duration_ms: timeout.as_millis() as u64,
+                            duration_ms: t.as_millis() as u64,
                         });
                     }
                 }
             }
-            None => child.wait_with_output().await.map_err(|e| ShellError::Other {
-                reason: e.to_string(),
-            })?,
+            (None, Some(tok)) => {
+                tokio::select! {
+                    biased;
+                    _ = tok.cancelled() => return Err(ShellError::Cancelled),
+                    r = child_fut => r.map_err(|e| ShellError::Other {
+                        reason: e.to_string(),
+                    })?,
+                }
+            }
+            (Some(t), Some(tok)) => {
+                tokio::select! {
+                    biased;
+                    _ = tok.cancelled() => return Err(ShellError::Cancelled),
+                    _ = tokio::time::sleep(t) => return Err(ShellError::Timeout {
+                        duration_ms: t.as_millis() as u64,
+                    }),
+                    r = child_fut => r.map_err(|e| ShellError::Other {
+                        reason: e.to_string(),
+                    })?,
+                }
+            }
         };
 
         let duration = start.elapsed();
@@ -187,6 +199,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -207,6 +220,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
                 shell: true,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -227,6 +241,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -247,6 +262,7 @@ mod tests {
                 timeout: Some(Duration::from_millis(100)),
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await;
 
@@ -265,6 +281,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await;
 
@@ -286,6 +303,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
                 shell: true,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -306,6 +324,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: Some("piped input".to_string()),
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -326,6 +345,7 @@ mod tests {
                 timeout: Some(Duration::from_secs(5)),
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -344,5 +364,51 @@ mod tests {
         // "rm -rf /" should be blocked
         let result = blocklist::check_command("rm -rf /");
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn cancelled_before_start_returns_cancelled() {
+        use tokio_util::sync::CancellationToken;
+        let tok = CancellationToken::new();
+        tok.cancel(); // pre-cancel
+        let shell = TokioShell;
+        let result = shell
+            .run(ShellCommand {
+                program: "sleep".into(),
+                args: vec!["10".into()],
+                env: Default::default(),
+                cwd: None,
+                timeout: None,
+                stdin: None,
+                shell: false,
+                cancel: Some(tok),
+            })
+            .await;
+        assert!(matches!(result, Err(ShellError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn cancelled_mid_flight_returns_cancelled() {
+        use tokio_util::sync::CancellationToken;
+        let tok = CancellationToken::new();
+        let tok2 = tok.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            tok2.cancel();
+        });
+        let shell = TokioShell;
+        let result = shell
+            .run(ShellCommand {
+                program: "sleep".into(),
+                args: vec!["5".into()],
+                env: Default::default(),
+                cwd: None,
+                timeout: None,
+                stdin: None,
+                shell: false,
+                cancel: Some(tok),
+            })
+            .await;
+        assert!(matches!(result, Err(ShellError::Cancelled)));
     }
 }

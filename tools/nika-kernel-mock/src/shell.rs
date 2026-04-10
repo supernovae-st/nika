@@ -83,6 +83,7 @@ mod tests {
                 timeout: None,
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -103,6 +104,7 @@ mod tests {
                 timeout: None,
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();
@@ -123,6 +125,7 @@ mod tests {
                 timeout: None,
                 stdin: None,
                 shell: false,
+                cancel: None,
             })
             .await
             .unwrap();

@@ -6114,6 +6114,7 @@ dependencies = [
  "async-trait",
  "nika-kernel",
  "tokio",
+ "tokio-util",
  "tracing",
  "unicode-normalization",
 ]
@@ -6169,6 +6170,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

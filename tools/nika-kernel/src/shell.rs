@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use tokio_util::sync::CancellationToken;
+
 /// A shell command to execute.
 #[derive(Debug, Clone)]
 pub struct ShellCommand {
@@ -20,6 +22,25 @@ pub struct ShellCommand {
     pub stdin: Option<String>,
     /// If true, run via `sh -c` (allows pipes, redirects).
     pub shell: bool,
+    /// Cooperative cancellation token. When triggered, the executor kills the
+    /// child process and returns `ShellError::Cancelled`.
+    pub cancel: Option<CancellationToken>,
+}
+
+impl ShellCommand {
+    /// Convenience constructor. `cancel` defaults to `None`.
+    pub fn new(program: impl Into<String>) -> Self {
+        Self {
+            program: program.into(),
+            args: Vec::new(),
+            env: HashMap::new(),
+            cwd: None,
+            timeout: None,
+            stdin: None,
+            shell: false,
+            cancel: None,
+        }
+    }
 }
 
 /// Result of a shell command execution.
@@ -57,6 +78,9 @@ pub enum ShellError {
 
     #[error("Command timed out after {duration_ms}ms")]
     Timeout { duration_ms: u64 },
+
+    #[error("Command cancelled")]
+    Cancelled,
 
     #[error("Blocked command (NIKA-053): {reason}")]
     Blocked { reason: String },
