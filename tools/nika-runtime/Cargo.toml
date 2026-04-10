@@ -1,0 +1,26 @@
+[package]
+name = "nika-runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika runtime — verb dispatch, capability bundles, and runtime orchestration (L3)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-core = { workspace = true }
+nika-kernel = { workspace = true }
+nika-event = { workspace = true }
+tokio-util = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+nika-kernel-mock = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[lints]
+workspace = true

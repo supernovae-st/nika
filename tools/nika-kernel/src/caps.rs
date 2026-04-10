@@ -46,6 +46,34 @@ pub struct ExecCaps<'a> {
     pub project_root: Option<&'a Path>,
 }
 
+impl<'a> ExecCaps<'a> {
+    /// Construct from individual references.
+    ///
+    /// Only `VerbCapabilities` (in nika-runtime) should call this.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        shell: &'a dyn ShellExecutor,
+        policy: &'a dyn PolicyChecker,
+        clock: &'a dyn Clock,
+        fs_read: &'a dyn FsRead,
+        cancel: &'a CancellationToken,
+        workflow_base_dir: &'a Path,
+        working_dir_mode: Option<&'a str>,
+        project_root: Option<&'a Path>,
+    ) -> Self {
+        Self {
+            shell,
+            policy,
+            clock,
+            fs_read,
+            cancel,
+            workflow_base_dir,
+            working_dir_mode,
+            project_root,
+        }
+    }
+}
+
 /// Capabilities available to a `fetch:` task.
 #[non_exhaustive]
 pub struct FetchCaps<'a> {
@@ -54,6 +82,25 @@ pub struct FetchCaps<'a> {
     pub blobs: &'a dyn BlobStore,
     pub clock: &'a dyn Clock,
     pub cancel: &'a CancellationToken,
+}
+
+impl<'a> FetchCaps<'a> {
+    /// Construct from individual references.
+    pub fn new(
+        http: &'a dyn HttpClient,
+        policy: &'a dyn PolicyChecker,
+        blobs: &'a dyn BlobStore,
+        clock: &'a dyn Clock,
+        cancel: &'a CancellationToken,
+    ) -> Self {
+        Self {
+            http,
+            policy,
+            blobs,
+            clock,
+            cancel,
+        }
+    }
 }
 
 /// Capabilities available to an `infer:` task.
@@ -79,6 +126,34 @@ pub struct InvokeCaps<'a> {
     pub policy: &'a dyn PolicyChecker,
     pub clock: &'a dyn Clock,
     pub cancel: &'a CancellationToken,
+}
+
+impl<'a> InvokeCaps<'a> {
+    /// Construct from individual references.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        builtin_router: &'a dyn BuiltinRouter,
+        mcp_pool: &'a dyn McpPool,
+        fs_read: &'a dyn FsRead,
+        fs_write: &'a dyn FsWrite,
+        http: &'a dyn HttpClient,
+        blobs: &'a dyn BlobStore,
+        policy: &'a dyn PolicyChecker,
+        clock: &'a dyn Clock,
+        cancel: &'a CancellationToken,
+    ) -> Self {
+        Self {
+            builtin_router,
+            mcp_pool,
+            fs_read,
+            fs_write,
+            http,
+            blobs,
+            policy,
+            clock,
+            cancel,
+        }
+    }
 }
 
 /// Capabilities available to an `agent:` task (multi-turn loop).
