@@ -86,6 +86,39 @@ pub trait BuiltinTool: __sealed::Sealed + Send + Sync {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// BuiltinRouter — abstract dispatch for nika:* tools (S13-A0)
+// ─────────────────────────────────────────────────────────────────────
+
+/// Abstract router for dispatching `nika:*` builtin tool calls.
+///
+/// Verb crates hold `&dyn BuiltinRouter` in `InvokeCaps` and call
+/// `dispatch()` to run a builtin tool by name. The concrete implementation
+/// (`BuiltinToolRouter`) lives in `nika-engine::runtime::builtin`.
+///
+/// Object-safe: no generics, no `Self`-returning methods.
+pub trait BuiltinRouter: Send + Sync {
+    /// Dispatch a builtin tool call.
+    ///
+    /// # Arguments
+    /// * `tool` — tool name without `nika:` prefix (e.g., `"log"`, `"read"`)
+    /// * `args` — JSON-encoded parameters
+    ///
+    /// # Returns
+    /// * `Ok(String)` — JSON-encoded result
+    /// * `Err(BuiltinError)` — tool error
+    fn dispatch<'a>(
+        &'a self,
+        tool: &'a str,
+        args: String,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<String, BuiltinError>> + Send + 'a>,
+    >;
+
+    /// Check whether a tool name is known to this router.
+    fn knows(&self, tool: &str) -> bool;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // BuiltinError
 // ─────────────────────────────────────────────────────────────────────
 
