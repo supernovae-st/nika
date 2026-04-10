@@ -1,0 +1,11 @@
+---
+source: nika-engine/src/runtime/runner/tests_golden_verbs.rs
+expression: "golden_snapshot(&runner, \"research\")"
+---
+lifecycle:
+  - WorkflowStarted
+  - TaskScheduled(research)
+  - TaskStarted(research)
+  - TaskCompleted(research)
+  - WorkflowCompleted
+output: Mock response from rig agent

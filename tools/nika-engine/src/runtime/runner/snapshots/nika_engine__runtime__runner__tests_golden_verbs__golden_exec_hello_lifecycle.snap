@@ -1,9 +1,0 @@
----
-source: nika-engine/src/runtime/runner/tests_golden_verbs.rs
-expression: lifecycle
----
-- WorkflowStarted
-- TaskScheduled(greet)
-- TaskStarted(greet)
-- TaskCompleted(greet)
-- WorkflowCompleted

@@ -1,0 +1,11 @@
+---
+source: nika-engine/src/runtime/runner/tests_golden_verbs.rs
+expression: "golden_snapshot(&runner, \"greet\")"
+---
+lifecycle:
+  - WorkflowStarted
+  - TaskScheduled(greet)
+  - TaskStarted(greet)
+  - TaskCompleted(greet)
+  - WorkflowCompleted
+output: hello golden

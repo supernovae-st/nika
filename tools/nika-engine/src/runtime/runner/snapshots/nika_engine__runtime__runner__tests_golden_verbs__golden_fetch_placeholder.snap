@@ -1,0 +1,26 @@
+---
+source: nika-engine/src/runtime/runner/tests_golden_verbs.rs
+expression: combined
+---
+stub:
+  lifecycle:
+    - WorkflowStarted
+    - TaskScheduled(stub)
+    - TaskStarted(stub)
+    - TaskCompleted(stub)
+    - TaskScheduled(consume)
+    - TaskStarted(consume)
+    - TaskCompleted(consume)
+    - WorkflowCompleted
+  output: fetch-placeholder
+consume:
+  lifecycle:
+    - WorkflowStarted
+    - TaskScheduled(stub)
+    - TaskStarted(stub)
+    - TaskCompleted(stub)
+    - TaskScheduled(consume)
+    - TaskStarted(consume)
+    - TaskCompleted(consume)
+    - WorkflowCompleted
+  output: consumed

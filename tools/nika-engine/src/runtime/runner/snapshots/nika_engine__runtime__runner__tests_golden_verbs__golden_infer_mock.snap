@@ -1,0 +1,11 @@
+---
+source: nika-engine/src/runtime/runner/tests_golden_verbs.rs
+expression: "golden_snapshot(&runner, \"summarize\")"
+---
+lifecycle:
+  - WorkflowStarted
+  - TaskScheduled(summarize)
+  - TaskStarted(summarize)
+  - TaskCompleted(summarize)
+  - WorkflowCompleted
+output: "{\"mock\":true,\"task_id\":\"summarize\",\"name\":\"mock_value\",\"age\":25,\"value\":42,\"result\":\"mock_result\",\"status\":\"success\",\"message\":\"Mock response generated\",\"items\":[\"item1\",\"item2\",\"item3\"],\"keywords\":[\"mock\",\"test\",\"nika\"],\"key_phrases\":[\"mock response\",\"test workflow\"],\"content\":\"Mock content for task summarize\",\"prompt_len\":35,\"vision_info\":{\"vision\":false},\"user\":{\"name\":\"Mock User\",\"email\":\"mock@example.com\",\"address\":{\"street\":\"123 Mock St\",\"city\":\"Mockville\",\"country\":\"Mockland\"}},\"metadata\":{\"created_at\":\"2024-01-15T14:30:00Z\",\"version\":1}}"
