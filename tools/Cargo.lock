@@ -6549,6 +6549,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-verb-infer"
+version = "0.79.0"
+dependencies = [
+ "nika-event",
+ "nika-kernel",
+ "nika-kernel-mock",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "nika-verb-invoke"
 version = "0.79.0"
 dependencies = [

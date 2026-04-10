@@ -114,6 +114,30 @@ pub struct InferCaps<'a> {
     pub workflow_base_dir: &'a Path,
 }
 
+impl<'a> InferCaps<'a> {
+    /// Construct from individual references.
+    ///
+    /// Only `VerbCapabilities` (in nika-runtime) and engine bridge
+    /// `TaskExecutor::run_infer` should call this.
+    pub fn new(
+        provider: Arc<dyn Provider>,
+        fs_read: &'a dyn FsRead,
+        policy: &'a dyn PolicyChecker,
+        clock: &'a dyn Clock,
+        cancel: &'a CancellationToken,
+        workflow_base_dir: &'a Path,
+    ) -> Self {
+        Self {
+            provider,
+            fs_read,
+            policy,
+            clock,
+            cancel,
+            workflow_base_dir,
+        }
+    }
+}
+
 /// Capabilities available to an `invoke:` task (MCP or builtin).
 #[non_exhaustive]
 pub struct InvokeCaps<'a> {
@@ -173,6 +197,38 @@ pub struct AgentCaps<'a> {
     pub clock: &'a dyn Clock,
     pub cancel: &'a CancellationToken,
     pub workflow_base_dir: &'a Path,
+}
+
+impl<'a> AgentCaps<'a> {
+    /// Construct from individual references.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        provider: Arc<dyn Provider>,
+        builtin_router: &'a dyn BuiltinRouter,
+        mcp_pool: &'a dyn McpPool,
+        fs_read: &'a dyn FsRead,
+        fs_write: &'a dyn FsWrite,
+        http: &'a dyn HttpClient,
+        blobs: &'a dyn BlobStore,
+        policy: &'a dyn PolicyChecker,
+        clock: &'a dyn Clock,
+        cancel: &'a CancellationToken,
+        workflow_base_dir: &'a Path,
+    ) -> Self {
+        Self {
+            provider,
+            builtin_router,
+            mcp_pool,
+            fs_read,
+            fs_write,
+            http,
+            blobs,
+            policy,
+            clock,
+            cancel,
+            workflow_base_dir,
+        }
+    }
 }
 
 #[cfg(test)]

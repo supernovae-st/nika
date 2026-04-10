@@ -35,6 +35,7 @@ members = [
     "nika-verb-exec",
     "nika-verb-invoke",
     "nika-verb-fetch",
+    "nika-verb-infer",
 ]
 
 [workspace.package]
@@ -77,6 +78,7 @@ nika-runtime = { path = "nika-runtime", version = "0.79.0" }
 nika-verb-exec = { path = "nika-verb-exec", version = "0.79.0" }
 nika-verb-invoke = { path = "nika-verb-invoke", version = "0.79.0" }
 nika-verb-fetch = { path = "nika-verb-fetch", version = "0.79.0" }
+nika-verb-infer = { path = "nika-verb-infer", version = "0.79.0" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }
