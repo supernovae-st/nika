@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 
 use colored::Colorize;
 use nika_engine::error::NikaError;
-use nika_engine::registry::resolver;
 
 /// Check if a file has the `.nika.yaml` or `.nika.yml` extension.
 pub fn is_nika_workflow(file: &Path) -> bool {
@@ -86,40 +85,16 @@ pub async fn download_remote_workflow(url: &str) -> Result<PathBuf, NikaError> {
 /// Resolve a workflow reference to an actual file path.
 ///
 /// Resolution order:
-/// 0. URL (http/https) -> Download to `.nika/remote/`
-/// 1. Package reference (`@name`) -> `~/.nika/packages/`
-/// 2. Simple name -> `.nika/workflows/{name}.nika.yaml`
-/// 3. Filesystem path -> as-is
+/// 1. URL (http/https) → Download to `.nika/remote/`
+/// 2. Simple name (no slash, no extension) → `.nika/workflows/{name}.nika.yaml`
+/// 3. Filesystem path → as-is
 pub async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
-    // 0. Remote URL — download to temp and execute
+    // 1. Remote URL — download to temp and execute
     if reference.starts_with("http://") || reference.starts_with("https://") {
         return download_remote_workflow(reference).await;
     }
 
-    // 1. Package reference (starts with @)
-    if reference.starts_with('@') {
-        let resolved =
-            resolver::resolve_package_path(reference).map_err(|e| NikaError::WorkflowNotFound {
-                path: format!(
-                    "Package not found: {reference}. Error: {e}. Try: nika pkg add {reference}"
-                ),
-            })?;
-
-        let workflow_path = resolved.path.join("workflow.nika.yaml");
-        if !workflow_path.exists() {
-            return Err(NikaError::WorkflowNotFound {
-                path: format!(
-                    "Package {} exists but missing workflow.nika.yaml at {}",
-                    reference,
-                    workflow_path.display()
-                ),
-            });
-        }
-
-        return Ok(workflow_path);
-    }
-
-    // 2. Simple name without path separator or .yaml extension -> try .nika/workflows/
+    // 2. Simple name without path separator or .yaml extension → try .nika/workflows/
     if !reference.contains('/')
         && !reference.ends_with(".nika.yaml")
         && !reference.ends_with(".yaml")
@@ -134,7 +109,9 @@ pub async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError
 
         if !PathBuf::from(reference).exists() {
             return Err(NikaError::WorkflowNotFound {
-                path: format!("Workflow '{reference}' not found in .nika/workflows/ or current directory. Try: nika pkg search {reference}")
+                path: format!(
+                    "Workflow '{reference}' not found in .nika/workflows/ or current directory"
+                ),
             });
         }
     }
@@ -143,9 +120,7 @@ pub async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError
     let path = PathBuf::from(reference);
     if !path.exists() {
         return Err(NikaError::WorkflowNotFound {
-            path: format!(
-                "File not found: {reference}. Check the path or try: nika pkg search {reference}"
-            ),
+            path: format!("File not found: {reference}. Check the path."),
         });
     }
 

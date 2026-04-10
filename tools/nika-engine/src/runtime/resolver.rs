@@ -30,7 +30,6 @@
 use crate::ast::analyzed::AnalyzedWorkflow;
 use crate::ast::{AgentDef, SkillDef, Workflow};
 use crate::error::NikaError;
-use crate::registry::resolver; // Package resolution
 use rustc_hash::FxHashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
@@ -305,44 +304,24 @@ async fn resolve_agent(
                 return Ok(preset.clone());
             }
 
-            // Support package references (@agents/name)
             use crate::ast::loader::{load_definition, DefinitionKind};
 
-            let source_path: PathBuf = if from.starts_with('@') {
-                // Package reference - resolve via registry
-                debug!(agent = name, package = from, "Resolving agent from package");
+            // Package references (`@agents/name`) are not supported in this
+            // version — the registry was removed in Constellation S11.
+            if from.starts_with('@') {
+                return Err(NikaError::ContextLoadError {
+                    alias: name.to_string(),
+                    path: from.clone(),
+                    reason: format!(
+                        "Package URI references like '{}' are not supported in this version. \
+                         Use a relative path or a direct URL instead.",
+                        from
+                    ),
+                });
+            }
 
-                let resolved = resolver::resolve_package_path(from).map_err(|e| {
-                    NikaError::ContextLoadError {
-                        alias: name.to_string(),
-                        path: from.clone(),
-                        reason: format!("Package not found: {}. Try: nika add {}", e, from),
-                    }
-                })?;
-
-                // Agent packages should contain agent.md or agent.yaml
-                let agent_md = resolved.path.join("agent.md");
-                let agent_yaml = resolved.path.join("agent.yaml");
-
-                if agent_md.exists() {
-                    agent_md
-                } else if agent_yaml.exists() {
-                    agent_yaml
-                } else {
-                    return Err(NikaError::ContextLoadError {
-                        alias: name.to_string(),
-                        path: from.clone(),
-                        reason: format!(
-                            "Package {} exists but missing agent.md or agent.yaml at {}",
-                            from,
-                            resolved.path.display()
-                        ),
-                    });
-                }
-            } else {
-                // Regular filesystem path
-                base_path.join(from)
-            };
+            // Regular filesystem path
+            let source_path: PathBuf = base_path.join(from);
 
             debug!(agent = name, path = ?source_path, "Loading agent via multi-format loader");
 
@@ -420,45 +399,22 @@ struct ExternalAgentFile {
 
 /// Load a skill file content.
 async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<String, NikaError> {
-    // Support package references (@prompts/name, @skills/name)
-    let file_path: PathBuf = if path.starts_with('@') {
-        // Package reference - resolve via registry
-        debug!(
-            skill = name,
-            package = path,
-            "Resolving skill/prompt from package"
-        );
+    // Package references (`@prompts/name`, `@skills/name`) are not supported
+    // in this version — the registry was removed in Constellation S11.
+    if path.starts_with('@') {
+        return Err(NikaError::ContextLoadError {
+            alias: name.to_string(),
+            path: path.to_string(),
+            reason: format!(
+                "Package URI references like '{}' are not supported in this version. \
+                 Use a relative path or a direct URL instead.",
+                path
+            ),
+        });
+    }
 
-        let resolved =
-            resolver::resolve_package_path(path).map_err(|e| NikaError::ContextLoadError {
-                alias: name.to_string(),
-                path: path.to_string(),
-                reason: format!("Package not found: {}. Try: nika add {}", e, path),
-            })?;
-
-        // Skill/Prompt packages should contain skill.md or prompt.md
-        let skill_md = resolved.path.join("skill.md");
-        let prompt_md = resolved.path.join("prompt.md");
-
-        if skill_md.exists() {
-            skill_md
-        } else if prompt_md.exists() {
-            prompt_md
-        } else {
-            return Err(NikaError::ContextLoadError {
-                alias: name.to_string(),
-                path: path.to_string(),
-                reason: format!(
-                    "Package {} exists but missing skill.md or prompt.md at {}",
-                    path,
-                    resolved.path.display()
-                ),
-            });
-        }
-    } else {
-        // Regular filesystem path
-        base_path.join(path)
-    };
+    // Regular filesystem path
+    let file_path: PathBuf = base_path.join(path);
 
     debug!(skill = name, path = ?file_path, "Loading skill file");
 
