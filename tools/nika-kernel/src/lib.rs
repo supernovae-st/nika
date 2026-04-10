@@ -15,6 +15,7 @@
 //! Implementations live in their respective crates (nika-provider, nika-http, etc.)
 
 pub mod builtin;
+pub mod caps;
 pub mod clock;
 pub mod events;
 pub mod filesystem;
