@@ -55,8 +55,17 @@ pub async fn dispatch(
             todo!("S13-D3: wire nika-verb-fetch dispatch")
         }
         AnalyzedTaskAction::Invoke(_) => {
-            // S13-C3: nika_verb_invoke::run(...)
-            todo!("S13-C3: wire nika-verb-invoke dispatch")
+            // S13-C3: Invoke arm — the actual call lives in
+            // `crate::verb_invoke::run_invoke(input, caps, event_log)`,
+            // which takes a pre-built `InvokeInput`. This match arm
+            // cannot build the `InvokeInput` from `AnalyzedInvokeAction`
+            // directly because template resolution + type coercion live
+            // in nika-engine.
+            //
+            // Session 14 wires this fully when template resolution moves
+            // to nika-runtime. Until then, the engine bridge calls
+            // `nika_verb_invoke::run()` directly for the builtin path.
+            Err(RuntimeError::NotImplemented { verb: "invoke" })
         }
         AnalyzedTaskAction::Infer(_) => Err(RuntimeError::NotImplemented { verb: "infer" }),
         AnalyzedTaskAction::Agent(_) => Err(RuntimeError::NotImplemented { verb: "agent" }),

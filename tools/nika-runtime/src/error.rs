@@ -14,6 +14,10 @@ pub enum RuntimeError {
     #[error(transparent)]
     Exec(#[from] nika_verb_exec::VerbExecError),
 
+    /// Invoke verb error.
+    #[error(transparent)]
+    Invoke(#[from] nika_verb_invoke::VerbInvokeError),
+
     /// A verb that has not been extracted yet was dispatched.
     #[error("verb '{verb}' dispatch not yet implemented (deferred to S14)")]
     NotImplemented { verb: &'static str },
