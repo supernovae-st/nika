@@ -51,7 +51,13 @@ pub mod orchestrate;
 pub mod output;
 pub mod output_scanner;
 pub mod partial;
-pub mod policy;
+/// Security policy enforcement — re-exported from the `nika-policy` L1 crate.
+///
+/// The module lived at `nika-engine::runtime::policy` until Constellation Session 12;
+/// it is now an L1 crate so verb crates can depend on it without pulling in the
+/// engine monolith. Existing `crate::runtime::policy::*` imports continue to work
+/// unchanged via this `pub use` re-export.
+pub use nika_policy as policy;
 pub mod preset;
 pub mod rate_limit;
 pub mod record;
