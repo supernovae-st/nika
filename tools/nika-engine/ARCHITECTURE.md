@@ -1,18 +1,20 @@
 # nika-engine Architecture
 
 The embeddable workflow engine: parses YAML, builds a DAG, resolves bindings,
-dispatches tasks to providers, and streams results. ~149k LOC (incl. tests).
+dispatches tasks to providers, and streams results. ~146k LOC (incl. tests).
 
-Post-Session 11 (Constellation v2.3). Last updated 2026-04-10.
+Post-Session 12 Foundation (Constellation v2.3). Last updated 2026-04-10.
 
 ## Crate Dependencies (downward only)
 
 ```
 nika-engine
-├── nika-kernel      Effect traits (Provider, Fs, Clock, Shell, Http, BlobStore)
-├── nika-core        AST types, catalogs, policy, trust
+├── nika-kernel      Effect traits (Provider, Fs, Clock, Shell, Http, BlobStore, Policy) + per-verb Caps
+├── nika-core        AST types, catalogs, policy config, trust
 ├── nika-event       EventLog, TraceWriter
 ├── nika-builtin     37 builtin tools (core, file, data, introspection) — Phase 12
+├── nika-policy      PolicyEnforcer + SSRF helpers (L1, NEW S12-F5)
+├── nika-extract     Fetch post-processing — 9 extract modes (L2, NEW S12-F7)
 ├── nika-media       CAS store, image/document processing
 ├── nika-mcp         MCP client (rmcp)
 ├── nika-vault       Encrypted secrets (XChaCha20 + Argon2i)
@@ -26,14 +28,41 @@ with zero I/O — nika-engine implements them via concrete types (RigProvider,
 TokioFs, etc.). The 5 L1 effect crates implement the kernel traits:
 
 ```
-nika-kernel (L0.5, 668 LOC — traits only, zero deps)
+nika-kernel (L0.5, ~900 LOC — traits only, zero deps)
 ├── nika-clock          SystemClock impl
-├── nika-fs             TokioFs impl
+├── nika-fs             TokioFs impl (FsRead + FsWrite splinters, S12-F4)
 ├── nika-blob           DiskBlobStore impl
-├── nika-http           ReqwestClient impl
-└── nika-exec-runner    TokioShell impl
+├── nika-http           ReqwestClient impl (HttpClient::send_streaming, S12-F2)
+├── nika-exec-runner    TokioShell impl (CancellationToken support, S12-F3)
+├── nika-policy         PolicyEnforcer impl (PolicyChecker trait, S12-F5)
+└── nika-extract        L2 pure extraction pipeline (no kernel trait, S12-F7)
      (+ nika-kernel-mock — test doubles for all traits)
 ```
+
+## Constellation Session 12 Foundation — 2026-04-10
+
+S12 Foundation (11 commits) extended the kernel trait surface and extracted
+two pure crates to make Session 13 verb extraction mechanical:
+
+| Commit | Purpose |
+|--------|---------|
+| S12-F1 | nika-kernel: PolicyChecker trait (object-safe, 4 methods) |
+| S12-F2 | nika-kernel: HttpClient::send_streaming + HttpError::TooLarge/Unsupported |
+| S12-F3 | nika-kernel: ShellCommand::cancel + ShellError::Cancelled + TokioShell integration |
+| S12-F4 | nika-kernel: split Filesystem → FsRead + FsWrite splinters |
+| S12-F5 | **New nika-policy L1 crate** (PolicyEnforcer moved from engine, ~1263 LOC) |
+| S12-F6 | engine: delete duplicated runtime/policy.rs (`pub use nika_policy as policy`) |
+| S12-F7 | **New nika-extract L2 crate** (extract.rs moved from engine, ~1327 LOC) |
+| S12-F8 | engine: delete runtime/executor/extract.rs wrapper, rewire callers |
+| S12-F9 | nika-kernel: 5 per-verb Caps structs (ExecCaps/FetchCaps/...) — types only |
+| S12-F10 | docs: this update |
+| S12-F11 | test: golden e2e regression suite for all 5 verbs |
+
+**Engine LOC:** 148,792 → ~146,200 (−2,590)
+**Crate count:** 28 → 30 (+nika-policy, +nika-extract)
+**Diamond verified:** `cargo tree -p nika-policy --no-default-features` and
+`cargo tree -p nika-extract --no-default-features` both have zero nika-engine
+dependency. Both crates compile without nika-engine in their dep graph.
 
 ## Module Map
 
