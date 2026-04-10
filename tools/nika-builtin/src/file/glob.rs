@@ -69,6 +69,22 @@ impl BuiltinTool for GlobTool {
             let params: GlobParams = serde_json::from_str(&args)
                 .map_err(|e| BuiltinError::invalid_params("nika:glob", e))?;
 
+            // S12.D2 — reject parent-traversal in the glob pattern itself.
+            // validate_path() guards `params.path` but the glob pattern was
+            // previously passed through untouched, so `../**/*` would escape
+            // the working directory and expose sibling temp dirs (real
+            // finding during TDD: vault.enc + audit.jsonl leaked in tests).
+            // Segment equality only — substrings like `file..txt` are valid.
+            if params.pattern.split('/').any(|seg| seg == "..") {
+                return Err(BuiltinError::InvalidArgs {
+                    tool: "nika:glob".into(),
+                    reason: format!(
+                        "[NIKA-204] Glob pattern contains parent traversal: {}",
+                        params.pattern
+                    ),
+                });
+            }
+
             let search_root = if let Some(p) = params.path.as_deref() {
                 self.ctx.validate_path(p)?
             } else {
@@ -270,5 +286,53 @@ mod tests {
         assert!(result.is_ok());
         let v: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert!(v["count"].as_u64().unwrap() >= 1);
+    }
+
+    // ── S12.D2: reject `..` parent-traversal in glob pattern ──
+
+    #[tokio::test]
+    async fn test_glob_rejects_parent_traversal_in_pattern() {
+        let (_d, ctx) = setup();
+        let tool = GlobTool::new(ctx);
+
+        for evil in [
+            "../**/*",
+            "../etc/passwd",
+            "**/../secrets.json",
+            "a/../../b",
+        ] {
+            let result = tool
+                .call(serde_json::json!({"pattern": evil}).to_string())
+                .await;
+            assert!(
+                result.is_err(),
+                "pattern {evil:?} should have been rejected, got: {result:?}"
+            );
+            let msg = result.unwrap_err().to_string();
+            assert!(
+                msg.contains("NIKA-204") && msg.contains("parent traversal"),
+                "pattern {evil:?}: unexpected error message: {msg}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_glob_allows_double_dot_substring_in_segment() {
+        // Defensive: `file..txt` is a legal name and must NOT be mistaken
+        // for a parent-traversal component. Segment equality only.
+        let (d, ctx) = setup();
+        std::fs::write(d.path().join("file..txt"), "x").unwrap();
+
+        let tool = GlobTool::new(ctx);
+        let result = tool
+            .call(
+                serde_json::json!({
+                    "pattern": "file..txt",
+                    "path": d.path().to_string_lossy()
+                })
+                .to_string(),
+            )
+            .await;
+        assert!(result.is_ok(), "{:?}", result);
     }
 }
