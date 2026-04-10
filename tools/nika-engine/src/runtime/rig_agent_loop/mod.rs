@@ -57,6 +57,28 @@ use crate::runtime::SkillInjector;
 use nika_builtin::file::FileToolContext;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Resolve the agent's file-tool working directory from a raw
+/// `std::env::current_dir()` result.
+///
+/// S12.D1 — the previous code fell back to `PathBuf::from("/tmp")` on failure,
+/// which on a shared system let an untrusted agent write to another user's
+/// temp files. Now: hard error, propagated as `NikaError::IoError` (NIKA-093).
+/// Extracted to a free function so it can be unit-tested without mutating the
+/// process env.
+pub(super) fn resolve_agent_working_dir_from(
+    result: std::io::Result<PathBuf>,
+) -> Result<PathBuf, NikaError> {
+    result.map_err(|e| {
+        NikaError::IoError(std::io::Error::other(format!(
+            "cannot determine agent working directory: {e}"
+        )))
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // RigAgentLoop
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -499,8 +521,8 @@ impl RigAgentLoop {
         if add_file_tools {
             // Agent file tools (glob, read, grep) use the process cwd (project root)
             // so they can see all project files — same as invoke: nika:glob.
-            // workflow_base_dir is only used for spawn tool propagation (line 295).
-            let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
+            // workflow_base_dir is only used for spawn tool propagation.
+            let working_dir = resolve_agent_working_dir_from(std::env::current_dir())?;
             let file_ctx = Arc::new(FileToolContext::new(working_dir));
 
             use super::builtin::r#trait::KernelToolAdapter;

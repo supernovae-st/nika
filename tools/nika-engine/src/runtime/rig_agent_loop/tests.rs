@@ -10,7 +10,39 @@ use crate::event::{EventKind, EventLog};
 use crate::runtime::rig_agent_loop::types::{
     GuardrailCheckResult, RigAgentLoopResult, RigAgentStatus,
 };
-use crate::runtime::rig_agent_loop::RigAgentLoop;
+use crate::runtime::rig_agent_loop::{resolve_agent_working_dir_from, RigAgentLoop};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// S12.D1 — resolve_agent_working_dir_from hard-error contract
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn resolve_agent_working_dir_from_err_returns_hard_io_error() {
+    // Security invariant (S12.D1): on current_dir() failure the agent MUST
+    // propagate a descriptive NikaError::IoError instead of silently falling
+    // back to "/tmp" (which let an untrusted agent write to another user's
+    // temp files on a shared system).
+    let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+    let result = resolve_agent_working_dir_from(Err(io_err));
+
+    match result {
+        Err(crate::error::NikaError::IoError(e)) => {
+            assert!(
+                e.to_string().contains("cannot determine agent working directory"),
+                "unexpected error message: {e}"
+            );
+        }
+        Err(other) => panic!("expected NikaError::IoError, got: {other:?}"),
+        Ok(p) => panic!("expected hard error, got Ok({})", p.display()),
+    }
+}
+
+#[test]
+fn resolve_agent_working_dir_from_ok_passes_through() {
+    let p = std::path::PathBuf::from("/some/path");
+    let result = resolve_agent_working_dir_from(Ok(p.clone()));
+    assert_eq!(result.expect("ok"), p);
+}
 
 #[test]
 fn test_rig_agent_status_completion_semantics() {
