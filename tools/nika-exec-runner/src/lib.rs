@@ -82,6 +82,11 @@ impl ShellExecutor for TokioShell {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
+        // Kill the child process when the handle is dropped. Without this,
+        // dropping `child` on cancel / timeout / panic would leave a zombie
+        // subprocess running until the OS reaps it.
+        cmd.kill_on_drop(true);
+
         // Spawn
         let mut child = cmd.spawn().map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -103,29 +108,37 @@ impl ShellExecutor for TokioShell {
             }
         }
 
-        // Wait with optional timeout + cancellation
+        // Wait with optional timeout + cancellation.
+        //
+        // IMPORTANT: stdout/stderr must be drained CONCURRENTLY with `wait()`.
+        // If we wait first and only then read the pipes, a child that writes
+        // more than the OS pipe buffer (~64 KB on Linux, ~16 KB on macOS)
+        // blocks on write, and `wait()` blocks waiting for the child to exit
+        // → deadlock. `tokio::try_join!` polls all three futures in parallel.
         let cancel = command.cancel.clone();
 
         let child_fut = async {
             let stdout_handle = child.stdout.take();
             let stderr_handle = child.stderr.take();
-            let status = child.wait().await?;
-            let stdout = match stdout_handle {
-                Some(mut out) => {
-                    let mut buf = Vec::new();
-                    out.read_to_end(&mut buf).await?;
-                    buf
+
+            async fn drain<R: tokio::io::AsyncRead + Unpin>(
+                handle: Option<R>,
+            ) -> std::io::Result<Vec<u8>> {
+                match handle {
+                    Some(mut h) => {
+                        let mut buf = Vec::new();
+                        h.read_to_end(&mut buf).await?;
+                        Ok(buf)
+                    }
+                    None => Ok(Vec::new()),
                 }
-                None => Vec::new(),
-            };
-            let stderr = match stderr_handle {
-                Some(mut err) => {
-                    let mut buf = Vec::new();
-                    err.read_to_end(&mut buf).await?;
-                    buf
-                }
-                None => Vec::new(),
-            };
+            }
+
+            let (status, stdout, stderr) = tokio::try_join!(
+                child.wait(),
+                drain(stdout_handle),
+                drain(stderr_handle),
+            )?;
             Ok::<_, std::io::Error>(std::process::Output { status, stdout, stderr })
         };
 
@@ -385,6 +398,35 @@ mod tests {
             })
             .await;
         assert!(matches!(result, Err(ShellError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn large_output_does_not_deadlock() {
+        // Regression test for the pipe buffer deadlock: a child that writes
+        // more than the OS pipe buffer (~64 KB on Linux) must not hang waiting
+        // for the parent to drain the pipe. 1 MB is well over any platform's
+        // pipe buffer capacity.
+        let shell = TokioShell;
+        let result = shell
+            .run(ShellCommand {
+                // Emit ~1 MB to stdout via `yes` + `head`.
+                program: "yes x | head -c 1048576".into(),
+                args: vec![],
+                env: Default::default(),
+                cwd: None,
+                timeout: Some(Duration::from_secs(30)),
+                stdin: None,
+                shell: true,
+                cancel: None,
+            })
+            .await
+            .expect("large output must not deadlock");
+        assert!(result.success(), "command should exit 0: {result:?}");
+        assert_eq!(
+            result.stdout.len(),
+            1_048_576,
+            "should capture exactly 1 MB of stdout"
+        );
     }
 
     #[tokio::test]
