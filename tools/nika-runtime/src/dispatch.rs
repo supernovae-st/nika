@@ -38,8 +38,17 @@ pub async fn dispatch(
 ) -> Result<serde_json::Value, RuntimeError> {
     match action {
         AnalyzedTaskAction::Exec(_) => {
-            // S13-B4: nika_verb_exec::run(...)
-            todo!("S13-B4: wire nika-verb-exec dispatch")
+            // S13-B4: Exec arm — the actual call lives in
+            // `crate::verb_exec::run_exec(input, caps, event_log)`, which
+            // takes a pre-built `ExecInput`. This match arm cannot build
+            // the `ExecInput` from `AnalyzedExecAction` directly because
+            // template resolution (required) lives in nika-engine.
+            //
+            // Session 14 wires this fully when template resolution moves
+            // to nika-runtime. Until then, the engine bridge calls
+            // `nika_runtime::verb_exec::run_exec()` directly after doing
+            // its own template resolution + security validation.
+            Err(RuntimeError::NotImplemented { verb: "exec" })
         }
         AnalyzedTaskAction::Fetch(_) => {
             // S13-D3: nika_verb_fetch::run(...)

@@ -24,3 +24,8 @@
 pub mod capabilities;
 pub mod dispatch;
 pub mod error;
+pub mod verb_exec;
+
+/// Re-export of the exec verb crate so callers can build `ExecInput`
+/// without depending on `nika-verb-exec` directly.
+pub use nika_verb_exec as exec;

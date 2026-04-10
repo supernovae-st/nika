@@ -10,6 +10,10 @@
 /// `impl From<RuntimeError> for NikaError`.
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
+    /// Exec verb error.
+    #[error(transparent)]
+    Exec(#[from] nika_verb_exec::VerbExecError),
+
     /// A verb that has not been extracted yet was dispatched.
     #[error("verb '{verb}' dispatch not yet implemented (deferred to S14)")]
     NotImplemented { verb: &'static str },

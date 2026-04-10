@@ -6363,6 +6363,7 @@ dependencies = [
  "nika-event",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-verb-exec",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
