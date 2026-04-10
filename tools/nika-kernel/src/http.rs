@@ -43,6 +43,28 @@ pub struct HttpResponse {
     pub final_url: String,
 }
 
+/// Streaming HTTP response. Body is delivered as an async stream of chunks
+/// so callers can enforce size limits / extract partial content without buffering.
+pub struct HttpStreamResponse {
+    pub status: u16,
+    pub headers: HashMap<String, String>,
+    pub final_url: String,
+    pub content_length: Option<u64>,
+    pub body: std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, HttpError>> + Send>>,
+}
+
+impl std::fmt::Debug for HttpStreamResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpStreamResponse")
+            .field("status", &self.status)
+            .field("headers", &self.headers)
+            .field("final_url", &self.final_url)
+            .field("content_length", &self.content_length)
+            .field("body", &"<stream>")
+            .finish()
+    }
+}
+
 /// Async HTTP client trait.
 ///
 /// Production: `ReqwestClient` wrapping `reqwest::Client`.
@@ -51,6 +73,18 @@ pub struct HttpResponse {
 pub trait HttpClient: Send + Sync {
     /// Send an HTTP request and return the response.
     async fn send(&self, request: HttpRequest) -> Result<HttpResponse, HttpError>;
+
+    /// Send a request and return a streaming response. Used by `fetch:` for
+    /// early-abort on size limits (50 MB hard cap by default). Default impl
+    /// returns `HttpError::Unsupported` so existing mocks compile unchanged.
+    async fn send_streaming(
+        &self,
+        _request: HttpRequest,
+    ) -> Result<HttpStreamResponse, HttpError> {
+        Err(HttpError::Unsupported {
+            feature: "send_streaming".into(),
+        })
+    }
 }
 
 /// HTTP client errors.
@@ -64,6 +98,12 @@ pub enum HttpError {
 
     #[error("SSRF blocked: {url}")]
     SsrfBlocked { url: String },
+
+    #[error("response exceeded size limit: {limit_bytes} bytes")]
+    TooLarge { limit_bytes: u64 },
+
+    #[error("feature unsupported by this client: {feature}")]
+    Unsupported { feature: String },
 
     #[error("HTTP error: {reason}")]
     Other { reason: String },
@@ -94,5 +134,65 @@ impl HttpRequest {
             timeout: None,
             follow_redirects: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct DummyClient;
+    #[async_trait::async_trait]
+    impl HttpClient for DummyClient {
+        async fn send(&self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn default_send_streaming_errors_unsupported() {
+        let err = DummyClient
+            .send_streaming(HttpRequest::get("https://x"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, HttpError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn too_large_error_displays() {
+        let e = HttpError::TooLarge {
+            limit_bytes: 52_428_800,
+        };
+        assert_eq!(
+            format!("{e}"),
+            "response exceeded size limit: 52428800 bytes"
+        );
+    }
+
+    #[test]
+    fn stream_response_debug() {
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+
+        // Minimal empty stream impl (no utility crate needed)
+        struct EmptyStream;
+        impl futures_core::Stream for EmptyStream {
+            type Item = Result<Bytes, HttpError>;
+            fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+                Poll::Ready(None)
+            }
+        }
+
+        let resp = HttpStreamResponse {
+            status: 200,
+            headers: HashMap::new(),
+            final_url: "https://x".into(),
+            content_length: Some(1024),
+            body: Box::pin(EmptyStream),
+        };
+        let dbg = format!("{resp:?}");
+        assert!(dbg.contains("HttpStreamResponse"));
+        assert!(dbg.contains("<stream>"));
     }
 }
