@@ -72,7 +72,6 @@ use std::time::Duration;
 use super::BuiltinTool;
 use crate::error::NikaError;
 use crate::runtime::media_context::EngineMediaContext;
-use nika_kernel::scope::MediaContext;
 use nika_media::tools::error::{invalid_args, timeout_error, tool_error};
 
 /// Default timeout for media operations (30 seconds).
@@ -82,33 +81,18 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 ///
 /// Handles: JSON arg parsing, timeout wrapping, CAS write, serialization.
 ///
-/// Holds BOTH the concrete `Arc<MediaToolContext>` (for `MediaOp::execute`)
-/// and the trait object `Arc<dyn MediaContext>` (for router injection and
-/// future nika-builtin consumers). `MediaOp::execute` keeps its existing
-/// `&MediaToolContext` signature — media tools still use the concrete type.
+/// Holds the concrete `Arc<MediaToolContext>` for `MediaOp::execute`.
 pub(crate) struct MediaToolAdapter {
     op: Arc<dyn MediaOp>,
     /// Concrete context: passed to `MediaOp::execute(&ctx)`.
     concrete_ctx: Arc<MediaToolContext>,
-    /// Trait object: shared backing data as `concrete_ctx`. Kept for router
-    /// injection and future consumers that only need the trait API.
-    #[allow(dead_code)] // used by router.with_media() in 12.12
-    _trait_ctx: Arc<dyn MediaContext>,
 }
 
 impl MediaToolAdapter {
     /// Create an adapter from an `EngineMediaContext`.
-    ///
-    /// Extracts the concrete `Arc<MediaToolContext>` for `MediaOp::execute`
-    /// and the `Arc<dyn MediaContext>` for trait-based consumers.
     pub(crate) fn new(op: Arc<dyn MediaOp>, engine_ctx: Arc<EngineMediaContext>) -> Self {
         let concrete_ctx = Arc::clone(engine_ctx.inner_arc());
-        let _trait_ctx: Arc<dyn MediaContext> = engine_ctx;
-        Self {
-            op,
-            concrete_ctx,
-            _trait_ctx,
-        }
+        Self { op, concrete_ctx }
     }
 }
 

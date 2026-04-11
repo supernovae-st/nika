@@ -36,11 +36,24 @@ pub struct HttpRequest {
 
 /// An HTTP response.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct HttpResponse {
     pub status: u16,
     pub headers: HashMap<String, String>,
     pub body: Bytes,
     pub final_url: String,
+}
+
+impl HttpResponse {
+    /// Minimum constructor (invariant #19: `#[non_exhaustive]` structs require a `new()`).
+    pub fn new(status: u16, headers: HashMap<String, String>, body: Bytes, final_url: String) -> Self {
+        Self {
+            status,
+            headers,
+            body,
+            final_url,
+        }
+    }
 }
 
 /// Streaming HTTP response. Body is delivered as an async stream of chunks

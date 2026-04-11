@@ -53,15 +53,6 @@ impl EngineMediaContext {
         Self { inner: ctx }
     }
 
-    /// Borrow the underlying concrete context.
-    ///
-    /// Use sparingly — prefer trait methods when possible. Required when
-    /// `MediaToolAdapter` needs to call `op.execute(args, &self.concrete_ctx)`.
-    #[allow(dead_code)] // used by tests; production code uses inner_arc()
-    pub(crate) fn inner(&self) -> &MediaToolContext {
-        &self.inner
-    }
-
     /// Clone the underlying `Arc<MediaToolContext>`.
     ///
     /// Used by `MediaToolAdapter::new` to share a single context between
@@ -266,19 +257,6 @@ mod tests {
         };
         let ctx = EngineMediaContext::new(Arc::new(inner));
         assert_eq!(ctx.working_dir(), None, "working_dir must be None when not configured");
-    }
-
-    #[tokio::test]
-    async fn inner_arc_shares_backing_data() {
-        let (ctx, _tmp) = make_ctx();
-        // inner_arc() and inner() must refer to the same allocation
-        let arc = ctx.inner_arc();
-        let ptr_via_arc = Arc::as_ptr(arc);
-        let ptr_via_ref = ctx.inner() as *const MediaToolContext;
-        assert_eq!(
-            ptr_via_arc, ptr_via_ref,
-            "inner_arc() and inner() must point to the same MediaToolContext"
-        );
     }
 
     #[tokio::test]

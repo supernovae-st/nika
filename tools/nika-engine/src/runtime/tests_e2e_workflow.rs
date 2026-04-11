@@ -29,15 +29,6 @@ async fn run_and_get(yaml: &str, task_id: &str) -> String {
     result.output_str().to_string()
 }
 
-/// Helper: parse YAML, run workflow, expect failure
-#[allow(dead_code)]
-async fn run_expect_fail(yaml: &str) {
-    let workflow = parse_analyzed(yaml).expect("YAML should parse");
-    let mut runner = Runner::new(workflow).unwrap().quiet();
-    let result = runner.run().await;
-    assert!(result.is_err(), "Workflow should fail but succeeded");
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // 1. DAG PATTERNS (tests 1-5)
 // ═══════════════════════════════════════════════════════════════════

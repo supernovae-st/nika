@@ -249,8 +249,6 @@ const MAX_CONCURRENT_TASKS: usize = 64;
 /// Extracted so that `run()` reads as init → loop → finalize glue.
 struct InitResult {
     base_path: PathBuf,
-    #[allow(dead_code)]
-    total_tasks: usize,
     cached_depths: Option<rustc_hash::FxHashMap<String, usize>>,
     pending_indices: Vec<usize>,
 }
@@ -1051,7 +1049,6 @@ impl Runner {
 
         Ok(InitResult {
             base_path,
-            total_tasks,
             cached_depths,
             pending_indices,
         })
@@ -1430,10 +1427,6 @@ impl Runner {
                 // Check if task has for_each or decompose items
                 if let Some(items) = for_each_items {
                     if !items.is_empty() {
-                        // Note: total_tasks was used for progress display [N/M] but
-                        // the new CLI format uses verb icons instead. Keeping the
-                        // adjustment in case we add the counter back.
-
                         // Get concurrency settings: for_each overrides, then standalone task fields
                         // Note: bindings aren't available here (they're per-iteration),
                         // but inputs/context are available via empty bindings + datastore.

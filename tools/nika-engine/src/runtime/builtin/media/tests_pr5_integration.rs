@@ -38,7 +38,7 @@ mod tests {
         (dir, ctx)
     }
 
-    #[allow(dead_code)]
+    #[cfg(any(feature = "media-iqa", feature = "fetch-markdown"))]
     fn fixture_png(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         use image::{ImageBuffer, Rgb};
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
@@ -49,7 +49,7 @@ mod tests {
         buf
     }
 
-    #[allow(dead_code)]
+    #[cfg(any(feature = "media-provenance", feature = "fetch-markdown"))]
     fn fixture_jpeg(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         use image::{ImageBuffer, Rgb};
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));

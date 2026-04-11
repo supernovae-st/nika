@@ -25,14 +25,18 @@ mod tests {
     // SETUP + FIXTURES
     // ═══════════════════════════════════════════════════════════════
 
-    #[allow(dead_code)]
+    #[cfg(any(
+        feature = "media-provenance",
+        feature = "media-iqa",
+        feature = "media-qr"
+    ))]
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())).unwrap());
         (dir, ctx)
     }
 
-    #[allow(dead_code)]
+    #[cfg(feature = "media-provenance")]
     fn fixture_jpeg(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         use image::{ImageBuffer, Rgb};
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
@@ -41,7 +45,7 @@ mod tests {
         buf.into_inner()
     }
 
-    #[allow(dead_code)]
+    #[cfg(any(feature = "media-provenance", feature = "media-iqa", feature = "media-qr"))]
     fn fixture_png(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         use image::{ImageBuffer, Rgb};
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));

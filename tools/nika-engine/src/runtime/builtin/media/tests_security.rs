@@ -50,19 +50,6 @@ mod tests {
         })
     }
 
-    /// Create a context with a custom tiny working memory budget.
-    #[allow(dead_code)]
-    fn setup_with_working_memory(dir: &std::path::Path, max_bytes: usize) -> Arc<MediaToolContext> {
-        Arc::new(MediaToolContext {
-            cas: CasStore::new(dir),
-            budget: Arc::new(MediaBudget::new()),
-            compute: Arc::new(crate::runtime::builtin::media::context::ComputePool::new().unwrap()),
-            working_memory: Arc::new(WorkingMemoryBudget::with_max(max_bytes)),
-            cancel: tokio_util::sync::CancellationToken::new(),
-            working_dir: None,
-        })
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
     // 1. DECOMPRESSION BOMBS
     // ═══════════════════════════════════════════════════════════════════════
@@ -1364,7 +1351,7 @@ mod tests {
     // HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
-    #[allow(dead_code)]
+    #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
     fn png_crc(chunk_type: &[u8], data: &[u8]) -> u32 {
         let table = crc32_table();
         let mut crc: u32 = 0xFFFF_FFFF;
@@ -1374,7 +1361,7 @@ mod tests {
         crc ^ 0xFFFF_FFFF
     }
 
-    #[allow(dead_code)]
+    #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
     fn crc32_table() -> [u32; 256] {
         let mut t = [0u32; 256];
         for n in 0..256u32 {

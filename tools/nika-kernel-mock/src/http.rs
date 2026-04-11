@@ -28,12 +28,12 @@ impl MockHttpClient {
 
     /// Enqueue a successful response.
     pub fn enqueue_ok(&self, status: u16, body: impl Into<Bytes>) {
-        self.responses.lock().push_back(Ok(HttpResponse {
+        self.responses.lock().push_back(Ok(HttpResponse::new(
             status,
-            headers: Default::default(),
-            body: body.into(),
-            final_url: String::new(),
-        }));
+            Default::default(),
+            body.into(),
+            String::new(),
+        )));
     }
 
     /// Enqueue a JSON response.
