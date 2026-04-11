@@ -841,26 +841,19 @@ impl RigAgentLoop {
             let server_trusted = trusted_mcp_servers
                 .map(|list| list.iter().any(|s| s == mcp_name))
                 .unwrap_or(false);
-            let wrap_descriptions =
-                matches!(shield, Some(s) if s.spotlight_enabled()) && !server_trusted;
+            let spotlight_shield =
+                shield.filter(|s| s.spotlight_enabled() && !server_trusted);
 
             for def in tool_defs {
                 let raw_description = def.description.clone().unwrap_or_default();
-                let description =
-                    if wrap_descriptions && !raw_description.is_empty() {
-                        if let Some(s) = shield {
-                            let fence = s.fence();
-                            fence.wrap_untrusted(
-                                &raw_description,
-                                &format!("mcp:{mcp_name}/{}", def.name),
-                                nika_core::trust::TrustLevel::Untrusted,
-                            )
-                        } else {
-                            raw_description
-                        }
-                    } else {
-                        raw_description
-                    };
+                let description = match spotlight_shield {
+                    Some(s) if !raw_description.is_empty() => s.fence().wrap_untrusted(
+                        &raw_description,
+                        &format!("mcp:{mcp_name}/{}", def.name),
+                        nika_core::trust::TrustLevel::Untrusted,
+                    ),
+                    _ => raw_description,
+                };
 
                 let mut tool = NikaMcpTool::with_media_staging(
                     NikaMcpToolDef {
