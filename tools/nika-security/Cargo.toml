@@ -1,0 +1,18 @@
+[package]
+name = "nika-security"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Nika security validators — pure sync (shell blocklist, SEC-2 binding scan, path boundary)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+nika-core = { workspace = true }
+tracing = { workspace = true }
+unicode-normalization = { workspace = true }
+
+[lints]
+workspace = true

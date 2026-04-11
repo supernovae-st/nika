@@ -6392,6 +6392,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-security"
+version = "0.79.0"
+dependencies = [
+ "nika-core",
+ "tracing",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "nika-serve"
 version = "0.79.0"
 dependencies = [
