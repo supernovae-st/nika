@@ -1022,8 +1022,13 @@ impl TaskExecutor {
                 .await
                 .map_err(map_verb_infer_error)?;
 
-            // Adjust token reservation with actual output size.
-            token_reservation.adjust(estimate_tokens(output.text.len()));
+            // Adjust token reservation with real provider token counts.
+            // P0 fix: was using `estimate_tokens(output.text.len())` which is a
+            // byte-based estimate of output only — missing input tokens entirely.
+            // The streaming path uses `stream_result.input_tokens + output_tokens`.
+            token_reservation.adjust(
+                output.response.usage.input_tokens + output.response.usage.output_tokens,
+            );
 
             self.check_infer_guardrails(task_id, infer, &output.text)?;
             return Ok(output.text);

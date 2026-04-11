@@ -196,7 +196,10 @@ fn vision_text_response(text: String, start: Instant) -> InferResponse {
 /// and finish_reason. By routing through `infer_stream_with_options()` and
 /// converting the `StreamResult`, the kernel trait now returns rich metadata
 /// that the verb crate's golden oracle tests assert on.
-fn stream_result_to_infer_response(sr: super::stream::StreamResult) -> InferResponse {
+fn stream_result_to_infer_response(
+    sr: super::stream::StreamResult,
+    model: &str,
+) -> InferResponse {
     let stop_reason = sr
         .finish_reason
         .as_ref()
@@ -219,8 +222,16 @@ fn stream_result_to_infer_response(sr: super::stream::StreamResult) -> InferResp
     );
     response.ttft_ms = sr.ttft_ms;
     response.request_id = sr.request_id;
-    // cost_usd stays None — computed at the engine level from
-    // ModelCapabilities pricing. The verb crate defaults to 0.0.
+    // P0-2 fix: compute cost from the static pricing catalog so the verb
+    // crate emits ProviderResponded with real cost_usd instead of 0.0.
+    // Prior to this fix, cost_usd was None → unwrap_or(0.0) in the verb
+    // crate, making cost tracking non-functional for ~90% of calls.
+    response.cost_usd = nika_core::catalogs::estimate_cost(
+        model,
+        sr.input_tokens,
+        sr.output_tokens,
+    )
+    .map(|c| c.usd);
     response
 }
 
@@ -375,7 +386,7 @@ impl nika_kernel::provider::Provider for RigProvider {
                 .await
                 .map_err(convert_error)?;
 
-            Ok(stream_result_to_infer_response(stream_result))
+            Ok(stream_result_to_infer_response(stream_result, &request.model))
         }
     }
 
@@ -847,7 +858,7 @@ mod tests {
             finish_reason: Some(FinishReason::EndTurn),
         };
 
-        let response = stream_result_to_infer_response(sr);
+        let response = stream_result_to_infer_response(sr, "claude-sonnet-4");
 
         // Text content preserved
         assert_eq!(response.content.len(), 1);
@@ -867,8 +878,16 @@ mod tests {
         assert_eq!(response.request_id.as_deref(), Some("req_golden_s17"));
         assert_eq!(response.stop_reason, StopReason::EndTurn);
 
-        // cost_usd stays None (computed at engine level)
-        assert!(response.cost_usd.is_none());
+        // P0-2 fix: cost_usd now computed from static pricing catalog.
+        // For a known model like "claude-sonnet-4", the catalog returns
+        // real pricing. The cost should be non-zero for 42 input + 17 output.
+        assert!(
+            response.cost_usd.is_some(),
+            "cost_usd must be computed from pricing catalog for known models"
+        );
+        let cost = response.cost_usd.unwrap();
+        assert!(cost > 0.0, "cost for 42+17 tokens must be > 0.0, got {cost}");
+        assert!(cost < 1.0, "cost for 42+17 tokens should be < $1, got {cost}");
     }
 
     /// Zero cached_input_tokens → `cache_read_tokens: None` (not `Some(0)`).
@@ -884,11 +903,13 @@ mod tests {
             ..Default::default()
         };
 
-        let response = stream_result_to_infer_response(sr);
+        let response = stream_result_to_infer_response(sr, "unknown-model");
         assert!(
             response.usage.cache_read_tokens.is_none(),
             "zero cached_input_tokens must map to None, not Some(0)"
         );
+        // Unknown model → no pricing → cost_usd is None
+        assert!(response.cost_usd.is_none());
     }
 
     /// Missing finish_reason → `StopReason::EndTurn` default.
@@ -902,7 +923,7 @@ mod tests {
             ..Default::default()
         };
 
-        let response = stream_result_to_infer_response(sr);
+        let response = stream_result_to_infer_response(sr, "mock-model");
         assert_eq!(response.stop_reason, StopReason::EndTurn);
     }
 
