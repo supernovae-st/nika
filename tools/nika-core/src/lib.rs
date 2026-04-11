@@ -31,6 +31,7 @@ pub mod provider_name;
 pub mod schema;
 pub mod source;
 pub mod trust;
+pub mod util;
 
 pub use policy::{PolicyConfig, SecurityPolicyConfig, TaintMode};
 pub use provider_name::ProviderName;
