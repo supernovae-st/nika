@@ -124,7 +124,11 @@ impl Provider for MockProvider {
                 events.push(Ok(InferEvent::Done {
                     stop_reason: response.stop_reason.clone(),
                     request_id: response.request_id.clone(),
-                    finish_reason_raw: None,
+                    // W16-B3: propagate the finish_reason_raw the caller
+                    // set on the enqueued InferResponse so tests can drive
+                    // the verb-crate mapping through the streaming path
+                    // symmetrically with the non-streaming path.
+                    finish_reason_raw: response.finish_reason_raw.clone(),
                 }));
                 Ok(Box::pin(futures_util::stream::iter(events)))
             }

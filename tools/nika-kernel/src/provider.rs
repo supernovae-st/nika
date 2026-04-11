@@ -136,6 +136,25 @@ pub struct InferResponse {
     /// Populated by the bridge from `ModelCapabilities` pricing; `None`
     /// when pricing data is unavailable for the model.
     pub cost_usd: Option<f64>,
+    /// Raw provider-reported finish reason string, when present.
+    ///
+    /// Some providers surface finish reasons that do not map cleanly onto
+    /// the typed [`StopReason`] enum — `"content_filter"`, `"policy_violation"`,
+    /// `"tool_calls"`, `"function_call"`, `"length"` (OpenAI), `"safety"`
+    /// (Anthropic). This field carries the provider's verbatim string so
+    /// the verb crate's `StopReason → FinishReason` mapping (invariant #21)
+    /// can preserve the extra specificity when rendering
+    /// `ProviderResponded` events.
+    ///
+    /// `None` when the provider did not surface a raw string OR the path
+    /// did not plumb it through (e.g. non-streaming rig responses today).
+    /// Populated by `impl Provider` adapters when the concrete provider
+    /// exposes the raw string.
+    ///
+    /// W16-B3 (S16) introduced this field so
+    /// `nika_verb_infer::stop_reason_to_finish_reason` no longer hardcodes
+    /// `"content_filter"` for the `StopReason::ContentFilter` case.
+    pub finish_reason_raw: Option<String>,
 }
 
 impl InferResponse {
@@ -149,6 +168,7 @@ impl InferResponse {
             cached_tokens: None,
             request_id: None,
             cost_usd: None,
+            finish_reason_raw: None,
         }
     }
 }

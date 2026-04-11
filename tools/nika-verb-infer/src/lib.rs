@@ -156,6 +156,11 @@ pub async fn run(
     // the engine bridge paths still compute cost locally — that unwrap
     // moves to the caller in W14-B2 once the engine flips to the
     // helper directly with its own cost calculation.
+    //
+    // W16-B3: `stop_reason_to_finish_reason` now takes the raw provider
+    // string so `StopReason::ContentFilter` + `finish_reason_raw:
+    // Some("policy_violation")` preserves the extra specificity instead
+    // of collapsing to the hardcoded `"content_filter"` string.
     emit_provider_responded(
         event_log,
         &input.task_id,
@@ -164,27 +169,75 @@ pub async fn run(
         response.usage.output_tokens,
         response.usage.cache_read_tokens.unwrap_or(0),
         response.ttft_ms,
-        stop_reason_to_finish_reason(&response.stop_reason),
+        stop_reason_to_finish_reason(
+            &response.stop_reason,
+            response.finish_reason_raw.as_deref(),
+        ),
         response.cost_usd.unwrap_or(0.0),
     );
 
     Ok(InferOutput { text, response })
 }
 
-/// Map the kernel [`StopReason`] to the event-log [`FinishReason`].
+/// Map the kernel [`StopReason`] + optional raw provider string to the
+/// event-log [`FinishReason`].
 ///
-/// The two enums overlap but have different variant names because the
-/// kernel stays neutral to event-log types. This function centralizes
-/// the cross-layer mapping so there is only one place to update if
-/// either enum grows a variant.
-fn stop_reason_to_finish_reason(reason: &StopReason) -> FinishReason {
+/// Invariant #21 (S14) — the two enums have distinct variant names
+/// because the kernel stays neutral to event-log types, and this function
+/// is the single place that bridges them.
+///
+/// ## W16-B3 — `finish_reason_raw` consumption (option (ii))
+///
+/// Before W16-B3, the mapping hardcoded `"content_filter"` as the
+/// `FinishReason::Other` payload for `StopReason::ContentFilter`, which
+/// masked provider-specific strings (OpenAI `"length"`, Anthropic
+/// `"safety"`, Gemini `"policy_violation"`, …).
+///
+/// The new mapping uses the explicit `StopReason` variants as the
+/// authoritative path for the four typed variants (`EndTurn`,
+/// `MaxTokens`, `StopSequence`, `ToolUse`) — these are specific enough
+/// that the raw string would not add information. For `ContentFilter`
+/// and `Unknown` — the two cases that currently lose provider specificity
+/// — the helper now prefers `finish_reason_raw` when present and falls
+/// back to the previous hardcoded/internal string otherwise.
+///
+/// This is "option (ii)" from the Phase 1 rust-async-expert audit: typed
+/// safety where the kernel has a variant, string fidelity where it does
+/// not. An `Other(raw)` flow-through for all six variants would drop
+/// typed semantics for `MaxTokens` / `StopSequence` / `ToolUse` even when
+/// providers happen to return a `"length"` or `"tool_calls"` raw string
+/// — not worth the downstream ambiguity.
+fn stop_reason_to_finish_reason(
+    reason: &StopReason,
+    finish_reason_raw: Option<&str>,
+) -> FinishReason {
     match reason {
         StopReason::EndTurn => FinishReason::EndTurn,
         StopReason::MaxTokens => FinishReason::MaxTokens,
         StopReason::StopSequence => FinishReason::StopSequence,
         StopReason::ToolUse => FinishReason::ToolUse,
-        StopReason::ContentFilter => FinishReason::Other("content_filter".to_string()),
-        StopReason::Unknown(s) => FinishReason::Other(s.clone()),
+        StopReason::ContentFilter => {
+            // Prefer the provider's verbatim string when available
+            // (e.g. "policy_violation", "safety"), otherwise fall back
+            // to the typed default — the pre-W16-B3 behavior.
+            FinishReason::Other(
+                finish_reason_raw
+                    .map(str::to_string)
+                    .unwrap_or_else(|| "content_filter".to_string()),
+            )
+        }
+        StopReason::Unknown(s) => {
+            // Unknown already carries a raw string in `s`, but the
+            // external `finish_reason_raw` is MORE authoritative because
+            // it is populated by the provider adapter directly whereas
+            // `s` may have been synthesized from an internal fallback
+            // during the adapter's StopReason construction.
+            FinishReason::Other(
+                finish_reason_raw
+                    .map(str::to_string)
+                    .unwrap_or_else(|| s.clone()),
+            )
+        }
     }
 }
 
@@ -527,6 +580,157 @@ mod tests {
             result,
             Err(VerbInferError::Provider(ProviderError::RateLimited { .. }))
         ));
+    }
+
+    // =========================================================================
+    // W16-B3 — finish_reason_raw consumption (option (ii))
+    // =========================================================================
+
+    /// Helper — run `run()` once with a fully-controlled `InferResponse`,
+    /// return the `FinishReason` emitted on the `ProviderResponded` event.
+    /// Centralized so the 4 W16-B3 tests below stay focused on the
+    /// `(StopReason, finish_reason_raw)` tuple under test.
+    async fn run_and_capture_finish_reason(
+        stop_reason: StopReason,
+        finish_reason_raw: Option<&str>,
+    ) -> FinishReason {
+        use nika_kernel::provider::{InferResponse, TokenUsage};
+
+        let mock = Arc::new(MockProvider::new("mock"));
+        let mut response = InferResponse::new(
+            vec![ContentBlock::Text {
+                text: "ok".to_string(),
+            }],
+            TokenUsage {
+                input_tokens: 5,
+                output_tokens: 3,
+                cache_read_tokens: None,
+                cache_write_tokens: None,
+            },
+            stop_reason,
+        );
+        response.finish_reason_raw = finish_reason_raw.map(str::to_string);
+        mock.enqueue_response(response);
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock, &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = make_input("probe");
+        run(&input, &caps, &event_log).await.unwrap();
+
+        let events = event_log.events();
+        let EventKind::ProviderResponded { finish_reason, .. } = events
+            .iter()
+            .find_map(|e| {
+                if matches!(e.kind, EventKind::ProviderResponded { .. }) {
+                    Some(&e.kind)
+                } else {
+                    None
+                }
+            })
+            .expect("run must emit exactly one ProviderResponded event")
+        else {
+            unreachable!("guarded by the find_map filter above")
+        };
+        finish_reason.clone()
+    }
+
+    /// `StopReason::ContentFilter` + `finish_reason_raw: Some(provider_string)`
+    /// must preserve the raw string via `FinishReason::Other(provider_string)`
+    /// instead of collapsing to the pre-W16-B3 hardcoded `"content_filter"`.
+    /// This is the primary W16-B3 acceptance test — it failed before the
+    /// `stop_reason_to_finish_reason` signature change.
+    #[tokio::test]
+    async fn infer_content_filter_prefers_finish_reason_raw() {
+        let finish_reason = run_and_capture_finish_reason(
+            StopReason::ContentFilter,
+            Some("policy_violation"),
+        )
+        .await;
+        assert_eq!(
+            finish_reason,
+            FinishReason::Other("policy_violation".to_string()),
+            "ContentFilter should surface the raw provider string, not the hardcoded default"
+        );
+    }
+
+    /// `StopReason::ContentFilter` with `finish_reason_raw: None` must
+    /// fall back to the pre-W16-B3 hardcoded `"content_filter"` string
+    /// so the migration is backwards-compatible for adapters that do not
+    /// plumb raw strings through.
+    #[tokio::test]
+    async fn infer_content_filter_defaults_when_no_raw() {
+        let finish_reason =
+            run_and_capture_finish_reason(StopReason::ContentFilter, None).await;
+        assert_eq!(
+            finish_reason,
+            FinishReason::Other("content_filter".to_string()),
+            "ContentFilter without raw must fall back to the pre-W16-B3 default"
+        );
+    }
+
+    /// `StopReason::Unknown(internal)` + `finish_reason_raw: Some(external)`
+    /// must prefer the external raw string over the internal `s` payload,
+    /// because the external field is populated by the provider adapter
+    /// directly whereas the internal `s` may have been synthesized from
+    /// an adapter fallback during `StopReason` construction.
+    #[tokio::test]
+    async fn infer_unknown_stop_reason_prefers_external_raw_over_internal() {
+        let finish_reason = run_and_capture_finish_reason(
+            StopReason::Unknown("internal_fallback".to_string()),
+            Some("server_rejected_overloaded"),
+        )
+        .await;
+        assert_eq!(
+            finish_reason,
+            FinishReason::Other("server_rejected_overloaded".to_string()),
+            "Unknown should prefer external finish_reason_raw over the internal StopReason::Unknown payload"
+        );
+    }
+
+    /// `StopReason::Unknown(internal)` with `finish_reason_raw: None`
+    /// falls back to the internal `s` payload — existing behavior.
+    #[tokio::test]
+    async fn infer_unknown_stop_reason_uses_internal_when_no_raw() {
+        let finish_reason = run_and_capture_finish_reason(
+            StopReason::Unknown("only_internal".to_string()),
+            None,
+        )
+        .await;
+        assert_eq!(
+            finish_reason,
+            FinishReason::Other("only_internal".to_string()),
+            "Unknown without raw must fall back to the internal payload"
+        );
+    }
+
+    /// Typed variants (`EndTurn`, `MaxTokens`, `StopSequence`, `ToolUse`)
+    /// must ignore `finish_reason_raw` entirely — the typed semantics are
+    /// authoritative. W16-B3 rust-async-expert option (ii) — do NOT let a
+    /// provider that happens to emit `"length"` raw override the typed
+    /// `FinishReason::MaxTokens` distinction that downstream tooling uses.
+    #[tokio::test]
+    async fn infer_typed_stop_reasons_ignore_finish_reason_raw() {
+        let cases = [
+            (StopReason::EndTurn, FinishReason::EndTurn),
+            (StopReason::MaxTokens, FinishReason::MaxTokens),
+            (StopReason::StopSequence, FinishReason::StopSequence),
+            (StopReason::ToolUse, FinishReason::ToolUse),
+        ];
+        for (stop, expected) in cases {
+            let stop_label = format!("{stop:?}");
+            // Provider raw that would falsely imply a different typed variant.
+            let got =
+                run_and_capture_finish_reason(stop, Some("length_or_tool_or_whatever")).await;
+            assert_eq!(
+                got, expected,
+                "{stop_label}: typed FinishReason must win over finish_reason_raw"
+            );
+        }
     }
 
     #[test]
