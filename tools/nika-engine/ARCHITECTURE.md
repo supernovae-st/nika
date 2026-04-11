@@ -698,10 +698,77 @@ agent re-verified all three P0 fixes green.
 | 14 | `nika-runtime` | Runner + executor extraction (~30k LOC) | Planned |
 | 15 | post-launch | `nika-binding` + `nika-dag` to L0 kernel (~15k LOC) | Planned |
 
+## Constellation Session 17 — 2026-04-11
+
+S17 landed 2 commits targeting the W14-B2 bridge flip. The headline
+is: **kernel bridge returns real metadata + simple text infer delegates
+to the verb crate**. Phase 1 (4 parallel agents: rust-architect,
+rust-async-expert, code-explorer, nika-code-reviewer) confirmed the
+S16 finding and recommended the Z+X hybrid approach.
+
+### Approach: Option Z + Option X
+
+- **Option Z (S17-A0):** Fix the root cause of metadata loss. The
+  kernel bridge's `Provider::infer()` text path was calling
+  `infer_with_options()` which returns only a `String` — losing all
+  token counts, request_id, ttft_ms. S17-A0 routes it through
+  `infer_stream_with_options()` internally (with a drain channel for
+  the chunks we don't need), converting the `StreamResult` into an
+  `InferResponse` with real metadata. Added `stream_result_to_infer_response`
+  + `finish_reason_to_stop_reason` reverse mapping + 7 tests.
+
+- **Option X (S17-A2):** With Z in place, the engine can safely
+  delegate simple text infer to `nika_verb_infer::run()`. The verb
+  crate calls `Provider::infer()` via the kernel trait (now with
+  real metadata), emits `ProviderResponded` via the shared helper,
+  and returns `InferOutput`. Added `map_verb_infer_error` with
+  invariant #25 wildcard arm.
+
+### Delegation predicate
+
+```
+!has_structured && !has_content && infer.extended_thinking != Some(true)
+```
+
+The engine's streaming path stays for: structured output (L2-L3
+retry), vision, extended thinking. These paths are unchanged.
+Task-level retry in runner.rs handles transient failures for the
+delegated simple text path.
+
+### Commit chain
+
+```
+d9bee6292 feat(engine): Provider::infer() returns real metadata via streaming (S17-A0)
+d049a9aa9 feat(engine): delegate simple text infer to verb crate (S17-A2)
+```
+
+### Measurements
+
+| Metric | Baseline (S16) | Post-S17 | Delta |
+|---|---|---|---|
+| Engine LOC (src tree) | 147,020 | 147,303 | +283 |
+| infer.rs LOC | 2,175 | 2,258 | +83 |
+| kernel_bridge.rs LOC | ~530 | ~830 | +300 |
+| Workspace tests | 10,910 | 10,916 | +6 |
+| Clippy warnings | 0 | 0 | 0 |
+| Crates | 35 (32 diamond) | 35 (32 diamond) | 0 |
+
+**LOC target (-150) NOT met.** The delegation adds code (predicate +
+error mapping + InferCaps construction) without deleting the streaming
+path, which must stay for structured/vision/thinking. LOC reduction
+comes when the verb crate supports streaming (S18+) and the engine's
+streaming text path can be removed wholesale.
+
+### What S17 unblocked
+
+The verb crate matrix is now: exec ✓ live | fetch helpers (unwired) |
+invoke builtin + MCP | **infer partially live (simple text delegates,
+streaming/structured/vision/thinking stay engine-owned)** | agent ✗.
+
 ### Size Targets (V2.3, research-backed)
 
 ```
-Pre-launch (May 5):  nika-engine <= 100k LOC  (from 149k, after Phase 14)
+Near-term:           nika-engine <= 100k LOC  (from 149k, after Phase 14) — no hard date
 Post-launch:         nika-engine <  80k LOC   (after Phase 15 binding/dag split)
 ```
 
