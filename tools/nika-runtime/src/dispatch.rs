@@ -126,6 +126,7 @@ mod tests {
         use nika_kernel_mock::clock::MockClock;
         use nika_kernel_mock::filesystem::InMemoryFs;
         use nika_kernel_mock::http::MockHttpClient;
+        use nika_kernel_mock::mcp::MockMcpPool;
         use nika_kernel_mock::policy::MockPolicyChecker;
         use nika_kernel_mock::shell::MockShell;
         use nika_kernel_mock::store::MemoryBlobStore;
@@ -141,7 +142,10 @@ mod tests {
             event_log: nika_event::EventLog::new(),
             cancel_token: tokio_util::sync::CancellationToken::new(),
             builtin_router: Arc::new(NoopBuiltinRouter),
-            mcp_pool: Arc::new(NoopMcpPool),
+            // S15-A4: replaced inline NoopMcpPool with MockMcpPool from
+            // kernel-mock. The kernel-mock crate owns the async-trait
+            // boilerplate; this file stays minimal.
+            mcp_pool: Arc::new(MockMcpPool::new()),
             provider: Arc::new(nika_kernel_mock::MockProvider::new("test")),
             workflow_base_dir: std::path::PathBuf::from("/tmp/test"),
             working_dir_mode: None,
@@ -177,50 +181,6 @@ mod tests {
         }
 
         fn knows(&self, _tool: &str) -> bool {
-            false
-        }
-    }
-
-    /// Noop MCP pool for tests — no servers configured.
-    #[derive(Debug)]
-    struct NoopMcpPool;
-
-    #[async_trait::async_trait]
-    impl nika_kernel::mcp::McpPool for NoopMcpPool {
-        async fn call_tool(
-            &self,
-            server: &str,
-            _tool: &str,
-            _args: serde_json::Value,
-            _opts: nika_kernel::mcp::McpCallOptions,
-        ) -> Result<nika_kernel::mcp::McpToolResult, nika_kernel::mcp::McpError> {
-            Err(nika_kernel::mcp::McpError::ServerNotFound {
-                server: server.to_string(),
-            })
-        }
-
-        async fn read_resource(
-            &self,
-            _server: &str,
-            uri: &str,
-            _cancel: &tokio_util::sync::CancellationToken,
-        ) -> Result<nika_kernel::mcp::McpResourceContent, nika_kernel::mcp::McpError> {
-            Err(nika_kernel::mcp::McpError::ResourceFailed {
-                uri: uri.to_string(),
-                reason: "noop pool".to_string(),
-            })
-        }
-
-        async fn list_tools(
-            &self,
-            server: &str,
-        ) -> Result<Vec<nika_kernel::mcp::McpToolDescriptor>, nika_kernel::mcp::McpError> {
-            Err(nika_kernel::mcp::McpError::ServerNotFound {
-                server: server.to_string(),
-            })
-        }
-
-        fn has_server(&self, _server: &str) -> bool {
             false
         }
     }
