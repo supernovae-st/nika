@@ -38,6 +38,12 @@ use nika_kernel::http::{HttpError, HttpMethod, HttpRequest, HttpResponse};
 mod error;
 pub use error::VerbFetchError;
 
+// S14-β: pure helpers extracted from nika-engine/runtime/executor/fetch.rs.
+// The engine bridge re-imports these and calls them verbatim; when the retry
+// loop orchestration is extracted in S15 it will move alongside them.
+pub mod hreflang;
+pub mod retry;
+
 /// Pre-validated input for the fetch verb's simple body-fetch path.
 ///
 /// The engine bridge builds this after template resolution + SSRF

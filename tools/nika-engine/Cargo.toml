@@ -58,6 +58,8 @@ nika-extract = { workspace = true }
 nika-vault = { workspace = true }
 nika-verb-exec = { workspace = true }
 nika-verb-invoke = { workspace = true }
+# S14-β: pure retry/backoff/hreflang helpers extracted from fetch.rs
+nika-verb-fetch = { workspace = true }
 nika-exec-runner = { workspace = true }
 nika-clock = { workspace = true }
 nika-fs = { workspace = true }
