@@ -204,13 +204,6 @@ mod tests {
     // `InvokeCaps::new`. Tests that exercise the MCP path properly go in
     // the adapter crate (S15-A3).
 
-    // S16-swarm clippy sweep: this test helper takes 8 params because
-    // `InvokeCaps<'a>` legitimately bundles 8 kernel trait refs
-    // (router, pool, fs, http, blobs, policy, clock, cancel). A
-    // wrapper struct would hide the param set and make the tests
-    // less explicit. `#[allow(clippy::too_many_arguments)]` keeps
-    // the baseline clean.
-    #[allow(clippy::too_many_arguments)]
     fn make_caps<'a>(
         router: &'a dyn BuiltinRouter,
         pool: &'a dyn McpPool,
@@ -315,9 +308,12 @@ mod tests {
         let events = event_log.events();
         let emitted_params = events
             .iter()
-            .find_map(|e| match &e.kind {
-                EventKind::McpInvoke { params, .. } => params.clone(),
-                _ => None,
+            .find_map(|e| {
+                if let EventKind::McpInvoke { params, .. } = &e.kind {
+                    params.clone()
+                } else {
+                    None
+                }
             })
             .expect("McpInvoke event with params must be emitted");
         let serialized = emitted_params.to_string();
