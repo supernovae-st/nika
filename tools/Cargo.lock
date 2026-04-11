@@ -6397,6 +6397,7 @@ name = "nika-security"
 version = "0.79.0"
 dependencies = [
  "nika-core",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
  "unicode-normalization",
@@ -6573,6 +6574,7 @@ dependencies = [
 name = "nika-verb-invoke"
 version = "0.79.0"
 dependencies = [
+ "nika-core",
  "nika-event",
  "nika-kernel",
  "nika-kernel-mock",

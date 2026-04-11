@@ -166,11 +166,7 @@ uuid = { workspace = true }
 dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
-shlex = { workspace = true }
 unicode-normalization = { workspace = true }
-
-# Package registry
-flate2 = { workspace = true }
 
 # File System
 ignore = { workspace = true }
@@ -215,6 +211,8 @@ serial_test = { workspace = true }
 wiremock = "0.6"
 qrcode = "0.14"
 image = { workspace = true }
+shlex = { workspace = true }
+flate2 = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 nika-daemon = { workspace = true }
