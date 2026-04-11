@@ -43,6 +43,36 @@ use crate::runtime::structured_retry;
 // engine bridge and the verb crate's own `run()` share one emission
 // call site.
 use nika_verb_infer::emit_provider_responded;
+use nika_verb_infer::VerbInferError;
+
+/// Convert a `VerbInferError` to the engine's `NikaError` at the bridge boundary.
+///
+/// S17-A1: Invariant #25 — wildcard arm catches future variants added to the
+/// `#[non_exhaustive]` `VerbInferError` enum, keeping the engine compilable
+/// and triageable from logs. Pattern matches `map_verb_exec_error` (exec.rs)
+/// and `map_verb_invoke_error` (invoke.rs).
+fn map_verb_infer_error(err: VerbInferError) -> NikaError {
+    match err {
+        VerbInferError::Validation { reason } => NikaError::ValidationError { reason },
+        VerbInferError::Provider(provider_err) => NikaError::ProviderApiError {
+            message: provider_err.to_string(),
+        },
+        VerbInferError::Cancelled { task_id } => NikaError::TaskCancelled {
+            task_id,
+            reason: "workflow cancelled during infer".to_string(),
+        },
+        VerbInferError::NoTextContent => NikaError::ProviderApiError {
+            message: "provider returned no text content".to_string(),
+        },
+        // VerbInferError is `#[non_exhaustive]` (invariant #25). When the
+        // verb crate grows new variants (e.g. StructuredOutputFailed,
+        // GuardrailViolation from the W14-B2 surgery), they fall through
+        // here and must be explicitly mapped in a follow-up commit.
+        other => NikaError::ProviderApiError {
+            message: format!("infer: unmapped verb error variant: {other:?}"),
+        },
+    }
+}
 
 impl TaskExecutor {
     /// Build an [`InferCallback`] that calls `provider.infer()` with optional model override.
@@ -946,11 +976,64 @@ impl TaskExecutor {
         }
 
         // ═══════════════════════════════════════════════════════════════════
+        // S17-A2: VERB CRATE DELEGATION (simple text path)
+        // ═══════════════════════════════════════════════════════════════════
+        // For plain text inference (no vision, no structured output, no
+        // extended thinking), delegate to nika_verb_infer::run(). The verb
+        // crate calls Provider::infer() via the kernel trait (which routes
+        // through streaming internally since S17-A0), emits ProviderResponded
+        // via the shared helper (invariant #24), and returns InferOutput.
+        //
+        // This path replaces the engine's streaming retry loop for the simple
+        // case — task-level retry in runner.rs handles transient failures.
+        // Structured output (L2-L3 retry), vision, and extended thinking
+        // still use the engine's streaming path below.
+        if !has_structured && !has_content && infer.extended_thinking != Some(true) {
+            use nika_kernel::caps::InferCaps;
+            use nika_kernel::provider::ProviderExtras;
+
+            let provider_arc: Arc<dyn nika_kernel::provider::Provider> =
+                Arc::new(provider.clone());
+            let policy_clone = self.policy_enforcer.read().clone();
+            let clock = nika_clock::SystemClock;
+            let fs = nika_fs::TokioFs;
+
+            let infer_caps = InferCaps::new(
+                provider_arc,
+                &fs,
+                &policy_clone,
+                &clock,
+                &self.cancel_token,
+                &self.workflow_base_dir,
+            );
+
+            let infer_input = nika_verb_infer::InferInput {
+                prompt: &prompt,
+                system: resolved_system.as_deref(),
+                model: &model_id,
+                temperature: infer.temperature.map(|t| t as f32),
+                max_tokens: infer.max_tokens,
+                thinking_budget: None,
+                extra: ProviderExtras::default(),
+                task_id: Arc::clone(task_id),
+            };
+
+            let output = nika_verb_infer::run(&infer_input, &infer_caps, &self.event_log)
+                .await
+                .map_err(map_verb_infer_error)?;
+
+            // Adjust token reservation with actual output size.
+            token_reservation.adjust(estimate_tokens(output.text.len()));
+
+            self.check_infer_guardrails(task_id, infer, &output.text)?;
+            return Ok(output.text);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
         // STREAMING PATH (Layers 1-3 fallback)
         // ═══════════════════════════════════════════════════════════════════
-        // Use infer_stream_with_options when LLM control options are set
-        // Otherwise fall back to infer_stream.
-        // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
+        // Used for: structured output retry (L2-L3), extended thinking,
+        // and vision fallback. Simple text infer delegates above (S17-A2).
         let infer_start = Instant::now();
         let has_llm_options = infer.temperature.is_some()
             || infer.max_tokens.is_some()
