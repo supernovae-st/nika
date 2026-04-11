@@ -192,7 +192,8 @@ impl GitStatus {
             let changes = self.compute_line_changes(path);
             self.line_changes.insert(path.to_path_buf(), changes);
         }
-        self.line_changes.get(path).unwrap()
+        // SAFETY: inserted on the cache-miss branch directly above
+        self.line_changes.get(path).expect("inserted on cache miss")
     }
 
     pub fn invalidate_line_changes(&mut self, path: &Path) {

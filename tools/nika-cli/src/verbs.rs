@@ -613,8 +613,7 @@ pub async fn handle_invoke(
     }
 
     // Parse tool name: "server::tool" or "nika:tool"
-    let (mcp_name, tool_name) = if tool.contains("::") {
-        let (s, t) = tool.split_once("::").unwrap();
+    let (mcp_name, tool_name) = if let Some((s, t)) = tool.split_once("::") {
         (Some(s.to_string()), t.to_string())
     } else {
         (mcp, tool.clone())

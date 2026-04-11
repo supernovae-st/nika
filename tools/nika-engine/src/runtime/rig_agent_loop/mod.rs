@@ -846,16 +846,21 @@ impl RigAgentLoop {
 
             for def in tool_defs {
                 let raw_description = def.description.clone().unwrap_or_default();
-                let description = if wrap_descriptions && !raw_description.is_empty() {
-                    let fence = shield.unwrap().fence();
-                    fence.wrap_untrusted(
-                        &raw_description,
-                        &format!("mcp:{mcp_name}/{}", def.name),
-                        nika_core::trust::TrustLevel::Untrusted,
-                    )
-                } else {
-                    raw_description
-                };
+                let description =
+                    if wrap_descriptions && !raw_description.is_empty() {
+                        if let Some(s) = shield {
+                            let fence = s.fence();
+                            fence.wrap_untrusted(
+                                &raw_description,
+                                &format!("mcp:{mcp_name}/{}", def.name),
+                                nika_core::trust::TrustLevel::Untrusted,
+                            )
+                        } else {
+                            raw_description
+                        }
+                    } else {
+                        raw_description
+                    };
 
                 let mut tool = NikaMcpTool::with_media_staging(
                     NikaMcpToolDef {
