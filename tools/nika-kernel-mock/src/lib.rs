@@ -12,6 +12,7 @@
 pub mod clock;
 pub mod filesystem;
 pub mod http;
+pub mod mcp;
 pub mod media;
 pub mod policy;
 pub mod provider;
@@ -19,6 +20,7 @@ pub mod record;
 pub mod shell;
 pub mod store;
 
+pub use mcp::MockMcpPool;
 pub use media::MockMediaContext;
 pub use policy::MockPolicyChecker;
 pub use provider::MockProvider;

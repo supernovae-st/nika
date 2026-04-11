@@ -40,10 +40,14 @@ pub const MAX_MCP_RESULT_SIZE: usize = 50 * 1024 * 1024;
 
 /// Error type for MCP pool operations.
 ///
+/// `Clone` is derived so mock / cache layers can stash responses in a
+/// `HashMap<String, Result<T, McpError>>` — all variants carry only
+/// clonable fields (`String` + `usize`).
+///
 /// `#[non_exhaustive]` (invariant #25) — downstream `From<McpError>` impls
 /// MUST include a wildcard arm that maps unmapped variants to a generic
 /// error with a `format!("unmapped mcp error variant: {other:?}")` message.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum McpError {
     /// MCP server not found or not configured.
