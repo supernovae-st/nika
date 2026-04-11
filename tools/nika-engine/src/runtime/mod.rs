@@ -44,6 +44,7 @@ pub(crate) mod for_each;
 pub mod hitl;
 pub mod hitl_bridge;
 pub mod limit_tracker;
+pub mod mcp_pool_adapter;
 pub(crate) mod media_context;
 pub mod run_executor;
 pub(crate) mod mock_json;
