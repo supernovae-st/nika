@@ -733,6 +733,222 @@ mod tests {
         }
     }
 
+    // =========================================================================
+    // W16-A1 — verb-crate coverage gap closers (Phase 1 rust-pro audit)
+    // =========================================================================
+
+    /// `InferResponse::cost_usd: None` must default to `0.0` in the
+    /// emitted event, not `None` or a panic. The S14-δ golden oracle only
+    /// exercises the `Some(0.0042)` path — this test pins the `None`
+    /// fallback that `run` applies via `response.cost_usd.unwrap_or(0.0)`
+    /// at the helper call site. Phase 1 rust-pro flagged this as a test
+    /// gap: "golden asserts Some path only".
+    #[tokio::test]
+    async fn infer_defaults_cost_usd_to_zero_when_response_has_none() {
+        use nika_kernel::provider::{InferResponse, TokenUsage};
+
+        let mock = Arc::new(MockProvider::new("mock"));
+        // InferResponse::new defaults cost_usd to None — we assert the
+        // unwrap_or(0.0) default path, NOT the Some override path.
+        let response = InferResponse::new(
+            vec![ContentBlock::Text {
+                text: "ok".to_string(),
+            }],
+            TokenUsage {
+                input_tokens: 7,
+                output_tokens: 4,
+                cache_read_tokens: None,
+                cache_write_tokens: None,
+            },
+            StopReason::EndTurn,
+        );
+        assert!(
+            response.cost_usd.is_none(),
+            "sanity: InferResponse::new must default cost_usd to None"
+        );
+        mock.enqueue_response(response);
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock, &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = make_input("probe cost None");
+        run(&input, &caps, &event_log).await.unwrap();
+
+        let events = event_log.events();
+        let EventKind::ProviderResponded { cost_usd, .. } = events
+            .iter()
+            .find_map(|e| {
+                if matches!(e.kind, EventKind::ProviderResponded { .. }) {
+                    Some(&e.kind)
+                } else {
+                    None
+                }
+            })
+            .expect("run must emit exactly one ProviderResponded event")
+        else {
+            unreachable!("guarded by the find_map filter above")
+        };
+
+        // Exact `0.0_f64` equality — `unwrap_or(0.0)` is pure pass-through
+        // on the `None` side, no arithmetic (S14.5 precedent).
+        assert_eq!(
+            *cost_usd, 0.0_f64,
+            "None cost_usd must default to 0.0 via unwrap_or at the helper call site"
+        );
+    }
+
+    /// `input.system = Some("")` (empty string) must be treated as "no
+    /// system message" and produce a user-only request with exactly one
+    /// `Message` (the user prompt). `build_infer_request` already guards
+    /// on `!system.is_empty()` — this test pins the guard so a future
+    /// refactor that drops the check leaves a failing assertion. Phase 1
+    /// rust-pro flagged this as a test gap: "empty-string system vs None
+    /// handling".
+    #[tokio::test]
+    async fn infer_empty_string_system_produces_user_only_request() {
+        let mock = Arc::new(MockProvider::new("mock"));
+        mock.enqueue_text("ok");
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock.clone(), &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let mut input = make_input("user prompt");
+        input.system = Some(""); // explicit empty-string system
+
+        run(&input, &caps, &event_log).await.unwrap();
+
+        let captured = mock.captured_requests();
+        assert_eq!(captured.len(), 1, "exactly one request expected");
+        assert_eq!(
+            captured[0].messages.len(),
+            1,
+            "empty-string system must be dropped, leaving only the User message"
+        );
+        assert_eq!(
+            captured[0].messages[0].role,
+            Role::User,
+            "the only message must be the User prompt, NOT an empty System message"
+        );
+    }
+
+    /// `ProviderError::Api` — generic API error (5xx, malformed JSON,
+    /// upstream parse failures). The typed `matches!` below pins the
+    /// EXACT inner variant so a hypothetical mapping-layer bug that
+    /// folded one variant into another would fail the assertion. The
+    /// three variant tests share the same shape for symmetry.
+    #[tokio::test]
+    async fn infer_propagates_api_error() {
+        let mock = Arc::new(MockProvider::new("mock"));
+        mock.enqueue_error(ProviderError::Api {
+            message: "upstream 502 bad gateway".to_string(),
+        });
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock, &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = make_input("probe");
+        let result = run(&input, &caps, &event_log).await;
+        assert!(
+            matches!(
+                result,
+                Err(VerbInferError::Provider(ProviderError::Api { ref message }))
+                    if message == "upstream 502 bad gateway"
+            ),
+            "ProviderError::Api must round-trip verbatim; got {result:?}"
+        );
+
+        // Failed provider call must NOT emit ProviderResponded — the
+        // event is reserved for successful completions.
+        assert_no_provider_responded(&event_log);
+    }
+
+    /// `ProviderError::AuthFailed` — invalid / revoked API key path.
+    #[tokio::test]
+    async fn infer_propagates_auth_failed_error() {
+        let mock = Arc::new(MockProvider::new("mock"));
+        mock.enqueue_error(ProviderError::AuthFailed {
+            provider: "anthropic".to_string(),
+        });
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock, &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = make_input("probe");
+        let result = run(&input, &caps, &event_log).await;
+        assert!(
+            matches!(
+                result,
+                Err(VerbInferError::Provider(ProviderError::AuthFailed { ref provider }))
+                    if provider == "anthropic"
+            ),
+            "ProviderError::AuthFailed must round-trip verbatim; got {result:?}"
+        );
+
+        assert_no_provider_responded(&event_log);
+    }
+
+    /// `ProviderError::ModelNotFound` — requested model does not exist
+    /// on the provider (typos, deprecated models, wrong catalog).
+    #[tokio::test]
+    async fn infer_propagates_model_not_found_error() {
+        let mock = Arc::new(MockProvider::new("mock"));
+        mock.enqueue_error(ProviderError::ModelNotFound {
+            model: "claude-4.5-fictional".to_string(),
+        });
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock, &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = make_input("probe");
+        let result = run(&input, &caps, &event_log).await;
+        assert!(
+            matches!(
+                result,
+                Err(VerbInferError::Provider(ProviderError::ModelNotFound { ref model }))
+                    if model == "claude-4.5-fictional"
+            ),
+            "ProviderError::ModelNotFound must round-trip verbatim; got {result:?}"
+        );
+
+        assert_no_provider_responded(&event_log);
+    }
+
+    /// Helper — assert the event log saw exactly zero `ProviderResponded`
+    /// events. Shared across the 3 error-variant tests so the invariant
+    /// "failed provider call does not emit ProviderResponded" has one
+    /// place to change.
+    fn assert_no_provider_responded(event_log: &EventLog) {
+        let events = event_log.events();
+        let responded_count = events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::ProviderResponded { .. }))
+            .count();
+        assert_eq!(
+            responded_count, 0,
+            "failed provider call must NOT emit ProviderResponded"
+        );
+    }
+
     #[test]
     fn extract_text_concatenates_text_blocks_only() {
         let content = vec![
