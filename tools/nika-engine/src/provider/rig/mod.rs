@@ -77,12 +77,6 @@ pub struct InferOptions {
     pub additional_params: Option<serde_json::Value>,
 }
 
-/// Check if a provider name supports native structured output (string-based check).
-/// Prefer `RigProvider::supports_native_structured_output()` when you have the resolved provider.
-pub fn supports_native_structured_output(provider_name: &str) -> bool {
-    matches!(provider_name, "openai" | "groq" | "deepseek" | "xai")
-}
-
 /// Build the `response_format: json_schema` payload for OpenAI-compatible providers.
 ///
 /// Returns a `serde_json::Value` suitable for `InferOptions::additional_params`.

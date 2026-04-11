@@ -1130,23 +1130,6 @@ fn test_infer_options_with_extended_thinking() {
 // =========================================================================
 
 #[test]
-fn test_supports_native_structured_output_by_name() {
-    assert!(supports_native_structured_output("openai"));
-    assert!(supports_native_structured_output("groq"));
-    assert!(supports_native_structured_output("deepseek"));
-    assert!(supports_native_structured_output("xai"));
-
-    assert!(!supports_native_structured_output("claude"));
-    assert!(!supports_native_structured_output("anthropic"));
-    assert!(!supports_native_structured_output("gemini"));
-    assert!(!supports_native_structured_output("mistral"));
-    assert!(!supports_native_structured_output("native"));
-    assert!(!supports_native_structured_output("mock"));
-    // Custom endpoints like "h100" are NOT detected by the string check
-    assert!(!supports_native_structured_output("h100"));
-}
-
-#[test]
 #[serial]
 fn test_supports_native_structured_output_by_provider() {
     // RigProvider method detects OpenAiCompat (custom endpoints)
@@ -1456,23 +1439,6 @@ fn test_is_anthropic() {
     std::env::set_var("OPENAI_API_KEY", "test-key");
     assert!(!RigProvider::openai().is_anthropic());
     assert!(!RigProvider::Mock.is_anthropic());
-}
-
-#[test]
-fn test_supports_vision() {
-    assert!(!RigProvider::Mock.supports_vision());
-    let compat =
-        RigProvider::openai_compat("test", "http://localhost:8000/v1", "k", None, 300).unwrap();
-    assert!(compat.supports_vision());
-}
-
-#[test]
-#[serial]
-fn test_supports_thinking() {
-    std::env::set_var("ANTHROPIC_API_KEY", "test-key");
-    assert!(RigProvider::claude().supports_thinking());
-    std::env::set_var("OPENAI_API_KEY", "test-key");
-    assert!(!RigProvider::openai().supports_thinking());
 }
 
 // =========================================================================

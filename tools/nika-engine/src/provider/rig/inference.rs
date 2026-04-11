@@ -848,15 +848,4 @@ impl RigProvider {
     pub fn is_anthropic(&self) -> bool {
         matches!(self, RigProvider::Claude(_))
     }
-
-    /// True if this provider supports vision/multimodal content.
-    /// Used to give an early, clear error before attempting the call.
-    pub fn supports_vision(&self) -> bool {
-        !matches!(self, RigProvider::DeepSeek(_) | RigProvider::Mock)
-    }
-
-    /// True if extended thinking (chain-of-thought) is supported.
-    pub fn supports_thinking(&self) -> bool {
-        matches!(self, RigProvider::Claude(_))
-    }
 }
