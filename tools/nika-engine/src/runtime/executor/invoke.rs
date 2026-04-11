@@ -443,6 +443,26 @@ impl TaskExecutor {
             }
         }
 
+        // EMIT: McpInvoke event for the non-builtin (MCP) path.
+        //
+        // S14-BUG2 regression fix: the original bridge emitted this
+        // before the builtin-vs-MCP branch. S14-BUG2 removed it for the
+        // builtin path (the verb crate emits it now) but inadvertently
+        // killed it for the MCP path too — test_execute_invoke_emits_mcp_events
+        // caught the regression. Re-emitted here, inside the non-builtin
+        // branch, with the same redact_value call chain.
+        let mcp_server = resolved_mcp
+            .clone()
+            .unwrap_or_else(|| "builtin".to_string());
+        self.event_log.emit(EventKind::McpInvoke {
+            task_id: Arc::clone(task_id),
+            call_id: call_id.clone(),
+            mcp_server,
+            tool: resolved_tool.clone(),
+            resource: resolved_resource.clone(),
+            params: resolved_params.as_ref().map(|p| Arc::new(redact_value(p))),
+        });
+
         // Get or create MCP client (real or mock depending on config)
         // Mcp is Option<String>, validate() guarantees Some for non-builtin tools
         let mcp_name = resolved_mcp
