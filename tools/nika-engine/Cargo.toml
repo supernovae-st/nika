@@ -12,8 +12,12 @@ publish = true
 [package.metadata.cargo-machete]
 ignored = ["rig-core"]  # imported as `rig`, machete can't detect renamed crates
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
-default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "fetch-sitemap", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression", "media-provenance"]
+default = ["media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression", "media-provenance"]
 # Only lsp remains opt-in (editor-specific, not needed for engine users).
 # Everything else is default. Zero flags for the binary.
 native-inference = ["dep:mistralrs", "dep:async-stream", "dep:image"]  # Native LLM inference via mistral.rs
@@ -32,15 +36,19 @@ media-provenance = ["nika-media/media-provenance"]
 media-qr = ["nika-media/media-qr"]
 media-compression = ["nika-media/media-compression"]
 media-iqa = ["nika-media/media-iqa"]
-# Web extraction — forwarded to nika-media (for media operations).
-# Note: nika-extract is unconditionally depended on and enables all its
-# fetch-* features by default, so engine's fetch-* features only need to
-# control engine-local `dep:X` and nika-media/fetch-X activation.
-fetch-html = ["nika-media/fetch-html", "dep:scraper"]
-fetch-markdown = ["nika-media/fetch-markdown", "dep:htmd"]
-fetch-article = ["nika-media/fetch-article", "dep:dom_smoothie", "dep:scraper"]
-fetch-feed = ["nika-media/fetch-feed", "dep:feed-rs"]
-fetch-sitemap = ["dep:quick-xml"]
+# Web extraction — forwarded to nika-media. Post-S12-F7/F8 the engine
+# no longer owns any HTML extraction code itself (moved to
+# nika-extract crate), so these features only forward to nika-media
+# — the engine no longer carries its own scraper/htmd/dom_smoothie/
+# feed-rs/quick-xml deps. Features are retained as pass-through
+# toggles for backwards compatibility with downstream callers that
+# select them. `fetch-sitemap` was removed in the S16 swarm cleanup
+# because neither the engine nor nika-media implements sitemap
+# extraction today.
+fetch-html = ["nika-media/fetch-html"]
+fetch-markdown = ["nika-media/fetch-markdown"]
+fetch-article = ["nika-media/fetch-article"]
+fetch-feed = ["nika-media/fetch-feed"]
 fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
@@ -123,9 +131,6 @@ governor = { workspace = true }
 cookie_store = { workspace = true }
 reqwest_cookie_store = { workspace = true }
 
-# RAG
-text-splitter = { workspace = true }
-
 # Cryptographic hashing
 sha2 = { workspace = true }
 
@@ -148,14 +153,11 @@ uuid = { workspace = true }
 dirs = { workspace = true }
 xxhash-rust = { workspace = true }
 chrono = { workspace = true }
-humantime = { workspace = true }
 shlex = { workspace = true }
 unicode-normalization = { workspace = true }
 
 # Package registry
-urlencoding = { workspace = true }
 flate2 = { workspace = true }
-tar = { workspace = true }
 
 # File System
 ignore = { workspace = true }
@@ -176,12 +178,11 @@ base64 = { workspace = true }
 # Image processing (used by native vision — provider/native/runtime.rs)
 image = { workspace = true, optional = true }
 
-# Fetch extract (used by executor/extract.rs, not media tools)
-dom_smoothie = { workspace = true, optional = true }
-feed-rs = { workspace = true, optional = true }
-scraper = { workspace = true, optional = true }
-htmd = { workspace = true, optional = true }
-quick-xml = { workspace = true, optional = true }
+# HTML/feed/sitemap extraction was moved to the `nika-extract` crate
+# in S12-F7/F8. The engine no longer holds scraper, htmd, dom_smoothie,
+# feed-rs, or quick-xml deps directly — extraction is consumed through
+# `nika-media` (which holds its own feature-gated copies) via the
+# `fetch-*` feature pass-throughs above. Removed in S16-swarm cleanup.
 
 # LSP Server (feature-gated)
 tower-lsp-server = { workspace = true, optional = true }
