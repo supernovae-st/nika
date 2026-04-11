@@ -22,6 +22,28 @@ use nika_engine::event::EventLog;
 use nika_engine::runtime::TaskExecutor;
 use nika_engine::store::RunContext;
 
+/// Build a themed spinner with the standard Nika tick glyphs + template.
+///
+/// Returns `None` when running non-interactively (no TTY) or in quiet mode,
+/// so the caller can avoid noisy output in pipes / scripts. Bundles the
+/// `ProgressBar::new_spinner` + `set_style` + `set_message` + `enable_steady_tick`
+/// idiom in one place — used by `nika infer` and `nika agent`.
+fn new_spinner(msg: &str, is_tty: bool, quiet: bool) -> Option<indicatif::ProgressBar> {
+    if !is_tty || quiet {
+        return None;
+    }
+    let sp = indicatif::ProgressBar::new_spinner();
+    sp.set_style(
+        indicatif::ProgressStyle::default_spinner()
+            .tick_strings(nika_engine::display::spinner::TICK_STRINGS)
+            .template("  {spinner} {msg}")
+            .unwrap(),
+    );
+    sp.set_message(msg.to_string());
+    sp.enable_steady_tick(nika_engine::display::spinner::TICK_INTERVAL);
+    Some(sp)
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PROVIDER AUTO-DETECTION
 // ═══════════════════════════════════════════════════════════════════════════
@@ -377,20 +399,7 @@ pub async fn handle_infer(
     let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
     let start = Instant::now();
 
-    let spinner = if is_tty && !quiet {
-        let sp = indicatif::ProgressBar::new_spinner();
-        sp.set_style(
-            indicatif::ProgressStyle::default_spinner()
-                .tick_strings(nika_engine::display::spinner::TICK_STRINGS)
-                .template("  {spinner} {msg}")
-                .unwrap(),
-        );
-        sp.set_message("Inferring...");
-        sp.enable_steady_tick(nika_engine::display::spinner::TICK_INTERVAL);
-        Some(sp)
-    } else {
-        None
-    };
+    let spinner = new_spinner("Inferring...", is_tty, quiet);
 
     let output = executor
         .execute(
@@ -720,20 +729,7 @@ pub async fn handle_agent(
     let datastore = RunContext::new(nika_core::trust::InvocationSource::Cli);
     let start = Instant::now();
 
-    let spinner = if is_tty && !quiet {
-        let sp = indicatif::ProgressBar::new_spinner();
-        sp.set_style(
-            indicatif::ProgressStyle::default_spinner()
-                .tick_strings(nika_engine::display::spinner::TICK_STRINGS)
-                .template("  {spinner} {msg}")
-                .unwrap(),
-        );
-        sp.set_message("Agent running...");
-        sp.enable_steady_tick(nika_engine::display::spinner::TICK_INTERVAL);
-        Some(sp)
-    } else {
-        None
-    };
+    let spinner = new_spinner("Agent running...", is_tty, quiet);
 
     let output = executor
         .execute(&task_id, &action, &bindings, &datastore, None)

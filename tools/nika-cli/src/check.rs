@@ -30,6 +30,33 @@ static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
 static SHELL_GUARD_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"\|\s*shell\b").expect("valid regex"));
 
+/// Collect SEC-2 shell-escape warnings for all `exec:` tasks with `shell: true`.
+///
+/// A binding `{{with.*}}` or `{{inputs.*}}` in a `shell: true` command is a shell
+/// injection vector unless escaped via `| shell`. This scans every exec task and
+/// returns a list of `task 'id': shell: true with unescaped {{...}} — use | shell transform`
+/// hints for the linter / check summary. Used by both `validate_workflow` and
+/// `validate_workflow_strict`.
+fn collect_shell_escape_warnings(workflow: &nika_engine::ast::Workflow) -> Vec<String> {
+    let mut hints = Vec::new();
+    for task in &workflow.tasks {
+        if let TaskAction::Exec { exec } = &task.action {
+            if exec.shell == Some(true) {
+                for cap in BINDING_RE.captures_iter(&exec.command) {
+                    let inner = &cap[1];
+                    if !SHELL_GUARD_RE.is_match(inner) {
+                        hints.push(format!(
+                            "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
+                            task.id, inner
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    hints
+}
+
 /// Run `nika check` — multi-phase pre-flight validation without connecting to MCP servers.
 pub async fn validate_workflow(file: &str, quiet: bool, security: bool) -> Result<(), NikaError> {
     use nika_engine::display::{
@@ -197,24 +224,7 @@ pub async fn validate_workflow(file: &str, quiet: bool, security: bool) -> Resul
 
     // Phase 7: Security hints (shell escape warnings)
     let t = Instant::now();
-    let mut security_hints: Vec<String> = Vec::new();
-    {
-        for task in &workflow.tasks {
-            if let TaskAction::Exec { exec } = &task.action {
-                if exec.shell == Some(true) {
-                    for cap in BINDING_RE.captures_iter(&exec.command) {
-                        let inner = &cap[1];
-                        if !SHELL_GUARD_RE.is_match(inner) {
-                            security_hints.push(format!(
-                                "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
-                                task.id, inner
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let security_hints = collect_shell_escape_warnings(&workflow);
     let security_elapsed = t.elapsed();
 
     // Phase 8: Provider API keys (BUG 6 / NIKA-032)
@@ -641,24 +651,7 @@ pub async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 
     // Phase 7: Security hints (shell escape warnings)
     let t = Instant::now();
-    let mut strict_security_hints: Vec<String> = Vec::new();
-    {
-        for task in &workflow.tasks {
-            if let TaskAction::Exec { exec } = &task.action {
-                if exec.shell == Some(true) {
-                    for cap in BINDING_RE.captures_iter(&exec.command) {
-                        let inner = &cap[1];
-                        if !SHELL_GUARD_RE.is_match(inner) {
-                            strict_security_hints.push(format!(
-                                "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
-                                task.id, inner
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let strict_security_hints = collect_shell_escape_warnings(&workflow);
     let strict_security_elapsed = t.elapsed();
 
     // Phase 8: Provider API keys
