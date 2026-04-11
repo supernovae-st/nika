@@ -52,6 +52,26 @@ pub fn register_secrets(values: Vec<String>) {
     }
 }
 
+/// Walk a JSON value and redact every string leaf via [`redact_secrets`].
+///
+/// Used by event log emitters (`EventKind::McpInvoke`, binding defaults,
+/// MCP invoke params) to strip secrets before structured output crosses
+/// a trace / telemetry boundary. Non-string leaves (numbers, bools,
+/// nulls) pass through unchanged. Keys stay unchanged — only values are
+/// scanned.
+pub fn redact_value(v: serde_json::Value) -> serde_json::Value {
+    match v {
+        serde_json::Value::String(s) => serde_json::Value::String(redact_secrets(&s)),
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.into_iter().map(redact_value).collect())
+        }
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter().map(|(k, v)| (k, redact_value(v))).collect(),
+        ),
+        other => other,
+    }
+}
+
 /// Redact known API key / secret patterns from a string.
 ///
 /// Replaces matches with `[REDACTED]`. Also redacts any values registered
@@ -356,6 +376,45 @@ mod tests {
         assert_eq!(
             result, input,
             "Together context-anchor must not false-positive: {result}"
+        );
+    }
+
+    #[test]
+    fn redact_value_walks_nested_strings() {
+        let v = serde_json::json!({
+            "api_key": "sk-proj-abc123def456ghi789jkl",
+            "nested": {
+                "token": "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij",
+                "count": 42,
+                "flag": true,
+            },
+            "tokens": ["Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "safe value"],
+        });
+        let redacted = redact_value(v);
+        let s = redacted.to_string();
+        assert!(s.contains("[REDACTED]"));
+        assert!(!s.contains("sk-proj"));
+        assert!(!s.contains("ghp_"));
+        assert!(!s.contains("eyJhbGci"));
+        // Non-string scalars and safe strings pass through
+        assert!(s.contains("42"));
+        assert!(s.contains("true"));
+        assert!(s.contains("safe value"));
+        // Keys are preserved
+        assert!(s.contains("api_key"));
+        assert!(s.contains("nested"));
+    }
+
+    #[test]
+    fn redact_value_non_string_passthrough() {
+        assert_eq!(redact_value(serde_json::json!(42)), serde_json::json!(42));
+        assert_eq!(
+            redact_value(serde_json::json!(true)),
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            redact_value(serde_json::json!(null)),
+            serde_json::json!(null)
         );
     }
 

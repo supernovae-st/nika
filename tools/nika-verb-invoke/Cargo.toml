@@ -10,6 +10,7 @@ rust-version.workspace = true
 publish = true
 
 [dependencies]
+nika-core = { workspace = true }
 nika-kernel = { workspace = true }
 nika-event = { workspace = true }
 thiserror = { workspace = true }

@@ -86,13 +86,21 @@ pub async fn run(
         .mcp_server
         .clone()
         .unwrap_or_else(|| "builtin".to_string());
+    // Z12 fix: redact secrets from params before emitting to event log.
+    // Mirrors the engine's existing redaction at binding/resolve.rs and
+    // executor/invoke.rs so the verb-crate path has parity when a workflow
+    // passes an API key in MCP tool params.
+    let redacted_params = input
+        .params
+        .as_ref()
+        .map(|p| Arc::new(nika_core::util::redact_value(p.clone())));
     event_log.emit(EventKind::McpInvoke {
         task_id: Arc::clone(&input.task_id),
         call_id: input.call_id.clone(),
         mcp_server,
         tool: input.tool.clone(),
         resource: input.resource.clone(),
-        params: input.params.as_ref().map(|p| Arc::new(p.clone())),
+        params: redacted_params,
     });
 
     // Builtin dispatch path (nika:*).
@@ -268,6 +276,67 @@ mod tests {
         assert!(events
             .iter()
             .any(|e| matches!(e.kind, EventKind::McpResponse { .. })));
+    }
+
+    #[tokio::test]
+    async fn mcp_invoke_event_redacts_secrets_in_params() {
+        // Z12: McpInvoke.params must be redacted before emission so API
+        // keys passed through tool params don't leak into event logs.
+        let router = MockBuiltinRouter::ok("{}".to_string());
+        let pool = MockMcpPool::new();
+        let fs = InMemoryFs::new();
+        let http = MockHttpClient::default();
+        let blobs = MemoryBlobStore::default();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+
+        let caps = make_caps(&router, &pool, &fs, &http, &blobs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = InvokeInput {
+            tool: Some("nika:log".to_string()),
+            resource: None,
+            mcp_server: None,
+            params: Some(serde_json::json!({
+                "api_key": "sk-proj-abcdefghij1234567890abcdefghij",
+                "nested": {
+                    "token": "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij",
+                },
+                "safe": "hello",
+            })),
+            task_id: Arc::from("t-redact"),
+            call_id: "call-redact".to_string(),
+        };
+
+        let _ = run(&input, &caps, &event_log).await;
+
+        // Find the McpInvoke event and assert its params carry [REDACTED].
+        let events = event_log.events();
+        let emitted_params = events
+            .iter()
+            .find_map(|e| match &e.kind {
+                EventKind::McpInvoke { params, .. } => params.clone(),
+                _ => None,
+            })
+            .expect("McpInvoke event with params must be emitted");
+        let serialized = emitted_params.to_string();
+        assert!(
+            serialized.contains("[REDACTED]"),
+            "params should be redacted: {serialized}"
+        );
+        assert!(
+            !serialized.contains("sk-proj"),
+            "raw OpenAI key leaked: {serialized}"
+        );
+        assert!(
+            !serialized.contains("ghp_"),
+            "raw GitHub PAT leaked: {serialized}"
+        );
+        // Non-secret values and keys still visible
+        assert!(serialized.contains("hello"));
+        assert!(serialized.contains("api_key"));
+        assert!(serialized.contains("nested"));
     }
 
     #[tokio::test]

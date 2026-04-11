@@ -9,4 +9,4 @@
 
 pub mod redact;
 
-pub use redact::{redact_secrets, register_secrets};
+pub use redact::{redact_secrets, redact_value, register_secrets};
