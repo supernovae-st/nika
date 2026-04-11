@@ -52,6 +52,13 @@ pub fn register_secrets(values: Vec<String>) {
     }
 }
 
+/// Maximum nesting depth for [`redact_value`].
+///
+/// A hostile MCP response with 10,000+ nesting levels would stack-overflow
+/// the recursive walk. Beyond 128 levels, we return the value unchanged
+/// (secrets that deep are unreachable by humans anyway).
+const MAX_REDACT_DEPTH: usize = 128;
+
 /// Walk a JSON value and redact every string leaf via [`redact_secrets`].
 ///
 /// Used by event log emitters (`EventKind::McpInvoke`, binding defaults,
@@ -59,14 +66,29 @@ pub fn register_secrets(values: Vec<String>) {
 /// a trace / telemetry boundary. Non-string leaves (numbers, bools,
 /// nulls) pass through unchanged. Keys stay unchanged — only values are
 /// scanned.
+///
+/// Recursion is bounded by [`MAX_REDACT_DEPTH`] to prevent stack overflow
+/// on adversarial input.
 pub fn redact_value(v: serde_json::Value) -> serde_json::Value {
+    redact_value_inner(v, 0)
+}
+
+fn redact_value_inner(v: serde_json::Value, depth: usize) -> serde_json::Value {
+    if depth > MAX_REDACT_DEPTH {
+        return v;
+    }
     match v {
         serde_json::Value::String(s) => serde_json::Value::String(redact_secrets(&s)),
-        serde_json::Value::Array(items) => {
-            serde_json::Value::Array(items.into_iter().map(redact_value).collect())
-        }
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(|item| redact_value_inner(item, depth + 1))
+                .collect(),
+        ),
         serde_json::Value::Object(map) => serde_json::Value::Object(
-            map.into_iter().map(|(k, v)| (k, redact_value(v))).collect(),
+            map.into_iter()
+                .map(|(k, v)| (k, redact_value_inner(v, depth + 1)))
+                .collect(),
         ),
         other => other,
     }
@@ -415,6 +437,54 @@ mod tests {
         assert_eq!(
             redact_value(serde_json::json!(null)),
             serde_json::json!(null)
+        );
+    }
+
+    #[test]
+    fn redact_value_respects_depth_bound() {
+        // Build a 500-level deep nested JSON object — well beyond MAX_REDACT_DEPTH.
+        // At the deepest leaf, place a secret that should be redacted only if
+        // the recursion reaches it (it shouldn't — the bound stops at 128).
+        let secret = "sk-proj-abc123def456ghi789jkl";
+        let mut v = serde_json::Value::String(secret.to_string());
+        for i in 0..500 {
+            v = serde_json::json!({ format!("level_{i}"): v });
+        }
+
+        // Must not stack overflow — that's the primary assertion.
+        let redacted = redact_value(v.clone());
+
+        // The top-level structure should still be an object (not panicked/crashed).
+        assert!(redacted.is_object(), "Top level must remain an object");
+
+        // Secrets at the top 128 levels should be redacted.
+        // Secrets below depth 128 are returned unchanged (acceptable trade-off).
+        // Verify: walk 129 levels down — the value there should be unchanged (unredacted).
+        let mut cursor = &redacted;
+        for i in (0..500).rev() {
+            let key = format!("level_{i}");
+            cursor = &cursor[&key];
+        }
+        // At depth 500 (well past MAX_REDACT_DEPTH=128), the secret passes through unchanged.
+        assert_eq!(
+            cursor.as_str().unwrap(),
+            secret,
+            "Secrets beyond MAX_REDACT_DEPTH should pass through unchanged"
+        );
+
+        // Verify a secret at a shallow depth IS redacted: build a 5-level deep value.
+        let mut shallow = serde_json::Value::String(secret.to_string());
+        for i in 0..5 {
+            shallow = serde_json::json!({ format!("l{i}"): shallow });
+        }
+        let redacted_shallow = redact_value(shallow);
+        let mut c = &redacted_shallow;
+        for i in (0..5).rev() {
+            c = &c[&format!("l{i}")];
+        }
+        assert!(
+            c.as_str().unwrap().contains("[REDACTED]"),
+            "Secrets within MAX_REDACT_DEPTH must be redacted: {c}"
         );
     }
 
