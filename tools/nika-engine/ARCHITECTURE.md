@@ -268,7 +268,159 @@ cargo clippy --workspace --all-targets         # 26 warnings (baseline, unchange
 4. **Dispatch() activation (Wave D)** — all 5 arms still return `NotImplemented` because template resolution + binding + skills + spotlight live in engine.
 5. **Wave C (`nika-verb-agent`)** — 9 TEMP engine deps in `rig_agent_loop/` untouched.
 6. **`McpPoolAdapter` as `TaskExecutor` field** — currently rebuilt per `run_invoke` call. Minor perf cleanup, zero correctness impact.
-7. **`finish_reason_raw` consumer** — `stop_reason_to_finish_reason` in verb-infer still hardcodes `"content_filter"`; threads through W14-B2.
+7. **`finish_reason_raw` consumer** — `stop_reason_to_finish_reason` in verb-infer still hardcodes `"content_filter"`; threads through W14-B2. **Cleared in Session 16 (W16-B3).**
+
+## Constellation Session 16 — 2026-04-11
+
+S16 landed 7 commits — 1 S15.5 hotfix, 1 deterministic-flake fix,
+4 W16 refactor/test commits, and 1 drive-by cleanup. The headline
+item from the S16 mega-prompt (**W14-B2** — route the engine's
+minimum infer path through `nika_verb_infer::run()`) was
+**explicitly scope-reduced to Option A** after Phase 1 review
+discovered the engine has no "non-streaming text path" for the
+verb crate to pick up: every real engine infer path uses
+`infer_stream_with_options` or `infer_vision`, and the verb
+crate's `run()` only covers non-streaming `Provider::infer`. The
+bridge flip therefore requires streaming support in the verb
+crate, which is multi-session work. S16 instead delivered the
+mechanically-possible subset that makes the eventual flip safer:
+invariant #24 single-helper emission across engine + verb crate,
+kernel plumbing for `finish_reason_raw` (closing S15 debt #7),
+and the engine-side golden oracle that will catch bridge-flip
+regressions when they happen.
+
+### Phase 1 (4-agent parallel review) findings
+
+All four agents (`rust-architect`, `code-explorer`,
+`rust-async-expert`, `rust-pro`) ran before any code was written,
+per the S12-G1/G2/G3 multi-session refactor protocol. Key
+findings that reshaped the mega-prompt's Option A design:
+
+1. **`provider.infer()` is never called from engine `infer.rs`.**
+   All 6 provider call sites go through `infer_stream_with_options`,
+   `infer_stream`, `infer_vision`, or the `make_infer_callback`
+   closure that wraps `infer_with_options` for L3/L4 structured
+   retries. The non-streaming path the mega-prompt assumed the
+   verb crate could pick up DOES NOT EXIST in today's engine.
+   Scope-reducing the bridge flip was the correct call.
+2. **Cost computation divergence.** Engine computes `cost_usd`
+   four different ways (hourly endpoint, streaming-cache-aware,
+   non-streaming, vision). Verb crate reads
+   `response.cost_usd.unwrap_or(0.0)` — `None` from `RigProvider`
+   today. The shared helper MUST take `cost_usd: f64` as an
+   explicit primitive, not via an `InferResponse` field, so each
+   engine call site can pre-sanitize via
+   `if cost.is_finite() { cost } else { 0.0 }` and pass the
+   already-computed value.
+3. **`RigProvider: Provider` impl already exists.** At
+   `kernel_bridge.rs:258`. No adapter construction needed. The
+   eventual W14-B2 flip can coerce `self.provider.clone()` to
+   `Arc<dyn Provider>` directly.
+4. **Zero `parking_lot::RwLock*Guard` in `infer.rs`** — grep
+   returned no hits across all 2157 lines. Invariants #1/#16 not
+   at risk. All 7 `ProviderResponded` emission sites have zero
+   `.await` between response materialization and the emit, so a
+   synchronous helper is safe.
+5. **Test coverage gap** — the S14-δ golden oracle lives only in
+   `nika-verb-infer`. The engine's mock fast-path at
+   `infer.rs:621` bypasses the Provider trait entirely and
+   synthesizes the response inline, so no existing test catches
+   silent drift on the engine side.
+
+### S16 commits (7 + 1 drive-by)
+
+| Commit | Hash | Purpose |
+|--------|------|---------|
+| S15.5 hotfix | `800cd2683` | **3 post-S15 review P1 fixes.** (a) `MockMcpPool` docstring at `nika-kernel-mock/src/mcp.rs:9` promised a `cancelled()` fixture ctor that didn't exist — cancellation is per-call via `opts.cancel`, not pool state. Docstring rewritten + pattern pointer to `cancelled_token_returns_cancelled_error` test. (b) `McpPoolAdapter::new` took `Arc<McpClientPool>` + `Arc<EventLog>` — both inner types are `#[derive(Clone)]` with internal `Arc`-backed state, so the outer `Arc<…>` wrap was pointless double indirection. Struct fields + ctor now take owned values, `invoke.rs:569` drops the `Arc::new(...clone())` wrap. `inner()` accessor returns `&McpClientPool` instead of `&Arc<McpClientPool>`. `use std::sync::Arc` removed from the adapter (now unused). (c) Comment added at `invoke.rs:834` explaining the double-cancel path: adapter's internal `biased; tokio::select!` catches cancel first via `McpError::Cancelled`, outer `tokio::select!` at the engine level exists only to abort cancellation that arrives DURING the post-adapter media pipeline iteration (`MediaProcessor::process_all`, engine-owned). Both paths produce identical `NikaError::TaskCancelled` so the double check is benign but load-bearing. |
+| S16-flake-fix | `c5b2ed999` | **Deterministic `SecretStore` state bleed fix.** Pre-W16 baseline verification hit 11 failures in `nika-engine` including `test_auto_fallback_to_groq` reporting `left: "anthropic", right: "groq"`. Root cause: `RigProvider::auto()` → `has_provider_key(p)` → `store::resolve_env(env_var)` checks the in-process `DashMap` `SecretStore` BEFORE falling back to `std::env::var`. `SecretStore` is populated by `secrets::fallback::load_from_daemon_or_fallback` on first call from provider credentials in `~/.nika/secrets/vault.enc` (dev machines with real vault). `std::env::remove_var("ANTHROPIC_API_KEY")` does NOT clear the `SecretStore`, so subsequent fallback-chain tests see cached provider credentials and the auto-detect returns the wrong provider. **Fix:** `clear_all_provider_env_vars` in `nika-engine/src/provider/rig/tests.rs` now iterates a `PROVIDER_KEYS` const and removes every entry from BOTH `std::env` AND `secrets::store`. `test_rig_provider_auto_detects_claude` was also cleaned: uses the full helper (not the ad-hoc subset that missed `GEMINI_API_KEY`/`XAI_API_KEY`) and cleans up its own `ANTHROPIC_API_KEY` set_var on exit. Test-helper-only commit; no production changes. **Per the "never skip flakes" rule** — landed as its own commit ahead of W16-A0 so the baseline is known-green. |
+| W16-A0 | `0f5cc1e9a` | **Extract `emit_provider_responded` helper + route engine through it.** New `pub fn` in `tools/nika-verb-infer/src/emit.rs` (236 LOC incl. 3 unit tests) takes 8 primitive params matching the `EventKind::ProviderResponded` variant shape 1:1 — `event_log`, `&Arc<str> task_id`, `request_id`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `ttft_ms`, `finish_reason`, `cost_usd`. All 7 engine sites at `infer.rs:621/1156/1330/1388/1527/1592/1898` + the existing verb-crate site at `lib.rs:155` now route through the helper. `nika-engine` gains a `# TEMP (W16-A0)` dep on `nika-verb-infer` (sideways L2, verified no cycle via `cargo tree -p nika-verb-infer \| grep nika-engine` → empty). Helper is synchronous (no `.await`) — Phase 1 rust-async confirmed zero `.await` between response materialization and emit at every site. Tests use `let … else { panic!() }` destructures to avoid the `wildcard_enum_match_arm` clippy lint. Invariant #24 (S14.5) satisfied: future field additions now need to touch exactly 1 helper definition + 8 destructure-forced call sites instead of 8 independent inline struct literals that could drift independently. Engine LOC +35 net (helper replacements are a line or two longer than inline literals); W16-A0 is a refactor for invariant #24, NOT a shrinkage target. |
+| W16-B1 | `93de89802` | **Engine-side golden oracle `test_run_infer_mock_emits_provider_responded_with_all_fields`.** New test in `nika-engine/src/runtime/executor/tests.rs` exercises the `TaskExecutor::run_infer` mock fast-path at `infer.rs:621` via the real `TaskExecutor` entry point (not through the Provider trait). Destructures all 8 `ProviderResponded` fields and pins (a) exactly 1 event emitted, (b) `task_id` exact match, (c) `request_id == Some("mock-request")` sentinel, (d) `input_tokens > 0` and `output_tokens > 0` (estimator internal, don't over-specify), (e) `cache_read_tokens == 0`, (f) `ttft_ms == Some(0)` (mock contract — `None` would break TUI rendering), (g) `finish_reason == FinishReason::Mock` (distinct from `Stop`/`EndTurn`), (h) `cost_usd == 0.0_f64` exact. The full destructure is the forcing function for invariant #24: future variant additions must update both the verb-crate golden (`nika-verb-infer::infer_emits_provider_responded_with_all_fields`) AND this engine-side mirror. Phase 1 rust-pro flagged this as the single biggest regression gap on the post-W16-A0 baseline. |
+| W16-B3 | `34c33587b` | **`finish_reason_raw: Option<String>` on `InferResponse` + option (ii) mapping.** Kernel: `nika-kernel/src/provider.rs` — add `pub finish_reason_raw` to the `#[non_exhaustive]` `InferResponse` struct, defaulted to `None` by `InferResponse::new` so existing call sites (`kernel_bridge.rs::text_response`, S14-δ golden, MockProvider stream synth) compile unchanged. Kernel-mock: `nika-kernel-mock/src/provider.rs` — the stream-synthesis path at the mock's `infer_stream` impl now propagates `response.finish_reason_raw.clone()` into `InferEvent::Done` so tests that enqueue a response with a raw string see it in BOTH the non-streaming and streaming paths symmetrically. Verb crate: `stop_reason_to_finish_reason` signature changes from `(reason: &StopReason)` to `(reason: &StopReason, finish_reason_raw: Option<&str>)` and implements **option (ii)** from the Phase 1 rust-async audit — typed `StopReason` variants (`EndTurn`, `MaxTokens`, `StopSequence`, `ToolUse`) stay authoritative and ignore the raw string; `ContentFilter` + `Unknown(s)` prefer the external raw string when present and fall back to the hardcoded `"content_filter"` / internal `s` otherwise. The `run` call site at `lib.rs:~162` now passes `response.finish_reason_raw.as_deref()` to the mapping. 5 new verb-crate tests: `infer_content_filter_prefers_finish_reason_raw`, `infer_content_filter_defaults_when_no_raw`, `infer_unknown_stop_reason_prefers_external_raw_over_internal`, `infer_unknown_stop_reason_uses_internal_when_no_raw`, `infer_typed_stop_reasons_ignore_finish_reason_raw`. Closes S15 review debt #7. |
+| W16-A1 | `9967f5bfd` | **5 verb-crate test coverage gap closers** from Phase 1 rust-pro audit. `infer_defaults_cost_usd_to_zero_when_response_has_none` (S14-δ golden only tested Some path), `infer_empty_string_system_produces_user_only_request` (pins the `!system.is_empty()` guard in `build_infer_request`), and 3 `ProviderError` variant propagation tests (`Api`, `AuthFailed`, `ModelNotFound`). Each error test uses a typed `matches!` matcher pinning the EXACT inner variant with field-value assertions — an earlier draft used a looser `matches!(Err(VerbInferError::Provider(_)))` which the Socratic review caught as insufficient (would not catch a hypothetical mapping-layer bug that folds variants together). Shared `assert_no_provider_responded(&event_log)` helper pins the "failed provider call does NOT emit ProviderResponded" contract. **NOT added (scope-gated):** `stop_sequences` pass-through (field doesn't exist on `InferInput` — would need a feature addition outside W16 scope) and mid-await cancellation (same select arm as pre-cancel, zero additional coverage, deferred to S17+ when MockProvider grows a yielding ctor). |
+| drive-by | `9a60c681e` | **Delete tautological `test_theme_dark_is_default`** in `nika-tui/src/theme/mod.rs:524`. Baseline clippy had been flagging `unused variable: dark` across every S16 verification step; inspection revealed the test was not just unused-variable but literally tautological (`let dark = Theme::dark(); let dark = Theme::dark(); assert_eq!(dark.background, dark.background)` — x == x after shadowing). The adjacent `test_theme_dark_is_same_as_default` already covers the intended "dark equals default" check via field-by-field equality. Per the "fix every problem you see" rule locked in during S16 — a test that asserts nothing is as much of a silent regression risk as an env-var leak. Clippy baseline drops from 26 → 24 (both the inline warning AND the "nika-tui lib test generated 1 warning" summary vanish). |
+
+### Verification ritual
+
+Every S16 commit passed the S12-G3 sacred ritual:
+
+```
+cargo check --workspace                        # 0 errors
+cargo check --workspace --no-default-features  # 0 errors
+cargo test --workspace --lib                   # 0 failures
+cargo clippy --workspace --all-targets         # 26 → 24 warnings (drive-by improvement)
+```
+
+### Post-S16 measurements
+
+**Engine LOC:** 146,839 → **147,020** (+181). W16-A0 helper replacements
+are 1-2 lines longer per site than inline struct literals, W16-B1 adds
+a ~125 LOC new engine test, the drive-by deletes ~8 lines. Net positive
+LOC is correct for W16-A0 — the commit was about invariant #24
+satisfaction, not shrinkage. True shrinkage still lives in W14-B2 when
+streaming support lands in the verb crate and the engine delegates
+execution paths wholesale.
+
+**Crate count:** **35 total** (unchanged — 32 diamond-participating + 3
+outside). No new crates in S16; `nika-engine` gains a sideways dep on
+the existing `nika-verb-infer`.
+
+**Tests:** ~10,897 → **10,911** post-parallel-run (+14 net: +3 emit
+helper + 1 engine golden + 5 verb-crate W16-B3 + 5 verb-crate W16-A1,
+minus the 1 deleted tautological theme test).
+
+**Clippy:** 26 → **24** (drive-by improvement from the deleted theme
+test). The 24 remaining warnings are a pre-existing baseline across
+`nika-sdk`, `nika-kernel`, `nika-kernel-mock`, `nika-verb-fetch`,
+`nika-verb-invoke`, and `nika-macros` test fixtures — scope-gated.
+
+**Verb crate matrix post-S16:**
+
+| Crate | Tests | Bridge live? | dispatch arm | `run_with_retry` wrapper? | Uses `emit_provider_responded`? |
+|-------|-------|--------------|---------------|----------------------------|----------------------------------|
+| `nika-verb-exec` | 13 | YES (S13-B2) | NotImpl | n/a | n/a |
+| `nika-verb-fetch` | 37 | partial (helpers + retry wrapper) | NotImpl | YES (S15-A6, unwired) | n/a |
+| `nika-verb-invoke` | 6 | partial (builtin only, MCP through adapter) | NotImpl | n/a | n/a |
+| `nika-verb-infer` | **23** | **NO** (W14-B2 deferred to S17+) | NotImpl | n/a | **YES — canonical helper (W16-A0)** |
+
+### Follow-ups carried to S17+
+
+1. **W14-B2 proper** — the bridge flip that routes the engine's
+   non-streaming text path through `nika_verb_infer::run()`.
+   Blocked on streaming support in the verb crate (the engine has
+   no non-streaming call site today). Multi-session refactor.
+2. **`NoopMcpPool` / `NullBlobStore` / `NullHttpClient`** still in
+   the builtin branch of `invoke.rs`. Removing needs real
+   `BlobStoreAdapter` + `HttpClientAdapter`.
+3. **Engine fetch retry loop migration** to
+   `verb-fetch::run_with_retry` — blocked on kernel `FetchAux` trait.
+4. **Dispatch() activation (Wave D)** — all 5 arms still
+   `NotImplemented`.
+5. **Wave C (`nika-verb-agent`)** — 9 TEMP engine deps in
+   `rig_agent_loop/` untouched.
+6. **11 exec/runner load-induced test flakes** — see
+   `project_s17_followup_exec_runner_load_flakes` memory. Not the
+   same class as the S16-flake-fix `SecretStore` bleed (which was
+   deterministic and fixed on the spot). These 11 fail only under
+   heavy concurrent `cargo test` + `clippy` + `check` contention;
+   root cause is subprocess spawn + tokio runtime starvation under
+   hardcoded 10s timeouts. Scope-gated because the fix is a
+   clock+subprocess mocking refactor that falls out of W14-B2/C
+   naturally. Masking with `#[ignore]` or bumping timeouts would
+   hide the pathology.
+7. **S16 W16-B1 engine oracle + `finish_reason_raw`** — the
+   engine-side mock path hardcodes `FinishReason::Mock` so the new
+   golden oracle does not yet exercise the `finish_reason_raw`
+   code path. A content-filter raw-path engine golden would need a
+   non-mock provider injection in `TaskExecutor::new`, which is
+   S17+ scope.
+
+### S16 sacred invariant additions
+
+None. S14.5 invariants #23/#24/#25 covered every S16 architectural
+concern. The only feedback memory added was the deterministic vs
+load-flake class separation in `feedback_never_skip_flakes` and
+`project_s17_followup_exec_runner_load_flakes` — process rules,
+not architectural.
 
 ## Module Map
 
