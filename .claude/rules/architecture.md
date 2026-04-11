@@ -63,43 +63,101 @@ progressive disclosure — not a single monolithic dump.
 **Rule:** Don't dump 500 lines. Let the AI discover via MCP tools + focused rule files.
 **Rule:** Content lives in `shared/` modules. Tool-specific files are assembled, not duplicated.
 
-## Crate Architecture (Current: 28 Crates post-S12 Foundation, Target: 35-36 post-S14)
+## Crate Architecture (Current: 33 Crates post-S14, Target: 36+ post-S15)
 
-### Current Diamond Pattern (v0.79.x, post-Constellation Session 12 Foundation)
+### Current Diamond Pattern (v0.79.x, post-Constellation Session 14)
 
-Status: 22 S12 commits pushed 2026-04-10 (D/P/E + 11 Foundation + 3 Gap fixes). Session 13 NOT YET STARTED.
+Status: 8 S14 commits landed 2026-04-11 (2 P0 bug fixes + 4 Wave A + 2 Wave B). Session 15 pending.
 
 ```
 L0    nika-core (~23K)         — AST, types, catalogs, PolicyConfig, trust — ZERO I/O
       nika-event (~4K)         — EventLog, EventKind, TraceWriter
-L0.5  nika-kernel              — Trait defs: Provider, FsRead/FsWrite splinters,
-                                 HttpClient (+send_streaming), ShellExecutor (+cancel),
-                                 BlobStore, Clock, PolicyChecker (NEW S12-F1),
-                                 caps module (NEW S12-F9). ZERO impls.
-      nika-kernel-mock         — Hand-written mocks for all kernel traits (dev-dep only)
+L0.5  nika-kernel              — Trait defs: Provider (+supports_response_format S14-A0),
+                                 FsRead/FsWrite splinters, HttpClient (+send_streaming),
+                                 ShellExecutor (+cancel), BlobStore, Clock,
+                                 PolicyChecker (S12-F1), BuiltinRouter (S13-A0),
+                                 McpPool (S13-A0), caps::InferCaps::new (S14-B1),
+                                 caps::AgentCaps::new (S14-B1).
+                                 InferResponse += cost_usd / request_id (S14-A0).
+      nika-kernel-mock         — Mocks for all kernel traits + MockProvider (S14-A0)
 L1    nika-clock               — SystemClock (tokio::time, ZST)
       nika-fs                  — TokioFs (FsRead + FsWrite splinter impls, S12-F4)
       nika-blob                — DiskBlobStore (blake3 CAS)
       nika-http                — ReqwestClient (SSRF defense + send_streaming surface)
       nika-exec-runner         — TokioShell with kill_on_drop(true) + tokio::try_join!
-                                 concurrent pipe drain (S12-G1 fixes)
-      nika-policy              — ⭐ NEW S12-F5 — PolicyEnforcer + SSRF helpers (~1263 LOC moved from engine)
+      nika-policy              — PolicyEnforcer + SSRF helpers (S12-F5)
+      nika-extract             — Pure 9-mode fetch extraction (S12-F7)
       nika-lsp-core            — LSP intelligence (pure functions)
-L2    nika-engine (~146.5K)    — MONOLITH (−2.3K from S12, target ≤100k by Phase 15)
-      + runtime/runner/tests_golden_verbs.rs — 5-verb golden regression oracle (S12-F11/G2)
+L2    nika-engine (~146.5K)    — MONOLITH (target ≤100k by Phase 15+)
       nika-builtin             — 37/63 builtin tools (Phase 12 substantially done)
-      nika-extract             — ⭐ NEW S12-F7 — Pure 9-mode fetch extraction (~1327 LOC moved from engine)
+      nika-verb-exec (S13-B)   — exec: verb behind ShellExecutor trait
+      nika-verb-fetch (S13-D)  — fetch: verb behind HttpClient trait + nika-extract
+                                 (+P0 test gaps fixed S14-A2)
+      nika-verb-invoke (S13-C) — invoke: verb via BuiltinRouter/McpPool traits
+      nika-verb-infer (⭐S14-B1) — infer: verb via Provider trait, 9 tests
       nika-display (13K), nika-media (14K), nika-mcp (9K)
       nika-storage (1K), nika-vault (1.2K)
-L3    nika-daemon (7K)
+L3    nika-runtime (S13-A1)    — VerbCapabilities bundle + dispatch() 5-arm +
+                                 verb_exec/verb_fetch/verb_invoke adapters (S13) +
+                                 verb_infer adapter + infer_caps() (S14-B3).
+                                 Provider field on VerbCapabilities (S14-B3).
+      nika-daemon (7K)
 L4    nika-cli (8K), nika-tui (88K), nika-serve (4K)
       nika-lsp (2.5K), nika-sdk (3K), nika-init (21K)
-L5    nika (5.5K)              — Binary entry point (target <900 LOC by Phase 15)
+L5    nika (5.5K)              — Binary entry point (target <900 LOC by Phase 15+)
 ```
 
-**Diamond layering note:** `PolicyConfig` + `SecurityPolicyConfig` live in nika-core (L0). `PolicyEnforcer` concrete impl lives in nika-policy (L1). `nika-kernel::policy::PolicyChecker` trait is object-safe with 4 methods; verb crates consume the trait only.
+**Session 14 deliverables (2026-04-11):**
 
-**Constellation progress:** S1-S11 = 11 sessions of cleanup + trait extension. S12 Foundation (2026-04-10) = kernel trait surface + 2 new crates (nika-policy, nika-extract). S13 = verb extraction pass 1 (PLANNED). S14 = verb extraction pass 2 + TaskExecutor dissolution (PLANNED).
+Wave A: Foundation
+- S14-BUG1 (`0dc079757`): exec.rs NonZeroExit now includes exit_code (Agent C P0)
+- S14-BUG2 (`3cc49f3d1`): duplicate McpInvoke event removed (Agent C P0)
+- W14-A0 (`e0970025c`): kernel InferResponse += cost_usd/request_id/finish_reason,
+  Provider::supports_response_format() default method, MockProvider added to
+  kernel-mock with 4 tests. InferResponse now `#[non_exhaustive]`.
+- W14-A1 (`58397ed8d`): RigProvider impls supports_response_format (delegates to
+  concrete supports_native_structured_output for OpenAI/Groq/DeepSeek/xAI).
+- W14-A2 (`c2d486de4`): nika-verb-fetch P0 test gaps fixed — HttpResponse now
+  asserts concrete fields, extract: path covered by jsonpath test.
+
+Wave B: Infer extraction
+- W14-B0 (`d4885f715`): VerbInvokeError::Mcp → MCP-semantic NikaError variants
+  (preemptive cleanup; path unreachable until dispatch() goes live S15).
+- W14-B1 (`2ddd28ca1`): ⭐ **nika-verb-infer crate created** — 9 tests, minimum
+  extraction: receives pre-resolved prompt/system/model/extras, calls
+  Provider::infer(InferRequest) via kernel trait, emits ProviderResponded with
+  all metadata. Kernel caps gain InferCaps::new + AgentCaps::new constructors.
+- W14-B3 (`040bfad4a`): nika-runtime verb_infer adapter + infer_caps() accessor
+  + provider field on VerbCapabilities. Dispatch Infer arm stays NotImplemented
+  (cannot build InferInput from AnalyzedInferAction without template resolution).
+
+**Deferred to S15:**
+
+- **W14-B2** — engine infer.rs (2157 LOC) shrinking to ~300 LOC bridge. The
+  surgery requires orchestrating spotlight + canary + skills + schema + vision +
+  structured-output retry + streaming with precise event-emission ordering.
+  Requires rewiring InferCallback's signature through StructuredOutputEngine.
+  Multi-session effort. W14-B1 proved the extraction pattern; S15 executes the
+  surgery.
+- **W14-C (agent extraction)** — rig_agent_loop is 6523 LOC across 9 files with
+  10+ TEMP engine dependencies (SkillInjector, LimitTracker, DynamicSubmitTool,
+  NikaMcpTool, ProviderKind, STREAM_CHUNK_TIMEOUT, EngineRunExecutor,
+  KernelToolAdapter, SecurityContext). S15/S16 territory.
+- **W14-A3 (shallow fetch bridge)** — fetch.rs bakes SSRF interceptors into a
+  shared reqwest::Client. Bridging would require an HttpClient adapter plus
+  robots/rate-limit pre-checks, for marginal LOC gain (~200). Premature.
+- **W14-B0 full (McpPoolAdapter)** — kernel McpPool trait is too thin to
+  preserve call_tool_with_retry_events, 50MB tool result limits, and the media
+  processing pipeline. S15 expands the trait first, then adapts.
+- **W14-E0 (shim removal)** — NullBlobStore/NullHttpClient/NoopMcpPool in
+  invoke.rs stay until McpPoolAdapter lands (S15).
+- **Wave D (TaskExecutor dissolution)** — requires migrating task_dispatch.rs
+  binding/lowering to nika-runtime first. S15 prerequisite work, then Wave D
+  proper in S15/S16.
+
+**Diamond layering note:** `PolicyConfig` + `SecurityPolicyConfig` live in nika-core (L0). `PolicyEnforcer` concrete impl lives in nika-policy (L1). `nika-kernel::policy::PolicyChecker` trait is object-safe with 4 methods; verb crates consume the trait only. **Post-S14**: nika-verb-infer is the 4th verb crate extracted (exec ✓, fetch ✓, invoke ✓, infer ✓, agent ✗). All 4 live verb crates depend only on nika-kernel traits + nika-event + nika-core — zero engine coupling.
+
+**Constellation progress:** S1-S11 cleanup + trait extension. S12 Foundation (2026-04-10) = kernel trait surface + nika-policy + nika-extract (28 crates). S13 (S13-A through E, 2026-04-10) = 3 verb crates extracted (exec/fetch/invoke) + nika-runtime skeleton + BuiltinRouter/McpPool kernel traits (32 crates, +4 from S12). S14 (2026-04-11) = nika-verb-infer extraction + kernel surface expansion + 2 P0 bug fixes (33 crates, +1). S15 = infer.rs bridge surgery + McpPoolAdapter + agent extraction + Wave D prerequisites.
 
 ### Session 12 Sacred Invariants (post-G1/G2/G3)
 
@@ -111,6 +169,15 @@ Every subsequent session must respect these rules learned from S12:
 14. **Golden test oracle MUST capture BOTH lifecycle AND output.** G2 lesson — never weaken for convenience.
 15. **Verification ritual MUST include `cargo check --no-default-features`** for crates with feature flags. G3 lesson.
 16. **`parking_lot::RwLockReadGuard` is !Send** — NEVER hold across `.await`. Use `Arc<T>` with interior mutability.
+
+### Session 14 Sacred Invariants (post-W14)
+
+17. **Unified `InferRequest` is the kernel's single LLM call shape.** NEVER add separate trait methods for vision/tools/options — encode into `InferRequest` fields (messages with ContentBlock::Image for vision, tools+tool_choice for tool use, extra.params for provider-specific options). Adding `infer_vision` / `infer_with_tools` / `infer_with_options` as trait methods is PROHIBITED. The S14 W14-A0 scope reduction is canonical: 1 trait method (supports_response_format) + 3 InferResponse fields covers everything.
+18. **Capability queries belong on the Provider trait, not on `ModelCapabilities`.** Runtime provider dispatch (is Claude an Anthropic reasoning model? does this provider take json_schema response_format?) is trait-level concern — don't force callers to go through the catalog for a Y/N capability check. `supports_response_format()` is the W14 precedent.
+19. **Per-crate `new()` constructors on all `#[non_exhaustive]` structs.** When InferResponse/caps/etc. are marked non_exhaustive, add a minimum constructor in the same module. Downstream code must never hit E0639. W14-A0/B1 enforced this for InferResponse + InferCaps + AgentCaps.
+20. **Verb-crate minimum extraction is valid architecture.** A verb crate with only the core trait-level call — no streaming, no structured output, no vision — is production-correct even if the engine bridge still owns those paths. The extraction is real when the runtime adapter compiles and the Send proof passes, not only when the engine bridge delegates. W14-B1/B3 set this precedent; S15 finishes W14-B2 on the engine side.
+21. **StopReason ↔ FinishReason mapping lives at the verb-crate/event boundary.** nika-kernel stays agnostic of nika-event types; the verb crate centralizes the mapping so there is exactly one place to update when either enum grows a variant.
+22. **TEMP engine dependencies must be declared in Cargo.toml with a `# TEMP` comment** explaining what blocks the removal and when it clears. Budgeting TEMP deps is how the constellation refactor stays honest about its debt.
 
 ### Multi-session refactor protocol (for S13+)
 
