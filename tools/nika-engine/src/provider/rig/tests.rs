@@ -1470,8 +1470,14 @@ fn test_debug_redacts_raw_api_key() {
 }
 
 #[test]
+#[serial]
 fn test_debug_works_for_all_variants() {
-    // Verify Debug doesn't panic for rig-core variants
+    // Verify Debug doesn't panic for rig-core variants.
+    //
+    // #[serial] is REQUIRED because this test mutates the process-global
+    // ANTHROPIC_API_KEY env var. Without it, parallel fallback tests
+    // (test_auto_fallback_to_*) see the stale var and detect anthropic
+    // instead of the provider they just configured — flake fixed DX-2.
     std::env::set_var("ANTHROPIC_API_KEY", "test-key");
     let claude = RigProvider::claude();
     let _ = format!("{:?}", claude);
