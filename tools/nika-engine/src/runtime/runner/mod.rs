@@ -251,7 +251,7 @@ struct InitResult {
     base_path: PathBuf,
     #[allow(dead_code)]
     total_tasks: usize,
-    cached_depths: Option<std::collections::HashMap<String, usize>>,
+    cached_depths: Option<rustc_hash::FxHashMap<String, usize>>,
     pending_indices: Vec<usize>,
 }
 
@@ -940,7 +940,7 @@ impl Runner {
         // PERF(M2): Compute DAG layers ONCE, reuse for both display and summary.
         // compute_layers() is O(N²) worst-case; previously called twice with identical inputs.
         // Converted to owned strings so InitResult can outlive the borrow of self.workflow.
-        let cached_depths: Option<std::collections::HashMap<String, usize>> = if total_tasks > 1 {
+        let cached_depths: Option<rustc_hash::FxHashMap<String, usize>> = if total_tasks > 1 {
             let nodes: Vec<&str> = self
                 .workflow
                 .tasks

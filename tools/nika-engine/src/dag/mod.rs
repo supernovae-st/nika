@@ -5,7 +5,6 @@
 //!
 //! Contains the DAG representation and validation:
 //! - `flow`: Dag built from depends_on edges (HashMap-based)
-//! - `indexed`: IndexedDag with Vec adjacency and Kahn's algorithm
 //! - `stable`: StableDag wrapper for petgraph::StableGraph (TUI)
 //! - `validate`: DAG validation for with: bindings
 //!
@@ -13,12 +12,10 @@
 //! Dag is immutable after construction (architectural decision #2).
 
 pub mod flow;
-pub mod indexed;
 mod stable;
 mod validate;
 
 // Re-export public types
 pub use flow::Dag;
-pub use indexed::IndexedDag;
 pub use stable::{DagEdge, StableDag};
 pub use validate::{validate_bindings, validate_with_bindings};
