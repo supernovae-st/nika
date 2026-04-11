@@ -161,16 +161,19 @@ fn test_rig_provider_default_models_v06() {
 #[test]
 #[serial]
 fn test_rig_provider_auto_detects_claude() {
-    // Clear other keys, set only Claude
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("MISTRAL_API_KEY");
-    std::env::remove_var("GROQ_API_KEY");
-    std::env::remove_var("DEEPSEEK_API_KEY");
+    // S16-flake-fix: use the full helper so the in-process SecretStore is
+    // cleared as well as env vars (see comment on
+    // `clear_all_provider_env_vars` below for the root cause).
+    clear_all_provider_env_vars();
     std::env::set_var("ANTHROPIC_API_KEY", "test-key");
 
     let provider = RigProvider::auto();
     assert!(provider.is_some());
     assert_eq!(provider.unwrap().name(), "anthropic");
+
+    // Clean up after ourselves — otherwise the leak re-emerges if a later
+    // test forgets to call `clear_all_provider_env_vars` first.
+    clear_all_provider_env_vars();
 }
 
 #[test]
@@ -187,15 +190,34 @@ fn test_rig_provider_auto_returns_none_when_no_keys() {
 // Provider Fallback Chain Tests
 // =========================================================================
 
-/// Helper to clear all provider env vars for testing fallback chain
+/// Helper to clear all provider credentials for testing fallback chain.
+///
+/// `RigProvider::auto()` → `has_provider_key` → `store::resolve_env`, which
+/// checks the in-process `DashMap` `SecretStore` FIRST and only falls back
+/// to `std::env::var`. `secrets::fallback` populates the store at first
+/// call with any provider key it finds in the daemon/vault/doppler chain
+/// — so a dev machine with `~/.nika/secrets/vault.enc` ends up with
+/// `ANTHROPIC_API_KEY` cached inside the store even when the env var is
+/// absent. Simply `remove_var("ANTHROPIC_API_KEY")` does NOT clear the
+/// store entry, which caused `test_auto_fallback_to_groq` (and every other
+/// fallback test) to flake with `left: "anthropic", right: "groq"`.
+///
+/// Fix (S16): remove every provider key from BOTH the env vars and the
+/// in-process secret store before running a fallback scenario.
 fn clear_all_provider_env_vars() {
-    std::env::remove_var("ANTHROPIC_API_KEY");
-    std::env::remove_var("OPENAI_API_KEY");
-    std::env::remove_var("MISTRAL_API_KEY");
-    std::env::remove_var("GROQ_API_KEY");
-    std::env::remove_var("DEEPSEEK_API_KEY");
-    std::env::remove_var("GEMINI_API_KEY");
-    std::env::remove_var("XAI_API_KEY");
+    const PROVIDER_KEYS: [&str; 7] = [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "MISTRAL_API_KEY",
+        "GROQ_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "GEMINI_API_KEY",
+        "XAI_API_KEY",
+    ];
+    for key in PROVIDER_KEYS {
+        std::env::remove_var(key);
+        crate::secrets::store::remove_secret(key);
+    }
 }
 
 #[test]
