@@ -41,14 +41,17 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use nika_event::types::FinishReason;
-use nika_event::{EventKind, EventLog};
+use nika_event::EventLog;
 use nika_kernel::caps::InferCaps;
 use nika_kernel::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderExtras, ResponseFormat, Role,
     StopReason, ToolChoice,
 };
 
+mod emit;
 mod error;
+
+pub use emit::emit_provider_responded;
 pub use error::VerbInferError;
 
 /// Pre-validated, pre-resolved input for the infer verb's core call.
@@ -148,20 +151,22 @@ pub async fn run(
     // verb crate handles only text in S14.
     let text = extract_text(&response.content);
 
-    // Emit ProviderResponded event with the full metadata the bridge
-    // will forward to the TUI. Shape comes from nika-event; cost_usd
-    // is a plain f64 (defaults to 0.0 when the bridge hasn't populated
-    // InferResponse::cost_usd yet — tracked for W14-B2).
-    event_log.emit(EventKind::ProviderResponded {
-        task_id: Arc::clone(&input.task_id),
-        request_id: response.request_id.clone(),
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        cache_read_tokens: response.usage.cache_read_tokens.unwrap_or(0),
-        ttft_ms: response.ttft_ms,
-        finish_reason: stop_reason_to_finish_reason(&response.stop_reason),
-        cost_usd: response.cost_usd.unwrap_or(0.0),
-    });
+    // Emit ProviderResponded via the shared helper (W16-A0). `cost_usd`
+    // defaults to 0.0 when `InferResponse::cost_usd` is `None` because
+    // the engine bridge paths still compute cost locally — that unwrap
+    // moves to the caller in W14-B2 once the engine flips to the
+    // helper directly with its own cost calculation.
+    emit_provider_responded(
+        event_log,
+        &input.task_id,
+        response.request_id.clone(),
+        response.usage.input_tokens,
+        response.usage.output_tokens,
+        response.usage.cache_read_tokens.unwrap_or(0),
+        response.ttft_ms,
+        stop_reason_to_finish_reason(&response.stop_reason),
+        response.cost_usd.unwrap_or(0.0),
+    );
 
     Ok(InferOutput { text, response })
 }
@@ -240,6 +245,7 @@ fn extract_text(content: &[ContentBlock]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_event::EventKind;
     use nika_kernel::clock::Clock;
     use nika_kernel::filesystem::FsRead;
     use nika_kernel::policy::PolicyChecker;

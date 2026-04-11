@@ -6055,6 +6055,7 @@ dependencies = [
  "nika-vault",
  "nika-verb-exec",
  "nika-verb-fetch",
+ "nika-verb-infer",
  "nika-verb-invoke",
  "nix 0.31.2",
  "parking_lot",

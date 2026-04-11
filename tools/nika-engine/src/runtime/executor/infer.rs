@@ -36,6 +36,14 @@ use crate::error_domains::ProviderError;
 
 use crate::runtime::structured_retry;
 
+// W16-A0: single-source ProviderResponded emission helper. Every
+// `EventKind::ProviderResponded` in this file routes through this free
+// function so that field additions/renames are a single-site change
+// (invariant #24). The helper lives in nika-verb-infer so both the
+// engine bridge and the verb crate's own `run()` share one emission
+// call site.
+use nika_verb_infer::emit_provider_responded;
+
 impl TaskExecutor {
     /// Build an [`InferCallback`] that calls `provider.infer()` with optional model override.
     ///
@@ -618,16 +626,17 @@ impl TaskExecutor {
                 Self::generic_mock_json(task_id, &prompt, &vision_info)
             };
             let mock_response_str = mock_response.to_string();
-            self.event_log.emit(EventKind::ProviderResponded {
-                task_id: Arc::clone(task_id),
-                request_id: Some("mock-request".to_string()),
-                input_tokens: estimate_tokens(prompt.len()),
-                output_tokens: estimate_tokens(mock_response_str.len()),
-                cache_read_tokens: 0,
-                ttft_ms: Some(0),
-                finish_reason: nika_event::FinishReason::Mock,
-                cost_usd: 0.0,
-            });
+            emit_provider_responded(
+                &self.event_log,
+                task_id,
+                Some("mock-request".to_string()),
+                estimate_tokens(prompt.len()),
+                estimate_tokens(mock_response_str.len()),
+                0,
+                Some(0),
+                nika_event::FinishReason::Mock,
+                0.0,
+            );
             // Run guardrails on mock output (same as non-mock path)
             self.check_infer_guardrails(task_id, infer, &mock_response_str)?;
             return Ok(mock_response_str);
@@ -1153,19 +1162,20 @@ impl TaskExecutor {
                 })
                 .unwrap_or(0.0)
         };
-        self.event_log.emit(EventKind::ProviderResponded {
-            task_id: Arc::clone(task_id),
-            request_id: stream_result.request_id.clone(),
-            input_tokens: stream_result.input_tokens,
-            output_tokens: stream_result.output_tokens,
-            cache_read_tokens: stream_result.cached_input_tokens,
-            ttft_ms: stream_result.ttft_ms,
-            finish_reason: stream_result
+        emit_provider_responded(
+            &self.event_log,
+            task_id,
+            stream_result.request_id.clone(),
+            stream_result.input_tokens,
+            stream_result.output_tokens,
+            stream_result.cached_input_tokens,
+            stream_result.ttft_ms,
+            stream_result
                 .finish_reason
                 .clone()
                 .unwrap_or(nika_event::FinishReason::Stop),
-            cost_usd: if cost.is_finite() { cost } else { 0.0 },
-        });
+            if cost.is_finite() { cost } else { 0.0 },
+        );
 
         // Structured output validation via StructuredOutputEngine (Layers 1-3)
         // If output policy requires JSON with schema, validate and repair the output
@@ -1327,19 +1337,20 @@ impl TaskExecutor {
                                     )
                                 })
                                 .unwrap_or(0.0);
-                            self.event_log.emit(EventKind::ProviderResponded {
-                                task_id: Arc::clone(task_id),
-                                request_id: stream_result.request_id.clone(),
-                                input_tokens: stream_result.input_tokens,
-                                output_tokens: stream_result.output_tokens,
-                                cache_read_tokens: stream_result.cached_input_tokens,
-                                ttft_ms: stream_result.ttft_ms,
-                                finish_reason: stream_result
+                            emit_provider_responded(
+                                &self.event_log,
+                                task_id,
+                                stream_result.request_id.clone(),
+                                stream_result.input_tokens,
+                                stream_result.output_tokens,
+                                stream_result.cached_input_tokens,
+                                stream_result.ttft_ms,
+                                stream_result
                                     .finish_reason
                                     .clone()
                                     .unwrap_or(nika_event::FinishReason::Stop),
-                                cost_usd: if cost.is_finite() { cost } else { 0.0 },
-                            });
+                                if cost.is_finite() { cost } else { 0.0 },
+                            );
                             token_reservation
                                 .adjust(stream_result.input_tokens + stream_result.output_tokens);
                             return Ok((true, Some(result_str)));
@@ -1385,19 +1396,20 @@ impl TaskExecutor {
                             )
                         })
                         .unwrap_or(0.0);
-                    self.event_log.emit(EventKind::ProviderResponded {
-                        task_id: Arc::clone(task_id),
-                        request_id: stream_result.request_id.clone(),
-                        input_tokens: stream_result.input_tokens,
-                        output_tokens: stream_result.output_tokens,
-                        cache_read_tokens: stream_result.cached_input_tokens,
-                        ttft_ms: stream_result.ttft_ms,
-                        finish_reason: stream_result
+                    emit_provider_responded(
+                        &self.event_log,
+                        task_id,
+                        stream_result.request_id.clone(),
+                        stream_result.input_tokens,
+                        stream_result.output_tokens,
+                        stream_result.cached_input_tokens,
+                        stream_result.ttft_ms,
+                        stream_result
                             .finish_reason
                             .clone()
                             .unwrap_or(nika_event::FinishReason::Stop),
-                        cost_usd: if cost.is_finite() { cost } else { 0.0 },
-                    });
+                        if cost.is_finite() { cost } else { 0.0 },
+                    );
                     return Ok((true, Some(stream_result.text)));
                 }
             }
@@ -1524,16 +1536,18 @@ impl TaskExecutor {
                                     )
                                 })
                                 .unwrap_or(0.0);
-                            self.event_log.emit(EventKind::ProviderResponded {
-                                task_id: Arc::clone(task_id),
-                                request_id: None,
-                                input_tokens: est_in,
-                                output_tokens: est_out,
-                                cache_read_tokens: 0,
-                                ttft_ms: None,
-                                finish_reason: nika_event::FinishReason::Stop, // L0b: non-streaming, reason unavailable
-                                cost_usd: if cost.is_finite() { cost } else { 0.0 },
-                            });
+                            emit_provider_responded(
+                                &self.event_log,
+                                task_id,
+                                None,
+                                est_in,
+                                est_out,
+                                0,
+                                None,
+                                // L0b: non-streaming, finish reason unavailable
+                                nika_event::FinishReason::Stop,
+                                if cost.is_finite() { cost } else { 0.0 },
+                            );
                             debug!(
                                 task_id = %task_id,
                                 layer = result.layer,
@@ -1589,16 +1603,18 @@ impl TaskExecutor {
                             )
                         })
                         .unwrap_or(0.0);
-                    self.event_log.emit(EventKind::ProviderResponded {
-                        task_id: Arc::clone(task_id),
-                        request_id: None,
-                        input_tokens: est_in,
-                        output_tokens: est_out,
-                        cache_read_tokens: 0,
-                        ttft_ms: None,
-                        finish_reason: nika_event::FinishReason::Stop, // L0b tool: non-streaming, reason unavailable
-                        cost_usd: if cost.is_finite() { cost } else { 0.0 },
-                    });
+                    emit_provider_responded(
+                        &self.event_log,
+                        task_id,
+                        None,
+                        est_in,
+                        est_out,
+                        0,
+                        None,
+                        // L0b tool: non-streaming, finish reason unavailable
+                        nika_event::FinishReason::Stop,
+                        if cost.is_finite() { cost } else { 0.0 },
+                    );
                     // Adjust token reservation before early return
                     token_reservation.adjust(est_in + est_out);
                     return Ok(Some(tool_result));
@@ -1895,16 +1911,18 @@ impl TaskExecutor {
             })
             .unwrap_or(0.0);
 
-        self.event_log.emit(EventKind::ProviderResponded {
-            task_id: Arc::clone(task_id),
-            request_id: None,
-            input_tokens: est_in,
-            output_tokens: est_out,
-            cache_read_tokens: 0,
-            ttft_ms: None,
-            finish_reason: nika_event::FinishReason::Stop, // Vision path: no streaming, reason unavailable
-            cost_usd: if cost.is_finite() { cost } else { 0.0 },
-        });
+        emit_provider_responded(
+            &self.event_log,
+            task_id,
+            None,
+            est_in,
+            est_out,
+            0,
+            None,
+            // Vision path: no streaming, finish reason unavailable
+            nika_event::FinishReason::Stop,
+            if cost.is_finite() { cost } else { 0.0 },
+        );
 
         // Run guardrails on vision output (same as non-vision path)
         self.check_infer_guardrails(task_id, infer, &vision_result)?;
