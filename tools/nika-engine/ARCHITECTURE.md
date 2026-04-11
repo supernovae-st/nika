@@ -189,6 +189,87 @@ one symmetry gap. All fixed in two follow-up commits.
 - **S13-7** (Caps expansion): done in S13-A0 with constructors to work
   around `#[non_exhaustive]` construction rules.
 
+## Constellation Session 15 — 2026-04-11
+
+S15 expands the kernel `McpPool` trait surface from 3 thin methods
+returning raw `serde_json::Value` / `String` into a 4-method surface
+with structured DTOs that preserve every field of
+`nika_mcp::ToolCallResult`. Verb crates no longer need to import
+`nika-mcp` for MCP call results; the engine bridge in `invoke.rs`
+now delegates the transport layer to a concrete `McpPoolAdapter`
+impl living in `nika-engine::runtime::mcp_pool_adapter`.
+
+Phase 1 (4-agent parallel review) ran before any code execution,
+per the S12-G1/G2/G3 multi-session refactor protocol. The review
+caught three architectural issues in the mega-prompt's initial
+design and corrected them before commit S15-A0 was written:
+
+1. **`McpCallOptions` cannot hold `Arc<dyn EventEmitter>`** — `nika-kernel`
+   has no `nika-event` dep (confirmed via `caps.rs` header doc), and
+   adding one would be a new upward coupling. Adapter holds `Arc<EventLog>`
+   as a struct field instead, same pattern as `BuiltinRouterAdapter`.
+2. **`nika-runtime::dispatch` test helper cannot wire `McpPoolAdapter`** —
+   runtime has no `nika-engine` dep (would be a dependency inversion).
+   Must use `MockMcpPool` from `nika-kernel-mock` instead.
+3. **LOC shrinkage estimate was optimistic** — the mega-prompt's
+   "~−500 to −1000 LOC in invoke.rs" target is impossible while the
+   media pipeline (coupled to `CasStore`, `MediaProcessor`, and the
+   `datastore.set_media` side-channel) stays in the engine bridge.
+   Realistic: ~+55 LOC net (adapter construction + error mapping
+   helper). The real S15 win is architectural decoupling (engine now
+   consumes the kernel `McpPool` trait, not `McpClient` directly),
+   not LOC reduction.
+
+### S15 commits (7)
+
+| Commit | Hash | Purpose |
+|--------|------|---------|
+| S15-A0 | `8c11d2eed` | **kernel: expand `McpPool` trait surface + fix `parse_retry_after` L1 leak.** New DTOs in `nika-kernel/src/mcp.rs`: `McpToolResult` (non_exhaustive + infallible `new()` with byte-identical size computation, 50 MB cap enforcement lives in adapters), `McpResourceContent = nika_core::mcp::ResourceContent` type alias (preserves the `blob` field the pre-S15 trait dropped), `McpToolDescriptor`, `McpCallOptions { task_id, cancel }` (owned fields, no events — invariant #23). `McpError` gains `ResultTooLarge { bytes, limit }` + `Cancelled { server, tool }` variants, `#[non_exhaustive]`, `Clone`. `MAX_MCP_RESULT_SIZE = 50 * 1024 * 1024` const. Trait rewritten with `#[async_trait]`: `call_tool`/`read_resource`/`list_tools`/`has_server`. Object safety asserted via `fn _assert_object_safe(_: &dyn McpPool)`. **Invariant #23 fix:** `parse_retry_after(&reqwest::header::HeaderMap)` → `parse_retry_after(Option<&str>)`; engine callsite in `fetch.rs` now extracts the header value explicitly; `reqwest` moved to `[dev-dependencies]` in `nika-verb-fetch/Cargo.toml`. Tests: +8 kernel/mcp, +2 retry primitive path. |
+| S15-A1 | `fa204a0d3` | **kernel-mock: add `MockMcpPool` fixtures + `McpError` Clone derive.** New `nika-kernel-mock/src/mcp.rs` (~330 LOC + 11 tests) — programmable per-server tool queues, resource map, descriptor list, optional call recording. Fixture ctors: `happy()` / `error()` / `oversized()` (builds 51 MB text block — adapter callers assert their `ResultTooLarge` guard fires). Cancellation honored via `opts.cancel.is_cancelled()` pre-check. `nika-kernel-mock` gains `tokio-util` dep for `CancellationToken`. |
+| S15-A2 | `1a8400f8d` | **verb-invoke: migrate test stubs to `MockMcpPool`.** Drop the inline `StubMcpPool` impl (~45 LOC of async-trait boilerplate) and use `nika_kernel_mock::MockMcpPool::new()` in test fixtures. Drop `async-trait` dev-dep (no longer needed). 6 tests unchanged in assertions. |
+| S15-A3 | `a2097f08e` | **engine: implement `McpPoolAdapter` (no wiring).** New file `nika-engine/src/runtime/mcp_pool_adapter.rs` (~380 LOC + 6 tests). Wraps `Arc<McpClientPool>` + `Arc<EventLog>`, implements the 4-method trait via `#[async_trait]`. **Responsibility split:** adapter owns transport + 50 MB cap + cancel select + DTO translation; engine bridge retains media pipeline (coupled to `CasStore` / `MediaProcessor` / datastore) + McpInvoke/McpResponse boundary events + outer timeout+workflow-cancel select. `map_mcp_error(nika_mcp::McpError, …)` translates every source variant to the kernel `McpError` with wildcard fallthrough (invariant #25). `biased;` select races cancel vs inner call for fine-grained responsiveness. Cancel latency caveat documented in rustdoc: "fires within one in-flight rmcp round-trip or current backoff sleep, not instantaneously". |
+| S15-A4 | `06d41fe4b` | **runtime: migrate dispatch test helper to `MockMcpPool`.** Delete `nika-runtime::dispatch::NoopMcpPool` (−41 LOC), use `nika_kernel_mock::mcp::MockMcpPool::new()` in `test_capabilities()`. Drop `async-trait` dev-dep. NoopBuiltinRouter stays inline (BuiltinRouter mock migration is out of S15 scope). |
+| S15-A5 | `d066939c2` | **engine: route `invoke.rs` MCP path through `McpPoolAdapter`.** Wire `run_invoke`'s non-builtin branch through the adapter. Delete inline 50 MB checks (adapter owns them), delete inline `let client = self.get_mcp_client(...)` + the dead `Arc<McpClient>` tuple carrier at the old line 744, replace `client.call_tool_with_retry_events(...)` / `client.read_resource(...)` with `adapter.call_tool(...)` / `adapter.read_resource(...)`. New `map_kernel_mcp_error(err, tool_hint, &self.mcp_pool)` helper preserves the `McpNotConfigured` vs `McpNotConnected` distinction by calling `self.mcp_pool.has_config(name)` — pre-S15 behavior the engine tests depend on. Media pipeline stays in engine bridge (iterates `McpToolResult.content` through `MediaProcessor`, emits MediaExtracted/Processed/Stored/Failed as before). 7 invoke integration tests pass unchanged. Net: invoke.rs +98/-43 LOC (decoupling, not shrinkage — true LOC reduction lives in S16+ when dispatch() activation moves the outer select + media pipeline into nika-runtime). |
+| S15-A6 | `38ee31418` | **verb-fetch: `run_with_retry` wrapper + `RetryPolicy`.** Forward-investment helper (~140 LOC + 7 tests). `RetryPolicy { max_attempts (floored to ≥1), base_delay_ms, multiplier, deadline }` with `new()` + `with_deadline()` builder (invariant #19). `run_with_retry(input, caps, event_log, policy)` loops over `run()` with `safe_backoff_delay` (migrated in S14-β) between attempts, racing each sleep against `caps.cancel` so cancelled tasks exit within one sleep interval. `is_retryable(err)` classifies 429 + 5xx + HttpError::Timeout/Connection as retryable, exhaustive match over `VerbFetchError` variants (same-crate). Failure modes map to S14-γ's `RetryExhausted` / `DeadlineExceeded`. Not wired — engine bridge's retry loop stays because it also consumes FetchAux (cache, robots, rate limiter, cookies) which is not a kernel trait yet (S16+ target). |
+
+### Verification ritual
+
+Every commit passed the S12-G3 sacred ritual:
+
+```
+cargo check --workspace                        # 0 errors
+cargo check --workspace --no-default-features  # 0 errors
+cargo test --workspace --lib                   # 0 failures
+cargo clippy --workspace --all-targets         # 26 warnings (baseline, unchanged)
+```
+
+### Post-S15 measurements
+
+**Engine LOC:** ~146,600 → **~146,650** (S15 net: +55 invoke.rs, +380 new `mcp_pool_adapter.rs`, −41 runtime dispatch, ≈+395 total. Shrinkage still lives in S16+ when dispatch() activation starts.)
+
+**Crate count:** **35 total** (unchanged — no new crates in S15; 32 diamond-participating + 3 outside: napi, py, macros).
+
+**Tests:** ~10,900 → **~10,897** (+8 kernel/mcp, +11 kernel-mock/mcp, +6 engine adapter, +7 verb-fetch retry, +2 verb-fetch retry helpers = ~+34 new; a handful of unrelated tests were deleted or merged in the process so the count is net ≈10,897).
+
+**Verb crate matrix post-S15:**
+
+| Crate | Tests | Bridge live? | dispatch arm | `run_with_retry` wrapper? |
+|-------|-------|--------------|---------------|----------------------------|
+| `nika-verb-exec` | 13 | YES (S13-B2) | NotImpl | n/a |
+| `nika-verb-fetch` | 37 | partial (helpers + retry wrapper) | NotImpl | YES (S15-A6, unwired) |
+| `nika-verb-invoke` | 6 | partial (builtin only, MCP through adapter) | NotImpl | n/a |
+| `nika-verb-infer` | 10 | **NO** (W14-B2 deferred) | NotImpl | n/a |
+
+### Follow-ups carried to S16+
+
+1. **`NoopMcpPool` / `NullBlobStore` / `NullHttpClient`** still exist in the builtin branch of `invoke.rs` (lines ~149-180 struct defs, ~350/357/360 constructor sites). Removing them requires a real `BlobStoreAdapter` + `HttpClientAdapter` in `nika-engine` — out of S15 scope.
+2. **`infer.rs` 7-site `ProviderResponded` collapse** (W14-B2) — multi-session surgery, remains S16 territory.
+3. **Engine fetch retry loop migration to `verb-fetch::run_with_retry`** — blocked on kernel `FetchAux` trait (robots.txt, rate limiter, cookie jar, ETag cache).
+4. **Dispatch() activation (Wave D)** — all 5 arms still return `NotImplemented` because template resolution + binding + skills + spotlight live in engine.
+5. **Wave C (`nika-verb-agent`)** — 9 TEMP engine deps in `rig_agent_loop/` untouched.
+6. **`McpPoolAdapter` as `TaskExecutor` field** — currently rebuilt per `run_invoke` call. Minor perf cleanup, zero correctness impact.
+7. **`finish_reason_raw` consumer** — `stop_reason_to_finish_reason` in verb-infer still hardcodes `"content_filter"`; threads through W14-B2.
+
 ## Module Map
 
 ### Top-level (`src/`)
