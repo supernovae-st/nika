@@ -63,7 +63,9 @@ progressive disclosure — not a single monolithic dump.
 **Rule:** Don't dump 500 lines. Let the AI discover via MCP tools + focused rule files.
 **Rule:** Content lives in `shared/` modules. Tool-specific files are assembled, not duplicated.
 
-## Crate Architecture (Current: 33 Crates post-S14, Target: 36+ post-S15)
+## Crate Architecture (Current: 35 Crates post-S14, Target: 36+ post-S15)
+
+> **S14.5 correction**: prior rev said 33 crates but `find tools -maxdepth 2 -name Cargo.toml` returns **36 manifests** (1 workspace root + 35 crates). The 35 include `nika-napi` + `nika-py` (FFI shims) and `nika-macros` (proc-macro support). Diamond-participating crates are 32 of those; the other 3 (napi, py, macros) live outside the L0–L5 hierarchy but are real workspace members.
 
 ### Current Diamond Pattern (v0.79.x, post-Constellation Session 14)
 
@@ -178,6 +180,44 @@ Every subsequent session must respect these rules learned from S12:
 20. **Verb-crate minimum extraction is valid architecture.** A verb crate with only the core trait-level call — no streaming, no structured output, no vision — is production-correct even if the engine bridge still owns those paths. The extraction is real when the runtime adapter compiles and the Send proof passes, not only when the engine bridge delegates. W14-B1/B3 set this precedent; S15 finishes W14-B2 on the engine side.
 21. **StopReason ↔ FinishReason mapping lives at the verb-crate/event boundary.** nika-kernel stays agnostic of nika-event types; the verb crate centralizes the mapping so there is exactly one place to update when either enum grows a variant.
 22. **TEMP engine dependencies must be declared in Cargo.toml with a `# TEMP` comment** explaining what blocks the removal and when it clears. Budgeting TEMP deps is how the constellation refactor stays honest about its debt.
+
+### Session 14.5 Sacred Invariants (post-review — 2026-04-11)
+
+Added after the 4-agent post-S14 review caught one invariant violated at
+birth (`parse_retry_after` reqwest leak), one missing symmetrically
+(`#[non_exhaustive]` only on `VerbFetchError`), and one latent (7
+`ProviderResponded` emission sites in `infer.rs` that S14-δ's new oracle
+cannot regress-test across).
+
+23. **Kernel-adjacent helpers use std / primitive / `bytes::Bytes` types only** —
+    NEVER expose `reqwest::*`, `tokio::*`, `sqlx::*`, or any L1+ concrete
+    type in a kernel trait signature, verb-crate public helper signature,
+    or re-exported alias. The `parse_retry_after(headers: &reqwest::header::HeaderMap)`
+    signature in `nika-verb-fetch::retry` (landed S14-β) is the
+    precedent-violating case — S15-A0 must refactor to
+    `parse_retry_after(header_value: Option<&str>)` so the helper is
+    reqwest-free and the direct dep moves to `[dev-dependencies]`.
+    When kernel traits need structured headers, use `HashMap<String, String>`
+    as `nika-kernel::http::HttpRequest` already does.
+
+24. **Event emission for a given `EventKind::*` variant happens at exactly
+    one call site per verb execution path.** If the same variant is emitted
+    from N sites in a single file, refactor them through a single
+    `emit_<variant>(ctx, …)` helper so that adding a field is a one-site
+    change and the golden oracle has exactly one regression target.
+    Current violator: `nika-engine/src/runtime/executor/infer.rs` emits
+    `EventKind::ProviderResponded` from 7 sites (lines 621, 1156, 1330,
+    1388, 1527, 1592, 1898). W14-B2 (S15) must collapse these before any
+    new field lands on the event.
+
+25. **All verb-crate error enums are `#[non_exhaustive]` from day one.**
+    Downstream `From<VerbXxxError> for NikaError` impls must carry a
+    wildcard arm that falls through to a generic variant with a
+    `format!("unmapped verb error variant: {other:?}")` message so any
+    future variant stays triageable from logs. S14-γ shipped
+    `#[non_exhaustive]` only on `VerbFetchError`; S14.5 retrofit applied
+    it to `VerbExecError`, `VerbInvokeError`, `VerbInferError` with
+    wildcard arms in `exec.rs` + `invoke.rs` mapping functions.
 
 ### Multi-session refactor protocol (for S13+)
 
