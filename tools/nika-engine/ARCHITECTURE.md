@@ -586,11 +586,10 @@ macro lives inside the trait impl (connect, don't delete pattern).
 keystone method that verb crates (Phase 12+) will consume instead of using
 RigProvider directly.
 
-### `dag/` — DAG Validation (~4600 LOC)
+### `dag/` — DAG Validation (~3680 LOC)
 
 - `flow.rs` (~1840) — Topological sort, cycle detection
-- `indexed.rs` (~880) — `IndexedDag` (adjacency-list, currently unused by Runner)
-- `stable.rs` (~430) — Stable DAG serialization
+- `stable.rs` (~430) — Stable DAG serialization (petgraph-backed, TUI)
 - `validate.rs` (~1410) — DAG validation rules
 
 ### `store/` — Runtime State
@@ -643,9 +642,6 @@ RigProvider directly.
 
 These exist but are not yet fully wired:
 
-- `IndexedDag` (dag/indexed.rs): 878 LOC adjacency-list DAG built during analysis
-  but not used by Runner at execution time. Target: wire into Runner for O(1)
-  lookups (Phase 14).
 - `error_domains.rs`: 4 domain sub-enums with `From` impls ready, but most call
   sites still construct `NikaError` directly. Target: promote to primary error
   path (Phase 6, ~16h per V2.2 estimate).

@@ -82,14 +82,26 @@ nika-verb-invoke = { workspace = true }
 # 6 modes (slim/full/binary/llm_txt/304/default). Same shape as W14-B2
 # infer surgery — deferred multi-session effort.
 nika-verb-fetch = { workspace = true }
-# TEMP (W16-A0 → S17+): single-source `emit_provider_responded`
-# helper lives in nika-verb-infer. The engine's infer.rs still owns
-# the 7 emission paths (streaming, L0a, L0b, vision, mock) but routes
-# all of them through the verb-crate helper so invariant #24 has
-# exactly one regression target. Clears when W14-B2 proper flips the
-# engine bridge wholesale through `nika_verb_infer::run()` — blocked
-# on streaming support landing in the verb crate. Invariant #22
-# compliance: TEMP marker + explicit clearance condition.
+# TEMP (W16-A0 → S18+): dual-role dependency.
+#
+# Role 1 (W16-A0): single-source `emit_provider_responded` helper —
+# all 7 engine emission sites (streaming, L0a, L0b, vision, mock) route
+# through the verb-crate helper so invariant #24 has exactly one
+# regression target.
+#
+# Role 2 (S17-A2): live execution path for simple text inference.
+# The engine's `run_infer` at infer.rs:991 delegates to
+# `nika_verb_infer::run()` when `!has_structured && !has_content &&
+# extended_thinking != Some(true)`. The streaming path still owns
+# structured output (L0a/L0b/L2-L3 retry), vision, and extended
+# thinking.
+#
+# Clears when structured output, vision, and extended thinking are
+# also moved to the verb crate (i.e., when the streaming path below
+# infer.rs:1081 is replaced wholesale). That's S18+ multi-session
+# work blocked on verb-crate streaming support + StructuredOutputEngine
+# extraction. Invariant #22 compliance: TEMP marker + explicit
+# clearance condition.
 nika-verb-infer = { workspace = true }
 nika-exec-runner = { workspace = true }
 nika-clock = { workspace = true }

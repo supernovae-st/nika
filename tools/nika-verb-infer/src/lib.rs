@@ -103,6 +103,39 @@ pub struct InferOutput {
 /// [`InferResponse`] for the engine bridge to use in event emission and
 /// downstream processing.
 ///
+/// # Preconditions (caller responsibility)
+///
+/// This function does NOT apply Nika Shield protections. The caller
+/// (currently `TaskExecutor::run_infer` in `nika-engine`, future:
+/// `nika-runtime::dispatch`) is responsible for applying ALL of the
+/// following BEFORE building the `InferInput`:
+///
+/// 1. **Spotlight wrapping** — untrusted bindings must be fenced via
+///    `Shield::fence().wrap_untrusted()` so the provider sees the
+///    `[untrusted]...[/untrusted]` markers.
+/// 2. **Canary injection** — `Shield::canary().inject_into_system_prompt()`
+///    must have added the `[trace_id=…]` canary block to `input.system`
+///    when `shield.canary_enabled()`.
+/// 3. **Skills injection** — workflow-level skills must be prepended to
+///    `input.system` via `SkillInjector::inject()`.
+/// 4. **Template resolution** — all `{{with.*}}` / `{{inputs.*}}` /
+///    `{{context.*}}` / `{{env.*}}` placeholders must be fully resolved.
+/// 5. **Response-format instruction** — when the task has
+///    `response_format: json` without `structured:`, the engine appends a
+///    natural-language JSON-only instruction to `input.system`.
+/// 6. **Trust context** — `task_local!` scopes (`CURRENT_TASK_TRUST`,
+///    `CURRENT_TASK_ELEVATED`, `CURRENT_IS_TAINTED`) must be set by the
+///    caller; the verb crate does NOT read them.
+///
+/// Post-call, the caller is responsible for:
+/// - **Canary scanning** of `output.text` (Shield L5 — detects exfil).
+/// - **Output guardrails** (length, regex, schema, LLM judge).
+/// - **Structured-output retry loop** if `output_policy.is_structured()`.
+///
+/// Violating any precondition silently bypasses Nika Shield — a
+/// security regression. Wave D / `dispatch()` activation MUST ensure
+/// these steps run before calling `run()`.
+///
 /// # Cancellation
 ///
 /// Races the provider call against `caps.cancel.cancelled()`. On

@@ -12,7 +12,7 @@ The core runtime that executes `.nika.yaml` workflows. Can be used as a library 
 |--------|---------|
 | `ast/` | Phase 3: Analyzed → Runtime types (lowering) |
 | `runtime/` | DAG execution (Runner, TaskExecutor, verb dispatch) |
-| `dag/` | DAG validation, cycle detection, IndexedDag |
+| `dag/` | DAG validation, cycle detection, topological sort |
 | `provider/` | LLM providers (rig-core cloud + mistral.rs native) |
 | `binding/` | Template resolution, 27 pipe transforms, JSONPath |
 | `builtin/` | 12 core tools + 24 media/fetch tools |
