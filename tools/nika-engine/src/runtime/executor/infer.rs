@@ -1018,20 +1018,64 @@ impl TaskExecutor {
                 task_id: Arc::clone(task_id),
             };
 
-            let output = nika_verb_infer::run(&infer_input, &infer_caps, &self.event_log)
-                .await
-                .map_err(map_verb_infer_error)?;
+            // P1 fix: match the streaming path's 4-attempt retry for transient
+            // errors (500, 502, 503, 429, timeout). Without this, tasks that
+            // relied on the engine's implicit retry would fail on first error.
+            const VERB_BACKOFF_MS: [u64; 3] = [1_000, 3_000, 10_000];
+            const VERB_MAX_ATTEMPTS: usize = 4;
 
-            // Adjust token reservation with real provider token counts.
-            // P0 fix: was using `estimate_tokens(output.text.len())` which is a
-            // byte-based estimate of output only — missing input tokens entirely.
-            // The streaming path uses `stream_result.input_tokens + output_tokens`.
-            token_reservation.adjust(
-                output.response.usage.input_tokens + output.response.usage.output_tokens,
-            );
+            let mut last_err: Option<NikaError> = None;
+            for attempt in 0..VERB_MAX_ATTEMPTS {
+                if attempt > 0 {
+                    let delay_ms = VERB_BACKOFF_MS[attempt - 1];
+                    let error_str = last_err
+                        .as_ref()
+                        .map(|e| e.to_string())
+                        .unwrap_or_default();
+                    warn!(
+                        task_id = %task_id,
+                        attempt = attempt + 1,
+                        delay_ms,
+                        error = %error_str,
+                        "Verb crate transient error, retrying after {}ms...",
+                        delay_ms
+                    );
+                    self.event_log.emit(EventKind::ProviderAutoRetried {
+                        task_id: Arc::clone(task_id),
+                        attempt: (attempt + 1) as u32,
+                        max_attempts: VERB_MAX_ATTEMPTS as u32,
+                        delay_ms,
+                        error: error_str,
+                    });
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                }
 
-            self.check_infer_guardrails(task_id, infer, &output.text)?;
-            return Ok(output.text);
+                match nika_verb_infer::run(&infer_input, &infer_caps, &self.event_log).await {
+                    Ok(output) => {
+                        token_reservation.adjust(
+                            output.response.usage.input_tokens
+                                + output.response.usage.output_tokens,
+                        );
+                        self.check_infer_guardrails(task_id, infer, &output.text)?;
+                        return Ok(output.text);
+                    }
+                    Err(e) => {
+                        let nika_err = map_verb_infer_error(e);
+                        if structured_retry::is_retryable(&nika_err)
+                            && attempt + 1 < VERB_MAX_ATTEMPTS
+                        {
+                            last_err = Some(nika_err);
+                            continue;
+                        }
+                        return Err(nika_err);
+                    }
+                }
+            }
+
+            // Unreachable: the loop either returns Ok or Err on the last attempt.
+            return Err(last_err.unwrap_or_else(|| NikaError::ProviderApiError {
+                message: "verb infer retry loop exhausted without result".to_string(),
+            }));
         }
 
         // ═══════════════════════════════════════════════════════════════════
