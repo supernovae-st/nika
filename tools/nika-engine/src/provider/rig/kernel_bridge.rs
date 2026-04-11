@@ -216,7 +216,16 @@ fn stream_from_rx(
                             Some(Ok(InferEvent::Thinking(text)))
                         }
                         StreamChunk::Done(_) => {
-                            Some(Ok(InferEvent::Done(StopReason::EndTurn)))
+                            // rig's StreamChunk::Done carries no provider metadata —
+                            // request_id and finish_reason_raw would require a deeper
+                            // rig integration (response headers). When W14-B2 lands
+                            // the infer bridge surgery, this will be enriched from
+                            // the rig client's final response metadata.
+                            Some(Ok(InferEvent::Done {
+                                stop_reason: StopReason::EndTurn,
+                                request_id: None,
+                                finish_reason_raw: None,
+                            }))
                         }
                         StreamChunk::Error(msg) => {
                             Some(Err(ProviderError::Api { message: msg }))
@@ -663,7 +672,14 @@ mod tests {
 
         assert_eq!(events.len(), 3);
         assert!(matches!(&events[0], InferEvent::Delta(s) if s == "Hello"));
-        assert!(matches!(&events[1], InferEvent::Done(StopReason::EndTurn)));
+        assert!(matches!(
+            &events[1],
+            InferEvent::Done {
+                stop_reason: StopReason::EndTurn,
+                request_id: None,
+                finish_reason_raw: None,
+            }
+        ));
         assert!(matches!(&events[2], InferEvent::Usage(u) if u.input_tokens == 10));
     }
 
@@ -693,7 +709,7 @@ mod tests {
         // Only Token + Done — TUI events skipped
         assert_eq!(events.len(), 2);
         assert!(matches!(&events[0], InferEvent::Delta(s) if s == "data"));
-        assert!(matches!(&events[1], InferEvent::Done(_)));
+        assert!(matches!(&events[1], InferEvent::Done { .. }));
     }
 
     #[tokio::test]

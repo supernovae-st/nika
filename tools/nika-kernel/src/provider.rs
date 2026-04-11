@@ -174,14 +174,30 @@ pub enum StopReason {
 }
 
 /// Streaming event from an inference call.
+///
+/// `#[non_exhaustive]` so future variants (e.g. `Started { request_id }`)
+/// can be added without breaking downstream `match` sites.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum InferEvent {
     Delta(String),
     ToolUseStart { id: String, name: String },
     ToolUseDelta { id: String, partial_json: String },
     Thinking(String),
     Usage(TokenUsage),
-    Done(StopReason),
+    /// Terminal event carrying the provider-reported stop reason plus
+    /// optional metadata the verb crate threads into `ProviderResponded`
+    /// without reaching back into provider concretes.
+    ///
+    /// `finish_reason_raw` captures provider strings (`"content_filter"`,
+    /// `"tool_calls"`, …) that do not map cleanly onto `StopReason`; the
+    /// verb crate centralizes `(StopReason, finish_reason_raw) → FinishReason`
+    /// per invariant #21.
+    Done {
+        stop_reason: StopReason,
+        request_id: Option<String>,
+        finish_reason_raw: Option<String>,
+    },
 }
 
 /// Re-export the canonical model capabilities from nika-core.

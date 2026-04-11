@@ -121,7 +121,11 @@ impl Provider for MockProvider {
                     }
                 }
                 events.push(Ok(InferEvent::Usage(response.usage.clone())));
-                events.push(Ok(InferEvent::Done(response.stop_reason.clone())));
+                events.push(Ok(InferEvent::Done {
+                    stop_reason: response.stop_reason.clone(),
+                    request_id: response.request_id.clone(),
+                    finish_reason_raw: None,
+                }));
                 Ok(Box::pin(futures_util::stream::iter(events)))
             }
             Some(Err(e)) => Err(e),
@@ -219,5 +223,60 @@ mod tests {
 
         let mock = mock.with_response_format_support(true);
         assert!(mock.supports_response_format());
+    }
+
+    /// **S14-α** — stream's terminal `Done` event must carry the struct-variant
+    /// fields (`stop_reason`, `request_id`, `finish_reason_raw`) so the verb
+    /// crate can thread them into `ProviderResponded` without reaching into
+    /// provider concretes.
+    ///
+    /// When a response was enqueued with a `request_id` set, the mock must
+    /// propagate it through the synthesized `Done` event verbatim.
+    #[tokio::test]
+    async fn mock_provider_stream_done_carries_request_id() {
+        use futures_util::StreamExt;
+
+        let mock = MockProvider::new("test");
+        let mut response = InferResponse::new(
+            vec![ContentBlock::Text { text: "hi".to_string() }],
+            TokenUsage {
+                input_tokens: 3,
+                output_tokens: 2,
+                cache_read_tokens: None,
+                cache_write_tokens: None,
+            },
+            StopReason::EndTurn,
+        );
+        response.request_id = Some("req_mock_42".to_string());
+        mock.enqueue_response(response);
+
+        let request = InferRequest {
+            model: "test-model".to_string(),
+            messages: Vec::new(),
+            temperature: None,
+            max_tokens: None,
+            tools: Vec::new(),
+            tool_choice: Default::default(),
+            response_format: Default::default(),
+            stop_sequences: Vec::new(),
+            thinking_budget: None,
+            extra: Default::default(),
+        };
+
+        let stream = mock.infer_stream(request).await.unwrap();
+        let events: Vec<_> = stream.collect::<Vec<_>>().await;
+        let done = events
+            .iter()
+            .find_map(|ev| match ev {
+                Ok(InferEvent::Done { stop_reason, request_id, finish_reason_raw }) => {
+                    Some((stop_reason.clone(), request_id.clone(), finish_reason_raw.clone()))
+                }
+                _ => None,
+            })
+            .expect("stream must terminate with a Done event");
+
+        assert!(matches!(done.0, StopReason::EndTurn));
+        assert_eq!(done.1.as_deref(), Some("req_mock_42"));
+        assert_eq!(done.2, None);
     }
 }
