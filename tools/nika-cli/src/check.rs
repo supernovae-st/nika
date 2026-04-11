@@ -9,6 +9,7 @@
 //! parameter schemas against live tool definitions.
 
 use std::path::Path;
+use std::sync::LazyLock;
 
 use nika_engine::ast::output::SchemaRef;
 use nika_engine::ast::schema_validator::WorkflowSchemaValidator;
@@ -19,6 +20,15 @@ use nika_engine::mcp::validation::{McpValidator, ValidationConfig};
 use nika_engine::mcp::{McpClient, McpConfig};
 
 use crate::discover::resolve_workflow_path;
+
+/// Regex for `{{with.*}}` or `{{inputs.*}}` bindings in shell commands.
+static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\{\{(with\.[^}]+|inputs\.[^}]+)\}\}").expect("valid regex")
+});
+
+/// Regex for `| shell` transform guard.
+static SHELL_GUARD_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"\|\s*shell\b").expect("valid regex"));
 
 /// Run `nika check` — multi-phase pre-flight validation without connecting to MCP servers.
 pub async fn validate_workflow(file: &str, quiet: bool, security: bool) -> Result<(), NikaError> {
@@ -189,14 +199,12 @@ pub async fn validate_workflow(file: &str, quiet: bool, security: bool) -> Resul
     let t = Instant::now();
     let mut security_hints: Vec<String> = Vec::new();
     {
-        let binding_re = regex::Regex::new(r"\{\{(with\.[^}]+|inputs\.[^}]+)\}\}").unwrap();
-        let shell_guard_re = regex::Regex::new(r"\|\s*shell\b").unwrap();
         for task in &workflow.tasks {
             if let TaskAction::Exec { exec } = &task.action {
                 if exec.shell == Some(true) {
-                    for cap in binding_re.captures_iter(&exec.command) {
+                    for cap in BINDING_RE.captures_iter(&exec.command) {
                         let inner = &cap[1];
-                        if !shell_guard_re.is_match(inner) {
+                        if !SHELL_GUARD_RE.is_match(inner) {
                             security_hints.push(format!(
                                 "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
                                 task.id, inner
@@ -635,14 +643,12 @@ pub async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let t = Instant::now();
     let mut strict_security_hints: Vec<String> = Vec::new();
     {
-        let binding_re = regex::Regex::new(r"\{\{(with\.[^}]+|inputs\.[^}]+)\}\}").unwrap();
-        let shell_guard_re = regex::Regex::new(r"\|\s*shell\b").unwrap();
         for task in &workflow.tasks {
             if let TaskAction::Exec { exec } = &task.action {
                 if exec.shell == Some(true) {
-                    for cap in binding_re.captures_iter(&exec.command) {
+                    for cap in BINDING_RE.captures_iter(&exec.command) {
                         let inner = &cap[1];
-                        if !shell_guard_re.is_match(inner) {
+                        if !SHELL_GUARD_RE.is_match(inner) {
                             strict_security_hints.push(format!(
                                 "task '{}': shell: true with unescaped {{{{{}}}}} — use | shell transform",
                                 task.id, inner

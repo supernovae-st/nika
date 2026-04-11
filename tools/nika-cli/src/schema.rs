@@ -3,10 +3,22 @@
 
 //! Schema management subcommand handler
 
+use std::sync::LazyLock;
+
 use clap::Subcommand;
 use colored::Colorize;
 
 use nika_engine::error::NikaError;
+
+/// Regex for extracting schema version from a workflow file.
+static SCHEMA_VERSION_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"^schema:\s*["']?(nika/workflow@[0-9.]+)["']?"#).expect("valid regex")
+});
+
+/// Regex for replacing schema version in a workflow file.
+static SCHEMA_REPLACE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"schema:\s*["']?nika/workflow@[\d.]+["']?"#).expect("valid regex")
+});
 
 /// Schema management actions
 #[derive(Subcommand)]
@@ -379,14 +391,10 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
 }
 
 fn extract_schema_version(content: &str) -> String {
-    // Match schema: "nika/workflow@X.Y" or schema: 'nika/workflow@X.Y' or schema: nika/workflow@X.Y
-    let re = regex::Regex::new(r#"^schema:\s*["']?(nika/workflow@[0-9.]+)["']?"#).ok();
-    if let Some(regex) = re {
-        for line in content.lines() {
-            if let Some(captures) = regex.captures(line.trim()) {
-                if let Some(m) = captures.get(1) {
-                    return m.as_str().to_string();
-                }
+    for line in content.lines() {
+        if let Some(captures) = SCHEMA_VERSION_RE.captures(line.trim()) {
+            if let Some(m) = captures.get(1) {
+                return m.as_str().to_string();
             }
         }
     }
@@ -474,15 +482,8 @@ fn upgrade_workflow_file(
     }
 
     // Update schema version using regex replacement (preserves formatting)
-    let schema_regex =
-        regex::Regex::new(r#"schema:\s*["']?nika/workflow@[\d.]+["']?"#).map_err(|e| {
-            NikaError::ParseError {
-                details: format!("Regex error: {e}"),
-            }
-        })?;
-
     let new_schema_line = format!(r#"schema: "nika/workflow@{target_version}""#);
-    let updated = schema_regex
+    let updated = SCHEMA_REPLACE_RE
         .replace(&content, new_schema_line.as_str())
         .to_string();
 
