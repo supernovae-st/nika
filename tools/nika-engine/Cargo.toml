@@ -63,6 +63,7 @@ nika-media = { workspace = true }
 nika-builtin = { workspace = true }
 nika-policy = { workspace = true }
 nika-extract = { workspace = true }
+nika-security = { workspace = true }
 nika-vault = { workspace = true }
 # TEMP (S13-B2 → S15/S16): nika-verb-exec dep is normal downward direction
 # but the engine's TaskExecutor::run_exec still orchestrates template

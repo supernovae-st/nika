@@ -20,8 +20,8 @@
 //! - `context_loader`: Context file loading at workflow start
 //! - `resolver`: Agent and skill resolution
 //! - `boot`: Boot sequence with 6-phase initialization
-//! - `policy`: Security policy enforcement for exec/fetch/tokens
-//! - `security`: Command validation and blocklist
+//! - `policy`: Security policy enforcement for exec/fetch/tokens (re-exported from `nika-policy`)
+//! - `security`: Command validation and blocklist (re-exported from `nika-security`)
 //! - `artifact_processor`: Task output file persistence
 //! - `limit_tracker`: Agent execution limits tracking
 //! - `partial`: Partial completion checkpointing
@@ -68,7 +68,9 @@ pub mod resolver;
 mod rig_agent_loop;
 pub mod robots;
 mod runner;
-pub mod security;
+/// Command validation, blocklist, SEC-2 binding scan, env var checks —
+/// re-exported from the `nika-security` L1 crate (extracted Constellation S18).
+pub use nika_security as security;
 pub mod shield;
 mod skill_injector;
 pub mod spawn;
@@ -107,7 +109,7 @@ pub use boot::{
 };
 pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget, TokenReservation};
 
-pub use security::{check_shell_data_injection, validate_exec_command_with_shell};
+pub use nika_security::{check_shell_data_injection, validate_exec_command_with_shell};
 
 pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
 

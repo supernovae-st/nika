@@ -6048,6 +6048,7 @@ dependencies = [
  "nika-mcp",
  "nika-media",
  "nika-policy",
+ "nika-security",
  "nika-vault",
  "nika-verb-exec",
  "nika-verb-fetch",
@@ -6396,6 +6397,7 @@ name = "nika-security"
 version = "0.79.0"
 dependencies = [
  "nika-core",
+ "thiserror 2.0.18",
  "tracing",
  "unicode-normalization",
 ]

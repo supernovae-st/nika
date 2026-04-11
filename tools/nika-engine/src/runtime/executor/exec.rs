@@ -51,7 +51,7 @@ impl TaskExecutor {
         // BUG-032: pass raw template so interpreter patterns (python3 -c, node -e) written
         // by the developer in YAML are recognized as intentional and allowed through.
         let is_shell = params.shell == Some(true);
-        crate::runtime::security::validate_exec_command_full(
+        nika_security::validate_exec_command_full(
             &resolved_cmd,
             is_shell,
             Some(&params.command),
@@ -124,7 +124,7 @@ impl TaskExecutor {
         // vs resolved command — patterns present in both are intentional.
         if is_shell {
             if let Err(e) =
-                crate::runtime::security::check_shell_data_injection(&params.command, &resolved_cmd)
+                nika_security::check_shell_data_injection(&params.command, &resolved_cmd)
             {
                 self.event_log.emit(EventKind::PolicyBlocked {
                     task_id: Arc::clone(task_id),
@@ -132,7 +132,7 @@ impl TaskExecutor {
                     policy_type: "shell_data_injection".to_string(),
                     reason: e.to_string(),
                 });
-                return Err(e);
+                return Err(e.into());
             }
         }
 
@@ -199,7 +199,7 @@ impl TaskExecutor {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
-            crate::runtime::security::validate_env_vars(&pairs)?;
+            nika_security::validate_env_vars(&pairs)?;
             let mut out = Vec::with_capacity(pairs.len());
             for (key, value) in env_vars {
                 let resolved_value = template_resolve(value, bindings, datastore)?;
@@ -211,7 +211,7 @@ impl TaskExecutor {
         };
 
         // Sensitive env vars to strip from the child's inherited environment.
-        let env_remove: Vec<String> = crate::runtime::security::sensitive_env_vars()
+        let env_remove: Vec<String> = nika_security::sensitive_env_vars()
             .into_iter()
             .map(|s| s.to_string())
             .collect();

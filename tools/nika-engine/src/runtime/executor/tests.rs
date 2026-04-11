@@ -2569,7 +2569,7 @@ async fn audit_blocklist_tab_bypass() {
 /// but does not match the blocklist pattern.
 #[test]
 fn audit_blocklist_flag_reorder_bypass() {
-    let result = crate::runtime::security::check_blocklist("rm -f -r /");
+    let result = nika_security::check_blocklist("rm -f -r /");
     if result.is_ok() {
         // This is a known limitation of pattern-based blocklists.
         // Not necessarily a bug, but worth documenting.
@@ -2582,7 +2582,7 @@ fn audit_blocklist_flag_reorder_bypass() {
 #[test]
 fn audit_blocklist_newline_still_caught() {
     let cmd = "echo safe\nrm -rf /";
-    let result = crate::runtime::security::check_blocklist(cmd);
+    let result = nika_security::check_blocklist(cmd);
     // The substring "rm -rf /" is present after the newline
     assert!(
         result.is_err(),

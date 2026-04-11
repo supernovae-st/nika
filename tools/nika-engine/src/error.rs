@@ -1248,6 +1248,21 @@ impl From<nika_extract::ExtractError> for NikaError {
     }
 }
 
+impl From<nika_security::SecurityError> for NikaError {
+    fn from(e: nika_security::SecurityError) -> Self {
+        match e {
+            nika_security::SecurityError::BlockedCommand { command, reason } => {
+                NikaError::BlockedCommand { command, reason }
+            }
+            // Invariant #25: wildcard arm for future non_exhaustive variants.
+            other => NikaError::BlockedCommand {
+                command: String::new(),
+                reason: format!("unmapped SecurityError variant: {other:?}"),
+            },
+        }
+    }
+}
+
 impl NikaError {
     /// Convenience: look up fix suggestion by error code string (e.g., "NIKA-044").
     ///
