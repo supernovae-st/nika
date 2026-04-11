@@ -109,6 +109,21 @@ pub async fn run(
         cancel: Some(caps.cancel.clone()),
     };
 
+    // S14-ε: pre-spawn cancellation check.
+    //
+    // The cancel token is already threaded into `ShellCommand.cancel` above,
+    // and `TokioShell::run` honours it during the subprocess lifecycle. This
+    // check is a micro-optimisation: if the task was cancelled between
+    // dispatch and this point (e.g. an upstream task failed with
+    // `fail_fast: true`), skip the subprocess fork entirely. Saves one
+    // process creation per already-cancelled task and matches the pattern
+    // used in nika-verb-invoke.
+    if caps.cancel.is_cancelled() {
+        return Err(VerbExecError::Cancelled {
+            task_id: input.task_id.to_string(),
+        });
+    }
+
     let start = std::time::Instant::now();
     let result = caps.shell.run(cmd).await;
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -420,5 +435,65 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(matches!(err, VerbExecError::NonZeroExit { .. }));
+    }
+
+    /// **S14-ε** — when the cancel token fires before `run()` is called,
+    /// the verb must skip the subprocess fork entirely and return
+    /// `Cancelled` immediately. This mirrors the pre-call cancel check
+    /// already present in nika-verb-invoke and saves one fork per
+    /// already-cancelled task under `fail_fast: true` fan-out.
+    ///
+    /// The test uses a `MockShell` that would panic if called (empty
+    /// queue) — if `run()` ever fails to short-circuit on pre-cancel,
+    /// this test fails with a missing-enqueue panic, not a hang.
+    #[tokio::test]
+    async fn run_pre_cancelled_skips_subprocess() {
+        use nika_kernel_mock::policy::MockPolicyChecker;
+        use nika_kernel_mock::shell::MockShell;
+        use nika_kernel_mock::clock::MockClock;
+        use nika_kernel_mock::filesystem::InMemoryFs;
+
+        let shell = MockShell::new();
+        // Intentionally empty — any call to shell.run() would blow up.
+
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let fs = InMemoryFs::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        cancel.cancel(); // pre-cancel BEFORE run()
+        let workflow_dir = PathBuf::from("/tmp/test");
+
+        let caps = ExecCaps::new(
+            &shell, &policy, &clock, &fs, &cancel,
+            &workflow_dir, None, None,
+        );
+
+        let event_log = EventLog::new();
+        let input = ExecInput {
+            command: "echo should not run",
+            shell: false,
+            cwd: None,
+            timeout: None,
+            env: vec![],
+            env_remove: vec![],
+            max_stdout: None,
+            task_id: Arc::from("test_pre_cancel"),
+        };
+
+        let result = run(&input, &caps, &event_log).await;
+        assert!(matches!(
+            result,
+            Err(VerbExecError::Cancelled { .. })
+        ));
+
+        // And no ExecCompleted event was emitted (because no subprocess ran).
+        let events = event_log.events();
+        assert!(
+            !events.iter().any(|e| matches!(
+                e.kind,
+                EventKind::ExecCompleted { .. }
+            )),
+            "pre-cancelled run must not emit ExecCompleted"
+        );
     }
 }
