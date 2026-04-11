@@ -1738,68 +1738,6 @@ fn test_get_dyn_provider_is_send_sync() {
 // RUN_INFER MOCK PROVIDER TESTS
 // ═══════════════════════════════════════════════════════════════
 
-#[tokio::test]
-async fn test_run_infer_mock_basic() {
-    let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
-    let task_id: Arc<str> = Arc::from("test-infer-mock");
-    let bindings = ResolvedBindings::default();
-    let datastore = RunContext::default();
-
-    let infer = InferParams {
-        prompt: "Generate a test response".to_string(),
-        ..Default::default()
-    };
-
-    let result = executor
-        .run_infer(&task_id, &infer, &bindings, &datastore, None)
-        .await;
-    assert!(
-        result.is_ok(),
-        "Mock infer should succeed: {:?}",
-        result.err()
-    );
-
-    let response = result.unwrap();
-    let parsed: serde_json::Value =
-        serde_json::from_str(&response).expect("Mock response should be valid JSON");
-
-    assert_eq!(parsed["mock"], true);
-    assert_eq!(parsed["task_id"], "test-infer-mock");
-    assert_eq!(parsed["status"], "success");
-    assert!(parsed["items"].is_array());
-}
-
-#[tokio::test]
-async fn test_run_infer_mock_emits_provider_responded() {
-    let event_log = EventLog::new();
-    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
-    let task_id: Arc<str> = Arc::from("test-infer-events");
-    let bindings = ResolvedBindings::default();
-    let datastore = RunContext::default();
-
-    let infer = InferParams {
-        prompt: "Hello mock".to_string(),
-        ..Default::default()
-    };
-
-    executor
-        .run_infer(&task_id, &infer, &bindings, &datastore, None)
-        .await
-        .expect("Mock infer should succeed");
-
-    let events = event_log.events();
-    let has_provider_responded = events.iter().any(|e| {
-        matches!(
-            &e.kind,
-            EventKind::ProviderResponded { task_id, .. } if task_id.as_ref() == "test-infer-events"
-        )
-    });
-    assert!(
-        has_provider_responded,
-        "Should emit ProviderResponded event"
-    );
-}
-
 /// **W16-B1 — engine-side golden oracle for the mock fast-path.**
 ///
 /// The S14-δ golden oracle
