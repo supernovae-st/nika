@@ -522,15 +522,6 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_dark_is_default() {
-        let dark = Theme::dark();
-        let dark = Theme::dark();
-
-        assert_eq!(dark.background, dark.background);
-        assert_eq!(dark.text_primary, dark.text_primary);
-    }
-
-    #[test]
     fn test_theme_light_has_inverted_colors() {
         let light = Theme::light();
 
