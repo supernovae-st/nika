@@ -289,7 +289,12 @@ pub async fn run_with_retry(
     })
 }
 
+// S16-swarm clippy sweep: test closures use `_ => None` catch-alls
+// when filtering `EventKind` variants, which tri­ps
+// `clippy::wildcard_enum_match_arm`. Expanding to 100+ variant
+// listings would defeat the purpose of the filter.
 #[cfg(test)]
+#[allow(clippy::wildcard_enum_match_arm)]
 mod tests {
     use super::*;
     use nika_kernel::http::HttpMethod;

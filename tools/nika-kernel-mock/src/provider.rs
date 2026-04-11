@@ -144,7 +144,11 @@ impl Provider for MockProvider {
     }
 }
 
+// S16-swarm clippy sweep: same rationale as nika-kernel::builtin's
+// test module — panic-helper `_ => panic!(…)` wildcards deliberately
+// assert "anything BUT the target variant is a failure".
 #[cfg(test)]
+#[allow(clippy::wildcard_enum_match_arm)]
 mod tests {
     use super::*;
 

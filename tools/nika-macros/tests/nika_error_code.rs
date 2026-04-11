@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Tests for #[derive(NikaErrorCode)]
+//!
+//! Macro test fixtures deliberately hold fields and variants that
+//! the runtime never reads — they exist to exercise the proc-macro's
+//! code generation against every real-world shape. Applying
+//! `#![allow(dead_code)]` at the test-file root keeps the fixtures
+//! readable instead of peppering `#[allow]` on every field. (S16-swarm
+//! clippy sweep; equivalent attribute lives on `event_task_id.rs`
+//! for the same reason.)
+#![allow(dead_code)]
 
 use nika_macros::NikaErrorCode;
 

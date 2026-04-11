@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Tests for #[derive(EventTaskId)]
+//!
+//! Macro test fixtures deliberately hold fields and variants that
+//! the runtime never reads — they exist to exercise the proc-macro's
+//! code generation against every real-world shape. Applying
+//! `#![allow(dead_code)]` at the test-file root keeps the fixtures
+//! readable. (S16-swarm clippy sweep; equivalent attribute lives on
+//! `nika_error_code.rs` for the same reason.)
+#![allow(dead_code)]
 
 use nika_macros::EventTaskId;
 use std::sync::Arc;

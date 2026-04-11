@@ -295,7 +295,12 @@ fn extract_text(content: &[ContentBlock]) -> String {
     out
 }
 
+// S16-swarm clippy sweep: test `find_map` closures use `_ => None`
+// catch-alls when filtering `EventKind` variants, which trips
+// `clippy::wildcard_enum_match_arm`. Expanding to 100+ variant
+// listings would make the filter unreadable.
 #[cfg(test)]
+#[allow(clippy::wildcard_enum_match_arm)]
 mod tests {
     use super::*;
     use nika_event::EventKind;

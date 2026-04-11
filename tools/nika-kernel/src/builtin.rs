@@ -203,7 +203,14 @@ impl BuiltinError {
 // Tests
 // ─────────────────────────────────────────────────────────────────────
 
+// S16-swarm clippy sweep: the panic-helper match arms in this test
+// module deliberately catch every non-target variant via a `_ =>
+// panic!(…)` arm, which trips `clippy::wildcard_enum_match_arm`.
+// Expanding every variant explicitly would produce unmaintainable
+// test code and the wildcard is the whole point of these assertions
+// (they say "anything BUT the expected variant is a failure").
 #[cfg(test)]
+#[allow(clippy::wildcard_enum_match_arm)]
 mod tests {
     use super::*;
     use std::sync::Arc;
