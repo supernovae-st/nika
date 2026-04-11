@@ -765,6 +765,83 @@ The verb crate matrix is now: exec ✓ live | fetch helpers (unwired) |
 invoke builtin + MCP | **infer partially live (simple text delegates,
 streaming/structured/vision/thinking stay engine-owned)** | agent ✗.
 
+## Constellation DX-2 — 2026-04-11 (Pure Deletion)
+
+**First engine LOC reduction since S13.** Zero new features, pure
+deletion session. Spent 30 minutes finding deletable fossils per
+the `feedback_deletion_first_not_abstraction_first` rule, then
+deleted them in 4 micro-commits with a 5th commit fixing a flake
+caught during the final verification run.
+
+### Commits
+
+```
+7e68302f1 chore(engine): delete dead IndexedDag module (-880 LOC)
+6ad6229c8 chore(engine): delete dead_code fossils (-63 LOC)
+286837278 chore(engine): delete dead rig provider helpers (-51 LOC)
+fe146d969 chore(engine): delete validate_exec_command wrapper (-7 LOC)
+521d04993 fix(tests): add #[serial] to test_debug_works_for_all_variants
+```
+
+### Measurements
+
+| Metric | S17 | DX-2 | Delta |
+|---|---|---|---|
+| Engine LOC (src tree) | 147,373 | 146,383 | **-990** |
+| Tests | 10,916 | 10,913 | -3 (deleted helper tests) |
+| Clippy warnings | 0 | 0 | 0 |
+| Crates | 35 | 35 | 0 |
+| D/A ratio | n/a | ≈∞ | first net-negative since S13 |
+
+### What was deleted
+
+1. **`dag/indexed.rs`** (880 LOC) — `IndexedDag` struct with
+   Vec-adjacency + Kahn's algorithm topological sort. Never used
+   outside its own file. Engine uses `Dag` (`flow.rs`) for execution
+   and `StableDag` (petgraph) for TUI visualization.
+
+2. **7 `#[allow(dead_code)]` fossils** across 7 files — speculative
+   fields ("used in 12.12"), tautological tests (comparing `inner()`
+   vs `inner_arc()` pointer equality), unused helpers, and test
+   fixtures that were really feature-gated but masked with `#[allow]`.
+
+3. **3 dead rig provider helpers** — `supports_native_structured_output`
+   (free fn), `RigProvider::supports_vision()`, `RigProvider::supports_thinking()`.
+   All called only from tests. The live capability checks go through
+   `nika_core::catalogs::ModelCapabilities`.
+
+4. **`validate_exec_command` thin wrapper** — 3-line wrapper around
+   `validate_exec_command_with_shell(cmd, false)`. Test sites updated.
+
+### Flake caught and fixed (DX-2 bonus)
+
+Final workspace test run surfaced a 1-test failure:
+`test_auto_fallback_to_mistral` returned `"anthropic"` instead of
+`"mistral"`. Root cause: `test_debug_works_for_all_variants` set
+`ANTHROPIC_API_KEY` without `#[serial]`, racing with the serial
+fallback tests. Per `feedback_never_skip_flakes`, fixed on the spot.
+
+### Why this matters
+
+Engine trajectory S12 → DX-2:
+```
+S12: 148,792
+S13: 146,557  (-2,235) ← real reduction
+S14: 146,196  (-361)
+S14.5: 146,600  (+404)
+S15: 146,839  (+239)
+S16: 147,020  (+181)
+S17: 147,373  (+353)
+DX-2: 146,383  (-990)  ← first reduction since S13
+```
+
+S14-S17 were all +LOC sessions despite shipping useful scaffolding
+(kernel traits, verb crates, invariant #24 helper, delegation). The
+"prep-then-defer" pattern was exactly what `feedback_deletion_first`
+warned about. DX-2 broke the streak.
+
+Target: 100k LOC. Remaining: **-46,383** from DX-2 baseline.
+
 ### Size Targets (V2.3, research-backed)
 
 ```
