@@ -453,10 +453,17 @@ mod tests {
         assert_eq!(ttft_ms, Some(123));
         // StopReason::EndTurn → FinishReason::EndTurn via local mapping.
         assert_eq!(finish_reason, FinishReason::EndTurn);
-        // cost_usd unwraps to f64 (event uses f64, not Option).
-        assert!(
-            (cost_usd - 0.004_2).abs() < f64::EPSILON,
-            "cost_usd should thread through verbatim; got {cost_usd}"
+        // cost_usd unwraps to f64 (event uses f64, not Option). This is a
+        // pure pass-through with no arithmetic, so exact equality is both
+        // correct AND tighter than any epsilon comparison would be. S14-δ
+        // shipped with `< f64::EPSILON` which is mathematically wrong at
+        // magnitude 0.0042 (ULP ≈ 9.3e-19, not EPSILON ≈ 2.22e-16) — the
+        // assertion accepted up to ~5.3e-14 relative error silently. S14.5
+        // hotfix: the response.cost_usd literal and the assertion literal
+        // are the same `0.004_2f64` bit pattern, so assert_eq! is exact.
+        assert_eq!(
+            cost_usd, 0.004_2_f64,
+            "cost_usd should thread through verbatim (pure pass-through, no arithmetic)"
         );
     }
 

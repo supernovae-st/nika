@@ -10,7 +10,13 @@
 use nika_kernel::provider::ProviderError;
 
 /// Errors returned by [`crate::run`].
+///
+/// `#[non_exhaustive]` so new failure modes (e.g. `StructuredOutputFailed`,
+/// `GuardrailViolation` from the W14-B2 surgery) can be added without
+/// breaking downstream `From` impls. Invariant #25, applied symmetrically
+/// across all verb-crate error enums.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VerbInferError {
     /// Input validation failed before dispatch (empty prompt, invalid tokens).
     #[error("infer: invalid input — {reason}")]

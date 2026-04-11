@@ -6,7 +6,12 @@
 /// Errors returned by [`crate::run`].
 ///
 /// The engine converts these to `NikaError` via `impl From<VerbExecError> for NikaError`.
+///
+/// `#[non_exhaustive]` so new failure modes can be added without breaking
+/// downstream `From` impls (invariant #25, applied symmetrically across all
+/// verb-crate error enums).
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VerbExecError {
     /// Command exited with non-zero status.
     #[error("exec: command failed (exit {exit_code}): {stderr}")]

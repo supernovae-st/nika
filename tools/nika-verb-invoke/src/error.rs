@@ -10,7 +10,13 @@ use nika_kernel::mcp::McpError;
 ///
 /// The engine converts these to `NikaError` via
 /// `impl From<VerbInvokeError> for NikaError`.
+///
+/// `#[non_exhaustive]` so new failure modes (e.g. `ResultTooLarge` from the
+/// S15 McpPool trait expansion) can be added without breaking downstream
+/// `From` impls. Invariant #25, applied symmetrically across all verb-crate
+/// error enums.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VerbInvokeError {
     /// Builtin tool dispatch failure.
     #[error(transparent)]

@@ -56,9 +56,23 @@ nika-builtin = { workspace = true }
 nika-policy = { workspace = true }
 nika-extract = { workspace = true }
 nika-vault = { workspace = true }
+# TEMP (S13-B2 → S15/S16): nika-verb-exec dep is normal downward direction
+# but the engine's TaskExecutor::run_exec still orchestrates template
+# resolution + security validation + error mapping around the verb-crate
+# call. Clears when dispatch() live path replaces TaskExecutor (Wave D,
+# blocked on template_resolve migration to nika-runtime).
 nika-verb-exec = { workspace = true }
+# TEMP (S13-C2 → S15): nika-verb-invoke handles builtin dispatch; engine
+# still owns MCP non-builtin path (50MB cap, media pipeline, retry events).
+# Clears when McpPoolAdapter lands and invoke.rs MCP branch delegates to
+# the verb crate. Requires McpPool trait expansion first (S15-A0..A3).
 nika-verb-invoke = { workspace = true }
-# S14-β: pure retry/backoff/hreflang helpers extracted from fetch.rs
+# TEMP (S14-β → S15/S16): partial helper migration only. The retry loop
+# orchestration in fetch.rs still calls safe_backoff_delay + parse_retry_after
+# re-imported from nika-verb-fetch::retry. Removal blocked on extracting
+# fetch_cache + RunContext + SSRF redirect closure + response handling for
+# 6 modes (slim/full/binary/llm_txt/304/default). Same shape as W14-B2
+# infer surgery — deferred multi-session effort.
 nika-verb-fetch = { workspace = true }
 nika-exec-runner = { workspace = true }
 nika-clock = { workspace = true }
