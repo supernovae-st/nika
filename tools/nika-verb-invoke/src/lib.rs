@@ -177,10 +177,10 @@ pub fn is_builtin(tool: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::pin::Pin;
 
-    use nika_kernel::builtin::{BuiltinError, BuiltinRouter};
+    use nika_kernel::builtin::BuiltinRouter;
     use nika_kernel::mcp::McpPool;
+    use nika_kernel_mock::builtin::MockBuiltinRouter;
     use nika_kernel_mock::clock::MockClock;
     use nika_kernel_mock::filesystem::InMemoryFs;
     use nika_kernel_mock::http::MockHttpClient;
@@ -188,63 +188,9 @@ mod tests {
     use nika_kernel_mock::policy::MockPolicyChecker;
     use nika_kernel_mock::store::MemoryBlobStore;
 
-    // ── Test doubles for router + pool ──
-
-    #[derive(Debug, Clone)]
-    struct StubBuiltinRouter {
-        response: String,
-    }
-
-    impl BuiltinRouter for StubBuiltinRouter {
-        fn dispatch<'a>(
-            &'a self,
-            _tool: &'a str,
-            _args: String,
-        ) -> Pin<
-            Box<
-                dyn std::future::Future<Output = Result<String, BuiltinError>>
-                    + Send
-                    + 'a,
-            >,
-        > {
-            let response = self.response.clone();
-            Box::pin(async move { Ok(response) })
-        }
-
-        fn knows(&self, _tool: &str) -> bool {
-            true
-        }
-    }
-
-    #[derive(Debug)]
-    struct StubBuiltinRouterErr;
-
-    impl BuiltinRouter for StubBuiltinRouterErr {
-        fn dispatch<'a>(
-            &'a self,
-            tool: &'a str,
-            _args: String,
-        ) -> Pin<
-            Box<
-                dyn std::future::Future<Output = Result<String, BuiltinError>>
-                    + Send
-                    + 'a,
-            >,
-        > {
-            Box::pin(async move {
-                Err(BuiltinError::Other {
-                    tool: tool.to_string(),
-                    reason: "stub failure".to_string(),
-                })
-            })
-        }
-
-        fn knows(&self, _tool: &str) -> bool {
-            true
-        }
-    }
-
     // S15-A2: StubMcpPool removed — tests now use `nika_kernel_mock::MockMcpPool`.
+    // DX-1: StubBuiltinRouter / StubBuiltinRouterErr removed — tests now use
+    // `nika_kernel_mock::builtin::MockBuiltinRouter`.
     // The verb-invoke body does not call any `McpPool` method for the S13
     // builtin path, so the mock is only a type-slot to satisfy
     // `InvokeCaps::new`. Tests that exercise the MCP path properly go in
@@ -288,9 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn builtin_dispatch_success() {
-        let router = StubBuiltinRouter {
-            response: r#"{"logged":true}"#.to_string(),
-        };
+        let router = MockBuiltinRouter::ok(r#"{"logged":true}"#.to_string());
         let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
@@ -328,7 +272,7 @@ mod tests {
 
     #[tokio::test]
     async fn builtin_dispatch_error_returns_builtin_variant() {
-        let router = StubBuiltinRouterErr;
+        let router = MockBuiltinRouter::err_other("log", "stub failure");
         let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
@@ -355,9 +299,7 @@ mod tests {
 
     #[tokio::test]
     async fn non_builtin_returns_validation_error_for_s13() {
-        let router = StubBuiltinRouter {
-            response: "{}".to_string(),
-        };
+        let router = MockBuiltinRouter::ok("{}".to_string());
         let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
@@ -384,9 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn missing_tool_and_resource_errors() {
-        let router = StubBuiltinRouter {
-            response: "{}".to_string(),
-        };
+        let router = MockBuiltinRouter::ok("{}".to_string());
         let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
