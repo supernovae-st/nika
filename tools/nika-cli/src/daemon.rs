@@ -308,10 +308,13 @@ async fn show_logs(follow: bool, lines: usize) -> Result<(), NikaError> {
     }
 
     if follow {
-        // Use tail -f for simplicity
+        // Use tail -f for simplicity. `kill_on_drop(true)` is mandatory
+        // per invariant #11 — otherwise Ctrl-C / future-drop orphans an
+        // infinite `tail -f` child process.
         let mut child = tokio::process::Command::new("tail")
             .args(["-f", "-n", &lines.to_string()])
             .arg(&log_path)
+            .kill_on_drop(true)
             .spawn()
             .map_err(|e| NikaError::Execution(format!("failed to spawn tail: {e}")))?;
 

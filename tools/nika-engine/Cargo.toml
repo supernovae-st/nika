@@ -74,12 +74,14 @@ nika-verb-invoke = { workspace = true }
 # 6 modes (slim/full/binary/llm_txt/304/default). Same shape as W14-B2
 # infer surgery — deferred multi-session effort.
 nika-verb-fetch = { workspace = true }
-# W16-A0: single-source emit_provider_responded helper lives in
-# nika-verb-infer. The engine's infer.rs still owns the 7 emission
-# paths (streaming, L0a, L0b, vision, mock) — but routes all of them
-# through the verb-crate helper so invariant #24 has exactly one
-# regression target. Removal tracked with the rest of the W14-B2
-# infer surgery (S17+ once streaming support lands in the verb crate).
+# TEMP (W16-A0 → S17+): single-source `emit_provider_responded`
+# helper lives in nika-verb-infer. The engine's infer.rs still owns
+# the 7 emission paths (streaming, L0a, L0b, vision, mock) but routes
+# all of them through the verb-crate helper so invariant #24 has
+# exactly one regression target. Clears when W14-B2 proper flips the
+# engine bridge wholesale through `nika_verb_infer::run()` — blocked
+# on streaming support landing in the verb crate. Invariant #22
+# compliance: TEMP marker + explicit clearance condition.
 nika-verb-infer = { workspace = true }
 nika-exec-runner = { workspace = true }
 nika-clock = { workspace = true }

@@ -46,10 +46,15 @@ pub async fn download_remote_workflow(url: &str) -> Result<PathBuf, NikaError> {
 
     eprintln!("  {} Downloading {}", "→".cyan(), url.dimmed());
 
+    // `kill_on_drop(true)` mandatory per invariant #11 — if the caller
+    // future is dropped mid-await (e.g. Ctrl-C from `nika run`), curl
+    // must be killed rather than left running to its 30 s max-time
+    // timeout as an orphan.
     let output = tokio::process::Command::new("curl")
         .args(["-fsSL", "--max-time", "30", "-o"])
         .arg(&dest)
         .arg(url)
+        .kill_on_drop(true)
         .output()
         .await
         .map_err(|e| {

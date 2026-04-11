@@ -31,13 +31,17 @@
 //! All pre-processing stays at the call site:
 //!
 //! - `StopReason` → `FinishReason` mapping (see
-//!   [`crate::stop_reason_to_finish_reason`]).
+//!   [`crate::stop_reason_to_finish_reason`]). W16-B3 (landed
+//!   same-session as the helper) gave that mapping a second
+//!   parameter `finish_reason_raw: Option<&str>` so `ContentFilter`
+//!   and `Unknown` preserve the provider's verbatim string.
+//!   Consumption happens IN the mapping fn, NOT in this helper —
+//!   the helper takes an already-mapped `FinishReason` as the 8th
+//!   positional argument. Do not add `finish_reason_raw` here
+//!   without also breaking the 1:1 param-to-variant-field contract.
 //! - `cost_usd` sanitization (`if cost.is_finite() { cost } else { 0.0 }`
 //!   — engine pattern at the streaming sites).
 //! - Token estimation (engine vision/L0b paths).
-//!
-//! W16-B3 will add `finish_reason_raw` pass-through here once
-//! `InferResponse.finish_reason_raw` lands in `nika-kernel`.
 //!
 //! ## Synchronous
 //!
