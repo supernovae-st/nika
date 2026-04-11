@@ -198,7 +198,7 @@ fn vision_text_response(text: String, start: Instant) -> InferResponse {
 /// that the verb crate's golden oracle tests assert on.
 fn stream_result_to_infer_response(
     sr: super::stream::StreamResult,
-    model: &str,
+    cost_usd: f64,
 ) -> InferResponse {
     let stop_reason = sr
         .finish_reason
@@ -222,17 +222,51 @@ fn stream_result_to_infer_response(
     );
     response.ttft_ms = sr.ttft_ms;
     response.request_id = sr.request_id;
-    // P0-2 fix: compute cost from the static pricing catalog so the verb
-    // crate emits ProviderResponded with real cost_usd instead of 0.0.
-    // Prior to this fix, cost_usd was None → unwrap_or(0.0) in the verb
-    // crate, making cost tracking non-functional for ~90% of calls.
-    response.cost_usd = nika_core::catalogs::estimate_cost(
-        model,
-        sr.input_tokens,
-        sr.output_tokens,
-    )
-    .map(|c| c.usd);
+    response.cost_usd = if cost_usd.is_finite() && cost_usd > 0.0 {
+        Some(cost_usd)
+    } else {
+        None
+    };
     response
+}
+
+/// Compute cost for a completed `StreamResult` using the same logic as the
+/// engine's streaming path. DX-3 fix: unifies cost computation so the verb
+/// crate delegation path emits the SAME cost as the engine streaming path.
+///
+/// Priority:
+/// 1. Hourly-rate (custom self-hosted endpoints): `(duration / 3600) × rate`
+///    — this is THE ONLY correct cost model for endpoints like `h100` where
+///    model strings (`Qwen/Qwen3-8B`) don't match the static pricing catalog.
+/// 2. Token-based with cache discount (cloud providers): uses
+///    `calculate_cost_with_cache` which applies provider-specific cache
+///    discount rates (Claude 90%, OpenAI 50%, DeepSeek 90%, others 0%).
+/// 3. Fallback `0.0` for unknown providers (Mock, unresolved models).
+fn compute_cost_from_stream_result(
+    provider: &super::RigProvider,
+    sr: &super::stream::StreamResult,
+    model: &str,
+    duration: std::time::Duration,
+) -> f64 {
+    // P0-2: hourly-rate endpoints take priority (token catalog doesn't
+    // know about custom model strings like `Qwen/Qwen3-8B`).
+    if let Some(rate) = provider.hourly_rate() {
+        return crate::provider::cost::calculate_hourly_cost(duration.as_secs_f64(), rate);
+    }
+
+    // P0-1: cloud providers use provider-aware cache-discounted pricing
+    // so Claude prompt-caching users see the correct (lower) cost.
+    if let Some(pk) = provider.cost_provider_kind() {
+        return crate::provider::cost::calculate_cost_with_cache(
+            pk,
+            model,
+            sr.input_tokens,
+            sr.output_tokens,
+            sr.cached_input_tokens,
+        );
+    }
+
+    0.0
 }
 
 /// Reverse mapping: event-log [`FinishReason`] → kernel [`StopReason`].
@@ -381,12 +415,22 @@ impl nika_kernel::provider::Provider for RigProvider {
             let (tx, mut rx) = mpsc::channel::<StreamChunk>(32);
             tokio::spawn(async move { while rx.recv().await.is_some() {} });
 
+            // DX-3: track duration for hourly-rate cost computation.
+            let start = Instant::now();
             let stream_result = self
                 .infer_stream_with_options(&prompt, tx, &opts)
                 .await
                 .map_err(convert_error)?;
+            let duration = start.elapsed();
 
-            Ok(stream_result_to_infer_response(stream_result, &request.model))
+            // DX-3: compute cost with cache discount + hourly rate support.
+            // Fixes 2 P0 regressions from S17-A0:
+            //   - Claude cache discount ignored (over-billed ~90% of savings)
+            //   - Hourly-rate endpoints returned $0.00 (static catalog miss)
+            let cost_usd =
+                compute_cost_from_stream_result(self, &stream_result, &request.model, duration);
+
+            Ok(stream_result_to_infer_response(stream_result, cost_usd))
         }
     }
 
@@ -838,10 +882,8 @@ mod tests {
     // ─── S17-A0: stream_result_to_infer_response tests ──────────────
 
     /// Golden oracle: `stream_result_to_infer_response` preserves all
-    /// metadata fields from `StreamResult` into `InferResponse`. This
-    /// is the TDD test for S17-A0 — it validates that `Provider::infer()`
-    /// (which now routes through streaming internally) returns real token
-    /// counts instead of `TokenUsage::default()`.
+    /// metadata fields from `StreamResult` into `InferResponse`, and
+    /// forwards a pre-computed `cost_usd` verbatim.
     #[test]
     fn stream_result_to_response_preserves_all_metadata() {
         use crate::provider::rig::StreamResult;
@@ -858,7 +900,7 @@ mod tests {
             finish_reason: Some(FinishReason::EndTurn),
         };
 
-        let response = stream_result_to_infer_response(sr, "claude-sonnet-4");
+        let response = stream_result_to_infer_response(sr, 0.004_2_f64);
 
         // Text content preserved
         assert_eq!(response.content.len(), 1);
@@ -878,16 +920,8 @@ mod tests {
         assert_eq!(response.request_id.as_deref(), Some("req_golden_s17"));
         assert_eq!(response.stop_reason, StopReason::EndTurn);
 
-        // P0-2 fix: cost_usd now computed from static pricing catalog.
-        // For a known model like "claude-sonnet-4", the catalog returns
-        // real pricing. The cost should be non-zero for 42 input + 17 output.
-        assert!(
-            response.cost_usd.is_some(),
-            "cost_usd must be computed from pricing catalog for known models"
-        );
-        let cost = response.cost_usd.unwrap();
-        assert!(cost > 0.0, "cost for 42+17 tokens must be > 0.0, got {cost}");
-        assert!(cost < 1.0, "cost for 42+17 tokens should be < $1, got {cost}");
+        // Pre-computed cost forwarded verbatim.
+        assert_eq!(response.cost_usd, Some(0.004_2_f64));
     }
 
     /// Zero cached_input_tokens → `cache_read_tokens: None` (not `Some(0)`).
@@ -903,12 +937,12 @@ mod tests {
             ..Default::default()
         };
 
-        let response = stream_result_to_infer_response(sr, "unknown-model");
+        let response = stream_result_to_infer_response(sr, 0.0);
         assert!(
             response.usage.cache_read_tokens.is_none(),
             "zero cached_input_tokens must map to None, not Some(0)"
         );
-        // Unknown model → no pricing → cost_usd is None
+        // Cost = 0.0 input → `None` (post-DX-3: 0.0 is treated as "unknown").
         assert!(response.cost_usd.is_none());
     }
 
@@ -923,8 +957,207 @@ mod tests {
             ..Default::default()
         };
 
-        let response = stream_result_to_infer_response(sr, "mock-model");
+        let response = stream_result_to_infer_response(sr, 0.0);
         assert_eq!(response.stop_reason, StopReason::EndTurn);
+    }
+
+    // ─── DX-3: compute_cost_from_stream_result P0 regression tests ────
+
+    /// P0-1 regression: Claude prompt-caching users must see cache-discounted
+    /// cost, not full-price cost. The S17-A0 bug used `estimate_cost` which
+    /// ignored `cached_input_tokens`, over-billing by ~90% of the discount.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn compute_cost_applies_claude_cache_discount() {
+        use crate::provider::rig::{RigProvider, StreamResult};
+        use nika_event::types::FinishReason;
+
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+        let provider = RigProvider::claude();
+
+        let sr_no_cache = StreamResult {
+            text: "x".into(),
+            input_tokens: 10_000,
+            output_tokens: 1_000,
+            cached_input_tokens: 0,
+            finish_reason: Some(FinishReason::EndTurn),
+            ..Default::default()
+        };
+        let sr_half_cached = StreamResult {
+            text: "x".into(),
+            input_tokens: 10_000,
+            output_tokens: 1_000,
+            cached_input_tokens: 5_000,
+            finish_reason: Some(FinishReason::EndTurn),
+            ..Default::default()
+        };
+
+        let cost_no_cache = compute_cost_from_stream_result(
+            &provider,
+            &sr_no_cache,
+            "claude-sonnet-4-6",
+            std::time::Duration::from_secs(1),
+        );
+        let cost_half_cached = compute_cost_from_stream_result(
+            &provider,
+            &sr_half_cached,
+            "claude-sonnet-4-6",
+            std::time::Duration::from_secs(1),
+        );
+
+        // Both costs must be > 0 (Claude has real pricing in the catalog).
+        assert!(cost_no_cache > 0.0, "no-cache cost > 0 expected");
+        assert!(cost_half_cached > 0.0, "half-cached cost > 0 expected");
+
+        // With 50% cache hit at Claude's 0.1 (10%) rate, the half-cached
+        // cost must be MEASURABLY lower. The pre-DX-3 bug (estimate_cost)
+        // ignored the discount and returned the same cost for both paths.
+        assert!(
+            cost_half_cached < cost_no_cache,
+            "cache discount must lower cost: half_cached={cost_half_cached} no_cache={cost_no_cache}"
+        );
+        // At least 10% savings (realistic threshold: 5000 cached × input
+        // rate × 0.9 discount is a non-trivial fraction of the total).
+        let savings_ratio = (cost_no_cache - cost_half_cached) / cost_no_cache;
+        assert!(
+            savings_ratio > 0.10,
+            "50% cache hit must save >10% of cost, got {savings_ratio}"
+        );
+    }
+
+    /// P0-2 regression: hourly-rate endpoints (custom self-hosted) must
+    /// return real cost, not $0.00. The S17-A0 bug used `estimate_cost(model, ...)`
+    /// which returned `None` for unknown model strings like `Qwen/Qwen3-8B`.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn compute_cost_uses_hourly_rate_for_endpoint() {
+        use crate::provider::rig::{RigProvider, StreamResult};
+
+        // $3.60/hour = $0.001/sec
+        let provider = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            Some("Qwen/Qwen3-8B"),
+            300,
+            Some(3.60),
+        )
+        .unwrap();
+
+        let sr = StreamResult {
+            text: "x".into(),
+            input_tokens: 1_000,
+            output_tokens: 500,
+            ..Default::default()
+        };
+
+        // 10 seconds × $0.001/sec = $0.01
+        let cost = compute_cost_from_stream_result(
+            &provider,
+            &sr,
+            "Qwen/Qwen3-8B",
+            std::time::Duration::from_secs(10),
+        );
+
+        assert!(
+            (cost - 0.01).abs() < 1e-9,
+            "10s × $3.60/hour should be $0.01, got {cost}"
+        );
+    }
+
+    /// Hourly rate takes priority over token-based pricing. When BOTH
+    /// `hourly_rate` and `cost_provider_kind` would apply (OpenAiCompat),
+    /// the hourly path wins because custom endpoints don't have reliable
+    /// per-token pricing.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn compute_cost_hourly_rate_beats_token_pricing() {
+        use crate::provider::rig::{RigProvider, StreamResult};
+
+        let provider = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            Some("gpt-4o"),
+            300,
+            Some(3_600.0), // $1/sec — ridiculous so the diff is obvious
+        )
+        .unwrap();
+
+        let sr = StreamResult {
+            text: "x".into(),
+            input_tokens: 100,
+            output_tokens: 50,
+            ..Default::default()
+        };
+
+        // 2 seconds × $1/sec = $2.00 (hourly path)
+        // vs ~0.0007 from gpt-4o token-based pricing
+        let cost = compute_cost_from_stream_result(
+            &provider,
+            &sr,
+            "gpt-4o",
+            std::time::Duration::from_secs(2),
+        );
+
+        assert!(cost >= 2.0, "hourly rate must override token pricing: {cost}");
+    }
+
+    /// OpenAiCompat WITHOUT hourly_rate falls back to token-based pricing.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn compute_cost_openai_compat_no_hourly_rate_uses_tokens() {
+        use crate::provider::rig::{RigProvider, StreamResult};
+
+        let provider = RigProvider::openai_compat(
+            "h100",
+            "http://localhost:8000/v1",
+            "test-key",
+            Some("gpt-4o"),
+            300,
+            None, // no hourly rate
+        )
+        .unwrap();
+
+        let sr = StreamResult {
+            text: "x".into(),
+            input_tokens: 100,
+            output_tokens: 50,
+            ..Default::default()
+        };
+
+        // Token-based: non-zero but tiny
+        let cost = compute_cost_from_stream_result(
+            &provider,
+            &sr,
+            "gpt-4o",
+            std::time::Duration::from_secs(2),
+        );
+
+        assert!(cost > 0.0, "gpt-4o token pricing should be > 0");
+        assert!(cost < 1.0, "gpt-4o 100+50 tokens should be < $1, got {cost}");
+    }
+
+    /// Mock provider returns 0.0 (no pricing, no hourly rate).
+    #[test]
+    fn compute_cost_mock_returns_zero() {
+        use crate::provider::rig::{RigProvider, StreamResult};
+
+        let provider = RigProvider::Mock;
+        let sr = StreamResult {
+            input_tokens: 1_000,
+            output_tokens: 500,
+            ..Default::default()
+        };
+
+        let cost = compute_cost_from_stream_result(
+            &provider,
+            &sr,
+            "mock-model",
+            std::time::Duration::from_secs(1),
+        );
+
+        assert_eq!(cost, 0.0);
     }
 
     // ─── S17-A0: finish_reason_to_stop_reason tests ─────────────────

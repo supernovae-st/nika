@@ -188,6 +188,11 @@ pub enum RigProvider {
         raw_api_key: String,
         /// M7: Shared HTTP client for raw calls (connection reuse)
         http_client: reqwest::Client,
+        /// Optional hourly rate for cost calculation on self-hosted endpoints.
+        /// When set, cost is computed as `(duration_secs / 3600) × hourly_rate`
+        /// instead of token-based pricing. DX-3: prevents cost=$0.00 on hourly
+        /// endpoints that don't match the static pricing catalog.
+        hourly_rate: Option<f64>,
     },
     /// Deterministic mock provider — no API keys, no network calls.
     /// Mock responses are generated in the executor (infer.rs, agent.rs),

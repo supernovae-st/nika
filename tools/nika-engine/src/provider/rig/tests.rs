@@ -1139,7 +1139,8 @@ fn test_supports_native_structured_output_by_provider() {
     assert!(!RigProvider::claude().supports_native_structured_output());
 
     let compat =
-        RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test", None, 300).unwrap();
+        RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test", None, 300, None)
+            .unwrap();
     assert!(
         compat.supports_native_structured_output(),
         "OpenAiCompat (custom endpoints) should support native structured output"
@@ -1453,6 +1454,7 @@ fn test_debug_redacts_raw_api_key() {
         "sk-super-secret-key-12345",
         Some("test-model"),
         300,
+        None,
     )
     .unwrap();
 
@@ -1504,6 +1506,7 @@ fn test_openai_compat_name_no_leak() {
             "test-key",
             Some("test-model"),
             300,
+            None,
         )
         .unwrap();
         assert_eq!(provider.name(), format!("openai-compat:endpoint-{}", i));
@@ -1518,14 +1521,21 @@ fn test_openai_compat_default_model_cached() {
         "test-key",
         Some("Qwen/Qwen3-8B"),
         300,
+        None,
     )
     .unwrap();
     assert_eq!(provider.default_model(), "Qwen/Qwen3-8B");
 
     // Without default model → fallback
-    let provider2 =
-        RigProvider::openai_compat("h100", "http://localhost:8000/v1", "test-key", None, 300)
-            .unwrap();
+    let provider2 = RigProvider::openai_compat(
+        "h100",
+        "http://localhost:8000/v1",
+        "test-key",
+        None,
+        300,
+        None,
+    )
+    .unwrap();
     assert_eq!(provider2.default_model(), "gpt-3.5-turbo");
 }
 
@@ -1566,6 +1576,7 @@ fn test_cost_provider_kind_openai_compat() {
         "test-key",
         Some("Qwen/Qwen3-8B"),
         300,
+        None,
     )
     .unwrap();
     // Custom endpoints use OpenAI-compatible API → treat as OpenAI for cost
@@ -1582,6 +1593,7 @@ fn test_openai_compat_cost_not_zero() {
         "test-key",
         Some("gpt-4o"),
         300,
+        None,
     )
     .unwrap();
     let pk = provider.cost_provider_kind().unwrap();
@@ -1862,6 +1874,7 @@ async fn test_openai_compat_infer_with_tools_raw_http() {
         "test-key",
         Some("qwen3.5-27b"),
         300,
+        None,
     )
     .unwrap();
 
@@ -1931,6 +1944,7 @@ async fn test_openai_compat_infer_with_tools_content_fallback() {
         "test-key",
         Some("qwen3.5-27b"),
         300,
+        None,
     )
     .unwrap();
 
@@ -1998,6 +2012,7 @@ async fn test_openai_compat_infer_with_tools_tracks_tokens() {
         "test-key",
         Some("qwen3.5-27b"),
         300,
+        None,
     )
     .unwrap();
 

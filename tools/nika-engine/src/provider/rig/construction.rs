@@ -52,7 +52,7 @@ impl RigProvider {
                             provider: id.into(),
                         }
                     })?;
-                    Self::openai_compat(id, base_url, &key, None, 300)
+                    Self::openai_compat(id, base_url, &key, None, 300, None)
                 } else {
                     Err(ProviderError::NotConfigured {
                         provider: name.to_string(),
@@ -80,6 +80,7 @@ impl RigProvider {
                 &ep.api_key,
                 ep.default_model.as_deref(),
                 ep.timeout_secs,
+                ep.hourly_rate,
             );
         }
 
@@ -159,7 +160,7 @@ impl RigProvider {
                     .iter()
                     .find(|(id, _, _)| *id == provider.id)
                 {
-                    Self::openai_compat(id, base_url, api_key, None, 300)
+                    Self::openai_compat(id, base_url, api_key, None, 300, None)
                 } else {
                     Err(ProviderError::NotConfigured {
                         provider: name.to_string(),
@@ -221,6 +222,7 @@ impl RigProvider {
         api_key: &str,
         default_model: Option<&str>,
         timeout_secs: u64,
+        hourly_rate: Option<f64>,
     ) -> Result<Self, crate::error::NikaError> {
         use crate::provider::endpoints::validate_endpoint_url;
         validate_endpoint_url(base_url)
@@ -244,6 +246,7 @@ impl RigProvider {
             raw_base_url: base_url.to_string(),
             raw_api_key: api_key.to_string(),
             http_client: reqwest::Client::new(),
+            hourly_rate,
         })
     }
 
@@ -361,6 +364,23 @@ impl RigProvider {
             RigProvider::Mock => None,
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => Some(ProviderKind::Native),
+        }
+    }
+
+    /// Get the configured hourly rate for custom self-hosted endpoints.
+    ///
+    /// Returns `Some(rate)` only for `OpenAiCompat` variants constructed with
+    /// an hourly_rate (from `[endpoints.NAME] hourly_rate = ...` in
+    /// `nika.toml`). When present, cost is computed as
+    /// `(duration_secs / 3600) × hourly_rate` instead of token pricing.
+    ///
+    /// Introduced in DX-3 to fix the P0 regression where hourly endpoints
+    /// emitted `cost_usd = 0.0` via the delegation path because the model
+    /// string (e.g. `Qwen/Qwen3-8B`) doesn't match the static pricing catalog.
+    pub fn hourly_rate(&self) -> Option<f64> {
+        match self {
+            RigProvider::OpenAiCompat { hourly_rate, .. } => *hourly_rate,
+            _ => None,
         }
     }
 
