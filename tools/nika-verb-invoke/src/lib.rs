@@ -172,12 +172,11 @@ mod tests {
     use std::pin::Pin;
 
     use nika_kernel::builtin::{BuiltinError, BuiltinRouter};
-    use nika_kernel::mcp::{
-        McpCallOptions, McpError, McpPool, McpResourceContent, McpToolDescriptor, McpToolResult,
-    };
+    use nika_kernel::mcp::McpPool;
     use nika_kernel_mock::clock::MockClock;
     use nika_kernel_mock::filesystem::InMemoryFs;
     use nika_kernel_mock::http::MockHttpClient;
+    use nika_kernel_mock::mcp::MockMcpPool;
     use nika_kernel_mock::policy::MockPolicyChecker;
     use nika_kernel_mock::store::MemoryBlobStore;
 
@@ -237,48 +236,11 @@ mod tests {
         }
     }
 
-    #[derive(Debug)]
-    struct StubMcpPool;
-
-    #[async_trait::async_trait]
-    impl McpPool for StubMcpPool {
-        async fn call_tool(
-            &self,
-            server: &str,
-            _tool: &str,
-            _args: serde_json::Value,
-            _opts: McpCallOptions,
-        ) -> Result<McpToolResult, McpError> {
-            Err(McpError::ServerNotFound {
-                server: server.to_string(),
-            })
-        }
-
-        async fn read_resource(
-            &self,
-            _server: &str,
-            uri: &str,
-            _cancel: &tokio_util::sync::CancellationToken,
-        ) -> Result<McpResourceContent, McpError> {
-            Err(McpError::ResourceFailed {
-                uri: uri.to_string(),
-                reason: "stub".to_string(),
-            })
-        }
-
-        async fn list_tools(
-            &self,
-            server: &str,
-        ) -> Result<Vec<McpToolDescriptor>, McpError> {
-            Err(McpError::ServerNotFound {
-                server: server.to_string(),
-            })
-        }
-
-        fn has_server(&self, _server: &str) -> bool {
-            false
-        }
-    }
+    // S15-A2: StubMcpPool removed — tests now use `nika_kernel_mock::MockMcpPool`.
+    // The verb-invoke body does not call any `McpPool` method for the S13
+    // builtin path, so the mock is only a type-slot to satisfy
+    // `InvokeCaps::new`. Tests that exercise the MCP path properly go in
+    // the adapter crate (S15-A3).
 
     fn make_caps<'a>(
         router: &'a dyn BuiltinRouter,
@@ -314,7 +276,7 @@ mod tests {
         let router = StubBuiltinRouter {
             response: r#"{"logged":true}"#.to_string(),
         };
-        let pool = StubMcpPool;
+        let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
         let blobs = MemoryBlobStore::default();
@@ -352,7 +314,7 @@ mod tests {
     #[tokio::test]
     async fn builtin_dispatch_error_returns_builtin_variant() {
         let router = StubBuiltinRouterErr;
-        let pool = StubMcpPool;
+        let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
         let blobs = MemoryBlobStore::default();
@@ -381,7 +343,7 @@ mod tests {
         let router = StubBuiltinRouter {
             response: "{}".to_string(),
         };
-        let pool = StubMcpPool;
+        let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
         let blobs = MemoryBlobStore::default();
@@ -410,7 +372,7 @@ mod tests {
         let router = StubBuiltinRouter {
             response: "{}".to_string(),
         };
-        let pool = StubMcpPool;
+        let pool = MockMcpPool::new();
         let fs = InMemoryFs::new();
         let http = MockHttpClient::default();
         let blobs = MemoryBlobStore::default();
