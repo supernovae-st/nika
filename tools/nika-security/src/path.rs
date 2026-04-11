@@ -26,7 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::error::NikaError;
+
 
 /// Default artifact output directory relative to project root.
 ///
@@ -56,8 +56,8 @@ const MAX_PATH_LENGTH: usize = 4096;
 ///
 /// # Errors
 ///
-/// - `NikaError::ArtifactPathError` if the path escapes the artifact directory
-/// - `NikaError::ArtifactPathError` if the path contains invalid characters
+/// - `crate::SecurityError::ArtifactPath` if the path escapes the artifact directory
+/// - `crate::SecurityError::ArtifactPath` if the path contains invalid characters
 ///
 /// # Security Notes
 ///
@@ -66,12 +66,12 @@ const MAX_PATH_LENGTH: usize = 4096;
 pub fn validate_artifact_path(
     artifact_dir: &Path,
     output_path: &Path,
-) -> Result<PathBuf, NikaError> {
+) -> Result<PathBuf, crate::SecurityError> {
     let output_str = output_path.to_string_lossy();
 
     // Validate path length
     if output_str.len() > MAX_PATH_LENGTH {
-        return Err(NikaError::ArtifactPathError {
+        return Err(crate::SecurityError::ArtifactPath {
             path: output_str.to_string(),
             reason: format!(
                 "Path exceeds maximum length of {} characters",
@@ -82,7 +82,7 @@ pub fn validate_artifact_path(
 
     // Reject absolute paths in output specification
     if output_path.is_absolute() {
-        return Err(NikaError::ArtifactPathError {
+        return Err(crate::SecurityError::ArtifactPath {
             path: output_str.to_string(),
             reason: "Absolute paths are not allowed in artifact output".to_string(),
         });
@@ -103,7 +103,7 @@ pub fn validate_artifact_path(
     let canonical_base = if artifact_dir.exists() {
         artifact_dir
             .canonicalize()
-            .map_err(|e| NikaError::ArtifactPathError {
+            .map_err(|e| crate::SecurityError::ArtifactPath {
                 path: artifact_dir.display().to_string(),
                 reason: format!("Failed to canonicalize artifact directory: {}", e),
             })?
@@ -114,7 +114,7 @@ pub fn validate_artifact_path(
 
     // Check that normalized path starts with the canonical base
     if !normalized.starts_with(&canonical_base) {
-        return Err(NikaError::ArtifactPathError {
+        return Err(crate::SecurityError::ArtifactPath {
             path: output_str.to_string(),
             reason: format!(
                 "Path traversal detected: '{}' would escape artifact directory '{}'",
@@ -133,13 +133,13 @@ pub fn validate_artifact_path(
 /// - Null bytes (can truncate paths in some systems)
 /// - Leading dots in directory names (hidden files, except . and ..)
 /// - Control characters
-fn validate_path_components(path: &Path) -> Result<(), NikaError> {
+fn validate_path_components(path: &Path) -> Result<(), crate::SecurityError> {
     for component in path.components() {
         let component_str = component.as_os_str().to_string_lossy();
 
         // Check for null bytes
         if component_str.contains('\0') {
-            return Err(NikaError::ArtifactPathError {
+            return Err(crate::SecurityError::ArtifactPath {
                 path: path.display().to_string(),
                 reason: "Path contains null bytes".to_string(),
             });
@@ -147,7 +147,7 @@ fn validate_path_components(path: &Path) -> Result<(), NikaError> {
 
         // Check for control characters
         if component_str.chars().any(|c| c.is_control() && c != '\t') {
-            return Err(NikaError::ArtifactPathError {
+            return Err(crate::SecurityError::ArtifactPath {
                 path: path.display().to_string(),
                 reason: "Path contains control characters".to_string(),
             });
@@ -191,7 +191,9 @@ fn normalize_path(path: &Path) -> PathBuf {
             std::path::Component::CurDir => {
                 // Skip current directory references
             }
-            _ => {
+            std::path::Component::Prefix(_)
+            | std::path::Component::RootDir
+            | std::path::Component::Normal(_) => {
                 components.push(component);
             }
         }
@@ -310,7 +312,7 @@ mod tests {
         let result = validate_artifact_path(&artifact_dir, Path::new("../../../etc/passwd"));
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(matches!(err, NikaError::ArtifactPathError { .. }));
+        assert!(matches!(err, crate::SecurityError::ArtifactPath { .. }));
     }
 
     #[test]
@@ -319,7 +321,7 @@ mod tests {
         let result = validate_artifact_path(&artifact_dir, Path::new("/etc/passwd"));
         assert!(result.is_err());
         let err = result.unwrap_err();
-        if let NikaError::ArtifactPathError { reason, .. } = err {
+        if let crate::SecurityError::ArtifactPath { reason, .. } = err {
             assert!(reason.contains("Absolute paths"));
         } else {
             panic!("Expected ArtifactPathError");
@@ -332,7 +334,7 @@ mod tests {
         let result = validate_artifact_path(&artifact_dir, Path::new("file\0.txt"));
         assert!(result.is_err());
         let err = result.unwrap_err();
-        if let NikaError::ArtifactPathError { reason, .. } = err {
+        if let crate::SecurityError::ArtifactPath { reason, .. } = err {
             assert!(reason.contains("null bytes"));
         } else {
             panic!("Expected ArtifactPathError");
@@ -379,7 +381,7 @@ mod tests {
         let result = validate_artifact_path(&artifact_dir, Path::new(&long_path));
         assert!(result.is_err());
         let err = result.unwrap_err();
-        if let NikaError::ArtifactPathError { reason, .. } = err {
+        if let crate::SecurityError::ArtifactPath { reason, .. } = err {
             assert!(reason.contains("maximum length"));
         } else {
             panic!("Expected ArtifactPathError");

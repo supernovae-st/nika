@@ -364,7 +364,10 @@ impl ArtifactWriter {
     pub fn validate_path(&self, task_id: &str, output_path: &str) -> Result<PathBuf, NikaError> {
         let resolver = TemplateResolver::new(task_id, &self.workflow_name);
         let resolved_path = resolver.resolve(output_path)?;
-        validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))
+        Ok(validate_artifact_path(
+            &self.artifact_dir,
+            Path::new(&resolved_path),
+        )?)
     }
 }
 

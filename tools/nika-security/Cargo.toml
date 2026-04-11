@@ -15,5 +15,8 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 unicode-normalization = { workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [lints]
 workspace = true

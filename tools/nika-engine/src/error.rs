@@ -1254,6 +1254,9 @@ impl From<nika_security::SecurityError> for NikaError {
             nika_security::SecurityError::BlockedCommand { command, reason } => {
                 NikaError::BlockedCommand { command, reason }
             }
+            nika_security::SecurityError::ArtifactPath { path, reason } => {
+                NikaError::ArtifactPathError { path, reason }
+            }
             // Invariant #25: wildcard arm for future non_exhaustive variants.
             other => NikaError::BlockedCommand {
                 command: String::new(),

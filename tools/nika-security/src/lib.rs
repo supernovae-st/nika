@@ -35,7 +35,12 @@ use unicode_normalization::UnicodeNormalization;
 pub enum SecurityError {
     #[error("[NIKA-053] Command blocked: '{command}' - {reason}")]
     BlockedCommand { command: String, reason: String },
+
+    #[error("[NIKA-280] Artifact path error for '{path}': {reason}")]
+    ArtifactPath { path: String, reason: String },
 }
+
+pub mod path;
 
 /// Blocklist of dangerous command patterns (case-insensitive)
 ///

@@ -8,12 +8,13 @@
 //! # Modules
 //!
 //! - [`atomic`] - Atomic file write operations (temp + rename pattern)
-//! - [`security`] - Path validation and security for artifact output
+//! - [`security`] - Path validation — re-exported from the `nika-security::path` L1 module (extracted S18)
 //! - [`template`] - Variable interpolation for artifact paths
 //! - [`writer`] - Artifact writer combining all the above
 
 pub mod atomic;
-pub mod security;
+/// Path validation re-exported from `nika-security::path` (extracted Constellation S18).
+pub use nika_security::path as security;
 pub mod template;
 pub mod writer;
 
