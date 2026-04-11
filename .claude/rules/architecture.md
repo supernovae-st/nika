@@ -232,6 +232,54 @@ cannot regress-test across).
     it to `VerbExecError`, `VerbInvokeError`, `VerbInferError` with
     wildcard arms in `exec.rs` + `invoke.rs` mapping functions.
 
+### Session 16 Sacred Invariants (post-swarm — 2026-04-11)
+
+Added after the 18-agent post-S16 Socratic swarm. The swarm caught
+one invariant self-inflicted by S16 itself (missing `# TEMP` marker
+on `nika-verb-infer` dep that W16-A0 added — caught by the
+architecture-compliance agent), two missing `kill_on_drop` sites in
+`nika-cli` that predated invariant #11 and were never retrofitted,
+and a 24→0 clippy sweep that was mechanical once the double-count
+rollup was understood. The lessons promote three new invariants.
+
+26. **One-headline-per-session.** Every constellation session ships
+    exactly ONE headline item with measurable exit criteria. No
+    "mega-prompt" bundling of W14-B2 + S15.5 + W16-A0/A1/B1/B3 +
+    drive-by under a single session header — S16 tried and delivered
+    scaffolding + Option A only, not the flip. Bundling multi-commit
+    work under one session header hides partial delivery and makes
+    post-session audits ambiguous about which commits were "in
+    scope". Session plans must have ONE headline; the commits inside
+    may be a chain, but every commit serves that one headline.
+
+27. **`Clock` + `ShellExecutor` injection for test hermeticity.**
+    Every new `tokio::process::Command` or `tokio::time::sleep` site
+    MUST accept an injected `Clock` / `ShellExecutor` from caps in
+    test configurations. No `#[cfg(test)]` hot-patches for timing
+    behavior. The 11 load-flake tests in
+    `nika-engine/src/runtime/runner/tests.rs` that fail under heavy
+    parallel `cargo test` + `cargo clippy` + `cargo check`
+    concurrent load are the negative precedent — they hardcode
+    `timeout: Some(10)` against real `echo` subprocesses and get
+    starved under tokio-runtime contention. Clock + ShellExecutor
+    mocks would make them deterministic. Tracked in
+    `project_s17_followup_exec_runner_load_flakes`. Applies
+    retroactively: any future CI-hardening session must thread
+    MockClock / MockShellExecutor through these sites, not just
+    bump the hardcoded timeout.
+
+28. **Every commit compiles + passes goldens.** Multi-session
+    extraction plans (W14-B2, Wave C, Wave D, tui 5-way split) MUST
+    land intermediate commits that each compile AND pass goldens.
+    "It'll be green after S20" is forbidden. Every PR is shippable
+    on its own. Applies retroactively: if an S17+ plan needs 3
+    commits to compile, the first 2 are incorrectly scoped and
+    must be resquenced or consolidated until each compiles.
+    Enforced by the S12-G3 verification ritual: `cargo check
+    --workspace`, `cargo check --workspace --no-default-features`,
+    `cargo test --workspace --lib`, `cargo clippy --workspace
+    --all-targets` — all green, EVERY commit, no exceptions.
+
 ### Multi-session refactor protocol (for S13+)
 
 For any session that's part of a multi-commit architectural refactor:

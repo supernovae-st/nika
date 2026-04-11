@@ -58,11 +58,15 @@ fn strip_builtin_prefix(tool: &str) -> Option<&str> {
 
 /// Execute an invoke verb task.
 ///
-/// For S13, this crate handles **builtin routing only**. MCP routing
-/// returns `VerbInvokeError::Validation` pointing the caller back to
-/// the engine bridge, which still handles MCP inline with media
-/// processing. Session 14 extends this to the full MCP path when
-/// `nika-media` is wired into `InvokeCaps`.
+/// This crate handles the **builtin routing path only** (`nika:*`
+/// tools). The MCP path is routed through `McpPoolAdapter` in
+/// `nika-engine` directly via the `invoke.rs` bridge (landed S15-A5),
+/// NOT through this crate — the media pipeline's coupling to
+/// `CasStore` / `MediaProcessor` / `datastore.set_media` keeps it
+/// engine-owned for the foreseeable future. Therefore the MCP
+/// non-builtin arm of `run()` is reachable ONLY when someone wires
+/// `nika_verb_invoke::run` to an MCP tool name by mistake — it
+/// returns a clear error so the misuse surfaces at test time.
 pub async fn run(
     input: &InvokeInput,
     caps: &InvokeCaps<'_>,
@@ -147,13 +151,17 @@ pub async fn run(
         }
     }
 
-    // Non-builtin path (MCP): for S13, this crate does NOT yet handle MCP
-    // because media processing requires nika-media coupling that we're
-    // not ready to add to the verb crate. The engine bridge continues
-    // to handle MCP inline. Return a clear error so the bridge can
-    // route accordingly.
+    // Non-builtin path (MCP): this crate does NOT handle MCP. The
+    // engine bridge at `nika-engine/src/runtime/executor/invoke.rs`
+    // routes MCP through `McpPoolAdapter` directly (S15-A5). Reaching
+    // this arm means a caller mistakenly invoked
+    // `nika_verb_invoke::run` with a non-`nika:*` tool name — return
+    // a clear error so the misuse is caught at test time rather than
+    // silently taking the wrong code path.
     Err(VerbInvokeError::Validation {
-        reason: "invoke: non-builtin MCP routing is handled by the engine bridge in S13"
+        reason: "invoke: MCP routing is owned by the engine bridge \
+                 (nika_engine::runtime::executor::invoke via McpPoolAdapter) — \
+                 nika_verb_invoke::run only handles builtin nika:* tools"
             .to_string(),
     })
 }

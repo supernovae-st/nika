@@ -262,13 +262,15 @@ cargo clippy --workspace --all-targets         # 26 warnings (baseline, unchange
 
 ### Follow-ups carried to S16+
 
-1. **`NoopMcpPool` / `NullBlobStore` / `NullHttpClient`** still exist in the builtin branch of `invoke.rs` (lines ~149-180 struct defs, ~350/357/360 constructor sites). Removing them requires a real `BlobStoreAdapter` + `HttpClientAdapter` in `nika-engine` — out of S15 scope.
-2. **`infer.rs` 7-site `ProviderResponded` collapse** (W14-B2) — multi-session surgery, remains S16 territory.
-3. **Engine fetch retry loop migration to `verb-fetch::run_with_retry`** — blocked on kernel `FetchAux` trait (robots.txt, rate limiter, cookie jar, ETag cache).
-4. **Dispatch() activation (Wave D)** — all 5 arms still return `NotImplemented` because template resolution + binding + skills + spotlight live in engine.
-5. **Wave C (`nika-verb-agent`)** — 9 TEMP engine deps in `rig_agent_loop/` untouched.
-6. **`McpPoolAdapter` as `TaskExecutor` field** — currently rebuilt per `run_invoke` call. Minor perf cleanup, zero correctness impact.
-7. **`finish_reason_raw` consumer** — `stop_reason_to_finish_reason` in verb-infer still hardcodes `"content_filter"`; threads through W14-B2. **Cleared in Session 16 (W16-B3).**
+(Items 2 and 7 from the original S15 list were cleared in Session
+16 — see the S16 block below — and have been removed from this
+list. The post-S16 carried state is:)
+
+1. **`NoopMcpPool` / `NullBlobStore` / `NullHttpClient`** still exist in the builtin branch of `invoke.rs` (lines ~149-180 struct defs, ~350/357/360 constructor sites). Removing them requires a real `BlobStoreAdapter` + `HttpClientAdapter` in `nika-engine` — out of S15 scope; still open post-S16.
+2. **Engine fetch retry loop migration to `verb-fetch::run_with_retry`** — blocked on kernel `FetchAux` trait (robots.txt, rate limiter, cookie jar, ETag cache).
+3. **Dispatch() activation (Wave D)** — all 5 arms still return `NotImplemented` because template resolution + binding + skills + spotlight live in engine.
+4. **Wave C (`nika-verb-agent`)** — 9 TEMP engine deps in `rig_agent_loop/` untouched.
+5. **`McpPoolAdapter` as `TaskExecutor` field** — currently rebuilt per `run_invoke` call. Minor perf cleanup, zero correctness impact.
 
 ## Constellation Session 16 — 2026-04-11
 
@@ -494,16 +496,21 @@ One file per verb:
 
 | File | LOC | Purpose |
 |------|-----|---------|
-| `infer.rs` | ~2160 | LLM generation (streaming + non-streaming, structured output) |
+| `infer.rs` | ~2320 | LLM generation (streaming + non-streaming, structured output). Post-S16: routes all 7 `ProviderResponded` emission sites through `nika_verb_infer::emit_provider_responded` per invariant #24. |
 | `fetch.rs` | ~1400 | HTTP requests (SSRF protection, 9 extract modes) |
-| `extract.rs` | ~1330 | HTML extraction (markdown, article, metadata, links, feed) |
-| `exec.rs` | ~470 | Shell command execution (blocklist, `\| shell` enforcement) |
-| `invoke.rs` | ~520 | MCP tool calls + 63 builtin tools |
+| `exec.rs` | ~470 | Shell command execution (blocklist, `\| shell` enforcement). Kernel-bridged to `nika-verb-exec` since S13-B2. |
+| `invoke.rs` | ~575 | MCP tool calls + builtin routing. Post-S15-A5 the MCP path delegates to `McpPoolAdapter`; post-S16-swarm S15.5 the adapter takes owned types, not double-Arc. |
 | `agent.rs` | ~600 | Multi-turn agent loop setup |
 | `verbs.rs` | ~760 | `dispatch_verb()` router |
 | `decompose.rs` | ~350 | Task decomposition helpers |
 | `mod.rs` | ~970 | Executor types and dispatch logic |
 | `tests*.rs` | ~6700 | Shield, wiremock, and E2E tests |
+
+**Note:** `extract.rs` was deleted in Session 12 (S12-F7/F8) when
+HTML extraction moved into the standalone `nika-extract` L2 crate
+— the executor no longer owns a file by that name. Earlier
+revisions of this table carried a phantom `extract.rs | ~1330`
+entry that was incorrect post-S12.
 
 **Key file:** `infer.rs` (~2160 LOC) contains the 5-layer structured output
 pipeline and provider auto-retry logic.
