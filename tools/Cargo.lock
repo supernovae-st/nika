@@ -6362,6 +6362,7 @@ dependencies = [
 name = "nika-runtime"
 version = "0.79.0"
 dependencies = [
+ "async-trait",
  "nika-core",
  "nika-event",
  "nika-kernel",
@@ -6569,6 +6570,7 @@ dependencies = [
 name = "nika-verb-invoke"
 version = "0.79.0"
 dependencies = [
+ "async-trait",
  "nika-event",
  "nika-kernel",
  "nika-kernel-mock",

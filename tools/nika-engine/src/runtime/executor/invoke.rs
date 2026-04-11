@@ -18,7 +18,9 @@ use uuid::Uuid;
 
 use nika_kernel::builtin::{BuiltinError, BuiltinRouter as KernelBuiltinRouter};
 use nika_kernel::caps::InvokeCaps;
-use nika_kernel::mcp::{McpError, McpPool};
+use nika_kernel::mcp::{
+    McpCallOptions, McpError, McpPool, McpResourceContent, McpToolDescriptor, McpToolResult,
+};
 use nika_verb_invoke::{is_builtin as is_nika_builtin, InvokeInput, VerbInvokeError};
 
 use crate::ast::InvokeParams;
@@ -148,29 +150,35 @@ impl nika_kernel::http::HttpClient for NullHttpClient {
 #[derive(Debug)]
 struct NoopMcpPool;
 
+#[async_trait::async_trait]
 impl McpPool for NoopMcpPool {
-    fn call_tool<'a>(
-        &'a self,
-        server: &'a str,
-        _tool: &'a str,
+    async fn call_tool(
+        &self,
+        server: &str,
+        _tool: &str,
         _args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value, McpError>> + Send + 'a>> {
-        Box::pin(async move {
-            Err(McpError::ServerNotFound {
-                server: server.to_string(),
-            })
+        _opts: McpCallOptions,
+    ) -> Result<McpToolResult, McpError> {
+        Err(McpError::ServerNotFound {
+            server: server.to_string(),
         })
     }
 
-    fn read_resource<'a>(
-        &'a self,
-        uri: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, McpError>> + Send + 'a>> {
-        Box::pin(async move {
-            Err(McpError::ResourceFailed {
-                uri: uri.to_string(),
-                reason: "engine bridge routes MCP inline in S13".to_string(),
-            })
+    async fn read_resource(
+        &self,
+        _server: &str,
+        uri: &str,
+        _cancel: &tokio_util::sync::CancellationToken,
+    ) -> Result<McpResourceContent, McpError> {
+        Err(McpError::ResourceFailed {
+            uri: uri.to_string(),
+            reason: "engine bridge routes MCP inline (S15 noop shim)".to_string(),
+        })
+    }
+
+    async fn list_tools(&self, server: &str) -> Result<Vec<McpToolDescriptor>, McpError> {
+        Err(McpError::ServerNotFound {
+            server: server.to_string(),
         })
     }
 
@@ -218,6 +226,24 @@ fn map_verb_invoke_error(err: VerbInvokeError) -> NikaError {
             }
             nika_kernel::mcp::McpError::Connection { reason } => NikaError::McpProtocolError {
                 reason,
+            },
+            // S15-A0: new variants carry structured context. Map to the
+            // closest semantic `NikaError` without losing the numbers.
+            nika_kernel::mcp::McpError::ResultTooLarge { bytes, limit } => NikaError::McpToolError {
+                tool: String::from("(unknown)"),
+                reason: format!(
+                    "MCP tool result {bytes} bytes exceeds {limit} byte limit"
+                ),
+                error_code: None,
+            },
+            nika_kernel::mcp::McpError::Cancelled { server, tool } => NikaError::TaskCancelled {
+                task_id: format!("mcp:{server}/{tool}"),
+                reason: "cancelled during MCP call".to_string(),
+            },
+            // `McpError` is `#[non_exhaustive]` (invariant #25) — any future
+            // variant stays triageable through this wildcard arm.
+            other => NikaError::McpProtocolError {
+                reason: format!("unmapped mcp error variant: {other:?}"),
             },
         },
         VerbInvokeError::Cancelled { task_id } => NikaError::TaskCancelled {

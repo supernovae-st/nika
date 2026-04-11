@@ -3,15 +3,16 @@
 
 //! Pure retry/backoff helpers for the `fetch:` verb.
 //!
-//! Extracted from `nika-engine/src/runtime/executor/fetch.rs` in S14-β.
-//! These helpers have zero coupling to the engine: they operate only on
-//! primitive types and `reqwest::header::HeaderMap`. The engine bridge
-//! re-imports them via `use nika_verb_fetch::retry::*`.
+//! Extracted from `nika-engine/src/runtime/executor/fetch.rs` in S14-β,
+//! refactored in S15-A0 to satisfy invariant #23 (kernel-adjacent helpers
+//! use std / primitive / `bytes::Bytes` types only).
 //!
-//! The retry loop _orchestration_ (which consumes these helpers) is still
-//! in the engine bridge — extracting it requires decoupling `fetch_cache`,
-//! `RunContext`, and the SSRF redirect policy closure, which is deferred
-//! to S15 alongside the `infer.rs` surgery (same shape).
+//! These helpers have zero production coupling to `reqwest`. The engine
+//! bridge re-imports them via `use nika_verb_fetch::retry::*` and passes
+//! `Option<&str>` extracted from `response.headers().get(RETRY_AFTER)`.
+//!
+//! The retry loop _orchestration_ (which consumes these helpers) still
+//! lives in the engine bridge. Extracting it is S15-A6 territory.
 
 /// Maximum backoff delay: 5 minutes (300,000 ms).
 ///
@@ -48,19 +49,23 @@ pub fn safe_backoff_delay(base_ms: u64, multiplier: f64, exp: u32) -> u64 {
     raw.clamp(1, MAX_BACKOFF_MS)
 }
 
-/// Parse the `Retry-After` header from a 429 or 503 response.
+/// Parse the `Retry-After` header value from a 429 or 503 response.
+///
+/// Takes `Option<&str>` — the caller extracts the raw header value from
+/// `response.headers().get(RETRY_AFTER).and_then(|v| v.to_str().ok())`
+/// and passes it in. Keeps this module reqwest-free (invariant #23).
 ///
 /// Supports delay-seconds format per RFC 7231 §7.1.3:
-/// - `Retry-After: 120` → `Some(120_000)` (ms)
+/// - `"120"` → `Some(120_000)` (ms)
 ///
 /// HTTP-date format is intentionally not supported (uncommon for LLM APIs
 /// and adds a `chrono` dependency that is not worth the surface).
 ///
-/// Returns `None` if the header is missing, unparseable, or zero.
+/// Returns `None` if the value is missing, unparseable, or zero.
 /// Caps at `MAX_BACKOFF_MS` to prevent servers from stalling a workflow
 /// indefinitely.
-pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
-    let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
+pub fn parse_retry_after(header_value: Option<&str>) -> Option<u64> {
+    let value = header_value?;
     let secs = value.trim().parse::<u64>().ok()?;
     if secs == 0 {
         return None;
@@ -73,32 +78,51 @@ mod tests {
     use super::*;
 
     // ── parse_retry_after ───────────────────────────────────────────────
+    //
+    // Tests exercise the primitive `Option<&str>` surface AND build a
+    // real `reqwest::HeaderMap` fixture to verify the caller's extraction
+    // pattern (`headers.get(RETRY_AFTER).and_then(|v| v.to_str().ok())`)
+    // produces the correct input. reqwest is `[dev-dependencies]` only.
+
+    fn retry_after_from_headers(
+        headers: &reqwest::header::HeaderMap,
+    ) -> Option<&str> {
+        headers
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+    }
 
     #[test]
     fn parse_retry_after_integer_seconds() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, "30".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), Some(30_000));
+        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), Some(30_000));
     }
 
     #[test]
     fn parse_retry_after_missing_header() {
         let headers = reqwest::header::HeaderMap::new();
-        assert_eq!(parse_retry_after(&headers), None);
+        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), None);
+    }
+
+    #[test]
+    fn parse_retry_after_missing_none_input() {
+        // Direct Option<&str>::None path — no HeaderMap needed
+        assert_eq!(parse_retry_after(None), None);
     }
 
     #[test]
     fn parse_retry_after_zero_returns_none() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, "0".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), None);
+        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), None);
     }
 
     #[test]
     fn parse_retry_after_caps_at_5_minutes() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, "600".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), Some(300_000)); // capped
+        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), Some(300_000));
     }
 
     #[test]
@@ -108,14 +132,24 @@ mod tests {
             reqwest::header::RETRY_AFTER,
             "Fri, 31 Dec 2099 23:59:59 GMT".parse().unwrap(),
         );
-        assert_eq!(parse_retry_after(&headers), None); // HTTP-date not supported
+        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), None);
     }
 
     #[test]
     fn parse_retry_after_whitespace_trimmed() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, " 5 ".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), Some(5_000));
+        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), Some(5_000));
+    }
+
+    #[test]
+    fn parse_retry_after_primitive_string() {
+        // Direct primitive path — no reqwest involvement
+        assert_eq!(parse_retry_after(Some("42")), Some(42_000));
+        assert_eq!(parse_retry_after(Some("0")), None);
+        assert_eq!(parse_retry_after(Some(" 7 ")), Some(7_000));
+        assert_eq!(parse_retry_after(Some("not-a-number")), None);
+        assert_eq!(parse_retry_after(Some("")), None);
     }
 
     // ── safe_backoff_delay ──────────────────────────────────────────────

@@ -185,42 +185,38 @@ mod tests {
     #[derive(Debug)]
     struct NoopMcpPool;
 
+    #[async_trait::async_trait]
     impl nika_kernel::mcp::McpPool for NoopMcpPool {
-        fn call_tool<'a>(
-            &'a self,
-            server: &'a str,
-            _tool: &'a str,
+        async fn call_tool(
+            &self,
+            server: &str,
+            _tool: &str,
             _args: serde_json::Value,
-        ) -> std::pin::Pin<
-            Box<
-                dyn std::future::Future<
-                        Output = Result<serde_json::Value, nika_kernel::mcp::McpError>,
-                    > + Send
-                    + 'a,
-            >,
-        > {
-            Box::pin(async move {
-                Err(nika_kernel::mcp::McpError::ServerNotFound {
-                    server: server.to_string(),
-                })
+            _opts: nika_kernel::mcp::McpCallOptions,
+        ) -> Result<nika_kernel::mcp::McpToolResult, nika_kernel::mcp::McpError> {
+            Err(nika_kernel::mcp::McpError::ServerNotFound {
+                server: server.to_string(),
             })
         }
 
-        fn read_resource<'a>(
-            &'a self,
-            uri: &'a str,
-        ) -> std::pin::Pin<
-            Box<
-                dyn std::future::Future<Output = Result<String, nika_kernel::mcp::McpError>>
-                    + Send
-                    + 'a,
-            >,
-        > {
-            Box::pin(async move {
-                Err(nika_kernel::mcp::McpError::ResourceFailed {
-                    uri: uri.to_string(),
-                    reason: "noop pool".to_string(),
-                })
+        async fn read_resource(
+            &self,
+            _server: &str,
+            uri: &str,
+            _cancel: &tokio_util::sync::CancellationToken,
+        ) -> Result<nika_kernel::mcp::McpResourceContent, nika_kernel::mcp::McpError> {
+            Err(nika_kernel::mcp::McpError::ResourceFailed {
+                uri: uri.to_string(),
+                reason: "noop pool".to_string(),
+            })
+        }
+
+        async fn list_tools(
+            &self,
+            server: &str,
+        ) -> Result<Vec<nika_kernel::mcp::McpToolDescriptor>, nika_kernel::mcp::McpError> {
+            Err(nika_kernel::mcp::McpError::ServerNotFound {
+                server: server.to_string(),
             })
         }
 

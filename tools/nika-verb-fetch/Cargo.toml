@@ -20,13 +20,13 @@ serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 tokio-util = { workspace = true }
 bytes = { workspace = true }
-# S14-β: HeaderMap for parse_retry_after. Default features off because this
-# crate never builds a Client — only reads Retry-After headers off responses
-# the engine bridge already owns.
-reqwest = { workspace = true }
 
 [dev-dependencies]
 nika-kernel-mock = { workspace = true }
+# S15-A0: reqwest is dev-only — production code takes `Option<&str>` for
+# parse_retry_after (invariant #23: kernel-adjacent helpers use std types).
+# Tests still build HeaderMap fixtures to exercise the original reqwest shape.
+reqwest = { workspace = true }
 
 [lints]
 workspace = true

@@ -567,9 +567,16 @@ impl TaskExecutor {
                     if is_retryable_status && attempt < effective_max_attempts {
                         let status = response.status();
 
-                        // Prefer server-mandated Retry-After delay on 429, else exponential backoff
+                        // Prefer server-mandated Retry-After delay on 429, else exponential backoff.
+                        // S15-A0: parse_retry_after now takes `Option<&str>` — caller extracts
+                        // the header value so the helper stays reqwest-free (invariant #23).
                         let delay_ms = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                            parse_retry_after(response.headers())
+                            parse_retry_after(
+                                response
+                                    .headers()
+                                    .get(reqwest::header::RETRY_AFTER)
+                                    .and_then(|v| v.to_str().ok()),
+                            )
                         } else {
                             None
                         }

@@ -172,7 +172,9 @@ mod tests {
     use std::pin::Pin;
 
     use nika_kernel::builtin::{BuiltinError, BuiltinRouter};
-    use nika_kernel::mcp::{McpError, McpPool};
+    use nika_kernel::mcp::{
+        McpCallOptions, McpError, McpPool, McpResourceContent, McpToolDescriptor, McpToolResult,
+    };
     use nika_kernel_mock::clock::MockClock;
     use nika_kernel_mock::filesystem::InMemoryFs;
     use nika_kernel_mock::http::MockHttpClient;
@@ -238,41 +240,38 @@ mod tests {
     #[derive(Debug)]
     struct StubMcpPool;
 
+    #[async_trait::async_trait]
     impl McpPool for StubMcpPool {
-        fn call_tool<'a>(
-            &'a self,
-            server: &'a str,
-            _tool: &'a str,
+        async fn call_tool(
+            &self,
+            server: &str,
+            _tool: &str,
             _args: serde_json::Value,
-        ) -> Pin<
-            Box<
-                dyn std::future::Future<Output = Result<serde_json::Value, McpError>>
-                    + Send
-                    + 'a,
-            >,
-        > {
-            Box::pin(async move {
-                Err(McpError::ServerNotFound {
-                    server: server.to_string(),
-                })
+            _opts: McpCallOptions,
+        ) -> Result<McpToolResult, McpError> {
+            Err(McpError::ServerNotFound {
+                server: server.to_string(),
             })
         }
 
-        fn read_resource<'a>(
-            &'a self,
-            uri: &'a str,
-        ) -> Pin<
-            Box<
-                dyn std::future::Future<Output = Result<String, McpError>>
-                    + Send
-                    + 'a,
-            >,
-        > {
-            Box::pin(async move {
-                Err(McpError::ResourceFailed {
-                    uri: uri.to_string(),
-                    reason: "stub".to_string(),
-                })
+        async fn read_resource(
+            &self,
+            _server: &str,
+            uri: &str,
+            _cancel: &tokio_util::sync::CancellationToken,
+        ) -> Result<McpResourceContent, McpError> {
+            Err(McpError::ResourceFailed {
+                uri: uri.to_string(),
+                reason: "stub".to_string(),
+            })
+        }
+
+        async fn list_tools(
+            &self,
+            server: &str,
+        ) -> Result<Vec<McpToolDescriptor>, McpError> {
+            Err(McpError::ServerNotFound {
+                server: server.to_string(),
             })
         }
 
