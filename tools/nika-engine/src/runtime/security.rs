@@ -735,10 +735,6 @@ pub(crate) fn sensitive_env_vars() -> Vec<&'static str> {
 /// # Errors
 ///
 /// Returns `BlockedCommand` if any security check fails.
-pub fn validate_exec_command(cmd: &str) -> Result<(), NikaError> {
-    validate_exec_command_with_shell(cmd, false)
-}
-
 /// Full security validation for exec commands with explicit shell mode flag.
 ///
 /// When `shell_mode` is true, additionally blocks command substitution
@@ -1234,21 +1230,21 @@ mod tests {
 
     #[test]
     fn test_validate_exec_command_safe() {
-        let result = validate_exec_command("echo hello");
+        let result = validate_exec_command_with_shell("echo hello", false);
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
-        let result = validate_exec_command("cargo build --release");
+        let result = validate_exec_command_with_shell("cargo build --release", false);
         assert!(result.is_ok(), "Should succeed: {:?}", result.err());
     }
 
     #[test]
     fn test_validate_exec_command_rejects_control_chars() {
-        let err = validate_exec_command("echo\x00hello").unwrap_err();
+        let err = validate_exec_command_with_shell("echo\x00hello", false).unwrap_err();
         assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_validate_exec_command_rejects_blocklist() {
-        let err = validate_exec_command("rm -rf /").unwrap_err();
+        let err = validate_exec_command_with_shell("rm -rf /", false).unwrap_err();
         assert!(err.to_string().contains("NIKA-053"));
     }
 
@@ -1551,13 +1547,13 @@ mod tests {
         // Full validation should catch Unicode bypass attempts
         let fullwidth_rm = "ｒｍ -rf /";
         assert!(
-            validate_exec_command(fullwidth_rm).is_err(),
+            validate_exec_command_with_shell(fullwidth_rm, false).is_err(),
             "Full validation should block fullwidth rm"
         );
 
         let math_bold_sudo = "\u{1D42C}\u{1D42E}\u{1D41D}\u{1D428} rm";
         assert!(
-            validate_exec_command(math_bold_sudo).is_err(),
+            validate_exec_command_with_shell(math_bold_sudo, false).is_err(),
             "Full validation should block math bold sudo"
         );
     }
