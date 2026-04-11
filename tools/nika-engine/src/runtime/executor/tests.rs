@@ -1800,6 +1800,130 @@ async fn test_run_infer_mock_emits_provider_responded() {
     );
 }
 
+/// **W16-B1 — engine-side golden oracle for the mock fast-path.**
+///
+/// The S14-δ golden oracle
+/// (`infer_emits_provider_responded_with_all_fields` in
+/// `nika-verb-infer/src/lib.rs`) asserts all 8
+/// `ProviderResponded` fields when the event is emitted via the verb
+/// crate's `run()`. After W16-A0 the engine's mock fast-path at
+/// `infer.rs:621` routes through the SAME helper
+/// (`nika_verb_infer::emit_provider_responded`), but the helper
+/// receives values synthesized by the engine (mock request id,
+/// estimated tokens, `FinishReason::Mock`, zero cost), not pulled from
+/// an `InferResponse`.
+///
+/// Phase 1 rust-pro flagged this as the single biggest regression gap:
+/// the existing engine test above only asserts `task_id` presence, so
+/// a silent field drop during the helper extraction or any future
+/// refactor would ship undetected. This test closes that gap by
+/// pinning every field emitted by the engine's mock path to either an
+/// exact value (the deterministic ones) or a concrete non-zero bound
+/// (the estimate-driven ones).
+///
+/// Invariant #24 companion: whenever a new field lands on
+/// `EventKind::ProviderResponded`, the destructure below fails to
+/// compile AND this assertion list has to grow — the test is
+/// deliberately exhaustive, mirroring the verb-crate golden oracle.
+#[tokio::test]
+async fn test_run_infer_mock_emits_provider_responded_with_all_fields() {
+    let event_log = EventLog::new();
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone()).unwrap();
+    let task_id: Arc<str> = Arc::from("w16-b1-golden-task");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Hello mock, describe Alice briefly.".to_string(),
+        ..Default::default()
+    };
+
+    executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await
+        .expect("Mock infer should succeed");
+
+    let events = event_log.events();
+    let provider_responded: Vec<_> = events
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::ProviderResponded { .. }))
+        .collect();
+
+    // Exactly one event — catches accidental double-emit regressions
+    // from a future refactor that calls the helper twice by mistake.
+    assert_eq!(
+        provider_responded.len(),
+        1,
+        "mock fast-path must emit exactly one ProviderResponded event"
+    );
+
+    let EventKind::ProviderResponded {
+        task_id: emitted_task_id,
+        request_id,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        ttft_ms,
+        finish_reason,
+        cost_usd,
+    } = &provider_responded[0].kind
+    else {
+        panic!(
+            "expected ProviderResponded, got {:?}",
+            provider_responded[0].kind
+        );
+    };
+
+    // task_id — threaded through from the run_infer argument.
+    assert_eq!(emitted_task_id.as_ref(), "w16-b1-golden-task");
+
+    // Mock path pins request_id to the sentinel string. Any change
+    // here should be a deliberate contract update, not an accident.
+    assert_eq!(
+        request_id.as_deref(),
+        Some("mock-request"),
+        "mock path request_id contract is the \"mock-request\" sentinel"
+    );
+
+    // Mock tokens come from estimate_tokens(len); we only pin that
+    // they are strictly positive — the estimator is internal and
+    // tests should not assert its exact formula, but a zero on either
+    // side would indicate the mock synth pipeline is broken.
+    assert!(
+        *input_tokens > 0,
+        "mock input_tokens must be > 0 for a non-empty prompt, got {input_tokens}"
+    );
+    assert!(
+        *output_tokens > 0,
+        "mock output_tokens must be > 0 for a synthesized response, got {output_tokens}"
+    );
+
+    // Deterministic fields — the mock path hardcodes these and they
+    // are load-bearing for invariant #24 (golden oracle has a value
+    // to pin, not just a shape).
+    assert_eq!(
+        *cache_read_tokens, 0,
+        "mock path never reports cached tokens"
+    );
+    assert_eq!(
+        *ttft_ms,
+        Some(0),
+        "mock path uses ttft_ms=Some(0), not None — a None would break TUI rendering guards"
+    );
+    assert_eq!(
+        *finish_reason,
+        nika_event::FinishReason::Mock,
+        "mock path must emit FinishReason::Mock, NOT Stop/EndTurn — downstream tooling distinguishes them"
+    );
+    // Cost is exact 0.0 f64 — pure pass-through, no arithmetic. The
+    // S14.5 precedent (cost_usd assertion in verb-crate golden)
+    // applies: exact equality is correct here.
+    assert_eq!(
+        *cost_usd, 0.0_f64,
+        "mock path must emit cost_usd=0.0 — no cost accounting on the mock fast-path"
+    );
+}
+
 #[tokio::test]
 async fn test_run_infer_mock_with_json_schema_injection() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new()).unwrap();
