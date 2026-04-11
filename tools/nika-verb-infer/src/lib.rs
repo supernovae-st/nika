@@ -367,6 +367,99 @@ mod tests {
         assert_eq!(provider_responded.2, FinishReason::EndTurn);
     }
 
+    /// **S14-δ — golden oracle compliance (S12-G2).**
+    ///
+    /// `ProviderResponded` carries 8 fields. Testing only 3 of them
+    /// (the previous test above) leaves 5 fields without a regression
+    /// guard: `request_id`, `cache_read_tokens`, `ttft_ms`, `cost_usd`,
+    /// and `task_id`. A silent breakage anywhere in the field wiring
+    /// (wrong clone, wrong `.unwrap_or(0)`, wrong field name) would
+    /// ship undetected.
+    ///
+    /// This test enqueues an explicit `InferResponse` with known
+    /// values in every optional field and asserts each one on the
+    /// emitted event. S12 invariant #14 ("never weaken the oracle")
+    /// demands this coverage.
+    #[tokio::test]
+    async fn infer_emits_provider_responded_with_all_fields() {
+        use nika_kernel::provider::{InferResponse, StopReason, TokenUsage};
+
+        let mock = Arc::new(MockProvider::new("mock"));
+        let mut response = InferResponse::new(
+            vec![ContentBlock::Text {
+                text: "synthesized".to_string(),
+            }],
+            TokenUsage {
+                input_tokens: 42,
+                output_tokens: 17,
+                cache_read_tokens: Some(8),
+                cache_write_tokens: Some(4),
+            },
+            StopReason::EndTurn,
+        );
+        response.request_id = Some("req_golden_01HZA".to_string());
+        response.ttft_ms = Some(123);
+        response.cost_usd = Some(0.004_2);
+        mock.enqueue_response(response);
+
+        let fs = InMemoryFs::new();
+        let policy = MockPolicyChecker::allow_all();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = make_caps(mock.clone(), &fs, &policy, &clock, &cancel);
+        let event_log = EventLog::new();
+
+        let input = make_input("test");
+        run(&input, &caps, &event_log).await.unwrap();
+
+        let events = event_log.events();
+        let (task_id, request_id, input_tokens, output_tokens, cache_read_tokens,
+             ttft_ms, finish_reason, cost_usd) = events
+            .iter()
+            .find_map(|e| match &e.kind {
+                EventKind::ProviderResponded {
+                    task_id,
+                    request_id,
+                    input_tokens,
+                    output_tokens,
+                    cache_read_tokens,
+                    ttft_ms,
+                    finish_reason,
+                    cost_usd,
+                } => Some((
+                    Arc::clone(task_id),
+                    request_id.clone(),
+                    *input_tokens,
+                    *output_tokens,
+                    *cache_read_tokens,
+                    *ttft_ms,
+                    finish_reason.clone(),
+                    *cost_usd,
+                )),
+                _ => None,
+            })
+            .expect("expected ProviderResponded event");
+
+        // task_id threads through from InferInput.
+        assert_eq!(task_id.as_ref(), "test-task");
+        // request_id comes from InferResponse.request_id verbatim.
+        assert_eq!(request_id.as_deref(), Some("req_golden_01HZA"));
+        // Token counts come from TokenUsage.
+        assert_eq!(input_tokens, 42);
+        assert_eq!(output_tokens, 17);
+        // cache_read_tokens unwraps to u64 (event uses u64, not Option).
+        assert_eq!(cache_read_tokens, 8);
+        // ttft_ms stays Option.
+        assert_eq!(ttft_ms, Some(123));
+        // StopReason::EndTurn → FinishReason::EndTurn via local mapping.
+        assert_eq!(finish_reason, FinishReason::EndTurn);
+        // cost_usd unwraps to f64 (event uses f64, not Option).
+        assert!(
+            (cost_usd - 0.004_2).abs() < f64::EPSILON,
+            "cost_usd should thread through verbatim; got {cost_usd}"
+        );
+    }
+
     #[tokio::test]
     async fn infer_rejects_empty_prompt() {
         let mock = Arc::new(MockProvider::new("mock"));
