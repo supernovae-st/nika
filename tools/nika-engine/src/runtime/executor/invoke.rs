@@ -27,7 +27,7 @@ use crate::ast::InvokeParams;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::EventKind;
-use crate::mcp::McpClient;
+use crate::runtime::mcp_pool_adapter::McpPoolAdapter;
 use crate::runtime::BuiltinToolRouter;
 use crate::store::RunContext;
 use crate::util::INVOKE_TASK_DEADLINE;
@@ -264,6 +264,58 @@ fn map_verb_invoke_error(err: VerbInvokeError) -> NikaError {
         // them.
         other => NikaError::McpProtocolError {
             reason: format!("invoke: unmapped verb error variant: {other:?}"),
+        },
+    }
+}
+
+/// Translate `nika_kernel::mcp::McpError` → `NikaError` at the adapter
+/// boundary (S15-A5). Called from the inline MCP path after
+/// `McpPoolAdapter::call_tool` or `::read_resource` returns.
+///
+/// `pool` is used to disambiguate `ServerNotFound`:
+/// - server not in `.mcp.json` (`has_config == false`) → `McpNotConfigured`
+/// - server in config but connect/start failed → `McpNotConnected`
+///
+/// This matches the pre-S15 semantics the engine tests expect.
+fn map_kernel_mcp_error(
+    err: McpError,
+    tool_hint: &str,
+    pool: &crate::mcp::McpClientPool,
+) -> NikaError {
+    match err {
+        McpError::ServerNotFound { server } => {
+            if pool.has_config(&server) {
+                NikaError::McpNotConnected { name: server }
+            } else {
+                NikaError::McpNotConfigured { name: server }
+            }
+        }
+        McpError::ToolCallFailed {
+            server: _,
+            tool,
+            reason,
+        } => NikaError::McpToolError {
+            tool,
+            reason,
+            error_code: None,
+        },
+        McpError::ResourceFailed { uri, reason } => NikaError::McpResourceNotFound {
+            uri: format!("{uri} ({reason})"),
+        },
+        McpError::Connection { reason } => NikaError::McpProtocolError { reason },
+        McpError::ResultTooLarge { bytes, limit } => NikaError::McpToolError {
+            tool: tool_hint.to_string(),
+            reason: format!("MCP tool result exceeds 50MB limit ({bytes} bytes, limit {limit})"),
+            error_code: None,
+        },
+        McpError::Cancelled { server, tool } => NikaError::TaskCancelled {
+            task_id: format!("mcp:{server}/{tool}"),
+            reason: "cancelled during MCP call".to_string(),
+        },
+        // `McpError` is `#[non_exhaustive]` — any future variant falls
+        // through to a protocol error with the raw debug output.
+        other => NikaError::McpProtocolError {
+            reason: format!("unmapped kernel mcp error: {other:?}"),
         },
     }
 }
@@ -505,33 +557,38 @@ impl TaskExecutor {
                 reason: "MCP server name required for non-builtin tools".to_string(),
             })?;
 
+        // S15-A5: build an McpPoolAdapter once per invoke — the adapter
+        // wraps `McpClientPool::get_or_connect` + cancel select + retry
+        // events + 50 MB size cap + DTO conversion. The engine bridge
+        // still owns the media pipeline and the boundary McpInvoke /
+        // McpResponse event emission (invariants #23 + #24).
+        //
+        // Both `McpClientPool` and `EventLog` are internally `Arc`-backed,
+        // so `Arc::new(…clone())` is cheap (clones the outer struct, not
+        // the inner state).
+        let adapter = McpPoolAdapter::new(
+            Arc::new(self.mcp_pool.clone()),
+            Arc::new(self.event_log.clone()),
+        );
+
         // Race MCP work against both deadline timeout AND cancellation token.
         // This ensures MCP calls abort promptly on workflow cancellation instead of
         // waiting up to INVOKE_TASK_DEADLINE (5 min).
         let mcp_work = async {
-            let client = self.get_mcp_client(mcp_name).await?;
-            const MAX_MCP_RESULT_SIZE: usize = 50 * 1024 * 1024;
-
             let result = if let Some(tool) = &resolved_tool {
                 // Tool call path - use already-resolved params
                 let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
-                // Use call_tool_with_retry_events for McpRetry event emission
-                let tool_result = client
-                    .call_tool_with_retry_events(tool, params, task_id, &self.event_log)
-                    .await?;
-
-                // Enforce 50MB size limit on MCP tool results to prevent OOM
-                let result_size = tool_result.content_size_bytes();
-                if result_size > MAX_MCP_RESULT_SIZE {
-                    return Err(NikaError::McpToolError {
-                        tool: tool.clone(),
-                        reason: format!(
-                            "MCP tool result exceeds 50MB limit ({} bytes)",
-                            result_size
-                        ),
-                        error_code: None,
-                    });
-                }
+                // Delegate transport + size cap + DTO conversion to the adapter.
+                // The `McpCallOptions` carries the task id + cancel token for
+                // fine-grained cancel responsiveness inside the adapter's select.
+                let opts = McpCallOptions::new(
+                    Arc::clone(task_id),
+                    self.cancel_token.clone(),
+                );
+                let tool_result = adapter
+                    .call_tool(mcp_name, tool, params, opts)
+                    .await
+                    .map_err(|e| map_kernel_mcp_error(e, tool, &self.mcp_pool))?;
 
                 // Check if tool returned an error
                 if tool_result.is_error {
@@ -557,10 +614,14 @@ impl TaskExecutor {
 
                 // Process media content (if any)
                 if tool_result.has_media() {
-                    use crate::mcp::types::ContentBlock;
+                    use nika_core::mcp::ContentBlock;
                     use crate::media::{CasStore, MediaProcessor};
 
-                    let media_blocks = tool_result.media_blocks();
+                    // S15-A5: `McpToolResult::media_blocks()` returns an
+                    // `impl Iterator` on the kernel DTO, so collect once
+                    // for both `.len()` and `.iter()` downstream.
+                    let media_blocks: Vec<&ContentBlock> =
+                        tool_result.media_blocks().collect();
                     let content_types: Vec<String> = media_blocks
                         .iter()
                         .filter_map(|b| match b {
@@ -654,26 +715,20 @@ impl TaskExecutor {
                 });
                 (json_value, was_cached)
             } else if let Some(resource) = &resolved_resource {
-                // Resource read path -- now handles blob data via media pipeline
-                let content = client.read_resource(resource).await?;
-
-                // Enforce 50MB size limit on MCP resource reads (mirrors tool call check)
-                let resource_size = content.text.as_ref().map(|t| t.len()).unwrap_or(0)
-                    + content.blob.as_ref().map(|b| b.len()).unwrap_or(0);
-                if resource_size > MAX_MCP_RESULT_SIZE {
-                    return Err(NikaError::McpToolError {
-                        tool: format!("resource:{}", resource),
-                        reason: format!(
-                            "MCP resource exceeds 50MB limit ({} bytes)",
-                            resource_size
-                        ),
-                        error_code: None,
-                    });
-                }
+                // Resource read path -- now handles blob data via media pipeline.
+                // S15-A5: delegate through the adapter which owns the 50 MB
+                // size gate and cancel select. Engine still owns the blob
+                // media pipeline below.
+                let content = adapter
+                    .read_resource(mcp_name, resource, &self.cancel_token)
+                    .await
+                    .map_err(|e| {
+                        map_kernel_mcp_error(e, &format!("resource:{resource}"), &self.mcp_pool)
+                    })?;
 
                 // If resource has a blob, process it through the media pipeline
                 if let Some(blob) = &content.blob {
-                    use crate::mcp::types::ContentBlock;
+                    use nika_core::mcp::ContentBlock;
                     use crate::media::{CasStore, MediaProcessor};
 
                     let mime = content
@@ -681,7 +736,7 @@ impl TaskExecutor {
                         .clone()
                         .unwrap_or_else(|| "application/octet-stream".to_string());
                     let block = ContentBlock::Resource(
-                        crate::mcp::types::ResourceContent::new(resource.clone())
+                        nika_core::mcp::ResourceContent::new(resource.clone())
                             .with_blob(blob.clone())
                             .with_optional_mime(content.mime_type.clone()),
                     );
@@ -767,7 +822,7 @@ impl TaskExecutor {
                 });
             };
 
-            Ok::<(serde_json::Value, Arc<McpClient>, bool), NikaError>((result.0, client, result.1))
+            Ok::<(serde_json::Value, bool), NikaError>(result)
         };
 
         // Use per-task timeout if specified, otherwise fall back to global deadline
@@ -792,7 +847,7 @@ impl TaskExecutor {
             }
         }?;
 
-        let (result, _client, was_cached) = mcp_result;
+        let (result, was_cached) = mcp_result;
 
         // EMIT: McpResponse event (with redacted response for TUI display)
         // is_error is always false here -- error cases return early with their own McpResponse
