@@ -563,13 +563,12 @@ impl TaskExecutor {
         // still owns the media pipeline and the boundary McpInvoke /
         // McpResponse event emission (invariants #23 + #24).
         //
-        // Both `McpClientPool` and `EventLog` are internally `Arc`-backed,
-        // so `Arc::new(…clone())` is cheap (clones the outer struct, not
-        // the inner state).
-        let adapter = McpPoolAdapter::new(
-            Arc::new(self.mcp_pool.clone()),
-            Arc::new(self.event_log.clone()),
-        );
+        // Both `McpClientPool` and `EventLog` are `#[derive(Clone)]` with
+        // internal `Arc`-backed state, so cloning directly into the adapter
+        // ctor is cheap. An outer `Arc<…>` wrap would be a pointless second
+        // level of indirection (S15.5 hotfix).
+        let adapter =
+            McpPoolAdapter::new(self.mcp_pool.clone(), self.event_log.clone());
 
         // Race MCP work against both deadline timeout AND cancellation token.
         // This ensures MCP calls abort promptly on workflow cancellation instead of
@@ -831,6 +830,17 @@ impl TaskExecutor {
             .map(std::time::Duration::from_secs)
             .unwrap_or(INVOKE_TASK_DEADLINE);
 
+        // S15.5-C — double-cancel note. The adapter's `call_tool` races the
+        // same `self.cancel_token` internally with `biased;`, so a cancel
+        // fired during an in-flight rmcp round trip is caught there first
+        // and surfaces as `McpError::Cancelled → NikaError::TaskCancelled`.
+        // The outer arm below exists to abort workflow cancellation that
+        // arrives DURING the post-adapter media pipeline iteration
+        // (`media_blocks.iter()` + `MediaProcessor::process_all`), which
+        // is engine-owned and does not share the adapter's select frame.
+        // Both paths produce identical `NikaError::TaskCancelled`, so the
+        // double check is benign — keeping it preserves media-phase
+        // cancellation responsiveness.
         let mcp_result = tokio::select! {
             result = tokio::time::timeout(deadline, mcp_work) => {
                 result.map_err(|_| NikaError::McpTimeout {

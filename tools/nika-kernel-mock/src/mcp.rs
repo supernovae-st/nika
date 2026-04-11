@@ -6,7 +6,10 @@
 //! Unlike the production adapter in `nika-engine`, `MockMcpPool` does not
 //! spawn MCP servers or talk rmcp. It routes calls by server name to a
 //! programmable queue of canned responses. Use the fixture constructors
-//! (`happy`, `cancelled`, `error`, `oversized`) for common scenarios.
+//! (`happy`, `error`, `oversized`) for common scenarios. Cancellation is
+//! not a pool-wide state — it is honored per-call via `opts.cancel` on
+//! any fixture; see `cancelled_token_returns_cancelled_error` in the
+//! tests module for the pattern.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;

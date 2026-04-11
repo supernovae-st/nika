@@ -51,8 +51,6 @@
 //! backoff sleep`. S16 may add a cancellable retry helper for tighter
 //! bounds.
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
@@ -65,10 +63,15 @@ use nika_mcp::error::McpError as NikaMcpError;
 use nika_mcp::pool::McpClientPool;
 
 /// Concrete `McpPool` impl over `nika_mcp::McpClientPool`.
+///
+/// Holds `McpClientPool` and `EventLog` by owned value. Both types are
+/// `#[derive(Clone)]` with internal `Arc`-backed state, so cloning the
+/// adapter or its fields is cheap (outer struct copy, not inner state).
+/// An extra `Arc<…>` outer wrap would be redundant indirection.
 #[derive(Clone)]
 pub struct McpPoolAdapter {
-    pool: Arc<McpClientPool>,
-    event_log: Arc<EventLog>,
+    pool: McpClientPool,
+    event_log: EventLog,
 }
 
 impl std::fmt::Debug for McpPoolAdapter {
@@ -79,16 +82,20 @@ impl std::fmt::Debug for McpPoolAdapter {
 }
 
 impl McpPoolAdapter {
-    /// Construct an adapter wrapping a shared `McpClientPool` and the
-    /// `EventLog` used for `McpRetry` emission.
-    pub fn new(pool: Arc<McpClientPool>, event_log: Arc<EventLog>) -> Self {
+    /// Construct an adapter wrapping an `McpClientPool` and the `EventLog`
+    /// used for `McpRetry` emission.
+    ///
+    /// Both arguments are owned `Clone` values (not `Arc<…>`): the inner
+    /// state of each is already `Arc`-backed, so cloning is cheap and an
+    /// outer `Arc` would be a pointless second level of indirection.
+    pub fn new(pool: McpClientPool, event_log: EventLog) -> Self {
         Self { pool, event_log }
     }
 
     /// Returns the wrapped `McpClientPool`. Used by the engine bridge
     /// during S15 migration for code paths not yet routed through the
     /// adapter (media pipeline, etc.).
-    pub fn inner(&self) -> &Arc<McpClientPool> {
+    pub fn inner(&self) -> &McpClientPool {
         &self.pool
     }
 }
