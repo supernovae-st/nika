@@ -159,7 +159,19 @@ Wave B: Infer extraction
 
 **Diamond layering note:** `PolicyConfig` + `SecurityPolicyConfig` live in nika-core (L0). `PolicyEnforcer` concrete impl lives in nika-policy (L1). `nika-kernel::policy::PolicyChecker` trait is object-safe with 4 methods; verb crates consume the trait only. **Post-S14**: nika-verb-infer is the 4th verb crate extracted (exec ✓, fetch ✓, invoke ✓, infer ✓, agent ✗). All 4 live verb crates depend only on nika-kernel traits + nika-event + nika-core — zero engine coupling.
 
-**Constellation progress:** S1-S11 cleanup + trait extension. S12 Foundation (2026-04-10) = kernel trait surface + nika-policy + nika-extract (28 crates). S13 (S13-A through E, 2026-04-10) = 3 verb crates extracted (exec/fetch/invoke) + nika-runtime skeleton + BuiltinRouter/McpPool kernel traits (32 crates, +4 from S12). S14 (2026-04-11) = nika-verb-infer extraction + kernel surface expansion + 2 P0 bug fixes (33 crates, +1). S15 = infer.rs bridge surgery + McpPoolAdapter + agent extraction + Wave D prerequisites.
+**Constellation progress:**
+
+| Phase | Date | Diamond crates | Total tracked | Deliverables |
+|---|---|---|---|---|
+| S1–S11 | thru 2026-04-09 | — | — | Cleanup + trait extension + Phase 11/12 builtin migration |
+| S12 Foundation | 2026-04-10 | 28 → 30 | — | Kernel trait surface + `nika-policy` + `nika-extract` |
+| S13 | 2026-04-10 | 30 → 32 | 32 + 3 outside = 35 | 3 verb crates (exec/fetch/invoke) + `nika-runtime` skeleton + `BuiltinRouter` + `McpPool` kernel traits |
+| S14 (W14-A0..B3) | 2026-04-11 AM | 32 (no new) | 35 | `nika-verb-infer` lives but engine still owns infer path; kernel surface expansion (`InferResponse.request_id`/`cost_usd`, `supports_response_format`); 2 P0 bug fixes |
+| S14 (Wave A–B) | 2026-04-11 PM | 32 (no new) | 35 | `InferEvent::Done` struct variant + verb-fetch retry/hreflang migration + golden oracle + verb-exec pre-cancel (5 commits, c96dec861 → acf9d1784) |
+| S14.5 hotfix | 2026-04-11 PM | 32 (no new) | 35 | Post-review hotfix: `f64::EPSILON` exact, `#[non_exhaustive]` retrofit, `# TEMP` markers, invariants #23/#24/#25 codified, ARCH update (3 commits, 53513e5ee → 12407d125) |
+| S15 (planned) | TBD | 32 → 32 (no new) | 35 | McpPool trait expansion + `McpPoolAdapter` + fetch retry orchestration + `parse_retry_after` invariant #23 fix. **Defer:** W14-B2 infer surgery to S16. **Defer:** Wave C agent + Wave D dispatch to S16/S17. |
+
+**Note on crate counting**: 32 = diamond-participating crates (L0–L5). The total of 35 includes 3 outside-the-diamond workspace members: `nika-napi`, `nika-py` (FFI shims), `nika-macros` (proc-macro support). Both numbers are correct depending on whether you're measuring architectural surface (32) or workspace size (35). Prior revs of this doc said "33 crates, +1" referring to mid-S14 state before W14-B1 — that count is now stale. Authoritative: **32 diamond, 35 total**.
 
 ### Session 12 Sacred Invariants (post-G1/G2/G3)
 
