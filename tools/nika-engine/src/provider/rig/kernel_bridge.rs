@@ -174,16 +174,12 @@ fn convert_error(e: super::error::RigInferError) -> ProviderError {
 // Response builders
 // ─────────────────────────────────────────────────────────────────────
 
-/// Build an InferResponse from a plain text result.
+/// Build an InferResponse from a plain text result (vision fallback).
 ///
-/// The `request_id` and `cost_usd` fields stay `None` — the underlying
-/// `RigProvider::infer_with_options` returns only a `String`, so neither
-/// the provider's response identifier nor the per-request token usage
-/// is available at this call site. Populating those fields requires
-/// plumbing token usage back through the RigProvider async boundary,
-/// which is scheduled for W14-B2 when the engine's infer.rs refactors
-/// into nika-verb-infer via the trait.
-fn text_response(text: String, start: Instant) -> InferResponse {
+/// Used ONLY for the vision path where `RigProvider::infer_vision` returns
+/// a `String` without metadata. The text path uses
+/// [`stream_result_to_infer_response`] instead (S17-A0).
+fn vision_text_response(text: String, start: Instant) -> InferResponse {
     let mut response = InferResponse::new(
         vec![ContentBlock::Text { text }],
         TokenUsage::default(),
@@ -191,6 +187,71 @@ fn text_response(text: String, start: Instant) -> InferResponse {
     );
     response.ttft_ms = Some(start.elapsed().as_millis() as u64);
     response
+}
+
+/// Convert a [`StreamResult`] into an [`InferResponse`] with real metadata.
+///
+/// S17-A0: Prior to this, `Provider::infer()` used `infer_with_options()`
+/// which returns only a `String` — losing token counts, request_id, ttft_ms,
+/// and finish_reason. By routing through `infer_stream_with_options()` and
+/// converting the `StreamResult`, the kernel trait now returns rich metadata
+/// that the verb crate's golden oracle tests assert on.
+fn stream_result_to_infer_response(sr: super::stream::StreamResult) -> InferResponse {
+    let stop_reason = sr
+        .finish_reason
+        .as_ref()
+        .map(finish_reason_to_stop_reason)
+        .unwrap_or(StopReason::EndTurn);
+
+    let mut response = InferResponse::new(
+        vec![ContentBlock::Text { text: sr.text }],
+        TokenUsage {
+            input_tokens: sr.input_tokens,
+            output_tokens: sr.output_tokens,
+            cache_read_tokens: if sr.cached_input_tokens > 0 {
+                Some(sr.cached_input_tokens)
+            } else {
+                None
+            },
+            cache_write_tokens: None,
+        },
+        stop_reason,
+    );
+    response.ttft_ms = sr.ttft_ms;
+    response.request_id = sr.request_id;
+    // cost_usd stays None — computed at the engine level from
+    // ModelCapabilities pricing. The verb crate defaults to 0.0.
+    response
+}
+
+/// Reverse mapping: event-log [`FinishReason`] → kernel [`StopReason`].
+///
+/// Inverse of `nika_verb_infer::stop_reason_to_finish_reason`. Used only
+/// inside the kernel bridge when converting `StreamResult` (which stores
+/// `FinishReason` from the streaming pipeline) back to `StopReason`
+/// (which `InferResponse` requires). The round-trip is slightly lossy
+/// for `ContentFilter` vs `Unknown` but acceptable — the verb crate
+/// re-maps `StopReason → FinishReason` with the full logic at event
+/// emission time (invariant #21).
+fn finish_reason_to_stop_reason(fr: &nika_event::types::FinishReason) -> StopReason {
+    use nika_event::types::FinishReason;
+    match fr {
+        FinishReason::EndTurn | FinishReason::Stop => StopReason::EndTurn,
+        FinishReason::MaxTokens => StopReason::MaxTokens,
+        FinishReason::StopSequence => StopReason::StopSequence,
+        FinishReason::ToolUse => StopReason::ToolUse,
+        FinishReason::Mock => StopReason::EndTurn,
+        FinishReason::StructuredOutputRetry | FinishReason::StructuredOutputRepair => {
+            StopReason::EndTurn
+        }
+        FinishReason::Other(s) => {
+            if s == "content_filter" || s == "safety" || s == "policy_violation" {
+                StopReason::ContentFilter
+            } else {
+                StopReason::Unknown(s.clone())
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -271,12 +332,14 @@ impl nika_kernel::provider::Provider for RigProvider {
         &self,
         request: InferRequest,
     ) -> Result<InferResponse, ProviderError> {
-        let start = Instant::now();
         let system = extract_system(&request.messages);
         let has_vision = has_vision_content(&request.messages);
 
         if has_vision {
-            // ── Vision path ──────────────────────────────────────────
+            // ── Vision path (metadata-poor, uses non-streaming) ─────
+            // Vision streaming exists but the vision path is out of
+            // scope for S17-A0 — metadata enrichment is S18+ work.
+            let start = Instant::now();
             let user_content = to_rig_user_content(&request.messages);
             let text = self
                 .infer_vision(
@@ -287,9 +350,13 @@ impl nika_kernel::provider::Provider for RigProvider {
                 )
                 .await
                 .map_err(convert_error)?;
-            Ok(text_response(text, start))
+            Ok(vision_text_response(text, start))
         } else {
-            // ── Text path (with full options) ────────────────────────
+            // ── Text path (S17-A0: streaming for real metadata) ─────
+            // Route through `infer_stream_with_options` internally so
+            // the returned `StreamResult` carries real token counts,
+            // request_id, and ttft_ms. Prior to S17, this called
+            // `infer_with_options` which returned only a `String`.
             let prompt = extract_user_prompt(&request.messages);
             let opts = InferOptions {
                 model: Some(request.model.clone()),
@@ -298,11 +365,17 @@ impl nika_kernel::provider::Provider for RigProvider {
                 system,
                 additional_params: None,
             };
-            let text = self
-                .infer_with_options(&prompt, &opts)
+
+            // Drain channel — we only need the StreamResult metadata.
+            let (tx, mut rx) = mpsc::channel::<StreamChunk>(32);
+            tokio::spawn(async move { while rx.recv().await.is_some() {} });
+
+            let stream_result = self
+                .infer_stream_with_options(&prompt, tx, &opts)
                 .await
                 .map_err(convert_error)?;
-            Ok(text_response(text, start))
+
+            Ok(stream_result_to_infer_response(stream_result))
         }
     }
 
@@ -749,5 +822,132 @@ mod tests {
 
         assert_eq!(events.len(), 2);
         assert!(matches!(&events[0], InferEvent::Thinking(s) if s == "reasoning..."));
+    }
+
+    // ─── S17-A0: stream_result_to_infer_response tests ──────────────
+
+    /// Golden oracle: `stream_result_to_infer_response` preserves all
+    /// metadata fields from `StreamResult` into `InferResponse`. This
+    /// is the TDD test for S17-A0 — it validates that `Provider::infer()`
+    /// (which now routes through streaming internally) returns real token
+    /// counts instead of `TokenUsage::default()`.
+    #[test]
+    fn stream_result_to_response_preserves_all_metadata() {
+        use crate::provider::rig::StreamResult;
+        use nika_event::types::FinishReason;
+
+        let sr = StreamResult {
+            text: "Hello, world!".to_string(),
+            input_tokens: 42,
+            output_tokens: 17,
+            total_tokens: 59,
+            cached_input_tokens: 8,
+            ttft_ms: Some(123),
+            request_id: Some("req_golden_s17".to_string()),
+            finish_reason: Some(FinishReason::EndTurn),
+        };
+
+        let response = stream_result_to_infer_response(sr);
+
+        // Text content preserved
+        assert_eq!(response.content.len(), 1);
+        assert!(matches!(
+            &response.content[0],
+            ContentBlock::Text { text } if text == "Hello, world!"
+        ));
+
+        // Token usage — real values, NOT defaults
+        assert_eq!(response.usage.input_tokens, 42);
+        assert_eq!(response.usage.output_tokens, 17);
+        assert_eq!(response.usage.cache_read_tokens, Some(8));
+        assert!(response.usage.cache_write_tokens.is_none());
+
+        // Metadata fields
+        assert_eq!(response.ttft_ms, Some(123));
+        assert_eq!(response.request_id.as_deref(), Some("req_golden_s17"));
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+        // cost_usd stays None (computed at engine level)
+        assert!(response.cost_usd.is_none());
+    }
+
+    /// Zero cached_input_tokens → `cache_read_tokens: None` (not `Some(0)`).
+    #[test]
+    fn stream_result_to_response_zero_cached_is_none() {
+        use crate::provider::rig::StreamResult;
+
+        let sr = StreamResult {
+            text: "ok".to_string(),
+            input_tokens: 10,
+            output_tokens: 5,
+            cached_input_tokens: 0,
+            ..Default::default()
+        };
+
+        let response = stream_result_to_infer_response(sr);
+        assert!(
+            response.usage.cache_read_tokens.is_none(),
+            "zero cached_input_tokens must map to None, not Some(0)"
+        );
+    }
+
+    /// Missing finish_reason → `StopReason::EndTurn` default.
+    #[test]
+    fn stream_result_to_response_none_finish_reason_defaults_to_end_turn() {
+        use crate::provider::rig::StreamResult;
+
+        let sr = StreamResult {
+            text: "ok".to_string(),
+            finish_reason: None,
+            ..Default::default()
+        };
+
+        let response = stream_result_to_infer_response(sr);
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+    }
+
+    // ─── S17-A0: finish_reason_to_stop_reason tests ─────────────────
+
+    #[test]
+    fn finish_to_stop_typed_variants_round_trip() {
+        use nika_event::types::FinishReason;
+
+        let cases = [
+            (FinishReason::EndTurn, StopReason::EndTurn),
+            (FinishReason::Stop, StopReason::EndTurn),
+            (FinishReason::MaxTokens, StopReason::MaxTokens),
+            (FinishReason::StopSequence, StopReason::StopSequence),
+            (FinishReason::ToolUse, StopReason::ToolUse),
+            (FinishReason::Mock, StopReason::EndTurn),
+        ];
+        for (fr, expected) in cases {
+            let label = format!("{fr:?}");
+            let got = finish_reason_to_stop_reason(&fr);
+            assert_eq!(got, expected, "finish_reason_to_stop_reason({label})");
+        }
+    }
+
+    #[test]
+    fn finish_to_stop_content_filter_variants() {
+        use nika_event::types::FinishReason;
+
+        for raw in ["content_filter", "safety", "policy_violation"] {
+            let fr = FinishReason::Other(raw.to_string());
+            let got = finish_reason_to_stop_reason(&fr);
+            assert_eq!(
+                got,
+                StopReason::ContentFilter,
+                "Other(\"{raw}\") should map to ContentFilter"
+            );
+        }
+    }
+
+    #[test]
+    fn finish_to_stop_unknown_other() {
+        use nika_event::types::FinishReason;
+
+        let fr = FinishReason::Other("server_overloaded".to_string());
+        let got = finish_reason_to_stop_reason(&fr);
+        assert_eq!(got, StopReason::Unknown("server_overloaded".to_string()));
     }
 }
