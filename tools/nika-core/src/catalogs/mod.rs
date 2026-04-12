@@ -17,8 +17,11 @@ pub mod cost;
 pub mod lsp_types;
 pub mod mcp_aliases;
 pub mod models;
+pub mod provider_capabilities;
 pub mod providers;
 pub mod resolver;
+
+pub use provider_capabilities::ProviderCapabilities;
 
 // Re-export main types for convenient access
 pub use builtins::{is_known_builtin, KNOWN_BUILTIN_TOOLS};
