@@ -868,6 +868,10 @@ impl nika_kernel::binding::BindingStore for RunContext {
             }
         })
     }
+
+    fn resolve_env(&self, var_name: &str) -> Option<String> {
+        crate::secrets::store::resolve_env(var_name)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────

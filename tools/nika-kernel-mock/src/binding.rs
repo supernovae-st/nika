@@ -49,6 +49,8 @@ pub struct MockBindingStore {
     records: HashMap<String, Value>,
     /// Skills content keyed by alias.
     skills: HashMap<String, Value>,
+    /// Environment variables keyed by name (no fallback to std::env).
+    env: HashMap<String, String>,
 }
 
 impl MockBindingStore {
@@ -111,6 +113,12 @@ impl MockBindingStore {
     /// Add a skill content.
     pub fn with_skill(mut self, alias: &str, value: Value) -> Self {
         self.skills.insert(alias.to_string(), value);
+        self
+    }
+
+    /// Add an environment variable value (tests do not read `std::env`).
+    pub fn with_env(mut self, name: &str, value: &str) -> Self {
+        self.env.insert(name.to_string(), value.to_string());
         self
     }
 }
@@ -241,6 +249,13 @@ impl BindingStore for MockBindingStore {
             .vault
             .get(&(service.to_string(), field.to_string()))
             .cloned())
+    }
+
+    fn resolve_env(&self, var_name: &str) -> Option<String> {
+        self.env
+            .get(var_name)
+            .cloned()
+            .filter(|v| !v.trim().is_empty())
     }
 }
 
@@ -442,6 +457,17 @@ mod tests {
             Some(json!("formal"))
         );
         assert!(store.resolve_skills_path("missing").is_none());
+    }
+
+    #[test]
+    fn env_resolution() {
+        let store = MockBindingStore::new()
+            .with_env("API_KEY", "sk-live-xxx")
+            .with_env("EMPTY", "   ");
+
+        assert_eq!(store.resolve_env("API_KEY"), Some("sk-live-xxx".to_string()));
+        assert!(store.resolve_env("EMPTY").is_none());
+        assert!(store.resolve_env("MISSING").is_none());
     }
 
     #[test]

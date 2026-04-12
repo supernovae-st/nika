@@ -9,7 +9,7 @@
 //!
 //! # Design (S21)
 //!
-//! The 8 methods map 1:1 to the RunContext methods used by `resolve.rs`:
+//! The 9 methods map 1:1 to the runtime lookups used by `resolve.rs`:
 //!
 //! | Method | RunContext method | Path pattern |
 //! |--------|-----------------|--------------|
@@ -21,6 +21,7 @@
 //! | `resolve_context_path` | `resolve_context_path` | `context.files.alias` |
 //! | `resolve_skills_path` | `resolve_skills_path` | `skills.alias` |
 //! | `vault_get_credential` | `vault_get_credential` | `$vault.service.field` |
+//! | `resolve_env` | `secrets::store::resolve_env` | `$env.VAR` |
 //!
 //! # NOT in scope
 //!
@@ -102,6 +103,14 @@ pub trait BindingStore: Send + Sync {
         service: &str,
         field: &str,
     ) -> Result<Option<String>, BindingStoreError>;
+
+    /// Resolve an environment variable from the in-process secret store,
+    /// falling back to `std::env::var`. Returns `None` if absent or
+    /// empty/whitespace in both sources.
+    ///
+    /// Note: the BLOCKED_ENV_VARS security check lives in the resolver,
+    /// not here — this method is a raw lookup primitive.
+    fn resolve_env(&self, var_name: &str) -> Option<String>;
 }
 
 /// Errors from vault credential lookup.
