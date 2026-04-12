@@ -14,6 +14,7 @@
 
 mod entry;
 pub mod mention;
+pub mod token_budget;
 pub mod transform;
 pub mod types;
 
