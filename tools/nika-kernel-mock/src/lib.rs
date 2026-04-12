@@ -9,7 +9,6 @@
 //! Conformance test functions verify that mocks honor the same contracts
 //! as production implementations.
 
-pub mod binding;
 pub mod builtin;
 pub mod clock;
 pub mod filesystem;
@@ -22,10 +21,15 @@ pub mod record;
 pub mod shell;
 pub mod store;
 
-pub use binding::MockBindingStore;
 pub use builtin::MockBuiltinRouter;
 pub use mcp::MockMcpPool;
 pub use media::MockMediaContext;
 pub use policy::MockPolicyChecker;
 pub use provider::MockProvider;
 pub use record::MockRecordStore;
+
+// S24: `MockBindingStore` moved to `nika_core::binding::mock` behind the
+// `mock-bindings` feature. The old `pub use binding::MockBindingStore`
+// re-export lived here because kernel-mock historically dev-depended on
+// nika-core — that triangle blocked moving binding/resolve.rs tests into
+// nika-core. Deleting the module + its nika-core dep breaks the triangle.

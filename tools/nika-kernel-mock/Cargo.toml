@@ -11,6 +11,10 @@ publish = false
 
 [dependencies]
 nika-kernel = { workspace = true }
+# TEMP: still needed by mcp.rs for `nika_core::mcp::ContentBlock`. Was
+# historically also used by MockBindingStore (moved to nika-core in S24).
+# Would be removed if MockMcpPool's ContentBlock re-exports moved to
+# nika-kernel or kernel-mock re-defined the type locally.
 nika-core = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
