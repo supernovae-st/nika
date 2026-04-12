@@ -2338,14 +2338,14 @@ mod tests {
     fn test_structured_output_extraction_failed_error() {
         let err = NikaError::StructuredOutputExtractionFailed {
             task_id: "generate_json".to_string(),
-            layer: "rig_extractor".to_string(),
+            layer: "extract_validate".to_string(),
             reason: "Failed to parse JSON from response".to_string(),
         };
         assert_eq!(err.code(), "NIKA-300");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-300]"));
         assert!(msg.contains("generate_json"));
-        assert!(msg.contains("rig_extractor"));
+        assert!(msg.contains("extract_validate"));
         assert!(msg.contains("Failed to parse JSON"));
     }
 

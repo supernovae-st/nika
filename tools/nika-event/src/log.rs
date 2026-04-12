@@ -2203,8 +2203,8 @@ mod tests {
 
         log.emit(EventKind::StructuredOutputAttempt {
             task_id: "extract_task".into(),
-            layer: 1,
-            layer_name: "rig_extractor".to_string(),
+            layer: 2,
+            layer_name: "extract_validate".to_string(),
             attempt: 1,
             success: true,
             error: None,
@@ -2222,8 +2222,8 @@ mod tests {
             ..
         } = &events[0].kind
         {
-            assert_eq!(*layer, 1);
-            assert_eq!(layer_name, "rig_extractor");
+            assert_eq!(*layer, 2);
+            assert_eq!(layer_name, "extract_validate");
             assert_eq!(*attempt, 1);
             assert!(*success);
             assert!(error.is_none());
@@ -2300,8 +2300,8 @@ mod tests {
     fn structured_output_attempt_serializes() {
         let event = EventKind::StructuredOutputAttempt {
             task_id: "task1".into(),
-            layer: 1,
-            layer_name: "rig_extractor".to_string(),
+            layer: 2,
+            layer_name: "extract_validate".to_string(),
             attempt: 1,
             success: true,
             error: None,
@@ -2310,8 +2310,8 @@ mod tests {
         let json = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "structured_output_attempt");
         assert_eq!(json["task_id"], "task1");
-        assert_eq!(json["layer"], 1);
-        assert_eq!(json["layer_name"], "rig_extractor");
+        assert_eq!(json["layer"], 2);
+        assert_eq!(json["layer_name"], "extract_validate");
         assert_eq!(json["attempt"], 1);
         assert_eq!(json["success"], true);
         // error should be skipped when None
@@ -2358,8 +2358,8 @@ mod tests {
     fn structured_output_events_task_id_extraction() {
         let attempt = EventKind::StructuredOutputAttempt {
             task_id: "extract1".into(),
-            layer: 1,
-            layer_name: "rig_extractor".to_string(),
+            layer: 2,
+            layer_name: "extract_validate".to_string(),
             attempt: 1,
             success: true,
             error: None,
@@ -2380,17 +2380,17 @@ mod tests {
         // Simulates a full structured output workflow with multiple attempts
         let log = EventLog::new();
 
-        // Layer 1 attempt 1: fails
+        // Layer 2 (extract_validate) attempt 1: fails
         log.emit(EventKind::StructuredOutputAttempt {
             task_id: "parse_json".into(),
-            layer: 1,
-            layer_name: "rig_extractor".to_string(),
+            layer: 2,
+            layer_name: "extract_validate".to_string(),
             attempt: 1,
             success: false,
             error: Some("JSON parse error".to_string()),
         });
 
-        // Layer 2 attempt 1: fails
+        // Layer 2 (extract_validate) attempt 2: fails
         log.emit(EventKind::StructuredOutputAttempt {
             task_id: "parse_json".into(),
             layer: 2,
@@ -2452,9 +2452,9 @@ mod tests {
         assert_eq!(
             attempts,
             vec![
-                (1, 1, false), // Layer 1, attempt 1, failed
-                (2, 1, false), // Layer 2, attempt 1, failed
-                (3, 1, false), // Layer 3, attempt 1, failed
+                (2, 1, false), // Layer 2 (extract_validate), attempt 1, failed
+                (2, 1, false), // Layer 2 (extract_validate), attempt 2, failed
+                (3, 1, false), // Layer 3 (retry_with_feedback), attempt 1, failed
                 (3, 2, true),  // Layer 3, attempt 2, success
             ]
         );
@@ -2929,16 +2929,16 @@ mod tests {
             // Structured Output (2)
             EventKind::StructuredOutputAttempt {
                 task_id: "t1".into(),
-                layer: 1,
-                layer_name: "rig_extractor".into(),
+                layer: 2,
+                layer_name: "extract_validate".into(),
                 attempt: 1,
                 success: true,
                 error: None,
             },
             EventKind::StructuredOutputSuccess {
                 task_id: "t1".into(),
-                layer: 1,
-                layer_name: "rig_extractor".into(),
+                layer: 2,
+                layer_name: "extract_validate".into(),
                 total_attempts: 1,
             },
             // Media Cleanup (1)
