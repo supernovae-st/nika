@@ -8,7 +8,6 @@
 //! # Modules
 //!
 //! - [`atomic`] - Atomic file write operations (temp + rename pattern)
-//! - [`security`] - Path validation — re-exported from the `nika-security::path` L1 module (extracted S18)
 //! - [`template`] - Variable interpolation for artifact paths
 //! - [`writer`] - Artifact writer combining all the above
 

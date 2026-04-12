@@ -40,6 +40,7 @@ impl ChatAgent {
         let output = TokioCommand::new("sh")
             .arg("-c")
             .arg(command)
+            .kill_on_drop(true) // invariant #11
             .output()
             .await
             .map_err(|e| NikaError::ExecError {

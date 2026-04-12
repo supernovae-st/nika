@@ -93,6 +93,10 @@ pub(crate) fn contains_unquoted(haystack: &str, needle: &str) -> bool {
     if needle.is_empty() {
         return false;
     }
+    // All current callers pass ASCII needles (`` ` ``, `$(`, `<(`, etc.).
+    // Byte-level matching is sound for ASCII needles on UTF-8 input because
+    // ASCII bytes (<0x80) cannot appear as continuation bytes in multi-byte sequences.
+    debug_assert!(needle.is_ascii(), "contains_unquoted: needle must be ASCII");
 
     #[derive(Clone, Copy, PartialEq)]
     enum QuoteState {
