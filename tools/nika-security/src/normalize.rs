@@ -50,7 +50,14 @@ pub(crate) fn normalize_for_blocklist(s: &str) -> String {
     // pure ASCII (the common case for legitimate commands). Only whitespace
     // normalization is needed.
     if s.is_ascii() {
-        return s.split_whitespace().collect::<Vec<_>>().join(" ");
+        // Avoid allocation when no whitespace collapsing is needed.
+        // A command with no consecutive whitespace and no leading/trailing
+        // whitespace is already normalized.
+        let trimmed = s.trim();
+        if !trimmed.contains("  ") && !trimmed.contains('\t') && !trimmed.contains('\n') {
+            return trimmed.to_string();
+        }
+        return trimmed.split_whitespace().collect::<Vec<_>>().join(" ");
     }
     s.nfkc()
         .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
@@ -78,7 +85,12 @@ pub(crate) fn normalize_first_token_basename(cmd: &str) -> Cow<'_, str> {
             return Cow::Owned(format!("{basename} {}", &trimmed[space_pos + 1..]));
         }
     }
-    Cow::Borrowed(cmd)
+    // Return trimmed, not original — consistent whitespace handling
+    if trimmed.len() == cmd.len() {
+        Cow::Borrowed(cmd)
+    } else {
+        Cow::Owned(trimmed.to_string())
+    }
 }
 
 /// Check whether `haystack` contains `needle` outside of quoted regions.

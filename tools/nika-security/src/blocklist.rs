@@ -139,6 +139,50 @@ const INTENT_PATTERNS: &[&str] = &[
     "node -e",
 ];
 
+/// Pre-computed normalization of a command for blocklist checks.
+///
+/// Shared across `check_blocklist` and `check_blocklist_with_intent` to avoid
+/// duplicating the normalization preamble (SEC-1/SEC-2/SEC-3).
+struct NormalizedCommand {
+    /// Lowercase, NFKC-normalized, whitespace-collapsed
+    lower: String,
+    /// Shell quoting characters stripped
+    dequoted: String,
+    /// First token resolved to basename
+    basename_normalized: String,
+    /// Basename + dequoted
+    basename_dequoted: String,
+}
+
+impl NormalizedCommand {
+    fn new(cmd: &str) -> Self {
+        // SEC-1: Scan the FULL command, not just first 4KB.
+        let normalized = normalize_for_blocklist(cmd);
+        let lower = normalized.to_lowercase();
+
+        // SEC-3: Strip shell quoting characters before pattern matching.
+        let dequoted: String = lower
+            .chars()
+            .filter(|c| !matches!(c, '"' | '\'' | '\\'))
+            .collect();
+
+        // SEC-2: Also check with the first token basename-resolved.
+        let basename_normalized = normalize_first_token_basename(&lower).into_owned();
+        let basename_dequoted = normalize_first_token_basename(&dequoted).into_owned();
+
+        Self { lower, dequoted, basename_normalized, basename_dequoted }
+    }
+
+    /// Check if any of the 4 normalized variants contain the pattern (case-insensitive).
+    fn matches(&self, pattern: &str) -> bool {
+        let p = pattern.to_lowercase();
+        self.lower.contains(&p)
+            || self.basename_normalized.contains(p.as_str())
+            || self.dequoted.contains(&p)
+            || self.basename_dequoted.contains(p.as_str())
+    }
+}
+
 /// Check command against blocklist
 ///
 /// Performs case-insensitive matching against the blocklist.
@@ -156,27 +200,10 @@ const INTENT_PATTERNS: &[&str] = &[
 ///
 /// Returns `BlockedCommand` if a blocklisted pattern is found.
 pub fn check_blocklist(cmd: &str) -> Result<(), SecurityError> {
-    // SEC-1: Scan the FULL command, not just first 4KB.
-    let normalized = normalize_for_blocklist(cmd);
-    let lower = normalized.to_lowercase();
-
-    // SEC-3: Strip shell quoting characters before pattern matching.
-    let dequoted: String = lower
-        .chars()
-        .filter(|c| !matches!(c, '"' | '\'' | '\\'))
-        .collect();
-
-    // SEC-2: Also check with the first token basename-resolved.
-    let basename_normalized = normalize_first_token_basename(&lower);
-    let basename_dequoted = normalize_first_token_basename(&dequoted);
+    let prep = NormalizedCommand::new(cmd);
 
     for pattern in BLOCKLIST {
-        let normalized_pattern = pattern.to_lowercase();
-        if lower.contains(&normalized_pattern)
-            || basename_normalized.contains(normalized_pattern.as_str())
-            || dequoted.contains(&normalized_pattern)
-            || basename_dequoted.contains(normalized_pattern.as_str())
-        {
+        if prep.matches(pattern) {
             tracing::warn!(
                 command = %nika_core::util::redact_secrets(cmd),
                 pattern = %pattern,
@@ -199,23 +226,14 @@ pub fn check_blocklist(cmd: &str) -> Result<(), SecurityError> {
 ///
 /// When `raw_template` is `None`, behaves identically to `check_blocklist` (all blocked).
 pub fn check_blocklist_with_intent(cmd: &str, raw_template: Option<&str>) -> Result<(), SecurityError> {
-    let normalized = normalize_for_blocklist(cmd);
-    let lower = normalized.to_lowercase();
-    let dequoted: String = lower
-        .chars()
-        .filter(|c| !matches!(c, '"' | '\'' | '\\'))
-        .collect();
-    let basename_normalized = normalize_first_token_basename(&lower);
-    let basename_dequoted = normalize_first_token_basename(&dequoted);
-
-    let candidates: [&str; 4] = [&lower, &basename_normalized, &dequoted, &basename_dequoted];
+    let prep = NormalizedCommand::new(cmd);
 
     for pattern in BLOCKLIST {
-        let normalized_pattern = pattern.to_lowercase();
-        let matched = candidates.iter().any(|c| c.contains(normalized_pattern.as_str()));
-        if !matched {
+        if !prep.matches(pattern) {
             continue;
         }
+
+        let normalized_pattern = pattern.to_lowercase();
 
         // Check if this is an intent pattern that may be developer-authored
         let is_intent_pattern = INTENT_PATTERNS
@@ -224,14 +242,9 @@ pub fn check_blocklist_with_intent(cmd: &str, raw_template: Option<&str>) -> Res
 
         if is_intent_pattern {
             if let Some(raw) = raw_template {
-                let raw_normalized = normalize_for_blocklist(raw);
-                let raw_lower = raw_normalized.to_lowercase();
-                let raw_dequoted: String = raw_lower
-                    .chars()
-                    .filter(|c| !matches!(c, '"' | '\'' | '\\'))
-                    .collect();
-                let in_raw = raw_lower.contains(&normalized_pattern)
-                    || raw_dequoted.contains(&normalized_pattern);
+                let raw_prep = NormalizedCommand::new(raw);
+                let in_raw = raw_prep.lower.contains(&normalized_pattern)
+                    || raw_prep.dequoted.contains(&normalized_pattern);
                 if in_raw {
                     tracing::debug!(
                         pattern = %pattern,

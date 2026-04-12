@@ -205,21 +205,14 @@ fn normalize_path(path: &Path) -> PathBuf {
 /// Error type for path boundary validation
 ///
 /// Contains the target path and reason for conversion to context-specific error types.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("{reason}")]
 pub struct PathBoundaryError {
     /// The target path that failed validation
     pub target_path: PathBuf,
     /// Human-readable reason for the failure
     pub reason: String,
 }
-
-impl std::fmt::Display for PathBoundaryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.reason)
-    }
-}
-
-impl std::error::Error for PathBoundaryError {}
 
 /// Validate that a path stays within a base directory boundary using canonicalization
 ///
