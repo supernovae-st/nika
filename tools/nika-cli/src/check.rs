@@ -30,6 +30,51 @@ static BINDING_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
 static SHELL_GUARD_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"\|\s*shell\b").expect("valid regex"));
 
+/// Resolve the effective provider for a task: task-level override falls back
+/// to the workflow default.
+fn effective_provider<'a>(
+    workflow: &'a nika_engine::ast::Workflow,
+    task: &'a nika_engine::ast::Task,
+) -> &'a str {
+    match &task.action {
+        TaskAction::Infer { infer } => infer
+            .provider
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or_else(|| workflow.provider.as_str()),
+        TaskAction::Agent { agent } => agent
+            .provider
+            .as_ref()
+            .map(|p| p.as_str())
+            .unwrap_or_else(|| workflow.provider.as_str()),
+        _ => workflow.provider.as_str(),
+    }
+}
+
+/// Phase 5.5 — Provider capability gate.
+///
+/// Walk every `infer:` or `agent:` task and ensure the capabilities the user
+/// requested are honoured by the EFFECTIVE provider (task override or
+/// workflow default). Returns [`NikaError::UnsupportedProviderCapability`]
+/// (NIKA-120) on the first mismatch.
+fn validate_capabilities(workflow: &nika_engine::ast::Workflow) -> Result<(), NikaError> {
+    use nika_engine::ast::capability_check::check_extended_thinking;
+
+    for task in &workflow.tasks {
+        let provider = effective_provider(workflow, task);
+        match &task.action {
+            TaskAction::Infer { infer } => {
+                check_extended_thinking(&task.id, provider, infer.extended_thinking)?;
+            }
+            TaskAction::Agent { agent } => {
+                check_extended_thinking(&task.id, provider, agent.extended_thinking)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// Collect SEC-2 shell-escape warnings for all `exec:` tasks with `shell: true`.
 ///
 /// A binding `{{with.*}}` or `{{inputs.*}}` in a `shell: true` command is a shell
@@ -200,6 +245,11 @@ pub async fn validate_workflow(file: &str, quiet: bool, security: bool) -> Resul
     let t = Instant::now();
     validate_bindings(&workflow, &flow_graph)?;
     let bindings_elapsed = t.elapsed();
+
+    // Phase 5.5: Provider capability gate (Track 2 — NIKA-120).
+    // Walk every infer/agent task and reject capability/provider mismatches
+    // the runtime used to paper over with `tracing::warn!()`.
+    validate_capabilities(&workflow)?;
 
     // Phase 6: Validate structured output schema files
     let t = Instant::now();
@@ -629,6 +679,11 @@ pub async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let t = Instant::now();
     validate_bindings(&workflow, &flow_graph)?;
     let bindings_elapsed = t.elapsed();
+
+    // Phase 5.5: Provider capability gate (Track 2 — NIKA-120).
+    // Walk every infer/agent task and reject capability/provider mismatches
+    // the runtime used to paper over with `tracing::warn!()`.
+    validate_capabilities(&workflow)?;
 
     // Phase 6: Validate structured output schema files
     let t = Instant::now();
@@ -1069,4 +1124,109 @@ pub async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod capability_tests {
+    use super::*;
+    use nika_engine::ast::parse_workflow;
+
+    fn parse(yaml: &str) -> nika_engine::ast::Workflow {
+        parse_workflow(yaml).expect("fixture workflow must parse")
+    }
+
+    #[test]
+    fn groq_with_extended_thinking_at_workflow_level_is_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: groq
+model: llama-3.3-70b-versatile
+tasks:
+  - id: analyze
+    infer:
+      prompt: "hello"
+      extended_thinking: true
+"#;
+        let err =
+            validate_capabilities(&parse(yaml)).expect_err("groq must reject extended_thinking");
+        assert_eq!(err.code(), "NIKA-120");
+        let display = format!("{err}");
+        assert!(display.contains("groq"), "display missing provider: {display}");
+        assert!(
+            display.contains("extended_thinking"),
+            "display missing capability: {display}"
+        );
+    }
+
+    #[test]
+    fn anthropic_with_extended_thinking_is_accepted() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
+tasks:
+  - id: analyze
+    infer:
+      prompt: "hello"
+      extended_thinking: true
+"#;
+        validate_capabilities(&parse(yaml)).expect("anthropic must accept extended_thinking");
+    }
+
+    #[test]
+    fn task_level_provider_override_is_honoured_for_agent() {
+        // Workflow default is anthropic (supports thinking) but the task
+        // overrides to groq (does NOT support). NIKA-120 must fire even
+        // though the workflow header looks safe. Agent verb surfaces
+        // provider inside the block; infer is task-level only.
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
+tasks:
+  - id: analyze
+    agent:
+      prompt: "think hard"
+      provider: groq
+      model: llama-3.3-70b-versatile
+      tools: []
+      extended_thinking: true
+"#;
+        let err = validate_capabilities(&parse(yaml))
+            .expect_err("task-level agent override to groq must reject");
+        assert_eq!(err.code(), "NIKA-120");
+        assert!(format!("{err}").contains("groq"));
+    }
+
+    #[test]
+    fn agent_verb_extended_thinking_is_checked_too() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: groq
+model: llama-3.3-70b-versatile
+tasks:
+  - id: assistant
+    agent:
+      prompt: "do the thing"
+      tools: []
+      extended_thinking: true
+"#;
+        let err = validate_capabilities(&parse(yaml))
+            .expect_err("agent verb on groq must reject extended_thinking");
+        assert_eq!(err.code(), "NIKA-120");
+    }
+
+    #[test]
+    fn mock_provider_accepts_everything() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mock
+tasks:
+  - id: t
+    infer:
+      prompt: "hi"
+      extended_thinking: true
+"#;
+        validate_capabilities(&parse(yaml)).expect("mock must accept for test ergonomics");
+    }
 }

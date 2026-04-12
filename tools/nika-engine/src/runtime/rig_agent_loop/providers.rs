@@ -93,18 +93,21 @@ impl RigAgentLoop {
     /// Replaces run_claude/run_openai/run_mistral/run_groq/run_deepseek/run_gemini/run_xai.
     /// Extended thinking intercept stays in run_claude_with_thinking.
     pub async fn run(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        // Extended thinking: Anthropic-only, completely separate path
+        // Extended thinking: fail fast with NIKA-120 on any provider that does
+        // not support it. `nika check` should catch this pre-run; this is
+        // defense in depth.
         if self.params.extended_thinking == Some(true) {
-            if let Some(ref p) = self.params.provider {
-                let name = p.as_str();
-                if name != "anthropic" && name != "claude" {
-                    tracing::warn!(
-                        declared_provider = %name,
-                        "extended_thinking is Anthropic-only — ignoring provider '{}', using Claude",
-                        name
-                    );
-                }
-            }
+            let provider_name = self
+                .params
+                .provider
+                .as_ref()
+                .map(|p| p.as_str())
+                .unwrap_or("anthropic");
+            crate::ast::capability_check::check_extended_thinking(
+                &self.task_id,
+                provider_name,
+                Some(true),
+            )?;
             return self.run_claude_with_thinking().await;
         }
 

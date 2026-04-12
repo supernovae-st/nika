@@ -104,6 +104,7 @@ pub mod limits {
 // Runtime types (consumed by runner/executor — depend on NikaError)
 mod action;
 mod agent;
+pub mod capability_check;
 pub mod import_loader;
 // include_loader removed — expand_raw_include (import_loader.rs) handles DAG fusion
 mod invoke;

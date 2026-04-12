@@ -554,6 +554,15 @@ impl TaskExecutor {
         let _ = provider_idx; // Used for tracing if needed
         let provider_name = &provider_name_owned;
 
+        // Track 2: fail fast with NIKA-120 if the resolved provider does not
+        // support a capability the user explicitly set. `nika check` should
+        // catch this pre-run; this is defense in depth.
+        crate::ast::capability_check::check_extended_thinking(
+            task_id,
+            provider_name,
+            infer.extended_thinking,
+        )?;
+
         // Mock provider support for testing (no API call)
         // Generates a generic JSON response with common test fields
         if provider_name == "mock" {
@@ -1114,19 +1123,19 @@ impl TaskExecutor {
                 Some(serde_json::json!({
                     "thinking": { "type": "enabled", "budget_tokens": budget }
                 }))
-            } else if caps.supports_thinking {
-                // Provider supports thinking but we don't have a specific implementation
-                tracing::warn!(
-                    provider = provider_name,
-                    "extended_thinking mechanism not implemented for {provider_name} — ignoring"
-                );
-                None
             } else {
-                tracing::warn!(
-                    provider = provider_name,
-                    "extended_thinking is not supported on {provider_name} — ignoring"
-                );
-                None
+                // Unreachable: check_extended_thinking at the top of this
+                // function rejects any provider that is not anthropic or an
+                // OpenAI reasoning model (NIKA-120). If we ever reach here,
+                // ProviderCapabilities and the inner dispatch have drifted.
+                return Err(NikaError::Internal {
+                    context: "runtime/executor/infer.rs extended_thinking dispatch".to_string(),
+                    detail: format!(
+                        "capability_check passed but no thinking mechanism is \
+                         wired for provider '{provider_name}'; \
+                         ProviderCapabilities and infer.rs have drifted"
+                    ),
+                });
             }
         } else {
             None
