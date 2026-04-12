@@ -9,6 +9,7 @@
 //! Conformance test functions verify that mocks honor the same contracts
 //! as production implementations.
 
+pub mod binding;
 pub mod builtin;
 pub mod clock;
 pub mod filesystem;
@@ -21,6 +22,7 @@ pub mod record;
 pub mod shell;
 pub mod store;
 
+pub use binding::MockBindingStore;
 pub use builtin::MockBuiltinRouter;
 pub use mcp::MockMcpPool;
 pub use media::MockMediaContext;
