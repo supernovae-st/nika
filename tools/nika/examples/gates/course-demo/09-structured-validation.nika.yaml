@@ -6,9 +6,9 @@
 # doesn't match the schema, Nika's 4-layer StructuredOutputEngine kicks in:
 #
 #   Layer 0: Tool injection (DynamicSubmitTool) — provider-side enforcement
-#   Layer 1: rig Extractor — Rust-side JSON extraction
 #   Layer 2: JSON Schema validation — jsonschema crate
-#   Layer 3: LLM repair — send errors back to LLM for self-correction
+#   Layer 3: Retry with feedback — re-prompt with validation errors
+#   Layer 4: LLM repair — send errors back to LLM for self-correction
 #
 # With max_retries, the engine will attempt repair up to N times before
 # giving up with NIKA-301 (StructuredOutputValidationFailed).

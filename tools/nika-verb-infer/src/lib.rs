@@ -25,7 +25,7 @@
 //! - **Streaming**: `infer_stream()` path with `StreamChunk` channel
 //!   and TUI-bound progress events. The engine's streaming display
 //!   couples to internal types that don't belong in the verb crate.
-//! - **Structured output 5-layer defense**: `StructuredOutputEngine`
+//! - **Structured output 4-layer defense**: `StructuredOutputEngine`
 //!   retry loop (Layer 2-4) stays in the engine. The verb crate
 //!   returns raw text; the engine runs the retry loop on that text.
 //! - **Vision**: `ContentBlock::Image` construction + staging couples

@@ -1567,18 +1567,6 @@
               ],
               "description": "JSON example \u2014 Nika auto-derives the JSON Schema from this structure"
             },
-            "enable_extractor": {
-              "oneOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "$ref": "#/$defs/TemplateString"
-                }
-              ],
-              "description": "Enable Layer 1: rig Extractor (Rust type extraction)",
-              "default": true
-            },
             "enable_tool_injection": {
               "oneOf": [
                 {

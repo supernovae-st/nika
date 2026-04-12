@@ -609,7 +609,7 @@ pub enum EventKind {
     /// Structured output extraction attempt at a specific layer
     ///
     /// Emitted for each layer/retry attempt in the 4-layer defense system:
-    /// - Layer 1: rig Extractor (Rust types with JsonSchema)
+    /// - Layer 0: Tool Injection (DynamicSubmitTool, provider-side)
     /// - Layer 2: Extract + Validate (post-processing)
     /// - Layer 3: Retry with Feedback
     /// - Layer 4: LLM Repair

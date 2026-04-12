@@ -3,13 +3,12 @@
 
 //! Structured Output Engine
 //!
-//! 5-layer defense system for ~99.99% JSON Schema compliance:
+//! 4-layer defense system for ~99.99% JSON Schema compliance:
 //!
 //! - **Layer 0**: Tool Injection (DynamicSubmitTool via `submit_tool` module)
 //!   - Handled OUTSIDE the engine, in `executor/verbs.rs` (infer) and
 //!     `rig_agent_loop` (agent). Uses `tool_choice: Required` to force
 //!     provider-side schema enforcement.
-//! - **Layer 1**: rig Extractor (Rust types with JsonSchema via schemars — future)
 //! - **Layer 2**: Extract + Validate (extract JSON from output, validate against schema)
 //! - **Layer 3**: Retry with Feedback (re-prompt with validation errors)
 //! - **Layer 4**: LLM Repair (separate call to fix invalid JSON)
