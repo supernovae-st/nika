@@ -28,4 +28,12 @@ pub enum CoreError {
     /// Used by AST modules (limits, include) for semantic validation failures.
     #[error("{reason}")]
     ValidationError { reason: String },
+
+    /// NIKA-090: JSONPath uses unsupported syntax.
+    #[error("[NIKA-090] JSONPath '{path}' uses unsupported syntax (use simple paths like $.a.b or $.a[0].b)")]
+    JsonPathUnsupported { path: String },
+
+    /// NIKA-055: Invalid task ID.
+    #[error("[NIKA-055] Invalid task ID '{id}': {reason}")]
+    InvalidTaskId { id: String, reason: String },
 }

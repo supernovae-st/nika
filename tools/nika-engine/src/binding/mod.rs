@@ -50,13 +50,13 @@
 //!                    Resolved prompt
 //! ```
 
-pub mod jsonpath;
 mod resolve;
 mod template;
 pub mod token_budget;
 mod validate;
 
 // Re-export from nika-core: identical modules
+pub use nika_core::binding::jsonpath;
 pub use nika_core::binding::mention;
 pub use nika_core::binding::transform;
 pub use nika_core::binding::types;

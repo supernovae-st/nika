@@ -32,7 +32,7 @@
 use serde_json::Value;
 use serde_json_path::JsonPath;
 
-use crate::error::NikaError;
+use crate::error::CoreError;
 
 /// Try to parse a JSON string Value into a structured Value.
 ///
@@ -66,8 +66,8 @@ pub fn try_parse_json_str(value: &Value) -> Option<Value> {
 /// Use this for rich expressions with wildcards, filters, slices, or
 /// recursive descent. For simple `$.a.b[0]` paths, prefer `resolve()`
 /// which avoids the RFC parser overhead.
-pub fn query(value: &Value, path: &str) -> Result<Value, NikaError> {
-    let jp = JsonPath::parse(path).map_err(|e| NikaError::JsonPathUnsupported {
+pub fn query(value: &Value, path: &str) -> Result<Value, CoreError> {
+    let jp = JsonPath::parse(path).map_err(|e| CoreError::JsonPathUnsupported {
         path: format!("{}: {}", path, e),
     })?;
     let results = jp.query(value);
@@ -121,7 +121,7 @@ pub enum Segment {
 ///
 /// Does NOT support wildcards, filters, slices, or recursive descent.
 /// Use `query()` for those.
-pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
+pub fn parse(path: &str) -> Result<Vec<Segment>, CoreError> {
     // Remove $. prefix if present
     let path = if let Some(stripped) = path.strip_prefix("$.") {
         stripped
@@ -139,7 +139,7 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
 
     for part in path.split('.') {
         if part.is_empty() {
-            return Err(NikaError::JsonPathUnsupported {
+            return Err(CoreError::JsonPathUnsupported {
                 path: path.to_string(),
             });
         }
@@ -152,7 +152,7 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
             }
 
             if !part.ends_with(']') {
-                return Err(NikaError::JsonPathUnsupported {
+                return Err(CoreError::JsonPathUnsupported {
                     path: path.to_string(),
                 });
             }
@@ -160,7 +160,7 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
             let index_str = &part[bracket_pos + 1..part.len() - 1];
             let index: usize = index_str
                 .parse()
-                .map_err(|_| NikaError::JsonPathUnsupported {
+                .map_err(|_| CoreError::JsonPathUnsupported {
                     path: path.to_string(),
                 })?;
 
@@ -205,13 +205,13 @@ pub fn apply(value: &Value, segments: &[Segment]) -> Option<Value> {
 /// Returns `Ok(None)` if the path doesn't match.
 ///
 /// For rich JSONPath expressions (wildcards, filters), use `query()`.
-pub fn resolve(value: &Value, path: &str) -> Result<Option<Value>, NikaError> {
+pub fn resolve(value: &Value, path: &str) -> Result<Option<Value>, CoreError> {
     let segments = parse(path)?;
     Ok(apply(value, &segments))
 }
 
 /// Validate simple JSONPath syntax without evaluating.
-pub fn validate(path: &str) -> Result<(), NikaError> {
+pub fn validate(path: &str) -> Result<(), CoreError> {
     parse(path)?;
     Ok(())
 }

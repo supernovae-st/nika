@@ -1079,6 +1079,12 @@ impl From<nika_core::error::CoreError> for NikaError {
             nika_core::error::CoreError::ValidationError { reason } => {
                 NikaError::ValidationError { reason }
             }
+            nika_core::error::CoreError::JsonPathUnsupported { path } => {
+                NikaError::JsonPathUnsupported { path }
+            }
+            nika_core::error::CoreError::InvalidTaskId { id, reason } => {
+                NikaError::InvalidTaskId { id, reason }
+            }
         }
     }
 }

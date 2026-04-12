@@ -13,6 +13,7 @@
 //! Pure modules (mention, jsonpath, token_budget, validate) live here.
 
 mod entry;
+pub mod jsonpath;
 pub mod mention;
 pub mod token_budget;
 pub mod transform;
