@@ -54,6 +54,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 
+# Full JSON Schema validation for `nika eval output_matches_schema`
+jsonschema = { workspace = true }
+
 # Progress
 indicatif = { workspace = true }
 

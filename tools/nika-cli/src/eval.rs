@@ -132,62 +132,31 @@ pub fn validate_task_output(
         }
     }
 
-    // output_matches_schema (subset validation: JSON parseable + type + required keys)
-    // Does NOT validate property types, minimum/maximum, pattern, etc. — use structured: for full schema.
+    // output_matches_schema — full JSON Schema validation via the
+    // `jsonschema` crate. Every standard keyword (type, required, properties,
+    // minimum/maximum, pattern, enum, minLength, …) is honoured. Replaces
+    // the pre-Track-2 hand-rolled subset that silently ignored everything
+    // except `type` and `required`.
     if let Some(ref schema) = assertions.output_matches_schema {
-        // Validate output is valid JSON
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&output_str);
         match parsed {
             Ok(val) => {
-                // Basic type check against schema "type" field
-                if let Some(expected_type) = schema.get("type").and_then(|t| t.as_str()) {
-                    let actual_type = match &val {
-                        serde_json::Value::Object(_) => "object",
-                        serde_json::Value::Array(_) => "array",
-                        serde_json::Value::String(_) => "string",
-                        serde_json::Value::Number(_) => "number",
-                        serde_json::Value::Bool(_) => "boolean",
-                        serde_json::Value::Null => "null",
-                    };
-                    if actual_type != expected_type {
-                        failures.push(format!(
-                            "{}: output_matches_schema type '{}' — got '{}'",
-                            task_id, expected_type, actual_type
-                        ));
-                    }
-                }
-                // Check required fields if schema has "required"
-                if let (Some(required), Some(obj)) = (
-                    schema.get("required").and_then(|r| r.as_array()),
-                    val.as_object(),
-                ) {
-                    for req_field in required {
-                        if let Some(field_name) = req_field.as_str() {
-                            if !obj.contains_key(field_name) {
-                                failures.push(format!(
-                                    "{}: output_matches_schema missing required field '{}'",
-                                    task_id, field_name
-                                ));
-                            }
+                match jsonschema::validator_for(schema) {
+                    Ok(validator) => {
+                        let errs: Vec<_> = validator.iter_errors(&val).collect();
+                        for err in errs {
+                            failures.push(format!(
+                                "{}: output_matches_schema at '{}' — {}",
+                                task_id, err.instance_path, err
+                            ));
                         }
                     }
-                }
-                // Warn about schema keywords we don't validate
-                let ignored: Vec<&str> = schema
-                    .as_object()
-                    .map(|obj| {
-                        obj.keys()
-                            .filter(|k| !matches!(k.as_str(), "type" | "required"))
-                            .map(|k| k.as_str())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                if !ignored.is_empty() {
-                    failures.push(format!(
-                        "{}: output_matches_schema ignores keywords: {} — use structured: for full validation",
-                        task_id,
-                        ignored.join(", ")
-                    ));
+                    Err(compile_err) => {
+                        failures.push(format!(
+                            "{}: output_matches_schema compile error — {}",
+                            task_id, compile_err
+                        ));
+                    }
                 }
             }
             Err(_) => {
@@ -660,8 +629,106 @@ mod tests {
         assert!(failures[0].contains("not valid JSON"));
     }
 
+    // ── Full JSON Schema coverage (Track 2 — jsonschema crate) ──────────
+    // Before: the hand-rolled validator honoured only `type` + `required`
+    // and surfaced a WARNING for every other keyword. These tests lock the
+    // new behaviour: properties/minimum/maximum/pattern/enum are all real
+    // assertions that produce failures when violated.
+
     #[test]
-    fn output_matches_schema_warns_on_ignored_keywords() {
+    fn schema_rejects_minimum_violation() {
+        let assertions = TaskAssertions {
+            output_contains: None,
+            output_min_words: None,
+            output_max_words: None,
+            output_matches_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "price": { "type": "number", "minimum": 0 }
+                },
+                "required": ["price"]
+            })),
+        };
+        let output = json!(r#"{"price": -5}"#);
+        let failures = validate_task_output("t1", &output, &assertions);
+        assert!(
+            failures.iter().any(|f| f.contains("price") || f.contains("minimum") || f.contains("-5")),
+            "minimum: 0 must reject -5: {failures:?}"
+        );
+    }
+
+    #[test]
+    fn schema_rejects_pattern_mismatch() {
+        let assertions = TaskAssertions {
+            output_contains: None,
+            output_min_words: None,
+            output_max_words: None,
+            output_matches_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "zip": { "type": "string", "pattern": "^\\d{5}$" }
+                },
+                "required": ["zip"]
+            })),
+        };
+        let output = json!(r#"{"zip": "abc"}"#);
+        let failures = validate_task_output("t1", &output, &assertions);
+        assert!(
+            !failures.is_empty(),
+            "pattern ^\\d{{5}}$ must reject 'abc': {failures:?}"
+        );
+    }
+
+    #[test]
+    fn schema_rejects_enum_mismatch() {
+        let assertions = TaskAssertions {
+            output_contains: None,
+            output_min_words: None,
+            output_max_words: None,
+            output_matches_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "color": { "type": "string", "enum": ["red", "blue"] }
+                },
+                "required": ["color"]
+            })),
+        };
+        let output = json!(r#"{"color": "purple"}"#);
+        let failures = validate_task_output("t1", &output, &assertions);
+        assert!(
+            !failures.is_empty(),
+            "enum [red, blue] must reject 'purple': {failures:?}"
+        );
+    }
+
+    #[test]
+    fn schema_accepts_fully_matching_output() {
+        let assertions = TaskAssertions {
+            output_contains: None,
+            output_min_words: None,
+            output_max_words: None,
+            output_matches_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "price": { "type": "number", "minimum": 0, "maximum": 1000 },
+                    "zip": { "type": "string", "pattern": "^\\d{5}$" },
+                    "color": { "type": "string", "enum": ["red", "blue"] }
+                },
+                "required": ["price", "zip", "color"]
+            })),
+        };
+        let output = json!(r#"{"price": 42, "zip": "12345", "color": "red"}"#);
+        let failures = validate_task_output("ok", &output, &assertions);
+        assert!(
+            failures.is_empty(),
+            "valid payload must pass: {failures:?}"
+        );
+    }
+
+    #[test]
+    fn schema_no_longer_warns_on_extra_keywords() {
+        // Post-Track-2: keywords are honoured, not ignored. No "ignores
+        // keywords" warning should ever appear again.
         let assertions = TaskAssertions {
             output_contains: None,
             output_min_words: None,
@@ -675,8 +742,8 @@ mod tests {
         let output = json!(r#"{"score": 42}"#);
         let failures = validate_task_output("t1", &output, &assertions);
         assert!(
-            failures.iter().any(|f| f.contains("ignores keywords")),
-            "Should warn about 'properties': {failures:?}"
+            !failures.iter().any(|f| f.contains("ignores keywords")),
+            "no more ignores-keywords warnings: {failures:?}"
         );
     }
 
