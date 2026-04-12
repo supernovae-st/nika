@@ -464,10 +464,11 @@ validation, verb_analysis, tests).
 | `template/mod.rs` | ~2050 | `{{with.x \| transform}}` resolution, spotlight wrapping |
 | `template/tests.rs` | ~2890 | Template resolution tests |
 | `resolve.rs` | **~3950** | `$task_id.path` resolution, null coalescing (`??`) |
-| `jsonpath.rs` | ~480 | JSONPath-style access (`$task.data[0].name`) |
-| `mention.rs` | ~850 | `@mention` extraction for agent tasks |
-| `token_budget.rs` | ~425 | Token budget tracking for context windows |
-| `validate.rs` | ~355 | Template validation (undeclared aliases, inputs) |
+| `token_budget.rs` | ~199 | Budget enforcement bridge (pure estimation in nika-core) |
+
+**Moved to nika-core in S21:** `jsonpath.rs` (480 LOC), `mention.rs` (851 LOC),
+`validate.rs` (355 LOC), `token_budget` pure estimation (226 LOC). Engine keeps
+thin re-exports + `token_budget::enforce_budget()` bridge.
 
 **Note:** `template.rs` was split into `template/mod.rs` + `template/tests.rs`
 in Session 2 (was 4938 LOC monolith).
