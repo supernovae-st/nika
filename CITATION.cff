@@ -29,5 +29,5 @@ abstract: >-
   HTTP extraction, invoke for MCP tool calls, and agent for autonomous
   multi-turn loops. Nika parses these into a typed AST, resolves a DAG
   of task dependencies, and executes ready tasks in parallel via Tokio.
-  A 5-layer structured output defense ensures schema-validated JSON
+  A 4-layer structured output defense ensures schema-validated JSON
   across 7 cloud LLM providers and local GGUF models.

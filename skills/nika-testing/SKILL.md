@@ -198,6 +198,6 @@ assert!(events.iter().any(|e| matches!(e, Event::StructuredOutputSuccess { .. })
 
 ## Related Skills
 
-- `/nika-structured` — 5-layer defense, prompt purity rule, schema patterns
+- `/nika-structured` — 4-layer defense, prompt purity rule, schema patterns
 - `/nika-validate` — nika check, nika lint, error parsing, auto-fix
 - `/nika-security` — NIKA-380..389, API key management, trace security

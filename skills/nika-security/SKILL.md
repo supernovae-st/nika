@@ -23,9 +23,9 @@ globs:
 | L0 | **Policy** | `[policy.security]` in nika.toml — taint_mode, spotlight, canary, capabilities |
 | L1 | **Taint Analysis** | Compile-time trust propagation (`nika check --security`, lint L-SEC-001..008) |
 | L2 | **Spotlighting** | Auto-wrap untrusted data with randomized fence markers + re-anchoring phrases |
-| L3 | **Structured Output** | Pre-existing 5-layer JSON schema enforcement |
+| L3 | **Structured Output** | Pre-existing 4-layer JSON schema enforcement |
 | L4 | **Capabilities** | Per-task tool restriction based on trust chain (AgentToolPolicy) |
-| L5 | **Validation + Audit** | Canary tokens (3×16-char suffix) + output scanner + 14 security events |
+| L5 | **Validation + Audit** | Canary tokens (3×16-char suffix) + output scanner + 12 security events |
 
 ## nika.toml Security Config
 

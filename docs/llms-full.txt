@@ -13,7 +13,7 @@
 - Multi-workflow orchestration (P-ORCHESTRATE) via `goal:` + `orchestrate:`
 - 30+ builtin tools (nika:* prefix)
 - 9 fetch extract modes
-- 5-layer structured output with JSON schema enforcement + auto-repair
+- 4-layer structured output with JSON schema enforcement + auto-repair
 - Vision/multimodal via CAS hashes
 - Agent guardrails: length, schema, regex, LLM judge
 - 31 pipe transforms
@@ -462,7 +462,7 @@ tasks:
 ```
 
 CRITICAL: The prompt MUST be natural language. NEVER mention JSON or the schema in the prompt.
-The 5 layers handle extraction: L0 tool injection → L2 extract+validate → L3 retry → L4 LLM repair.
+The 4 layers handle extraction: L0 tool injection → L2 extract+validate → L3 retry → L4 LLM repair.
 
 ---
 

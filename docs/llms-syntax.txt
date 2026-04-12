@@ -204,7 +204,7 @@ Null safety: guard with `default()`: `{{with.x | default("none") | upper}}`
     repair_model: claude-haiku-4-5
 ```
 
-5-layer defense: tool injection → extractor → JSON validation → retry → LLM repair
+4-layer defense: tool injection → JSON validation → retry → LLM repair
 
 ## Task-Level Fields
 

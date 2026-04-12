@@ -201,7 +201,7 @@ assert!(parsed["skills"].as_array().unwrap().len() >= 2);
 
 **Rules:**
 1. Same test on ALL 7 providers — if one fails, it's an ENGINE bug to fix
-2. Prompt must be NATURAL — the 5-layer system injects JSON schema automatically
+2. Prompt must be NATURAL — the 4-layer system injects JSON schema automatically
 3. Check EventLog for StructuredOutputSuccess — verify which layer succeeded
 4. Validate every field: type, enum, range, minItems, required
 5. E2E = parse → analyze → DAG → execute → validate output → verify events

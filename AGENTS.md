@@ -107,11 +107,11 @@ nika help                              # Full command reference
 nika help verbs                        # Deep-dive: 5 semantic verbs
 ```
 
-## Structured Output — 5-Layer Defense (Killer Feature)
+## Structured Output — 4-Layer Defense (Killer Feature)
 
 `structured:` enforces schema-validated JSON with automatic retry and repair.
 The prompt MUST be natural language. NEVER mention JSON or the schema in the prompt.
-The 5 layers handle extraction automatically:
+The 4 layers handle extraction automatically:
 
 ```yaml
 tasks:
@@ -133,24 +133,30 @@ tasks:
 Layers: L0 tool injection (provider-native) → L2 extract+validate → L3 retry with feedback → L4 LLM repair.
 Result: valid JSON matching the schema. Same result on ALL 7 providers. No exceptions.
 
-## Nika Shield — 6-Layer Prompt Injection Defense
+Note: older docs mentioned a "Layer 1 rig Extractor" — it was never implemented.
+The stack is four layers (L0, L2, L3, L4).
 
-Defense-in-depth stack wired into the runner. No single layer is sufficient; all 6 compose.
+## Nika Shield — 5-Layer Prompt Injection Defense + Audit
 
-| Layer | Name | What it does |
-|-------|------|--------------|
-| L0 | Policy | `[policy.security]` in nika.toml — taint_mode, spotlight, canary, capabilities |
-| L1 | Taint Analysis | Compile-time trust propagation (`nika check --security`, `nika lint` L-SEC-001..008) |
-| L2 | Spotlighting | Auto-wrap untrusted data with randomized fence markers + re-anchoring |
-| L3 | Structured Output | Pre-existing 5-layer JSON schema enforcement |
-| L4 | Capabilities | Per-task tool restriction based on trust chain (`AgentToolPolicy`) |
-| L5 | Validation + Audit | Canary tokens (3x16-char suffix) + output scanner + 14 security events |
+Defense-in-depth stack. L0-L5 are composing defense layers; L6 is the audit/
+telemetry layer and is not itself a block.
+
+| Layer | Name | What it does | Status |
+|-------|------|--------------|--------|
+| L0 | Policy | `[policy.security]` in nika.toml — taint_mode, spotlight, canary, capabilities | wired |
+| L1 | Taint Analysis | Trust propagation at `nika check` / `nika lint` | lint-only, NOT runtime |
+| L2 | Spotlighting | Auto-wrap untrusted data with randomized fence markers + re-anchoring | wired |
+| L3 | Structured Output | Pre-existing 4-layer JSON schema enforcement | wired |
+| L4 | Capabilities | Per-task tool restriction based on trust chain (`AgentToolPolicy`) | wired |
+| L5 | Validation | Canary tokens (3x16-char suffix) + output scanner + judge hardening | wired |
+| L6 | Audit | 12 security telemetry events in NDJSON traces | wired |
 
 - `trust: elevated` on a task overrides capability restrictions
 - `SecurityPolicyConfig` lives in nika-core (diamond-layered for nika-display access)
 - `SecurityContext` aggregate in nika-engine/runtime/shield.rs
-- Error codes: NIKA-271 (SkillIntegrity), NIKA-380..389 (Shield security)
-- See `SECURITY.md` for the full threat model
+- Error codes: NIKA-271 (SkillIntegrity), NIKA-380..389 Shield range (383/385 are CUT)
+- ML-based injection detection: NOT implemented, removed from the stack
+- See `SECURITY.md` for the full threat model and known gaps
 
 ## Secrets Architecture
 

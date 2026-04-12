@@ -13,7 +13,7 @@ Schema: `nika/workflow@0.12` | Extension: `.nika.yaml`
 - **Provider fallback**: `provider: [groq, claude, openai]` — automatic retry on failure
 - **30 builtin tools**: Media processing (nika:import, nika:thumbnail, nika:convert), introspection (nika:dag_info, nika:cost), and more
 - **9 fetch extract modes**: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt
-- **Structured output**: 5-layer JSON schema enforcement with auto-repair
+- **Structured output**: 4-layer JSON schema enforcement with auto-repair
 - **Vision/multimodal**: Send images to LLMs via CAS hashes (v0.34+)
 - **Agent guardrails**: length, schema, regex, LLM judge — with retry/escalate/fail actions
 - **31 pipe transforms**: String, array, numeric, type conversions — chainable in templates
