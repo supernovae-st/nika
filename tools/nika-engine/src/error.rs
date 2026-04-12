@@ -610,6 +610,27 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════
+    #[error(
+        "[NIKA-120] provider '{provider}' does not support capability '{capability}' \
+         (used by task '{task_id}'). Supported providers: {}",
+        supported_providers.join(", ")
+    )]
+    #[diagnostic(
+        code(nika::unsupported_provider_capability),
+        help(
+            "Either switch to a provider that supports this capability, or remove the \
+             field from the task. Run `nika provider list` to see capability support per \
+             provider."
+        )
+    )]
+    #[nika_code("NIKA-120")]
+    UnsupportedProviderCapability {
+        task_id: String,
+        provider: String,
+        capability: String,
+        supported_providers: Vec<String>,
+    },
+
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
     #[nika_code("NIKA-121")]
     Timeout { operation: String, duration_ms: u64 },
@@ -2080,6 +2101,26 @@ mod tests {
         assert_eq!(err.code(), "NIKA-110");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-110]"));
+    }
+
+    #[test]
+    fn test_unsupported_provider_capability_has_code_nika_120() {
+        let err = NikaError::UnsupportedProviderCapability {
+            task_id: "analyze".to_string(),
+            provider: "groq".to_string(),
+            capability: "extended_thinking".to_string(),
+            supported_providers: vec!["anthropic".to_string(), "openai".to_string()],
+        };
+        assert_eq!(err.code(), "NIKA-120");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-120]"), "display missing code prefix: {msg}");
+        assert!(msg.contains("groq"), "display missing provider: {msg}");
+        assert!(msg.contains("extended_thinking"), "display missing capability: {msg}");
+        assert!(msg.contains("analyze"), "display missing task_id: {msg}");
+        assert!(
+            msg.contains("anthropic") && msg.contains("openai"),
+            "display should list supported providers: {msg}"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
