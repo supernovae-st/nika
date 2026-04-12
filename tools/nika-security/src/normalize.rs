@@ -50,11 +50,17 @@ pub(crate) fn normalize_for_blocklist(s: &str) -> String {
     // pure ASCII (the common case for legitimate commands). Only whitespace
     // normalization is needed.
     if s.is_ascii() {
-        // Avoid allocation when no whitespace collapsing is needed.
-        // A command with no consecutive whitespace and no leading/trailing
-        // whitespace is already normalized.
+        // Avoid Vec allocation when no whitespace collapsing is needed.
+        // Check ALL ASCII whitespace chars that split_whitespace() would collapse:
+        // space (consecutive), tab, newline, carriage return, vertical tab, form feed.
         let trimmed = s.trim();
-        if !trimmed.contains("  ") && !trimmed.contains('\t') && !trimmed.contains('\n') {
+        let needs_collapse = trimmed.contains("  ")
+            || trimmed.contains('\t')
+            || trimmed.contains('\n')
+            || trimmed.contains('\r')
+            || trimmed.contains('\x0B')
+            || trimmed.contains('\x0C');
+        if !needs_collapse {
             return trimmed.to_string();
         }
         return trimmed.split_whitespace().collect::<Vec<_>>().join(" ");

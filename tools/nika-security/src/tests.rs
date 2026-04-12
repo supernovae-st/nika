@@ -420,6 +420,12 @@ fn test_blocklist_catches_tabs_in_command() { assert!(check_blocklist("rm\t-rf\t
 #[test]
 fn test_blocklist_catches_mixed_whitespace() { assert!(check_blocklist("rm \t -rf \t /").is_err()); }
 #[test]
+fn test_blocklist_catches_carriage_return_bypass() { assert!(check_blocklist("rm\r-rf\r/").is_err()); }
+#[test]
+fn test_blocklist_catches_vertical_tab_bypass() { assert!(check_blocklist("rm\x0B-rf\x0B/").is_err()); }
+#[test]
+fn test_blocklist_catches_form_feed_bypass() { assert!(check_blocklist("rm\x0C-rf\x0C/").is_err()); }
+#[test]
 fn test_blocklist_catches_leading_trailing_spaces() { assert!(check_blocklist("  rm -rf /  ").is_err()); }
 #[test]
 fn test_blocklist_catches_sudo_double_spaces() { assert!(check_blocklist("sudo  rm").is_err()); }
