@@ -1056,6 +1056,17 @@ pub enum NikaError {
     )]
     #[nika_code("NIKA-389")]
     UntrustedVisionBlocked { task_id: String },
+
+    // ═══════════════════════════════════════════
+    // INTERNAL ERRORS (999)
+    // ═══════════════════════════════════════════
+    /// Catch-all for unmapped error variants from `#[non_exhaustive]` enums.
+    /// Emitted by wildcard arms in `From<VerbXxxError>` and `From<SecurityError>`
+    /// impls so new variants are triageable from logs without producing misleading
+    /// error codes (e.g. NIKA-053 when the variant is not a blocked command).
+    #[error("[NIKA-999] Internal error ({context}): {detail}")]
+    #[nika_code("NIKA-999")]
+    Internal { context: String, detail: String },
 }
 
 impl From<nika_core::error::CoreError> for NikaError {
@@ -1258,9 +1269,9 @@ impl From<nika_security::SecurityError> for NikaError {
                 NikaError::ArtifactPathError { path, reason }
             }
             // Invariant #25: wildcard arm for future non_exhaustive variants.
-            other => NikaError::BlockedCommand {
-                command: String::new(),
-                reason: format!("unmapped SecurityError variant: {other:?}"),
+            other => NikaError::Internal {
+                context: "SecurityError".to_string(),
+                detail: format!("{other:?}"),
             },
         }
     }

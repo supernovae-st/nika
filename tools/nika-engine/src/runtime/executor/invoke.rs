@@ -240,10 +240,10 @@ fn map_verb_invoke_error(err: VerbInvokeError) -> NikaError {
                 task_id: format!("mcp:{server}/{tool}"),
                 reason: "cancelled during MCP call".to_string(),
             },
-            // `McpError` is `#[non_exhaustive]` (invariant #25) — any future
-            // variant stays triageable through this wildcard arm.
-            other => NikaError::McpProtocolError {
-                reason: format!("unmapped mcp error variant: {other:?}"),
+            // Invariant #25: wildcard arm for future non_exhaustive variants.
+            other => NikaError::Internal {
+                context: "McpError".to_string(),
+                detail: format!("{other:?}"),
             },
         },
         VerbInvokeError::Cancelled { task_id } => NikaError::TaskCancelled {
@@ -257,13 +257,10 @@ fn map_verb_invoke_error(err: VerbInvokeError) -> NikaError {
         },
         VerbInvokeError::InvalidParams { reason } => NikaError::InvokeParamError { reason },
         VerbInvokeError::Validation { reason } => NikaError::ValidationError { reason },
-        // VerbInvokeError is `#[non_exhaustive]` (invariant #25). S15 will
-        // grow variants like `ResultTooLarge` when McpPool trait gains size
-        // caps. Unmapped variants fall through to a generic McpProtocolError
-        // here and must be explicitly mapped in the commit that introduces
-        // them.
-        other => NikaError::McpProtocolError {
-            reason: format!("invoke: unmapped verb error variant: {other:?}"),
+        // Invariant #25: wildcard arm for future non_exhaustive variants.
+        other => NikaError::Internal {
+            context: "VerbInvokeError".to_string(),
+            detail: format!("{other:?}"),
         },
     }
 }

@@ -283,14 +283,11 @@ fn map_verb_exec_error(err: VerbExecError) -> NikaError {
         },
         VerbExecError::Parse { reason } => NikaError::ExecError { reason },
         VerbExecError::Shell { reason } => ExecutionError::ExecFailed { reason }.into(),
-        // VerbExecError is `#[non_exhaustive]` (invariant #25). When S15/S16
-        // grows new variants, they fall through to a generic ExecFailed here
-        // and must be explicitly mapped in a follow-up commit. Using
-        // `format!("{err:?}")` preserves the full variant name for triage.
-        other => ExecutionError::ExecFailed {
-            reason: format!("exec: unmapped verb error variant: {other:?}"),
-        }
-        .into(),
+        // Invariant #25: wildcard arm for future non_exhaustive variants.
+        other => NikaError::Internal {
+            context: "VerbExecError".to_string(),
+            detail: format!("{other:?}"),
+        },
     }
 }
 

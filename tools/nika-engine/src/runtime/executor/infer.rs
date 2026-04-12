@@ -64,12 +64,10 @@ fn map_verb_infer_error(err: VerbInferError) -> NikaError {
         VerbInferError::NoTextContent => NikaError::ProviderApiError {
             message: "provider returned no text content".to_string(),
         },
-        // VerbInferError is `#[non_exhaustive]` (invariant #25). When the
-        // verb crate grows new variants (e.g. StructuredOutputFailed,
-        // GuardrailViolation from the W14-B2 surgery), they fall through
-        // here and must be explicitly mapped in a follow-up commit.
-        other => NikaError::ProviderApiError {
-            message: format!("infer: unmapped verb error variant: {other:?}"),
+        // Invariant #25: wildcard arm for future non_exhaustive variants.
+        other => NikaError::Internal {
+            context: "VerbInferError".to_string(),
+            detail: format!("{other:?}"),
         },
     }
 }
