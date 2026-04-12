@@ -1069,6 +1069,39 @@ pub enum NikaError {
     Internal { context: String, detail: String },
 }
 
+impl From<nika_core::binding::BindingResolveError> for NikaError {
+    fn from(e: nika_core::binding::BindingResolveError) -> Self {
+        use nika_core::binding::BindingResolveError as B;
+        match e {
+            B::PathNotFound { path } => NikaError::PathNotFound { path },
+            B::NullValue { path, alias } => NikaError::NullValue { path, alias },
+            B::VaultAccess {
+                service,
+                field,
+                reason,
+            } => NikaError::VaultAccess {
+                service,
+                field,
+                reason,
+            },
+            B::NotFound { alias } => NikaError::BindingNotFound { alias },
+            B::TypeMismatch {
+                path,
+                expected,
+                actual,
+            } => NikaError::BindingTypeMismatch {
+                path,
+                expected,
+                actual,
+            },
+            other => NikaError::Internal {
+                context: "binding_resolve".to_string(),
+                detail: format!("unmapped BindingResolveError variant: {other:?}"),
+            },
+        }
+    }
+}
+
 impl From<nika_core::error::CoreError> for NikaError {
     fn from(e: nika_core::error::CoreError) -> Self {
         match e {

@@ -13,13 +13,17 @@
 //! Pure modules (mention, jsonpath, token_budget, validate) live here.
 
 mod entry;
+mod error;
 pub mod jsonpath;
 pub mod mention;
+pub mod store;
 pub mod token_budget;
 pub mod transform;
 pub mod types;
 mod validate;
 
+pub use error::BindingResolveError;
+pub use store::{BindingStore, BindingStoreError};
 pub use validate::validate_task_id;
 
 // Re-export public types
