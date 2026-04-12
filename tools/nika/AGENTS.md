@@ -149,7 +149,7 @@ src/
 | 300-309 | Structured output |
 | 310-319 | Course errors |
 | 320-329 | Record compression errors |
-| 380-389 | Nika Shield security (CapabilityDenied, TrustViolation, CanaryLeaked, InjectionDetected, SpotlightRequired, MlModelMissing, RunDepthExceeded, RunCycleDetected, CanaryInThinking, UntrustedVisionBlocked) |
+| 380-389 | Nika Shield security (CapabilityDenied, TrustViolation, CanaryLeaked, SpotlightRequired, RunDepthExceeded, RunCycleDetected, CanaryInThinking, UntrustedVisionBlocked) |
 | SECRET-001 | Daemon: keychain disabled |
 | SECRET-002 | Daemon: keyring store error |
 | SECRET-003 | Daemon: keyring delete error |

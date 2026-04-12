@@ -1248,16 +1248,6 @@ pub enum EventKind {
         action: String,
         reason: String,
     },
-    /// ML detection run (behind shield-ml feature flag).
-    #[has_task_id]
-    MlDetectionRun {
-        task_id: Arc<str>,
-        score: f64,
-        latency_ms: u64,
-    },
-    /// ML detection blocked task (score above threshold).
-    #[has_task_id]
-    MlDetectionBlocked { task_id: Arc<str>, score: f64 },
 }
 
 impl EventKind {

@@ -1715,9 +1715,7 @@ impl LiveRenderer {
             | EventKind::ScanFindingDetected { .. }
             | EventKind::SkillIntegrityVerified { .. }
             | EventKind::SkillIntegrityFailed { .. }
-            | EventKind::CapabilityDenied { .. }
-            | EventKind::MlDetectionRun { .. }
-            | EventKind::MlDetectionBlocked { .. } => {
+            | EventKind::CapabilityDenied { .. } => {
                 // Shield events are rendered in the security summary, not per-event
             }
         }

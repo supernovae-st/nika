@@ -530,9 +530,7 @@ impl TuiState {
             | EventKind::ScanFindingDetected { .. }
             | EventKind::SkillIntegrityVerified { .. }
             | EventKind::SkillIntegrityFailed { .. }
-            | EventKind::CapabilityDenied { .. }
-            | EventKind::MlDetectionRun { .. }
-            | EventKind::MlDetectionBlocked { .. } => {
+            | EventKind::CapabilityDenied { .. } => {
                 // Observability events: captured in trace NDJSON but don't
                 // require TUI state mutations -- the TUI tracks task-level
                 // status via TaskStarted/TaskCompleted/TaskFailed.

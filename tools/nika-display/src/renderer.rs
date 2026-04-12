@@ -1758,9 +1758,7 @@ impl CliRenderer {
             | EventKind::ScanFindingDetected { .. }
             | EventKind::SkillIntegrityVerified { .. }
             | EventKind::SkillIntegrityFailed { .. }
-            | EventKind::CapabilityDenied { .. }
-            | EventKind::MlDetectionRun { .. }
-            | EventKind::MlDetectionBlocked { .. } => {
+            | EventKind::CapabilityDenied { .. } => {
                 // Rendered in the security summary section at end of run
             }
         }

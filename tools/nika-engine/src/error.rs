@@ -992,20 +992,6 @@ pub enum NikaError {
     },
 
     #[error(
-        "[NIKA-383] Prompt injection detected in task '{task_id}': {category} (score={score:.2})"
-    )]
-    #[diagnostic(
-        code(nika::injection_detected),
-        help("The output scanner or ML detector flagged this content. Disable via `policy.security.scanner_action = warn` or sanitize the input.")
-    )]
-    #[nika_code("NIKA-383")]
-    InjectionDetected {
-        task_id: String,
-        category: String,
-        score: f64,
-    },
-
-    #[error(
         "[NIKA-384] Spotlight required but disabled for task '{task_id}' processing untrusted data"
     )]
     #[diagnostic(
@@ -1014,16 +1000,6 @@ pub enum NikaError {
     )]
     #[nika_code("NIKA-384")]
     SpotlightRequired { task_id: String },
-
-    #[error("[NIKA-385] ML model missing for task '{task_id}': {model_name}")]
-    #[diagnostic(
-        code(nika::ml_model_missing),
-        help(
-            "Run `nika shield download-model` to fetch the model, or disable `shield-ml` feature."
-        )
-    )]
-    #[nika_code("NIKA-385")]
-    MlModelMissing { task_id: String, model_name: String },
 
     #[error("[NIKA-386] Workflow recursion depth exceeded: {depth} (max: {max})")]
     #[diagnostic(
@@ -2903,25 +2879,10 @@ mod tests {
                 "NIKA-382",
             ),
             (
-                NikaError::InjectionDetected {
-                    task_id: "t".into(),
-                    category: "instr_override".into(),
-                    score: 0.91,
-                },
-                "NIKA-383",
-            ),
-            (
                 NikaError::SpotlightRequired {
                     task_id: "t".into(),
                 },
                 "NIKA-384",
-            ),
-            (
-                NikaError::MlModelMissing {
-                    task_id: "t".into(),
-                    model_name: "deberta-v3-base".into(),
-                },
-                "NIKA-385",
             ),
             (NikaError::RunDepthExceeded { depth: 4, max: 3 }, "NIKA-386"),
             (
