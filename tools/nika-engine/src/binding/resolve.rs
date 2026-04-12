@@ -30,7 +30,7 @@ mod tests {
     use crate::store::{RunContext, TaskResult};
     use nika_core::binding::transform::TransformExpr;
     use nika_core::binding::BindingResolveError;
-    use nika_kernel_mock::MockBindingStore;
+    use nika_core::binding::mock::MockBindingStore;
     use serde_json::{json, Value};
     use serial_test::serial;
     use std::sync::Arc;
