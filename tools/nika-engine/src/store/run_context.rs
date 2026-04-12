@@ -819,6 +819,58 @@ impl RunContext {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// BindingStore trait impl (nika-kernel L0.5 — S22)
+// ─────────────────────────────────────────────────────────────────────
+
+impl nika_kernel::binding::BindingStore for RunContext {
+    fn get_output(&self, task_id: &str) -> Option<Arc<Value>> {
+        self.get_output(task_id)
+    }
+
+    fn is_failed(&self, task_id: &str) -> bool {
+        self.is_failed(task_id)
+    }
+
+    fn resolve_path(&self, path: &str) -> Option<Value> {
+        self.resolve_path(path)
+    }
+
+    fn get_record(&self, task_id: &str) -> Option<Value> {
+        // Convert Arc<Record> to opaque JSON via to_binding_value().
+        // The caller navigates the JSON object for specific fields.
+        self.records
+            .get(task_id)
+            .map(|r| r.value().to_binding_value())
+    }
+
+    fn resolve_input_path(&self, path: &str) -> Option<Value> {
+        self.resolve_input_path(path)
+    }
+
+    fn resolve_context_path(&self, path: &str) -> Option<Value> {
+        self.resolve_context_path(path)
+    }
+
+    fn resolve_skills_path(&self, path: &str) -> Option<Value> {
+        self.resolve_skills_path(path)
+    }
+
+    fn vault_get_credential(
+        &self,
+        service: &str,
+        field: &str,
+    ) -> Result<Option<String>, nika_kernel::binding::BindingStoreError> {
+        // Delegate to RunContext's vault method, converting VaultError
+        // to BindingStoreError at the boundary.
+        RunContext::vault_get_credential(self, service, field).map_err(|e| {
+            nika_kernel::binding::BindingStoreError::Vault {
+                reason: e.to_string(),
+            }
+        })
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // RecordQuery trait impl (nika-kernel L0.5)
 // ─────────────────────────────────────────────────────────────────────
 
