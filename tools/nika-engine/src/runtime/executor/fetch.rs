@@ -4,6 +4,39 @@
 //! Fetch verb implementation for TaskExecutor
 //!
 //! Contains `run_fetch` for HTTP request execution.
+//!
+//! # Why dispatch(fetch) is NOT activated (Z5 — S22 analysis)
+//!
+//! Unlike exec/invoke (dispatch live since S21), the fetch path has deep
+//! engine coupling that prevents simple delegation to `nika-verb-fetch`.
+//! The verb crate owns `run_with_retry` + `RetryPolicy` + extraction
+//! (via `nika-extract`), but this file orchestrates 8 engine-specific
+//! concerns that have no kernel trait abstraction yet:
+//!
+//! | Feature              | Lines     | Blocker                                   |
+//! |----------------------|-----------|-------------------------------------------|
+//! | URL scheme check     | ~117-135  | Inline policy check (could move to verb)  |
+//! | SSRF DNS pinning     | ~138-176  | `resolve_and_pin_ssrf` closure on reqwest |
+//! | robots.txt           | ~178-198  | Per-domain compliance via RunContext       |
+//! | Rate limiting        | ~200-221  | `domain_rate_limiter` on TaskExecutor      |
+//! | Custom reqwest Client| ~230-315  | DNS pinning + cookie jar + redirect chain |
+//! | CRLF header injection| ~342-368  | Security pre-check on headers             |
+//! | ETag cache           | ~372-377  | `fetch_cache` on TaskExecutor              |
+//! | Redirect chain track | ~235-294  | `Arc<Mutex<Vec>>` wired to custom policy  |
+//!
+//! **What CAN move now** (already in verb crate):
+//! - Retry loop: `nika-verb-fetch::retry::run_with_retry`
+//! - Response extraction: `nika-extract` (9 modes)
+//! - Retry-after parsing: `parse_retry_after`
+//!
+//! **What needs a FetchAux kernel trait (S23+):**
+//! - SSRF resolution: `resolve_and_pin_ssrf(host) -> Vec<IpAddr>`
+//! - Rate limit check: `check_rate_limit(domain) -> Result<(), Duration>`
+//! - ETag cache: `get_etag(url) -> Option<String>` / `set_etag(url, etag, body)`
+//! - Cookie jar: `cookie_provider() -> Arc<Jar>`
+//!
+//! Estimated effort: 1 full session for FetchAux trait design + extraction.
+//! Estimated LOC reduction: ~200-300 (retry loop + extraction delegation).
 
 use std::sync::Arc;
 use std::time::Instant;
