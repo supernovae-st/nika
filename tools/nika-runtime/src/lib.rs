@@ -11,15 +11,16 @@
 //! ## Key exports
 //!
 //! - [`VerbCapabilities`] — all `Arc<dyn Trait>` dependencies for verb execution
-//! - [`dispatch`] — 5-arm match on `TaskAction`, calls per-verb free functions
+//! - [`dispatch::ResolvedAction`] — enum of pre-built typed verb inputs
+//! - [`dispatch::dispatch`] — 5-arm match that executes resolved actions
 //!
-//! ## Session 13 scope
+//! ## Session 21 state
 //!
-//! During S13, `dispatch()` is built with 5 arms but is NOT the live code
-//! path. The engine's `task_dispatch` continues to call `TaskExecutor` verb
-//! methods. Each verb method becomes a bridge that delegates to the
-//! corresponding `nika_verb_*::run` function. Session 14 switches the
-//! Runner to call `dispatch()` directly.
+//! `dispatch()` accepts `ResolvedAction` (pre-resolved typed inputs) and
+//! delegates to verb crate adapters. Exec and Invoke arms are LIVE.
+//! Fetch, Infer, and Agent arms return `NotImplemented`.
+//! The engine builds `ResolvedAction` after template resolution and
+//! security validation, then calls `dispatch()` for execution.
 
 pub mod capabilities;
 pub mod dispatch;

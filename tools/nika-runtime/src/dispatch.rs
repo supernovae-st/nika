@@ -3,125 +3,225 @@
 
 //! Verb dispatch — the 5-arm exhaustive match (ADR-001).
 //!
-//! During Session 13, this function is built but NOT wired as the live
-//! code path. The engine's `task_dispatch` continues to call
-//! `TaskExecutor` verb methods via bridge delegation. Session 14
-//! switches the Runner to call this directly.
-//!
 //! # Design (ADR-001)
 //!
 //! - No `trait Verb` — enum dispatch with free functions per crate
 //! - The verb set is **closed**: 5 verbs, forever
-//! - Each arm calls `nika_verb_*::run()` with the matching `*Caps<'_>`
-//! - Infer and Agent arms are `todo!()` until Session 14 extracts them
+//! - Each arm calls `nika_verb_*::run()` via the adapter in `verb_*.rs`
+//! - `ResolvedAction` accepts pre-built typed inputs — template resolution
+//!   stays in nika-engine; dispatch only executes
+//!
+//! # Session 21 state
+//!
+//! - `Exec` → **LIVE** — delegates to `verb_exec::run_exec()`
+//! - `Invoke` → **LIVE** — delegates to `verb_invoke::run_invoke()`
+//! - `Fetch` → `NotImplemented` (needs engine fetch bridge migration)
+//! - `Infer` → `NotImplemented` (needs engine infer bridge migration)
+//! - `Agent` → `NotImplemented` (no `nika-verb-agent` crate yet)
 
 use crate::capabilities::VerbCapabilities;
 use crate::error::RuntimeError;
 
-use nika_core::ast::analyzed::AnalyzedTaskAction;
+use nika_verb_exec::ExecInput;
+use nika_verb_fetch::FetchInput;
+use nika_verb_infer::InferInput;
+use nika_verb_invoke::InvokeInput;
 
-/// Dispatch a single task action to the appropriate verb crate.
+/// A fully-resolved verb action ready for execution.
 ///
-/// # Session 13 state
+/// The engine builds this after template resolution, security validation,
+/// and type coercion. `dispatch()` only executes — no parsing or resolution.
 ///
-/// - `Exec` → `todo!()` (S13-B4 fills this arm)
-/// - `Fetch` → `todo!()` (S13-D3 fills this arm)
-/// - `Invoke` → `todo!()` (S13-C3 fills this arm)
-/// - `Infer` → returns `RuntimeError::NotImplemented` (S14)
-/// - `Agent` → returns `RuntimeError::NotImplemented` (S14)
+/// # Lifetime `'a`
 ///
-/// This function is NOT called during S13. The engine's `task_dispatch`
-/// remains the live path.
+/// Borrows resolved strings (command, url, prompt, model) from the engine's
+/// resolution buffer. The buffer lives as long as the task execution.
+pub enum ResolvedAction<'a> {
+    /// Shell command execution.
+    Exec(ExecInput<'a>),
+    /// HTTP fetch with optional extraction.
+    Fetch(FetchInput<'a>),
+    /// MCP tool call or builtin tool invocation.
+    Invoke(InvokeInput),
+    /// LLM inference (simple text path).
+    Infer(InferInput<'a>),
+    /// Multi-turn agent loop (no `nika-verb-agent` crate yet).
+    Agent,
+}
+
+/// Dispatch a resolved action to the appropriate verb crate.
+///
+/// Returns the verb output as a JSON value. String-producing verbs
+/// (exec, fetch, invoke) return `Value::String`. Richer verbs (infer)
+/// will return structured output once their arms go live.
+///
+/// # Live arms (S21)
+///
+/// - `Exec` — calls `verb_exec::run_exec`, returns stdout as `Value::String`
+/// - `Invoke` — calls `verb_invoke::run_invoke`, returns tool output as `Value::String`
+///
+/// # Pending arms
+///
+/// - `Fetch` — returns `RuntimeError::NotImplemented`
+/// - `Infer` — returns `RuntimeError::NotImplemented`
+/// - `Agent` — returns `RuntimeError::NotImplemented`
 pub async fn dispatch(
-    action: &AnalyzedTaskAction,
-    _caps: &VerbCapabilities,
+    action: &ResolvedAction<'_>,
+    caps: &VerbCapabilities,
 ) -> Result<serde_json::Value, RuntimeError> {
+    let event_log = caps.event_log();
+
     match action {
-        AnalyzedTaskAction::Exec(_) => {
-            // S13-B4: Exec arm — the actual call lives in
-            // `crate::verb_exec::run_exec(input, caps, event_log)`, which
-            // takes a pre-built `ExecInput`. This match arm cannot build
-            // the `ExecInput` from `AnalyzedExecAction` directly because
-            // template resolution (required) lives in nika-engine.
-            //
-            // Session 14 wires this fully when template resolution moves
-            // to nika-runtime. Until then, the engine bridge calls
-            // `nika_runtime::verb_exec::run_exec()` directly after doing
-            // its own template resolution + security validation.
-            Err(RuntimeError::NotImplemented { verb: "exec" })
+        ResolvedAction::Exec(input) => {
+            let result = crate::verb_exec::run_exec(input, caps, event_log).await?;
+            Ok(serde_json::Value::String(result))
         }
-        AnalyzedTaskAction::Fetch(_) => {
-            // S13-D2: Fetch arm — the actual call lives in
-            // `crate::verb_fetch::run_fetch(input, caps, event_log)`.
-            // Template resolution lives in nika-engine, so this match
-            // arm cannot build FetchInput from AnalyzedFetchAction
-            // directly during S13. Session 14 wires this fully.
-            Err(RuntimeError::NotImplemented { verb: "fetch" })
+        ResolvedAction::Invoke(input) => {
+            let result = crate::verb_invoke::run_invoke(input, caps, event_log).await?;
+            Ok(serde_json::Value::String(result))
         }
-        AnalyzedTaskAction::Invoke(_) => {
-            // S13-C3: Invoke arm — the actual call lives in
-            // `crate::verb_invoke::run_invoke(input, caps, event_log)`,
-            // which takes a pre-built `InvokeInput`. This match arm
-            // cannot build the `InvokeInput` from `AnalyzedInvokeAction`
-            // directly because template resolution + type coercion live
-            // in nika-engine.
-            //
-            // Session 14 wires this fully when template resolution moves
-            // to nika-runtime. Until then, the engine bridge calls
-            // `nika_verb_invoke::run()` directly for the builtin path.
-            Err(RuntimeError::NotImplemented { verb: "invoke" })
-        }
-        AnalyzedTaskAction::Infer(_) => {
-            // W14-B3: Infer arm — the actual call lives in
-            // `crate::verb_infer::run_infer(input, caps, event_log)`,
-            // which takes a pre-built `InferInput`. This match arm
-            // cannot build the `InferInput` from `AnalyzedInferAction`
-            // directly because template resolution, provider chain
-            // resolution, skills loading, spotlight wrapping, canary
-            // injection, and schema instruction are all engine-internal.
-            //
-            // Session 15 wires this fully when the orchestration layer
-            // moves from engine's task_dispatch into nika-runtime.
-            // Until then, the engine bridge will call
-            // `nika_verb_infer::run()` directly after doing the Shield
-            // setup pipeline.
-            Err(RuntimeError::NotImplemented { verb: "infer" })
-        }
-        AnalyzedTaskAction::Agent(_) => Err(RuntimeError::NotImplemented { verb: "agent" }),
+        ResolvedAction::Fetch(_) => Err(RuntimeError::NotImplemented { verb: "fetch" }),
+        ResolvedAction::Infer(_) => Err(RuntimeError::NotImplemented { verb: "infer" }),
+        ResolvedAction::Agent => Err(RuntimeError::NotImplemented { verb: "agent" }),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_core::ast::analyzed::{AnalyzedInferAction, AnalyzedTaskAction};
+    use std::sync::Arc;
 
     #[tokio::test]
-    async fn infer_returns_not_implemented() {
-        let action = AnalyzedTaskAction::Infer(AnalyzedInferAction::default());
-        let caps = test_capabilities();
+    async fn dispatch_exec_runs_command() {
+        use nika_kernel_mock::shell::MockShell;
+        let mock_shell = Arc::new(MockShell::new());
+        mock_shell.enqueue_ok("hello");
+        let caps = test_capabilities_with_shell(mock_shell);
+        let input = ExecInput {
+            command: "echo hello",
+            shell: false,
+            cwd: None,
+            timeout: None,
+            env: vec![],
+            env_remove: vec![],
+            max_stdout: None,
+            task_id: Arc::from("test_exec"),
+        };
+        let action = ResolvedAction::Exec(input);
         let result = dispatch(&action, &caps).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("infer"));
+        assert!(result.is_ok(), "exec dispatch should succeed: {result:?}");
+        let val = result.unwrap();
+        assert_eq!(val, serde_json::Value::String("hello".to_string()));
     }
 
     #[tokio::test]
-    async fn agent_returns_not_implemented() {
-        let action =
-            AnalyzedTaskAction::Agent(Box::new(nika_core::ast::analyzed::AnalyzedAgentAction {
-                ..Default::default()
-            }));
+    async fn dispatch_invoke_builtin_runs() {
         let caps = test_capabilities();
+        let input = InvokeInput {
+            tool: Some("nika:unknown_tool".to_string()),
+            resource: None,
+            mcp_server: None,
+            params: None,
+            task_id: Arc::from("test_invoke"),
+            call_id: "call-1".to_string(),
+        };
+        let action = ResolvedAction::Invoke(input);
+        let result = dispatch(&action, &caps).await;
+        // NoopBuiltinRouter returns an error for any tool
+        assert!(result.is_err(), "noop router should fail");
+    }
+
+    #[tokio::test]
+    async fn dispatch_fetch_not_implemented() {
+        let caps = test_capabilities();
+        let input = FetchInput {
+            url: "https://example.com",
+            method: nika_kernel::http::HttpMethod::Get,
+            headers: vec![],
+            body: None,
+            timeout: None,
+            follow_redirects: true,
+            extract: None,
+            extract_selector: None,
+            task_id: Arc::from("test_fetch"),
+        };
+        let action = ResolvedAction::Fetch(input);
         let result = dispatch(&action, &caps).await;
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("agent"));
+        assert!(result.unwrap_err().to_string().contains("fetch"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_infer_not_implemented() {
+        let caps = test_capabilities();
+        let input = InferInput {
+            prompt: "hello",
+            system: None,
+            model: "test-model",
+            temperature: None,
+            max_tokens: None,
+            thinking_budget: None,
+            extra: nika_kernel::provider::ProviderExtras::default(),
+            task_id: Arc::from("test_infer"),
+        };
+        let action = ResolvedAction::Infer(input);
+        let result = dispatch(&action, &caps).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("infer"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_agent_not_implemented() {
+        let caps = test_capabilities();
+        let action = ResolvedAction::Agent;
+        let result = dispatch(&action, &caps).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("agent"));
+    }
+
+    /// Compile-time proof that `dispatch` returns a Send future.
+    #[test]
+    fn dispatch_future_is_send() {
+        fn assert_send<T: Send>(_: &T) {}
+
+        let _assert = |action: &'static ResolvedAction<'static>,
+                       caps: &'static VerbCapabilities| {
+            let fut = dispatch(action, caps);
+            assert_send(&fut);
+        };
+    }
+
+    /// Build VerbCapabilities with a custom shell for exec tests.
+    fn test_capabilities_with_shell(
+        shell: Arc<dyn nika_kernel::shell::ShellExecutor>,
+    ) -> VerbCapabilities {
+        use nika_kernel_mock::clock::MockClock;
+        use nika_kernel_mock::filesystem::InMemoryFs;
+        use nika_kernel_mock::http::MockHttpClient;
+        use nika_kernel_mock::mcp::MockMcpPool;
+        use nika_kernel_mock::policy::MockPolicyChecker;
+        use nika_kernel_mock::store::MemoryBlobStore;
+
+        VerbCapabilities {
+            shell,
+            http: Arc::new(MockHttpClient::default()),
+            blobs: Arc::new(MemoryBlobStore::default()),
+            clock: Arc::new(MockClock::new()),
+            fs_read: Arc::new(InMemoryFs::new()),
+            fs_write: Arc::new(InMemoryFs::new()),
+            policy: Arc::new(MockPolicyChecker::allow_all()),
+            event_log: nika_event::EventLog::new(),
+            cancel_token: tokio_util::sync::CancellationToken::new(),
+            builtin_router: Arc::new(NoopBuiltinRouter),
+            mcp_pool: Arc::new(MockMcpPool::new()),
+            provider: Arc::new(nika_kernel_mock::MockProvider::new("test")),
+            workflow_base_dir: std::path::PathBuf::from("/tmp/test"),
+            working_dir_mode: None,
+            project_root: None,
+        }
     }
 
     /// Build a minimal VerbCapabilities for testing dispatch routing.
-    /// Only the dispatch match arms that return errors are tested;
-    /// the todo!() arms are not exercised.
     fn test_capabilities() -> VerbCapabilities {
         use nika_kernel_mock::clock::MockClock;
         use nika_kernel_mock::filesystem::InMemoryFs;
@@ -142,9 +242,6 @@ mod tests {
             event_log: nika_event::EventLog::new(),
             cancel_token: tokio_util::sync::CancellationToken::new(),
             builtin_router: Arc::new(NoopBuiltinRouter),
-            // S15-A4: replaced inline NoopMcpPool with MockMcpPool from
-            // kernel-mock. The kernel-mock crate owns the async-trait
-            // boilerplate; this file stays minimal.
             mcp_pool: Arc::new(MockMcpPool::new()),
             provider: Arc::new(nika_kernel_mock::MockProvider::new("test")),
             workflow_base_dir: std::path::PathBuf::from("/tmp/test"),
@@ -152,8 +249,6 @@ mod tests {
             project_root: None,
         }
     }
-
-    use std::sync::Arc;
 
     /// Noop builtin router for tests — no tools registered.
     #[derive(Debug)]
