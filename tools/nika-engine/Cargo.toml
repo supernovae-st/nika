@@ -208,6 +208,7 @@ insta = { workspace = true }
 pretty_assertions = { workspace = true }
 criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = { workspace = true }
+nika-kernel-mock = { workspace = true }
 wiremock = "0.6"
 qrcode = "0.14"
 image = { workspace = true }
