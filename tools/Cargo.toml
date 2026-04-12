@@ -32,7 +32,6 @@ members = [
     "nika-policy",
     "nika-extract",
     "nika-security",
-    "nika-runtime",
     "nika-verb-exec",
     "nika-verb-invoke",
     "nika-verb-fetch",
@@ -76,7 +75,6 @@ nika-builtin = { path = "nika-builtin", version = "0.79.0" }
 nika-policy = { path = "nika-policy", version = "0.79.0" }
 nika-extract = { path = "nika-extract", version = "0.79.0" }
 nika-security = { path = "nika-security", version = "0.79.0" }
-nika-runtime = { path = "nika-runtime", version = "0.79.0" }
 nika-verb-exec = { path = "nika-verb-exec", version = "0.79.0" }
 nika-verb-invoke = { path = "nika-verb-invoke", version = "0.79.0" }
 nika-verb-fetch = { path = "nika-verb-fetch", version = "0.79.0" }

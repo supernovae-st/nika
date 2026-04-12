@@ -6355,25 +6355,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nika-runtime"
-version = "0.79.0"
-dependencies = [
- "nika-core",
- "nika-event",
- "nika-kernel",
- "nika-kernel-mock",
- "nika-verb-exec",
- "nika-verb-fetch",
- "nika-verb-infer",
- "nika-verb-invoke",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "nika-sdk"
 version = "0.79.0"
 dependencies = [
