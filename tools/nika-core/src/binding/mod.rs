@@ -18,6 +18,9 @@ pub mod mention;
 pub mod token_budget;
 pub mod transform;
 pub mod types;
+mod validate;
+
+pub use validate::validate_task_id;
 
 // Re-export public types
 pub use entry::{

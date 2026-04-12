@@ -53,7 +53,6 @@
 mod resolve;
 mod template;
 pub mod token_budget;
-mod validate;
 
 // Re-export from nika-core: identical modules
 pub use nika_core::binding::jsonpath;
@@ -78,4 +77,4 @@ pub use template::{
 };
 pub use transform::{TransformError, TransformExpr, TransformOp, TransformParseError};
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};
-pub use validate::validate_task_id;
+pub use nika_core::binding::validate_task_id;
