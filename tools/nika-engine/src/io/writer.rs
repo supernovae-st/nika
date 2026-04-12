@@ -35,7 +35,7 @@ use tokio::fs;
 use crate::ast::OutputFormat;
 use crate::error::NikaError;
 use crate::io::atomic::write_atomic;
-use crate::io::security::{validate_artifact_path, validate_canonicalized_boundary};
+use nika_security::path::{validate_artifact_path, validate_canonicalized_boundary};
 use crate::io::template::TemplateResolver;
 
 /// Default maximum artifact size (100 MB) — matches nika-core DEFAULT_MAX_ARTIFACT_SIZE

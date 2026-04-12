@@ -13,8 +13,6 @@
 //! - [`writer`] - Artifact writer combining all the above
 
 pub mod atomic;
-/// Path validation re-exported from `nika-security::path` (extracted Constellation S18).
-pub use nika_security::path as security;
 pub mod template;
 pub mod writer;
 

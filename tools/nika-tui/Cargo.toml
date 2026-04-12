@@ -36,6 +36,7 @@ nika-engine = { workspace = true }
 
 # Core crate (catalogs, types — pure data, no I/O)
 nika-core = { workspace = true }
+nika-security = { workspace = true }
 nika-vault = { workspace = true }
 
 # LSP core (for TUI completion/analysis)

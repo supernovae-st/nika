@@ -147,7 +147,7 @@ fn expand_raw_include_recursive(
 
 /// Validate that a path stays within the project boundary.
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    crate::io::security::validate_canonicalized_boundary(base_path, target_path).map_err(|e| {
+    nika_security::path::validate_canonicalized_boundary(base_path, target_path).map_err(|e| {
         if e.reason.contains("Cannot resolve target path") {
             NikaError::WorkflowNotFound {
                 path: format!("{}: {}", e.target_path.display(), e.reason),

@@ -47,9 +47,8 @@ use crate::error::NikaError;
 /// - Loading files from parent directories
 /// - Symlink attacks pointing outside project
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    // SECURITY: Use centralized path validation from io::security
-    // This ensures consistent security checks across all file loading operations
-    crate::io::security::validate_canonicalized_boundary(base_path, target_path).map_err(|e| {
+    // SECURITY: Centralized path validation from nika-security crate
+    nika_security::path::validate_canonicalized_boundary(base_path, target_path).map_err(|e| {
         NikaError::ContextLoadError {
             alias: String::new(),
             path: e.target_path.display().to_string(),

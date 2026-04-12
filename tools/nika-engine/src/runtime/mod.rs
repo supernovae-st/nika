@@ -68,9 +68,6 @@ pub mod resolver;
 mod rig_agent_loop;
 pub mod robots;
 mod runner;
-/// Command validation, blocklist, SEC-2 binding scan, env var checks —
-/// re-exported from the `nika-security` L1 crate (extracted Constellation S18).
-pub use nika_security as security;
 pub mod shield;
 mod skill_injector;
 pub mod spawn;
@@ -108,8 +105,6 @@ pub use boot::{
     ProviderConfig, SessionConfig, ToolsConfig, TraceConfig,
 };
 pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget, TokenReservation};
-
-pub use nika_security::{check_shell_data_injection, validate_exec_command_with_shell};
 
 pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
 

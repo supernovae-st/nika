@@ -22,7 +22,7 @@ use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::io::atomic::{write_append, write_fail, write_unique};
-use crate::io::security::DEFAULT_ARTIFACT_DIR;
+use nika_security::path::DEFAULT_ARTIFACT_DIR;
 use crate::io::writer::{
     ArtifactWriter, BinarySource, BinaryWriteRequest, WriteRequest, WriteResult,
 };

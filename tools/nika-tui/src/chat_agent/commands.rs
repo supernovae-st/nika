@@ -35,7 +35,7 @@ impl ChatAgent {
 
         // SEC: Validate command against blocklist before shell execution.
         // Uses shell-mode validation since we execute via `sh -c`.
-        nika_engine::runtime::validate_exec_command_with_shell(command, true)?;
+        nika_security::validate_exec_command_with_shell(command, true)?;
 
         let output = TokioCommand::new("sh")
             .arg("-c")
