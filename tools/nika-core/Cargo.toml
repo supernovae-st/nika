@@ -35,6 +35,14 @@ hron = { workspace = true }
 chrono-tz = { workspace = true }
 serde_json_path = { workspace = true }
 
+[features]
+default = []
+# Enables MockBindingStore under `nika_core::binding::mock`. Dev-only
+# helper used by binding/resolve.rs test suites. Was previously hosted
+# in nika-kernel-mock; moved here in S24 to break the circular dev-dep
+# chain (nika-kernel-mock → nika-core → nika-kernel-mock).
+mock-bindings = []
+
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 insta = { workspace = true }
