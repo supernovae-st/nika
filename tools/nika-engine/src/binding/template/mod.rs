@@ -115,6 +115,16 @@ static BRACKET_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[(\d+)\]").u
 /// Unified regex that replaces per-namespace patterns -- dispatched via parse_template_expr().
 static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").unwrap());
 
+/// Helper: extract the group-0 `Match` from a `Captures` value. The only
+/// way `get(0)` returns `None` is when no capture occurred — which cannot
+/// happen inside a `captures_iter` loop. Centralising the invariant in one
+/// `expect` keeps the production hot path out of the unwrap ratchet.
+#[inline]
+fn cap_match<'a>(cap: &regex::Captures<'a>) -> regex::Match<'a> {
+    cap.get(0)
+        .expect("captures_iter always yields Some for group 0")
+}
+
 /// Parsed template expression from inside `{{ ... }}`
 ///
 /// Uses an iterative parser that correctly handles words like "contextual"
@@ -398,7 +408,7 @@ pub fn resolve_with<'a>(
     let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
     for cap in TEMPLATE_RE.captures_iter(template_str) {
-        let m = cap.get(0).unwrap();
+        let m = cap_match(&cap);
         let content = &cap[1];
 
         // Copy segment before this match
@@ -570,7 +580,7 @@ pub fn resolve_with<'a>(
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
@@ -656,7 +666,7 @@ pub fn resolve_with<'a>(
         let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
@@ -740,7 +750,7 @@ pub fn resolve_with<'a>(
         let mut skills_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Skills { path, transforms }) => (path, transforms),
@@ -817,7 +827,7 @@ pub fn extract_with_refs(template: &str) -> Vec<String> {
     for cap in TEMPLATE_RE.captures_iter(template) {
         let content = &cap[1];
         if let Ok(TemplateExpr::Alias { path, .. }) = parse_template_expr(content) {
-            let alias = path.split('.').next().unwrap().to_string();
+            let alias = path.split('.').next().unwrap_or("").to_string();
             aliases.push(alias);
         }
     }
@@ -868,7 +878,7 @@ pub fn validate_with_refs_full(
             let transforms = match &expr {
                 TemplateExpr::Alias { path, transforms } => {
                     // Validate alias reference
-                    let alias = path.split('.').next().unwrap().to_string();
+                    let alias = path.split('.').next().unwrap_or("").to_string();
                     if !declared_aliases.contains(&alias) {
                         let candidates: Vec<&str> =
                             declared_aliases.iter().map(|s| s.as_str()).collect();
@@ -1179,7 +1189,7 @@ pub fn resolve<'a>(
     let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
     for cap in TEMPLATE_RE.captures_iter(template_str) {
-        let m = cap.get(0).unwrap();
+        let m = cap_match(&cap);
         let content = &cap[1];
 
         // Copy segment before this match
@@ -1205,7 +1215,7 @@ pub fn resolve<'a>(
 
                 // Split: first segment is alias, rest is nested path
                 let mut parts = path.split('.');
-                let alias = parts.next().unwrap();
+                let alias = parts.next().unwrap_or("");
 
                 // Get the resolved value for this alias (supports lazy bindings via RunContext)
                 match bindings.get_resolved(alias, datastore) {
@@ -1392,7 +1402,7 @@ pub fn resolve<'a>(
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
@@ -1491,7 +1501,7 @@ pub fn resolve<'a>(
         let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
@@ -1578,7 +1588,7 @@ pub fn resolve<'a>(
         let mut skills_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Skills { path, transforms }) => (path, transforms),
@@ -1678,7 +1688,7 @@ pub fn resolve_for_shell<'a>(
     let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
     for cap in TEMPLATE_RE.captures_iter(template_str) {
-        let m = cap.get(0).unwrap();
+        let m = cap_match(&cap);
         let content = &cap[1];
 
         let (path, transforms) = match parse_template_expr(content) {
@@ -1689,7 +1699,7 @@ pub fn resolve_for_shell<'a>(
         result.push_str(&template_str[last_end..m.start()]);
 
         let mut parts = path.split('.');
-        let alias = parts.next().unwrap();
+        let alias = parts.next().unwrap_or("");
 
         match bindings.get_resolved(alias, datastore) {
             Ok(base_value) => {
@@ -1811,7 +1821,7 @@ pub fn resolve_for_shell<'a>(
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
@@ -1869,7 +1879,7 @@ pub fn resolve_for_shell<'a>(
         let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
 
         for cap in TEMPLATE_RE.captures_iter(&intermediate) {
-            let m = cap.get(0).unwrap();
+            let m = cap_match(&cap);
             let inner = cap[1].trim();
             let (path, transforms) = match parse_template_expr(inner) {
                 Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
@@ -2018,7 +2028,7 @@ pub fn extract_refs(template: &str) -> Vec<(String, String)> {
         .captures_iter(template)
         .map(|cap| {
             let full_path = cap[1].to_string();
-            let alias = full_path.split('.').next().unwrap().to_string();
+            let alias = full_path.split('.').next().unwrap_or("").to_string();
             (alias, full_path)
         })
         .collect()

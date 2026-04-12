@@ -793,7 +793,7 @@ pub fn resolve_binding_path(
             // TaskResult.output. Delegate to resolve_path() which handles both.
             if matches!(
                 binding_path.segments.first(),
-                Some(crate::binding::types::PathSegment::Field(f)) if f.as_ref() == "media"
+                Some(PathSegment::Field(f)) if f.as_ref() == "media"
             ) {
                 // Reconstruct the full dot-separated path for resolve_path
                 let full_path = format!(
@@ -804,11 +804,11 @@ pub fn resolve_binding_path(
                         .iter()
                         .fold(String::new(), |mut acc, seg| {
                             match seg {
-                                crate::binding::types::PathSegment::Field(f) => {
+                                PathSegment::Field(f) => {
                                     acc.push('.');
                                     acc.push_str(f);
                                 }
-                                crate::binding::types::PathSegment::Index(i) => {
+                                PathSegment::Index(i) => {
                                     acc.push_str(&format!("[{}]", i));
                                 }
                             }
@@ -834,7 +834,7 @@ pub fn resolve_binding_path(
                 // $task.raw → access raw output from TaskResult (bypass Record)
                 if matches!(
                     binding_path.segments.first(),
-                    Some(crate::binding::types::PathSegment::Field(f)) if f.as_ref() == "raw"
+                    Some(PathSegment::Field(f)) if f.as_ref() == "raw"
                 ) {
                     return Ok(datastore.get_output(task_id).map(|v| v.as_ref().clone()));
                 }
@@ -1175,4 +1175,5 @@ pub fn json_type_name(value: &Value) -> &'static str {
         Value::Object(_) => "object",
     }
 }
+
 
