@@ -1094,6 +1094,7 @@ impl From<nika_core::binding::BindingResolveError> for NikaError {
                 expected,
                 actual,
             },
+            B::Core(core) => NikaError::from(core),
             other => NikaError::Internal {
                 context: "binding_resolve".to_string(),
                 detail: format!("unmapped BindingResolveError variant: {other:?}"),

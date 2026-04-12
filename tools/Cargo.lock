@@ -6044,6 +6044,7 @@ dependencies = [
  "nika-extract",
  "nika-fs",
  "nika-kernel",
+ "nika-kernel-mock",
  "nika-lsp-core",
  "nika-macros",
  "nika-mcp",

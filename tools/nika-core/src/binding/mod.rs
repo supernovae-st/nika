@@ -17,6 +17,7 @@ mod error;
 mod event;
 pub mod jsonpath;
 pub mod mention;
+pub mod resolve;
 pub mod store;
 pub mod token_budget;
 pub mod transform;
@@ -25,6 +26,7 @@ mod validate;
 
 pub use error::BindingResolveError;
 pub use event::BindingEvent;
+pub use resolve::{LazyBinding, ResolvedBindings};
 pub use store::{BindingStore, BindingStoreError};
 pub use validate::validate_task_id;
 

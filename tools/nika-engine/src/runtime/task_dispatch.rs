@@ -209,16 +209,18 @@ async fn execute_task_iteration_inner(
     ) {
         Ok(result) => result,
         Err(e) => {
+            // BindingResolveError → NikaError so .code() is available.
+            let nika_err: crate::error::NikaError = e.into();
             let duration = start.elapsed();
             event_log.emit(EventKind::TaskFailed {
                 task_id: Arc::clone(&task_id),
-                error: e.to_string(),
+                error: nika_err.to_string(),
                 duration_ms: duration.as_millis() as u64,
-                error_code: Some(e.code().to_string()),
+                error_code: Some(nika_err.code().to_string()),
             });
             return IterationResult {
                 store_id: task_id,
-                result: TaskResult::failed(e.to_string(), duration),
+                result: TaskResult::failed(nika_err.to_string(), duration),
                 for_each_info,
             };
         }

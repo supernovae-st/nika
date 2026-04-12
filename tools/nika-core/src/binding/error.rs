@@ -30,12 +30,14 @@
 
 use thiserror::Error;
 
+use crate::error::CoreError;
+
 /// Errors raised by the binding resolver (`binding/resolve.rs`).
 ///
 /// Intentionally minimal — one variant per failure mode in the resolver.
 /// Engine code converts to `NikaError` at the API boundary via the
 /// `From<BindingResolveError>` impl in `nika-engine::error`.
-#[derive(Debug, Error, PartialEq, Eq, Clone)]
+#[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum BindingResolveError {
     /// NIKA-052: a binding path (e.g. `task.field.sub`) did not resolve.
@@ -70,6 +72,12 @@ pub enum BindingResolveError {
         expected: String,
         actual: String,
     },
+
+    /// Core-layer error surfaced by the binding resolver (e.g. JSONPath
+    /// parse failure from `binding::jsonpath::resolve`). Transparent —
+    /// the inner `CoreError` carries the NIKA-XXX code and message.
+    #[error(transparent)]
+    Core(#[from] CoreError),
 }
 
 #[cfg(test)]

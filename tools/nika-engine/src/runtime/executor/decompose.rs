@@ -261,7 +261,7 @@ impl TaskExecutor {
         if source.starts_with("{{with.") && source.ends_with("}}") {
             // Template syntax: {{with.alias}} - supports lazy bindings
             let alias = &source[7..source.len() - 2];
-            bindings.get_resolved(alias, datastore)
+            bindings.get_resolved(alias, datastore).map_err(Into::into)
         } else if let Some(alias) = source.strip_prefix('$') {
             if alias.contains('.') {
                 // Path syntax: $task.field
@@ -273,7 +273,7 @@ impl TaskExecutor {
                 })
             } else {
                 // Simple alias - supports lazy bindings
-                bindings.get_resolved(alias, datastore)
+                bindings.get_resolved(alias, datastore).map_err(Into::into)
             }
         } else {
             // Literal value
