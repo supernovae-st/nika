@@ -47,11 +47,12 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
+use nika_kernel::binding::BindingStore;
+
 use super::jsonpath;
 use crate::error::NikaError;
 use crate::error_domains::BindingError;
 use crate::event::EventKind;
-use crate::store::RunContext;
 
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
@@ -150,7 +151,7 @@ impl ResolvedBindings {
     /// Returns empty bindings if binding_spec is None.
     pub fn from_binding_spec(
         binding_spec: Option<&BindingSpec>,
-        datastore: &RunContext,
+        datastore: &dyn BindingStore,
     ) -> Result<Self, NikaError> {
         let Some(spec) = binding_spec else {
             return Ok(Self::new());
@@ -212,7 +213,7 @@ impl ResolvedBindings {
     /// Lazy bindings are stored as PendingWithEntry for later resolution.
     pub fn from_with_spec(
         with_spec: Option<&WithSpec>,
-        datastore: &RunContext,
+        datastore: &dyn BindingStore,
     ) -> Result<Self, NikaError> {
         let Some(spec) = with_spec else {
             return Ok(Self::new());
@@ -275,7 +276,7 @@ impl ResolvedBindings {
     /// transforms executed, env vars resolved) for the caller to emit.
     pub fn from_with_spec_traced(
         with_spec: Option<&WithSpec>,
-        datastore: &RunContext,
+        datastore: &dyn BindingStore,
         task_id: &Arc<str>,
     ) -> Result<(Self, Vec<EventKind>), NikaError> {
         let Some(spec) = with_spec else {
@@ -397,7 +398,7 @@ impl ResolvedBindings {
     ///
     /// Note: This doesn't cache the resolution - each call re-resolves.
     /// This is intentional to support changing datastore values.
-    pub fn get_resolved(&self, alias: &str, datastore: &RunContext) -> Result<Value, NikaError> {
+    pub fn get_resolved(&self, alias: &str, datastore: &dyn BindingStore) -> Result<Value, NikaError> {
         match self.bindings.get(alias) {
             Some(LazyBinding::Resolved(value)) => Ok(value.clone()),
             Some(LazyBinding::Pending { path, default }) => {
@@ -590,7 +591,7 @@ fn redact_value_inner(value: &Value, depth: u32) -> Value {
 fn resolve_entry(
     entry: &BindingEntry,
     alias: &str,
-    datastore: &RunContext,
+    datastore: &dyn BindingStore,
 ) -> Result<Value, NikaError> {
     let path = &entry.path;
 
@@ -715,7 +716,7 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
 fn resolve_with_entry(
     entry: &WithEntry,
     alias: &str,
-    datastore: &RunContext,
+    datastore: &dyn BindingStore,
 ) -> Result<Value, NikaError> {
     let path_str = entry.source.to_string();
 
@@ -795,7 +796,7 @@ fn resolve_with_entry(
 fn resolve_binding_path(
     binding_path: &BindingPath,
     alias: &str,
-    datastore: &RunContext,
+    datastore: &dyn BindingStore,
 ) -> Result<Option<Value>, NikaError> {
     match &binding_path.source {
         BindingSource::Task(task_id) => {
@@ -840,10 +841,16 @@ fn resolve_binding_path(
 
             // Record-aware bindings: if task has a compressed Record,
             // use Record fields instead of raw output.
-            if let Some(record) = datastore.get_record(task_id) {
+            // get_record returns the opaque to_binding_value() JSON:
+            // {"summary": "...", "key_findings": [...], "confidence": ...}
+            if let Some(record_value) = datastore.get_record(task_id) {
                 if binding_path.segments.is_empty() {
-                    // $task → Record summary string
-                    return Ok(Some(Value::String(record.summary.clone())));
+                    // $task → Record summary string (extract from opaque JSON)
+                    let summary = record_value
+                        .get("summary")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("");
+                    return Ok(Some(Value::String(summary.to_string())));
                 }
                 // $task.raw → access raw output from TaskResult (bypass Record)
                 if matches!(
@@ -853,7 +860,6 @@ fn resolve_binding_path(
                     return Ok(datastore.get_output(task_id).map(|v| v.as_ref().clone()));
                 }
                 // $task.field → navigate Record binding value
-                let record_value = record.to_binding_value();
                 return navigate_segments(&record_value, &binding_path.segments);
             }
 
@@ -961,7 +967,7 @@ fn resolve_binding_path(
 fn resolve_with_entry_traced(
     entry: &WithEntry,
     alias: &str,
-    datastore: &RunContext,
+    datastore: &dyn BindingStore,
     task_id: &Arc<str>,
     events: &mut Vec<EventKind>,
 ) -> Result<Value, NikaError> {
@@ -1076,7 +1082,7 @@ fn resolve_with_entry_traced(
 fn resolve_binding_path_traced(
     binding_path: &BindingPath,
     alias: &str,
-    datastore: &RunContext,
+    datastore: &dyn BindingStore,
     task_id: &Arc<str>,
     events: &mut Vec<EventKind>,
 ) -> Result<Option<Value>, NikaError> {
@@ -1197,7 +1203,7 @@ fn json_type_name(value: &Value) -> &'static str {
 mod tests {
     use super::*;
     use crate::binding::types::BindingPath;
-    use crate::store::TaskResult;
+    use crate::store::{RunContext, TaskResult};
     use serde_json::json;
     use serial_test::serial;
     use std::sync::Arc;
