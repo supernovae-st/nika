@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Resolved Bindings — re-exported from nika-core (S23-A3).
+//! Resolved bindings — re-exported from nika-core (S23-A3).
 //!
-//! The resolver moved to `nika_core::binding::resolve` to break the 3,752 LOC
-//! engine monolith. This shim keeps the `crate::binding::resolve` path alive
-//! for intra-engine callers and hosts the engine-side test module (which
-//! exercises the full integration surface via `RunContext`).
+//! The resolver — and the bulk of its unit tests — now live in
+//! `nika_core::binding::resolve`. This module exists only to:
+//!
+//! 1. keep the `crate::binding::resolve::{LazyBinding, ResolvedBindings}`
+//!    path alive for intra-engine callers (28 sites);
+//! 2. host the engine-side integration tests that need `RunContext`,
+//!    `TaskResult`, the vault, or the media pipeline — i.e. anything
+//!    the L0 core cannot pull in without breaking layering.
+//!
+//! After S24-A4, the re-export block for private helpers
+//! (`split_path`, `resolve_entry`, …) is gone: every test that
+//! reached into those internals now lives in nika-core itself and
+//! sees them via `use super::*`.
 
 pub use nika_core::binding::resolve::{LazyBinding, ResolvedBindings};
-
-// Private helpers re-exported only for the engine-side test module
-// (integration surface against `RunContext`). Not part of the public API.
-#[cfg(test)]
-#[allow(unused_imports)]
-pub(crate) use nika_core::binding::resolve::{
-    json_type_name, navigate_segments, resolve_binding_path, resolve_binding_path_traced,
-    resolve_entry, resolve_with_entry, resolve_with_entry_traced, split_path,
-    validate_binding_type,
-};
 
 #[cfg(test)]
 mod tests {

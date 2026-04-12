@@ -4,10 +4,12 @@
 > and steps to reproduce. We'll respond within 48h. Do not file public issues
 > for unpatched vulnerabilities.
 >
-> **Sprint 2 status (2026-04-08):** Items 1-6 of Nika Shield are wired into
-> the runner hot path. Item 7 (ML detection) and a handful of A1/A4/A8/A10
-> hardenings are deferred -- see "What Is NOT Yet Wired" below. Effective
-> coverage of the documented threat model is **~87%**, not 100%.
+> **Honest status (2026-04-12):** Shield ships 4 fully-wired defense layers
+> (L0 Policy, L2 Spotlight, L3 Structured, L4 Capabilities) + L5 Validation
+> (Canary + Scanner + Judge). L1 Taint runs at `nika check` / `nika lint`
+> time, NOT at `nika run` time -- remote workflows get zero runtime taint
+> enforcement. ML-based injection detection is NOT implemented. See "Known
+> Gaps" below for the full list.
 
 ## Honest Threat Model
 
@@ -20,17 +22,21 @@ only defense-in-depth that reduces practical exploitability.
 This document describes what Nika protects against, what it does NOT protect against,
 and the layered defenses (Nika Shield) that make exploitation substantially harder.
 
-## Nika Shield -- 6-Layer Defense Stack
+## Nika Shield -- Defense Stack (5 layers + audit)
 
 ```
-L0  POLICY ─────────── Workflow-level caps in nika.toml [policy]
-L1  TAINT ANALYSIS ─── Compile-time trust propagation (nika check --security)
-L2  SPOTLIGHTING ───── Auto-wrap untrusted data in prompts with randomized fence
-L3  STRUCTURED ─────── 5-layer JSON schema enforcement (pre-existing)
-L4  CAPABILITIES ───── Per-task tool/action restriction based on trust chain
-L5  VALIDATION ─────── Canary tokens + output scanning + guardrail hardening
-L6  AUDIT ──────────── Provenance in NDJSON traces + 14 security telemetry events
+L0  POLICY ─────────── Workflow-level caps in nika.toml [policy]           [wired]
+L1  TAINT ANALYSIS ─── Trust propagation at `nika check` / `nika lint`     [lint-only]
+L2  SPOTLIGHTING ───── Auto-wrap untrusted data with randomized fence      [wired]
+L3  STRUCTURED ─────── 4-layer JSON schema enforcement (pre-existing)      [wired]
+L4  CAPABILITIES ───── Per-task tool/action restriction based on trust     [wired]
+L5  VALIDATION ─────── Canary tokens + output scanning + judge hardening   [wired]
+L6  AUDIT ──────────── NDJSON traces + 12 security telemetry events        [wired]
 ```
+
+ML-based injection detection is NOT part of this stack. It was designed
+(NIKA-383/385 placeholders existed) but no model, no inference code, no
+runtime integration shipped. The claim has been removed.
 
 ### L0 -- Policy (nika.toml)
 
@@ -52,11 +58,16 @@ gate_untrusted_to_exec = false
 require_structured_for_untrusted = false
 ```
 
-### L1 -- Taint Analysis (`nika check --security`)
+### L1 -- Taint Analysis (lint-only, NOT runtime)
 
-Walks the workflow DAG at compile-time and assigns a `TrustLevel` to each task
-output based on its verb and input sources. Generates `TAINT-001` through
-`TAINT-006` warnings for risky data flows.
+Walks the workflow DAG and assigns a `TrustLevel` to each task output based
+on its verb and input sources. Generates `TAINT-001` through `TAINT-006`
+warnings for risky data flows.
+
+**Important limitation:** L1 is wired into `nika check --security` and
+`nika lint` only. It is NOT wired into `nika run`. Workflows fetched from
+remote URLs (`nika run https://...`) receive zero runtime taint enforcement.
+Run `nika check` explicitly on untrusted workflow sources before execution.
 
 **Trust levels:**
 - `Trusted` -- YAML literals, CLI inputs, context files, `$env.*`, skill files
@@ -100,10 +111,19 @@ Based on [Microsoft Research's "Spotlighting"](https://arxiv.org/abs/2403.14720)
 
 ### L3 -- Structured Output (pre-existing)
 
-The 5-layer structured output system constrains LLM outputs to a JSON schema,
+The 4-layer structured output system constrains LLM outputs to a JSON schema,
 making it much harder for injection to produce an executable payload. Even if
 the prompt succeeds in tricking the LLM, the output must still validate against
 the schema.
+
+Layers (internal naming):
+- L0 tool injection (provider-native response_format / tool_choice)
+- L2 extract + validate
+- L3 retry with schema feedback
+- L4 LLM repair
+
+An "L1 rig extractor" layer was described in earlier docs. It was never
+implemented. The current stack is four layers.
 
 ### L4 -- Capability Enforcement
 
@@ -130,11 +150,11 @@ via agent output from bypassing guardrails.
 
 ### L6 -- Audit
 
-14 security-specific telemetry events captured in NDJSON traces:
+12 security-specific telemetry events captured in NDJSON traces:
 `TaintAnalysisComplete`, `TrustLevelAssigned`, `TrustElevationUsed`,
 `SpotlightApplied`, `SpotlightSkipped`, `AgentToolRestricted`, `CanaryInjected`,
 `CanaryDetected`, `ScanFindingDetected`, `SkillIntegrityVerified`,
-`SkillIntegrityFailed`, `CapabilityDenied`, `MlDetectionRun`, `MlDetectionBlocked`.
+`SkillIntegrityFailed`, `CapabilityDenied`.
 
 ## What Is Protected
 
@@ -161,41 +181,50 @@ via agent output from bypassing guardrails.
 - **Side-channel timing or resource-exhaustion attacks**.
 - **Attacks on the infrastructure running Nika** (kernel exploits, container escapes).
 
-## What Is NOT Yet Wired (Sprint 2 deferrals)
+## Known Gaps
 
-The following items are documented in the Sprint 2 design but are not yet
-landed in the runner hot path. They are tracked for Sprint 3.
+The following are known differences between the Shield design and what
+actually runs. Honest list, no "coming soon" theatre.
 
-- **A1: deep-tree spotlight wrap on JSON object bindings**. Sprint 2 wraps
-  each binding alias as a single string; an `extract: article` payload
-  accessed via `{{with.scrape.text_content}}` deep-paths into the wrapped
-  JSON, which the current spotlight pre-pass does not catch. Workaround:
-  bind `text` to a top-level alias (`text: $scrape.text_content`).
-- **A4: per-task fence rotation**. Sprint 2 ships per-run fences (one fence
-  per workflow execution). A2/A4 hardening rotates the fence per task so
-  leaking one cannot help with another. Sprint 3.
-- **A7: untrusted vision input**. NIKA-389 variant exists but the runner
-  does not yet block vision inputs sourced from untrusted CAS hashes.
-- **A8: per-element wrap inside `for_each`**. Loop variables are wrapped
-  conservatively at the alias level; per-iteration wrap when the iterator
-  is `Value::Array` is deferred.
-- **A9: runtime `when:` block on tainted condition**. The L-SEC-006 lint
-  fires at compile-time but the runtime does not yet refuse to evaluate
-  the condition.
-- **A10: cache key augmentation with trust level**. Cache writes are not
-  yet partitioned by trust, so a poisoned response could be served on a
-  cache hit. Sprint 3.
-- **A12: artifact path traversal block**. The L-SEC lint flags risky
-  patterns but the runtime allowlist + `..` rejection lands in Sprint 3.
-- **Item 7 -- ML / heuristic injection scanner**. The output_scanner is
-  wired but the Aho-Corasick + optional ONNX classifier are deferred to
-  a follow-up sprint behind the `shield-ml` feature flag.
-- **`[mcp.trusted]` policy field**. Item 3c wraps every MCP tool
-  description regardless of server trust until the `nika.toml` schema
-  for `policy.security.trusted_mcp_servers` lands.
+### Gaps with workarounds
 
-Together these account for the ~13% gap between aspirational v1 coverage
-(100%) and the actual Sprint 2 v2 wiring (~87%).
+- **L1 Taint is not runtime.** Lint-only at `nika check` / `nika lint`.
+  Remote workflows (`nika run https://...`) get zero runtime enforcement.
+  Workaround: always `nika check` a remote workflow before running it.
+- **Deep-tree spotlight (A1).** Spotlight wraps each binding alias as a
+  single string; an `extract: article` payload accessed via
+  `{{with.scrape.text_content}}` deep-paths into the wrapped JSON, which
+  the current pre-pass does not catch. Workaround: bind `text` to a
+  top-level alias (`text: $scrape.text_content`).
+- **Per-task fence rotation (A4).** One fence per workflow execution.
+  Per-task rotation is not implemented.
+- **Untrusted vision input (A7).** NIKA-389 code exists but the runner
+  does not yet refuse vision inputs sourced from untrusted CAS hashes.
+- **Per-element wrap inside `for_each` (A8).** Loop variables are
+  wrapped conservatively at the alias level; per-iteration wrap when
+  the iterator is `Value::Array` is not implemented.
+- **Runtime `when:` block on tainted condition (A9).** The L-SEC-006
+  lint fires at compile-time but the runtime does not refuse to
+  evaluate the condition.
+- **Cache key augmentation with trust level (A10).** Cache writes are
+  not partitioned by trust, so a poisoned response could be served on
+  a cache hit.
+- **Artifact path traversal block (A12).** The L-SEC lint flags risky
+  patterns but the runtime allowlist + `..` rejection is not implemented.
+- **`[mcp.trusted]` policy field.** All MCP tool descriptions are
+  wrapped regardless of server trust, because the `nika.toml` schema
+  for `policy.security.trusted_mcp_servers` does not exist yet.
+
+### Features cut (not planned)
+
+- **ML injection detection.** The `shield-ml` feature flag, NIKA-383
+  (`InjectionDetected`) and NIKA-385 (`MlModelMissing`) were designed
+  but never implemented. There is no model, no inference code, no
+  integration point. Removed from the stack rather than left as
+  phantom "coming soon" debt.
+- **`InvocationSource::Remote` trust downgrade.** Designed but not
+  implemented. `nika run https://...` currently runs at full CLI trust.
+  See "Known Security Gaps" below.
 
 ## Best Practices for Handling Untrusted Data
 
@@ -232,9 +261,7 @@ Together these account for the ~13% gap between aspirational v1 coverage
 | NIKA-380 | CapabilityDenied | Task action exceeds inferred capabilities (recon block, nika:run, agent restrict) | yes |
 | NIKA-381 | TrustViolation | Untrusted data flow blocked in strict mode | reserved |
 | NIKA-382 | CanaryLeaked | Canary token detected in LLM output (carries match_type + token_index) | yes |
-| NIKA-383 | InjectionDetected | ML detector score above threshold (`shield-ml`) | reserved (Item 7) |
 | NIKA-384 | SpotlightRequired | Spotlight enforcement blocked incompatible flow | reserved (strict mode) |
-| NIKA-385 | MlModelMissing | ML model file missing under `shield-ml` | reserved (Item 7) |
 | NIKA-386 | RunDepthExceeded | nika:run nesting depth above policy.security.max_run_depth | yes |
 | NIKA-387 | RunCycleDetected | nika:run cyclic invocation chain | yes |
 | NIKA-388 | CanaryInThinking | Canary leaked in extended-thinking trace | reserved |
@@ -242,7 +269,7 @@ Together these account for the ~13% gap between aspirational v1 coverage
 
 ## OWASP LLM Top 10 (2025) Compliance
 
-- **LLM01 Prompt Injection** -- L1-L6 defenses
+- **LLM01 Prompt Injection** -- L0-L5 defenses + L6 audit
 - **LLM02 Insecure Output Handling** -- L3 structured output + L5 scanner
 - **LLM03 Training Data Poisoning** -- N/A (we don't train)
 - **LLM04 Model DoS** -- L0 policy (max_token_spend), rate limits
@@ -320,7 +347,7 @@ Source: `docs/sprints/CONSTELLATION-V2.2-TECH-DEBT-ADDENDUM.md` §3 + §9.5
 
 ### Current Security Posture (6/9 target clauses true)
 
-✅ Shield 6-layer prompt injection defense  
+✅ Shield 5-layer prompt injection defense + audit  
 ✅ DNS pre-resolution + pinning (SSRF)  
 ✅ Encrypted vault (XChaCha20 + Argon2i)  
 ✅ Unsafe-code-zero in kernel crate  
