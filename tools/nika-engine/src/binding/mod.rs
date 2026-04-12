@@ -50,9 +50,12 @@
 //!                    Resolved prompt
 //! ```
 
+mod event_bridge;
 mod resolve;
 mod template;
 pub mod token_budget;
+
+pub use event_bridge::binding_events_to_event_kinds;
 
 // Re-export from nika-core: identical modules
 pub use nika_core::binding::jsonpath;

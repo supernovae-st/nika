@@ -223,8 +223,8 @@ async fn execute_task_iteration_inner(
             };
         }
     };
-    // Emit collected binding events
-    for event in binding_events {
+    // Emit collected binding events (BindingEvent → EventKind)
+    for event in crate::binding::binding_events_to_event_kinds(binding_events) {
         event_log.emit(event);
     }
 

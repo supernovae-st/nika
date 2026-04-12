@@ -47,12 +47,11 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
-use nika_kernel::binding::BindingStore;
+use nika_core::binding::{BindingEvent, BindingStore};
 
 use super::jsonpath;
 use crate::error::NikaError;
 use crate::error_domains::BindingError;
-use crate::event::EventKind;
 
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
@@ -278,7 +277,7 @@ impl ResolvedBindings {
         with_spec: Option<&WithSpec>,
         datastore: &dyn BindingStore,
         task_id: &Arc<str>,
-    ) -> Result<(Self, Vec<EventKind>), NikaError> {
+    ) -> Result<(Self, Vec<BindingEvent>), NikaError> {
         let Some(spec) = with_spec else {
             return Ok((Self::new(), vec![]));
         };
@@ -969,7 +968,7 @@ fn resolve_with_entry_traced(
     alias: &str,
     datastore: &dyn BindingStore,
     task_id: &Arc<str>,
-    events: &mut Vec<EventKind>,
+    events: &mut Vec<BindingEvent>,
 ) -> Result<Value, NikaError> {
     let path_str = entry.source.to_string();
 
@@ -986,7 +985,7 @@ fn resolve_with_entry_traced(
                 path: format!("{} (transform error: {})", path_str, e),
             })?;
             // EMIT: BindingTransformApplied
-            events.push(EventKind::BindingTransformApplied {
+            events.push(BindingEvent::TransformApplied {
                 task_id: Arc::clone(task_id),
                 alias: alias.to_string(),
                 transform_chain: format!("{:?}", expr),
@@ -998,7 +997,7 @@ fn resolve_with_entry_traced(
             // If transform fails on null input, skip to Step 4 default.
             match expr.apply(v) {
                 Ok(result) => {
-                    events.push(EventKind::BindingTransformApplied {
+                    events.push(BindingEvent::TransformApplied {
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         transform_chain: format!("{:?}", expr),
@@ -1015,7 +1014,7 @@ fn resolve_with_entry_traced(
         // apply transforms on null so default() can fire (mirrors non-traced version).
         (None, Some(expr)) if expr.has_default() => match expr.apply(&Value::Null) {
             Ok(result) => {
-                events.push(EventKind::BindingTransformApplied {
+                events.push(BindingEvent::TransformApplied {
                     task_id: Arc::clone(task_id),
                     alias: alias.to_string(),
                     transform_chain: format!("{:?}", expr),
@@ -1037,7 +1036,7 @@ fn resolve_with_entry_traced(
             match &entry.default {
                 Some(d) => {
                     // EMIT: BindingDefaultApplied (redact secrets in event log)
-                    events.push(EventKind::BindingDefaultApplied {
+                    events.push(BindingEvent::DefaultApplied {
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         path: path_str.clone(),
@@ -1057,7 +1056,7 @@ fn resolve_with_entry_traced(
             match &entry.default {
                 Some(d) => {
                     // EMIT: BindingDefaultApplied (redact secrets in event log)
-                    events.push(EventKind::BindingDefaultApplied {
+                    events.push(BindingEvent::DefaultApplied {
                         task_id: Arc::clone(task_id),
                         alias: alias.to_string(),
                         path: path_str.clone(),
@@ -1084,7 +1083,7 @@ fn resolve_binding_path_traced(
     alias: &str,
     datastore: &dyn BindingStore,
     task_id: &Arc<str>,
-    events: &mut Vec<EventKind>,
+    events: &mut Vec<BindingEvent>,
 ) -> Result<Option<Value>, NikaError> {
     match &binding_path.source {
         BindingSource::Env(var_name) => {
@@ -1092,7 +1091,7 @@ fn resolve_binding_path_traced(
             // allowlist/blocklist), then emit the telemetry event.
             let result = resolve_binding_path(binding_path, alias, datastore)?;
             let found = result.is_some();
-            events.push(EventKind::BindingEnvResolved {
+            events.push(BindingEvent::EnvResolved {
                 task_id: Arc::clone(task_id),
                 var_name: var_name.to_string(),
                 found,
@@ -1102,7 +1101,7 @@ fn resolve_binding_path_traced(
         BindingSource::Vault { service, field } => {
             let result = resolve_binding_path(binding_path, alias, datastore)?;
             let found = result.is_some();
-            events.push(EventKind::BindingVaultResolved {
+            events.push(BindingEvent::VaultResolved {
                 task_id: Arc::clone(task_id),
                 service: service.to_string(),
                 field: field.to_string(),

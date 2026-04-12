@@ -14,6 +14,7 @@
 
 mod entry;
 mod error;
+mod event;
 pub mod jsonpath;
 pub mod mention;
 pub mod store;
@@ -23,6 +24,7 @@ pub mod types;
 mod validate;
 
 pub use error::BindingResolveError;
+pub use event::BindingEvent;
 pub use store::{BindingStore, BindingStoreError};
 pub use validate::validate_task_id;
 
