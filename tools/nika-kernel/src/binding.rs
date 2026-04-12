@@ -85,6 +85,12 @@ pub trait BindingStore: Send + Sync {
     ///
     /// Returns `Ok(Some(value))` if found, `Ok(None)` if not configured
     /// or field not found, `Err` on I/O or crypto failure.
+    ///
+    /// # Sync contract
+    ///
+    /// This method is sync. Implementations must pre-fetch and cache vault
+    /// credentials during workflow init (before binding resolution starts).
+    /// If lazy vault access becomes needed, this signature must change to async.
     fn vault_get_credential(
         &self,
         service: &str,
@@ -94,6 +100,7 @@ pub trait BindingStore: Send + Sync {
 
 /// Errors from vault credential lookup.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum BindingStoreError {
     /// Vault I/O or decryption failure.
     #[error("vault error: {reason}")]

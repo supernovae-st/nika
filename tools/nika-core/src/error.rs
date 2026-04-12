@@ -14,6 +14,7 @@ use thiserror::Error;
 /// Kept intentionally minimal -- only variants required by pure-type
 /// modules (binding/entry.rs) that were extracted from the main crate.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum CoreError {
     /// NIKA-050: Invalid binding path syntax.
     #[error("[NIKA-050] Invalid path syntax: {path}")]

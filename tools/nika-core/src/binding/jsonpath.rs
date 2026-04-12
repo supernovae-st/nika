@@ -16,7 +16,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use nika::binding::jsonpath;
+//! use nika_core::binding::jsonpath;
 //!
 //! let value = json!({"items": [{"name": "a"}, {"name": "b"}]});
 //!

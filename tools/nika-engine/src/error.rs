@@ -1085,6 +1085,10 @@ impl From<nika_core::error::CoreError> for NikaError {
             nika_core::error::CoreError::InvalidTaskId { id, reason } => {
                 NikaError::InvalidTaskId { id, reason }
             }
+            other => NikaError::Internal {
+                context: "core_error".to_string(),
+                detail: format!("unmapped CoreError variant: {other:?}"),
+            },
         }
     }
 }

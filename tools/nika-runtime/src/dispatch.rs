@@ -46,7 +46,8 @@ pub enum ResolvedAction<'a> {
     /// LLM inference (simple text path).
     Infer(InferInput<'a>),
     /// Multi-turn agent loop (no `nika-verb-agent` crate yet).
-    Agent,
+    /// Placeholder — will gain AgentInput when nika-verb-agent is created (S23).
+    Agent {},
 }
 
 /// Dispatch a resolved action to the appropriate verb crate.
@@ -82,7 +83,7 @@ pub async fn dispatch(
         }
         ResolvedAction::Fetch(_) => Err(RuntimeError::NotImplemented { verb: "fetch" }),
         ResolvedAction::Infer(_) => Err(RuntimeError::NotImplemented { verb: "infer" }),
-        ResolvedAction::Agent => Err(RuntimeError::NotImplemented { verb: "agent" }),
+        ResolvedAction::Agent {} => Err(RuntimeError::NotImplemented { verb: "agent" }),
     }
 }
 
@@ -173,7 +174,7 @@ mod tests {
     #[tokio::test]
     async fn dispatch_agent_not_implemented() {
         let caps = test_capabilities();
-        let action = ResolvedAction::Agent;
+        let action = ResolvedAction::Agent {};
         let result = dispatch(&action, &caps).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("agent"));
@@ -223,31 +224,8 @@ mod tests {
 
     /// Build a minimal VerbCapabilities for testing dispatch routing.
     fn test_capabilities() -> VerbCapabilities {
-        use nika_kernel_mock::clock::MockClock;
-        use nika_kernel_mock::filesystem::InMemoryFs;
-        use nika_kernel_mock::http::MockHttpClient;
-        use nika_kernel_mock::mcp::MockMcpPool;
-        use nika_kernel_mock::policy::MockPolicyChecker;
         use nika_kernel_mock::shell::MockShell;
-        use nika_kernel_mock::store::MemoryBlobStore;
-
-        VerbCapabilities {
-            shell: Arc::new(MockShell::new()),
-            http: Arc::new(MockHttpClient::default()),
-            blobs: Arc::new(MemoryBlobStore::default()),
-            clock: Arc::new(MockClock::new()),
-            fs_read: Arc::new(InMemoryFs::new()),
-            fs_write: Arc::new(InMemoryFs::new()),
-            policy: Arc::new(MockPolicyChecker::allow_all()),
-            event_log: nika_event::EventLog::new(),
-            cancel_token: tokio_util::sync::CancellationToken::new(),
-            builtin_router: Arc::new(NoopBuiltinRouter),
-            mcp_pool: Arc::new(MockMcpPool::new()),
-            provider: Arc::new(nika_kernel_mock::MockProvider::new("test")),
-            workflow_base_dir: std::path::PathBuf::from("/tmp/test"),
-            working_dir_mode: None,
-            project_root: None,
-        }
+        test_capabilities_with_shell(Arc::new(MockShell::new()))
     }
 
     /// Noop builtin router for tests — no tools registered.

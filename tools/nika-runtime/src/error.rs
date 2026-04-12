@@ -9,6 +9,7 @@
 /// at the dispatch boundary. The engine converts via
 /// `impl From<RuntimeError> for NikaError`.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum RuntimeError {
     /// Exec verb error.
     #[error(transparent)]

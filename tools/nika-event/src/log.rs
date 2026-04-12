@@ -617,7 +617,7 @@ pub enum EventKind {
     StructuredOutputAttempt {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Layer number (0-4)
+        /// Layer number: 0 (tool_injection), 2 (extract_validate), 3 (retry_with_feedback), 4 (llm_repair)
         layer: u8,
         /// Human-readable layer name (e.g., "tool_injection", "extract_validate")
         layer_name: String,
@@ -2395,7 +2395,7 @@ mod tests {
             task_id: "parse_json".into(),
             layer: 2,
             layer_name: "extract_validate".to_string(),
-            attempt: 1,
+            attempt: 2,
             success: false,
             error: Some("Schema validation failed".to_string()),
         });
@@ -2453,7 +2453,7 @@ mod tests {
             attempts,
             vec![
                 (2, 1, false), // Layer 2 (extract_validate), attempt 1, failed
-                (2, 1, false), // Layer 2 (extract_validate), attempt 2, failed
+                (2, 2, false), // Layer 2 (extract_validate), attempt 2, failed
                 (3, 1, false), // Layer 3 (retry_with_feedback), attempt 1, failed
                 (3, 2, true),  // Layer 3, attempt 2, success
             ]
