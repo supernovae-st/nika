@@ -58,7 +58,9 @@ fn effective_provider<'a>(
 /// workflow default). Returns [`NikaError::UnsupportedProviderCapability`]
 /// (NIKA-120) on the first mismatch.
 fn validate_capabilities(workflow: &nika_engine::ast::Workflow) -> Result<(), NikaError> {
-    use nika_engine::ast::capability_check::check_extended_thinking;
+    use nika_engine::ast::capability_check::{
+        check_extended_thinking, check_stop_sequences, check_tool_choice,
+    };
 
     for task in &workflow.tasks {
         let provider = effective_provider(workflow, task);
@@ -68,6 +70,11 @@ fn validate_capabilities(workflow: &nika_engine::ast::Workflow) -> Result<(), Ni
             }
             TaskAction::Agent { agent } => {
                 check_extended_thinking(&task.id, provider, agent.extended_thinking)?;
+                check_stop_sequences(&task.id, provider, &agent.stop_sequences)?;
+                if agent.has_explicit_tool_choice() {
+                    let tc = agent.effective_tool_choice();
+                    check_tool_choice(&task.id, provider, Some(&tc))?;
+                }
             }
             _ => {}
         }
@@ -1228,5 +1235,84 @@ tasks:
       extended_thinking: true
 "#;
         validate_capabilities(&parse(yaml)).expect("mock must accept for test ergonomics");
+    }
+
+    // ---- stop_sequences ----
+
+    #[test]
+    fn groq_with_agent_stop_sequences_is_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: groq
+model: llama-3.3-70b-versatile
+tasks:
+  - id: assistant
+    agent:
+      prompt: "do the thing"
+      tools: []
+      stop_sequences: ["END", "DONE"]
+"#;
+        let err = validate_capabilities(&parse(yaml))
+            .expect_err("groq agent with stop_sequences must reject");
+        assert_eq!(err.code(), "NIKA-120");
+        let display = format!("{err}");
+        assert!(display.contains("stop_sequences"), "display: {display}");
+        assert!(display.contains("groq"), "display: {display}");
+    }
+
+    #[test]
+    fn anthropic_with_agent_stop_sequences_is_accepted() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: anthropic
+model: claude-sonnet-4-20250514
+tasks:
+  - id: assistant
+    agent:
+      prompt: "do the thing"
+      tools: []
+      stop_sequences: ["END"]
+"#;
+        validate_capabilities(&parse(yaml)).expect("anthropic supports stop_sequences");
+    }
+
+    // ---- tool_choice ----
+
+    #[test]
+    fn mistral_with_tool_choice_required_is_rejected() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: mistral
+model: mistral-large-latest
+tasks:
+  - id: assistant
+    agent:
+      prompt: "do the thing"
+      tools: []
+      tool_choice: required
+"#;
+        let err = validate_capabilities(&parse(yaml))
+            .expect_err("mistral with tool_choice: required must reject");
+        assert_eq!(err.code(), "NIKA-120");
+        let display = format!("{err}");
+        assert!(display.contains("tool_choice_required"), "display: {display}");
+        assert!(display.contains("mistral"), "display: {display}");
+    }
+
+    #[test]
+    fn groq_with_tool_choice_auto_is_accepted() {
+        // tool_choice: auto is universal — must never fire NIKA-120.
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+provider: groq
+model: llama-3.3-70b-versatile
+tasks:
+  - id: assistant
+    agent:
+      prompt: "do the thing"
+      tools: []
+      tool_choice: auto
+"#;
+        validate_capabilities(&parse(yaml)).expect("auto must not trigger NIKA-120");
     }
 }

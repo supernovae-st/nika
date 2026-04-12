@@ -120,6 +120,23 @@ impl RigAgentLoop {
                 })?;
         let provider_str = provider_ref.as_str();
 
+        // Track 2: fail fast on capability / provider mismatches the runtime
+        // used to paper over (stop_sequences silent drop, tool_choice: required
+        // silent no-op).
+        crate::ast::capability_check::check_stop_sequences(
+            &self.task_id,
+            provider_str,
+            &self.params.stop_sequences,
+        )?;
+        if self.params.has_explicit_tool_choice() {
+            let tc = self.params.effective_tool_choice();
+            crate::ast::capability_check::check_tool_choice(
+                &self.task_id,
+                provider_str,
+                Some(&tc),
+            )?;
+        }
+
         let resolved = crate::core::find_provider(provider_str).ok_or_else(|| {
             NikaError::AgentValidationError {
                 reason: format!(
