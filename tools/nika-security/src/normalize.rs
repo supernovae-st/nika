@@ -3,6 +3,8 @@
 
 //! Unicode normalization and quote-aware string matching for blocklist checks.
 
+use std::borrow::Cow;
+
 use unicode_normalization::UnicodeNormalization;
 
 /// Zero-width and invisible characters to strip before blocklist check.
@@ -44,6 +46,12 @@ const ZERO_WIDTH_CHARS: &[char] = &[
 /// similar but technically different Unicode characters, or by inserting
 /// invisible characters to break up blocked patterns.
 pub(crate) fn normalize_for_blocklist(s: &str) -> String {
+    // ASCII fast-path: skip NFKC + zero-width filtering when the input is
+    // pure ASCII (the common case for legitimate commands). Only whitespace
+    // normalization is needed.
+    if s.is_ascii() {
+        return s.split_whitespace().collect::<Vec<_>>().join(" ");
+    }
     s.nfkc()
         .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
         .collect::<String>()
@@ -58,7 +66,7 @@ pub(crate) fn normalize_for_blocklist(s: &str) -> String {
 /// `/usr/local/bin/python3 -c "..."` → `python3 -c "..."`
 ///
 /// This prevents bypass via absolute path to blocked binaries.
-pub(crate) fn normalize_first_token_basename(cmd: &str) -> String {
+pub(crate) fn normalize_first_token_basename(cmd: &str) -> Cow<'_, str> {
     let trimmed = cmd.trim();
     if let Some(space_pos) = trimmed.find(' ') {
         let first_token = &trimmed[..space_pos];
@@ -67,10 +75,10 @@ pub(crate) fn normalize_first_token_basename(cmd: &str) -> String {
                 .file_name()
                 .and_then(|f| f.to_str())
                 .unwrap_or(first_token);
-            return format!("{} {}", basename, &trimmed[space_pos + 1..]);
+            return Cow::Owned(format!("{basename} {}", &trimmed[space_pos + 1..]));
         }
     }
-    cmd.to_string()
+    Cow::Borrowed(cmd)
 }
 
 /// Check whether `haystack` contains `needle` outside of quoted regions.

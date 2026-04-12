@@ -67,20 +67,15 @@ pub fn validate_env_vars(vars: &[(String, String)]) -> Result<(), SecurityError>
 /// environment variable names. This rejects names containing `%`, `{`, `}`,
 /// `(`, `)`, `=`, spaces, etc., which could be used for BASH_FUNC injection.
 pub(crate) fn is_valid_env_var_name(name: &str) -> bool {
-    if name.is_empty() {
+    let Some((&first, rest)) = name.as_bytes().split_first() else {
+        return false;
+    };
+    // First character: must be [A-Za-z_]
+    if !first.is_ascii_alphabetic() && first != b'_' {
         return false;
     }
-
-    let mut chars = name.chars();
-
-    // First character: must be [A-Za-z_]
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-
     // Remaining characters: must be [A-Za-z0-9_]
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    rest.iter().all(|b| b.is_ascii_alphanumeric() || *b == b'_')
 }
 
 /// Returns the list of sensitive env var names that should be stripped

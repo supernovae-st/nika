@@ -173,9 +173,9 @@ pub fn check_blocklist(cmd: &str) -> Result<(), SecurityError> {
     for pattern in BLOCKLIST {
         let normalized_pattern = pattern.to_lowercase();
         if lower.contains(&normalized_pattern)
-            || basename_normalized.contains(&normalized_pattern)
+            || basename_normalized.contains(normalized_pattern.as_str())
             || dequoted.contains(&normalized_pattern)
-            || basename_dequoted.contains(&normalized_pattern)
+            || basename_dequoted.contains(normalized_pattern.as_str())
         {
             tracing::warn!(
                 command = %nika_core::util::redact_secrets(cmd),
@@ -208,11 +208,11 @@ pub fn check_blocklist_with_intent(cmd: &str, raw_template: Option<&str>) -> Res
     let basename_normalized = normalize_first_token_basename(&lower);
     let basename_dequoted = normalize_first_token_basename(&dequoted);
 
-    let candidates = [&lower, &basename_normalized, &dequoted, &basename_dequoted];
+    let candidates: [&str; 4] = [&lower, &basename_normalized, &dequoted, &basename_dequoted];
 
     for pattern in BLOCKLIST {
         let normalized_pattern = pattern.to_lowercase();
-        let matched = candidates.iter().any(|c| c.contains(&normalized_pattern));
+        let matched = candidates.iter().any(|c| c.contains(normalized_pattern.as_str()));
         if !matched {
             continue;
         }

@@ -105,7 +105,7 @@ pub fn validate_artifact_path(
             .canonicalize()
             .map_err(|e| crate::SecurityError::ArtifactPath {
                 path: artifact_dir.display().to_string(),
-                reason: format!("Failed to canonicalize artifact directory: {}", e),
+                reason: format!("Failed to canonicalize artifact directory: {e}"),
             })?
     } else {
         // If artifact dir doesn't exist, normalize it
@@ -256,7 +256,7 @@ pub fn validate_canonicalized_boundary(
 ) -> Result<(), PathBoundaryError> {
     let canonical_base = base_path.canonicalize().map_err(|e| PathBoundaryError {
         target_path: target_path.to_path_buf(),
-        reason: format!("Cannot resolve base path '{}': {}", base_path.display(), e),
+        reason: format!("Cannot resolve base path '{}': {e}", base_path.display()),
     })?;
 
     let canonical_target = target_path.canonicalize().map_err(|e| PathBoundaryError {
