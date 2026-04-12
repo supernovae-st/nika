@@ -636,7 +636,7 @@ pub enum EventKind {
     StructuredOutputSuccess {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Layer that succeeded (1-4)
+        /// Layer that succeeded (0, 2, 3, or 4)
         layer: u8,
         /// Human-readable layer name
         layer_name: String,

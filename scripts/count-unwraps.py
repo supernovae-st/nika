@@ -73,14 +73,20 @@ def _count_file(path, unwrap_locs, expect_locs, list_locations):
             cfg_test_seen = True
             continue
 
-        # If we saw #[cfg(test)] and now see a mod declaration, enter test module
+        # If we saw #[cfg(test)] and now see a mod/fn declaration, enter test block
         if cfg_test_seen:
-            if stripped.startswith("mod ") or stripped.startswith("pub mod "):
+            is_mod = stripped.startswith("mod ") or stripped.startswith("pub mod ") or stripped.startswith("pub(crate) mod ")
+            is_fn = stripped.startswith("fn ") or stripped.startswith("pub fn ") or stripped.startswith("pub(crate) fn ") or stripped.startswith("async fn ") or stripped.startswith("pub async fn ")
+            if is_mod and stripped.endswith(";"):
+                # External module ref (mod tests;) — file excluded by name filter
+                cfg_test_seen = False
+                continue
+            elif is_mod or is_fn:
                 in_test_mod = True
-                brace_depth = 0
+                brace_depth = stripped.count("{") - stripped.count("}")
                 cfg_test_seen = False
             elif stripped and not stripped.startswith("#"):
-                # Non-attribute, non-empty line after #[cfg(test)] without mod = reset
+                # Non-attribute, non-empty line after #[cfg(test)] without mod/fn = reset
                 cfg_test_seen = False
 
         if in_test_mod:
@@ -104,7 +110,11 @@ def read_baseline():
     with open(BASELINE) as f:
         for line in f:
             if line.startswith("total="):
-                return int(line.strip().split("=")[1])
+                try:
+                    return int(line.strip().split("=")[1])
+                except ValueError:
+                    print(f"ERROR: malformed baseline value: {line.strip()}")
+                    sys.exit(1)
     return None
 
 

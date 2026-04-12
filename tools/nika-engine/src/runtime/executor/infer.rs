@@ -798,7 +798,7 @@ impl TaskExecutor {
         // If structured output is configured, try tool injection first.
         // The LLM is forced to call submit_result() with schema-compliant JSON.
         // If it succeeds, we still validate the result. If it fails, we fall
-        // through to streaming + post-processing (Layers 1-3).
+        // through to streaming + post-processing (Layers 2-4).
         if let Some(policy) = output_policy {
             // Respect enable_tool_injection: false — skip L0 entirely
             let should_inject_tool = policy
@@ -1077,7 +1077,7 @@ impl TaskExecutor {
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // STREAMING PATH (Layers 1-3 fallback)
+        // STREAMING PATH (Layers 2-4 fallback)
         // ═══════════════════════════════════════════════════════════════════
         // Used for: structured output retry (L2-L3), extended thinking,
         // and vision fallback. Simple text infer delegates above (S17-A2).
@@ -1307,7 +1307,7 @@ impl TaskExecutor {
             if cost.is_finite() { cost } else { 0.0 },
         );
 
-        // Structured output validation via StructuredOutputEngine (Layers 1-3)
+        // Structured output validation via StructuredOutputEngine (Layers 2-4)
         // If output policy requires JSON with schema, validate and repair the output
         if let Some(policy) = output_policy {
             if policy.is_structured() {
@@ -1315,7 +1315,7 @@ impl TaskExecutor {
                     let spec = resolve_from_example_in_spec(spec, &cached_example);
                     debug!(
                         task_id = %task_id,
-                        "Validating structured output via StructuredOutputEngine (Layers 1-3)"
+                        "Validating structured output via StructuredOutputEngine (Layers 2-4)"
                     );
 
                     // Create inference callback for Layer 2 & 3
@@ -1352,7 +1352,7 @@ impl TaskExecutor {
                         }
                     }
 
-                    // Validate through defense system (Layers 1-3)
+                    // Validate through defense system (Layers 2-4)
                     let result = engine
                         .validate(task_id.as_ref(), &stream_result.text)
                         .await?;

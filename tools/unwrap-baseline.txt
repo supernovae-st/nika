@@ -12,9 +12,9 @@
 # Phase b: migrate hot path to Result — S22/S23
 # Phase c: clippy deny unwrap_used + delete this file — S26
 
-unwrap_count=59
-expect_count=51
-total=110
+unwrap_count=54
+expect_count=50
+total=104
 measured=2026-04-12
 session=S20
 head=4a321572a

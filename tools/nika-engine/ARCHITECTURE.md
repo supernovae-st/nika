@@ -512,7 +512,7 @@ HTML extraction moved into the standalone `nika-extract` L2 crate
 revisions of this table carried a phantom `extract.rs | ~1330`
 entry that was incorrect post-S12.
 
-**Key file:** `infer.rs` (~2160 LOC) contains the 5-layer structured output
+**Key file:** `infer.rs` (~2160 LOC) contains the 4-layer structured output
 pipeline and provider auto-retry logic.
 
 #### Builtin Tools (`runtime/builtin/`) — Split Across Two Crates
@@ -550,7 +550,7 @@ as function argument to `BuiltinTool::call`.
 
 | File | LOC | Purpose |
 |------|-----|---------|
-| `structured_output.rs` | ~2030 | 5-layer structured output engine |
+| `structured_output.rs` | ~2030 | 4-layer structured output engine |
 | `artifact_processor.rs` | ~2770 | Persist task outputs to files |
 | `task_dispatch.rs` | ~1110 | Task dispatch orchestration |
 | `chat_workflow.rs` | ~1300 | `nika chat` interactive mode |
