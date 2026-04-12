@@ -3496,6 +3496,109 @@ mod tests {
         assert!(bindings.get("data").is_some());
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Record-aware binding tests (S22 P1-2 from rust-pro review)
+    //
+    // resolve_binding_path has a special path when a task has a compression
+    // Record. These tests use MockBindingStore's with_record builder to
+    // exercise the trait-level get_record() delegation.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn record_aware_empty_segments_returns_summary() {
+        // $task (no segments) → extract summary string from opaque JSON
+        let record = json!({
+            "summary": "Compressed findings",
+            "key_findings": ["finding A", "finding B"],
+            "confidence": 0.92,
+            "tokens_original": 5000u64,
+            "tokens_compressed": 200u64,
+            "compression_ratio": 0.04
+        });
+        let store = MockBindingStore::new()
+            .with_output("research", json!({"raw": "original output"}))
+            .with_record("research", record);
+
+        let path = BindingPath {
+            source: BindingSource::Task(Arc::from("research")),
+            segments: vec![],
+        };
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("summary".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("summary"), Some(&json!("Compressed findings")));
+    }
+
+    #[test]
+    fn record_aware_field_access_navigates_opaque_json() {
+        // $task.confidence → navigate the opaque record JSON
+        let record = json!({
+            "summary": "Summary text",
+            "key_findings": ["A", "B"],
+            "confidence": 0.85,
+            "tokens_original": 1000u64,
+            "tokens_compressed": 100u64,
+            "compression_ratio": 0.1
+        });
+        let store = MockBindingStore::new()
+            .with_output("research", json!({"data": "raw"}))
+            .with_record("research", record);
+
+        let path = BindingPath::parse("$research.confidence").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("conf".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("conf"), Some(&json!(0.85)));
+    }
+
+    #[test]
+    fn record_aware_raw_bypasses_record() {
+        // $task.raw → bypass the Record, return raw task output
+        let record = json!({
+            "summary": "Short summary",
+            "key_findings": [],
+            "confidence": 1.0,
+            "tokens_original": 100u64,
+            "tokens_compressed": 10u64,
+            "compression_ratio": 0.1
+        });
+        let raw_output = json!({"full": "raw unfiltered data", "tokens": 5000});
+        let store = MockBindingStore::new()
+            .with_output("research", raw_output.clone())
+            .with_record("research", record);
+
+        let path = BindingPath::parse("$research.raw").unwrap();
+        let entry = WithEntry {
+            source: path,
+            binding_type: BindingType::Any,
+            default: None,
+            lazy: false,
+            transform: None,
+        };
+        let mut spec = WithSpec::default();
+        spec.insert("raw_data".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        // .raw returns the full task output, not a navigated field
+        assert_eq!(bindings.get("raw_data"), Some(&raw_output));
+    }
+
     #[test]
     fn redact_secrets_in_binding_default() {
         use crate::util::redact_secrets;

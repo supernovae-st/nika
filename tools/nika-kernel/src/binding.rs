@@ -61,8 +61,10 @@ pub trait BindingStore: Send + Sync {
 
     /// Get the compression record for a task (if any).
     ///
-    /// Returns an opaque JSON value representing the record.
-    /// Callers use this for `$task_id._record` bindings.
+    /// Returns an opaque JSON value from `Record::to_binding_value()`:
+    /// `{"summary": String, "key_findings": [String], "confidence": f64, ...}`.
+    /// The caller navigates fields directly. When segments are empty,
+    /// the resolver extracts the `"summary"` string for `$task` bindings.
     fn get_record(&self, task_id: &str) -> Option<Value>;
 
     /// Resolve an `inputs.*` path to its default value.
@@ -70,15 +72,19 @@ pub trait BindingStore: Send + Sync {
     /// Path format: `inputs.param` or `inputs.param.field`
     fn resolve_input_path(&self, path: &str) -> Option<Value>;
 
-    /// Resolve a `context.*` path (files, env, session).
+    /// Resolve a `context.*` path (files and session).
     ///
-    /// Path format: `context.files.alias`, `context.env.VAR`,
-    /// `context.session`, `context.session.field`
+    /// Path format: `context.files.alias`, `context.files.alias.field`,
+    /// `context.session`, `context.session.field`.
+    /// Shorthand: `context.alias` → `context.files.alias`.
+    ///
+    /// Note: env vars use `BindingSource::Env`, not this method.
     fn resolve_context_path(&self, path: &str) -> Option<Value>;
 
-    /// Resolve a `skills.*` path to its loaded content.
+    /// Resolve a skills path to its loaded content.
     ///
-    /// Path format: `skills.alias` or `skills.alias.field`
+    /// Path format: `alias` or `alias.field` (the `skills.` prefix is
+    /// stripped by the caller before dispatch — do NOT expect it here).
     fn resolve_skills_path(&self, path: &str) -> Option<Value>;
 
     /// Look up a credential from the encrypted vault.

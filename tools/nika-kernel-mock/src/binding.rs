@@ -247,6 +247,18 @@ impl BindingStore for MockBindingStore {
 /// Simple dot-path navigation through a JSON value.
 ///
 /// Handles "field.sub.nested" paths with basic array index support "[N]".
+///
+/// # Limitations vs production
+///
+/// This is a minimal walker, not a full replacement for nika-core's jsonpath:
+/// - Does NOT auto-parse JSON-encoded strings (unlike `navigate_segments`
+///   in resolve.rs which calls `jsonpath::try_parse_json_str`). Tests that
+///   store `json!("{\"key\":\"val\"}")` and navigate `task.key` will get
+///   `None` here, but the production path would return `Some(json!("val"))`.
+/// - ASCII-only field names before `[` (uses byte slicing, not char indices).
+/// - No support for escaped dots or nested brackets like `items[0][1]`.
+///
+/// For tests that need the full jsonpath behavior, use `RunContext` instead.
 fn navigate_json(value: &Value, path: &str) -> Option<Value> {
     let mut current = value;
     for segment in path.split('.') {
