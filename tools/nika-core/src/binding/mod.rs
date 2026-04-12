@@ -9,10 +9,11 @@
 //! - `entry`: BindingSpec, BindingEntry, WithSpec, WithEntry, parse_with_entry
 //! - `transform`: TransformOp, TransformExpr, 27 built-in transforms
 //!
-//! Runtime-dependent modules (resolve, template, jsonpath, validate, mention)
-//! remain in the `nika` crate.
+//! Runtime-dependent modules (resolve, template) remain in nika-engine.
+//! Pure modules (mention, jsonpath, token_budget, validate) live here.
 
 mod entry;
+pub mod mention;
 pub mod transform;
 pub mod types;
 
@@ -24,5 +25,9 @@ pub use entry::{
 pub use transform::{
     deep_merge, eval_jq, navigate_dot_path, TransformError, TransformExpr, TransformOp,
     TransformParseError,
+};
+pub use mention::{
+    has_parallel_marker, mentions_to_bindings, parse_mentions, resolve_mention,
+    strip_parallel_marker, text_to_bindings, Mention, MentionResolutionError, ResolvedMention,
 };
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};

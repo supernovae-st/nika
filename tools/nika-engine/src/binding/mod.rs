@@ -51,17 +51,17 @@
 //! ```
 
 pub mod jsonpath;
-pub mod mention;
 mod resolve;
 mod template;
 pub mod token_budget;
 mod validate;
 
 // Re-export from nika-core: identical modules
+pub use nika_core::binding::mention;
 pub use nika_core::binding::transform;
 pub use nika_core::binding::types;
-// Re-export entry types from nika-core
-pub use mention::{
+// Re-export mention types from nika-core
+pub use nika_core::binding::mention::{
     has_parallel_marker, mentions_to_bindings, parse_mentions, resolve_mention,
     strip_parallel_marker, text_to_bindings, Mention, MentionResolutionError, ResolvedMention,
 };

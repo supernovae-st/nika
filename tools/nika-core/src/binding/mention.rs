@@ -88,7 +88,7 @@ static MENTION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 /// # Examples
 ///
 /// ```
-/// use nika_engine::binding::mention::{parse_mentions, Mention};
+/// use nika_core::binding::mention::{parse_mentions, Mention};
 ///
 /// let mentions = parse_mentions("Look at @1 and @2");
 /// assert_eq!(mentions, vec![Mention::Number(1), Mention::Number(2)]);
@@ -140,7 +140,7 @@ pub fn parse_mentions(text: &str) -> Vec<Mention> {
 /// # Examples
 ///
 /// ```
-/// use nika_engine::binding::mention::has_parallel_marker;
+/// use nika_core::binding::mention::has_parallel_marker;
 ///
 /// assert!(has_parallel_marker("// Independent task"));
 /// assert!(has_parallel_marker("  // Also parallel"));
@@ -159,7 +159,7 @@ pub fn has_parallel_marker(text: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use nika_engine::binding::mention::strip_parallel_marker;
+/// use nika_core::binding::mention::strip_parallel_marker;
 ///
 /// assert_eq!(strip_parallel_marker("// Task"), "Task");
 /// assert_eq!(strip_parallel_marker("  //  Parallel work"), "Parallel work");
@@ -231,7 +231,7 @@ impl std::error::Error for MentionResolutionError {}
 /// # Examples
 ///
 /// ```
-/// use nika_engine::binding::mention::{resolve_mention, Mention, ResolvedMention};
+/// use nika_core::binding::mention::{resolve_mention, Mention, ResolvedMention};
 ///
 /// // @last with 3 messages → @3
 /// let result = resolve_mention(&Mention::Last, 3);
@@ -307,7 +307,7 @@ pub fn resolve_mention(
 /// # Examples
 ///
 /// ```
-/// use nika_engine::binding::mention::{mentions_to_bindings, ResolvedMention};
+/// use nika_core::binding::mention::{mentions_to_bindings, ResolvedMention};
 ///
 /// // Single reference @2
 /// let spec = mentions_to_bindings(&ResolvedMention::Single(2));
