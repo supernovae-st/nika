@@ -130,6 +130,7 @@ pub fn redact_secrets(s: &str) -> String {
             r#"']+"#, // DB URIs
             r#")"#,
         ))
+        // SAFETY: compile-time regex literal, tested in tests::redact_secrets_*
         .expect("SECRET_RE is a valid regex")
     });
     let mut result = SECRET_RE.replace_all(s, "[REDACTED]").into_owned();

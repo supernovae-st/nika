@@ -2913,4 +2913,54 @@ mod tests {
             );
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DISPLAY PARITY GOLDENS (SecurityError -> NikaError)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn security_error_blocked_command_display_parity() {
+        let se = nika_security::SecurityError::BlockedCommand {
+            command: "sudo rm".to_string(),
+            reason: "Blocklisted pattern: sudo ".to_string(),
+        };
+        let ne = NikaError::from(se);
+        let msg = ne.to_string();
+        assert_eq!(
+            msg,
+            "[NIKA-053] Command blocked: 'sudo rm' - Blocklisted pattern: sudo ",
+            "Display parity: SecurityError::BlockedCommand -> NikaError::BlockedCommand"
+        );
+        assert_eq!(ne.code(), "NIKA-053");
+    }
+
+    #[test]
+    fn security_error_artifact_path_display_parity() {
+        let se = nika_security::SecurityError::ArtifactPath {
+            path: "../etc/passwd".to_string(),
+            reason: "Path traversal blocked".to_string(),
+        };
+        let ne = NikaError::from(se);
+        let msg = ne.to_string();
+        assert_eq!(
+            msg,
+            "[NIKA-280] Artifact path error for '../etc/passwd': Path traversal blocked",
+            "Display parity: SecurityError::ArtifactPath -> NikaError::ArtifactPathError"
+        );
+        assert_eq!(ne.code(), "NIKA-280");
+    }
+
+    #[test]
+    fn internal_error_display_and_code() {
+        let ne = NikaError::Internal {
+            context: "SecurityError".to_string(),
+            detail: "SomeNewVariant { data: 42 }".to_string(),
+        };
+        let msg = ne.to_string();
+        assert_eq!(
+            msg,
+            "[NIKA-999] Internal error (SecurityError): SomeNewVariant { data: 42 }"
+        );
+        assert_eq!(ne.code(), "NIKA-999");
+    }
 }

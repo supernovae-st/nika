@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Lightweight AST and analysis core for Nika workflows.
+//! Lightweight AST, catalogs, and process-local utilities for Nika workflows.
 //!
 //! This crate contains the protocol-agnostic parts of Nika:
 //! - Source spans and file registry
@@ -9,6 +9,7 @@
 //! - Analyzed AST (RawWorkflow → AnalyzedWorkflow)
 //! - Binding types and transforms
 //! - Static catalogs (providers, models, MCP aliases)
+//! - Process-local utilities (secret redaction patterns)
 //!
 //! It does NOT contain:
 //! - Runtime execution (tokio, reqwest, rig-core)
