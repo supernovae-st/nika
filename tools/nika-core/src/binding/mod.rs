@@ -17,6 +17,8 @@ mod error;
 mod event;
 pub mod jsonpath;
 pub mod mention;
+#[cfg(feature = "mock-bindings")]
+pub mod mock;
 pub mod resolve;
 pub mod store;
 pub mod token_budget;
