@@ -115,14 +115,23 @@ static BRACKET_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[(\d+)\]").u
 /// Unified regex that replaces per-namespace patterns -- dispatched via parse_template_expr().
 static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").unwrap());
 
-/// Helper: extract the group-0 `Match` from a `Captures` value. The only
-/// way `get(0)` returns `None` is when no capture occurred — which cannot
-/// happen inside a `captures_iter` loop. Centralising the invariant in one
-/// `expect` keeps the production hot path out of the unwrap ratchet.
+/// Helper: extract the group-0 `Match` from a `Captures` value.
+///
+/// `Captures::get(0)` returns `Some` whenever the `Captures` value
+/// itself exists — the regex documentation specifies that group 0 is
+/// always populated with the entire match span. Inside a
+/// `captures_iter`/`captures`/`find_iter` loop the outer option has
+/// already resolved to `Some(cap)`, so `cap.get(0)` is infallible.
+///
+/// Centralising this in one `expect` keeps the template hot path off
+/// the unwrap ratchet and pins a single diagnostic site if the
+/// invariant is ever violated by a regex-crate bug.
 #[inline]
 fn cap_match<'a>(cap: &regex::Captures<'a>) -> regex::Match<'a> {
-    cap.get(0)
-        .expect("captures_iter always yields Some for group 0")
+    cap.get(0).expect(
+        "regex::Captures::get(0) is infallible per the regex crate's API contract; \
+         reached from template resolution — likely a regex crate bug, file a ticket",
+    )
 }
 
 /// Parsed template expression from inside `{{ ... }}`

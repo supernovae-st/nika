@@ -338,17 +338,20 @@ impl ResolvedBindings {
     }
 
     /// Test-only helper: insert a raw `LazyBinding` directly, bypassing
-    /// the normal resolution path. Not part of the stable API — production
-    /// code should use `set()` / `from_with_spec()`.
-    #[doc(hidden)]
-    pub fn insert_raw(&mut self, alias: impl Into<String>, binding: LazyBinding) {
+    /// the normal resolution path. Crate-private because S23's
+    /// `#[doc(hidden)] pub` still leaked into the stable API; S24-A4
+    /// co-located every caller in `#[cfg(all(test, feature = "mock-bindings"))]
+    /// mod tests` so `pub(crate)` suffices.
+    #[cfg(test)]
+    pub(crate) fn insert_raw(&mut self, alias: impl Into<String>, binding: LazyBinding) {
         self.bindings.insert(alias.into(), binding);
     }
 
-    /// Test-only helper: mark an alias as `$env`-sourced so `to_value_redacted`
-    /// masks its value. Not part of the stable API.
-    #[doc(hidden)]
-    pub fn mark_env_sourced(&mut self, alias: impl Into<String>) {
+    /// Test-only helper: mark an alias as `$env`-sourced so
+    /// `to_value_redacted` masks its value. See `insert_raw` for the
+    /// visibility rationale.
+    #[cfg(test)]
+    pub(crate) fn mark_env_sourced(&mut self, alias: impl Into<String>) {
         self.env_sourced.insert(alias.into());
     }
 
@@ -567,7 +570,7 @@ impl ResolvedBindings {
 /// 3. Get task output from datastore
 /// 4. Resolve remaining path within output
 /// 5. Apply default if value is null/missing
-pub fn resolve_entry(
+pub(crate) fn resolve_entry(
     entry: &BindingEntry,
     alias: &str,
     datastore: &dyn BindingStore,
@@ -670,7 +673,7 @@ pub fn resolve_entry(
 /// - "weather" -> ("weather", None)
 /// - "weather.summary" -> ("weather", Some("summary"))
 /// - "weather.data.temp" -> ("weather", Some("data.temp"))
-pub fn split_path(path: &str) -> (&str, Option<&str>) {
+pub(crate) fn split_path(path: &str) -> (&str, Option<&str>) {
     if let Some(dot_idx) = path.find('.') {
         let task_id = &path[..dot_idx];
         let field_path = &path[dot_idx + 1..];
@@ -692,7 +695,7 @@ pub fn split_path(path: &str) -> (&str, Option<&str>) {
 /// 3. Apply transform pipeline (if present)
 /// 4. Apply default (if value is null/missing, AFTER transforms)
 /// 5. Validate BindingType constraint
-pub fn resolve_with_entry(
+pub(crate) fn resolve_with_entry(
     entry: &WithEntry,
     alias: &str,
     datastore: &dyn BindingStore,
@@ -772,7 +775,7 @@ pub fn resolve_with_entry(
 ///
 /// Returns the raw value before transforms/defaults are applied.
 /// Returns `Ok(None)` if the source exists but the specific path is missing.
-pub fn resolve_binding_path(
+pub(crate) fn resolve_binding_path(
     binding_path: &BindingPath,
     alias: &str,
     datastore: &dyn BindingStore,
@@ -942,7 +945,7 @@ pub fn resolve_binding_path(
 }
 
 /// Same as resolve_with_entry but collects telemetry events
-pub fn resolve_with_entry_traced(
+pub(crate) fn resolve_with_entry_traced(
     entry: &WithEntry,
     alias: &str,
     datastore: &dyn BindingStore,
@@ -1057,7 +1060,7 @@ pub fn resolve_with_entry_traced(
 }
 
 /// Same as resolve_binding_path but collects env var / vault resolution events
-pub fn resolve_binding_path_traced(
+pub(crate) fn resolve_binding_path_traced(
     binding_path: &BindingPath,
     alias: &str,
     datastore: &dyn BindingStore,
@@ -1096,7 +1099,7 @@ pub fn resolve_binding_path_traced(
 /// Navigate a sequence of PathSegments through a JSON value
 ///
 /// Returns `Ok(None)` if a segment doesn't match (missing field, out-of-bounds index).
-pub fn navigate_segments(value: &Value, segments: &[PathSegment]) -> Result<Option<Value>, BindingResolveError> {
+pub(crate) fn navigate_segments(value: &Value, segments: &[PathSegment]) -> Result<Option<Value>, BindingResolveError> {
     if segments.is_empty() {
         return Ok(Some(value.clone()));
     }
@@ -1137,7 +1140,7 @@ pub fn navigate_segments(value: &Value, segments: &[PathSegment]) -> Result<Opti
 /// Validate that a value matches the expected BindingType constraint
 ///
 /// BindingType::Any always passes. Other types check the JSON value variant.
-pub fn validate_binding_type(
+pub(crate) fn validate_binding_type(
     value: &Value,
     binding_type: BindingType,
     alias: &str,
@@ -1165,7 +1168,7 @@ pub fn validate_binding_type(
 }
 
 /// Get a human-readable type name for a JSON value
-pub fn json_type_name(value: &Value) -> &'static str {
+pub(crate) fn json_type_name(value: &Value) -> &'static str {
     match value {
         Value::Null => "null",
         Value::Bool(_) => "boolean",

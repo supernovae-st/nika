@@ -1,20 +1,23 @@
-# Unwrap Ratchet Baseline — 2026-04-12 (S20)
+# Unwrap Ratchet Baseline — 2026-04-12 (S24)
 #
 # Production .unwrap() and .expect() count, excluding:
-# - #[cfg(test)] modules (brace-depth tracking)
+# - #[cfg(test)] modules AND #[cfg(all(test, feature = "..."))] / any(test, ...)
+#   — the detector was extended in S24 to cover feature-gated test modules
+#   (see nika-core/src/binding/resolve.rs `mod tests` under `mock-bindings`)
 # - Comment lines (// ... and /// ...)
 # - Test files by name (tests.rs, test_*.rs, tests_*.rs)
 # - target/ and examples/ directories
 #
 # Re-generate with: python3 scripts/count-unwraps.py --check
 #
-# Phase a: baseline (this file) — S20
-# Phase b: migrate hot path to Result — S22/S23
-# Phase c: clippy deny unwrap_used + delete this file — S26
+# Phase a: baseline (this file) — S20 (was 104)
+# Phase b: template/mod.rs migration — S23 (-15, to 89)
+# Phase c: re-measure post test-migration — S24 (baseline holds at 89)
+# Phase d: clippy deny unwrap_used + delete this file — S26+
 
-unwrap_count=54
-expect_count=50
-total=104
+unwrap_count=38
+expect_count=51
+total=89
 measured=2026-04-12
-session=S20
-head=4a321572a
+session=S24
+head=575f4e224

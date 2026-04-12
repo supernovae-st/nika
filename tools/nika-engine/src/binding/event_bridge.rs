@@ -17,6 +17,20 @@ use nika_core::binding::BindingEvent;
 use crate::event::EventKind;
 
 /// Convert a single `BindingEvent` into an `EventKind`.
+///
+/// # Why a free function (not `From`)
+///
+/// Rust's orphan rule forbids `impl From<BindingEvent> for EventKind` from
+/// living in nika-engine: neither `BindingEvent` (nika-core) nor `EventKind`
+/// (nika-event) is local to this crate. Making it a `From` impl would
+/// require either splitting EventKind across crates or pulling nika-event
+/// into nika-core — both worse than an explicit helper. Future readers who
+/// try to "fix" this into a `From` impl should expect E0117.
+///
+/// `#[inline]`: this lands on the binding hot path (every `$env.VAR` /
+/// `$vault.svc.field` emission flows through here) so LLVM gets to see
+/// across the crate boundary.
+#[inline]
 pub fn binding_event_to_event_kind(ev: BindingEvent) -> EventKind {
     match ev {
         BindingEvent::TransformApplied {
@@ -185,5 +199,26 @@ mod tests {
         ];
         let out = binding_events_to_event_kinds(evs);
         assert_eq!(out.len(), 2);
+        // S23 review P1: assert variant ORDER is preserved, not just count.
+        // Previously the test only checked `out.len() == 2`, which would
+        // silently pass even if the mapper swapped variants or lost type
+        // fidelity.
+        assert!(matches!(
+            out[0],
+            EventKind::BindingEnvResolved {
+                ref var_name,
+                found: true,
+                ..
+            } if var_name == "A"
+        ));
+        assert!(matches!(
+            out[1],
+            EventKind::BindingVaultResolved {
+                ref service,
+                ref field,
+                found: true,
+                ..
+            } if service == "s" && field == "f"
+        ));
     }
 }

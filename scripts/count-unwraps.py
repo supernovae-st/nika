@@ -68,8 +68,20 @@ def _count_file(path, unwrap_locs, expect_locs, list_locations):
             # But still check for #[cfg(test)] on attribute lines
             continue
 
-        # Track #[cfg(test)] attribute
-        if "#[cfg(test)]" in stripped:
+        # Track test-gated cfg attributes. Matches:
+        #   #[cfg(test)]
+        #   #[cfg(all(test, feature = "mock-bindings"))]   (nika-core resolve.rs test mod)
+        #   #[cfg(any(test, feature = "mock-bindings"))]   (nika-core test helpers)
+        # Any cfg attribute whose condition contains `test` as a bare
+        # predicate counts as test-only. Feature-gated but test-only
+        # modules must not inflate the production unwrap ratchet.
+        if stripped.startswith("#[cfg(") and (
+            "#[cfg(test)]" == stripped
+            or "cfg(all(test," in stripped
+            or "cfg(all(test ," in stripped
+            or "cfg(any(test," in stripped
+            or "cfg(any(test ," in stripped
+        ):
             cfg_test_seen = True
             continue
 
