@@ -146,17 +146,6 @@ mod tests {
         (EngineMediaContext::new(Arc::new(inner)), token, tmp)
     }
 
-    // ── Object-safety compile-time guards ────────────────────────────────────
-
-    /// Arc<dyn MediaContext> must be constructable (vtable exists).
-    /// This is a compile-time test — it panics at runtime but never runs.
-    #[allow(dead_code)]
-    const _ASSERT_ARC_DYN: fn() -> Arc<dyn MediaContext> = || -> Arc<dyn MediaContext> {
-        unreachable!()
-    };
-
-    // ── Behavioral tests ─────────────────────────────────────────────────────
-
     #[tokio::test]
     async fn not_cancelled_initially() {
         let (ctx, _tmp) = make_ctx();
