@@ -11,8 +11,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct SetupResult {
     pub name: String,
     pub success: bool,
-    #[allow(dead_code)]
-    pub message: String,
 }
 
 /// Distinguishes "never set up" from "version mismatch" from "ready".
@@ -380,17 +378,14 @@ ai_tools = [\"Claude Code\"]\n";
             SetupResult {
                 name: "Claude Code".to_string(),
                 success: true,
-                message: "ok".to_string(),
             },
             SetupResult {
                 name: "Cursor".to_string(),
                 success: true,
-                message: "ok".to_string(),
             },
             SetupResult {
                 name: "FailedTool".to_string(),
                 success: false,
-                message: "failed".to_string(),
             },
         ];
         let editors = ["vscode", "claude", "cursor"];
@@ -438,7 +433,6 @@ ai_tools = [\"Claude Code\"]\n";
         let r = SetupResult {
             name: "Test".to_string(),
             success: true,
-            message: "ok".to_string(),
         };
         let debug = format!("{:?}", r);
         assert!(debug.contains("Test"));

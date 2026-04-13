@@ -28,13 +28,9 @@ pub struct DetectedMime {
 
 /// How the MIME type was determined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // Extension variant reserved for future use
 pub enum DetectionSource {
     /// Determined via magic byte inspection (highest confidence)
     MagicBytes,
-
-    /// Determined via file extension lookup
-    Extension,
 
     /// Accepted from server-provided Content-Type hint
     ServerHint,

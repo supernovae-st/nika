@@ -247,7 +247,6 @@ fn setup_editors() -> Vec<SetupResult> {
                 results.push(SetupResult {
                     name: name.to_string(),
                     success: true,
-                    message: format!("v{ver} up to date"),
                 });
                 continue;
             }
@@ -276,7 +275,6 @@ fn setup_editors() -> Vec<SetupResult> {
                     results.push(SetupResult {
                         name: name.to_string(),
                         success: true,
-                        message: "updated".into(),
                     });
                 }
                 _ => {
@@ -290,7 +288,6 @@ fn setup_editors() -> Vec<SetupResult> {
                     results.push(SetupResult {
                         name: name.to_string(),
                         success: true,
-                        message: format!("v{ver} installed, update failed"),
                     });
                 }
             }
@@ -314,7 +311,6 @@ fn setup_editors() -> Vec<SetupResult> {
                 results.push(SetupResult {
                     name: name.to_string(),
                     success: true,
-                    message: "installed".into(),
                 });
             }
             Ok(output) => {
@@ -332,7 +328,6 @@ fn setup_editors() -> Vec<SetupResult> {
                         results.push(SetupResult {
                             name: name.to_string(),
                             success: true,
-                            message: "sideloaded from release".into(),
                         });
                     } else {
                         println!(
@@ -343,7 +338,6 @@ fn setup_editors() -> Vec<SetupResult> {
                         results.push(SetupResult {
                             name: name.to_string(),
                             success: true,
-                            message: "extension not on marketplace".into(),
                         });
                     }
                 } else {
@@ -355,7 +349,6 @@ fn setup_editors() -> Vec<SetupResult> {
                     results.push(SetupResult {
                         name: name.to_string(),
                         success: false,
-                        message: format!("run: {} --install-extension {}", binary, ext_id),
                     });
                 }
             }
@@ -368,7 +361,6 @@ fn setup_editors() -> Vec<SetupResult> {
                 results.push(SetupResult {
                     name: name.to_string(),
                     success: false,
-                    message: format!("run: {} --install-extension {}", binary, ext_id),
                 });
             }
         }
@@ -731,7 +723,6 @@ fn setup_ai_rules() -> Vec<SetupResult> {
         return vec![SetupResult {
             name: "AI Rules".into(),
             success: false,
-            message: "cannot determine home directory".into(),
         }];
     };
     let mut results = Vec::new();
@@ -867,7 +858,6 @@ fn setup_ai_rules() -> Vec<SetupResult> {
             results.push(SetupResult {
                 name: "Agent Skills".into(),
                 success: true,
-                message: "installed".into(),
             });
         }
     } else {
@@ -875,7 +865,6 @@ fn setup_ai_rules() -> Vec<SetupResult> {
         results.push(SetupResult {
             name: "Agent Skills".into(),
             success: true,
-            message: "present".into(),
         });
     }
 
@@ -917,7 +906,6 @@ fn install_rule(
                     results.push(SetupResult {
                         name: name.into(),
                         success: true,
-                        message: "sentinel-protected, preserved".into(),
                     });
                 }
                 return;
@@ -932,7 +920,6 @@ fn install_rule(
                     results.push(SetupResult {
                         name: name.into(),
                         success: true,
-                        message: "up to date".into(),
                     });
                 }
                 return;
@@ -950,7 +937,6 @@ fn install_rule(
                         results.push(SetupResult {
                             name: name.into(),
                             success: true,
-                            message: "user-customized, preserved".into(),
                         });
                     }
                     return;
@@ -970,7 +956,6 @@ fn install_rule(
                 results.push(SetupResult {
                     name: name.into(),
                     success: true,
-                    message: "installed".into(),
                 });
             }
         }
@@ -980,7 +965,6 @@ fn install_rule(
                 results.push(SetupResult {
                     name: name.into(),
                     success: false,
-                    message: format!("write failed: {}", e),
                 });
             }
         }
@@ -993,31 +977,24 @@ fn install_rule(
 #[cfg(unix)]
 fn setup_daemon() -> SetupResult {
     // Install the service file (plist or systemd unit)
-    if let Err(e) = nika_daemon::install::install() {
+    if nika_daemon::install::install().is_err() {
         return SetupResult {
             name: "Daemon service".into(),
             success: false,
-            message: format!("install failed: {e}"),
         };
     }
 
     // Start daemon in background (non-blocking)
     let nika_exe = std::env::current_exe().unwrap_or_else(|_| "nika".into());
-    let started = Command::new(&nika_exe)
+    let _ = Command::new(&nika_exe)
         .args(["daemon", "start"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .spawn()
-        .is_ok();
+        .spawn();
 
     SetupResult {
         name: "Daemon service".into(),
         success: true,
-        message: if started {
-            "installed + started (vault, cache, jobs)".into()
-        } else {
-            "installed (start manually: nika daemon start)".into()
-        },
     }
 }
 
@@ -1028,7 +1005,6 @@ fn setup_completions() -> SetupResult {
             return SetupResult {
                 name: "Completions".into(),
                 success: false,
-                message: "cannot determine home directory".into(),
             };
         }
     };
@@ -1043,7 +1019,6 @@ fn setup_completions() -> SetupResult {
         return SetupResult {
             name: "Completions".into(),
             success: false,
-            message: "unknown shell".into(),
         };
     };
 
@@ -1082,7 +1057,6 @@ fn setup_completions() -> SetupResult {
                     return SetupResult {
                         name: "Completions".into(),
                         success: true,
-                        message: format!("{} completions at {}", shell_name, target.display()),
                     };
                 }
             }
@@ -1090,7 +1064,6 @@ fn setup_completions() -> SetupResult {
             SetupResult {
                 name: "Completions".into(),
                 success: false,
-                message: "could not write completions".into(),
             }
         }
         _ => {
@@ -1102,7 +1075,6 @@ fn setup_completions() -> SetupResult {
             SetupResult {
                 name: "Completions".into(),
                 success: false,
-                message: "nika completion command not available".into(),
             }
         }
     }
