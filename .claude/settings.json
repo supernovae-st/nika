@@ -1,0 +1,16 @@
+{
+  "description": "Nika Diamond branch — anti-hallucination settings",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash(git commit.*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qi 'Co-Authored-By: Claude'; then echo 'ERROR: Co-Authored-By Claude forbidden. Use Nika 🦋 only.'; exit 1; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,102 @@
+# Nika Diamond — Claude Code rules
+
+**Branch** : `nika-diamond` (orphan, fresh, NO legacy code copy-pasted).
+**Main** : `830aa6154` — read-only reference, NEVER modify from this branch.
+
+## 🔐 Authority hierarchy
+
+1. `~/.claude/projects/-Users-thibaut-dev-supernovae-nika/memory/POST_AUDIT_REVISIONS.md` — SUPREME AUTHORITY, overrides all other docs.
+2. `~/.claude/.../PRE_LAUNCH_GATES.md` — 7 shadow zones mandatory before v0.90.
+3. `~/.claude/.../HANDOFF_PHASE_1_REVISED.md` — current execution plan.
+4. `.claude/rules/*.md` (this directory) — project-specific enforcement.
+5. `~/.claude/.../project_ai_velocity_north_star.md` — WHY diamond (decision filter).
+
+If any doc contradicts another, **POST_AUDIT_REVISIONS wins**.
+
+## 🎯 What we're doing
+
+Nika Diamond = ~32-34 crates architecture (not 38-42). Building on fresh
+orphan branch. Each crate passes 12 gates before admission to workspace.
+
+Timeline honnête : 11-12 mois total. Phase 1 révisée (split nika-core) =
+5-7 semaines. No deadline pressure — quality > speed.
+
+## 🚫 Interdits stricts
+
+- ❌ Co-Authored-By: Claude (always Nika 🦋 `<nika@supernovae.studio>`)
+- ❌ Copy-paste from main verbatim (rewrite propre requis, main = reference only)
+- ❌ git checkout main or modify main in any way
+- ❌ Admit crate to workspace without all 12 gates passing
+- ❌ `.unwrap()` or `.expect(` in src/ (use `?` propagation)
+- ❌ `#[allow(dead_code)]` (delete or pub(crate))
+- ❌ Files >1500 LOC (split into modules)
+- ❌ `git add -A` or `git add .` (stage by explicit path)
+- ❌ `cargo test --test` (macOS Keychain popup — use `--lib` only)
+- ❌ `--no-verify` on commits
+- ❌ Push without explicit user GO
+
+## ✅ Mandatory patterns
+
+- ✓ TDD : tests first, implementation second
+- ✓ Mutation testing ≥90% killed per crate (cargo-mutants)
+- ✓ Review swarm (3 agents) before each crate admission :
+  spn-nika:code-reviewer + spn-rust:rust-pro + feature-dev:code-reviewer
+- ✓ Atomic commit : 1 crate admission = 1 commit
+- ✓ `#[non_exhaustive]` on all public error enums + response structs
+- ✓ Every I/O behind kernel trait (MemoryStore, ShellExecutor, etc.)
+- ✓ workspace.lints.clippy `unwrap_used = "deny"` enforced
+- ✓ Commit message : `feat(nika-X): admit to workspace — all 12 gates passed`
+
+## 📋 12 Gates per crate admission
+
+Read full spec in `RUST_ENFORCEMENT.md`. Summary :
+
+1. SPEC — `docs/crate-specs/nika-X.md` exists (purpose, layer, LOC budget, public API)
+2. TDD — tests written before impl, RED then GREEN
+3. IMPL — minimal, compiles, tests pass, no `# TEMP` without removal plan
+4. CLIPPY 0 — `cargo clippy --workspace --all-targets -- -D warnings`
+5. MUTATION ≥90% — `cargo mutants -p nika-X`
+6. PROPERTY — proptest if sensitive (security, parsers, encoding)
+7. BENCHMARKS — `benches/` if hot path
+8. DOCS — `cargo doc --no-deps` 0 warnings, pub items documented
+9. CANARY E2E — `tests/canary-X.nika.yaml` passes (or exemption)
+10. PARITY LEGACY — golden test vs `git show main:...` output
+11. REVIEW SWARM — 3 agents parallel, P0/P1 fixed same session
+12. ATOMIC COMMIT — 1 commit, co-authored Nika 🦋
+
+## 📐 Architecture invariants
+
+- L0 crates : zero I/O, zero async, ≤15k LOC
+- L0.5 crates : traits only (nika-kernel, nika-kernel-mock)
+- L1 effect crates : 1 trait impl each (clock/fs/http/blob/process/etc.)
+- L2 domain crates : verb-*, service crates, memory stubs
+- L3 orchestration : runtime + daemon
+- L4 interfaces : cli, lsp, serve, sdk, init, lints
+- L5 binary : nika (<500 LOC composition root)
+
+Strict downward dependencies only. No upward imports. `cargo-deny` enforces
+via `[[bans.deny]] + wrappers` per layer.
+
+## 🔧 Tools installed / mandatory
+
+```
+cargo-nextest       — test runner (process-per-test isolation)
+cargo-insta         — snapshot testing
+cargo-deny          — license + advisories + layer enforcement
+cargo-machete       — unused deps
+cargo-public-api    — API surface diff
+cargo-semver-checks — breaking change detection
+cargo-mutants       — mutation testing
+dylint + nika-lints — custom architectural lints (Phase 4+)
+```
+
+## 🎯 Current state (2026-04-13 soir)
+
+- Phase 0 DONE : `nika-diamond` orphan branch scaffold (HEAD `0cc7b7423`)
+- Phase 1 revised : split nika-core into 5 sub-crates (error/catalog/kernel/schema/binding)
+- Next crate to admit : **nika-error** (~2-3k LOC, L0, no deps)
+
+Follow `HANDOFF_PHASE_1_REVISED.md` step-by-step. Stop after each crate
+admission and report before continuing.
+
+🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
