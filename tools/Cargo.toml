@@ -16,8 +16,6 @@ members = [
     "nika-lsp-core",
     "nika-lsp",
     "nika-sdk",
-    # nika-napi and nika-py removed from workspace — cause link failures
-    # and are deprecated in favor of nika-sdk
     "nika-vault",
     "nika-kernel",
     "nika-kernel-mock",
