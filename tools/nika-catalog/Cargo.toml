@@ -1,0 +1,31 @@
+[package]
+name          = "nika-catalog"
+description   = "Static catalogs for the Nika diamond — providers, builtins, MCP aliases, transforms, pricing. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+
+[dependencies]
+nika-error = { path = "../nika-error" }
+phf        = { workspace = true }
+unicase    = { workspace = true }
+thiserror  = { workspace = true }
+miette     = { workspace = true }
+serde      = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+serde   = ["dep:serde"]
+
+[dev-dependencies]
+insta      = { workspace = true }
+proptest   = { workspace = true }
+rstest     = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

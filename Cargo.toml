@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["tools/nika-error"]
+members  = ["tools/nika-error", "tools/nika-catalog"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under tools/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -67,6 +67,8 @@ thiserror  = "2.0"
 miette     = "7.6"
 serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+phf        = { version = "0.13", features = ["macros", "unicase"] }
+unicase    = "2.9"
 
 # Dev / test deps
 proptest = "1.6"
