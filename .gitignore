@@ -18,6 +18,7 @@ Thumbs.db
 
 # Claude Code — project config is public, local overrides are private
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # MCP config (machine-specific local paths)
 .mcp.json
