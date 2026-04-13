@@ -1,9 +1,9 @@
 # nika-engine Architecture
 
 The embeddable workflow engine: parses YAML, builds a DAG, resolves bindings,
-dispatches tasks to providers, and streams results. ~146k LOC (incl. tests).
+dispatches tasks to providers, and streams results. ~138.7k LOC (incl. tests).
 
-Post-Session 13 (Constellation v2.3). Last updated 2026-04-10.
+Post Month A Week 1 (Constellation v2.3). Last updated 2026-04-13.
 
 ## Crate Dependencies (downward only)
 
