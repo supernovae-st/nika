@@ -22,10 +22,8 @@ npm install @supernovae-st/nika
 ```bash
 nika run workflow.nika.yaml      # Execute a workflow
 nika check workflow.nika.yaml    # Validate syntax + DAG
-nika ui                          # Terminal UI
 nika provider list               # Check API key status
 nika init                        # Interactive project setup
-nika course next                 # Start the learning course
 ```
 
 ## Supported Platforms

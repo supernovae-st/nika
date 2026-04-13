@@ -21,7 +21,6 @@ Contains the protocol-agnostic parts of Nika — everything needed for parsing, 
 - Runtime execution (tokio, reqwest, rig-core)
 - Media pipeline (image, zstd, c2pa)
 - MCP client (rmcp)
-- TUI (ratatui)
 
 ## License
 

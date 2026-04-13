@@ -11,7 +11,7 @@
 - **AI is locked** behind code, subscriptions, and vendor walls. Most people can't use it.
 - **Nika is a single binary** that reads a YAML file and executes AI tasks. No code. No subscription.
 - **5 verbs** (`infer`, `fetch`, `exec`, `invoke`, `agent`) describe any automation you can imagine.
-- **9 providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
+- **14 LLM providers**, open source (AGPL), Rust-native, **5x less RAM** than Python alternatives.
 - **The mission**: the gap between "AI exists" and "I can use AI" should be **zero**.
 
 ---
@@ -215,13 +215,13 @@ Most AI tools treat compliance as an afterthought. Nika ships it as infrastructu
 - **Trust classification.** Every piece of data flowing through a workflow carries
   a trust level: Trusted, ModelGenerated, ModelTainted, or Untrusted. You always
   know what came from a human and what came from a model (Article 50).
-- **Prompt injection defense.** 6-layer Nika Shield with taint analysis, spotlight
+- **Prompt injection defense.** 5-layer Nika Shield with taint analysis, spotlight
   fencing, canary tokens, and capability restrictions. Risk management by design,
   not by policy document (Article 9).
 - **Human oversight.** Agent guardrails, turn limits, cost caps, LLM judge,
   structured output validation. The machine does not run unsupervised (Article 14).
-- **AI literacy.** A 12-level interactive course ships with the binary. Run
-  `nika init --course` and learn (Article 4).
+- **AI literacy.** Ready-to-extract showcase workflows ship with the binary. Run
+  `nika showcase list` and learn (Article 4).
 
 No other AI orchestration tool ships these features natively. Not LangChain.
 Not CrewAI. Not n8n. The market is empty. Nika fills it.
@@ -357,7 +357,7 @@ What we do is different:
   design decision, not just a code path.
 - **5 verbs, not 4, not 6.** That's a constraint no AI suggests. An AI will
   happily generate a sixth verb. A human says "no, five is the design."
-- **A 6-layer security defense** with academic citations, threat models, and
+- **A 5-layer security defense** with academic citations, threat models, and
   deferred items tracked by ID. That's architecture, not generation.
 - **Every error message is crafted** to help the person reading it. AI generates
   error messages. Humans decide what they should say.

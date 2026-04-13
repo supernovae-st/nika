@@ -57,30 +57,45 @@ cargo test --workspace --lib
 
 ## Project Structure
 
-Nika is a **17-crate Cargo workspace** under `tools/`:
+Nika is a **32-crate Cargo workspace** under `tools/`:
 
 ```
 tools/
-├── nika/           CLI binary (entry point)
-├── nika-engine/    Execution engine (largest crate)
-├── nika-core/      AST, types, catalogs (zero I/O)
-├── nika-tui/       Terminal UI (ratatui)
-├── nika-daemon/    Background daemon (secrets, jobs, cache)
-├── nika-init/      Project scaffolding + course
-├── nika-cli/       CLI subcommands
-├── nika-event/     EventLog, TraceWriter
-├── nika-mcp/       MCP client (rmcp)
-├── nika-media/     Content-addressable store, image processing
-├── nika-serve/     HTTP API server
-├── nika-storage/   SQLite persistence
-├── nika-sdk/       Rust SDK
-├── nika-napi/      Node.js bindings (N-API)
-├── nika-py/        Python bindings
-├── nika-lsp/       Language Server binary
-└── nika-lsp-core/  LSP intelligence
+├── nika/             CLI binary (entry point)
+├── nika-engine/      Execution engine (largest crate)
+├── nika-core/        AST, types, catalogs (zero I/O)
+├── nika-kernel/      Trait definitions (zero impls)
+├── nika-kernel-mock/ Mocks for every kernel trait
+├── nika-clock/       SystemClock (tokio::time)
+├── nika-fs/          TokioFs (fs + globset)
+├── nika-blob/        DiskBlobStore (blake3 CAS)
+├── nika-http/        ReqwestClient (SSRF defense)
+├── nika-exec-runner/ TokioShell (100+ pattern blocklist)
+├── nika-policy/      PolicyEnforcer + SSRF helpers
+├── nika-extract/     9-mode fetch extraction
+├── nika-security/    Command blocklist + env validation
+├── nika-builtin/     Builtin tools (nika:*)
+├── nika-verb-exec/   exec: verb behind ShellExecutor trait
+├── nika-verb-fetch/  fetch: verb helpers
+├── nika-verb-invoke/ invoke: verb via BuiltinRouter / McpPool
+├── nika-verb-infer/  infer: verb via Provider trait
+├── nika-daemon/      Background daemon (secrets, jobs, cache)
+├── nika-init/        Project scaffolding
+├── nika-cli/         CLI subcommands
+├── nika-event/       EventLog, TraceWriter
+├── nika-mcp/         MCP client (rmcp)
+├── nika-media/       Content-addressable store, image processing
+├── nika-display/     CLI renderers, formatters
+├── nika-serve/       HTTP API server
+├── nika-storage/     SQLite persistence
+├── nika-sdk/         Rust SDK
+├── nika-vault/       Encrypted secrets (XChaCha20 + Argon2i)
+├── nika-lsp/         Language Server binary
+├── nika-lsp-core/    LSP intelligence
+└── nika-macros/      Proc-macro support
 ```
 
-The workspace root is `tools/nika/Cargo.toml`. All `cargo` commands run from `tools/nika`.
+The workspace root is `tools/Cargo.toml`. All `cargo` commands run from `tools/`.
 
 ## Development Workflow
 
@@ -177,9 +192,8 @@ cd tools/nika
 cargo test --workspace --lib
 
 # Specific crate
-cargo test -p nika-engine --lib          # Engine (4,170+ tests)
-cargo test -p nika-tui --lib             # TUI (2,150+ tests)
-cargo test -p nika-daemon --lib          # Daemon (164 tests)
+cargo test -p nika-engine --lib          # Engine (largest surface)
+cargo test -p nika-daemon --lib          # Daemon
 cargo test -p nika-core --lib            # Core (AST, transforms)
 
 # With nextest (parallel, recommended)

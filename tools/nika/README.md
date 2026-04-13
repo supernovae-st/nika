@@ -20,8 +20,7 @@ tools/
 ├── nika-media/         CAS store + processor (13k)
 ├── nika-cli/           CLI subcommands (8k)
 ├── nika-daemon/        Background daemon (5k)
-├── nika-init/          Project scaffolding (21k)
-├── nika-tui/           Terminal UI — ratatui (86k)
+├── nika-init/          Project scaffolding
 ├── nika-lsp-core/      LSP intelligence (9k)
 └── nika-lsp/           Standalone LSP binary (2.5k)
 ```
@@ -91,10 +90,9 @@ cargo nextest run --workspace --lib --features lsp
 | Crate | Tests |
 |:------|------:|
 | `nika-engine` | ~4,100 |
-| `nika-tui` | ~2,100 |
 | `nika-core` | ~800 |
 | `nika-mcp`, `nika-cli`, others | ~1,200 |
-| **Total** | **~8,200+** |
+| **Total** | **~10,900+** |
 
 ---
 
@@ -177,7 +175,6 @@ src/
 
 | Flag | Default | Description |
 |:-----|:--------|:------------|
-| `tui` | yes | Terminal UI (ratatui, tree-sitter, git2) |
 | `native-inference` | yes | Local GGUF/ISQ models via mistral.rs |
 | `media-core` | yes | Tier 2 media tools (thumbnail, convert, strip, metadata, optimize, svg) |
 | `media-phash` | yes | Perceptual hashing + comparison |

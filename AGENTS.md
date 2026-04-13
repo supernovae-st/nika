@@ -1,6 +1,6 @@
 # Nika
 
-Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 24 crates | 65 transforms | 63 builtin tools
+Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 32 crates | 65 transforms | 63 builtin tools
 
 ## 5 Verbs
 
@@ -36,10 +36,6 @@ project/
 
 `with:` for bindings, `{{with.alias}}` for templates, `.nika.yaml` extension.
 
-## TUI Views
-
-`1/s` Studio | `2/c` Command | `3/x` Control
-
 ## Commands
 
 ```bash
@@ -66,11 +62,6 @@ nika fetch https://blog.com --extract article  # HTTP + extraction
 nika invoke nika:dimensions photo.jpg  # Builtin tool
 nika agent "Research AI" --turns 5     # Multi-turn agent
 
-# Interactive
-nika ui                                # TUI
-nika chat                              # Chat mode
-nika studio                            # Studio editor
-
 # Models & providers
 nika model list                        # Cloud models + pricing
 nika model info claude-sonnet-4-6      # Model details
@@ -80,11 +71,8 @@ nika keys set anthropic            # Store key in encrypted vault
 nika mcp list                          # MCP server connections
 
 # Learning
-nika init --course                     # 12-level course (44 exercises)
-nika course status                     # Constellation progress map
-nika course next                       # Open next exercise
-nika showcase list                     # Browse 115 showcase workflows
-nika showcase extract <name>           # Extract showcase to current dir
+nika showcase list                     # Browse the showcase workflow catalog
+nika showcase extract <name>           # Extract a showcase to the current dir
 
 # Project
 nika init                              # Interactive project setup
@@ -131,10 +119,7 @@ tasks:
 ```
 
 Layers: L0 tool injection (provider-native) → L2 extract+validate → L3 retry with feedback → L4 LLM repair.
-Result: valid JSON matching the schema. Same result on ALL 7 providers. No exceptions.
-
-Note: older docs mentioned a "Layer 1 rig Extractor" — it was never implemented.
-The stack is four layers (L0, L2, L3, L4).
+Result: valid JSON matching the schema. Same result across every supported provider.
 
 ## Nika Shield — 5-Layer Prompt Injection Defense + Audit
 
@@ -175,20 +160,24 @@ Tests must be INTELLIGENT, not superficial:
 - Check EventLog for correct events (StructuredOutputSuccess, ProviderResponded)
 - E2E: parse YAML → analyze → run → validate output → verify events
 
-## Architecture — 24 Crates, Diamond Layering
+## Architecture — 32 Crates, Diamond Layering
 
 ```
-L0    nika-core (23k)         Pure types, AST, catalogs — ZERO I/O
-L0.5  nika-kernel (717)       10 trait defs — ZERO impls
-L1    5 effect crates          Clock, Fs, Blob, HttpClient, ShellExecutor
-      nika-event (4.5k)       EventLog + EventEmitter blanket
-L2    nika-engine (160k)      Monolith — extraction target (<=100k LOC)
+L0    nika-core               Pure types, AST, catalogs — ZERO I/O
+L0.5  nika-kernel             10 trait defs — ZERO impls
+L1    effect crates           Clock, Fs, Blob, HttpClient, ShellExecutor,
+                              Policy, Extract, Security, LspCore
+      nika-event              EventLog + EventEmitter blanket
+L2    nika-engine             Monolith — extraction target (<=100k LOC)
       + kernel_bridge.rs      impl Provider for RigProvider
-      nika-media, nika-mcp, nika-vault, nika-storage, nika-display
-L3    nika-daemon (7k)
-L4    nika-cli, nika-tui, nika-serve, nika-lsp, nika-sdk, nika-init
+      nika-media, nika-mcp, nika-vault, nika-storage, nika-display,
+      nika-builtin, 4 verb crates (exec, fetch, invoke, infer)
+L3    nika-daemon
+L4    nika-cli, nika-serve, nika-lsp, nika-sdk, nika-init
 L5    nika (<900 LOC target)
 ```
+
+TUI was deleted in Month A (will be rebuilt clean against the diamond runtime in Act 3).
 
 Key: every side effect behind a trait. `TaskExecutor::get_dyn_provider()`
 returns `Arc<dyn Provider>`. Phase 12+ verb crates consume traits, not concrete types.

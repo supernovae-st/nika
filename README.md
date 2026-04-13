@@ -53,7 +53,7 @@ Nika is a workflow engine where each step is a YAML task with exactly **one verb
 |:---:|---|---|
 | **Workflow** | Copy-paste between ChatGPT tabs | Write steps once, run forever |
 | **Scale** | One thing at a time | 50 items in parallel with `for_each` |
-| **Providers** | Locked into one vendor at $20/mo | 9 providers, switch in one line |
+| **Providers** | Locked into one vendor at $20/mo | 14 LLM providers, switch in one line |
 | **Output** | Pray the LLM returns valid JSON | 5-layer schema validation with auto-repair |
 | **Reproducibility** | "It worked last time" | Deterministic DAG, NDJSON traces, event replay |
 | **Deployment** | Docker + Python + venv + pip | Single binary, zero dependencies |
@@ -92,11 +92,10 @@ tasks:
 
 </details>
 
-Want more? Scaffold a full project or start the interactive course:
+Want more? Scaffold a full project:
 
 ```bash
 nika init                   # 5 starter workflows (one per verb)
-nika init --course          # 44 hands-on exercises across 12 levels
 nika doctor                 # verify your setup
 ```
 
@@ -204,7 +203,7 @@ tasks:
       max_retries: 3
 ```
 
-The prompt is natural language. Never mention JSON. The 5-layer defense handles extraction, validation, retry, and LLM repair automatically. Same result on all 9 providers.
+The prompt is natural language. Never mention JSON. The 4-layer defense handles extraction, validation, retry, and LLM repair automatically. Same result across every supported provider.
 
 ### AI agent with guardrails and cost limits
 
@@ -282,7 +281,7 @@ Switch providers in one line. Same workflow, any AI.
 
 Connect to any **OpenAI-compatible** endpoint (vLLM, Ollama, LiteLLM, SGLang) via named endpoints in `nika.toml` or slash syntax: `model: myserver/llama-3.3-70b`.
 
-### Structured Output: 5-layer defense
+### Structured Output: 4-layer defense
 
 Get guaranteed schema-valid JSON from any provider. No prompt hacking required.
 
@@ -293,7 +292,7 @@ Get guaranteed schema-valid JSON from any provider. No prompt hacking required.
 | L3 | Retry with error feedback |
 | L4 | LLM repair call (last resort) |
 
-Same result on all 9 providers. No exceptions.
+Same result across every supported provider. No exceptions.
 
 ### Data Flow: 65 transforms, bindings, parallel loops
 
@@ -477,15 +476,6 @@ cargo install nika-lsp                                # standalone
 code --install-extension supernovae.nika-lang         # VS Code
 ```
 
-### Interactive Course
-
-12 levels. 44 exercises. From shell commands to full AI orchestration.
-
-```bash
-nika init --course
-nika course next
-nika course hint
-```
 
 | Level | Name | What You Learn |
 |:------|:-----|:---------------|
@@ -595,9 +585,8 @@ tools/
   nika-media/       CAS store, media processor
   nika-storage/     Storage abstraction
   nika-daemon/      Background daemon + secrets
-  nika-init/        Project scaffolding + course
+  nika-init/        Project scaffolding
   nika-cli/         CLI subcommands
-  nika-tui/         Terminal UI (ratatui)
   nika-display/     Render engine
   nika-lsp-core/    Protocol-agnostic LSP
   nika-lsp/         Standalone LSP binary
@@ -618,10 +607,9 @@ No plugins. No add-ons. Built in.
 | `nika:provenance` | Art. 50(2) | C2PA content credentials: sign AI-generated images with cryptographic provenance |
 | `nika:verify` | Art. 50(2) | Verify C2PA manifests, returns `eu_ai_act_compliant: true/false` |
 | NDJSON execution traces | Art. 12 | 58+ event types logged per workflow run. Full audit trail. |
-| Nika Shield (6-layer) | Art. 9 | Prompt injection defense: taint analysis, spotlighting, canary tokens, capabilities |
+| Nika Shield (5-layer) | Art. 9 | Prompt injection defense: taint analysis, spotlighting, canary tokens, capabilities |
 | Trust levels (4-tier) | Art. 50(2) | Every data binding classified: Trusted, ModelGenerated, ModelTainted, Untrusted |
 | Agent guardrails | Art. 14 | max_turns, cost limits, LLM judge, schema validation. Human oversight by design. |
-| `nika init --course` | Art. 4 | 12-level interactive course. AI literacy built into the tool. |
 | AGPL open source | Art. 13 | Fully auditable. Every line of code. Every decision reviewable. |
 
 Article 50 enters enforcement on **August 2, 2026**. Penalties up to 7.5M EUR.
@@ -650,7 +638,6 @@ nika doctor          # full system health check
 
 | Feature | Default | Description |
 |:--------|:--------|:------------|
-| `tui` | yes | Terminal UI (ratatui, tree-sitter, git2) |
 | `native-inference` | yes | Local GGUF models via mistral.rs |
 | `media-core` | yes | Tier 2 media tools |
 | `media-phash` | yes | Perceptual hashing |
@@ -670,14 +657,14 @@ nika doctor          # full system health check
 cargo install --path tools/nika --no-default-features
 
 # Custom features
-cargo install --path tools/nika --features "tui,native-inference,media-core"
+cargo install --path tools/nika --features "native-inference,media-core"
 ```
 
 </details>
 
-> **Platform:** macOS and Linux. The daemon, scheduling (`nika every`, `nika schedule`), 
-> and background jobs require Unix. Core features (run, check, test, infer, fetch, invoke, 
-> agent, TUI, LSP) work on all platforms including Windows.
+> **Platform:** macOS and Linux. The daemon, scheduling (`nika every`, `nika schedule`),
+> and background jobs require Unix. Core features (run, check, test, infer, fetch, invoke,
+> agent, LSP) work on all platforms including Windows.
 
 ---
 
@@ -686,8 +673,7 @@ cargo install --path tools/nika --features "tui,native-inference,media-core"
 | Resource | Description |
 |:---------|:------------|
 | [User Guide](https://docs.supernovae.studio/nika) | Getting started, verbs, data flow, providers |
-| [Interactive Course](https://docs.supernovae.studio/nika/course) | 12 levels, 44 exercises |
-| [Showcase](examples/showcase/) | 8 guided examples + 115 browseable workflows |
+| [Showcase](examples/showcase/) | 8 guided examples + browseable workflow catalog |
 | [Manifesto](MANIFESTO.md) | Why Inference as Code matters |
 | [Contributing](CONTRIBUTING.md) | Build, test, conventions |
 | [Citation](CITATION.cff) | Academic citation (Zenodo DOI) |
@@ -702,17 +688,13 @@ nika test flow.nika.yaml        # test with mock provider
 nika lint flow.nika.yaml        # best-practice linting
 nika explain flow.nika.yaml     # human-readable summary
 nika graph flow.nika.yaml       # visualize DAG
-nika ui                          # TUI
-nika chat                        # direct chat mode
 nika serve --port 3000           # HTTP API
 nika init                        # scaffold project
-nika init --course               # interactive course
-nika course next                 # next exercise
 nika provider list               # API key status
 nika model list                  # available models
 nika mcp list                    # MCP servers
 nika doctor                      # system health
-nika showcase list               # browse 115 example workflows
+nika showcase list               # browse the showcase workflow catalog
 ```
 
 ---
@@ -722,7 +704,7 @@ nika showcase list               # browse 115 example workflows
 ```bash
 git clone https://github.com/supernovae-st/nika.git
 cd nika
-cargo build                       # build all 24 crates
+cargo build                       # build all 32 crates
 cargo test --workspace --lib      # 10,790+ tests (safe, no keychain popups)
 cargo clippy -- -D warnings       # zero warnings policy
 ```
@@ -749,7 +731,7 @@ Read the [Manifesto](MANIFESTO.md) to understand why.
 
 <div align="center">
 
-**Nika v0.79.3** · Schema `nika/workflow@0.12` · Rust 1.86+ · 24 crates · 10,790+ tests
+**Nika v0.79.3** · Schema `nika/workflow@0.12` · Rust 1.86+ · 32 crates · 10,900+ tests
 
 [SuperNovae Studio](https://supernovae.studio) · [QR Code AI](https://qrcode-ai.com) · [GitHub](https://github.com/supernovae-st/nika)
 

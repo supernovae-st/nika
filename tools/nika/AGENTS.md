@@ -2,7 +2,7 @@
 
 Source code for `nika` binary. See `nika/CLAUDE.md` for user-facing docs.
 
-## Workspace Structure (26 crates)
+## Workspace Structure (32 crates)
 
 ```
 tools/
@@ -36,12 +36,11 @@ tools/
 │
 │ L3 — INTERFACES
 ├── nika-cli/           CLI subcommands (8k)
-├── nika-tui/           Terminal UI (86k) — ratatui
 ├── nika-serve/         HTTP API server (4k)
 ├── nika-sdk/           Embedded SDK (3k) — programmatic API
 ├── nika-lsp-core/      LSP intelligence (9k)
 ├── nika-lsp/           LSP binary (2.5k)
-├── nika-init/          Project scaffolding (21k) — init wizard + course
+├── nika-init/          Project scaffolding
 │
 │ L4 — BINARY
 └── nika/               Binary entry point (2k)
@@ -165,12 +164,11 @@ src/
 ## Testing
 
 ```bash
-cargo test --workspace --lib             # All crates (10666+, safe — no keychain)
+cargo test --workspace --lib             # All crates (~10,900+, safe — no keychain)
 cargo test --lib                         # nika binary tests only
 cargo test -p nika-engine --lib          # Engine tests only
 cargo test -p nika-daemon --lib          # Daemon tests only
-cargo test -p nika-tui --lib             # TUI tests only
-cargo test -p nika-engine --lib -- shield  # Shield security tests (101+)
+cargo test -p nika-engine --lib -- shield  # Shield security tests
 cargo test --features lsp               # Include LSP tests
 cargo clippy --workspace -- -D warnings  # Zero warnings policy
 ```

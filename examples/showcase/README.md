@@ -111,17 +111,10 @@ nika workflow graph examples/02-research-pipeline/research.nika.yaml
 
 ## Beyond Examples
 
-### Interactive learning
-
-```bash
-nika init --course    # 12-level course with 44 exercises
-nika course next      # Start the next exercise
-```
-
 ### Showcase library
 
 ```bash
-nika showcase list           # Browse 115 ready-to-use workflows
+nika showcase list           # Browse the showcase catalog
 nika showcase extract seo    # Extract a showcase to your project
 ```
 
