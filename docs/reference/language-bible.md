@@ -3,6 +3,11 @@
 > How to write Nika like a native speaker.
 > This is not a reference manual — it's a guide to **taste**.
 > The reference tells you what's valid. The Bible tells you what's **good**.
+>
+> **Audience:** workflow authors who want idiomatic, maintainable, secure Nika.
+> **Companion docs (Diátaxis split):**
+> - [`language-reference.md`](language-reference.md) — formal spec (every keyword, every field, every constraint)
+> - [`nika-ai-context.md`](nika-ai-context.md) — compact syntax reference for AI tools (auto-loaded by IDE rules)
 
 ---
 

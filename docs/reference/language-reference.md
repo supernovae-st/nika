@@ -5,6 +5,11 @@
 
 This document is the authoritative reference for the Nika workflow language.
 
+> **Audience:** workflow authors and tool builders who need formal syntax + constraint specifications.
+> **Companion docs (Diátaxis split):**
+> - [`language-bible.md`](language-bible.md) — taste guide (idiomatic patterns, what's *good*)
+> - [`nika-ai-context.md`](nika-ai-context.md) — compact syntax reference for AI tools (auto-loaded by IDE rules)
+
 ## Table of Contents
 
 1. [Overview](#overview)

@@ -1,6 +1,11 @@
-# Nika Workflow Syntax Reference
+# Nika Workflow Syntax Reference (AI Context)
 
 Nika is a semantic YAML workflow engine for AI tasks. Current schema: `nika/workflow@0.12`.
+
+> **Audience:** AI coding assistants (Cursor, Windsurf, Roo, Claude Code) — auto-loaded as IDE rules. Compact, terse, fits in a small context window.
+> **Companion docs (Diátaxis split):**
+> - [`language-bible.md`](language-bible.md) — taste guide for humans (idiomatic patterns)
+> - [`language-reference.md`](language-reference.md) — formal spec for tool builders (every constraint)
 
 ## Workflow Structure
 
