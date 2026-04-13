@@ -161,40 +161,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Launch interactive TUI (terminal UI)
-    #[cfg(feature = "tui")]
-    #[command(next_help_heading = "INTERACTIVE")]
-    Ui {
-        /// Initial view: explorer, chat, editor, runner, scheduler, settings
-        #[arg(long, value_name = "VIEW")]
-        view: Option<String>,
-
-        /// Workflow file to load (optional)
-        #[arg(value_name = "WORKFLOW")]
-        workflow: Option<PathBuf>,
-    },
-
-    /// Start interactive chat mode (shortcut for `nika ui --view chat`)
-    #[cfg(feature = "tui")]
-    #[command(next_help_heading = "INTERACTIVE", visible_alias = "c")]
-    Chat {
-        /// LLM provider: anthropic, openai, mistral, groq, deepseek, gemini, xai, native
-        #[arg(short, long, value_name = "NAME")]
-        provider: Option<String>,
-
-        /// Model name (provider-specific)
-        #[arg(short, long, value_name = "MODEL")]
-        model: Option<String>,
-    },
-
-    /// Open Studio editor (shortcut for `nika ui --view editor`)
-    #[cfg(feature = "tui")]
-    #[command(next_help_heading = "INTERACTIVE", visible_alias = "s")]
-    Studio {
-        /// Workflow file to edit (optional)
-        workflow: Option<PathBuf>,
-    },
-
     /// Run a workflow file (headless, no TUI)
     #[command(next_help_heading = "WORKFLOWS", visible_alias = "r")]
     Run {
@@ -953,7 +919,6 @@ fn print_features() {
 
     // Core features
     println!("{}", "Core".bold().underline());
-    print_feature("tui", cfg!(feature = "tui"), "Terminal UI (ratatui)");
     print_feature(
         "native-inference",
         cfg!(feature = "native-inference"),
@@ -1072,9 +1037,6 @@ fn print_feature(name: &str, enabled: bool, desc: &str) {
 
 fn count_features() -> usize {
     let mut count = 0;
-    if cfg!(feature = "tui") {
-        count += 1;
-    }
     if cfg!(feature = "native-inference") {
         count += 1;
     }
@@ -1147,11 +1109,8 @@ async fn main() {
         ColorChoice::Auto => {} // Use default detection
     }
 
-    // Determine if we're running TUI (skip tracing to avoid terminal pollution)
-    let is_tui = is_tui_mode(&cli);
-
     // Initialize tracing with verbosity level
-    if !is_tui && !cli.quiet {
+    if !cli.quiet {
         let level = match cli.verbose {
             0 => tracing::Level::WARN,  // Default: warnings only
             1 => tracing::Level::INFO,  // -v: info
@@ -1342,35 +1301,6 @@ async fn main() {
                 run_demo(quiet, detail).await
             }
         }
-
-        #[cfg(feature = "tui")]
-        Some(Commands::Ui { view, workflow }) => {
-            use nika::tui::TuiView;
-            let initial_view = match view.as_deref() {
-                Some("chat" | "c") => Some(TuiView::Command),
-                Some("studio" | "editor" | "d" | "explorer" | "e" | "home") => {
-                    Some(TuiView::Studio)
-                }
-                Some("runner" | "r" | "monitor") => Some(TuiView::Command),
-                Some("settings" | ",") => Some(TuiView::Control),
-                Some(unknown) => {
-                    eprintln!(
-                        "{} Unknown view '{}'. Valid: studio, chat, runner, settings",
-                        "Error:".red().bold(),
-                        unknown
-                    );
-                    std::process::exit(1);
-                }
-                None => None,
-            };
-            nika::tui::run_tui_with_options(workflow, initial_view).await
-        }
-
-        #[cfg(feature = "tui")]
-        Some(Commands::Chat { provider, model }) => nika::tui::run_tui_chat(provider, model).await,
-
-        #[cfg(feature = "tui")]
-        Some(Commands::Studio { workflow }) => nika::tui::run_tui_studio(workflow).await,
 
         Some(Commands::Run {
             file,
@@ -1919,23 +1849,6 @@ async fn main() {
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Check if we're running in TUI mode (skip tracing to avoid terminal pollution)
-fn is_tui_mode(cli: &Cli) -> bool {
-    if cli.command.is_none() && cli.file.is_none() {
-        return false;
-    }
-
-    #[cfg(feature = "tui")]
-    if let Some(ref cmd) = cli.command {
-        return matches!(
-            cmd,
-            Commands::Ui { .. } | Commands::Chat { .. } | Commands::Studio { .. }
-        );
-    }
-
-    false
-}
 
 fn should_skip_auto_setup(cmd: &Option<Commands>) -> bool {
     // Whitelist: only these commands trigger auto-setup.

@@ -22,14 +22,13 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "lsp", "serve", "native-inference", "media-provenance", "nika-engine/default"]
+default = ["lsp", "serve", "native-inference", "media-provenance", "nika-engine/default"]
 # Zero opt-in features. One binary, everything included.
-tui = ["dep:nika-tui"]
 serve = ["dep:nika-serve"]
 integration = []  # Enable integration tests with real MCP servers
 
 # Forwarded features to nika-engine and nika-cli
-native-inference = ["nika-engine/native-inference", "nika-cli/native-inference", "nika-tui?/native-inference"]
+native-inference = ["nika-engine/native-inference", "nika-cli/native-inference"]
 media-core = ["nika-engine/media-core", "nika-cli/media-core"]
 media-thumbnail = ["nika-engine/media-thumbnail", "nika-cli/media-thumbnail"]
 media-metadata = ["nika-engine/media-metadata", "nika-cli/media-metadata"]
@@ -59,9 +58,6 @@ nika-engine = { workspace = true }
 # CLI subcommand handlers
 nika-cli = { workspace = true }
 
-# TUI crate (feature-gated)
-nika-tui = { workspace = true, optional = true }
-
 # HTTP API server (feature-gated)
 nika-serve = { workspace = true, optional = true }
 
@@ -69,21 +65,21 @@ nika-serve = { workspace = true, optional = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 
-# Async runtime (main.rs + TUI)
+# Async runtime (main.rs)
 tokio = { workspace = true }
 
-# Serialization (used by cli/ and tui/)
+# Serialization (used by cli/)
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# Errors (used by main.rs and tui/)
+# Errors (used by main.rs)
 miette = { workspace = true }
 thiserror = { workspace = true }
 
 # Interactive prompts (auto-discover, input prompts, cost confirm)
 cliclack = { workspace = true }
 
-# Utilities (used by main.rs, cli/, tui/)
+# Utilities (used by main.rs, cli/)
 colored = { workspace = true }
 dotenvy = { workspace = true }
 rand = { workspace = true }
@@ -116,8 +112,6 @@ image = { workspace = true }
 dashmap = { workspace = true }
 rig-core = { workspace = true }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
-ratatui = { workspace = true }
-crossterm = { workspace = true }
 parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
 

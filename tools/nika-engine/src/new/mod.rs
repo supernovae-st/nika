@@ -3,10 +3,9 @@
 
 //! nika new - Workflow scaffolding module
 //!
-//! Provides three modes for creating new workflows:
-//! 1. **Wizard Mode** - Interactive TUI with ratatui dialogs
-//! 2. **Flag Mode** - CLI flags for power users
-//! 3. **Template Mode** - Pre-built templates for common use cases
+//! Provides two modes for creating new workflows:
+//! 1. **Flag Mode** - CLI flags for power users
+//! 2. **Template Mode** - Pre-built templates for common use cases
 //!
 //! ## Templates
 //!
@@ -26,10 +25,6 @@
 //! ## Usage
 //!
 //! ```bash
-//! # Interactive wizard
-//! nika new
-//! nika new --wizard
-//!
 //! # Template mode
 //! nika new my-workflow --template blog-generator
 //!
@@ -38,8 +33,6 @@
 //! ```
 
 pub mod templates;
-// Note: wizard module lives in the `nika` binary crate (cli/new_wizard/)
-// because it depends on TUI crates (ratatui, crossterm).
 
 use crate::error::NikaError;
 use std::fs;

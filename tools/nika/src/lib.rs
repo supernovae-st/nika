@@ -7,7 +7,3 @@
 //! This re-export layer ensures existing `use nika::*` imports continue working.
 
 pub use nika_engine::*;
-
-// TUI crate re-export (feature-gated)
-#[cfg(feature = "tui")]
-pub use nika_tui as tui;

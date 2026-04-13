@@ -52,7 +52,7 @@ pub mod runtime;
 pub mod store;
 pub mod tools;
 
-// Shared internal modules (pub for cross-crate access by nika-tui)
+// Shared internal modules
 pub mod io;
 pub mod util;
 
