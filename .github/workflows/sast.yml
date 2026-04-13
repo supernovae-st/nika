@@ -50,7 +50,7 @@ jobs:
 
       - name: Run cargo-geiger (unsafe inventory)
         working-directory: tools/nika
-        run: cargo geiger --features tui 2>&1 | tee geiger-report.txt
+        run: cargo geiger 2>&1 | tee geiger-report.txt
 
       - name: Upload geiger report
         uses: actions/upload-artifact@v4
@@ -96,7 +96,7 @@ jobs:
 
       - name: Build for CodeQL
         working-directory: tools/nika
-        run: cargo build --features tui
+        run: cargo build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
