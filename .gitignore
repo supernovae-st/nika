@@ -20,3 +20,16 @@ Cargo.lock.bak
 
 # Snapshot temp files (cargo-insta)
 *.pending-snap
+
+# MCP server config (local, not in repo)
+.mcp.json
+
+# Legacy content from main (untracked on nika-diamond, present on disk)
+# These dirs exist because the worktree carries them from main
+# but they are NOT part of the diamond workspace.
+/dx
+/editors/
+
+# Claude Code local settings (per-user, not shared)
+.claude/settings.local.json
+CLAUDE.local.md
