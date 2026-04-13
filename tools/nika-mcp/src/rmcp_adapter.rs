@@ -153,12 +153,6 @@ impl RmcpClientAdapter {
         }
     }
 
-    /// Get the server name.
-    #[allow(dead_code)]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Check if connected synchronously (non-blocking).
     ///
     /// Uses try_lock to avoid blocking. Returns false if:
@@ -741,7 +735,7 @@ mod tests {
     fn test_adapter_new() {
         let config = McpConfig::new("test-server", "echo");
         let adapter = RmcpClientAdapter::new(config);
-        assert_eq!(adapter.name(), "test-server");
+        assert_eq!(adapter.name.as_str(), "test-server");
     }
 
     #[test]
@@ -751,7 +745,7 @@ mod tests {
             .with_env("NEO4J_URI", "bolt://localhost:7687");
 
         let adapter = RmcpClientAdapter::new(config);
-        assert_eq!(adapter.name(), "novanet");
+        assert_eq!(adapter.name.as_str(), "novanet");
     }
 
     #[test]
@@ -1165,7 +1159,7 @@ mod tests {
         let config = McpConfig::new("myserver", "python").with_args(["script.py", "--flag"]);
 
         let adapter = RmcpClientAdapter::new(config);
-        assert_eq!(adapter.name(), "myserver");
+        assert_eq!(adapter.name.as_str(), "myserver");
     }
 
     #[test]
@@ -1178,15 +1172,7 @@ mod tests {
             .with_env("PORT", "3000");
 
         let adapter = RmcpClientAdapter::new(config);
-        assert_eq!(adapter.name(), "complex-server");
-    }
-
-    #[test]
-    fn test_adapter_name_accessor() {
-        let config = McpConfig::new("my-test-server", "echo");
-        let adapter = RmcpClientAdapter::new(config);
-
-        assert_eq!(adapter.name(), "my-test-server");
+        assert_eq!(adapter.name.as_str(), "complex-server");
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
