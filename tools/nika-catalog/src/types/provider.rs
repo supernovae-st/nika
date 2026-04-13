@@ -11,6 +11,7 @@
 /// All 16 providers are defined statically in [`crate::data::providers`].
 /// Lookups are case-insensitive via phf + unicase.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Provider {
     /// Canonical identifier (e.g. `"anthropic"`). Always lowercase.
     pub id: &'static str,

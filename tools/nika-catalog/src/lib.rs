@@ -54,7 +54,7 @@ pub fn all_transforms() -> &'static [types::TransformDef] {
     data::transforms::ALL_TRANSFORMS
 }
 
-/// All 61 model pricing entries.
+/// All 62 model pricing entries.
 #[must_use]
 pub fn all_pricing() -> &'static [types::ModelPricing] {
     data::models::ALL_PRICING
@@ -86,6 +86,6 @@ mod tests {
 
     #[test]
     fn all_pricing_non_empty() {
-        assert_eq!(all_pricing().len(), 61);
+        assert_eq!(all_pricing().len(), 62);
     }
 }

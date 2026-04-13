@@ -136,6 +136,8 @@ pub static ALL_PRICING: &[ModelPricing] = &[
     ModelPricing { provider: "OpenAI", model_pattern: "o3-mini", input_per_million: 1.1, output_per_million: 4.4 },
     ModelPricing { provider: "OpenAI", model_pattern: "o4-mini", input_per_million: 1.1, output_per_million: 4.4 },
     ModelPricing { provider: "OpenAI", model_pattern: "o3", input_per_million: 2.0, output_per_million: 8.0 },
+    // o4-mini BEFORE o4 (contains "o4" substring)
+    ModelPricing { provider: "OpenAI", model_pattern: "o4", input_per_million: 2.0, output_per_million: 8.0 },
     // ── Mistral ─────────────────────────────────────────────────
     ModelPricing { provider: "Mistral", model_pattern: "mistral-large", input_per_million: 2.0, output_per_million: 6.0 },
     ModelPricing { provider: "Mistral", model_pattern: "mistral-medium", input_per_million: 2.7, output_per_million: 8.1 },
@@ -217,7 +219,7 @@ mod tests {
 
     #[test]
     fn pricing_count() {
-        assert_eq!(ALL_PRICING.len(), 61);
+        assert_eq!(ALL_PRICING.len(), 62);
     }
 
     // ── Capabilities ────────────────────────────────────────────

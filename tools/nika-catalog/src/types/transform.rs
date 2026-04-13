@@ -8,6 +8,7 @@
 
 /// A known pipe transform (e.g. `| upper`, `| join(", ")`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TransformDef {
     /// Transform name (e.g. `"upper"`). Always lowercase.
     pub name: &'static str,

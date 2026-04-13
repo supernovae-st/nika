@@ -53,6 +53,7 @@ impl Default for ModelCapabilities {
 /// Two-pass matching: exact match first, then `contains()` fallback.
 /// More specific patterns MUST appear before less specific ones.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ModelPricing {
     /// Provider name (title case for display, e.g. `"Anthropic"`).
     pub provider: &'static str,

@@ -8,6 +8,7 @@
 
 /// A known `nika:*` builtin tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Builtin {
     /// Tool name without the `nika:` prefix (e.g. `"sleep"`).
     pub name: &'static str,
