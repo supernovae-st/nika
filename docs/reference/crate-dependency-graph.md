@@ -1,304 +1,149 @@
-# 01 — Crate Dependency Graph
+# Crate Dependency Graph
 
-> How Nika's 12 crates relate to each other, what each one owns, and why the boundaries exist.
+> How Nika's 32 crates relate to each other, what each one owns, and why the boundaries exist.
+>
+> **Last verified:** 2026-04-13 (post-W1 cleanup)
+> **Workspace version:** 0.79.x
 
 ## Workspace Overview
 
-Nika is organized as a Cargo workspace containing 12 crates at `tools/`. Every crate shares version `0.49.0`, edition 2021, and the AGPL-3.0-or-later license. The workspace uses the resolver v2 setting for correct feature unification.
+Nika is organized as a Cargo workspace containing 32 crates at `tools/`. Every crate shares the workspace version (currently 0.79.x), edition 2021, and the AGPL-3.0-or-later license. The workspace uses the resolver v2 setting for correct feature unification.
+
+The architecture follows a strict **L0 → L5 diamond layering**: each layer depends only on layers below it. L0 is pure data (zero I/O), L5 is the binary entry point, and every side effect (HTTP, FS, exec, LLM, MCP) flows through a kernel trait at L0.5.
 
 ```
 tools/
-├── Cargo.toml          # Workspace root (members, shared deps, profiles)
-├── nika/               # Binary crate — CLI entry point
-├── nika-engine/        # Execution engine — the heart of Nika
-├── nika-core/          # AST + types — zero-I/O foundation
-├── nika-event/         # Event sourcing — observability layer
-├── nika-mcp/           # MCP client — Model Context Protocol
-├── nika-media/         # CAS store — content-addressable storage
-├── nika-cli/           # CLI subcommands — non-TUI command handlers
-├── nika-tui/           # Terminal UI — ratatui 3-view architecture
-├── nika-lsp-core/      # LSP intelligence — protocol-agnostic handlers
-├── nika-lsp/           # LSP binary — Language Server Protocol server
-├── nika-init/          # Project scaffolding — init wizard + course (~21k lines)
-└── nika-daemon/        # Background daemon — secrets, jobs, watch, cache (~5k lines)
+├── Cargo.toml              # Workspace root (members, shared deps, profiles)
+├── nika/                   # L5  — Binary crate, CLI entry point (~5.5k LOC)
+├── nika-engine/            # L2  — Execution engine, Act 2 extraction target (~138k LOC)
+├── nika-core/              # L0  — AST + types + catalogs, ZERO I/O (~23k LOC)
+├── nika-event/             # L0  — Event sourcing, EventLog + EventEmitter (~4k LOC)
+├── nika-kernel/            # L0.5 — 12 trait definitions only, ZERO impls (~3k LOC)
+├── nika-kernel-mock/       # L0.5 — Mocks for every kernel trait
+│
+├── nika-clock/             # L1  — SystemClock implementation
+├── nika-fs/                # L1  — TokioFs (FsRead + FsWrite splinter impls)
+├── nika-blob/              # L1  — DiskBlobStore (blake3 CAS)
+├── nika-http/              # L1  — ReqwestClient (with SSRF defense)
+├── nika-exec-runner/       # L1  — TokioShell (kill_on_drop + try_join!)
+├── nika-policy/            # L1  — PolicyEnforcer + SSRF helpers
+├── nika-extract/           # L1  — Pure 9-mode fetch extraction
+├── nika-security/          # L1  — Blocklist, injection detection, env hygiene
+├── nika-lsp-core/          # L1  — LSP intelligence (pure functions)
+│
+├── nika-verb-exec/         # L2  — `exec:` verb behind ShellExecutor trait
+├── nika-verb-fetch/        # L2  — `fetch:` verb behind HttpClient trait
+├── nika-verb-invoke/       # L2  — `invoke:` verb via BuiltinRouter/McpPool
+├── nika-verb-infer/        # L2  — `infer:` verb via Provider trait
+├── nika-builtin/           # L2  — 63 builtin tools (37 always-on + 26 opt-in)
+├── nika-display/           # L2  — CLI render output (~13k LOC)
+├── nika-media/             # L2  — Media processing pipeline (~14k LOC)
+├── nika-mcp/               # L2  — MCP client/server (~9k LOC)
+├── nika-vault/             # L2  — XChaCha20+Argon2 credential store (~1.2k)
+├── nika-storage/           # L2  — Storage abstraction (~3k LOC)
+│
+├── nika-daemon/            # L3  — Background daemon, cron, cache, IPC (~7k)
+│
+├── nika-cli/               # L4  — CLI subcommands (~8k LOC)
+├── nika-serve/             # L4  — HTTP API + SDK bridge (~7k LOC)
+├── nika-lsp/               # L4  — LSP server binary (~3.5k LOC)
+├── nika-sdk/               # L4  — Rust SDK + remote transport (~3k LOC)
+├── nika-init/              # L4  — Project scaffolding (~5k LOC)
+│
+└── nika-macros/            # Outside diamond — proc-macro support
 ```
 
-## Dependency Graph
+**TUI was deleted in Month A (W1, 2026-04-13)**. It will be rebuilt clean against the diamond runtime in Act 4 (optional, may never ship).
 
-```mermaid
-graph TD
-    NIKA["nika<br/><i>Binary (2k lines)</i>"]
-    ENGINE["nika-engine<br/><i>Execution Engine (135k)</i>"]
-    CORE["nika-core<br/><i>AST + Types (23k)</i>"]
-    EVENT["nika-event<br/><i>EventLog (4k)</i>"]
-    MCP["nika-mcp<br/><i>MCP Client (9k)</i>"]
-    MEDIA["nika-media<br/><i>CAS Store (13k)</i>"]
-    CLI["nika-cli<br/><i>CLI Commands (8k)</i>"]
-    TUI["nika-tui<br/><i>Terminal UI (86k)</i>"]
-    LSP_CORE["nika-lsp-core<br/><i>LSP Intelligence (9k)</i>"]
-    LSP["nika-lsp<br/><i>LSP Binary (2.5k)</i>"]
-    INIT["nika-init<br/><i>Project Scaffolding (21k)</i>"]
-    DAEMON["nika-daemon<br/><i>Background Daemon (5k)</i>"]
+## Layer responsibilities
 
-    NIKA --> ENGINE
-    NIKA --> CLI
-    NIKA -.->|optional| TUI
-    NIKA --> LSP_CORE
+### L0 — Pure data (zero I/O, zero async)
 
-    ENGINE --> CORE
-    ENGINE --> EVENT
-    ENGINE --> MCP
-    ENGINE --> MEDIA
-    ENGINE -.->|optional| LSP_CORE
+`nika-core` and `nika-event` define every type the rest of the workspace consumes. They never touch the filesystem, network, or shell. They never spawn tokio tasks. This makes them trivially testable and infinitely cacheable.
 
-    CLI --> ENGINE
-    CLI --> INIT
+- **`nika-core`** owns: workflow AST (Raw → Analyzed → Lower), 27 provider catalog, 63 builtin catalog, 65 transform catalog, error hierarchy (`NikaError` + 100+ NIKA-XXX codes), util helpers (`redact_value` etc.), `PolicyConfig` + `SecurityPolicyConfig`, trust types.
+- **`nika-event`** owns: `EventLog`, `EventKind` enum (40+ variants), `TraceWriter` (NDJSON serializer), `EventEmitter` blanket trait.
 
-    TUI --> ENGINE
-    TUI --> LSP_CORE
+### L0.5 — Kernel traits (zero impls, just interfaces)
 
-    LSP --> ENGINE
-    LSP --> LSP_CORE
+`nika-kernel` defines exactly twelve trait abstractions for every side effect Nika performs. Code at L2+ depends only on these traits — never on `tokio::*`, `reqwest::*`, or `std::process::*` directly.
 
-    LSP_CORE --> CORE
+The 12 traits: `Provider`, `HttpClient`, `FsRead`, `FsWrite`, `ShellExecutor`, `BlobStore`, `Clock`, `PolicyChecker`, `BuiltinRouter`, `McpPool`, `BindingStore`, `MemoryStore` (the last is forward declared for Phase D Act 3).
 
-    MCP --> EVENT
+`nika-kernel-mock` provides one mock implementation per trait, enabling pure-memory testing across every L2+ crate.
 
-    MEDIA --> MCP
+### L1 — Effect crates (one per side-effect type)
 
-    DAEMON --> ENGINE
+Each L1 crate implements exactly one kernel trait against its real-world target. Zero overlap between L1 crates. They are intentionally tiny (most ~500-1.5k LOC) so they can be reviewed in a single AI context window.
 
-    classDef foundation fill:#1a365d,stroke:#2b6cb0,color:#fff
-    classDef infra fill:#2d3748,stroke:#4a5568,color:#fff
-    classDef app fill:#2c5282,stroke:#3182ce,color:#fff
-    classDef ui fill:#553c9a,stroke:#6b46c1,color:#fff
+| Crate | Implements | Reason for existence |
+|-------|-----------|----------------------|
+| `nika-clock` | `Clock` | Tokio-backed time ticking (testable via MockClock) |
+| `nika-fs` | `FsRead` + `FsWrite` | Tokio FS wrapper with splinter trait separation |
+| `nika-blob` | `BlobStore` | Blake3-keyed CAS on disk |
+| `nika-http` | `HttpClient` | Reqwest with SSRF interceptor + retry policy |
+| `nika-exec-runner` | `ShellExecutor` | Tokio process with `kill_on_drop(true)` + try_join drain |
+| `nika-policy` | `PolicyChecker` | Capability + SSRF + path policy enforcement |
+| `nika-extract` | (consumed by verb-fetch) | Pure 9-mode HTML/JSON/jsonpath extraction |
+| `nika-security` | (used by all verbs) | Command blocklist + injection detection + env hygiene |
+| `nika-lsp-core` | (consumed by nika-lsp) | Pure LSP intelligence (no transport) |
 
-    class CORE foundation
-    class EVENT,MCP,MEDIA infra
-    class ENGINE,CLI,INIT,DAEMON app
-    class NIKA,TUI,LSP,LSP_CORE ui
-```
+### L2 — Domain crates (business logic)
 
-## The Zero-I/O Core Principle
+- **Verb crates (`nika-verb-*`)**: One crate per of the 5 sacred verbs. Each consumes kernel traits, never concrete L1 types. Currently extracted: exec ✓, fetch ✓, invoke ✓ (partial), infer ✓ (15% fast path). Agent verb extraction is Act 2 P4.
+- **`nika-builtin`**: 63 tools implementing the `BuiltinTool` trait. Consumed by `nika-verb-invoke`.
+- **`nika-mcp`**: MCP client (rmcp 1.x) + server (Nika-as-MCP-server). Trust-aware tool routing.
+- **`nika-media`**: Media pipeline (import, decode, dimensions, thumbhash, dominant_color, opt-in OCR/PDF/SVG).
+- **`nika-display`**: Terminal output rendering, trace formatting, error display.
+- **`nika-vault`**: XChaCha20Poly1305 + Argon2i encrypted credential storage.
+- **`nika-storage`**: General storage abstraction (used by traces, cache, locks).
+- **`nika-engine`**: Monolith (~138k LOC) being progressively dissolved across Act 2 P1-P5. Holds runtime/runner/dispatch + structured output L0 + agent loop. Extraction target: 0 LOC by end of Act 2 P5.
 
-The most important architectural boundary in Nika is between `nika-core` and everything else. `nika-core` performs **zero I/O**: no network requests, no file system access, no async runtime. Its dependencies are exclusively parsing and data-structure libraries:
+### L3 — Orchestration
 
-| nika-core dependency | Purpose |
-|---|---|
-| `marked-yaml` | YAML parsing with source position tracking |
-| `serde` / `serde_json` | Serialization for AST types |
-| `indexmap` | Ordered maps preserving YAML key order |
-| `rustc-hash` (FxHashMap) | Fast non-crypto hashing for interning |
-| `thiserror` / `miette` | Error types and rich diagnostics |
-| `strsim` | Jaro-Winkler similarity for "did you mean?" suggestions |
-| `smallvec` | Stack-allocated vectors for small collections |
-| `xxhash-rust` | Fast hashing for workflow fingerprinting |
-| `regex` | Pattern matching for validation rules |
+- **`nika-daemon`**: Background daemon for Unix systems. Owns cron scheduling, response cache (LLM + HTTP), IPC for credentials, watch mode.
 
-This constraint means `nika-core` compiles fast, can be used in WebAssembly targets, and never blocks on I/O. Every type that needs to exist before runtime — `RawWorkflow`, `AnalyzedWorkflow`, `TaskId`, `WithSpec`, `SchemaVersion`, transforms, catalogs — lives here.
+### L4 — Interfaces
 
-## Crate-by-Crate Breakdown
+- **`nika-cli`**: All CLI subcommand handlers. Wire CLI args → engine calls.
+- **`nika-serve`**: HTTP API server (REST + SSE streams). SDK consumers connect here.
+- **`nika-lsp`**: Language Server Protocol binary (`nika lsp --stdio`). VS Code extension consumes this.
+- **`nika-sdk`**: Rust SDK with remote transport. Mirror of `nika-client` (TypeScript SDK).
+- **`nika-init`**: Project scaffolding wizard (`nika init` interactive flow).
 
-### nika-core (Foundation Layer)
+### L5 — Binary
 
-**Role**: Owns the YAML AST, analysis pipeline, binding types, and static catalogs.
+- **`nika`**: The composition root. Wires every L4 interface together. Targets <900 LOC by end of Act 2.
 
-**Depends on**: Only parsing/data-structure crates (zero runtime dependencies).
+### Outside diamond
 
-**Depended on by**: `nika-engine`, `nika-lsp-core`.
+- **`nika-macros`**: Proc-macro support crate (used by other crates at compile time, doesn't fit the runtime layering).
 
-**Key exports**:
-- `ast::raw::*` — Phase 1 AST types with `Spanned<T>` fields
-- `ast::analyzed::*` — Phase 2 validated AST with `TaskId` interning
-- `ast::analyzer::analyze()` — The Phase 2 transformation function
-- `binding::WithSpec`, `WithEntry` — Parsed `with:` block types
-- `binding::transform::TransformOp` — 27 built-in pipe transforms
-- `source::Span`, `Spanned<T>`, `SourceRegistry` — Source location tracking
-- `catalogs::*` — Static provider/model/MCP alias tables
+## Strict downward dependency rule
 
-This crate enforces the rule that **static analysis never requires a runtime**. The LSP can validate a workflow file without starting tokio, connecting to MCP servers, or initializing providers.
+Every crate may only depend on crates in lower layers. Any upward dependency is a CI-blocking violation. The current state achieves this for all L1+ crates; `nika-engine` is the last remaining monolith with cross-cutting concerns being progressively extracted.
 
-### nika-event (Infrastructure Layer)
+## Why these boundaries exist
 
-**Role**: Event sourcing for workflow execution. Full audit trail with replay capability.
+1. **AI context window fit**: each crate is small enough (most ≤15k LOC, target ≤14k) for an AI agent to hold its entire source in context. This eliminates hallucination-driven refactor errors. See `~/.claude/projects/.../memory/project_ai_velocity_north_star.md`.
 
-**Depends on**: `serde`, `tokio` (sync only), `parking_lot`, `chrono`, `rand`.
+2. **Mock-purity for tests**: every I/O operation behind a kernel trait means tests run in pure memory using `nika-kernel-mock`. No real subprocess, no real network, no real disk required for unit tests.
 
-**Depended on by**: `nika-mcp`, `nika-engine` (via re-export).
+3. **Independent evolution**: extracting a verb crate (e.g., `nika-verb-infer`) lets us version, release, and iterate on it independently of the monolith. Public crates.io packages become possible.
 
-**Key exports**:
-- `Event` — Envelope: id + timestamp + kind
-- `EventKind` — 41-variant enum across 13 categories (workflow, task, agent, MCP, media, etc.)
-- `EventLog` — Thread-safe append-only log with optional broadcast channel
-- `EventEmitter` trait — Dependency injection for testing (`NoopEmitter`)
-- `TraceWriter` — NDJSON file writer for debugging traces
-- `AgentTurnMetadata` — Reasoning capture (thinking, tokens, stop_reason)
+4. **Bus-factor mitigation**: 8 satellite crates from the upcoming `nika-memory` constellation are designed to be standalone-publishable on crates.io. If the project pauses, the ecosystem retains the satellites.
 
-The broadcast channel design is critical: `EventLog::new_with_broadcast()` returns both the log and a `broadcast::Receiver`, enabling the TUI to receive events in real-time while the runner appends them. The log uses `parking_lot::RwLock` (2-3x faster than `std::sync::RwLock`) and atomic sequence IDs for zero-contention reads.
+## Diamond progress (post-W2, 2026-04-13)
 
-### nika-mcp (Infrastructure Layer)
+- 32 crates total (target post-Act 2: 28-30 after agent extraction + engine dissolution)
+- 4/5 verbs extracted (exec ✓, fetch ✓, invoke ✓ partial, infer ✓ partial, agent ✗)
+- `nika-engine` god-crate: still ~138k LOC, Act 2 target = 0 LOC
+- Largest non-engine crate: `nika-media` (~14k LOC, within target)
+- Strict downward deps: 95 % compliant (engine still has cross-cuts)
 
-**Role**: MCP (Model Context Protocol) client, connection pool, and validation.
+## See also
 
-**Depends on**: `nika-event`, `rmcp` (0.16), `tokio`, `dashmap`, `jsonschema`.
-
-**Depended on by**: `nika-media`, `nika-engine`.
-
-**Key exports**:
-- `McpClient` — Single server connection with tool calling and response caching
-- `McpClientPool` — Connection pool for multiple servers (DashMap + OnceCell)
-- `McpConfig` / `McpConfigInline` — Server configuration types
-- `ToolDefinition` — MCP tool schema
-- `McpValidator` / `ToolSchemaCache` — JSON Schema validation of tool parameters
-- `McpRetryConfig` — Exponential backoff retry logic
-
-The pool design uses `DashMap<String, OnceCell<Arc<McpClient>>>` for per-server deduplication with lazy initialization. Each client wraps an `RmcpClientAdapter` that bridges rmcp 0.16's transport layer (stdio or SSE). Connection timeout is 20s, call timeout is 60s, and reconnect timeout is 30s.
-
-### nika-media (Infrastructure Layer)
-
-**Role**: Content-addressable storage (CAS) with blake3 hashing and media type detection (~13k lines).
-
-**Depends on**: `nika-mcp`, `blake3`, `bytes`, `tokio`, `imagesize`, `thumbhash`.
-
-**Depended on by**: `nika-engine`.
-
-**Key exports**:
-- `CasStore` — Blake3-hashed CAS with atomic writes and deduplication
-- `MediaProcessor` — Extract and process media from MCP responses
-- `MediaRef` — Reference to a stored media file (hash, mime, size)
-- `MediaBudget` — Resource limits for media operations
-
-The CAS layout is `{root}/{hash[0..2]}/{hash[2..]}` with no file extension in the filename. The hash prefix is `blake3:` for algorithm identification. Optional zstd compression uses a 4-byte framing header (`NK` + flag + version) to distinguish compressed from raw blobs. Maximum store size is 100MB per blob, maximum decompressed size is 200MB as a decompression bomb defense.
-
-### nika-engine (Application Layer)
-
-**Role**: The execution engine. Contains the runtime, DAG, binding resolution, provider abstraction, and all execution logic.
-
-**Depends on**: `nika-core`, `nika-event`, `nika-mcp`, `nika-media`, plus `rig-core`, `petgraph`, `reqwest`, and 40+ optional dependencies for media tools and web extraction.
-
-**Depended on by**: `nika` (binary), `nika-cli`, `nika-tui`, `nika-lsp`.
-
-This is the largest crate (134k lines) and the central dependency. It re-exports types from all infrastructure crates to present a unified API. Its modules form three architectural layers:
-
-1. **Domain Model**: `ast/` — Lowering from Analyzed AST to runtime types
-2. **Application**: `runtime/`, `dag/`, `binding/` — Execution, scheduling, data flow
-3. **Infrastructure**: `store/`, `event/`, `provider/`, `media/` — State, observability, LLM abstraction
-
-The engine has 30+ feature flags, primarily for media tools (media-thumbnail, media-svg, media-pdf, etc.) and web extraction (fetch-html, fetch-markdown, fetch-article). The `default` feature enables `native-inference`, `media-core`, and all `fetch-extract` features.
-
-### nika-cli (Application Layer)
-
-**Role**: CLI subcommand handlers that do not require the TUI.
-
-**Depends on**: `nika-engine`, `clap`, `cliclack` (interactive wizards).
-
-**Depended on by**: `nika` (binary).
-
-**Key modules**: `init_wizard`, `course`, `showcase`, `trace`, `mcp`, `pkg`, `doctor`, `media`, `schema`, `workflow`, `setup`.
-
-This crate was split from the main binary to keep TUI-independent commands separate. The `init` command generates project scaffolds, the `course` command manages the 12-level interactive learning course, and `doctor` performs system diagnostics.
-
-### nika-tui (UI Layer)
-
-**Role**: Terminal user interface with 3-view architecture built on ratatui.
-
-**Depends on**: `nika-engine`, `nika-lsp-core`, `ratatui`, `crossterm`, `tree-sitter-yaml`, `git2`, `nucleo` (fuzzy matching), `arboard` (clipboard).
-
-**Depended on by**: `nika` (binary, feature-gated).
-
-This is the second-largest crate (86k lines). It implements three views:
-1. **Studio** — 3-panel layout: File Browser | YAML Editor | DAG Preview
-2. **Command** — Execution monitoring + Chat conversation
-3. **Control** — Provider config, theme, preferences
-
-The TUI is optional (`tui` feature on the binary crate). When disabled, the binary compiles without ratatui/crossterm/git2/openssl, significantly reducing binary size.
-
-### nika-lsp-core (UI Layer)
-
-**Role**: Protocol-agnostic LSP intelligence. Pure functions: `(text, offset, context) -> Result`.
-
-**Depends on**: `nika-core`, `tree-sitter`, `tree-sitter-yaml`, `ropey`, `dashmap`.
-
-**Depended on by**: `nika` (binary), `nika-tui`, `nika-lsp`.
-
-**Key exports**:
-- `CursorContext` — 16-variant enum for cursor position semantics
-- `LspHandler` trait — Protocol-agnostic handler dispatch
-- `DefaultHandler` — Default implementation wiring pure handlers
-- `parse_and_extract()` — Error-recovery parsing via tree-sitter
-- `WorldDatabase` — Shared state for cross-file analysis
-
-This crate is shared by both the embedded LSP (inside `nika lsp`) and the standalone LSP binary (`nika-lsp`). It never imports tower-lsp-server or any async runtime — all handlers are synchronous pure functions.
-
-### nika-lsp (UI Layer)
-
-**Role**: Standalone LSP binary for editor integration.
-
-**Depends on**: `nika-engine` (no default features), `nika-lsp-core`, `tower-lsp-server`, `ropey`.
-
-This is a separate binary (`nika-lsp`) that editors can spawn. It uses `tower-lsp-server` for the JSON-RPC transport and delegates all intelligence to `nika-lsp-core`. Notably, it imports `nika-engine` with `default-features = false` to minimize the dependency tree — it only needs AST and source types, not the full runtime.
-
-### nika-init (Application Layer)
-
-**Role**: Project scaffolding — `nika init` wizard and interactive learning course (~21k lines).
-
-**Depends on**: `nika-engine`, `cliclack`, `tokio`.
-
-**Depended on by**: `nika-cli`.
-
-**Key exports**:
-- `InitWizard` — Interactive project setup with `.nika/` directory creation
-- `CourseManager` — 12-level Liberation course (44 exercises) management
-- Minimal, showcase, and course workflow templates
-
-### nika-daemon (Application Layer)
-
-**Role**: Background daemon for secrets management, job scheduling, file watching, and caching (~5k lines).
-
-**Depends on**: `nika-engine`, `tokio`, `zeroize`, `keyring`.
-
-**Depended on by**: `nika-engine` (via IPC), `nika` (binary).
-
-**Key exports**:
-- Unified secret management via IPC (replaces per-process keychain lookups)
-- Job scheduler (`cron:` expressions)
-- File watcher for `nika run --watch` mode
-- Secret codes: `SECRET-001` through `SECRET-004`
-
-### nika (Binary Crate)
-
-**Role**: CLI entry point. Parses arguments, dispatches to subcommands, sets up logging.
-
-**Depends on**: `nika-engine`, `nika-cli`, optionally `nika-tui`, `nika-lsp-core`.
-
-The binary crate is intentionally thin (~2k lines). It defines the `clap` CLI structure, sets up `tracing-subscriber`, loads `.env` files, and dispatches to the appropriate handler in `nika-cli` or `nika-tui`.
-
-## Why These Boundaries?
-
-### Compile-Time Isolation
-
-The crate split ensures that changes to the TUI (86k lines) do not trigger recompilation of the engine (135k lines), and vice versa. The zero-I/O core compiles in seconds because it has no async runtime or network dependencies.
-
-### Feature Gating
-
-Media tools are feature-gated at the engine level and forwarded through all consuming crates. This means users who do not need SVG rendering (`resvg`, `usvg`, `tiny-skia`, `fontdb`) or PDF extraction (`pdf-extract`) pay zero compile-time or binary-size cost.
-
-### Embeddability
-
-The `nika-engine` crate is designed to be embeddable. Third-party Rust projects can depend on `nika-engine` directly to execute workflows programmatically without the CLI, TUI, or LSP. The `publish = true` annotation on the engine and TUI crates confirms this intent.
-
-### Testing Boundaries
-
-Each crate has its own test suite. The core has property-based tests (proptest), the engine has integration tests with wiremock HTTP mocking, and the TUI has snapshot tests (insta). The workspace runs `cargo test --workspace --lib` for safe testing (no keychain popups).
-
-## Dependency Flow Rules
-
-1. **nika-core depends on nothing internal** — It is the foundation.
-2. **nika-event depends on nothing internal** — Independent observability.
-3. **nika-mcp depends only on nika-event** — For emitting MCP events.
-4. **nika-media depends only on nika-mcp** — For MCP response processing.
-5. **nika-engine depends on all four infrastructure crates** — It is the integration point.
-6. **UI crates (nika, nika-cli, nika-tui, nika-lsp) depend on nika-engine** — Never on each other (avoiding circular deps).
-7. **nika-lsp-core depends only on nika-core** — Pure intelligence, no runtime.
-
-These rules ensure a clean DAG in the crate dependency graph itself — no cycles, clear ownership, and predictable compilation order.
+- `docs/concepts/ARCHITECTURE.md` — overall architecture explanation
+- `docs/roadmap/constellation-session12-rework/` — Act 2 extraction plan
+- `~/.claude/projects/.../memory/PLAN.md` — 4-act strategy with diamond gates
+- `~/.claude/projects/.../memory/project_ai_velocity_north_star.md` — why ≤14k crate size
