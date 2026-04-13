@@ -1,0 +1,225 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Tool executor traits — agent-v2 kernel hook.
+//!
+//! ISP decomposition: `ToolExecute`, `ToolBatch`.
+//! Super-trait: `ToolExecutor` (blanket for both).
+//!
+//! These hooks enable agent-v2 to call tools through a unified interface
+//! (builtin + MCP tools behind a single trait). Default `execute_batch`
+//! is sequential; agent-v2 overrides for parallel execution.
+
+use serde::{Deserialize, Serialize};
+
+/// Opaque tool call identifier.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ToolCallId(pub String);
+
+impl ToolCallId {
+    /// Create a new tool call identifier.
+    #[must_use]
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+impl std::fmt::Display for ToolCallId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// A tool invocation request.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ToolCall {
+    /// Unique call identifier.
+    pub id: ToolCallId,
+    /// Tool name (e.g., `"nika:read"`, `"server::tool"`).
+    pub name: String,
+    /// Tool input parameters as JSON.
+    pub input: serde_json::Value,
+}
+
+impl ToolCall {
+    /// Create a new tool call.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        input: serde_json::Value,
+    ) -> Self {
+        Self {
+            id: ToolCallId::new(id),
+            name: name.into(),
+            input,
+        }
+    }
+}
+
+/// Result of a tool execution.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ToolResult {
+    /// The tool call ID this result corresponds to.
+    pub tool_use_id: ToolCallId,
+    /// Tool output content.
+    pub content: String,
+    /// Whether the tool execution resulted in an error.
+    pub is_error: bool,
+}
+
+impl ToolResult {
+    /// Create a successful tool result.
+    #[must_use]
+    pub fn success(tool_use_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            tool_use_id: ToolCallId::new(tool_use_id),
+            content: content.into(),
+            is_error: false,
+        }
+    }
+
+    /// Create an error tool result.
+    #[must_use]
+    pub fn error(tool_use_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            tool_use_id: ToolCallId::new(tool_use_id),
+            content: content.into(),
+            is_error: true,
+        }
+    }
+}
+
+/// Tool execution errors.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum ToolExecError {
+    /// Tool not found.
+    #[error("tool not found: {name}")]
+    NotFound {
+        /// Tool name that was not found.
+        name: String,
+    },
+
+    /// Tool execution timed out.
+    #[error("tool timed out: {name} after {duration_ms}ms")]
+    Timeout {
+        /// Tool name.
+        name: String,
+        /// Timeout duration in milliseconds.
+        duration_ms: u64,
+    },
+
+    /// Tool execution failed.
+    #[error("tool execution failed: {name}: {reason}")]
+    ExecutionFailed {
+        /// Tool name.
+        name: String,
+        /// Failure reason.
+        reason: String,
+    },
+
+    /// Tool system not available.
+    #[error("tool not available: {reason}")]
+    NotAvailable {
+        /// Why the tool system is unavailable.
+        reason: String,
+    },
+}
+
+/// Execute a single tool call.
+#[trait_variant::make(ToolExecuteDyn: Send)]
+pub trait ToolExecute: Send + Sync {
+    /// Execute a tool call and return its result.
+    async fn execute(&self, call: ToolCall) -> Result<ToolResult, ToolExecError>;
+}
+
+/// Execute tool calls in batch.
+#[trait_variant::make(ToolBatchDyn: Send)]
+pub trait ToolBatch: Send + Sync {
+    /// Execute multiple tool calls.
+    ///
+    /// Default: sequential. Agent-v2 overrides for parallel execution.
+    async fn execute_batch(
+        &self,
+        calls: Vec<ToolCall>,
+    ) -> Vec<Result<ToolResult, ToolExecError>>;
+}
+
+/// Full tool executor — blanket super-trait.
+pub trait ToolExecutor: ToolExecute + ToolBatch {}
+impl<T: ToolExecute + ToolBatch> ToolExecutor for T {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_call_id_display() {
+        let id = ToolCallId::new("tc_001");
+        assert_eq!(id.to_string(), "tc_001");
+    }
+
+    #[test]
+    fn tool_call_id_equality() {
+        let a = ToolCallId::new("x");
+        let b = ToolCallId::new("x");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn tool_call_new() {
+        let call = ToolCall::new("tc_1", "nika:read", serde_json::json!({"path": "/tmp"}));
+        assert_eq!(call.id.0, "tc_1");
+        assert_eq!(call.name, "nika:read");
+    }
+
+    #[test]
+    fn tool_result_success() {
+        let result = ToolResult::success("tc_1", "file contents");
+        assert!(!result.is_error);
+        assert_eq!(result.content, "file contents");
+    }
+
+    #[test]
+    fn tool_result_error() {
+        let result = ToolResult::error("tc_1", "file not found");
+        assert!(result.is_error);
+    }
+
+    #[test]
+    fn tool_exec_error_not_found_display() {
+        let err = ToolExecError::NotFound {
+            name: "nika:missing".into(),
+        };
+        assert_eq!(err.to_string(), "tool not found: nika:missing");
+    }
+
+    #[test]
+    fn tool_exec_error_timeout_display() {
+        let err = ToolExecError::Timeout {
+            name: "nika:read".into(),
+            duration_ms: 5000,
+        };
+        assert!(err.to_string().contains("timed out"));
+    }
+
+    #[test]
+    fn tool_exec_error_not_available_display() {
+        let err = ToolExecError::NotAvailable {
+            reason: "no executor configured".into(),
+        };
+        assert!(err.to_string().contains("not available"));
+    }
+
+    fn _assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn tool_types_send_sync() {
+        _assert_send_sync::<ToolCallId>();
+        _assert_send_sync::<ToolCall>();
+        _assert_send_sync::<ToolResult>();
+    }
+}

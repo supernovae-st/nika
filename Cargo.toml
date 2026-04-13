@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["tools/nika-error", "tools/nika-catalog"]
+members  = ["tools/nika-error", "tools/nika-catalog", "tools/nika-kernel", "tools/nika-kernel-mock"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under tools/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -8,7 +8,7 @@ exclude = [
   "tools/nika-blob", "tools/nika-builtin", "tools/nika-cli", "tools/nika-clock",
   "tools/nika-core", "tools/nika-daemon", "tools/nika-display", "tools/nika-engine",
   "tools/nika-event", "tools/nika-exec-runner", "tools/nika-extract", "tools/nika-fs",
-  "tools/nika-http", "tools/nika-init", "tools/nika-kernel", "tools/nika-kernel-mock",
+  "tools/nika-http", "tools/nika-init",
   "tools/nika-lsp", "tools/nika-lsp-core", "tools/nika-macros", "tools/nika-mcp",
   "tools/nika-media", "tools/nika-policy", "tools/nika-sdk", "tools/nika-security",
   "tools/nika-serve", "tools/nika-storage", "tools/nika-vault",
@@ -69,6 +69,12 @@ serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 phf        = { version = "0.13", features = ["macros", "unicase"] }
 unicase    = "2.9"
+
+trait-variant = "0.1"
+bytes         = "1"
+futures-core  = "0.3"
+parking_lot   = "0.12"
+tokio         = { version = "1", features = ["rt", "macros", "time"] }
 
 # Dev / test deps
 proptest = "1.6"

@@ -43,8 +43,8 @@ Cargo.lock.bak
 /tools/nika-fs/
 /tools/nika-http/
 /tools/nika-init/
-/tools/nika-kernel/
-/tools/nika-kernel-mock/
+# /tools/nika-kernel/       — ADMITTED Step 3
+# /tools/nika-kernel-mock/  — ADMITTED Step 3
 /tools/nika-lsp/
 /tools/nika-lsp-core/
 /tools/nika-macros/
