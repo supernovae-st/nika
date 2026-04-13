@@ -15,7 +15,6 @@
 //! - Runtime execution (tokio, reqwest, rig-core)
 //! - Media pipeline (image, zstd, c2pa)
 //! - MCP client (rmcp)
-//! - TUI (ratatui)
 //! - LSP server (tower-lsp)
 
 pub use serde_saphyr as serde_yaml;
