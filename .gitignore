@@ -25,15 +25,43 @@ Cargo.lock.bak
 # MCP server config (local, not in repo)
 .mcp.json
 
-# Legacy content from main (untracked on nika-diamond, present on disk)
-# These dirs exist because the worktree carries them from main
-# but they are NOT part of the diamond workspace.
+# Legacy from main — NOT part of diamond workspace.
+# Only tools/nika-error/ is admitted. Everything else is excluded.
 /dx
 /editors/
+/tools/nika-blob/
+/tools/nika-builtin/
+/tools/nika-cli/
+/tools/nika-clock/
 /tools/nika-core/
+/tools/nika-daemon/
+/tools/nika-display/
 /tools/nika-engine/
+/tools/nika-event/
+/tools/nika-exec-runner/
+/tools/nika-extract/
+/tools/nika-fs/
+/tools/nika-http/
+/tools/nika-init/
+/tools/nika-kernel/
+/tools/nika-kernel-mock/
+/tools/nika-lsp/
 /tools/nika-lsp-core/
+/tools/nika-macros/
+/tools/nika-mcp/
+/tools/nika-media/
+/tools/nika-policy/
+/tools/nika-sdk/
+/tools/nika-security/
+/tools/nika-serve/
+/tools/nika-storage/
+/tools/nika-vault/
+/tools/nika-verb-exec/
+/tools/nika-verb-fetch/
+/tools/nika-verb-infer/
+/tools/nika-verb-invoke/
 /tools/nika/
+/tools/.claude/
 
 # Mutation testing output
 mutants.out/
