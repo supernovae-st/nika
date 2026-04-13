@@ -1,6 +1,20 @@
 [workspace]
 resolver = "3"
-members  = []
+members  = ["tools/nika-error"]
+# Excluded so cargo does not try to descend into untracked main-leftover
+# manifests under tools/ (the orphan working tree carries them but they
+# are not part of the diamond workspace).
+exclude = [
+  "tools/nika-blob", "tools/nika-builtin", "tools/nika-cli", "tools/nika-clock",
+  "tools/nika-core", "tools/nika-daemon", "tools/nika-display", "tools/nika-engine",
+  "tools/nika-event", "tools/nika-exec-runner", "tools/nika-extract", "tools/nika-fs",
+  "tools/nika-http", "tools/nika-init", "tools/nika-kernel", "tools/nika-kernel-mock",
+  "tools/nika-lsp", "tools/nika-lsp-core", "tools/nika-macros", "tools/nika-mcp",
+  "tools/nika-media", "tools/nika-policy", "tools/nika-sdk", "tools/nika-security",
+  "tools/nika-serve", "tools/nika-storage", "tools/nika-vault",
+  "tools/nika-verb-exec", "tools/nika-verb-fetch", "tools/nika-verb-infer",
+  "tools/nika-verb-invoke", "tools/nika",
+]
 
 [workspace.package]
 version      = "0.80.0"
@@ -48,4 +62,13 @@ print_stderr  = "warn"
 # ─────────────────────────────────────────────────────────────────────────────
 
 [workspace.dependencies]
-# (intentionally empty — first entries arrive with Phase 1 crate extractions)
+# Pin once here, downstream uses `.workspace = true` (RUST_ENFORCEMENT §2).
+thiserror  = "2.0"
+miette     = "7.6"
+serde      = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Dev / test deps
+proptest = "1.6"
+insta    = { version = "1.42", features = ["yaml"] }
+rstest   = "0.22"
