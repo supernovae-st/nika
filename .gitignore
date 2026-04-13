@@ -11,8 +11,9 @@ Cargo.lock.bak
 .vscode/*
 !.vscode/extensions.json
 
-# Local runtime state (main branch runtime, unrelated to diamond source)
+# Runtime state (nika serve traces, db, media cache)
 /.nika/
+**/tools/.nika/
 
 # Local env files (secrets never in repo — use nika-vault)
 .env
@@ -29,6 +30,18 @@ Cargo.lock.bak
 # but they are NOT part of the diamond workspace.
 /dx
 /editors/
+/tools/nika-core/
+/tools/nika-engine/
+/tools/nika-lsp-core/
+/tools/nika/
+
+# Mutation testing output
+mutants.out/
+mutants.out.old/
+
+# Ad-hoc docs/research (private content belongs in supernovae/docs/)
+/docs/research/
+/docs/reports/
 
 # Claude Code local settings (per-user, not shared)
 .claude/settings.local.json
