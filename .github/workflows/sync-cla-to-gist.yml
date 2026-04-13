@@ -1,0 +1,46 @@
+name: Sync CLA to Gist
+
+# Keeps the public Gist used by cla-assistant.io in sync with CLA.md in the repo.
+# Prevents drift between source of truth (CLA.md in repo) and what cla-assistant.io reads (Gist).
+#
+# Setup:
+# 1. Create a public Gist at https://gist.github.com with filename "CLA.md"
+# 2. Store the Gist ID as repo variable CLA_GIST_ID
+# 3. Store a fine-grained PAT with "gist" scope as repo secret GIST_SYNC_PAT
+#
+# Security: this workflow only reads CLA.md from the repo and pushes it to the Gist.
+# No untrusted user input is ever passed to run: commands. GH_TOKEN and GIST_ID
+# flow exclusively through env: block with quoted shell variables.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - CLA.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: vars.CLA_GIST_ID != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Gist from CLA.md
+        env:
+          GH_TOKEN: ${{ secrets.GIST_SYNC_PAT }}
+          GIST_ID: ${{ vars.CLA_GIST_ID }}
+        run: |
+          set -euo pipefail
+          if [ ! -f CLA.md ]; then
+            echo "::error::CLA.md not found at repo root"
+            exit 1
+          fi
+          echo "Updating Gist with current CLA.md"
+          gh gist edit "$GIST_ID" CLA.md
+          echo "::notice::Gist updated. cla-assistant.io will prompt existing contributors to re-sign."
