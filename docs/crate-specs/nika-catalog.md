@@ -181,10 +181,23 @@ All unit tests inline (`#[cfg(test)] mod tests`), run with `cargo test --lib`.
 
 ---
 
-## 8. Audit trail
+## 8. Actual metrics (post-admission)
+
+| Metric | Value |
+|---|---|
+| Total LOC | 2,235 |
+| Tests | 85 |
+| Mutation score | 94.7% (71/75 viable) |
+| Clippy warnings | 0 |
+| Doc warnings | 0 |
+| Largest file | models.rs (434 LOC) |
+| Commit | `55a451695` |
+
+## 9. Audit trail
 
 | Date | Author | Change |
 |---|---|---|
 | 2026-04-13 | Phase 1 S2 | Initial spec reflecting 3 locked decisions from 8-agent research. |
+| 2026-04-13 | Phase 1 S2 | Admitted to workspace. 3-agent review: all P0/P1 fixed. |
 
 🦋

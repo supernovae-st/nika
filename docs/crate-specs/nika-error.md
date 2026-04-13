@@ -195,11 +195,23 @@ All unit tests inline (`#[cfg(test)] mod tests`), run with `cargo test --lib`.
 
 ---
 
-## 9. Audit trail
+## 9. Actual metrics (post-admission)
+
+| Metric | Value |
+|---|---|
+| Total LOC | 1,013 |
+| Tests | 44 |
+| Mutation score | 100% |
+| Clippy warnings | 0 |
+| Doc warnings | 0 |
+| Commit | `42909b1c7` |
+
+## 10. Audit trail
 
 | Date | Author | Change |
 |---|---|---|
 | 2026-04-13 | Phase 1 W1 | Initial spec (option B fat-enum). |
 | 2026-04-13 | Phase 1 W1 | Rewritten for option C+ (trait-based hierarchy). |
+| 2026-04-13 | Phase 1 W1 | Admitted to workspace. All 12 gates passed. |
 
 🦋
