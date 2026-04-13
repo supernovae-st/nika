@@ -1,5 +1,6 @@
 {
-  "description": "Nika Diamond branch — anti-hallucination settings",
+  "description": "Nika Diamond — evolving DX settings",
+
   "hooks": {
     "PostToolUse": [
       {
@@ -7,7 +8,36 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qi 'Co-Authored-By: Claude'; then echo 'ERROR: Co-Authored-By Claude forbidden. Use Nika 🦋 only.'; exit 1; fi"
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qi 'Co-Authored-By: Claude'; then echo '❌ Co-Authored-By Claude forbidden. Use Nika 🦋 only.'; exit 2; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$'; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap)\"; fi; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🦋 Session ended. Remember: update STATE.md if crate admitted.'"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '💎 Nika Diamond session. Branch: '$(git branch --show-current 2>/dev/null || echo 'unknown')'. Read MEMORY.md first.'"
           }
         ]
       }
