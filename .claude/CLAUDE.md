@@ -1,7 +1,9 @@
 # Nika Diamond — Claude Code rules
 
-**Branch** : `nika-diamond` (orphan, fresh, NO legacy code copy-pasted).
-**Main** : `830aa6154` — read-only reference, NEVER modify from this branch.
+**Branch** : `nika-diamond` — DEFAULT working branch for the next 11-12 months.
+**Main** : `830aa6154` — read-only reference via `git show main:path`. NEVER checkout, NEVER modify, NEVER push. Access legacy code ONLY via `git show`.
+**Legacy binary** : `~/bin/nika-legacy` — pre-built v0.79 for parity tests (Phase 5+).
+**This is NOT extraction. This is CRAFT.** Each crate rewritten from scratch, guided by legacy. User learns Rust in parallel.
 
 ## 🔐 Authority hierarchy
 
