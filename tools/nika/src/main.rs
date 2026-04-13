@@ -523,20 +523,9 @@ enum Commands {
         #[arg(long)]
         migrate_keys: bool,
 
-        /// Generate interactive course files (12 levels, 44 exercises)
-        #[arg(long)]
-        course: bool,
-
         /// Skip interactive prompts (use defaults + CLI flags)
         #[arg(short = 'y', long)]
         yes: bool,
-    },
-
-    /// Interactive learning course
-    #[command(next_help_heading = "LEARNING", visible_alias = "learn")]
-    Course {
-        #[command(subcommand)]
-        action: cli::course::CourseAction,
     },
 
     /// Manage execution traces
@@ -1290,10 +1279,6 @@ async fn main() {
                     "nika init".bold()
                 );
                 println!("    {}        Quick LLM call", "nika infer".bold());
-                println!(
-                    "    {}  Learn with 44 exercises",
-                    "nika init --course".bold()
-                );
                 println!();
                 Ok(())
             } else {
@@ -1551,18 +1536,11 @@ async fn main() {
         Some(Commands::Init {
             permission,
             migrate_keys,
-            course,
             yes,
         }) => {
-            if course {
-                cli::init::init_course()
-            } else {
-                let interactive = !yes && std::io::stdin().is_terminal();
-                cli::init::init_project(&permission, migrate_keys, interactive).await
-            }
+            let interactive = !yes && std::io::stdin().is_terminal();
+            cli::init::init_project(&permission, migrate_keys, interactive).await
         }
-
-        Some(Commands::Course { action }) => cli::course::handle_course_command(action, quiet),
 
         Some(Commands::Trace { action }) => cli::trace::handle_trace_command(action, quiet),
 

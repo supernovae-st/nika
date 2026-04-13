@@ -234,20 +234,6 @@ pub fn fix_suggestion_for_code(code: &str) -> Option<&'static str> {
             "All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.",
         ),
         // ═══════════════════════════════════════════════════════════════════
-        // Course errors (310-314)
-        // ═══════════════════════════════════════════════════════════════════
-        "NIKA-310" => Some("Run `nika init --course` to create a course"),
-        "NIKA-311" => Some("Review the exercise instructions and fix your workflow"),
-        "NIKA-312" => Some(
-            "Complete all exercises in the prerequisite level before unlocking this one",
-        ),
-        "NIKA-313" => {
-            Some("Delete .nika/course-progress.json and restart the course")
-        }
-        "NIKA-314" => {
-            Some("Check file permissions and that the course directory exists")
-        }
-        // ═══════════════════════════════════════════════════════════════════
         // Record compression errors (320-324)
         // ═══════════════════════════════════════════════════════════════════
         "NIKA-320" => Some(

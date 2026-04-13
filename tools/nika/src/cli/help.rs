@@ -96,7 +96,6 @@ fn get_short_desc(name: &str) -> Option<&'static str> {
         "provider" => Some("Manage API keys"),
         "mcp" => Some("MCP server connections"),
         "model" => Some("LLM models (cloud + local)"),
-        "course" => Some("Interactive 12-level course"),
         "showcase" => Some("Browse 115+ showcase workflows"),
         "init" => Some("Initialize .nika/ project"),
         "config" => Some("Manage configuration"),
@@ -128,7 +127,6 @@ fn get_example(name: &str) -> &'static str {
         "provider" => "nika provider list",
         "mcp" => "nika mcp list",
         "model" => "nika model list",
-        "course" => "nika course status",
         "showcase" => "nika showcase list",
         "init" => "nika init",
         "config" => "nika config list",
@@ -575,14 +573,6 @@ fn topic_examples() {
         &[
             "nika completion zsh > ~/.zfunc/_nika",
             "nika completion bash > ~/.local/share/bash-completion/completions/nika",
-        ],
-    );
-    example(
-        "Learning course",
-        &[
-            "nika init --course",
-            "cd nika-course && nika course status",
-            "nika course next",
         ],
     );
 }

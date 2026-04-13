@@ -9,7 +9,6 @@
 //! Each module handles one `nika <subcommand>` group.
 //! TUI-dependent handlers (provider, new_wizard) remain in the nika binary crate.
 
-pub mod course;
 pub mod showcase;
 pub mod trace;
 

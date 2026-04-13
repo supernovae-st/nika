@@ -39,7 +39,6 @@
 //! - NIKA-280-285: Artifact/media errors (path validation, write, size, integrity, cleanup, lock)
 //! - NIKA-290-297: Media tool errors (tool, format, deps, timeout, args, pipeline, security)
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
-//! - NIKA-310-319: Course errors (course system, exercises, progress)
 //! - NIKA-320-324: Record compression errors (compression, JSON parse, confidence, tokens, provider)
 //! - NIKA-380-389: Nika Shield security errors (capability, trust, canary, injection, depth, cycle, vision)
 
@@ -868,49 +867,6 @@ pub enum NikaError {
         attempts: u32,
         final_errors: Vec<String>,
     },
-
-    // ═══════════════════════════════════════════
-    // COURSE ERRORS (310-319)
-    // ═══════════════════════════════════════════
-    #[error("[NIKA-310] Course not found at '{path}'")]
-    #[diagnostic(
-        code(nika::course_not_found),
-        help("Run `nika init --course` to create a course")
-    )]
-    #[nika_code("NIKA-310")]
-    CourseNotFound { path: String },
-
-    #[error("[NIKA-311] Course exercise check failed for '{exercise}': {reason}")]
-    #[diagnostic(
-        code(nika::course_check_failed),
-        help("Review the exercise instructions and fix your workflow")
-    )]
-    #[nika_code("NIKA-311")]
-    CourseCheckFailed { exercise: String, reason: String },
-
-    #[error("[NIKA-312] Course level '{level}' is locked (complete level {prerequisite} first)")]
-    #[diagnostic(
-        code(nika::course_level_locked),
-        help("Complete all exercises in the prerequisite level before unlocking this one")
-    )]
-    #[nika_code("NIKA-312")]
-    CourseLevelLocked { level: String, prerequisite: u8 },
-
-    #[error("[NIKA-313] Course progress corrupted: {reason}")]
-    #[diagnostic(
-        code(nika::course_progress_corrupted),
-        help("Delete .nika/course-progress.json and restart the course")
-    )]
-    #[nika_code("NIKA-313")]
-    CourseProgressCorrupted { reason: String },
-
-    #[error("[NIKA-314] Course watch error: {reason}")]
-    #[diagnostic(
-        code(nika::course_watch_error),
-        help("Check file permissions and that the course directory exists")
-    )]
-    #[nika_code("NIKA-314")]
-    CourseWatchError { reason: String },
 
     // ── Record compression (NIKA-320-324) ────────────────────────
     #[error("[NIKA-320] Record compression failed for task '{task_id}': {reason}")]
@@ -2584,99 +2540,6 @@ mod tests {
         assert!(!all_failed.is_recoverable());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // COURSE ERRORS (310-319)
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_course_not_found_code_and_display() {
-        let err = NikaError::CourseNotFound {
-            path: "/tmp/course".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-310");
-        assert!(err.to_string().contains("NIKA-310"));
-        assert!(err.to_string().contains("/tmp/course"));
-        assert!(!err.is_recoverable());
-    }
-
-    #[test]
-    fn test_course_check_failed_code_and_display() {
-        let err = NikaError::CourseCheckFailed {
-            exercise: "01_hello".to_string(),
-            reason: "missing infer: verb".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-311");
-        assert!(err.to_string().contains("NIKA-311"));
-        assert!(err.to_string().contains("01_hello"));
-        assert!(err.to_string().contains("missing infer: verb"));
-        assert!(!err.is_recoverable());
-    }
-
-    #[test]
-    fn test_course_level_locked_code_and_display() {
-        let err = NikaError::CourseLevelLocked {
-            level: "intermediate".to_string(),
-            prerequisite: 1,
-        };
-        assert_eq!(err.code(), "NIKA-312");
-        assert!(err.to_string().contains("NIKA-312"));
-        assert!(err.to_string().contains("intermediate"));
-        assert!(err.to_string().contains("level 1"));
-        assert!(!err.is_recoverable());
-    }
-
-    #[test]
-    fn test_course_progress_corrupted_code_and_display() {
-        let err = NikaError::CourseProgressCorrupted {
-            reason: "invalid JSON".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-313");
-        assert!(err.to_string().contains("NIKA-313"));
-        assert!(err.to_string().contains("invalid JSON"));
-        assert!(!err.is_recoverable());
-    }
-
-    #[test]
-    fn test_course_watch_error_code_and_display() {
-        let err = NikaError::CourseWatchError {
-            reason: "notify failed".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-314");
-        assert!(err.to_string().contains("NIKA-314"));
-        assert!(err.to_string().contains("notify failed"));
-        assert!(!err.is_recoverable());
-    }
-
-    #[test]
-    fn test_course_errors_fix_suggestions() {
-        let not_found = NikaError::CourseNotFound {
-            path: "/tmp".to_string(),
-        };
-        assert!(not_found.fix_suggestion().is_some());
-
-        let check_failed = NikaError::CourseCheckFailed {
-            exercise: "ex".to_string(),
-            reason: "r".to_string(),
-        };
-        assert!(check_failed.fix_suggestion().is_some());
-
-        let locked = NikaError::CourseLevelLocked {
-            level: "l".to_string(),
-            prerequisite: 1,
-        };
-        assert!(locked.fix_suggestion().is_some());
-
-        let corrupted = NikaError::CourseProgressCorrupted {
-            reason: "r".to_string(),
-        };
-        assert!(corrupted.fix_suggestion().is_some());
-
-        let watch = NikaError::CourseWatchError {
-            reason: "r".to_string(),
-        };
-        assert!(watch.fix_suggestion().is_some());
-    }
-
     #[test]
     fn test_format_validation_errors_short_empty() {
         let result = format_validation_errors_short(&[]);
@@ -2807,7 +2670,6 @@ mod tests {
                 path: "/out/x".into(),
                 reason: "perm".into(),
             },
-            NikaError::CourseNotFound { path: "/c".into() },
         ];
 
         let re = regex::Regex::new(r"^NIKA-\d{3}$").unwrap();

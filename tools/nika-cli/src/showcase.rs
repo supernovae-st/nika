@@ -3,9 +3,7 @@
 
 //! Showcase subcommand handler — list and extract showcase workflows
 //!
-//! Combines all showcase workflow sources:
-//! - Course showcases: builtin (15), llm (20), exec (20) — `ShowcaseWorkflow`
-//! - Init showcases: patterns (15), advanced (15), infra (15), fetch (15) — `WorkflowTemplate`
+//! Source: init showcases — patterns (15), advanced (15), infra (15), fetch (15) — `WorkflowTemplate`
 
 use std::path::{Path, PathBuf};
 
@@ -13,10 +11,6 @@ use clap::Subcommand;
 use colored::Colorize;
 
 use nika_engine::error::NikaError;
-use nika_init::course::showcase::ShowcaseWorkflow;
-use nika_init::course::showcase_builtin::SHOWCASE_BUILTIN;
-use nika_init::course::showcase_exec::SHOWCASE_EXEC;
-use nika_init::course::showcase_llm::SHOWCASE_LLM;
 use nika_init::WorkflowTemplate;
 
 /// Showcase subcommand actions
@@ -79,20 +73,8 @@ struct ShowcaseEntry {
 
 /// Collect all showcase workflows from every source.
 fn all_showcases() -> Vec<ShowcaseEntry> {
-    let mut entries = Vec::with_capacity(120);
+    let mut entries = Vec::with_capacity(60);
 
-    // Course showcase workflows (ShowcaseWorkflow type)
-    for w in SHOWCASE_BUILTIN {
-        entries.push(from_showcase(w, "course/builtin"));
-    }
-    for w in SHOWCASE_LLM {
-        entries.push(from_showcase(w, "course/llm"));
-    }
-    for w in SHOWCASE_EXEC {
-        entries.push(from_showcase(w, "course/exec"));
-    }
-
-    // Init showcase workflows (WorkflowTemplate type)
     let init_workflows = nika_init::get_all_workflows();
     for w in &init_workflows {
         // Skip minimal starters — they are not really showcases
@@ -103,17 +85,6 @@ fn all_showcases() -> Vec<ShowcaseEntry> {
     }
 
     entries
-}
-
-fn from_showcase(w: &'static ShowcaseWorkflow, source: &'static str) -> ShowcaseEntry {
-    ShowcaseEntry {
-        name: w.name,
-        description: w.description,
-        category: w.category,
-        content: w.content,
-        requires_llm: w.requires_llm,
-        source,
-    }
 }
 
 fn from_template(w: &WorkflowTemplate) -> ShowcaseEntry {
@@ -209,11 +180,35 @@ fn cmd_list(category: Option<&str>, _quiet: bool) -> Result<(), NikaError> {
 // ── Extract ─────────────────────────────────────────────────────────────────
 
 /// Substitute `{{PROVIDER}}` and `{{MODEL}}` placeholders with auto-detected values.
+///
+/// Provider detection uses env vars in priority order; model falls back to a
+/// sensible default per provider.
 fn substitute_placeholders(content: &str) -> String {
-    let (provider, model) = nika_init::course::generator::detect_provider();
+    let (provider, model) = detect_provider_and_model();
     content
         .replace("{{PROVIDER}}", provider)
         .replace("{{MODEL}}", model)
+}
+
+/// Map an API-key-backed provider to a default model.
+fn detect_provider_and_model() -> (&'static str, &'static str) {
+    if std::env::var("ANTHROPIC_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("anthropic", "claude-sonnet-4-20250514")
+    } else if std::env::var("OPENAI_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("openai", "gpt-4o-mini")
+    } else if std::env::var("GROQ_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("groq", "llama-3.3-70b-versatile")
+    } else if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("mistral", "mistral-large-latest")
+    } else if std::env::var("GEMINI_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("gemini", "gemini-2.5-flash")
+    } else if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("deepseek", "deepseek-chat")
+    } else if std::env::var("XAI_API_KEY").is_ok_and(|v| !v.trim().is_empty()) {
+        ("xai", "grok-3")
+    } else {
+        ("anthropic", "claude-sonnet-4-20250514")
+    }
 }
 
 fn cmd_extract(name: &str, output_dir: &Path, quiet: bool) -> Result<(), NikaError> {
@@ -313,8 +308,8 @@ mod tests {
     fn test_all_showcases_not_empty() {
         let entries = all_showcases();
         assert!(
-            entries.len() > 100,
-            "Should have 100+ showcase workflows, got {}",
+            !entries.is_empty(),
+            "Should have at least one showcase workflow, got {}",
             entries.len()
         );
     }
@@ -338,34 +333,14 @@ mod tests {
     }
 
     #[test]
-    fn test_course_showcases_have_unique_names() {
-        let course_entries: Vec<_> = all_showcases()
-            .into_iter()
-            .filter(|e| e.source.starts_with("course/"))
-            .collect();
-        let mut names: Vec<&str> = course_entries.iter().map(|e| e.name).collect();
-        let n = names.len();
-        names.sort();
-        names.dedup();
-        assert_eq!(names.len(), n, "Course showcase names should be unique");
-    }
-
-    #[test]
-    fn test_filter_by_category() {
-        let entries = all_showcases();
-        let content: Vec<_> = entries.iter().filter(|e| e.category == "content").collect();
-        assert!(
-            !content.is_empty(),
-            "Should have content-category showcases"
-        );
-    }
-
-    #[test]
     fn test_extract_to_tempdir() {
         let dir = tempfile::tempdir().unwrap();
-        let result = cmd_extract("progress-tracker", dir.path(), true);
+        let entries = all_showcases();
+        let first = entries.first().expect("at least one showcase entry");
+        let name = first.name;
+        let result = cmd_extract(name, dir.path(), true);
         assert!(result.is_ok());
-        assert!(dir.path().join("progress-tracker.nika.yaml").exists());
+        assert!(dir.path().join(format!("{}.nika.yaml", name)).exists());
     }
 
     #[test]
@@ -395,10 +370,13 @@ mod tests {
     #[test]
     fn test_extract_substitutes_placeholders() {
         let dir = tempfile::tempdir().unwrap();
-        let result = cmd_extract("progress-tracker", dir.path(), true);
+        let entries = all_showcases();
+        let first = entries.first().expect("at least one showcase entry");
+        let name = first.name;
+        let result = cmd_extract(name, dir.path(), true);
         assert!(result.is_ok());
-        let content =
-            std::fs::read_to_string(dir.path().join("progress-tracker.nika.yaml")).unwrap();
+        let content = std::fs::read_to_string(dir.path().join(format!("{}.nika.yaml", name)))
+            .unwrap();
         // Extracted content should not contain raw placeholders
         assert!(
             !content.contains("{{PROVIDER}}"),
