@@ -163,12 +163,10 @@ pub struct ArtifactInfo {
 }
 
 /// List of artifacts for a job (as returned by the API).
+///
+/// serde ignores extra fields (`job_id`, `count`) on deserialization.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ArtifactListResponse {
-    #[allow(dead_code)]
-    pub job_id: String,
-    #[allow(dead_code)]
-    pub count: usize,
     pub artifacts: Vec<ArtifactInfo>,
 }
 
@@ -210,11 +208,11 @@ pub(crate) struct RunRequest {
 }
 
 /// Response from POST /v1/run.
+///
+/// serde ignores extra fields (`status`) on deserialization.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct RunResponse {
     pub job_id: String,
-    #[allow(dead_code)]
-    pub status: String,
 }
 
 #[cfg(test)]
