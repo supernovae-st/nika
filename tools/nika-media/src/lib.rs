@@ -20,4 +20,4 @@ pub mod types;
 pub use error::MediaError;
 pub use processor::MediaProcessor;
 pub use store::CasStore;
-pub use types::{MediaBudget, MediaRef, MediaType};
+pub use types::{MediaBudget, MediaRef};
