@@ -32,6 +32,17 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(cargo test*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'cargo test' && ! echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\-\\-lib'; then echo '⚠️ WARNING: cargo test without --lib may trigger macOS Keychain popup. Use --lib flag.'; fi"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
