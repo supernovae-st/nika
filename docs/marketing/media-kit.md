@@ -33,9 +33,9 @@ product. It's a movement.
 | **Symbol** | Blue Butterfly — liberation, transformation, the impossible becoming possible |
 | **Primary tagline** | Automate AI. No code required. |
 | **Manifesto tagline** | The Drums of Liberation. In Rust. |
-| **Technical tagline** | 5 verbs. 9 providers. Zero Python. |
+| **Technical tagline** | 5 verbs. 14 LLM providers. Zero Python. |
 | **Mission tagline** | AI shouldn't have a subscription fee. |
-| **License** | AGPL-3.0-or-later |
+| **License** | AGPL-3.0-or-later (dual-licensed with commercial license available) |
 | **Website** | https://nika.supernovae.studio |
 | **GitHub** | https://github.com/supernovae-st/nika |
 
@@ -115,12 +115,12 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 
 | Screenshot | Command | Description | File |
 |------------|---------|-------------|------|
-| Run output | `nika run demo.nika.yaml` | Colored task execution with timing | `screenshot-run.png` |
-| TUI Studio | `nika ui` (view 1/s) | Workflow tree + streaming output | `screenshot-tui.png` |
-| Course map | `nika course status` | Constellation progress visualization | `screenshot-course.png` |
+| Run output | `nika run demo.nika.yaml` | Colored task execution with timing + DAG progress | `screenshot-run.png` |
 | Doctor | `nika doctor` | System health check with provider status | `screenshot-doctor.png` |
 | Check | `nika check workflow.nika.yaml` | Validation output with green checkmarks | `screenshot-check.png` |
-| Provider list | `nika provider list` | All 22+ providers with API key status | `screenshot-providers.png` |
+| Provider list | `nika provider list` | All 14 LLM providers with API key status | `screenshot-providers.png` |
+| Showcase | `nika showcase list` | Browse 115 pre-built workflow templates | `screenshot-showcase.png` |
+| VS Code LSP | (editor screenshot) | Inline syntax validation + DAG webview | `screenshot-vscode-lsp.png` |
 
 ### Diagrams
 
@@ -129,7 +129,7 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | 5 Verbs | The five verbs with icons and descriptions | SVG | `diagram-5-verbs.svg` |
 | Architecture | Engine internals (AST, DAG, runtime) | SVG | `diagram-architecture.svg` |
 | Data flow | `with:` bindings and template resolution | SVG | `diagram-data-flow.svg` |
-| Provider map | All supported providers with logos | SVG | `diagram-providers.svg` |
+| Provider map | All 14 LLM + 11 MCP providers with logos | SVG | `diagram-providers.svg` |
 | Benchmark chart | RAM comparison vs Python frameworks | SVG | `chart-benchmark.svg` |
 
 ---
@@ -175,9 +175,9 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | 0:00-0:15 | Hook | "What if you could automate any AI task in 8 lines of YAML?" |
 | 0:15-0:45 | Problem | Show Python boilerplate for a simple summarizer (~60 lines). Show the equivalent Nika YAML (~8 lines). |
 | 0:45-1:15 | Live demo | Run the HN scraper workflow. Show output streaming in real time. |
-| 1:15-1:35 | Features | Quick montage: swap providers (1 line change), TUI view, course system, 200+ showcases. |
-| 1:35-1:50 | Technical | Single binary, 28 MB RAM, <50ms startup, 8,300+ tests, AGPL. |
-| 1:50-2:00 | CTA | "brew install supernovae-st/tap/nika — or nika init --course to learn interactively." |
+| 1:15-1:35 | Features | Quick montage: swap providers (1 line change), VS Code LSP validation, 115 showcase workflows. |
+| 1:35-1:50 | Technical | Single binary, 28 MB RAM, <50ms startup, 8,600+ tests, AGPL. |
+| 1:50-2:00 | CTA | "brew install supernovae-st/tap/nika — `nika init` to scaffold a project." |
 
 ### 5-Minute Deep Dive
 
@@ -198,7 +198,7 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | 1:30-2:30 | DAG & Bindings | Show parallel execution, `with:` bindings, pipe transforms. |
 | 2:30-3:30 | Agent Loop | Demo an autonomous agent with tool use (MCP integration). |
 | 3:30-4:15 | Architecture | AST pipeline, provider abstraction, media tools. |
-| 4:15-4:45 | Course System | Show `nika init --course`, constellation map, progressive hints. |
+| 4:15-4:45 | Provider strategy | 14 LLM providers + 11 MCP integrations + native GGUF. Live provider swap (Anthropic → Groq → DeepSeek) with single line YAML change. |
 | 4:45-5:00 | CTA | GitHub, docs, community links. |
 
 ---
@@ -225,8 +225,8 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | The Solution | 8 min | YAML workflows, 5 verbs, DAG execution, provider abstraction |
 | Technical Deep Dive | 10 min | Rust choice, AST pipeline, rig-core integration, MCP protocol |
 | Open Source Philosophy | 5 min | Why AGPL, the "AI is electricity" thesis, community-first approach |
-| Course & Onboarding | 5 min | 12-level course, 44 exercises, constellation map, accessibility |
-| Future | 5 min | Roadmap, NovaNet knowledge graph, distribution, v1.0 path |
+| Showcase & Onboarding | 5 min | 115 showcase workflows, `nika init` scaffolding, VS Code LSP integration, MCP-first development |
+| Future | 5 min | Roadmap, Memory engine (Mnestic, ADR-004), distribution, public arXiv paper Q4 2026 |
 | Q&A / Close | 5 min | Where to find it, how to contribute, community links |
 
 ---
@@ -242,19 +242,20 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 > Nika is an open-source workflow engine that automates AI tasks using simple YAML
 > files. Instead of writing Python boilerplate to chain LLM calls, you describe
 > your workflow with five verbs — infer, fetch, exec, invoke, agent — and Nika
-> runs it. It works with any provider (Claude, GPT, Mistral, Gemini, local
-> models), ships as a single 15 MB Rust binary, and uses 5x less RAM than Python
-> alternatives. AGPL licensed. No lock-in, ever.
+> runs it. It works with 14 LLM providers (Claude, GPT, Mistral, Gemini, Groq,
+> DeepSeek, xAI, and 7 OpenAI-compat), ships as a single 15 MB Rust binary, and
+> uses 5x less RAM than Python alternatives. AGPL licensed. No lock-in, ever.
 
 ### Blog Post Pitch (1 paragraph)
 
 > We just open-sourced Nika, a workflow engine that lets anyone automate AI tasks
-> by writing YAML instead of Python. It supports 9 LLM providers, runs as a
-> single Rust binary with zero dependencies, and includes a built-in 12-level
-> interactive course to learn the engine. We built it because we believe AI
+> by writing YAML instead of Python. It supports 14 LLM providers plus 11 MCP
+> integrations (GitHub, Slack, Neo4j, Perplexity, Firecrawl, etc.), runs as a
+> single Rust binary with zero dependencies, and ships with a 115-workflow
+> showcase library to learn from real examples. We built it because we believe AI
 > automation shouldn't require a CS degree — if you can edit a text file, you can
 > orchestrate Claude, GPT, and Mistral to do real work. Nika is pre-1.0 but
-> battle-tested with 8,300+ tests, and the AGPL license ensures it stays open.
+> battle-tested with 8,600+ tests, and the AGPL license ensures it stays open.
 > We'd love to share the story of why we chose YAML over Python, Rust over Node,
 > and AGPL over MIT.
 
@@ -266,9 +267,9 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 
 **SuperNovae Studio Launches Nika: Open-Source AI Workflow Engine That Replaces Python Boilerplate with YAML**
 
-*Single Rust binary automates AI tasks across 22+ providers with 5x less memory than Python frameworks*
+*Single Rust binary automates AI tasks across 14 LLM providers and 11 MCP integrations with 5x less memory than Python frameworks*
 
-**[City], [Date]** — SuperNovae Studio today announced the public release of
+**Paris, May 5, 2026** — SuperNovae Studio today announced the public release of
 Nika, an open-source workflow engine that enables anyone to automate AI tasks by
 writing simple YAML configuration files instead of Python code.
 
@@ -278,22 +279,31 @@ MCP tool calls, and `agent` for autonomous multi-turn loops. Workflows are
 defined in `.nika.yaml` files and executed via a single command-line interface.
 
 "AI is becoming like electricity — everyone uses it, but today you need to be an
-electrician to wire it up," said Thibaut Melen, creator of Nika. "We built Nika
+electrician to wire it up," said Thibaut Mélen, creator of Nika. "We built Nika
 so that describing an AI workflow is as simple as writing a recipe."
 
 **Key features:**
 
-- **Provider agnostic**: Works with 9 major providers (Claude, GPT, Mistral, Gemini, Groq, DeepSeek, xAI, Gemini, native GGUF, OpenAI-compatible)
+- **Provider agnostic**: Works with 14 LLM providers (Claude, GPT, Mistral,
+  Gemini, Groq, DeepSeek, xAI + 7 OpenAI-compatible like OpenRouter, Together,
+  Fireworks, Cerebras, SambaNova, Cohere, AI21) plus native GGUF and 11 MCP
+  integrations (GitHub, Slack, Neo4j, Perplexity, Firecrawl, Postgres, etc.)
 - **Single binary**: Ships as a ~15 MB Rust executable with zero runtime
   dependencies — no Python, no Docker, no Node.js
 - **Resource efficient**: Uses ~28 MB RAM for typical workflows vs ~140 MB for
   equivalent Python framework implementations
-- **Interactive learning**: Built-in 12-level course with 44 exercises, accessed
-  via `nika init --course`
-- **200+ showcases**: Pre-built workflow templates for common AI automation
-  patterns
-- **Terminal UI**: Rich interactive interface for monitoring workflow execution
+- **115 showcase workflows**: Pre-built templates for common AI automation
+  patterns — extract one with `nika showcase extract <name>`
+- **VS Code LSP integration**: Real-time syntax validation, autocomplete, and
+  DAG visualization for `.nika.yaml` files
+- **Defense-in-depth security**: 6-layer Shield (policy + spotlight + structured
+  output + capabilities + canary tokens + audit telemetry) protects against
+  prompt injection
+- **Structured output**: 4-layer JSON schema enforcement (tool injection,
+  extract+validate, retry, LLM repair) — same result on every provider
+- **MCP native**: First-class Model Context Protocol support for tool extension
 - **AGPL licensed**: Ensures the tool and all derivatives remain open source
+  (commercial license available for proprietary use)
 
 Nika is available now on GitHub at https://github.com/supernovae-st/nika and
 via Homebrew (`brew install supernovae-st/tap/nika`).
@@ -301,8 +311,8 @@ via Homebrew (`brew install supernovae-st/tap/nika`).
 **About SuperNovae Studio**
 
 SuperNovae Studio builds open-source AI infrastructure. The company's flagship
-products are Nika (workflow engine) and NovaNet (knowledge graph), connected via
-the Model Context Protocol (MCP).
+project is Nika (workflow engine), with the upcoming Nika Memory ("Mnestic")
+cognitive memory engine planned for release in Q4 2026.
 
 **Contact**: press@supernovae.studio | https://supernovae.studio
 
@@ -316,7 +326,7 @@ the Model Context Protocol (MCP).
 - [ ] OG image (1200x630)
 - [ ] GitHub social preview (1280x640)
 - [ ] 5 Product Hunt gallery images (1270x760)
-- [ ] Terminal screenshots (6 total)
+- [ ] Terminal screenshots (6 total: run, doctor, check, providers, showcase, VS Code LSP)
 - [ ] 30-second teaser video
 - [ ] Social cards (square + landscape)
 
@@ -326,6 +336,7 @@ the Model Context Protocol (MCP).
 - [ ] Benchmark chart SVG
 - [ ] Architecture diagram SVG
 - [ ] 5 Verbs diagram SVG
+- [ ] Provider map diagram SVG (14 LLM + 11 MCP)
 - [ ] Blog post (for company blog + dev.to)
 - [ ] Twitter/X thread (10 tweets)
 - [ ] LinkedIn announcement post
@@ -337,7 +348,6 @@ the Model Context Protocol (MCP).
 - [ ] Story format assets (1080x1920)
 - [ ] Conference talk slide deck
 - [ ] Press release distribution
-- [ ] Provider map diagram
 - [ ] Data flow diagram
 
 ---
