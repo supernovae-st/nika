@@ -1,6 +1,6 @@
 {
-  "version": "0.76.0",
-  "generated": "2026-04-07T10:01:53Z",
+  "version": "0.79.0",
+  "generated": "2026-04-13T11:08:17Z",
   "verbs": [
     "infer",
     "exec",
@@ -53,6 +53,7 @@
     "fail_fast",
     "timeout",
     "when",
+    "trust",
     "on_error",
     "guardrails",
     "infer",
@@ -129,7 +130,10 @@
     "has",
     "min_by",
     "max_by",
-    "jq"
+    "jq",
+    "html_escape",
+    "md_escape",
+    "sanitize"
   ],
   "builtins": [
     "sleep",

@@ -26,7 +26,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent.parent
 CORE_DIR = REPO_ROOT / "tools" / "nika-core" / "src"
 
-TRANSFORM_FILE = CORE_DIR / "binding" / "transform.rs"
+TRANSFORM_FILE = CORE_DIR / "binding" / "transform" / "mod.rs"
 BUILTINS_FILE = CORE_DIR / "catalogs" / "builtins.rs"
 PARSER_FILE = CORE_DIR / "ast" / "raw" / "parser.rs"
 ACTION_FILE = CORE_DIR / "ast" / "raw" / "action.rs"
