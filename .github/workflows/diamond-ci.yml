@@ -1,0 +1,72 @@
+name: Diamond CI
+
+# All template expressions below reference `matrix.*` values defined from
+# the static literal lists in this same file — there is no untrusted input
+# in any `run:` step (no issue/PR/commit-message interpolation).
+
+on:
+  push:
+    branches: [nika-diamond]
+  pull_request:
+    branches: [nika-diamond]
+
+concurrency:
+  group: diamond-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  ratchets:
+    name: ratchet
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - loc-limits
+          - crate-size
+          - fn-length
+          - unwrap
+          - expect
+          - dead-code
+    env:
+      CHECK: ${{ matrix.check }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ratchet
+        run: ./scripts/ci/check-"$CHECK".sh
+
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [clippy, tests, no-default-features]
+    env:
+      JOB: ${{ matrix.job }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.91"
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: diamond
+      - name: Run rust job
+        run: ./scripts/ci/check-"$JOB".sh
+
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          log-level: warn
+          command: check
+          arguments: --all-features

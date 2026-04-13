@@ -1,0 +1,31 @@
+# Workspace-wide clippy restrictions.
+#
+# Note: clippy's `disallowed-*` arrays do not support glob patterns. To ban
+# an entire crate (e.g. `tokio::*`), use `cargo-deny` `[[bans.deny]]` with
+# wrappers instead (see `deny.toml`).
+#
+# Per-layer stricter overrides (e.g. L0 `nika-core/clippy.toml` forbidding
+# tokio/reqwest/std::fs) land in Phase 2 when crates arrive.
+
+disallowed-methods = [
+  { path = "std::env::var",      reason = "use SecretStore / nika-vault via caps::SecretLookup" },
+  { path = "std::env::var_os",   reason = "use SecretStore / nika-vault via caps::SecretLookup" },
+  { path = "std::thread::spawn", reason = "use tokio::spawn (we are tokio-first)" },
+]
+
+disallowed-types = [
+  { path = "std::process::Command",       reason = "use the nika-kernel ShellExecutor trait" },
+  { path = "std::collections::HashMap",   reason = "use rustc_hash::FxHashMap (perf + determinism)" },
+  { path = "std::collections::HashSet",   reason = "use rustc_hash::FxHashSet" },
+]
+
+disallowed-macros = [
+  { path = "std::println",  reason = "use tracing::info!" },
+  { path = "std::eprintln", reason = "use tracing::warn!" },
+  { path = "std::dbg",      reason = "dbg! must never land in commits" },
+]
+
+# Thresholds — intentionally strict; relax only with review.
+too-many-arguments-threshold = 8
+type-complexity-threshold    = 250
+cognitive-complexity-threshold = 30

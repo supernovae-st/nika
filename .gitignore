@@ -1,0 +1,22 @@
+# Rust build artifacts
+/target/
+**/target/
+Cargo.lock.bak
+*.rs.bk
+
+# Editors / OS cruft
+.DS_Store
+*.swp
+*~
+.vscode/*
+!.vscode/extensions.json
+
+# Local runtime state (main branch runtime, unrelated to diamond source)
+/.nika/
+
+# Local env files (secrets never in repo — use nika-vault)
+.env
+.env.local
+
+# Snapshot temp files (cargo-insta)
+*.pending-snap

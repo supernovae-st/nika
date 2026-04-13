@@ -1,0 +1,51 @@
+[workspace]
+resolver = "3"
+members  = []
+
+[workspace.package]
+version      = "0.80.0"
+edition      = "2024"
+license      = "AGPL-3.0-or-later"
+authors      = ["Thibaut Melen <thibaut@supernovae.studio>"]
+rust-version = "1.91"
+repository   = "https://github.com/supernovae-st/nika"
+homepage     = "https://supernovae.studio"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Workspace-wide lint policy. Every member crate MUST opt in via:
+#     [lints]
+#     workspace = true
+# ─────────────────────────────────────────────────────────────────────────────
+
+[workspace.lints.rust]
+unsafe_code                    = "forbid"
+unused_must_use                = "deny"
+elided_lifetimes_in_paths      = "warn"
+unreachable_pub                = "warn"
+explicit_outlives_requirements = "warn"
+unused_extern_crates           = "warn"
+
+[workspace.lints.clippy]
+# Group levels (priority = -1 so individual lints below win)
+correctness = { level = "deny", priority = -1 }
+suspicious  = { level = "warn", priority = -1 }
+perf        = { level = "deny", priority = -1 }
+pedantic    = { level = "warn", priority = -1 }
+
+# Core "diamond" lints — zero tolerance on production src/
+unwrap_used   = "deny"
+expect_used   = "warn"
+panic         = "deny"
+todo          = "warn"
+unimplemented = "warn"
+dbg_macro     = "deny"
+print_stdout  = "warn"
+print_stderr  = "warn"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared dependencies. Populated when Phase 1 extract-ready crates land.
+# Rule (RUST_ENFORCEMENT §2): pin once here, downstream = `.workspace = true`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[workspace.dependencies]
+# (intentionally empty — first entries arrive with Phase 1 crate extractions)

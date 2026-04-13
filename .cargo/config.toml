@@ -1,0 +1,3 @@
+[alias]
+# Lands when the xtask crate is created (Phase 2). Harmless until then.
+xtask = "run --package xtask --release --"

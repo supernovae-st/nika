@@ -1,0 +1,49 @@
+# cargo-deny policy for `nika-diamond`.
+#
+# Layer-ban wrappers (the diamond-enforcement magic) are populated as crates
+# arrive. Example template, commented out until we have real members:
+#
+#   [[bans.deny]]
+#   name     = "tokio"
+#   wrappers = ["nika-clock", "nika-fs", "nika-http", "nika-blob",
+#               "nika-process", "nika-mcp", "nika-media",
+#               "nika-verb-exec", "nika-verb-fetch", "nika-verb-invoke",
+#               "nika-verb-infer", "nika-verb-agent",
+#               "nika-runtime", "nika-daemon",
+#               "nika-cli", "nika-serve", "nika-lsp", "nika-sdk",
+#               "nika", "nika-kernel-mock"]
+
+[graph]
+all-features = false
+
+[licenses]
+version              = 2
+confidence-threshold = 0.8
+allow = [
+  "AGPL-3.0-or-later",
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "CC0-1.0",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "MPL-2.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards         = "deny"
+# deny = []   # populated in Phase 1
+
+[advisories]
+version = 2
+yanked  = "deny"
+# Advisory ignores (CVE IDs) listed explicitly here — never blanket-suppress.
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
