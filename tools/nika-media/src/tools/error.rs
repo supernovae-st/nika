@@ -68,7 +68,6 @@ pub fn unsupported_format(tool: &str, mime: &str) -> MediaToolError {
 }
 
 /// Create a dependency missing error (NIKA-292).
-#[allow(dead_code)]
 pub fn dependency_missing(tool: &str, feature: &str) -> MediaToolError {
     MediaToolError::DependencyMissing {
         tool: tool.to_string(),
