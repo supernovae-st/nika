@@ -63,3 +63,9 @@ serde_json = { workspace = true }
 
 [lints]
 workspace = true
+
+# phf is used by build.rs-generated code (src/data/generated.rs references
+# `phf::Map<...>`). cargo-machete cannot trace through build-codegen, so
+# explicit ignore prevents a false positive.
+[package.metadata.cargo-machete]
+ignored = ["phf"]

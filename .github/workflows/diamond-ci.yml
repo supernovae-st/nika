@@ -106,3 +106,41 @@ jobs:
         env:
           MIRIFLAGS: "-Zmiri-strict-provenance"
         run: cargo miri test --lib -p nika-error -p nika-catalog
+
+  machete:
+    name: cargo-machete (unused deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-machete
+      - name: check for unused dependencies
+        run: cargo machete
+
+  semver:
+    name: cargo-semver-checks (api breakage)
+    runs-on: ubuntu-latest
+    # Compares current public API against baseline `origin/nika-diamond`.
+    # Fails PRs that introduce breaking changes without documented intent.
+    # Non-blocking on push to nika-diamond (only rejects PRs).
+    continue-on-error: ${{ github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.91"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: diamond-semver
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: nika-error,nika-catalog,nika-kernel
+          baseline-rev: origin/nika-diamond
+
+  typos:
+    name: typos (spell check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@master

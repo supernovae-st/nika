@@ -22,7 +22,6 @@ reqwest    = { version = "0.12", default-features = false, features = ["rustls-t
 serde      = { workspace = true }
 serde_json = { workspace = true }
 thiserror  = { workspace = true }
-tracing    = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 futures    = "0.3"
 

@@ -1,0 +1,61 @@
+# typos-cli configuration for nika-diamond
+# https://github.com/crate-ci/typos
+
+[default]
+# Don't check binary or build artifacts
+extend-ignore-identifiers-re = [
+  # Hex strings (commit SHAs, hashes)
+  "^[0-9a-f]{7,40}$",
+]
+
+[default.extend-words]
+# Project-specific terms that look like typos but aren't
+Nika       = "Nika"
+nika       = "nika"
+diamond    = "diamond"   # part of branch name; typos may flag `dimond`
+# Rust idioms
+impl       = "impl"
+fn         = "fn"
+
+[files]
+extend-exclude = [
+  "target/",
+  "**/*.lock",
+  "**/*.snap",
+  "**/*.png",
+  "**/*.jpg",
+  "**/*.svg",
+  # Snapshot tests — controlled by the test author
+  "**/snapshots/",
+  # Legacy excluded crates
+  "tools/nika-blob",
+  "tools/nika-builtin",
+  "tools/nika-cli",
+  "tools/nika-clock",
+  "tools/nika-core",
+  "tools/nika-daemon",
+  "tools/nika-display",
+  "tools/nika-engine",
+  "tools/nika-event",
+  "tools/nika-exec-runner",
+  "tools/nika-extract",
+  "tools/nika-fs",
+  "tools/nika-http",
+  "tools/nika-init",
+  "tools/nika-lsp",
+  "tools/nika-lsp-core",
+  "tools/nika-macros",
+  "tools/nika-mcp",
+  "tools/nika-media",
+  "tools/nika-policy",
+  "tools/nika-sdk",
+  "tools/nika-security",
+  "tools/nika-serve",
+  "tools/nika-storage",
+  "tools/nika-vault",
+  "tools/nika-verb-exec",
+  "tools/nika-verb-fetch",
+  "tools/nika-verb-infer",
+  "tools/nika-verb-invoke",
+  "tools/nika",
+]

@@ -13,7 +13,6 @@ description  = "Deterministic in-memory test doubles for nika-kernel traits — 
 workspace = true
 
 [dependencies]
-nika-error    = { path = "../nika-error" }
 nika-kernel   = { path = "../nika-kernel" }
 parking_lot   = { workspace = true }
 bytes         = { workspace = true }
