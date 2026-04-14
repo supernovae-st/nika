@@ -1,0 +1,57 @@
+# git-cliff config for Nika — Conventional Commits → CHANGELOG.md
+# https://git-cliff.org
+#
+# Groups mirror NIKA_CONTENT_PIPELINE.md. Crate admissions surface first.
+
+[changelog]
+header = """
+# Changelog\n
+All notable changes to Nika are documented in this file.\n
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.\n
+Nika Diamond is a ground-up rewrite on an orphan branch (`nika-diamond`).
+Legacy main sits at v0.79.3. Diamond starts at v0.80.0.\n
+---\n
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}\
+- {% if commit.scope %}**{{ commit.scope }}** — {% endif %}{{ commit.message | upper_first }} ({{ commit.id | truncate(length=9, end="") }})
+{% endfor %}\
+{% endfor %}\n
+"""
+trim = true
+footer = """\n🦋"""
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9]*"
+topo_order = false
+sort_commits = "oldest"
+
+commit_preprocessors = [
+  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/supernovae-st/nika/issues/${1}))" },
+]
+
+commit_parsers = [
+  { message = "^feat\\(nika-.*\\).*admit to workspace", group = "🆕 Crates admitted" },
+  { message = "^feat",     group = "✨ Features" },
+  { message = "^fix",      group = "🐛 Fixes" },
+  { message = "^perf",     group = "⚡ Performance" },
+  { message = "^refactor", group = "🔨 Refactors" },
+  { message = "^docs",     group = "📚 Docs" },
+  { message = "^test",     group = "🧪 Tests" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore",    group = "🧹 Chore" },
+  { message = "^revert",   group = "⏪ Reverts" },
+]

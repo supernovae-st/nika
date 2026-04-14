@@ -1,0 +1,52 @@
+name: Forward-compat — API surface + semver
+
+on:
+  pull_request:
+    paths:
+      - 'tools/**/src/lib.rs'
+      - 'tools/**/src/**/*.rs'
+      - 'tools/**/Cargo.toml'
+      - 'Cargo.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  public-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked
+
+      - name: Detect public API changes per crate
+        continue-on-error: true
+        run: |
+          for crate in tools/*/Cargo.toml; do
+            name=$(basename "$(dirname "$crate")")
+            echo "::group::$name public API"
+            cargo public-api --package "$name" || true
+            echo "::endgroup::"
+          done
+
+  semver-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        continue-on-error: true

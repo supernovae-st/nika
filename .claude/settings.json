@@ -1,54 +1,90 @@
 {
-  "description": "Nika Diamond — evolving DX settings",
+  "description": "Nika Diamond — evolving DX settings (WAVE 1 hardened 2026-04-14)",
 
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git push[[:space:]]+.*(--force|-f)\\b'; then echo '❌ FORBIDDEN: git push --force. Main branch is read-only. Would destroy history.' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '^git add (-A|\\.|\\*)'; then echo '❌ FORBIDDEN: git add -A/./*. Stage explicit paths only (nika-invariants.md Rule 9).' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'cargo test[[:space:]]+--test\\b'; then echo '❌ FORBIDDEN: cargo test --test triggers macOS Keychain popup. Use --lib only (feedback_no_keychain_popup.md).' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git[[:space:]]+(checkout|switch)[[:space:]]+main\\b'; then echo '❌ FORBIDDEN: main is read-only. Use `git show main:path` instead.' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '(git commit|git push).*--no-verify'; then echo '❌ FORBIDDEN: --no-verify bypasses hooks. Fix the underlying issue.' >&2; exit 2; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if echo \"$FILE\" | grep -qE '/\\.git/'; then echo '❌ FORBIDDEN: editing inside .git/ directory.' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ],
+
     "PostToolUse": [
       {
         "matcher": "Bash(git commit.*)",
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qi 'Co-Authored-By: Claude'; then echo '❌ Co-Authored-By Claude forbidden. Use Nika 🦋 only.'; exit 2; fi"
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qi 'Co-Authored-By: Claude'; then echo '❌ Co-Authored-By Claude forbidden. Use Nika 🦋 only.' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'admit to workspace'; then echo '🆕 Crate admission detected. Running hygiene dashboard...'; ./scripts/hygiene/check-all.sh --quiet 2>/dev/null || true; fi"
           }
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$'; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap)\"; fi; fi"
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$'; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap per nika-invariants.md)\" >&2; fi; fi"
           }
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '🦋 Session ended. Remember: update STATE.md if crate admitted.'"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash(cargo test*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'cargo test' && ! echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\-\\-lib'; then echo '⚠️ WARNING: cargo test without --lib may trigger macOS Keychain popup. Use --lib flag.'; fi"
-          }
-        ]
-      }
-    ],
+
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "echo '💎 Nika Diamond session. Branch: '$(git branch --show-current 2>/dev/null || echo 'unknown')'. Read MEMORY.md first.'"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls tools/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | crates admitted: $CRATES/40-42. Read MEMORY.md Quick State first.\""
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && if [ -x scripts/hygiene/check-all.sh ]; then RESULT=$(scripts/hygiene/check-all.sh --quiet 2>&1 | tail -1); echo \"🩺 Hygiene: $RESULT\"; fi"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🦋 Session end. If crate admitted: update MEMORY.md Quick State + run scripts/hygiene/check-all.sh'"
           }
         ]
       }
