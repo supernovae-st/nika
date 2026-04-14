@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# verify-gitnexus-safe.sh — idempotent integrity check for Nika Diamond
+# scripts/gitnexus/verify.sh — idempotent integrity check for Nika Diamond.
 #
-# Run anytime to confirm:
-#   - our 10 custom Claude Code hooks are intact
-#   - .mcp.json still has nika + linear (+ gitnexus if installed)
-#   - CLAUDE.md authority chain untouched
-#   - .gitnexus/ gitignored
-#   - hygiene dashboard green
+# Verifies that installing GitNexus did NOT break:
+#   - our 10+ custom Claude Code hooks
+#   - .mcp.json (nika + linear + gitnexus MCP servers)
+#   - CLAUDE.md authority chain (no HTML-marker injection)
+#   - .gitnexus/ gitignored (never committed)
+#   - hygiene dashboard (15 drift vectors)
+#
+# Run anytime. Idempotent. Zero side effects.
 set -u
-REPO="/Users/thibaut/dev/supernovae/nika"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO"
 
 FAIL=0

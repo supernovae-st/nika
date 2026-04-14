@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# rollback-gitnexus.sh — fully remove GitNexus from Nika
+# scripts/gitnexus/rollback.sh — fully remove GitNexus from Nika.
 #
-# Usage: bash scripts/rollback-gitnexus.sh <BACKUP_DIR>
-# Or for latest backup: bash scripts/rollback-gitnexus.sh $(ls -1dt ~/.nika-backups/gitnexus-* | head -1)
+# Usage:
+#   bash scripts/gitnexus/rollback.sh <BACKUP_DIR>
+#   bash scripts/gitnexus/rollback.sh "$(ls -1dt ~/.nika-backups/gitnexus-* | head -1)"
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
@@ -13,7 +14,8 @@ if [ $# -lt 1 ]; then
 fi
 
 BK="$1"
-REPO="/Users/thibaut/dev/supernovae/nika"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO"
 
 [ -d "$BK" ] || { echo "❌ Backup dir not found: $BK"; exit 1; }
@@ -49,4 +51,6 @@ else
 fi
 
 echo "✅ Rolled back from $BK"
-bash scripts/verify-gitnexus-safe.sh
+# Also remove installed skills (they were created by analyze)
+rm -rf .claude/skills/gitnexus-*
+bash scripts/gitnexus/verify.sh

@@ -12,7 +12,9 @@
 #   - Rollback script created
 set -euo pipefail
 
-REPO="/Users/thibaut/dev/supernovae/nika"
+# Resolve repo root from this script's location (no hardcoded path).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BACKUP_DIR="$HOME/.nika-backups/gitnexus-$(date +%Y%m%d-%H%M%S)"
 cd "$REPO"
 
@@ -63,9 +65,12 @@ else
 fi
 jq -e '.mcpServers.gitnexus' .mcp.json >/dev/null && echo "✅ gitnexus MCP registered"
 
-echo "═══ PHASE 4 — Analyze (skip-agents-md, skip-embeddings) ═══"
+echo "═══ PHASE 4 — Analyze (skip-agents-md, no-stats) ═══"
+# --skip-agents-md protects our authority-chain CLAUDE.md.
+# --no-stats avoids volatile file/symbol counts in any generated artifacts.
+# Embeddings are OFF by default — don't pass --embeddings unless we want them.
 NODE_OPTIONS="--max-old-space-size=8192" \
-  npx -y gitnexus@latest analyze --skip-agents-md --skip-embeddings --verbose \
+  gitnexus analyze --skip-agents-md --no-stats --verbose \
   2>&1 | tee "$BACKUP_DIR/analyze.log" | tail -20
 if [ ! -d .gitnexus ]; then
   echo "❌ .gitnexus/ not created"; exit 1
@@ -73,9 +78,9 @@ fi
 du -sh .gitnexus/ | awk '{print "✅ .gitnexus/ size: "$1}'
 
 echo "═══ PHASE 5 — Integrity verification ═══"
-bash "$REPO/scripts/verify-gitnexus-safe.sh"
+bash "$REPO/scripts/gitnexus/verify.sh"
 
 echo ""
 echo "🎉 DONE. Backup: $BACKUP_DIR"
-echo "   Rollback: bash $REPO/scripts/rollback-gitnexus.sh \"$BACKUP_DIR\""
-echo "   Re-verify anytime: bash $REPO/scripts/verify-gitnexus-safe.sh"
+echo "   Rollback: bash $REPO/scripts/gitnexus/rollback.sh \"$BACKUP_DIR\""
+echo "   Re-verify anytime: bash $REPO/scripts/gitnexus/verify.sh"

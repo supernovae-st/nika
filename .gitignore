@@ -80,3 +80,8 @@ CLAUDE.local.md
 .gitnexus.db
 node_modules/
 AGENTS.md
+
+# GitNexus helper skills (installed by analyze, regeneratable)
+.claude/skills/gitnexus/
+.claude/skills/gitnexus-*/
+.claude/scheduled_tasks.lock
