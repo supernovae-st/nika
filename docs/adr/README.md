@@ -53,6 +53,11 @@ Do **not** write an ADR for:
 | [ADR-007](adr-007-forward-compat-invariants.md) | Forward-compat invariants (`#[non_exhaustive]` + `::new()` + pre-planted hooks) | Accepted | 2026-04-13 |
 | [ADR-008](adr-008-toml-driven-catalog.md) | TOML-driven catalog with build-time codegen | Accepted | 2026-04-14 |
 | [ADR-009](adr-009-adr-process.md) | ADR process + hook discipline (meta) | Accepted | 2026-04-14 |
+| [ADR-010](adr-010-miette-diagnostic-layer.md) | miette as the L4 diagnostic presentation layer | Accepted | 2026-04-14 |
+| [ADR-011](adr-011-cargo-xtask.md) | `cargo xtask` as canonical automation surface (spec) | Accepted | 2026-04-14 |
+| [ADR-012](adr-012-typestate-runtime.md) | Typestate for `nika-runtime` workflow lifecycle (spec) | Accepted | 2026-04-14 |
+| [ADR-013](adr-013-loom-concurrency-verification.md) | Loom-based concurrency verification (spec) | Accepted | 2026-04-14 |
+| [ADR-014](adr-014-sealed-kernel-traits.md) | Sealed kernel traits with explicit adapter registration | Accepted | 2026-04-14 |
 
 ## Pre-Diamond ADRs (legacy reference)
 
