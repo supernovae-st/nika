@@ -23,7 +23,7 @@ use crate::types::model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLi
 pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
     let lower = model.to_lowercase();
     // Normalize provider via catalog lookup (e.g. "claude" → "anthropic", "grok" → "xai")
-    let canonical = crate::data::providers::find_provider(provider).map(|p| p.id);
+    let canonical = crate::data::find_provider(provider).map(|p| p.id);
     let prov = canonical.unwrap_or(provider).to_lowercase();
 
     // Only apply reasoning-model rules for actual OpenAI API endpoints.

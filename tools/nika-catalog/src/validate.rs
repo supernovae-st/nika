@@ -5,7 +5,7 @@
 //!
 //! Used by xtask and unit tests to ensure static data is consistent.
 
-use crate::data::{builtins, mcp_aliases, models, providers, transforms};
+use crate::data::{builtins, models, transforms, ALL_MCP_SERVERS, ALL_PROVIDERS};
 use crate::error::CatalogError;
 
 /// Validate all catalog cross-references. Returns all errors found.
@@ -20,10 +20,10 @@ pub fn validate_catalog_integrity() -> Vec<CatalogError> {
     let mut errors = Vec::new();
     validate_sorted("builtins", builtins::ALL_BUILTINS.iter().map(|b| b.name), &mut errors);
     validate_sorted("transforms", transforms::ALL_TRANSFORMS.iter().map(|t| t.name), &mut errors);
-    validate_no_duplicates("providers", providers::ALL_PROVIDERS.iter().map(|p| p.id), &mut errors);
+    validate_no_duplicates("providers", ALL_PROVIDERS.iter().map(|p| p.id), &mut errors);
     validate_no_duplicates("builtins", builtins::ALL_BUILTINS.iter().map(|b| b.name), &mut errors);
     validate_no_duplicates("transforms", transforms::ALL_TRANSFORMS.iter().map(|t| t.name), &mut errors);
-    validate_no_duplicates("mcp_aliases", mcp_aliases::ALL_MCP_ALIASES.iter().map(|a| a.name), &mut errors);
+    validate_no_duplicates("mcp_servers", ALL_MCP_SERVERS.iter().map(|s| s.id), &mut errors);
     validate_provider_models(&mut errors);
     errors
 }
@@ -69,11 +69,10 @@ fn validate_no_duplicates<'a>(
 /// that won't match raw pricing patterns — they are exempt.
 /// Native and mock providers are also exempt (no cloud pricing).
 fn validate_provider_models(errors: &mut Vec<CatalogError>) {
-    // Cloud providers whose model names directly match pricing patterns
     const CLOUD_IDS: &[&str] = &[
         "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
     ];
-    for provider in providers::ALL_PROVIDERS {
+    for provider in ALL_PROVIDERS {
         if !CLOUD_IDS.contains(&provider.id) {
             continue;
         }

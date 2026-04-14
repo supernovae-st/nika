@@ -1,17 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! MCP server catalog entry (v3 architecture).
-//!
-//! Target type for the TOML-driven `build.rs` codegen in Phase C. Coexists
-//! with the legacy [`super::McpAlias`] during the migration; Phase C step 6
-//! flips all consumers over and retires the alias type.
+//! MCP server catalog entry.
 //!
 //! An `McpServer` is either local-install (one or more [`super::McpPackage`])
 //! or remote (one or more [`super::McpRemote`]) — or both. The build-time
 //! invariant `packages.len() + remotes.len() >= 1` is enforced in `build.rs`.
 
-use super::{Category, EnvVarSpec, McpPackage, McpPricing, McpRemote};
+use super::{Category, EnvVarSpec, McpPackage, McpRemote};
+
+/// Pricing model for an MCP server's underlying service.
+///
+/// Mirrors the small, closed set used by CLI UX (`nika mcp list` colouring,
+/// `nika mcp add` prompts). `#[non_exhaustive]` for additive variants.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum McpPricing {
+    /// Fully free / open source (no API key needed or free forever).
+    Free,
+    /// Free tier available, paid for higher usage.
+    Freemium,
+    /// Requires paid subscription / API key with charges.
+    Paid,
+}
 
 /// Rich MCP server catalog entry.
 ///

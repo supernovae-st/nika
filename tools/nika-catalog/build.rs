@@ -729,7 +729,7 @@ fn generate_providers_rs(providers: &[ProviderEntry]) -> String {
     writeln!(out).unwrap();
     writeln!(
         out,
-        "pub static ALL_PROVIDERS_V3: &[crate::types::ProviderDef] = &["
+        "pub static ALL_PROVIDERS: &[crate::types::Provider] = &["
     )
     .unwrap();
 
@@ -769,7 +769,7 @@ fn generate_providers_rs(providers: &[ProviderEntry]) -> String {
 fn emit_provider(out: &mut String, p: &ProviderEntry) {
     use std::fmt::Write as _;
 
-    writeln!(out, "    crate::types::ProviderDef {{").unwrap();
+    writeln!(out, "    crate::types::Provider {{").unwrap();
     writeln!(out, "        id: {},", rstr(&p.id)).unwrap();
     writeln!(out, "        name: {},", rstr(&p.name)).unwrap();
     write_str_slice(out, "aliases", &p.aliases, 8);

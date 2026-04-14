@@ -3,16 +3,13 @@
 
 //! `nika-catalog` — static catalogs for the Nika diamond.
 //!
-//! Hybrid lookup strategy (Decision C):
-//! - phf + unicase for case-insensitive catalogs (providers, MCP aliases)
-//! - Sorted arrays + `binary_search` for case-sensitive catalogs (builtins, transforms)
-//! - Pattern-matching function for model capabilities
-//! - 2-pass matching (exact + contains) for model pricing
+//! Build-time generated from TOML source-of-truth (`data/*.toml`) via
+//! `phf_codegen`. O(1) case-insensitive lookup via `phf + unicase`.
+//! Sorted arrays + `binary_search` for case-sensitive catalogs (builtins, transforms).
+//! Pattern-matching function for model capabilities. 2-pass for model pricing.
 //!
 //! All lookups return `Option`, not `NikaError`. The catalog answers
 //! "is this known?", the caller decides if "unknown" is an error.
-//!
-//! See `CATALOG_RESEARCH_SYNTHESIS.md` for the 8-agent research rationale.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
@@ -30,16 +27,16 @@ pub use types::*;
 
 // ── Iteration helpers ───────────────────────────────────────────────────
 
-/// All 21 LLM providers.
+/// All 21 LLM providers (build-time generated from `data/llm-providers.toml`).
 #[must_use]
-pub fn all_providers() -> &'static [&'static types::Provider] {
-    data::providers::ALL_PROVIDERS
+pub fn all_providers() -> &'static [types::Provider] {
+    data::ALL_PROVIDERS
 }
 
-/// All 102 MCP server aliases.
+/// All 105 MCP server entries (build-time generated from `data/mcp-servers.toml`).
 #[must_use]
-pub fn all_mcp_aliases() -> &'static [types::McpAlias] {
-    data::mcp_aliases::ALL_MCP_ALIASES
+pub fn all_mcp_servers() -> &'static [types::McpServer] {
+    data::ALL_MCP_SERVERS
 }
 
 /// All 63 builtin tools.
@@ -70,8 +67,8 @@ mod tests {
     }
 
     #[test]
-    fn all_mcp_aliases_non_empty() {
-        assert_eq!(all_mcp_aliases().len(), 102);
+    fn all_mcp_servers_non_empty() {
+        assert_eq!(all_mcp_servers().len(), 105);
     }
 
     #[test]

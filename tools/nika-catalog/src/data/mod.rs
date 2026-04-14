@@ -11,7 +11,9 @@
 
 pub mod builtins;
 pub mod generated;
-pub mod mcp_aliases;
 pub mod models;
-pub mod providers;
 pub mod transforms;
+
+// Re-export the generated statics so downstream stays at one path:
+// `crate::data::{ALL_MCP_SERVERS, ALL_PROVIDERS, find_mcp_server, find_provider}`.
+pub use generated::{find_mcp_server, find_provider, ALL_MCP_SERVERS, ALL_PROVIDERS};
