@@ -58,6 +58,7 @@ Do **not** write an ADR for:
 | [ADR-012](adr-012-typestate-runtime.md) | Typestate for `nika-runtime` workflow lifecycle (spec) | Accepted | 2026-04-14 |
 | [ADR-013](adr-013-loom-concurrency-verification.md) | Loom-based concurrency verification (spec) | Accepted | 2026-04-14 |
 | [ADR-014](adr-014-sealed-kernel-traits.md) | Sealed kernel traits with explicit adapter registration | Accepted | 2026-04-14 |
+| [ADR-015](adr-015-expect-test-inline-snapshots.md) | `expect-test` for inline snapshot assertions on rendered output | Accepted | 2026-04-15 |
 
 ## Pre-Diamond ADRs (legacy reference)
 

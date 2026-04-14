@@ -181,6 +181,20 @@ mod tests {
         );
     }
 
+    // ADR-015: inline snapshot via expect-test. Pins the exact rendered
+    // Display output so any change to the `"{code}: {message}"` contract
+    // surfaces in a colourised diff and refreshes via
+    // `UPDATE_EXPECT=1 cargo test --workspace --lib`.
+    #[test]
+    fn display_format_pinned_inline() {
+        use expect_test::expect;
+        let nika: NikaError = CoreError::NotFound {
+            what: "task foo".into(),
+        }
+        .into();
+        expect!["NIKA-002: not found: task foo"].assert_eq(&nika.to_string());
+    }
+
     #[test]
     fn downcast_ref_succeeds_for_correct_type() {
         let nika: NikaError = CoreError::Validation {

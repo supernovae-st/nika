@@ -84,6 +84,7 @@ smallvec = "1.13"   # SmallVec adoption per RUST_2026_BEST_PRACTICES (hot-path v
 tracing  = "0.1"    # L1+ effect crates (fs/http/process/...) structured logging
 
 # Dev / test deps
-proptest = "1.6"
-insta    = { version = "1.42", features = ["yaml"] }
-rstest   = "0.22"
+proptest    = "1.6"
+insta       = { version = "1.42", features = ["yaml"] }
+rstest      = "0.22"
+expect-test = "1.5"  # inline snapshots, see ADR-015
