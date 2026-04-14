@@ -50,20 +50,79 @@ mod tests {
     #[test]
     fn parity_every_legacy_alias_migrated() {
         use crate::data::mcp_aliases::ALL_MCP_ALIASES;
+        use crate::types::{McpPricing, RegistryType};
+
         for legacy in ALL_MCP_ALIASES {
             let migrated = find_mcp_server(legacy.name).unwrap_or_else(|| {
                 panic!("legacy alias {:?} not migrated to new catalog", legacy.name)
             });
             assert_eq!(migrated.id, legacy.name);
-            // Every legacy alias had an npm package; verify it survived.
-            let has_npm = migrated.packages.iter().any(|p| {
-                p.registry_type == crate::types::RegistryType::Npm && p.identifier == legacy.package
-            });
-            assert!(
-                has_npm,
-                "migrated {:?} missing npm package {:?}",
-                legacy.name, legacy.package,
+
+            // npm identifier preserved 1:1.
+            let npm = migrated
+                .packages
+                .iter()
+                .find(|p| p.registry_type == RegistryType::Npm)
+                .unwrap_or_else(|| panic!("{:?}: no npm package", legacy.name));
+            assert_eq!(
+                npm.identifier, legacy.package,
+                "{:?}: npm identifier diverged",
+                legacy.name,
             );
+
+            // Category preserved.
+            assert_eq!(
+                migrated.category.as_str(),
+                legacy.category,
+                "{:?}: category diverged",
+                legacy.name,
+            );
+
+            // Pricing preserved.
+            let legacy_pricing_str = match legacy.pricing {
+                McpPricing::Free => "free",
+                McpPricing::Freemium => "freemium",
+                McpPricing::Paid => "paid",
+            };
+            let new_pricing_str = match migrated.pricing {
+                McpPricing::Free => "free",
+                McpPricing::Freemium => "freemium",
+                McpPricing::Paid => "paid",
+            };
+            assert_eq!(
+                new_pricing_str, legacy_pricing_str,
+                "{:?}: pricing diverged",
+                legacy.name,
+            );
+
+            // env_var + key_prefix preserved (when legacy had them).
+            match (legacy.env_var, migrated.env_vars.first()) {
+                (Some(leg_env), Some(new_env)) => {
+                    assert_eq!(
+                        new_env.name, leg_env,
+                        "{:?}: env_var name diverged",
+                        legacy.name,
+                    );
+                    assert_eq!(
+                        new_env.key_prefix, legacy.key_prefix,
+                        "{:?}: key_prefix diverged",
+                        legacy.name,
+                    );
+                }
+                (Some(leg_env), None) => {
+                    panic!(
+                        "{:?}: legacy had env_var {:?} but new has none",
+                        legacy.name, leg_env,
+                    );
+                }
+                (None, Some(new_env)) => {
+                    panic!(
+                        "{:?}: new has env_var {:?} but legacy had none",
+                        legacy.name, new_env.name,
+                    );
+                }
+                (None, None) => {}
+            }
         }
     }
 
