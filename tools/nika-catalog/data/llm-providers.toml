@@ -3,8 +3,16 @@
 # Migrated from src/data/providers.rs (21 providers). Model folds into
 # Provider via [[providers.models]] — no separate Model type. `default_model`
 # and `cheap_model` are the WIRE identifiers for parity with legacy.
-# Context / output token limits are a 2026-04-14 snapshot; unknown models
-# default to 128_000 context / 4_096 output.
+# Token limits are a 2026-04-14 snapshot and MUST be set explicitly.
+#
+# Schema invariants (enforced in build.rs):
+#   * top-level `schema` matches LLM_PROVIDERS_SCHEMA constant
+#   * unique provider id + aliases (case-insensitive, ASCII-only)
+#   * every provider has at least one model
+#   * default_model + cheap_model must appear in the models list (wire id match)
+#   * context_window_tokens + max_output_tokens are REQUIRED (no silent default)
+
+schema = "nika/llm-providers@1.0"
 
 [[providers]]
 id = "anthropic"

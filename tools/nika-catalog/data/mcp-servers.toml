@@ -5,12 +5,17 @@
 # pypi+uvx, intercom remote+oauth, grafana oci).
 #
 # Schema invariants (enforced in build.rs):
-#   * unique server id
+#   * top-level `schema` matches MCP_SERVERS_SCHEMA constant
+#   * unique server id (case-insensitive, ASCII-only)
 #   * packages.len() + remotes.len() >= 1
 #   * category parses to a known Category variant
 #   * pricing ∈ {free, freemium, paid}
+#   * runner is pypi-only (non-pypi + runner = error; pypi + no runner = error)
+#   * aliases never collide with any id or another alias
 #
 # Aligns with official MCP Registry schema v2025-12-11.
+
+schema = "nika/mcp-servers@1.0"
 
 
 # ─── Anthropic Official (3) ──────────────────────────

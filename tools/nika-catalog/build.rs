@@ -41,15 +41,27 @@
 
 use std::collections::HashSet;
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+// ─── Schema versioning ──────────────────────────────────────────────────
+//
+// Every data file carries a top-level `schema = "nika/<name>@<version>"`
+// string. build.rs hard-fails on mismatch. Bumping the version is how we
+// signal a breaking change in the on-disk format (fields removed, semantics
+// changed). Additive changes do not need a bump.
+
+const MCP_SERVERS_SCHEMA: &str = "nika/mcp-servers@1.0";
+const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.0";
+
 // ─── TOML schema (build-time only) ───────────────────────────────────────
 
 #[derive(Deserialize)]
 struct McpServersFile {
+    schema: String,
     servers: Vec<McpServerEntry>,
 }
 
@@ -118,6 +130,7 @@ fn default_auth_none() -> String {
 
 #[derive(Deserialize)]
 struct LlmProvidersFile {
+    schema: String,
     providers: Vec<ProviderEntry>,
 }
 
@@ -142,18 +155,11 @@ struct ProviderEntry {
 struct ProviderModelEntry {
     id: String,
     model: String,
-    #[serde(default = "default_ctx_window")]
+    // Both token-limit fields are REQUIRED. An unset field is a data
+    // bug (silent undercount would trash budget enforcement), not a
+    // "use sane default" situation.
     context_window_tokens: u32,
-    #[serde(default = "default_max_output")]
     max_output_tokens: u32,
-}
-
-fn default_ctx_window() -> u32 {
-    128_000
-}
-
-fn default_max_output() -> u32 {
-    4_096
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────
@@ -170,11 +176,24 @@ fn run() -> Result<(), String> {
     let data_dir = PathBuf::from(&manifest_dir).join("data");
     let out_dir = PathBuf::from(env::var("OUT_DIR").map_err(|e| format!("OUT_DIR: {e}"))?);
 
+    // Cargo's `rerun-if-changed` takes individual paths; walking the data
+    // directory at build time registers every `.toml` file plus the dir
+    // itself. Dir-level watching catches new-file additions; per-file
+    // watching catches content edits on filesystems where inode mtime on
+    // the dir lags.
+    println!("cargo:rerun-if-changed={}", data_dir.display());
+    println!("cargo:rerun-if-changed=build.rs");
+    for entry in fs::read_dir(&data_dir)
+        .map_err(|e| format!("reading data dir {}: {e}", data_dir.display()))?
+    {
+        let entry = entry.map_err(|e| format!("iterating data dir: {e}"))?;
+        if entry.path().extension() == Some(OsStr::new("toml")) {
+            println!("cargo:rerun-if-changed={}", entry.path().display());
+        }
+    }
+
     let mcp_path = data_dir.join("mcp-servers.toml");
     let providers_path = data_dir.join("llm-providers.toml");
-    println!("cargo:rerun-if-changed={}", mcp_path.display());
-    println!("cargo:rerun-if-changed={}", providers_path.display());
-    println!("cargo:rerun-if-changed=build.rs");
 
     let servers = parse_mcp_servers(&mcp_path)?;
     let generated = generate_mcp_servers_rs(&servers);
@@ -189,12 +208,24 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
+fn assert_schema(expected: &str, got: &str, path: &Path) -> Result<(), String> {
+    if got != expected {
+        return Err(format!(
+            "{}: schema mismatch — file declares {got:?}, build expects {expected:?}",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
 // ─── Parsing + validation ────────────────────────────────────────────────
 
 fn parse_mcp_servers(path: &Path) -> Result<Vec<McpServerEntry>, String> {
     let raw = fs::read_to_string(path).map_err(|e| format!("reading {}: {e}", path.display()))?;
     let file: McpServersFile =
         toml::from_str(&raw).map_err(|e| format!("parsing {}: {e}", path.display()))?;
+
+    assert_schema(MCP_SERVERS_SCHEMA, &file.schema, path)?;
 
     // Unified bucket: every lookup key (id + aliases) routes through the
     // same `UniCase::ascii` normalisation at runtime, so build.rs uniqueness
@@ -588,6 +619,8 @@ fn parse_llm_providers(path: &Path) -> Result<Vec<ProviderEntry>, String> {
     let raw = fs::read_to_string(path).map_err(|e| format!("reading {}: {e}", path.display()))?;
     let file: LlmProvidersFile =
         toml::from_str(&raw).map_err(|e| format!("parsing {}: {e}", path.display()))?;
+
+    assert_schema(LLM_PROVIDERS_SCHEMA, &file.schema, path)?;
 
     // Unified bucket: ids + aliases all resolve via `UniCase::ascii`, so
     // uniqueness must match the same lowering to stay consistent with the
