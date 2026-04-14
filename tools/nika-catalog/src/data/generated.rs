@@ -396,4 +396,122 @@ mod tests {
             }
         }
     }
+
+    // ─── Tag invariants (runtime end-to-end checks) ─────────────────
+
+    #[test]
+    fn every_mcp_has_safety_tag_xor() {
+        // Mirrors the build.rs `validate_mcp_safety_tag` invariant — runtime
+        // belt-and-braces so a build-time bypass (e.g. cached build, edited
+        // generated.rs by hand) still trips on `cargo test`.
+        use crate::types::Tag;
+        for s in ALL_MCP_SERVERS {
+            let ro = s.tags.contains(&Tag::ReadOnly);
+            let dest = s.tags.contains(&Tag::Destructive);
+            assert!(
+                ro ^ dest,
+                "MCP {:?}: must have exactly ONE of ReadOnly / Destructive (got ro={ro}, destructive={dest})",
+                s.id,
+            );
+        }
+    }
+
+    #[test]
+    fn no_provider_carries_both_budget_and_frontier() {
+        use crate::types::Tag;
+        for p in ALL_PROVIDERS {
+            let budget = p.tags.contains(&Tag::Budget);
+            let frontier = p.tags.contains(&Tag::Frontier);
+            assert!(
+                !(budget && frontier),
+                "provider {:?}: Budget and Frontier are mutually exclusive",
+                p.id,
+            );
+        }
+    }
+
+    #[test]
+    fn every_embedding_carries_embedding_or_reranker() {
+        use crate::types::Tag;
+        for e in ALL_EMBEDDINGS {
+            let emb = e.tags.contains(&Tag::Embedding);
+            let rerank = e.tags.contains(&Tag::Reranker);
+            assert!(
+                emb || rerank,
+                "embedding {:?}: must carry Tag::Embedding or Tag::Reranker",
+                e.id,
+            );
+        }
+    }
+
+    #[test]
+    fn every_entry_tags_are_sorted_and_unique() {
+        // Sort order is **kebab-case alphabetical** (matches build.rs
+        // `validate_tags`), NOT `Tag::Ord` declaration order — these differ
+        // (e.g. Tag::Official < Tag::ReadOnly by declaration but
+        // "official" < "read-only" by string).
+        for s in ALL_MCP_SERVERS {
+            for w in s.tags.windows(2) {
+                assert!(
+                    w[0].as_str() < w[1].as_str(),
+                    "MCP {:?}: tags not kebab-sorted ({:?} >= {:?})",
+                    s.id, w[0].as_str(), w[1].as_str(),
+                );
+            }
+        }
+        for p in ALL_PROVIDERS {
+            for w in p.tags.windows(2) {
+                assert!(
+                    w[0].as_str() < w[1].as_str(),
+                    "provider {:?}: tags not kebab-sorted",
+                    p.id,
+                );
+            }
+        }
+        for e in ALL_EMBEDDINGS {
+            for w in e.tags.windows(2) {
+                assert!(
+                    w[0].as_str() < w[1].as_str(),
+                    "embedding {:?}: tags not kebab-sorted",
+                    e.id,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn extra_tags_are_passthrough_and_unrestricted() {
+        // Sanity: every entry has an `extra_tags` slice (possibly empty),
+        // accessible via the public field — this exercises the Cargo feature
+        // gate at runtime and prevents the field from being silently dropped.
+        for s in ALL_MCP_SERVERS {
+            let _: &[&'static str] = s.extra_tags;
+        }
+        for p in ALL_PROVIDERS {
+            let _: &[&'static str] = p.extra_tags;
+        }
+        for e in ALL_EMBEDDINGS {
+            let _: &[&'static str] = e.extra_tags;
+        }
+    }
+
+    #[test]
+    fn anthropic_provider_carries_expected_tags() {
+        // Spot-check that Commit 3's curated tag assignment survives codegen.
+        use crate::types::Tag;
+        let p = find_provider("anthropic").expect("anthropic provider present");
+        assert!(p.tags.contains(&Tag::Frontier), "anthropic should carry Frontier");
+        assert!(p.tags.contains(&Tag::PromptCaching), "anthropic should carry PromptCaching");
+        assert!(p.tags.contains(&Tag::Vision), "anthropic should carry Vision");
+        assert!(p.tags.contains(&Tag::ExtendedThinking), "anthropic should carry ExtendedThinking");
+    }
+
+    #[test]
+    fn stripe_mcp_carries_official_and_destructive() {
+        // Spot-check that vendor-published MCPs are properly flagged.
+        use crate::types::Tag;
+        let s = find_mcp_server("stripe").expect("stripe MCP present");
+        assert!(s.tags.contains(&Tag::Official), "stripe should be Official");
+        assert!(s.tags.contains(&Tag::Destructive), "stripe should be Destructive (payments)");
+    }
 }

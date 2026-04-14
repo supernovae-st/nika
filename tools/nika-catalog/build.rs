@@ -310,6 +310,7 @@ fn parse_mcp_servers(path: &Path) -> Result<Vec<McpServerEntry>, String> {
         validate_category(&s.category, &s.id)?;
         validate_pricing(&s.pricing, &s.id)?;
         validate_tags(&s.tags, &s.id)?;
+        validate_mcp_safety_tag(&s.tags, &s.id)?;
 
         for pkg in &s.packages {
             validate_registry_type(&pkg.registry_type, &s.id)?;
@@ -429,6 +430,26 @@ fn validate_py_runner(r: &str, server: &str) -> Result<(), String> {
     match r {
         "uvx" | "pipx" => Ok(()),
         _ => Err(format!("server {server:?}: unknown py runner {r:?}")),
+    }
+}
+
+/// Enforce the security-filter invariant on MCP server tags: every entry MUST
+/// carry **exactly one** of `read-only` or `destructive`. The Shield subsystem
+/// (v0.100) uses these tags to allow/deny tools by capability class — drift
+/// silently would leak destructive tools into untrusted-data workflows.
+fn validate_mcp_safety_tag(tags: &[String], server_id: &str) -> Result<(), String> {
+    let has_ro = tags.iter().any(|t| t == "read-only");
+    let has_destructive = tags.iter().any(|t| t == "destructive");
+    match (has_ro, has_destructive) {
+        (true, true) => Err(format!(
+            "MCP server {server_id:?}: cannot carry BOTH `read-only` and `destructive` — \
+             pick the most-specific (a server with any write tool is destructive)"
+        )),
+        (false, false) => Err(format!(
+            "MCP server {server_id:?}: must carry exactly one of `read-only` or `destructive` \
+             (security-filter invariant — Shield uses this to gate untrusted-data workflows)"
+        )),
+        _ => Ok(()),
     }
 }
 

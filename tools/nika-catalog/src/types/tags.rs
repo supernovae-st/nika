@@ -37,6 +37,18 @@
 /// Locked as an enum (not `&'static str`) so community pck authors get a
 /// compile error on typos — migrating strings → enum at v0.92 would be a
 /// breaking change for pck TOML authors.
+///
+/// # Ordering note
+///
+/// The derived `Ord` is **declaration order** (Rust default for enums),
+/// NOT alphabetical kebab-case. These differ — e.g. `Tag::Official <
+/// Tag::ReadOnly` by `Ord`, but `"official" < "read-only"` by string.
+///
+/// `build.rs` `validate_tags` and the `tags` slices in catalog data are
+/// sorted by **kebab-case alphabetical** order (`Tag::as_str()` compared
+/// lexicographically). Use `.as_str()` when sorting / comparing for
+/// data-layout invariants. Use the derived `Ord` only for in-memory
+/// containers like `BTreeSet<Tag>` where a stable order is fine.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
