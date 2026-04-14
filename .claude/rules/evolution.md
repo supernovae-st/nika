@@ -5,24 +5,24 @@
 ```
 ÉVÉNEMENT                         →  MISE À JOUR
 
-Crate admise au workspace         →  DIAMOND.md table (status → DONE)
+Crate admise au workspace         →  ROADMAP.md current-state section
                                   →  STATE.md live numbers
                                   →  MEMORY.md Quick State crate count
+                                  →  CHANGELOG.md [Unreleased]
 
 Gate trouvée verte (shadow zone)  →  PRE_LAUNCH_GATES.md (cocher la gate)
                                   →  STATE.md shadow zones section
 
 Décision architecturale prise     →  POST_AUDIT_REVISIONS.md (si change plan)
-                                  →  BRAINSTORM_PHASE1_DECISIONS.md (si Phase 1)
                                   →  .claude/rules/nika-invariants.md (si nouveau invariant)
 
 Bug / hallucination détecté       →  PRE_LAUNCH_GATES.md (si nouvelle shadow zone)
-                                  →  STATE.md "Phase 1 Audit findings"
+                                  →  STATE.md progress section
 
-Fin de semaine (vendredi)         →  STATE.md live numbers (grep-verified)
+Fin de session de code            →  STATE.md live numbers (grep-verified)
                                   →  MEMORY.md Quick State (HEAD + count)
 
-Fin de phase                      →  DIAMOND.md current state section
+Fin de phase                      →  ROADMAP.md current state section
                                   →  MEMORY.md Quick State
                                   →  Archive des handoffs phase terminée
 ```

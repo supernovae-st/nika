@@ -21,8 +21,8 @@ Nika Diamond = 40-42 crates architecture (cap 100). Building on fresh
 orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
-Timeline honnête : 11-12 mois total. Phase 1 révisée (split nika-core) =
-5-7 semaines. No deadline pressure — quality > speed.
+Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
+Current: Phase D (catalog scope expansion, Session 1/9 done). 5 crates admitted.
 
 ## 🚫 Interdits stricts
 
@@ -93,13 +93,13 @@ cargo-mutants       — mutation testing
 dylint + nika-lints — custom architectural lints (Phase 4+)
 ```
 
-## 🎯 Current state (2026-04-13 soir)
+## 🎯 Current state (2026-04-14)
 
-- Phase 0 DONE : `nika-diamond` orphan branch scaffold (HEAD `0cc7b7423`)
-- Phase 1 revised : split nika-core into 5 sub-crates (error/catalog/kernel/schema/binding)
-- Next crate to admit : **nika-error** (~2-3k LOC, L0, no deps)
+- 5 crates admitted : error + catalog + catalog-verify + kernel + kernel-mock
+- 369 tests, 0 clippy, 0 unwrap in src/, 10,434 LOC
+- Phase D in progress : catalog scope expansion (Session 1/9 done)
+- Next : Session 2a — capability migration to TOML (3h, atomic commit)
 
-Follow `HANDOFF_PHASE_1_REVISED.md` step-by-step. Stop after each crate
-admission and report before continuing.
+Follow `MEGA_HANDOFF_PHASE_D.md` (memory/) for session specs.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

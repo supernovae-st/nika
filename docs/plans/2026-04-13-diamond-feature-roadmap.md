@@ -1,5 +1,11 @@
 # Nika Diamond -- Feature Roadmap (post research, 2026-04-13)
 
+> **HISTORICAL ARTIFACT — 2026-04-13 snapshot.**
+> Current canonical roadmap: [`ROADMAP.md`](../../ROADMAP.md) (repo root).
+> Current phase handoff: `memory/MEGA_HANDOFF_PHASE_D.md` (private).
+> This file is kept for context on why specific features were prioritized,
+> but phase numbers and timelines below do NOT reflect current state.
+
 Integrates competitive intelligence research findings into the diamond
 timeline. These are not future nice-to-haves. They are part of the plan.
 

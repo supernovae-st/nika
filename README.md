@@ -40,18 +40,19 @@ Read the origin story: [`docs/MANIFESTO.md`](docs/MANIFESTO.md).
 
 ```
 Phase 0  [SCAFFOLD]     ✅ DONE   workspace + CI + .claude/ rules
-Phase 1  [SPLIT CORE]   🔄 NOW   split nika-core (45k) → 6 sub-crates
+L0/L0.5  [SPLIT CORE]    🔄 NOW   splitting legacy nika-core monolith
   ✅ nika-error           admitted v0.80.0-alpha.1 (44 tests, 100% mutation)
-  ✅ nika-catalog         admitted v0.80.0-alpha.2 (87 tests, 94.7% mutation)
+  ✅ nika-catalog         admitted v0.80.0-alpha.2+ (138 tests, 42-tag vocab, 9 feature subsets)
   ✅ nika-kernel + mock   admitted v0.80.0-alpha.3 (99 + 88 tests)
-  ✅ nika-catalog-verify  admitted v0.80.0-alpha.4 (online registry verifier)
+  ✅ nika-catalog-verify  admitted v0.80.0-alpha.4 (9 tests, online registry verifier)
+  🔄 nika-catalog         Phase D in progress — Session 1/9 done (tags + features + Shield XOR)
   ⏳ nika-schema          next (AST + DAG + taint, ~13k LOC)
   ⏳ nika-binding         after schema (65 transforms, ~13k LOC)
-Phase 2  [EFFECTS]       ⏸        11 L1 effect crates
-Phase 3  [DOMAIN]        ⏸        20 L2 crates (verbs + providers + media + builtins)
-Phase 4  [RUNTIME]       ⏸        8 crates (runtime, daemon, cli, lsp, serve, init, lints, binary)
-Phase 5  [PARITY]        ⏸        7 shadow zones + canary tests
-Phase 6  [MERGE]         ⏸        cutover → tag v0.90
+L1       [EFFECTS]        ⏸        ~11 effect crates
+L2       [DOMAIN]         ⏸        ~20 crates (verbs + providers + media + builtins)
+L3/L4    [RUNTIME]        ⏸        ~8 crates (runtime, daemon, cli, lsp, serve, init, lints, binary)
+         [PARITY]         ⏸        7 shadow zones + canary tests
+         [MERGE]          ⏸        cutover → tag v0.90
 ```
 
 **Timeline** : no deadline. Quality > speed. Forever v0.x model —

@@ -3,7 +3,7 @@
 ## Avant de commencer (5 min obligatoire)
 
 1. Lire MEMORY.md Quick State (HEAD, phase active, count crates)
-2. Lire le handoff actif (IMPLEMENTATION_PLAN_PHASE1.md ou équivalent)
+2. Lire le handoff actif (MEGA_HANDOFF_PHASE_D.md pour Phase D courante)
 3. Grep-verify les 3 chiffres clés :
    ```bash
    git log --oneline -1                    # HEAD correct ?

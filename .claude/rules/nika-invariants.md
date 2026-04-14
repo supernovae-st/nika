@@ -109,16 +109,12 @@ From main CLAUDE.md + deletion-first.md + honest-assessment.md :
 
 And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 
-## Timeline locked
+## Timeline (forever-v0.x — no hard deadlines)
 
-- Phase 0 : 1 semaine ✓ DONE (2026-04-13)
-- Phase 1 revised : 5-7 semaines (split nika-core)
-- Phase 2 : 3-4 semaines (copy/rewrite 9 extract-ready)
-- Phase 3 : 12-15 semaines (verbs + provider split + media split)
-- Phase 4 : 8-10 semaines (runtime + daemon + interfaces + shadow zones)
-- Phase 5 : 4 semaines (parity + shadow zone validation)
-- Phase 6 : 2 semaines (cutover + tag v0.90)
+Diamond rewrite is open-ended. v0.90 ships when all 40-42 crates pass 12 gates
+and the 7 shadow zones are green. Estimated 11-12 months total, but this is a
+rough target, not a commitment. Quality > speed.
 
-**Total : 11-12 mois honnête.** Pas 14 semaines, pas 9 mois.
+Current phase progress tracked in STATE.md (memory/) and MEGA_HANDOFF_PHASE_D.md.
 
 🦋

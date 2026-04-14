@@ -31,7 +31,8 @@ Sole owner of the `NIKA-XXX` error-code namespace.
 Resolves shadow zone **GATE 6** (`PRE_LAUNCH_GATES.md`): every admitted
 `NIKA-XXX` ships with a Display parity golden test.
 
-See `BRAINSTORM_PHASE1_DECISIONS.md` §D2 for the full C+ rationale.
+Decision D2 (error type = C+ = NikaError holds a boxed CoreError + context).
+Rationale: preserve diagnostic info through layers without stack explosion.
 
 ---
 

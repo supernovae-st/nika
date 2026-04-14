@@ -38,8 +38,10 @@ and checkpoint types. These hooks land in Phase 1 to avoid breaking-change
 cascades on `#[non_exhaustive]` structs with `::new()` constructors
 (invariant #19, ROI 6.7x per POST_AUDIT decision 3).
 
-See `BRAINSTORM_PHASE1_DECISIONS.md` D4 for the full ISP rationale and
-`MEMORY_AND_AGENT_V2_DESIGN.md` for the hook design.
+Decision D4 (ISP = Interface Segregation Principle) splits each effect into
+narrow sub-traits (e.g. FsRead + FsWrite + FsMeta + FsList → Fs) so consumers
+only depend on the capability they actually use. Memory + agent-v2 hooks
+reserved on kernel traits for v0.95 Cortex work.
 
 ---
 

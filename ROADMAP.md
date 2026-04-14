@@ -263,7 +263,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 **`nika-design-skill`** (Claude Code Skill, v0.1.0 AGPL-3.0):
 - Consumed by nika.sh via git submodule
 - Design tokens (colors, typography, spacing, motion)
-- Voice guide (per `NIKA_NARRATIVE_LOCKED`)
+- Voice guide (internal narrative locked separately)
 - Anti-slop firewall (forbidden patterns)
 - Canonical repo #6
 

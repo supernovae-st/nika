@@ -33,7 +33,7 @@ it propre (not copy-paste). Legacy has 1,276 unwraps in nika-core alone
 
 ## Rule 4 — Rewrite, not verbatim copy
 
-Phase 1 revised (2026-04-13) mandates rewrite propre :
+Diamond rewrite mandate :
 - Every unwrap in legacy → `?` propagation
 - Every file >1500 LOC → split into modules
 - Every `#[allow(dead_code)]` → delete or pub(crate)
@@ -60,7 +60,7 @@ refaire les fonctionnalités qui ne marchent pas".
 Constellation total = 11-12 mois honnête. NOT 14 semaines, NOT 9 mois.
 If you feel pressure to compress, re-read this rule. Quality > speed.
 
-Phase 1 revised = 5-7 weeks. Phase 2 = 3-4 weeks. Etc.
+No per-phase deadline estimates. Each phase takes what it takes.
 
 Ship cadence : 1 crate admission = 1 commit = 1 tag increment `v0.90.0-alpha.N`.
 Every 4 weeks : blog post or dev log entry. Public accountability.
