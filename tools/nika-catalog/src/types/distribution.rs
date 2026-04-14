@@ -41,7 +41,7 @@ pub enum Transport {
     Stdio,
     /// Streamable HTTP (current MCP HTTP standard, SSE+POST duplex).
     StreamableHttp,
-    /// Server-Sent Events only (legacy, pre-streamable-http).
+    /// Server-Sent Events only (one-way, pre-streamable-http transport).
     Sse,
 }
 

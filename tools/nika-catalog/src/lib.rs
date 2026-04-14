@@ -24,38 +24,38 @@ pub mod validate;
 pub use error::CatalogError;
 pub use lookup::{
     estimate_cost, find_builtin, find_mcp_server, find_pricing, find_provider, find_transform,
-    is_known_builtin, is_known_mcp_alias, is_known_transform, model_capabilities,
+    is_known_builtin, is_known_mcp_server, is_known_transform, model_capabilities,
     resolve_mcp_name, validate_key_format,
 };
 pub use types::*;
 
 // ── Iteration helpers ───────────────────────────────────────────────────
 
-/// All 21 LLM providers (build-time generated from `data/llm-providers.toml`).
+/// LLM providers (build-time generated from `data/llm-providers.toml`).
 #[must_use]
 pub fn all_providers() -> &'static [types::Provider] {
     data::ALL_PROVIDERS
 }
 
-/// All 105 MCP server entries (build-time generated from `data/mcp-servers.toml`).
+/// MCP server entries (build-time generated from `data/mcp-servers.toml`).
 #[must_use]
 pub fn all_mcp_servers() -> &'static [types::McpServer] {
     data::ALL_MCP_SERVERS
 }
 
-/// All 63 builtin tools.
+/// Builtin tools (alphabetically sorted, binary-search lookup).
 #[must_use]
 pub fn all_builtins() -> &'static [types::Builtin] {
     data::builtins::ALL_BUILTINS
 }
 
-/// All 65 pipe transforms.
+/// Pipe transforms (alphabetically sorted, binary-search lookup).
 #[must_use]
 pub fn all_transforms() -> &'static [types::TransformDef] {
     data::transforms::ALL_TRANSFORMS
 }
 
-/// All 62 model pricing entries.
+/// Model pricing entries (pattern-matched at lookup time).
 #[must_use]
 pub fn all_pricing() -> &'static [types::ModelPricing] {
     data::models::ALL_PRICING

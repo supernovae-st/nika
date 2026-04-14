@@ -49,14 +49,15 @@ mod tests {
     // ─── Core invariants ─────────────────────────────────────────────
 
     #[test]
-    fn mcp_servers_count_105() {
-        // 102 migrated npm entries + 3 Phase A restorations
-        // (qdrant pypi+uvx, intercom remote+oauth, grafana oci).
+    fn mcp_servers_count_pinned() {
+        // Pinned to detect silent additions/removals. Bump intentionally
+        // when the catalog gains or drops an entry.
         assert_eq!(ALL_MCP_SERVERS.len(), 105);
     }
 
     #[test]
-    fn providers_count_21() {
+    fn providers_count_pinned() {
+        // Pinned to detect silent additions/removals.
         assert_eq!(ALL_PROVIDERS.len(), 21);
     }
 
@@ -285,36 +286,31 @@ mod tests {
         assert_eq!(grafana.packages[0].registry_type, RegistryType::Oci);
     }
 
-    // ─── Phase A regression — 26 broken aliases stay unshipped ───────
+    // ─── Banned npm packages ────────────────────────────────────────
 
     #[test]
-    fn phase_a_broken_aliases_not_reshipped_as_npm() {
-        // Phase A (2026-04-14) deleted 29 MCP aliases: 7 deprecated Anthropic
-        // reference servers, 19 non-existent npm packages, 3 zero-download
-        // forks. Of those, 3 were restored in Phase C via non-npm
-        // distributions (qdrant=pypi, intercom=remote, grafana=oci).
-        //
-        // The 26 remaining MUST NOT reappear as npm packages. Any future
-        // contributor tempted to re-add them needs to explicitly opt into
-        // a non-npm distribution + verified source.
+    fn banned_aliases_must_not_ship_an_npm_package() {
+        // These 26 aliases are known to NOT exist on npm (deprecated
+        // Anthropic reference servers, fabricated package names, or
+        // zero-download abandoned forks). They MAY ship in this catalog
+        // if a non-npm distribution exists (pypi, oci, remote), but they
+        // MUST NEVER be re-added as an npm package — npm install would
+        // fail or pull deprecated code.
         use crate::types::RegistryType;
-        let still_banned = [
-            // Deprecated Anthropic reference servers (7)
+        let banned_on_npm = [
             "puppeteer", "brave-search", "brave", "google-maps",
             "github", "gitlab", "postgres", "neon",
-            // Non-existent on npm (other than the 3 restored)
             "fetch", "sqlite", "stability", "deepgram", "weaviate",
             "chroma", "milvus", "posthog", "coinbase", "fly", "asana",
             "raygun", "buildkite", "bing", "elevenlabs",
-            // Zero-download abandoned forks (3)
             "todoist", "trello", "semrush",
         ];
-        for alias in still_banned {
+        for alias in banned_on_npm {
             if let Some(s) = find_mcp_server(alias) {
                 let has_npm = s.packages.iter().any(|p| p.registry_type == RegistryType::Npm);
                 assert!(
                     !has_npm,
-                    "banned alias {alias:?} re-added with an npm distribution — Phase A removed it as non-existent-on-npm, must not reship without verification",
+                    "{alias:?}: banned from shipping as npm — verify package exists and use a non-npm distribution if reviving",
                 );
             }
         }

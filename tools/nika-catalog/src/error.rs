@@ -15,7 +15,7 @@ use nika_error::prelude::*;
 pub enum CatalogError {
     /// A provider's default or cheap model has no pricing entry.
     #[error("provider `{provider}` references model `{model}` with no pricing")]
-    #[diagnostic(help("add a pricing entry for `{model}` in data/models.rs"))]
+    #[diagnostic(help("add a pricing entry for `{model}` to the catalog"))]
     MissingPricing {
         /// Provider id.
         provider: &'static str,
@@ -25,7 +25,7 @@ pub enum CatalogError {
 
     /// Duplicate entry detected in a catalog.
     #[error("duplicate {catalog} entry: `{name}`")]
-    #[diagnostic(help("remove the duplicate from data/{catalog}.rs"))]
+    #[diagnostic(help("remove the duplicate `{name}` from the {catalog} catalog"))]
     DuplicateEntry {
         /// Catalog name (e.g. "providers", "builtins").
         catalog: &'static str,
@@ -35,7 +35,7 @@ pub enum CatalogError {
 
     /// Sorted array is not actually sorted (compile-time invariant broken).
     #[error("{catalog} array is not sorted at index {index}: `{prev}` > `{current}`")]
-    #[diagnostic(help("entries in data/{catalog}.rs must be sorted alphabetically by name"))]
+    #[diagnostic(help("entries in the {catalog} catalog must be sorted alphabetically by name"))]
     NotSorted {
         /// Catalog name.
         catalog: &'static str,

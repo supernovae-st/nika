@@ -3,10 +3,9 @@
 
 //! Category enum for MCP servers and providers.
 //!
-//! Replaces the legacy `&'static str` category field with a closed, typed
-//! enum. `#[non_exhaustive]` so new categories are additive, not breaking.
-//! `from_str` / `as_str` roundtrip uses kebab-case — the exact wire format
-//! found in `data/*.toml` and in the MCP Registry.
+//! Closed, typed enum. `#[non_exhaustive]` so new categories are additive,
+//! not breaking. `FromStr` / `as_str` roundtrip uses kebab-case — the exact
+//! wire format found in `data/*.toml` and in the MCP Registry.
 
 /// Category used to group MCP servers and providers in CLI displays.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -192,9 +191,10 @@ mod tests {
     }
 
     #[test]
-    fn covers_all_legacy_categories() {
-        // Covers every category present in the v2 catalog (2026-04-14).
-        let legacy = [
+    fn covers_all_in_use_categories() {
+        // Every category currently used by an entry in `data/mcp-servers.toml`
+        // must round-trip. Add a row here when the catalog gains a new one.
+        let in_use = [
             "ai",
             "analytics",
             "anthropic",
@@ -213,7 +213,7 @@ mod tests {
             "social",
             "vectordb",
         ];
-        for s in legacy {
+        for s in in_use {
             assert!(Category::parse(s).is_some(), "missing category: {s}");
         }
     }

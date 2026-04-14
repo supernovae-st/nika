@@ -1,6 +1,6 @@
 [package]
 name          = "nika-catalog"
-description   = "Static catalogs for the Nika diamond — providers, builtins, MCP aliases, transforms, pricing. Layer L0 — pure, zero I/O, zero async."
+description   = "Static catalogs for the Nika diamond — LLM providers, MCP servers, builtins, transforms, pricing. Layer L0 — pure, zero I/O, zero async, build.rs-generated phf maps."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true

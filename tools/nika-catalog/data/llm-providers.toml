@@ -1,9 +1,9 @@
-# nika-catalog — LLM provider catalog (Phase C).
+# nika-catalog — LLM provider catalog
 #
-# Migrated from src/data/providers.rs (21 providers). Model folds into
-# Provider via [[providers.models]] — no separate Model type. `default_model`
-# and `cheap_model` are the WIRE identifiers for parity with legacy.
-# Token limits are a 2026-04-14 snapshot and MUST be set explicitly.
+# Model folds into Provider via [[providers.models]] — no separate Model type.
+# `default_model` and `cheap_model` are WIRE identifiers (the string sent to
+# the provider's API, not a nickname). Token limits are a manually-curated
+# snapshot and MUST be set explicitly per model.
 #
 # Schema invariants (enforced in build.rs):
 #   * top-level `schema` matches LLM_PROVIDERS_SCHEMA constant

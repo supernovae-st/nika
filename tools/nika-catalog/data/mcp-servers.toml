@@ -1,8 +1,8 @@
-# nika-catalog — MCP server catalog (Phase C).
+# nika-catalog — MCP server catalog
 #
-# Migrated from src/data/mcp_aliases.rs (v2, 102 npm aliases) +
-# 3 Phase A restorations via the new Distribution model (qdrant
-# pypi+uvx, intercom remote+oauth, grafana oci).
+# Aligns with the official MCP Registry schema (registry.modelcontextprotocol.io,
+# v2025-12-11): each server exposes one or more local-install `packages`
+# (npm/pypi/oci/cargo/mcpb) and/or one or more `remotes` (HTTP/SSE endpoints).
 #
 # Schema invariants (enforced in build.rs):
 #   * top-level `schema` matches MCP_SERVERS_SCHEMA constant
@@ -12,8 +12,6 @@
 #   * pricing ∈ {free, freemium, paid}
 #   * runner is pypi-only (non-pypi + runner = error; pypi + no runner = error)
 #   * aliases never collide with any id or another alias
-#
-# Aligns with official MCP Registry schema v2025-12-11.
 
 schema = "nika/mcp-servers@1.0"
 
@@ -1930,7 +1928,7 @@ is_secret = true
 description = "API key / token for Mapbox."
 
 
-# ─── Phase A restorations via new Distribution model ────────
+# ─── Non-npm distributions (pypi / remote / oci) ────────────────────
 
 [[servers]]
 id = "qdrant"

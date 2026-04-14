@@ -32,9 +32,10 @@ pub fn resolve_mcp_name(name: &str) -> Option<String> {
         .map(|p| p.identifier.to_string())
 }
 
-/// Check if a name is a known MCP server id or alias.
+/// Check whether `name` resolves to a known MCP server id or alias
+/// (case-insensitive).
 #[must_use]
-pub fn is_known_mcp_alias(name: &str) -> bool {
+pub fn is_known_mcp_server(name: &str) -> bool {
     find_mcp_server(name).is_some()
 }
 
@@ -91,14 +92,14 @@ mod tests {
     }
 
     #[test]
-    fn is_known_mcp_alias_positive() {
-        assert!(is_known_mcp_alias("neo4j"));
-        assert!(is_known_mcp_alias("filesystem"));
+    fn is_known_mcp_server_positive() {
+        assert!(is_known_mcp_server("neo4j"));
+        assert!(is_known_mcp_server("filesystem"));
     }
 
     #[test]
-    fn is_known_mcp_alias_negative() {
-        assert!(!is_known_mcp_alias("nonexistent"));
-        assert!(!is_known_mcp_alias(""));
+    fn is_known_mcp_server_negative() {
+        assert!(!is_known_mcp_server("nonexistent"));
+        assert!(!is_known_mcp_server(""));
     }
 }
