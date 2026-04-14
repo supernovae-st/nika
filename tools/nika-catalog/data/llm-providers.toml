@@ -1,0 +1,461 @@
+# nika-catalog — LLM provider catalog (Phase C).
+#
+# Migrated from src/data/providers.rs (21 providers). Model folds into
+# Provider via [[providers.models]] — no separate Model type. `default_model`
+# and `cheap_model` are the WIRE identifiers for parity with legacy.
+# Context / output token limits are a 2026-04-14 snapshot; unknown models
+# default to 128_000 context / 4_096 output.
+
+[[providers]]
+id = "anthropic"
+name = "Anthropic Claude"
+aliases = ["claude"]
+env_var = "ANTHROPIC_API_KEY"
+key_prefix = "sk-ant-"
+default_model = "claude-sonnet-4-20250514"
+cheap_model = "claude-haiku-4-5-20251001"
+requires_key = true
+description = "Claude models (Opus, Sonnet, Haiku)."
+
+[[providers.models]]
+id = "sonnet"
+model = "claude-sonnet-4-20250514"
+context_window_tokens = 200000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "haiku"
+model = "claude-haiku-4-5-20251001"
+context_window_tokens = 200000
+max_output_tokens = 8192
+
+[[providers]]
+id = "openai"
+name = "OpenAI"
+aliases = ["gpt"]
+env_var = "OPENAI_API_KEY"
+key_prefix = "sk-"
+default_model = "gpt-4o"
+cheap_model = "gpt-4o-mini"
+requires_key = true
+description = "GPT-4, GPT-4o, and other OpenAI models."
+
+[[providers.models]]
+id = "gpt-4o"
+model = "gpt-4o"
+context_window_tokens = 128000
+max_output_tokens = 16384
+
+[[providers.models]]
+id = "gpt-4o-mini"
+model = "gpt-4o-mini"
+context_window_tokens = 128000
+max_output_tokens = 16384
+
+[[providers]]
+id = "mistral"
+name = "Mistral AI"
+aliases = []
+env_var = "MISTRAL_API_KEY"
+default_model = "mistral-large-latest"
+cheap_model = "mistral-small-latest"
+requires_key = true
+description = "Mistral Large, Medium, Small models."
+
+[[providers.models]]
+id = "large"
+model = "mistral-large-latest"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "small"
+model = "mistral-small-latest"
+context_window_tokens = 32000
+max_output_tokens = 8192
+
+[[providers]]
+id = "groq"
+name = "Groq"
+aliases = []
+env_var = "GROQ_API_KEY"
+key_prefix = "gsk_"
+default_model = "llama-3.3-70b-versatile"
+cheap_model = "llama-3.1-8b-instant"
+requires_key = true
+description = "Fast inference with Llama, Mixtral models."
+
+[[providers.models]]
+id = "llama-70b"
+model = "llama-3.3-70b-versatile"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "llama-8b"
+model = "llama-3.1-8b-instant"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "deepseek"
+name = "DeepSeek"
+aliases = ["deep-seek"]
+env_var = "DEEPSEEK_API_KEY"
+key_prefix = "sk-"
+default_model = "deepseek-chat"
+cheap_model = "deepseek-chat"
+requires_key = true
+description = "DeepSeek Chat and Coder models."
+
+[[providers.models]]
+id = "chat"
+model = "deepseek-chat"
+context_window_tokens = 64000
+max_output_tokens = 8192
+
+[[providers]]
+id = "gemini"
+name = "Google Gemini"
+aliases = ["google"]
+env_var = "GEMINI_API_KEY"
+default_model = "gemini-2.5-flash"
+cheap_model = "gemini-2.0-flash"
+requires_key = true
+description = "Gemini Pro, Flash, and Ultra models."
+
+[[providers.models]]
+id = "flash-25"
+model = "gemini-2.5-flash"
+context_window_tokens = 1048576
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "flash-20"
+model = "gemini-2.0-flash"
+context_window_tokens = 1048576
+max_output_tokens = 8192
+
+[[providers]]
+id = "xai"
+name = "xAI Grok"
+aliases = ["grok"]
+env_var = "XAI_API_KEY"
+default_model = "grok-3"
+cheap_model = "grok-3-mini-fast"
+requires_key = true
+description = "Grok models (Grok-3, Grok-4)."
+
+[[providers.models]]
+id = "grok-3"
+model = "grok-3"
+context_window_tokens = 131072
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "mini"
+model = "grok-3-mini-fast"
+context_window_tokens = 131072
+max_output_tokens = 8192
+
+[[providers]]
+id = "openrouter"
+name = "OpenRouter"
+aliases = ["or"]
+env_var = "OPENROUTER_API_KEY"
+key_prefix = "sk-or-"
+default_model = "anthropic/claude-sonnet-4-20250514"
+cheap_model = "anthropic/claude-haiku-4-5-20251001"
+requires_key = true
+description = "200+ models via unified gateway."
+
+[[providers.models]]
+id = "default"
+model = "anthropic/claude-sonnet-4-20250514"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "cheap"
+model = "anthropic/claude-haiku-4-5-20251001"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "together"
+name = "Together AI"
+aliases = ["together-ai"]
+env_var = "TOGETHER_API_KEY"
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+cheap_model = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
+requires_key = true
+description = "Open-source models (Llama, Mixtral, Qwen)."
+
+[[providers.models]]
+id = "default"
+model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "cheap"
+model = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "fireworks"
+name = "Fireworks AI"
+aliases = ["fw"]
+env_var = "FIREWORKS_API_KEY"
+key_prefix = "fw_"
+default_model = "accounts/fireworks/models/llama-v3p3-70b-instruct"
+cheap_model = "accounts/fireworks/models/llama-v3p1-8b-instruct"
+requires_key = true
+description = "Fast inference for open-source models."
+
+[[providers.models]]
+id = "default"
+model = "accounts/fireworks/models/llama-v3p3-70b-instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "cheap"
+model = "accounts/fireworks/models/llama-v3p1-8b-instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "cerebras"
+name = "Cerebras"
+aliases = []
+env_var = "CEREBRAS_API_KEY"
+key_prefix = "csk-"
+default_model = "llama-3.3-70b"
+cheap_model = "llama-3.1-8b"
+requires_key = true
+description = "Wafer-scale inference (2000+ tok/sec)."
+
+[[providers.models]]
+id = "llama-70b"
+model = "llama-3.3-70b"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "llama-8b"
+model = "llama-3.1-8b"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "sambanova"
+name = "SambaNova"
+aliases = ["samba"]
+env_var = "SAMBANOVA_API_KEY"
+default_model = "Meta-Llama-3.3-70B-Instruct"
+cheap_model = "Meta-Llama-3.1-8B-Instruct"
+requires_key = true
+description = "RDU-accelerated inference."
+
+[[providers.models]]
+id = "default"
+model = "Meta-Llama-3.3-70B-Instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "cheap"
+model = "Meta-Llama-3.1-8B-Instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "cohere"
+name = "Cohere"
+aliases = ["command-r"]
+env_var = "COHERE_API_KEY"
+default_model = "command-r-plus"
+cheap_model = "command-r"
+requires_key = true
+description = "Command R+ and Embed models."
+
+[[providers.models]]
+id = "r-plus"
+model = "command-r-plus"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "r"
+model = "command-r"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "ai21"
+name = "AI21 Labs"
+aliases = ["jamba"]
+env_var = "AI21_API_KEY"
+default_model = "jamba-1.5-large"
+cheap_model = "jamba-1.5-mini"
+requires_key = true
+description = "Jamba models (SSM-Transformer hybrid)."
+
+[[providers.models]]
+id = "large"
+model = "jamba-1.5-large"
+context_window_tokens = 256000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "mini"
+model = "jamba-1.5-mini"
+context_window_tokens = 256000
+max_output_tokens = 4096
+
+[[providers]]
+id = "bedrock"
+name = "AWS Bedrock"
+aliases = ["aws-bedrock"]
+env_var = "AWS_ACCESS_KEY_ID"
+default_model = "anthropic.claude-sonnet-4-20250514-v1:0"
+cheap_model = "anthropic.claude-haiku-4-5-20251001-v1:0"
+requires_key = true
+description = "AWS-managed inference gateway."
+
+[[providers.models]]
+id = "default"
+model = "anthropic.claude-sonnet-4-20250514-v1:0"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "cheap"
+model = "anthropic.claude-haiku-4-5-20251001-v1:0"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "azure"
+name = "Azure OpenAI"
+aliases = ["azure-openai"]
+env_var = "AZURE_OPENAI_API_KEY"
+default_model = "gpt-4o"
+cheap_model = "gpt-4o-mini"
+requires_key = true
+description = "Azure-hosted OpenAI models with enterprise compliance."
+
+[[providers.models]]
+id = "default"
+model = "gpt-4o"
+context_window_tokens = 128000
+max_output_tokens = 16384
+
+[[providers.models]]
+id = "cheap"
+model = "gpt-4o-mini"
+context_window_tokens = 128000
+max_output_tokens = 16384
+
+[[providers]]
+id = "vertex"
+name = "Google Vertex AI"
+aliases = ["gcp"]
+env_var = "GOOGLE_APPLICATION_CREDENTIALS"
+default_model = "gemini-2.5-flash"
+cheap_model = "gemini-2.0-flash"
+requires_key = true
+description = "GCP-managed AI gateway."
+
+[[providers.models]]
+id = "default"
+model = "gemini-2.5-flash"
+context_window_tokens = 1048576
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "cheap"
+model = "gemini-2.0-flash"
+context_window_tokens = 1048576
+max_output_tokens = 8192
+
+[[providers]]
+id = "perplexity"
+name = "Perplexity"
+aliases = ["pplx"]
+env_var = "PERPLEXITY_API_KEY"
+key_prefix = "pplx-"
+default_model = "sonar-pro"
+cheap_model = "sonar"
+requires_key = true
+description = "Search-augmented LLM with real-time web access."
+
+[[providers.models]]
+id = "sonar-pro"
+model = "sonar-pro"
+context_window_tokens = 200000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "sonar"
+model = "sonar"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "voyage"
+name = "Voyage AI"
+aliases = []
+env_var = "VOYAGE_API_KEY"
+key_prefix = "pa-"
+default_model = "voyage-3-large"
+cheap_model = "voyage-3-lite"
+requires_key = true
+description = "Best-in-class embedding models for RAG and search."
+
+[[providers.models]]
+id = "large"
+model = "voyage-3-large"
+context_window_tokens = 32000
+max_output_tokens = 1
+
+[[providers.models]]
+id = "lite"
+model = "voyage-3-lite"
+context_window_tokens = 32000
+max_output_tokens = 1
+
+[[providers]]
+id = "native"
+name = "Native Inference"
+aliases = ["local"]
+env_var = "NIKA_NATIVE_MODEL_PATH"
+default_model = "Qwen/Qwen3-8B"
+cheap_model = "Qwen/Qwen3-8B"
+requires_key = false
+description = "Local GGUF models via mistral.rs."
+
+[[providers.models]]
+id = "qwen"
+model = "Qwen/Qwen3-8B"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "mock"
+name = "Mock"
+aliases = []
+env_var = ""
+default_model = "mock-default"
+cheap_model = "mock-default"
+requires_key = false
+description = "Deterministic test responses — no API calls, no keys needed."
+
+[[providers.models]]
+id = "default"
+model = "mock-default"
+context_window_tokens = 1000000
+max_output_tokens = 1000000
+

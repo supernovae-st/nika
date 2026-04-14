@@ -21,12 +21,20 @@
 use unicase::UniCase;
 
 include!(concat!(env!("OUT_DIR"), "/mcp_servers.rs"));
+include!(concat!(env!("OUT_DIR"), "/providers.rs"));
 
 /// Case-insensitive lookup by id or alias. Returns `None` when unknown.
 #[must_use]
 pub fn find_mcp_server(name: &str) -> Option<&'static crate::types::McpServer> {
     let idx = *MCP_INDEX.get(&UniCase::ascii(name))?;
     ALL_MCP_SERVERS.get(idx)
+}
+
+/// Case-insensitive provider lookup by id or alias. Returns `None` when unknown.
+#[must_use]
+pub fn find_provider_v3(name: &str) -> Option<&'static crate::types::ProviderDef> {
+    let idx = *PROVIDER_INDEX.get(&UniCase::ascii(name))?;
+    ALL_PROVIDERS_V3.get(idx)
 }
 
 #[cfg(test)]
@@ -197,6 +205,116 @@ mod tests {
                 "server {:?} is not resolvable via MCP_INDEX",
                 s.id,
             );
+        }
+    }
+
+    // ─── Providers v3 ────────────────────────────────────────────────
+
+    #[test]
+    fn all_providers_v3_count_21() {
+        assert_eq!(ALL_PROVIDERS_V3.len(), 21);
+    }
+
+    #[test]
+    fn parity_every_legacy_provider_migrated() {
+        use crate::data::providers::ALL_PROVIDERS;
+
+        for legacy in ALL_PROVIDERS {
+            let migrated = find_provider_v3(legacy.id).unwrap_or_else(|| {
+                panic!("legacy provider {:?} not migrated to v3", legacy.id)
+            });
+            assert_eq!(migrated.id, legacy.id);
+            assert_eq!(migrated.name, legacy.name, "{:?}: name diverged", legacy.id);
+            assert_eq!(
+                migrated.env_var, legacy.env_var,
+                "{:?}: env_var diverged",
+                legacy.id,
+            );
+            assert_eq!(
+                migrated.key_prefix, legacy.key_prefix,
+                "{:?}: key_prefix diverged",
+                legacy.id,
+            );
+            assert_eq!(
+                migrated.default_model, legacy.default_model,
+                "{:?}: default_model diverged",
+                legacy.id,
+            );
+            assert_eq!(
+                migrated.cheap_model, legacy.cheap_model,
+                "{:?}: cheap_model diverged",
+                legacy.id,
+            );
+            assert_eq!(
+                migrated.requires_key, legacy.requires_key,
+                "{:?}: requires_key diverged",
+                legacy.id,
+            );
+            // Aliases: every legacy alias must be present in the new slice (order may differ).
+            for a in legacy.aliases {
+                assert!(
+                    migrated.aliases.contains(a),
+                    "{:?}: legacy alias {a:?} missing in v3",
+                    legacy.id,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_provider_aliases_resolve_in_v3() {
+        use crate::data::providers::ALL_PROVIDERS;
+        for p in ALL_PROVIDERS {
+            for alias in p.aliases {
+                let via_alias = find_provider_v3(alias).unwrap_or_else(|| {
+                    panic!("v3 lookup by legacy alias {alias:?} failed")
+                });
+                assert_eq!(via_alias.id, p.id);
+            }
+        }
+    }
+
+    #[test]
+    fn every_provider_has_models_with_default_and_cheap() {
+        // default_model and cheap_model must each resolve to a wire id that
+        // is present in the models list (catalog self-consistency).
+        for p in ALL_PROVIDERS_V3 {
+            let wires: Vec<&str> = p.models.iter().map(|m| m.model).collect();
+            assert!(
+                wires.contains(&p.default_model),
+                "{:?}: default_model {:?} not in models list (wires: {:?})",
+                p.id, p.default_model, wires,
+            );
+            assert!(
+                wires.contains(&p.cheap_model),
+                "{:?}: cheap_model {:?} not in models list (wires: {:?})",
+                p.id, p.cheap_model, wires,
+            );
+        }
+    }
+
+    #[test]
+    fn every_provider_v3_id_roundtrips() {
+        for p in ALL_PROVIDERS_V3 {
+            assert_eq!(
+                find_provider_v3(p.id).map(|x| x.id),
+                Some(p.id),
+                "provider {:?} not resolvable via PROVIDER_INDEX",
+                p.id,
+            );
+        }
+    }
+
+    #[test]
+    fn all_model_token_limits_are_non_zero() {
+        for p in ALL_PROVIDERS_V3 {
+            for m in p.models {
+                assert!(
+                    m.context_window_tokens > 0 && m.max_output_tokens > 0,
+                    "provider {:?} model {:?}: zero token limit",
+                    p.id, m.id,
+                );
+            }
         }
     }
 }
