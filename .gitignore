@@ -74,3 +74,9 @@ mutants.out.old/
 # Claude Code local settings (per-user, not shared)
 .claude/settings.local.json
 CLAUDE.local.md
+
+# GitNexus analyzer artifacts (PolyForm Noncommercial, MCP-only install)
+.gitnexus/
+.gitnexus.db
+node_modules/
+AGENTS.md
