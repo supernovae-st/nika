@@ -117,6 +117,7 @@
           {
             "group": "Reference",
             "pages": [
+              "reference/crates",
               "reference/cli",
               "reference/yaml-syntax",
               "reference/error-codes",
