@@ -1,5 +1,5 @@
 {
-  "description": "Nika Diamond — evolving DX settings (WAVE 1 hardened 2026-04-14)",
+  "description": "Nika Diamond — evolving DX settings (WAVE 1 hardened 2026-04-14 + HQ dashboard wired 2026-04-14)",
 
   "hooks": {
     "PreToolUse": [
@@ -49,7 +49,11 @@
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission detected.\\n  → Update MEMORY.md Quick State (HEAD + count + LOC)\\n  → Update docs/mintlify/reference/status.mdx (admitted table)\\n  → Update docs/mintlify/reference/constellation.mdx (numbers)\\n  → Update ROADMAP.md if phase milestone hit\\n  → Tag: git tag v0.90.0-alpha.N\\n  → Run hygiene dashboard\\n' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit'; then DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then (cd \"$DASH\" && pnpm run collect >/dev/null 2>&1 &); curl -sf -X POST http://127.0.0.1:4321/api/invalidate >/dev/null 2>&1 || true; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission detected.\\n  → Update MEMORY.md Quick State (HEAD + count + LOC)\\n  → Tag: git tag v0.90.0-alpha.N\\n  → Run hygiene dashboard\\n' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then echo '🎨 Auto-regenerating status.mdx + snapshotting gitnexus graph...' >&2; (cd \"$DASH\" && pnpm run gen-status 2>&1 | head -5 >&2 && pnpm run snapshot 2>&1 | head -5 >&2) || true; fi; fi"
           },
           {
             "type": "command",
@@ -78,6 +82,10 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && if [ -x scripts/hygiene/check-all.sh ]; then RESULT=$(scripts/hygiene/check-all.sh --quiet 2>&1 | tail -1); echo \"🩺 Hygiene: $RESULT\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "STATE=$(curl -sf http://127.0.0.1:4321/api/state 2>/dev/null); if [ -n \"$STATE\" ]; then echo \"$STATE\" | jq -r '\"🎛️  HQ LIVE — \\(.short_head) · \\(.crates_admitted)/\\(.crates_target) crates · hygiene \\(.hygiene_green)/\\(.hygiene_total) GREEN · Phase \\(.phase) · \\(.session_current) \\(.session_status) · Shadow \\(.shadow_zones_resolved)/\\(.shadow_zones_total) resolved\"' 2>/dev/null || echo '🎛️  HQ LIVE (open http://localhost:4321)'; else echo '🎛️  HQ offline (start: cd ../hq/dashboard && pnpm dev)'; fi"
           }
         ]
       }
