@@ -48,6 +48,22 @@
 - `nika-provider-native` — mistral.rs GGUF local, feature-gated
 - `nika-provider-mock` — deterministic testing, zero external deps
 
+## Added in POST_AUDIT 2026-04-14 expansion (8 new crates v0.90)
+
+**Builtin bundles × 3** (native API adapters):
+- `nika-builtin-github` — octocrab wrapper (~800 LOC)
+- `nika-builtin-cloud` — aws/cloudflare/vercel/stripe (~2k LOC)
+- `nika-builtin-workspace` — slack/notion (~1k LOC)
+
+**pck (package manager) × 5** — package installer + registry:
+- `nika-pck-manifest` — L0, manifest types (~1.5k LOC)
+- `nika-pck-registry` — L1, git-repo registry (~2.5k LOC)
+- `nika-pck-store` — L1, local store (~1.8k LOC)
+- `nika-pck` — L2, orchestrator (~3k LOC)
+- `nika-git` — L1, gix wrapper for pck (~1.5k LOC)
+
+Total v0.90 target confirmed: **40-42 crates** (including these 8).
+
 ## Kernel hooks Phase 0 (mandatory)
 
 ```rust

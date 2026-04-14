@@ -10,6 +10,31 @@ surprise, nothing ships half-baked**.
 > Each release was diamond-grade. The product was complete AT EACH RELEASE for
 > what it claimed to do."
 
+## Why Diamond
+
+The legacy v0.79 codebase grew to 322k LOC across 31 crates. At that scale the
+single biggest correctness risk stopped being algorithmic and started being
+**context**: no AI assistant could reason about the whole system; no human
+could hold it in working memory. Refactors happened by pattern-match, and
+pattern-match hallucinated.
+
+Diamond is a rewrite under one constraint: **every crate fits in an AI context
+window**. 15k LOC cap per crate. 1,500 LOC cap per file. 100 lines cap per
+function. 40-42 crates instead of 31, because smaller, sharper crates compose
+better than fewer, bloated ones.
+
+The math: legacy 138k-LOC monolith = ~750k tokens = 75% of a 1M-token context
+just to read ONE crate. Diamond 14k-LOC crate = ~70k tokens = 7% of context.
+Same task. 10x the reasoning headroom. Zero hallucination refactor.
+
+This is why we rewrite instead of refactor. Refactoring a 322k codebase with
+1,276 `.unwrap()` calls and 47 files above 1,500 LOC is not a craft activity —
+it's damage control. We want to craft. So we start from zero, keep legacy as a
+read-only reference (`git show main:...`), and admit each crate through 12 gates
+before it joins the workspace.
+
+See `docs/architecture/ai-velocity.md` for the full argument.
+
 ## Current state — v0.80.x (April 2026)
 
 Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
@@ -85,6 +110,155 @@ Grok 4 variants (grok-4/grok-4-fast).
 - Gate 5: `for_each` per-element spotlight
 - Gate 6: `NikaError` Display parity
 - Gate 7: provider parity matrix
+
+### Runtime internals — itemized
+
+**5 verbs** (each a crate under `nika-verb-*`):
+- `exec` — subprocess + `kill_on_drop(true)` + `tokio::try_join!` for concurrent pipe reading
+- `fetch` — HTTP + SSRF guard + 9 extract modes (markdown/article/text/selector/metadata/links/jsonpath/feed/llm_txt) + `response: {full, binary}`
+- `invoke` — builtins (`nika:*`) + MCP tools (`server::tool`) with shared dispatch
+- `infer` — LLM call with structured output 5-layer defense (tool injection → rig extractor → validation → retry → repair)
+- `agent` — multi-turn loop with `completion` modes (explicit/natural/pattern) + 4 guardrail types (length/schema/regex/llm-judge) + `token_budget` + `max_cost_usd`
+
+**63 builtin tools** split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
+- Core (7): `sleep`, `log`, `emit`, `assert`, `prompt`, `run`, `complete`
+- File (5): `read`, `write`, `edit`, `glob`, `grep`
+- Introspection (6): `dag_info`, `task_status`, `threads`, `orchestrate`, `cost`, `records`
+- Data (19): `json_merge`, `json_diff`, `set_diff`, `zip`, `map`, `filter`, `group_by`, `chunk`, `token_count`, `enrich`, `jq`, `tree_data`, `inject`, `json_verify`, `yaml_validate`, `locale_lookup`, `aggregate`, `json_flatten`, `json_unflatten`
+- Media always-on (5): `import`, `decode`, `dimensions`, `thumbhash`, `dominant_color`
+- Media core (3): `thumbnail`, `convert`, `strip`
+- Media opt-in (18): `metadata`, `optimize`, `svg_render`, `chart`, `phash`, `compare`, `pdf_extract`, `provenance`, `verify`, `qr_validate`, `quality`, `html_to_md`, `css_select`, `extract_metadata`, `extract_links`, `readability`, `pipeline`
+
+**65 pipe transforms** (in `nika-binding`): string (9), array (9), aggregation (7), numeric (5), type (5), logic (1), introspection (1), parametric (8), query (9), string-test (3), URL (4), encoding (4), JQ (1 — `jq(expr)` full stdlib), system (1 — `shell` escape).
+
+**Schema AST (`nika-schema` L0 ~13k LOC)**:
+- Raw AST → analyzed AST with `Spanned<T>` source tracking for `ariadne` diagnostics
+- Parser: YAML → workflow (schema version pinned `nika/workflow@0.12`)
+- Analyzer: DAG construction + cycle detection + unreachable task detection + run-depth enforcement (workflow recursion guard)
+- Validator: type coercion on 65 templatable fields (string → f64/u32/bool/provider enum/etc.)
+- Taint propagation: `Trust::Untrusted` bits flow through `with:` bindings, enforced at verb boundaries
+- Guardrail schema compilation (agent verb)
+- Include partials (workflow composition via `include:` with prefix namespacing)
+- `when:` conditionals (template expression evaluation)
+- `depends_on` explicit ordering
+- `for_each` concurrency + `fail_fast` semantics
+
+**Binding / templating (`nika-binding` L0 ~13k LOC)**:
+- Single-pass template resolver (no re-parse storms)
+- 65 pipe transforms + `jq(expr)` subset
+- Null-safety: 19 transforms fail on null; `default(x)` recovery
+- `{{with.alias}}` (always required prefix — no bare `{{x}}`)
+- `$binding_ref` in `for_each` (templates rejected per BUG-003)
+- `$env.VAR` for environment access
+- `| shell` transform REQUIRED on all bindings in `shell: true` exec (SEC-2)
+- Skill injection into all `infer:` system prompts (not just `agent:`)
+
+**Shield engine (`nika-shield` L1 ~5k LOC)**:
+- Spotlight wrapping on untrusted data (NIKA-384)
+- Canary token emission + outbound scanner (NIKA-382, NIKA-388 also in thinking trace)
+- ML injection detector (NIKA-383, BERT-based — lands v0.95+, heuristic v0.90)
+- Capability-denied on dangerous tool + untrusted data combo (NIKA-380)
+- Trust violation strict mode (NIKA-381)
+- Run depth / cycle detection for workflow recursion (NIKA-386/387)
+- Untrusted vision images blocked (NIKA-389)
+
+**Event log (`nika-event` L1)**:
+- `EventKind` enum with exhaustive emission sites (invariant #24: exactly 1 emit per verb path)
+- `EventLog` + `TraceWriter` for NDJSON output
+- `nika-macros` inlined (`builtin_tool!`, `event_task_id!`, `nika_error_code!`)
+- Subscription API for `nika serve` SSE + TUI live mode
+
+**Display / renderer (`nika-display` L2 ~14k LOC)**:
+- `Renderer` trait with modes: `tty` (spinners, icons, colors), `json` (machine), `ndjson` (streaming)
+- Live DAG render + per-task status
+- Benchmark display (TTFT, tok/s, per-provider comparison)
+- CLI format (tables, progress bars)
+- Feeds the TUI (when rebuilt, post-v0.90)
+
+**`nika serve` (HTTP API, `nika-serve` L4)**:
+- Routes: `POST /jobs`, `GET /jobs/:id`, `GET /jobs/:id/stream` (SSE), `DELETE /jobs/:id`
+- Auth: bearer token + per-job scoping (env `NIKA_JOB_ID`/`NIKA_JOB_DIR`)
+- Rate limiting per token
+- Webhook delivery for job completion
+- OpenAPI spec generation
+- Worker pool with cancellation propagation
+
+**`nika-cli` subcommands (L4 ~20k LOC)** — 40+ commands, keep/drop decision per:
+- Run: `run`, `check`, `test`, `test --golden`, `eval`, `dry-run`, `explain`
+- Lint: `lint` (rule IDs `L001/L010/L020/L030/L031/L050/L060/L070/L080/L090` — SEC-prefixed subset)
+- Scaffolding: `new`, `init`, `init --from <git-url>`, `showcase`, `demo`
+- Provider: `provider list`, `model list`, `switch`, `bench` (TTFT, tok/s, quality)
+- MCP: `mcp list`, `mcp install`, `mcp run`
+- Keys: `keys` subsystem (10 subcommands) — see `project_nika_keys_design.md`
+- Daemon/Serve: `serve`, `daemon start|stop|status`
+- pck: `pck add`, `pck update`, `pck publish`, `pck search`
+- Diag: `doctor`, `trace`, `records`, `discover`, `inputs`, `tools`, `verbs`, `schema`
+- TUI: `ui` (deferred — rebuilt Act 3 or never)
+- Housekeeping: `clean`, `rules`, `onboarding`, `machine install`
+
+**Event subsystem, artifact modes, output modes, templatable fields**:
+- Artifact modes: `overwrite | append | unique | fail`, with optional `manifest: true` → `artifacts.json` index
+- Output modes: `text | json | yaml | markdown | binary`
+- 65 typed fields accept `{{...}}` templates (type-coerced after resolution, NIKA-041 on error)
+- Endpoints config in `nika.toml` `[endpoints.<name>]` for self-hosted LLMs + `model: <endpoint>/<name>` slash syntax
+- `nika:decode` builtin: base64 → CAS blob (for APIs returning inline images)
+- `nika:import` builtin: file → CAS blob
+
+**Per-provider features**:
+- Anthropic: `extended_thinking: true` + `thinking_budget: N` tokens (exposed as `InferRequest` field)
+- OpenAI: `reasoning_effort: low|medium|high` (o1, o3, o4 families)
+- Gemini: JSON mode (`response_format: json`)
+- All providers: streaming (MUST, even mock)
+
+**MCP pool (`nika-mcp` L2 ~9k LOC)**:
+- `rmcp_adapter` for official SDK compat
+- Pool with retry policy per server
+- Remote (streamable-http, sse) + local (stdio) transport
+- 102 curated aliases + `server::tool` namespace
+- Parameter validation (NIKA-107) + connection error (NIKA-100) + start error (NIKA-101)
+
+**Multimodal / vision**:
+- `content:` array alternative to `prompt:` (image + text parts)
+- `source: "<CAS hash>"` — ONLY CAS hashes accepted (never file paths)
+- Per-provider support: anthropic, openai, mistral, groq, gemini, xai
+- Text-only: `native` (GGUF), `deepseek` (VisionNotSupported error)
+
+### Cargo features + distribution
+
+**Feature flags strategy** — minimal binary by default, opt-in for heavy deps:
+- `nika-provider-native` — `[feature] ggufs` (gates mistral.rs, ~50MB linked)
+- `nika-media-pdf` — `[feature] pdf` (gates pdfium + pdf-extract)
+- `nika-media-document` — `[feature] html-md` (gates dom_smoothie, readability)
+- `nika-media-provenance` — `[feature] c2pa` (gates c2pa full stack)
+- `unstable-*` prefix for API surfaces not yet locked (per forward-compat-invariants)
+
+**Distribution channels**:
+- **Homebrew** — `brew tap supernovae-st/nika && brew install nika` (formula at `supernovae-st/homebrew-nika`)
+- **`curl | sh`** — `curl -LsSf https://nika.sh/install.sh | sh` (platform detection, fallback to GH release tarball)
+- **crates.io** — `cargo install nika` once v0.90 tagged
+- **GitHub Releases** — pre-built binaries via cargo-dist (macOS arm64/x86_64, Linux x86_64)
+
+### Site + docs + design
+
+**nika.sh** (Astro 5 static, Scaleway par-fr + Cloudflare CDN):
+- `/` landing + hero demo + manifesto link
+- `/method` — the craft manifesto (public)
+- `/changelog` — per-admission entries, RSS feed
+- `/blog` — monthly deep dives
+- `/errors/[NIKA-XXX]` — per-code lookup pages (prerendered)
+- `/architecture` — 3D diamond view (R3F, P1 post-launch)
+- `/install.sh` + `/schema/workflow.json` (static assets for CLI consumers)
+
+**docs.nika.sh** (Mintlify monorepo mode, deploy from `nika:docs/mintlify/`):
+- Getting started, concepts, guides, reference, examples
+- 23 initial MDX files
+
+**`nika-design-skill`** (Claude Code Skill, v0.1.0 AGPL-3.0):
+- Consumed by nika.sh via git submodule
+- Design tokens (colors, typography, spacing, motion)
+- Voice guide (per `NIKA_NARRATIVE_LOCKED`)
+- Anti-slop firewall (forbidden patterns)
+- Canonical repo #6
 
 ### Native API adapters (7 builtins)
 
@@ -244,7 +418,23 @@ team priorities. Possible directions include (no commitment):
 - **Security audits**: external review, fuzzing campaigns, supply chain
 - **Additional native adapters**: ranked by usage telemetry
 
-## What this roadmap deliberately excludes
+## What we deliberately dropped (from legacy or never built)
+
+| Item | Decision | Why |
+|---|---|---|
+| `nika-sdk` (remote client SDK) | DELETED | 0 consumers, speculative abstraction |
+| `nika-napi` (Node.js bindings) | DELETED | W1 removed, rebuild as `@nika/client` TypeScript if needed |
+| `nika-py` (Python bindings) | DELETED | W1 removed, no clear user pull |
+| `nika-tui` (terminal UI) | DELETED → rebuilt Act 3 or never | W1 removed; deferred until after v0.90 |
+| `ProviderCategory` enum | DELETED | 11 ex-MCP providers migrated to `McpAlias` catalog |
+| Agent-v2 (multi-turn, 4 guardrails) | DEFERRED v0.95 | Architecture gate-review: need Cortex memory first |
+| Cortex (memory satellites × 9-10) | DEFERRED v0.95 | 20-24 crate deficit, need runtime-complete first |
+| WASM host (wasmtime + extism) | DEFERRED v0.100 | Security unsolved, 10x perf loss, 200k LOC dep |
+| Keys subsystem (Keychain/OAuth) | DEFERRED v0.100 | Not on critical path for v0.90 self-host use |
+| Hosted cloud runner | DEFERRED v0.110+ | Self-host is primary; SaaS optional optional later |
+| Commercial relicense (AGPL → commercial) | DEFERRED v0.110+ | Only when enterprise pull warrants legal setup |
+
+## What this roadmap deliberately excludes (never)
 
 - **Visual no-code editor** (anti-positioning — `.nika.yaml` is the user-facing format)
 - **Chat UI / consumer assistant** (GPT Store territory)

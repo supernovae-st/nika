@@ -27,7 +27,7 @@ ship later. Provide default method implementations that return
 **Example**:
 ```rust
 // nika-kernel/src/memory.rs (ships v0.90, impl lands v0.95)
-#[async_trait]
+#[trait_variant::make(MemoryStoreDyn: Send)]
 pub trait MemoryStore: Send + Sync + 'static {
     async fn put(&self, frame: MemoryFrame) -> Result<MemoryFrameRef>;
     async fn query(&self, q: &MemoryQuery) -> Result<Vec<MemoryFrame>>;
@@ -36,6 +36,9 @@ pub trait MemoryStore: Send + Sync + 'static {
     }
 }
 ```
+
+**Decision A1**: `trait_variant` (not `async_trait`). Zero boxing on static dispatch;
+`MemoryStoreDyn` companion gives object-safety for dynamic dispatch when needed.
 
 **Impact**: v0.95 ships Cortex by adding `nika-memory-oxigraph` crate that
 implements `MemoryStore`. Zero v0.90 code modification.
