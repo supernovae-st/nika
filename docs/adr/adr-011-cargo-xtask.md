@@ -62,6 +62,7 @@ Considered. Lower friction than xtask but still not-Rust. Loses `cargo_metadata`
 ## Related
 
 - ADR-003 — 12-gate admission (xtask `gate` subcommand hosts the gates)
+- ADR-004 — context-window sizing (xtask is the documented exclusion from the 100-crate cap; this ADR formalises the convention ADR-004 references)
 - ADR-009 — ADR process (`check-adr-coverage.sh` → `xtask check-adr-coverage`)
 
 ## Notes

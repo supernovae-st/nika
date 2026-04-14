@@ -75,6 +75,7 @@ Rejected because 100+ crates would violate the "≥2 consumers" rule and produce
 - ADR-001 — orphan rewrite (the thesis that produced this sizing)
 - ADR-003 — 12-gate admission (the process the sizing enables)
 - ADR-006 — layered kernel + ISP traits (why even 15k-LOC crates have clear internal structure)
+- ADR-011 — `cargo xtask` (excluded from the 100-crate cap by convention; see ADR-011 Decision §2)
 
 ## Notes
 

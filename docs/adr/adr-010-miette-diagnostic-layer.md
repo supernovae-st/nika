@@ -54,8 +54,9 @@ Watching. Good for structured observability context but not focused on user-faci
 
 ## Related
 
-- ADR-005 — trait-based error hierarchy (structural contract)
+- ADR-005 — trait-based error hierarchy (structural contract this rendering layer wraps)
 - ADR-007 — forward-compat invariants (`NikaError` is `#[non_exhaustive]`)
+- ADR-015 — `expect-test` inline snapshots (regression coverage for the rendering this ADR locks)
 
 ## Notes
 

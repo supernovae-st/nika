@@ -76,6 +76,9 @@ Rejected: 20 atomic trait bounds is unergonomic for consumers that genuinely nee
 - ADR-003 — 12-gate admission (kernel admission went through all 12)
 - ADR-004 — context-window sizing (kernel + kernel-mock together are 5,080 LOC)
 - ADR-007 — forward-compat invariants (kernel pre-plants `MemoryStore`, `ToolExecutor` traits for v0.95 Cortex and v0.100 agent-v2 without touching kernel later)
+- ADR-012 — typestate runtime (consumes the kernel via `bind_kernel(&dyn Kernel)`)
+- ADR-013 — Loom concurrency verification (validates trait *impls* of the contracts this ADR defines)
+- ADR-014 — sealed kernel traits (locks the trait surface this ADR introduced behind a `Sealed` super-trait)
 
 ## Notes
 

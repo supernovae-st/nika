@@ -79,6 +79,8 @@ Evaluated in Rust Council. Rejected: snafu's context pattern is ergonomic for sm
 ## Related
 
 - ADR-007 — forward-compat invariants (`#[non_exhaustive]` on error enums)
+- ADR-010 — miette as L4 presentation (the rendering contract that wraps this structural contract)
+- ADR-015 — `expect-test` inline snapshots (regression coverage for rendered error output)
 - `tools/nika-error` — implementation
 - `docs/architecture/forward-compat-invariants.md` — error code range registry
 
