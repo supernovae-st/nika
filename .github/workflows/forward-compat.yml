@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   public-api:
@@ -30,13 +29,19 @@ jobs:
       - name: Install cargo-public-api
         run: cargo install cargo-public-api --locked
 
-      - name: Detect public API changes per crate
-        continue-on-error: true
+      - name: Detect public API changes (diff vs base)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           for crate in tools/*/Cargo.toml; do
             name=$(basename "$(dirname "$crate")")
-            echo "::group::$name public API"
-            cargo public-api --package "$name" || true
+            echo "::group::$name public API diff"
+            cargo public-api --package "$name" \
+              --diff-git-checkouts "$BASE_SHA" "$HEAD_SHA" \
+              --deny added --deny changed --deny removed || {
+                echo "::warning title=API change::$name has unannotated public API change"
+              }
             echo "::endgroup::"
           done
 
@@ -49,4 +54,3 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: obi1kenobi/cargo-semver-checks-action@v2
-        continue-on-error: true

@@ -11,7 +11,7 @@
 #
 # Authored 🦋 for ecosystem self-healing.
 
-set -u
+set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
@@ -37,23 +37,39 @@ record() {
   RESULTS+=("$1|$2|$3")
 }
 
+# Portable timeout wrapper — uses `timeout` on Linux, `gtimeout` on macOS (brew coreutils),
+# or falls back to running without timeout if neither is available.
+TIMEOUT_CMD=""
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_CMD="timeout 30"
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_CMD="gtimeout 30"
+fi
+
 run_check() {
   local name="$1"
   local script="scripts/hygiene/$2"
   if [ -x "$script" ]; then
-    output=$("$script" 2>&1)
+    if [ -n "$TIMEOUT_CMD" ]; then
+      output=$($TIMEOUT_CMD "$script" 2>&1)
+    else
+      output=$("$script" 2>&1)
+    fi
     status=$?
     case $status in
-      0) record "$name" "green"  "${output:-OK}" ;;
-      1) record "$name" "yellow" "${output:-warn}" ;;
-      *) record "$name" "red"    "${output:-fail}" ;;
+      0)   record "$name" "green"  "${output:-OK}" ;;
+      1)   record "$name" "yellow" "${output:-warn}" ;;
+      2)   record "$name" "red"    "${output:-fail}" ;;
+      124) record "$name" "red"    "timeout after 30s" ;;
+      127) record "$name" "red"    "command not found" ;;
+      *)   record "$name" "red"    "exit $status: ${output:-unknown}" ;;
     esac
   else
     record "$name" "yellow" "check script missing: $script"
   fi
 }
 
-# --- All 10 vectors ---
+# --- All 15 vectors ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"
@@ -64,6 +80,11 @@ run_check "7  linear-issue-states   " "check-linear.sh"
 run_check "8  gh-milestones         " "check-milestones.sh"
 run_check "9  org-profile-repos     " "check-org-readme.sh"
 run_check "10 citation-version      " "check-citation.sh"
+run_check "11 unwraps-in-src        " "check-unwraps.sh"
+run_check "12 file-loc-cap          " "check-file-loc.sh"
+run_check "13 claude-coauthor-leak  " "check-claude-coauthor.sh"
+run_check "14 private-path-leak     " "check-private-leaks.sh"
+run_check "15 cargo-audit-rustsec   " "check-cargo-audit.sh"
 
 # --- Output ---
 g=0; y=0; r=0
@@ -90,6 +111,7 @@ else
       green)  color=$GREEN;  label="GREEN" ; g=$((g+1));;
       yellow) color=$YELLOW; label="YELLOW"; y=$((y+1));;
       red)    color=$RED;    label="RED"   ; r=$((r+1));;
+      *)      color=$RED;    label="FAIL"  ; r=$((r+1));;
     esac
     if [ "$QUIET" -eq 0 ] || [ "$s" != "green" ]; then
       printf "%-28s ${color}%-8s${RESET} %s\n" "$n" "$label" "$d"

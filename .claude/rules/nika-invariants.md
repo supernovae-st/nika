@@ -2,7 +2,7 @@
 
 ## Crate structure
 
-- Total target : **32-34 crates diamond** + 3 memory satellites (Phase 9+)
+- Total target : **40-42 crates diamond v0.90** (cap 100) + 3 memory satellites (v0.95 Cortex)
 - Max LOC per crate : **15,000** (strict, enforced by xtask/CI)
 - Max LOC per file : **1,500** (strict, CI blocks)
 - Max lines per fn : **100** (warning, ≤100 preferred)

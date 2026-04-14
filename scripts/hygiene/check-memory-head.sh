@@ -11,8 +11,11 @@ if [ -z "$recorded" ]; then
   echo "no HEAD recorded in MEMORY.md"; exit 1
 fi
 
-# Compare common prefix
-if [ "${actual#$recorded}" != "$actual" ] || [ "${recorded#$actual}" != "$recorded" ]; then
+# Use safe comparison (no glob expansion via unquoted vars).
+# Compare first 7 chars (short SHA) at minimum.
+actual_prefix="${actual:0:7}"
+recorded_prefix="${recorded:0:7}"
+if [ "$actual_prefix" = "$recorded_prefix" ]; then
   echo "OK ($recorded)"; exit 0
 else
   echo "stale: MEMORY=$recorded actual=$actual"; exit 2

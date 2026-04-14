@@ -34,9 +34,8 @@ Mintlify dashboard after OSS Program approval).
 
 ## Content conventions
 
-- **Narrative vocabulary** per [NIKA_NARRATIVE_LOCKED](../../../../.claude/projects/-Users-thibaut-dev-supernovae-nika/memory/NIKA_NARRATIVE_LOCKED.md)
-  (private): "organ" not "module", "admitted" not "added", "grew" not "shipped",
-  "chrysalis" not "beta", "emerge" reserved for v0.90.
+- **Narrative vocabulary** (locked): "organ" not "module", "admitted" not "added",
+  "grew" not "shipped", "chrysalis" not "beta", "emerge" reserved for v0.90.
 - **Butterfly 🦋** scarcity: only in introduction.mdx closing, never in nav/chrome.
 - **Headings**: sentence case, not title case.
 - **Voice**: direct, technical, AGPL-proud, never try-hard.

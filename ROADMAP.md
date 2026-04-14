@@ -12,10 +12,11 @@ surprise, nothing ships half-baked**.
 
 ## Current state — v0.80.x (April 2026)
 
-Diamond foundation, 4 crates admitted to workspace, orphan branch from scratch.
+Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
 
 - **nika-error** — error infrastructure (44 tests, 100% mutation, `42909b1c7`)
 - **nika-catalog** — static catalogs with phf+unicase lookup (87 tests, `db0bf8e3f`)
+- **nika-catalog-verify** — online registry verifier binary (`a977e35b1`)
   - 102 MCP aliases (post Phase A cleanup of 29 broken entries)
   - 21 LLM providers (7 cloud + 7 OpenAI-compat + 5 enterprise + native + mock)
   - 63 builtins, 65 transforms, 61 pricing entries

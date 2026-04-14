@@ -17,8 +17,9 @@ If any doc contradicts another, **POST_AUDIT_REVISIONS wins**.
 
 ## 🎯 What we're doing
 
-Nika Diamond = ~32-34 crates architecture (not 38-42). Building on fresh
+Nika Diamond = 40-42 crates architecture (cap 100). Building on fresh
 orphan branch. Each crate passes 12 gates before admission to workspace.
+Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. Phase 1 révisée (split nika-core) =
 5-7 semaines. No deadline pressure — quality > speed.

@@ -12,6 +12,57 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### ⚙️ Hygiene + automation (2026-04-14 PM)
+
+Autonomous ecosystem hygiene stack added to prevent drift over the 11-12 month build:
+
+- **15-vector hygiene dashboard** (`scripts/hygiene/check-all.sh`) — MEMORY HEAD,
+  crate count, LOC, CHANGELOG, ROADMAP, crate specs, Linear, GitHub milestones,
+  org profile, CITATION, unwraps, file LOC cap, Claude coauthor leak, private
+  path leak, cargo audit. Green/yellow/red table, exit codes 0/1/2.
+- **Claude Code hooks** — PreToolUse blocks 5 dangerous ops (force push,
+  `git add -A`, `cargo test --test`, checkout main, `--no-verify`); PostToolUse
+  inspects HEAD commit for Claude coauthor + auto-runs hygiene on admissions;
+  SessionStart injects grep-verified HEAD + crate count + hygiene state.
+- **Skills** — `/gate-check` and `/crate-admit` for 12-gate discipline;
+  `review-swarm.md` subagent for parallel 3-agent review (Gate 11).
+- **CI workflows** — `hygiene-nightly.yml` (cron 3h UTC, idempotent drift issue),
+  `forward-compat.yml` (cargo-public-api + cargo-semver-checks on PR),
+  `changelog-cliff.yml` (auto-PR prepend CHANGELOG on tag push).
+- **git-cliff config** (`cliff.toml`) — groups match content pipeline.
+
+## [0.80.0-alpha.4] - 2026-04-14
+
+### 🆕 Crate admitted: nika-catalog-verify
+
+The immune system.
+
+Where `nika-catalog` answers "what do we know?" in O(1) from compile-time data,
+`nika-catalog-verify` answers "is what we know still true?" It probes real
+package registries (npm, PyPI, Docker) and remote MCP endpoints in parallel,
+producing a JSON drift report. Binary, not library — runs nightly from CI or
+on-demand via `cargo run -p nika-catalog-verify`.
+
+This is the second catalog crate and the first L2 binary admitted. It exists
+because static catalogs decay: a package gets deprecated, an API endpoint goes
+away, a provider renames a model. Without verify, the catalog silently rots.
+
+Exempted from Gate 5 (mutation ≥90%) because binary I/O code produces
+tautological mutations. Gate 10 (legacy parity) is N/A — this is new tooling.
+
+| Metric | Value |
+|--------|-------|
+| LOC | ~600 |
+| Tests | partial (logic only, I/O excluded) |
+| Clippy warnings | 0 |
+| Unwraps in src/ | 0 |
+
+Commit `a977e35b1`. 🦋
+
+---
+
+## [Previously Unreleased] — moved to 0.80.0-alpha.4
+
 ### 🔨 Refactors
 
 - **nika-catalog Phase C migration** — migrating catalog data from hardcoded
@@ -200,7 +251,8 @@ The organism's skeleton is in place. Now it grows. 🦋
 
 ---
 
-[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.3...HEAD
+[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.4...HEAD
+[0.80.0-alpha.4]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.3...v0.80.0-alpha.4
 [0.80.0-alpha.3]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.2...v0.80.0-alpha.3
 [0.80.0-alpha.2]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.1...v0.80.0-alpha.2
 [0.80.0-alpha.1]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.0...v0.80.0-alpha.1

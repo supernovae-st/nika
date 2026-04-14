@@ -41,15 +41,15 @@
 
     "PostToolUse": [
       {
-        "matcher": "Bash(git commit.*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qi 'Co-Authored-By: Claude'; then echo '❌ Co-Authored-By Claude forbidden. Use Nika 🦋 only.' >&2; exit 2; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qi 'Co-Authored-By: Claude'; then echo '❌ HEAD commit contains Co-Authored-By: Claude — forbidden. Use Nika 🦋 only. Amend before push.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'admit to workspace'; then echo '🆕 Crate admission detected. Running hygiene dashboard...'; ./scripts/hygiene/check-all.sh --quiet 2>/dev/null || true; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then echo '🆕 Crate admission detected. Running hygiene dashboard...' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; fi"
           }
         ]
       },
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$'; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap per nika-invariants.md)\" >&2; fi; fi"
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$' && [ -f \"$FILE\" ]; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap per nika-invariants.md)\" >&2; fi; fi"
           }
         ]
       }
