@@ -64,7 +64,7 @@ Tester création :
 
 ### Étape 5 — Seed Phase 1 (10 min)
 
-Créer le premier cycle (2 semaines) + issues Phase 1.
+Créer un cycle ouvert (sans deadline fixe — durée = jusqu'à ce que les gates soient vertes) + issues Phase 1. Per `feedback_no_deadlines.md` et diamond-discipline Rule 6 : pas de pression timeline, quality > speed.
 
 Via Claude Code ou manuellement :
 
@@ -117,7 +117,7 @@ Ou : merge le PR avec `NIK-2` dans le titre → auto-Done
 ```
 Chaque crate = 1 Linear issue
   1. Issue créée (Backlog)
-  2. Ajoutée au cycle 2 semaines (Todo)
+  2. Ajoutée au cycle ouvert (Todo)
   3. Début travail (In Progress) — branch ou manual move
   4. 12 gates en cours (In Progress)
   5. Gates green, commit, push (In Review)

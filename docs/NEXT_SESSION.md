@@ -48,18 +48,16 @@ clippy 0, machete clean.
 | [docs/golden-commits.md](golden-commits.md) | exemplary commits to learn from |
 | [`scripts/ci/`](../scripts/ci/) | gate check scripts |
 | [`Cargo.toml`](../Cargo.toml) | `[workspace.dependencies]` is the version pin floor |
-| [`.claude/commands/`](../.claude/commands/) | `/dashboard`, `/diamond-gates`, `/diamond-health`, `/legacy-lookup`, `/admit` |
+| [`.claude/commands/`](../.claude/commands/) | `/diamond-gates`, `/diamond-health`, `/legacy-lookup`, `/admit` |
 | [`.claude/skills/`](../.claude/skills/) | `crate-admit`, `gate-check`, `gitnexus`, `generated/*` |
 
 ## Where the *current session* handoff lives
 
 Per-session execution context (what we are currently building, which
-gate is half-green, what to do next) lives in the **private** monorepo
-memory at `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/`
-and is therefore **not** in this public repository. If you have access
-to the private monorepo, start at `MEMORY.md` Quick State and follow
-the active handoff link. If you are an external contributor, read the
-ROADMAP.md + open issues + recent commits — that is the public surface.
+gate is half-green, what to do next) lives in the maintainer's
+private session memory and is therefore **not** in this public
+repository. If you are an external contributor, read the ROADMAP.md
+plus open issues plus recent commits — that is the public surface.
 
 ## What to do if you are about to admit a new crate
 

@@ -158,11 +158,11 @@ Not yet started.
 | ------------------- | -------------------- |
 | Crates admitted     | 5 / 40-42 (v0.90)    |
 | Total LOC in src/   | ~10,500              |
-| Tests               | 385 (44+154+99+88+9) |
+| Tests               | 386 (45+154+99+88+9) |
 | Unwraps in src/     | 0                    |
 | Panics in src/      | 0                    |
 | Clippy warnings     | 0                    |
 | Gate 8 (rustdoc)    | GREEN                |
 | Invariant #19       | FULL (15 new())      |
 | Branch HEAD         | `133ffa0ff`          |
-| Last updated        | 2026-04-14           |
+| Last updated        | 2026-04-15           |

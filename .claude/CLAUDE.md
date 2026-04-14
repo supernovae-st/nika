@@ -5,6 +5,14 @@
 **Legacy binary** : `~/bin/nika-legacy` — pre-built v0.79 for parity tests (Phase 5+).
 **This is NOT extraction. This is CRAFT.** Each crate rewritten from scratch, guided by legacy. User learns Rust in parallel.
 
+## ⚙️ Hook & settings model
+
+`.claude/settings.json` (this repo, public) loads at Claude Code
+**process startup** — edits to hooks do **not** take effect until the
+next session restart. Pair with `.claude/settings.local.json`
+(gitignored) for HQ-coupled / private overlay hooks; Claude Code
+merges both at load time.
+
 ## 🔐 Authority hierarchy
 
 1. `~/.claude/projects/-Users-thibaut-dev-supernovae-nika/memory/POST_AUDIT_REVISIONS.md` — SUPREME AUTHORITY, overrides all other docs.

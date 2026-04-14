@@ -85,3 +85,4 @@ AGENTS.md
 .claude/skills/gitnexus/
 .claude/skills/gitnexus-*/
 .claude/scheduled_tasks.lock
+.claude/commands/dashboard.md

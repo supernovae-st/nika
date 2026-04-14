@@ -16,6 +16,12 @@ and `src/lib.rs`, but **must not yet** be in `[workspace] members`.
 ```bash
 CRATE="$ARGUMENTS"
 
+# Strict allow-list on the crate name. Everything below interpolates
+# $CRATE into sed/grep/cargo/find — a name like
+# `nika-foo";rm -rf $HOME;"` would otherwise escape the sed pattern.
+[[ "$CRATE" =~ ^nika-[a-z0-9][a-z0-9-]{0,40}$ ]] \
+  || { echo "❌ invalid crate name: must match ^nika-[a-z0-9][a-z0-9-]{0,40}$"; exit 1; }
+
 test -d "tools/$CRATE" || { echo "❌ tools/$CRATE not found"; exit 1; }
 grep -q "\"tools/$CRATE\"" Cargo.toml && { echo "❌ already in workspace"; exit 1; }
 test -f "docs/crate-specs/$CRATE.md" || { echo "❌ Gate 1 fail: missing spec"; exit 1; }
