@@ -6,7 +6,7 @@ Source of [docs.nika.sh](https://docs.nika.sh) — user documentation published 
 
 ```
 docs/mintlify/
-├── docs.json                    Mintlify config + navigation
+├── mintlify.json                Mintlify config + navigation (v4+)
 ├── introduction.mdx             Landing page
 ├── getting-started/             Install + first workflow + editors
 ├── concepts/                    Organism / verbs / workflows / bindings / events / providers
@@ -20,8 +20,7 @@ docs/mintlify/
 
 ```bash
 cd docs/mintlify
-npm install -g mintlify           # first time only
-mintlify dev                      # http://localhost:3000
+npx mintlify@latest dev           # http://localhost:3000 (no global install needed)
 ```
 
 ## Deploy
