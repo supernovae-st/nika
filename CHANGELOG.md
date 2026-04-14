@@ -12,6 +12,48 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### ⚡ Phase D Session 2a — TOML-driven model capabilities (2026-04-14)
+
+Zero-allocation capability resolver migrated from hardcoded Rust to a
+TOML-driven rule table. Zero-alloc, proptest-verified, forward-compatible.
+
+- **`data/model-capabilities.toml`** — 9 ordered rules covering OpenAI o-series,
+  GPT-5, Claude family, Anthropic catch-all, DeepSeek reasoner, DeepSeek any,
+  and xAI Grok-4. Schema `nika/model-capabilities@1.0`. First-match-wins
+  semantics with build-time FK checks (providers must exist in
+  `llm-providers.toml`, api_dialect must be in the closed dialect set).
+- **`src/types/capabilities.rs`** — `CapPatch` (5 `Option<T>` fields,
+  `const fn merge_with`, `fn materialize`), `Matcher` (Any/Exact/ExactAny/PrefixAny,
+  zero-alloc `eq_ignore_ascii_case`), `Rule` (providers + api_dialect scope + matcher + caps).
+- **`build/capabilities.rs`** — extracted from `build.rs` (380 LOC) to stay under
+  the 1500-LOC-per-file budget. Validates TOML schema, FK checks, closed-set
+  enum validation, all-None rule prevention, emits static Rust arrays at compile time.
+- **`api_dialect`** — `Option<&'static str>` added to all 21 providers in
+  `llm-providers.toml`. Closed set: anthropic / openai-chat / openai-responses /
+  gemini / cohere / ai21 / bedrock / voyage / mock. Reserved for Session 2b+
+  dialect-scoped rule authoring.
+- **`supports_thinking` → `reasoning` rename** — aligns with 2026 industry
+  convention (LiteLLM `supports_reasoning`, models.dev `reasoning`, OpenRouter
+  `reasoning`). No compat shim (forever-v0.x nuke-and-rebuild).
+- **`TokenLimitParam::MaxOutputTokens`** — variant added (OpenAI Responses API
+  future-proofing). No rule maps to it yet; the `#[non_exhaustive]` enum can
+  grow without a schema bump.
+- **Proptest parity harness** — 10,000 random (provider, model) pairs compared
+  against frozen legacy body in `mod parity_tests`. Regex widened to cover slash
+  syntax, uppercase, underscore (HF-style), long names.
+- **Insta snapshot** — 31 golden (provider, model) pairs reviewable under
+  `src/data/snapshots/`.
+- **Invariant #19 FULL** — 15 `new()` constructors across the crate (every
+  `#[non_exhaustive]` public struct). Includes: `ProviderModel`, `Provider`,
+  `ProviderModel`, `McpServer`, `Embedding`, `TransformDef`, `Builtin`,
+  `EnvVarSpec`, `McpPackage`, `McpRemote`, `ModelCapabilities`, `ModelPricing`,
+  `CostEstimate`, `ParseTagError`, `ParseCategoryError`, `Suggestion`.
+- **Gate 8 GREEN** — `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` clean.
+  8+ broken intra-doc links fixed across the crate.
+- **5-agent review** — rust-architect + rust-pro + rust-perf + spn-nika +
+  feature-dev:code-reviewer. All P0/P1 findings addressed in same session
+  across 2 hardening commits.
+
 ### 🏷️ Phase D Session 1 — Tag vocabulary + Cargo features (2026-04-14)
 
 Typed tag system for catalog entries, Cargo feature gating, and Shield

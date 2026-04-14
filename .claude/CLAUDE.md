@@ -22,7 +22,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase D (catalog scope expansion, Session 1/9 done). 5 crates admitted.
+Current: Phase D (catalog scope expansion, Session 2a DONE). 5 crates admitted.
 
 ## 🚫 Interdits stricts
 
@@ -96,10 +96,10 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 ## 🎯 Current state (2026-04-14)
 
 - 5 crates admitted : error + catalog + catalog-verify + kernel + kernel-mock
-- 369 tests, 0 clippy, 0 unwrap in src/, 10,434 LOC
-- Phase D in progress : catalog scope expansion (Session 1/9 done)
-- Next : Session 2a — capability migration to TOML (3h, atomic commit)
+- 385 tests, 0 clippy, 0 unwrap in src/, Gate 8 GREEN, Invariant #19 FULL
+- Phase D Session 2a DONE : TOML capability rules, api_dialect, proptest, inv #19
+- Next : Session 2b — Modality + TokenizerFamily + ParamFlag → Gate 2
 
-Follow `MEGA_HANDOFF_PHASE_D.md` (memory/) for session specs.
+Follow `MEGA_HANDOFF_SESSION_2B.md` (memory/) for next session spec.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

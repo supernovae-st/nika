@@ -40,16 +40,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
 
 - **nika-error** — error infrastructure (44 tests, 100% mutation, `42909b1c7`)
-- **nika-catalog** — static catalogs with phf+unicase lookup, 42-variant typed Tag enum,
-  Cargo feature gating (138 tests, `83a9afaf4`)
-  - 105 MCP servers (every entry carries `read-only` XOR `destructive` — Shield invariant)
-  - 21 LLM providers, 13 embeddings, 63 builtins, 65 transforms, 62 pricing entries
-  - Cargo features: full/minimal/mcp/providers/embeddings/pricing/capabilities/builtins-transforms
-  - Community extension pattern: `nika-catalog-cn`, `nika-catalog-eu` via `extension-author` feature
+- **nika-catalog** — static catalogs with phf+unicase lookup (154 tests, `9feb96956`)
+  - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
+  - 105 MCP servers, 21 LLM providers, 13 embeddings, 63 builtins, 65 transforms
+  - **TOML-driven capability resolver** — 9 rules, zero-alloc, proptest 10k parity
+  - `api_dialect` on all 21 providers (closed set, FK-validated at build time)
+  - Invariant #19 FULL: 15 `new()` constructors, Gate 8 GREEN
+  - Community extension pattern: `nika-catalog-cn`, `nika-catalog-eu`
 - **nika-catalog-verify** — online registry verifier binary (9 tests, `a977e35b1`)
 - **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (99 + 88 tests, `ef8804371`)
 
-Total: 369 tests, 0 clippy warnings, 0 unwrap in `src/`.
+Total: 385 tests, 0 clippy warnings, 0 unwrap in `src/`, Gate 8 GREEN.
+
+Phase D progress: Session 1 ✅ (Tag + features + Shield), Session 2a ✅ (capability TOML).
+Next: Session 2b — Modality + TokenizerFamily + ParamFlag → Gate 2 advancement.
 
 ## v0.90 — "Diamond Foundation" (ships when ready)
 
