@@ -10,6 +10,7 @@
 //! - 2-pass matching (exact + contains) for pricing
 
 pub mod builtins;
+pub mod generated;
 pub mod mcp_aliases;
 pub mod models;
 pub mod providers;

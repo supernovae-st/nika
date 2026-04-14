@@ -1,0 +1,72 @@
+# nika-catalog — MCP server catalog (Phase C seed data)
+#
+# Phase C step 3: this file is a seed (3 entries) to drive build.rs codegen.
+# Step 4 migrates the full 102-alias catalog from src/data/mcp_aliases.rs.
+#
+# Schema invariants (enforced at build.rs):
+#   * every server has a unique `id`
+#   * every server has at least one [[servers.packages]] OR [[servers.remotes]]
+#   * `category` must be a known `Category` variant (parsed via Category::parse)
+#   * `pricing` is one of: "free" | "freemium" | "paid"
+#   * when a package has `registry_type = "pypi"`, it SHOULD set `runner`
+#
+# Aligns with official MCP Registry schema v2025-12-11
+# (registry.modelcontextprotocol.io/v0/servers).
+
+# ── Canonical npm server (Anthropic reference) ──────────────────────────
+
+[[servers]]
+id = "filesystem"
+aliases = []
+title = "Filesystem"
+description = "Read/write local files with path-based access control."
+category = "anthropic"
+pricing = "free"
+homepage = "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
+last_verified = "2026-04-14"
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-filesystem"
+transport = "stdio"
+
+# ── Pypi + uvx server (vectordb) ────────────────────────────────────────
+
+[[servers]]
+id = "qdrant"
+aliases = []
+title = "Qdrant"
+description = "Qdrant vector database MCP server."
+category = "vectordb"
+pricing = "free"
+homepage = "https://qdrant.tech/"
+last_verified = "2026-04-14"
+
+[[servers.packages]]
+registry_type = "pypi"
+identifier = "mcp-server-qdrant"
+transport = "stdio"
+runner = "uvx"
+
+[[servers.env_vars]]
+name = "QDRANT_URL"
+required = true
+is_secret = false
+description = "Qdrant server URL (http://host:port)."
+
+# ── Remote-only server (OAuth) ──────────────────────────────────────────
+
+[[servers]]
+id = "intercom"
+aliases = []
+title = "Intercom"
+description = "Intercom customer messaging MCP remote endpoint."
+category = "communication"
+pricing = "paid"
+homepage = "https://www.intercom.com/"
+last_verified = "2026-04-14"
+
+[[servers.remotes]]
+transport = "streamable-http"
+url = "https://mcp.intercom.com/sse"
+auth = "oauth"

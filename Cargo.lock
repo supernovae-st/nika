@@ -373,6 +373,7 @@ dependencies = [
  "nika-error",
  "phf",
  "phf_codegen",
+ "phf_shared",
  "proptest",
  "rstest",
  "serde",

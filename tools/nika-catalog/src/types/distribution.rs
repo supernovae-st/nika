@@ -76,7 +76,9 @@ pub enum PyRunner {
 /// Corresponds to a single entry in the registry's `packages[]` array.
 /// `runner` is only meaningful when `registry_type == RegistryType::Pypi`
 /// (build.rs enforces this invariant).
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+///
+/// Serde is intentionally omitted — the type is populated by `build.rs`
+/// from TOML, not round-tripped at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct McpPackage {
@@ -98,7 +100,6 @@ pub struct McpPackage {
 /// A remote MCP endpoint (no local install).
 ///
 /// Corresponds to a single entry in the registry's `remotes[]` array.
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct McpRemote {
@@ -114,7 +115,6 @@ pub struct McpRemote {
 ///
 /// Lives at the server level (not inside [`McpPackage`]) because the same set
 /// of env vars usually applies to every package/remote of a server.
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct EnvVarSpec {

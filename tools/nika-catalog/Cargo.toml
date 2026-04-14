@@ -23,8 +23,10 @@ serde   = ["dep:serde"]
 
 [build-dependencies]
 phf_codegen = "0.13"
+phf_shared  = { version = "0.13", features = ["unicase"] }
 toml        = "1.1"
 serde       = { workspace = true, features = ["derive"] }
+unicase     = { workspace = true }
 
 [dev-dependencies]
 insta      = { workspace = true }
