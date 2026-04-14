@@ -21,6 +21,11 @@ serde      = { workspace = true, optional = true }
 default = ["serde"]
 serde   = ["dep:serde"]
 
+[build-dependencies]
+phf_codegen = "0.13"
+toml        = "1.1"
+serde       = { workspace = true, features = ["derive"] }
+
 [dev-dependencies]
 insta      = { workspace = true }
 proptest   = { workspace = true }
