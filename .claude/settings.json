@@ -45,19 +45,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qi 'Co-Authored-By: Claude'; then echo '❌ HEAD commit contains Co-Authored-By: Claude — forbidden. Use Nika 🦋 only. Amend before push.' >&2; exit 2; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qi 'Co-Authored-By: Claude'; then echo '❌ HEAD commit contains Co-Authored-By: Claude — forbidden. Use Nika 🦋 only. Amend before push.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit'; then DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then (cd \"$DASH\" && pnpm run collect >/dev/null 2>&1 &); curl -sf -X POST http://127.0.0.1:4242/api/invalidate >/dev/null 2>&1 || true; fi; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b'; then DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then (cd \"$DASH\" && pnpm run collect >/dev/null 2>&1 &); curl -sf -X POST http://127.0.0.1:4242/api/invalidate >/dev/null 2>&1 || true; fi; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission detected.\\n  → Update MEMORY.md Quick State (HEAD + count + LOC)\\n  → Tag: git tag v0.90.0-alpha.N\\n  → Run hygiene dashboard\\n' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then echo '🎨 Auto-regenerating status.mdx + snapshotting gitnexus graph...' >&2; (cd \"$DASH\" && pnpm run gen-status 2>&1 | head -5 >&2 && pnpm run snapshot 2>&1 | head -5 >&2) || true; fi; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission detected.\\n  → Update MEMORY.md Quick State (HEAD + count + LOC)\\n  → Tag: git tag v0.90.0-alpha.N\\n  → Run hygiene dashboard\\n' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then echo '🎨 Auto-regenerating status.mdx + snapshotting gitnexus graph...' >&2; (cd \"$DASH\" && pnpm run gen-status 2>&1 | head -5 >&2 && pnpm run snapshot 2>&1 | head -5 >&2) || true; fi; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git push' && ! echo \"$CMD\" | grep -qE '(--force|-f)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — update MEMORY.md Quick State if this session ends.\" >&2; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git push\\b' && ! echo \"$CMD\" | grep -qE '(--force|-f)\\b'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — update MEMORY.md Quick State if this session ends.\" >&2; fi"
           },
           {
             "type": "command",
