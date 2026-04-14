@@ -54,6 +54,7 @@ impl CapPatch {
     /// deliberately boring so the `const` version LLVM sees is the same
     /// as the runtime one.
     #[must_use]
+    #[inline]
     pub(crate) const fn merge_with(mut self, other: Self) -> Self {
         if let Some(v) = other.token_limit_param {
             self.token_limit_param = Some(v);
@@ -120,6 +121,7 @@ pub(crate) enum Matcher {
 impl Matcher {
     /// Test whether `model` matches. Zero alloc.
     #[must_use]
+    #[inline]
     pub(crate) fn matches(&self, model: &str) -> bool {
         match self {
             Self::Any => true,
@@ -134,6 +136,7 @@ impl Matcher {
 ///
 /// Equivalent to `model.to_ascii_lowercase().starts_with(&p.to_ascii_lowercase())`
 /// but without the two heap allocations.
+#[inline]
 fn starts_with_ci_ascii(model: &str, prefix: &str) -> bool {
     let pb = prefix.as_bytes();
     let mb = model.as_bytes();

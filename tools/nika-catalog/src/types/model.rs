@@ -66,6 +66,59 @@ impl Default for ModelCapabilities {
     }
 }
 
+impl ModelCapabilities {
+    /// Explicit constructor for every field.
+    ///
+    /// [`ModelCapabilities`] is `#[non_exhaustive]`, so external crates
+    /// cannot use struct-literal syntax. `new()` is the required entry
+    /// point (invariant #19 — per-crate `new()` on every
+    /// `#[non_exhaustive]` struct).
+    ///
+    /// Consider [`ModelCapabilities::default`] + direct field assignment
+    /// if only one or two fields differ from the baseline.
+    #[must_use]
+    // REASON: four booleans each name a distinct wire-protocol capability
+    // (see the struct-level comment). Grouping them into a bitflags / bools
+    // struct would obscure serde and Debug output with zero readability win.
+    #[allow(clippy::fn_params_excessive_bools)]
+    pub const fn new(
+        token_limit_param: TokenLimitParam,
+        supports_temperature: bool,
+        supports_stop_sequences: bool,
+        reasoning: bool,
+        supports_vision: bool,
+    ) -> Self {
+        Self {
+            token_limit_param,
+            supports_temperature,
+            supports_stop_sequences,
+            reasoning,
+            supports_vision,
+        }
+    }
+}
+
+#[cfg(test)]
+mod model_capabilities_tests {
+    use super::{ModelCapabilities, TokenLimitParam};
+
+    #[test]
+    fn new_builds_all_fields() {
+        let caps = ModelCapabilities::new(TokenLimitParam::MaxCompletionTokens, false, true, true, false);
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+        assert!(!caps.supports_temperature);
+        assert!(caps.supports_stop_sequences);
+        assert!(caps.reasoning);
+        assert!(!caps.supports_vision);
+    }
+
+    #[test]
+    fn new_with_default_values_matches_default_impl() {
+        let via_new = ModelCapabilities::new(TokenLimitParam::MaxTokens, true, true, false, true);
+        assert_eq!(via_new, ModelCapabilities::default());
+    }
+}
+
 /// Pricing for a known model pattern.
 ///
 /// Two-pass matching: exact match first, then `contains()` fallback.

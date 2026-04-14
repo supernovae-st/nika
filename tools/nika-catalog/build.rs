@@ -47,6 +47,11 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+// Capabilities codegen is large (~300 LOC) — split into its own file so
+// build.rs stays under the project's 1500-LOC-per-file budget.
+#[path = "build/capabilities.rs"]
+mod capabilities;
+
 // ─── Schema versioning ──────────────────────────────────────────────────
 //
 // Every data file carries a top-level `schema = "nika/<name>@<version>"`
@@ -57,7 +62,8 @@ use serde::Deserialize;
 const MCP_SERVERS_SCHEMA: &str = "nika/mcp-servers@1.0";
 const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.0";
 const EMBEDDINGS_SCHEMA: &str = "nika/embeddings@1.0";
-const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
+// Visible to `mod capabilities` (child of this build script).
+pub(crate) const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
 
 // ─── TOML schema (build-time only) ───────────────────────────────────────
 
@@ -165,9 +171,11 @@ struct EmbeddingEntry {
     extra_tags: Vec<String>,
 }
 
+// `ProviderEntry` is exposed to the `capabilities` child module for FK
+// checks (`scope.providers` + `scope.api_dialect` against declared providers).
 #[derive(Deserialize)]
-struct ProviderEntry {
-    id: String,
+pub(crate) struct ProviderEntry {
+    pub(crate) id: String,
     name: String,
     #[serde(default)]
     aliases: Vec<String>,
@@ -183,7 +191,7 @@ struct ProviderEntry {
     /// Wire-protocol family — closed set validated by `validate_api_dialect`.
     /// `None` = bespoke / no known family. See `Provider::api_dialect` docs.
     #[serde(default)]
-    api_dialect: Option<String>,
+    pub(crate) api_dialect: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
     #[serde(default)]
@@ -201,56 +209,7 @@ struct ProviderModelEntry {
     max_output_tokens: u32,
 }
 
-// ─── Capabilities TOML schema ────────────────────────────────────────────
-
-#[derive(Deserialize)]
-struct CapabilitiesFile {
-    schema: String,
-    defaults: CapsPatchEntry,
-    #[serde(default)]
-    rules: Vec<RuleEntry>,
-}
-
-#[derive(Deserialize)]
-struct RuleEntry {
-    name: String,
-    #[serde(default)]
-    scope: ScopeEntry,
-    #[serde(rename = "match")]
-    match_: MatchEntry,
-    caps: CapsPatchEntry,
-}
-
-#[derive(Deserialize, Default)]
-struct ScopeEntry {
-    #[serde(default)]
-    providers: Vec<String>,
-    #[serde(default)]
-    api_dialect: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum MatchEntry {
-    Any,
-    Exact { model: String },
-    ExactAny { models: Vec<String> },
-    PrefixAny { prefixes: Vec<String> },
-}
-
-#[derive(Deserialize, Default)]
-struct CapsPatchEntry {
-    #[serde(default)]
-    token_limit_param: Option<String>,
-    #[serde(default)]
-    supports_temperature: Option<bool>,
-    #[serde(default)]
-    supports_stop_sequences: Option<bool>,
-    #[serde(default)]
-    reasoning: Option<bool>,
-    #[serde(default)]
-    supports_vision: Option<bool>,
-}
+// Capabilities TOML schema + parse + emit moved to `build/capabilities.rs`.
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
@@ -325,8 +284,8 @@ fn run() -> Result<(), String> {
 
     if has_capabilities {
         let caps_path = data_dir.join("model-capabilities.toml");
-        let caps = parse_capabilities(&caps_path, &providers)?;
-        let generated = generate_capabilities_rs(&caps);
+        let caps = capabilities::parse_capabilities(&caps_path, &providers)?;
+        let generated = capabilities::generate_capabilities_rs(&caps);
         fs::write(out_dir.join("model_capabilities.rs"), generated)
             .map_err(|e| format!("writing model_capabilities.rs: {e}"))?;
     }
@@ -334,7 +293,7 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-fn assert_schema(expected: &str, got: &str, path: &Path) -> Result<(), String> {
+pub(crate) fn assert_schema(expected: &str, got: &str, path: &Path) -> Result<(), String> {
     if got != expected {
         return Err(format!(
             "{}: schema mismatch — file declares {got:?}, build expects {expected:?}",
@@ -827,7 +786,7 @@ fn tags_slice_expr(tags: &[String]) -> String {
 }
 
 /// Emit a `&[&str]` expression suitable for a `const`/`static` context.
-fn str_slice_expr(xs: &[String]) -> String {
+pub(crate) fn str_slice_expr(xs: &[String]) -> String {
     if xs.is_empty() {
         return "&[]".to_string();
     }
@@ -1169,7 +1128,7 @@ fn parse_embeddings(
 
 /// Closed set of wire-protocol dialects. Synced with `Provider::api_dialect`
 /// docs. Capability rules may scope by this value (see Session 2b+).
-fn validate_api_dialect(dialect: &str, provider_id: &str) -> Result<(), String> {
+pub(crate) fn validate_api_dialect(dialect: &str, provider_id: &str) -> Result<(), String> {
     match dialect {
         "anthropic"
         | "openai-chat"
@@ -1270,302 +1229,6 @@ fn generate_embeddings_rs(embeddings: &[EmbeddingEntry]) -> String {
     out
 }
 
-// ─── Capabilities parse + emit ───────────────────────────────────────────
-
-/// Parsed + validated capabilities file. `providers` is borrowed for FK
-/// checks only; not retained.
-struct ParsedCapabilities {
-    defaults: CapsPatchEntry,
-    rules: Vec<RuleEntry>,
-}
-
-fn parse_capabilities(
-    path: &Path,
-    providers: &[ProviderEntry],
-) -> Result<ParsedCapabilities, String> {
-    let raw = fs::read_to_string(path).map_err(|e| format!("reading {}: {e}", path.display()))?;
-    let file: CapabilitiesFile =
-        toml::from_str(&raw).map_err(|e| format!("parsing {}: {e}", path.display()))?;
-
-    assert_schema(CAPABILITIES_SCHEMA, &file.schema, path)?;
-
-    validate_caps_patch(&file.defaults, "[defaults]")?;
-
-    // Set of canonical provider ids (lowercased) for FK checks — rules
-    // reference providers by canonical id only, not by alias.
-    let known_provider_ids: HashSet<String> = providers
-        .iter()
-        .map(|p| p.id.to_ascii_lowercase())
-        .collect();
-
-    // Set of declared api_dialects (lowercased) — rules can scope by dialect
-    // only if at least one provider uses that dialect. Catches stale rule
-    // scopes when a provider's `api_dialect` is removed.
-    let declared_dialects: HashSet<String> = providers
-        .iter()
-        .filter_map(|p| p.api_dialect.as_deref())
-        .map(str::to_ascii_lowercase)
-        .collect();
-
-    let mut seen_names: HashSet<String> = HashSet::new();
-    for rule in &file.rules {
-        if rule.name.is_empty() {
-            return Err("capability rule: empty `name`".to_string());
-        }
-        if !seen_names.insert(rule.name.clone()) {
-            return Err(format!("duplicate capability rule name: {:?}", rule.name));
-        }
-
-        for p in &rule.scope.providers {
-            if !known_provider_ids.contains(&p.to_ascii_lowercase()) {
-                return Err(format!(
-                    "rule {:?}: scope.providers entry {p:?} is not a canonical \
-                     provider id declared in llm-providers.toml",
-                    rule.name
-                ));
-            }
-        }
-        if let Some(d) = rule.scope.api_dialect.as_deref() {
-            validate_api_dialect(d, &format!("rule {:?}", rule.name))?;
-            if !declared_dialects.contains(&d.to_ascii_lowercase()) {
-                return Err(format!(
-                    "rule {:?}: scope.api_dialect {d:?} is valid but no provider \
-                     declares it in llm-providers.toml — either remove the scope \
-                     or add the dialect to a provider",
-                    rule.name
-                ));
-            }
-        }
-
-        validate_match(&rule.match_, &rule.name)?;
-        validate_caps_patch(&rule.caps, &format!("rule {:?}", rule.name))?;
-    }
-
-    Ok(ParsedCapabilities {
-        defaults: file.defaults,
-        rules: file.rules,
-    })
-}
-
-fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), String> {
-    if let Some(t) = patch.token_limit_param.as_deref() {
-        match t {
-            "max-tokens" | "max-completion-tokens" | "max-output-tokens" => {}
-            _ => {
-                return Err(format!(
-                    "{where_}: unknown token_limit_param {t:?} — must be \
-                     max-tokens / max-completion-tokens / max-output-tokens"
-                ));
-            }
-        }
-    }
-    // Rule-scoped caps must set at least one field; an all-None caps block
-    // matches the rule but merges nothing, silently shadowing every later
-    // rule for the same (provider, model) pair. `[defaults]` is allowed to
-    // be all-None (would fall back to ModelCapabilities::default()), so skip
-    // the check for the defaults block.
-    if where_.starts_with("rule ") {
-        let all_none = patch.token_limit_param.is_none()
-            && patch.supports_temperature.is_none()
-            && patch.supports_stop_sequences.is_none()
-            && patch.reasoning.is_none()
-            && patch.supports_vision.is_none();
-        if all_none {
-            return Err(format!(
-                "{where_}: all caps fields are None — an empty-caps rule \
-                 matches and then shadows every later rule. Either add at \
-                 least one Some field, or delete the rule."
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn validate_match(m: &MatchEntry, rule_name: &str) -> Result<(), String> {
-    match m {
-        MatchEntry::Any => Ok(()),
-        MatchEntry::Exact { model } => {
-            if model.is_empty() {
-                return Err(format!(
-                    "rule {rule_name:?}: match.model must not be empty"
-                ));
-            }
-            Ok(())
-        }
-        MatchEntry::ExactAny { models } => {
-            if models.is_empty() {
-                return Err(format!(
-                    "rule {rule_name:?}: match.models must not be empty — use \
-                     kind = \"any\" for match-all rules"
-                ));
-            }
-            for m in models {
-                if m.is_empty() {
-                    return Err(format!(
-                        "rule {rule_name:?}: match.models contains an empty string"
-                    ));
-                }
-            }
-            Ok(())
-        }
-        MatchEntry::PrefixAny { prefixes } => {
-            if prefixes.is_empty() {
-                return Err(format!(
-                    "rule {rule_name:?}: match.prefixes must not be empty — use \
-                     kind = \"any\" for match-all rules"
-                ));
-            }
-            for p in prefixes {
-                if p.is_empty() {
-                    return Err(format!(
-                        "rule {rule_name:?}: match.prefixes contains an empty \
-                         prefix — every model would match (did you mean kind = \"any\"?)"
-                    ));
-                }
-            }
-            Ok(())
-        }
-    }
-}
-
-fn token_limit_variant(s: &str) -> &'static str {
-    match s {
-        "max-tokens" => "MaxTokens",
-        "max-completion-tokens" => "MaxCompletionTokens",
-        "max-output-tokens" => "MaxOutputTokens",
-        _ => unreachable!("validated earlier: token_limit_param={s}"),
-    }
-}
-
-fn generate_capabilities_rs(caps: &ParsedCapabilities) -> String {
-    use std::fmt::Write as _;
-
-    let mut out = String::with_capacity(4_096);
-    writeln!(
-        out,
-        "// GENERATED by build.rs from data/model-capabilities.toml. DO NOT EDIT."
-    )
-    .unwrap();
-    writeln!(out).unwrap();
-
-    writeln!(
-        out,
-        "pub(crate) static CAPABILITY_DEFAULTS: crate::types::capabilities::CapPatch = {};",
-        emit_cap_patch(&caps.defaults)
-    )
-    .unwrap();
-    writeln!(out).unwrap();
-
-    writeln!(
-        out,
-        "pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::Rule] = &["
-    )
-    .unwrap();
-    for rule in &caps.rules {
-        emit_rule(&mut out, rule);
-    }
-    writeln!(out, "];").unwrap();
-
-    out
-}
-
-fn emit_cap_patch(p: &CapsPatchEntry) -> String {
-    use std::fmt::Write as _;
-
-    let mut out = String::with_capacity(256);
-    out.push_str("crate::types::capabilities::CapPatch {\n");
-    writeln!(
-        out,
-        "    token_limit_param: {},",
-        match p.token_limit_param.as_deref() {
-            Some(t) => format!(
-                "Some(crate::types::TokenLimitParam::{})",
-                token_limit_variant(t)
-            ),
-            None => "None".to_string(),
-        }
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "    supports_temperature: {},",
-        opt_bool(p.supports_temperature)
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "    supports_stop_sequences: {},",
-        opt_bool(p.supports_stop_sequences)
-    )
-    .unwrap();
-    writeln!(out, "    reasoning: {},", opt_bool(p.reasoning)).unwrap();
-    writeln!(
-        out,
-        "    supports_vision: {},",
-        opt_bool(p.supports_vision)
-    )
-    .unwrap();
-    out.push('}');
-    out
-}
-
-fn opt_bool(b: Option<bool>) -> String {
-    match b {
-        Some(v) => format!("Some({v})"),
-        None => "None".to_string(),
-    }
-}
-
-fn emit_rule(out: &mut String, rule: &RuleEntry) {
-    use std::fmt::Write as _;
-
-    // The TOML `name` is only retained at build time (uniqueness check);
-    // not emitted into the runtime struct to avoid a dead field.
-    writeln!(out, "    // rule {:?}", rule.name).unwrap();
-    writeln!(out, "    crate::types::capabilities::Rule {{").unwrap();
-    writeln!(
-        out,
-        "        providers: {},",
-        str_slice_expr(&rule.scope.providers)
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "        api_dialect: {},",
-        opt_rstr(rule.scope.api_dialect.as_deref())
-    )
-    .unwrap();
-    writeln!(out, "        matcher: {},", emit_matcher(&rule.match_)).unwrap();
-    // Indent the nested CapPatch literal by 8 spaces for readability.
-    let caps_literal = emit_cap_patch(&rule.caps);
-    let indented = caps_literal
-        .lines()
-        .enumerate()
-        .map(|(i, line)| if i == 0 { line.to_string() } else { format!("        {line}") })
-        .collect::<Vec<_>>()
-        .join("\n");
-    writeln!(out, "        caps: {indented},").unwrap();
-    writeln!(out, "    }},").unwrap();
-}
-
-fn emit_matcher(m: &MatchEntry) -> String {
-    match m {
-        MatchEntry::Any => "crate::types::capabilities::Matcher::Any".to_string(),
-        MatchEntry::Exact { model } => format!(
-            "crate::types::capabilities::Matcher::Exact({})",
-            rstr(model)
-        ),
-        MatchEntry::ExactAny { models } => format!(
-            "crate::types::capabilities::Matcher::ExactAny({})",
-            str_slice_expr(models)
-        ),
-        MatchEntry::PrefixAny { prefixes } => format!(
-            "crate::types::capabilities::Matcher::PrefixAny({})",
-            str_slice_expr(prefixes)
-        ),
-    }
-}
-
 // ─── String helpers ──────────────────────────────────────────────────────
 
 /// Rust-escape a string into a double-quoted source literal.
@@ -1575,7 +1238,7 @@ fn emit_matcher(m: &MatchEntry) -> String {
 /// than a hand-rolled match ladder. Double-quote is the only char
 /// `escape_debug` leaves unescaped that Rust string syntax requires
 /// escaped, so we handle it explicitly.
-fn rstr(s: &str) -> String {
+pub(crate) fn rstr(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
@@ -1593,7 +1256,7 @@ fn rstr(s: &str) -> String {
     out
 }
 
-fn opt_rstr(s: Option<&str>) -> String {
+pub(crate) fn opt_rstr(s: Option<&str>) -> String {
     match s {
         Some(v) => format!("Some({})", rstr(v)),
         None => "None".to_string(),

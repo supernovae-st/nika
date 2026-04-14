@@ -543,10 +543,28 @@ mod parity_tests {
     //! The migration must be behaviour-preserving: a misplaced rule, missed
     //! alias, or wrong ordering would silently corrupt `token_limit_param`
     //! for every provider call. Proptest explores the edge-case space with
-    //! 10 000 randomised inputs + 17 explicit spot-checks on aliases.
+    //! 10 000 randomised inputs + 26 explicit spot-checks on aliases.
     //!
     //! The `reasoning` field name below reflects the Session 2a rename
     //! (`supports_thinking` → `reasoning`). Legacy *semantics* are unchanged.
+    //!
+    //! # 🗑️ Exit plan — DELETE at v0.90 tag (or Session 2b completion)
+    //!
+    //! This entire module is a **one-way bridge** from legacy to the new
+    //! resolver. Once Session 2b extends [`ModelCapabilities`] with
+    //! modalities + tokenizer + `supported_parameters`, the legacy body no
+    //! longer represents full correctness — it only covers the 5 fields
+    //! that existed at HEAD `1a29bd32f`. At that point:
+    //!
+    //!   1. delete `legacy_model_capabilities` + `is_o_series` + `is_gpt5`;
+    //!   2. delete the proptest `capability_parity_across_any_input`;
+    //!   3. KEEP `parity_spot_checks` (rename to `spot_checks`) and
+    //!      `snapshot_capabilities_for_representative_models` — both keep
+    //!      value as oracle tests even without the legacy oracle.
+    //!
+    //! The existence of `.to_lowercase()` in this module (lines below) is
+    //! the signal: once legacy is gone, zero `.to_lowercase()` remains in
+    //! `src/` full-stop (today: two, inside this gated harness).
 
     use super::{model_capabilities, ModelCapabilities};
     use crate::types::model::TokenLimitParam;
@@ -632,10 +650,20 @@ mod parity_tests {
         /// Byte-for-byte parity across 10 000 randomised `(provider, model)`
         /// pairs. A single divergence fails the build; proptest shrinks to
         /// the minimal offending pair for the failure message.
+        ///
+        /// Regex coverage (widened in the Session 2a hardening pass):
+        ///   * provider `[a-zA-Z]{0,20}` — includes empty, uppercase, mixed
+        ///     case. Exercises the canonicalisation path on the provider axis
+        ///     (legacy did `.to_lowercase()` on `prov`; new does
+        ///     `eq_ignore_ascii_case` — both must agree on non-lowercase input).
+        ///   * model `[a-zA-Z0-9._/-]{1,80}` — includes `/` (v0.74 slash
+        ///     routing syntax `groq/llama-3.3-70b`), `_` (Hugging Face style
+        ///     `Qwen2_5`), uppercase, and lengths up to 80 (legacy regex
+        ///     capped at 40 — too short for `Qwen/Qwen3-235B-A22B-Thinking-2507`).
         #[test]
         fn capability_parity_across_any_input(
-            provider in "[a-z][a-z0-9-]{0,15}",
-            model in "[a-zA-Z0-9.-]{1,40}",
+            provider in "[a-zA-Z]{0,20}",
+            model in "[a-zA-Z0-9._/-]{1,80}",
         ) {
             let new_caps = model_capabilities(&provider, &model);
             let legacy_caps = legacy_model_capabilities(&provider, &model);
@@ -726,6 +754,16 @@ mod parity_tests {
             ("xai", "grok-4"),
             ("grok", "grok-4"),
             ("unknown", "unknown-model"),
+            // Hardening pass — shapes the widened proptest regex CAN reach.
+            ("", ""),                             // both empty
+            ("", "o3"),                           // empty provider (runtime null-binding edge)
+            ("OPENAI", "o3"),                     // uppercase canonical
+            ("OpEnAi", "gpt-5"),                  // mixed-case canonical
+            ("openai", "groq/llama-3.3-70b"),     // slash routing syntax (v0.74)
+            ("native", "Qwen/Qwen3-8B"),          // HF-style slash path
+            ("native", "Qwen2_5"),                // underscore (HF naming)
+            ("openai", "O3"),                     // uppercase model
+            ("openai", "O1-Preview"),             // mixed-case family
         ] {
             assert_eq!(
                 model_capabilities(case.0, case.1),
