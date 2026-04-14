@@ -111,11 +111,22 @@ mod tests {
                         "{:?}: env_var name diverged",
                         legacy.name,
                     );
-                    assert_eq!(
-                        new_env.key_prefix, legacy.key_prefix,
-                        "{:?}: key_prefix diverged",
-                        legacy.name,
-                    );
+                    // Legacy had a single `key_prefix: Option<&str>`; the
+                    // new spec uses `key_prefixes: &[&str]`. Parity means:
+                    // legacy None ↔ empty slice; legacy Some(p) ↔ slice
+                    // where p is the first element.
+                    match (legacy.key_prefix, new_env.key_prefixes.first().copied()) {
+                        (None, None) => {}
+                        (Some(lp), Some(np)) => assert_eq!(
+                            lp, np,
+                            "{:?}: key_prefix first-element diverged",
+                            legacy.name,
+                        ),
+                        (leg, new) => panic!(
+                            "{:?}: key_prefix parity mismatch legacy={leg:?} new={new:?}",
+                            legacy.name,
+                        ),
+                    }
                 }
                 (Some(leg_env), None) => {
                     panic!(
@@ -230,11 +241,23 @@ mod tests {
                 "{:?}: env_var diverged",
                 legacy.id,
             );
-            assert_eq!(
-                migrated.key_prefix, legacy.key_prefix,
-                "{:?}: key_prefix diverged",
-                legacy.id,
-            );
+            // Legacy `key_prefix: Option<&str>` ↔ new `key_prefixes: &[&str]`.
+            // Parity rule: every legacy prefix must still be accepted by v3;
+            // v3 may have added more (OpenAI gains sk-proj-).
+            match legacy.key_prefix {
+                None => assert!(
+                    migrated.key_prefixes.is_empty(),
+                    "{:?}: legacy had no prefix but v3 has {:?}",
+                    legacy.id,
+                    migrated.key_prefixes,
+                ),
+                Some(lp) => assert!(
+                    migrated.key_prefixes.contains(&lp),
+                    "{:?}: legacy key_prefix {lp:?} not in new key_prefixes {:?}",
+                    legacy.id,
+                    migrated.key_prefixes,
+                ),
+            }
             assert_eq!(
                 migrated.default_model, legacy.default_model,
                 "{:?}: default_model diverged",

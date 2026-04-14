@@ -77,8 +77,12 @@ pub enum PyRunner {
 /// `runner` is only meaningful when `registry_type == RegistryType::Pypi`
 /// (build.rs enforces this invariant).
 ///
-/// Serde is intentionally omitted — the type is populated by `build.rs`
-/// from TOML, not round-tripped at runtime.
+/// `Serialize` is implemented for diagnostics (`serde_json::to_string` on
+/// the whole catalog, CLI `nika mcp show --json`). `Deserialize` is
+/// intentionally omitted — the type is populated by `build.rs` from TOML,
+/// not round-tripped at runtime (`&'static [T]` can't come from a
+/// deserializer without leaking).
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct McpPackage {
@@ -100,6 +104,7 @@ pub struct McpPackage {
 /// A remote MCP endpoint (no local install).
 ///
 /// Corresponds to a single entry in the registry's `remotes[]` array.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct McpRemote {
@@ -115,13 +120,18 @@ pub struct McpRemote {
 ///
 /// Lives at the server level (not inside [`McpPackage`]) because the same set
 /// of env vars usually applies to every package/remote of a server.
+///
+/// `key_prefixes` is a slice so services with disjunctive prefix rules can
+/// describe all of them (e.g. `OpenAI` accepts both `sk-proj-` and `sk-`). An
+/// empty slice means "no prefix constraint".
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct EnvVarSpec {
     /// Variable name (e.g. `"QDRANT_URL"`).
     pub name: &'static str,
-    /// Expected key prefix for format validation (e.g. `Some("sk-")`).
-    pub key_prefix: Option<&'static str>,
+    /// Accepted key prefixes for format validation. Empty = no constraint.
+    pub key_prefixes: &'static [&'static str],
     /// Whether the variable must be set for the server to work.
     pub required: bool,
     /// Whether the variable holds a secret (redacted in logs / diagnostics).
@@ -185,15 +195,43 @@ mod tests {
     }
 
     #[test]
-    fn env_var_spec_with_prefix() {
+    fn env_var_spec_with_prefixes() {
+        const PREFIXES: &[&str] = &["sk-ant-"];
         let spec = EnvVarSpec {
             name: "ANTHROPIC_API_KEY",
-            key_prefix: Some("sk-ant-"),
+            key_prefixes: PREFIXES,
             required: true,
             is_secret: true,
             description: "Anthropic API key",
         };
-        assert_eq!(spec.key_prefix, Some("sk-ant-"));
+        assert_eq!(spec.key_prefixes, &["sk-ant-"]);
         assert!(spec.required && spec.is_secret);
+    }
+
+    #[test]
+    fn env_var_spec_with_disjunctive_prefixes() {
+        // OpenAI: historically both sk-proj- (project keys) and sk- (user keys).
+        const PREFIXES: &[&str] = &["sk-proj-", "sk-"];
+        let spec = EnvVarSpec {
+            name: "OPENAI_API_KEY",
+            key_prefixes: PREFIXES,
+            required: true,
+            is_secret: true,
+            description: "OpenAI API key",
+        };
+        assert_eq!(spec.key_prefixes.len(), 2);
+    }
+
+    #[test]
+    fn env_var_spec_without_prefix_has_empty_slice() {
+        const NONE: &[&str] = &[];
+        let spec = EnvVarSpec {
+            name: "PATH",
+            key_prefixes: NONE,
+            required: false,
+            is_secret: false,
+            description: "filesystem path",
+        };
+        assert!(spec.key_prefixes.is_empty());
     }
 }

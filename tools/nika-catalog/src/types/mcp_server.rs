@@ -18,6 +18,7 @@ use super::{Category, EnvVarSpec, McpPackage, McpPricing, McpRemote};
 /// Generated into `$OUT_DIR/mcp_servers.rs` by the crate's `build.rs`
 /// from `data/mcp-servers.toml`. All fields are `&'static` — every entry is
 /// embedded in the binary at compile time.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct McpServer {

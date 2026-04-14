@@ -110,7 +110,7 @@ struct RemoteEntry {
 struct EnvVarEntry {
     name: String,
     #[serde(default)]
-    key_prefix: Option<String>,
+    key_prefixes: Vec<String>,
     required: bool,
     #[serde(default)]
     is_secret: bool,
@@ -142,7 +142,7 @@ struct ProviderEntry {
     aliases: Vec<String>,
     env_var: String,
     #[serde(default)]
-    key_prefix: Option<String>,
+    key_prefixes: Vec<String>,
     default_model: String,
     cheap_model: String,
     requires_key: bool,
@@ -532,13 +532,29 @@ fn write_env_vars(out: &mut String, env: &[EnvVarEntry]) {
     for e in env {
         writeln!(out, "            crate::types::EnvVarSpec {{").unwrap();
         writeln!(out, "                name: {},", rstr(&e.name)).unwrap();
-        writeln!(out, "                key_prefix: {},", opt_rstr(e.key_prefix.as_deref())).unwrap();
+        writeln!(out, "                key_prefixes: {},", str_slice_expr(&e.key_prefixes)).unwrap();
         writeln!(out, "                required: {},", e.required).unwrap();
         writeln!(out, "                is_secret: {},", e.is_secret).unwrap();
         writeln!(out, "                description: {},", rstr(&e.description)).unwrap();
         writeln!(out, "            }},").unwrap();
     }
     writeln!(out, "        ],").unwrap();
+}
+
+/// Emit a `&[&str]` expression suitable for a `const`/`static` context.
+fn str_slice_expr(xs: &[String]) -> String {
+    if xs.is_empty() {
+        return "&[]".to_string();
+    }
+    let mut out = String::from("&[");
+    for (i, s) in xs.iter().enumerate() {
+        if i > 0 {
+            out.push_str(", ");
+        }
+        out.push_str(&rstr(s));
+    }
+    out.push(']');
+    out
 }
 
 // ─── Variant mapping ─────────────────────────────────────────────────────
@@ -758,7 +774,7 @@ fn emit_provider(out: &mut String, p: &ProviderEntry) {
     writeln!(out, "        name: {},", rstr(&p.name)).unwrap();
     write_str_slice(out, "aliases", &p.aliases, 8);
     writeln!(out, "        env_var: {},", rstr(&p.env_var)).unwrap();
-    writeln!(out, "        key_prefix: {},", opt_rstr(p.key_prefix.as_deref())).unwrap();
+    writeln!(out, "        key_prefixes: {},", str_slice_expr(&p.key_prefixes)).unwrap();
     writeln!(out, "        default_model: {},", rstr(&p.default_model)).unwrap();
     writeln!(out, "        cheap_model: {},", rstr(&p.cheap_model)).unwrap();
     writeln!(out, "        requires_key: {},", p.requires_key).unwrap();

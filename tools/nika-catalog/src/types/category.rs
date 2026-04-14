@@ -79,14 +79,40 @@ impl Category {
     }
 
     /// Parse a kebab-case category identifier. Returns `None` for unknown
-    /// strings rather than panicking — callers (notably `build.rs`) decide
-    /// whether "unknown" is fatal.
-    ///
-    /// Named `parse` rather than `from_str` to avoid collision with the
-    /// [`std::str::FromStr`] trait (which requires a `Result` return type).
+    /// strings — callers (notably `build.rs`) decide whether "unknown" is
+    /// fatal. Thin `Option` wrapper over the [`std::str::FromStr`] impl
+    /// below; use whichever fits the call site.
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
-        Some(match s {
+        <Self as core::str::FromStr>::from_str(s).ok()
+    }
+}
+
+/// Error returned when parsing a [`Category`] from a string fails.
+///
+/// Carries the offending input as an owned `String` so callers can quote
+/// it back in diagnostics (including `?`-propagated error chains from
+/// external tooling that iterates TOML files).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ParseCategoryError {
+    /// The input that failed to parse.
+    pub input: String,
+}
+
+impl core::fmt::Display for ParseCategoryError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "unknown category {:?}", self.input)
+    }
+}
+
+impl std::error::Error for ParseCategoryError {}
+
+impl core::str::FromStr for Category {
+    type Err = ParseCategoryError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
             "anthropic" => Self::Anthropic,
             "databases" => Self::Databases,
             "search" => Self::Search,
@@ -105,7 +131,11 @@ impl Category {
             "lifestyle" => Self::Lifestyle,
             "marketing" => Self::Marketing,
             "maps" => Self::Maps,
-            _ => return None,
+            _ => {
+                return Err(ParseCategoryError {
+                    input: s.to_owned(),
+                });
+            }
         })
     }
 }

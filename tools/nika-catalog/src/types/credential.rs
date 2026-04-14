@@ -18,7 +18,7 @@
 /// Intentionally narrow — the goal is de-duplication across Provider and
 /// `McpServer`. Richer per-context metadata (required, secret, description)
 /// stays on [`super::EnvVarSpec`] at the call site.
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Credential {

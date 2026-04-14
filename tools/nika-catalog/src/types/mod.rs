@@ -15,7 +15,7 @@ pub mod provider_v3;
 pub mod transform;
 
 pub use builtin::{Builtin, BuiltinCategory};
-pub use category::Category;
+pub use category::{Category, ParseCategoryError};
 pub use credential::Credential;
 pub use distribution::{AuthMode, EnvVarSpec, McpPackage, McpRemote, PyRunner, RegistryType, Transport};
 pub use mcp_alias::{McpAlias, McpPricing};

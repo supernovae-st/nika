@@ -18,6 +18,7 @@
 /// `id` is the short nickname used by workflows (`provider: anthropic,
 /// model: sonnet`). `model` is the wire-level identifier sent to the
 /// provider's API (`claude-sonnet-4-5-20250929`).
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ProviderModel {
@@ -36,6 +37,7 @@ pub struct ProviderModel {
 /// Generated into `$OUT_DIR/providers.rs` by the crate's `build.rs`
 /// from `data/llm-providers.toml`. All fields are `&'static` — every
 /// entry is embedded in the binary at compile time.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ProviderDef {
@@ -47,8 +49,9 @@ pub struct ProviderDef {
     pub aliases: &'static [&'static str],
     /// Environment variable for the API key (e.g. `"ANTHROPIC_API_KEY"`).
     pub env_var: &'static str,
-    /// Expected key prefix for format validation (e.g. `Some("sk-ant-")`).
-    pub key_prefix: Option<&'static str>,
+    /// Accepted key prefixes for format validation. Empty = no constraint.
+    /// Multi-prefix supports providers like `OpenAI` (`sk-proj-` OR `sk-`).
+    pub key_prefixes: &'static [&'static str],
     /// Default model nickname to use when the caller does not specify one.
     pub default_model: &'static str,
     /// Cheap / fast model nickname for repair passes and cost-sensitive tasks.
@@ -79,12 +82,13 @@ mod tests {
             context_window_tokens: 200_000,
             max_output_tokens: 8_192,
         }];
+        const PREFIXES: &[&str] = &["sk-ant-"];
         let p = ProviderDef {
             id: "anthropic",
             name: "Anthropic Claude",
             aliases: &["claude"],
             env_var: "ANTHROPIC_API_KEY",
-            key_prefix: Some("sk-ant-"),
+            key_prefixes: PREFIXES,
             default_model: "sonnet",
             cheap_model: "haiku",
             requires_key: true,
