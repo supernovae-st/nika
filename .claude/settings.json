@@ -49,7 +49,11 @@
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then echo '🆕 Crate admission detected. Running hygiene dashboard...' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission detected.\\n  → Update MEMORY.md Quick State (HEAD + count + LOC)\\n  → Update docs/mintlify/reference/status.mdx (admitted table)\\n  → Update docs/mintlify/reference/constellation.mdx (numbers)\\n  → Update ROADMAP.md if phase milestone hit\\n  → Tag: git tag v0.90.0-alpha.N\\n  → Run hygiene dashboard\\n' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; fi"
+          },
+          {
+            "type": "command",
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git push' && ! echo \"$CMD\" | grep -qE '(--force|-f)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — update MEMORY.md Quick State if this session ends.\" >&2; fi"
           }
         ]
       },
