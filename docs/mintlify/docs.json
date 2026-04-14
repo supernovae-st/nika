@@ -30,7 +30,7 @@
     "suggestEdit": true,
     "raiseIssue": true
   },
-  "search": { "prompt": "Search the chrysalis…" },
+  "search": { "prompt": "Search Nika docs…" },
   "metadata": {
     "og:image": "https://docs.nika.sh/images/og-default.png",
     "og:type": "website",
@@ -96,7 +96,7 @@
           {
             "group": "Concepts",
             "pages": [
-              "concepts/the-organism",
+              "concepts/architecture",
               "concepts/verbs",
               "concepts/workflows",
               "concepts/bindings",
@@ -117,6 +117,7 @@
           {
             "group": "Reference",
             "pages": [
+              "reference/constellation",
               "reference/crates",
               "reference/cli",
               "reference/yaml-syntax",

@@ -103,10 +103,10 @@ Replay respects `checkpoint` events — restart mid-workflow.
 {"ts":"T+00:00:00.00","kind":"workflow_start","workflow":"hello","run_id":"r_01JF9..."}
 {"ts":"T+00:00:00.01","kind":"task_start","task":"greet","verb":"infer"}
 {"ts":"T+00:00:00.02","kind":"infer_request","task":"greet","provider":"anthropic","model":"claude-opus-4-6"}
-{"ts":"T+00:00:00.45","kind":"infer_chunk","task":"greet","delta":"Welcome"}
-{"ts":"T+00:00:00.51","kind":"infer_chunk","task":"greet","delta":" inside"}
-{"ts":"T+00:00:00.57","kind":"infer_chunk","task":"greet","delta":" the"}
-{"ts":"T+00:00:00.62","kind":"infer_chunk","task":"greet","delta":" chrysalis."}
+{"ts":"T+00:00:00.45","kind":"infer_chunk","task":"greet","delta":"Rust"}
+{"ts":"T+00:00:00.51","kind":"infer_chunk","task":"greet","delta":" is"}
+{"ts":"T+00:00:00.57","kind":"infer_chunk","task":"greet","delta":" a"}
+{"ts":"T+00:00:00.62","kind":"infer_chunk","task":"greet","delta":" systems language."}
 {"ts":"T+00:00:01.42","kind":"task_complete","task":"greet","status":"ok","duration_ms":1415}
 {"ts":"T+00:00:01.43","kind":"workflow_complete","status":"ok","run_id":"r_01JF9..."}
 ```

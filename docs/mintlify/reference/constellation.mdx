@@ -1,0 +1,195 @@
+---
+title: "Crate constellation"
+description: "Visual map of all ~40 crates in Nika Diamond. Layers, dependencies, admission status."
+sidebarTitle: "Constellation"
+icon: "diagram-project"
+---
+
+Nika Diamond is a ~40-crate Rust workspace built layer by layer.
+Each crate is admitted through [12 gates](/concepts/architecture#build-model) before joining the workspace.
+This page tracks the full constellation — admitted, in-progress, and planned.
+
+<Note>
+  **Current status (April 2026):** 5 of 40 crates admitted.
+  10,434 LOC · 369 tests · 0 `.unwrap()` in `src/` · 0 clippy warnings.
+  See [CHANGELOG](https://nika.sh/changelog) for weekly progress.
+</Note>
+
+## Full dependency graph
+
+```mermaid
+flowchart TD
+    classDef admitted fill:#22c55e,color:#000,stroke:#16a34a,font-weight:bold
+    classDef planned fill:#1f2937,color:#6b7280,stroke:#374151
+    classDef binary fill:#f59e0b,color:#000,stroke:#d97706,font-weight:bold
+
+    subgraph L5["L5 · Binary"]
+        NKB["nika"]:::binary
+    end
+
+    subgraph L4["L4 · Interfaces"]
+        CLI["nika-cli"]:::planned
+        SERVE["nika-serve"]:::planned
+        LSP["nika-lsp"]:::planned
+        INIT["nika-init"]:::planned
+        LINTS["nika-lints"]:::planned
+        CV["nika-catalog-verify ✅"]:::admitted
+    end
+
+    subgraph L3["L3 · Orchestration"]
+        RT["nika-runtime"]:::planned
+        DM["nika-daemon"]:::planned
+    end
+
+    subgraph L2["L2 · Domain"]
+        VE["nika-verb-exec"]:::planned
+        VF["nika-verb-fetch"]:::planned
+        VI["nika-verb-invoke"]:::planned
+        VN["nika-verb-infer"]:::planned
+        VA["nika-verb-agent"]:::planned
+        PR["nika-provider-rig"]:::planned
+        PN["nika-provider-native"]:::planned
+        PM["nika-provider-mock"]:::planned
+    end
+
+    subgraph L1["L1 · Effects"]
+        FS["nika-fs"]:::planned
+        HTTP["nika-http"]:::planned
+        PROC["nika-process"]:::planned
+        BLOB["nika-blob"]:::planned
+        CLK["nika-clock"]:::planned
+        CRY["nika-crypto"]:::planned
+        EVT["nika-event"]:::planned
+    end
+
+    subgraph L05["L0.5 · Kernel"]
+        KN["nika-kernel ✅"]:::admitted
+        KM["nika-kernel-mock ✅"]:::admitted
+    end
+
+    subgraph L0["L0 · Foundations"]
+        ERR["nika-error ✅"]:::admitted
+        CAT["nika-catalog ✅"]:::admitted
+        SCH["nika-schema"]:::planned
+        BND["nika-binding"]:::planned
+    end
+
+    NKB --> CLI
+    NKB --> SERVE
+    NKB --> LSP
+
+    CLI --> RT
+    SERVE --> RT
+    LSP --> SCH
+    CV --> CAT
+
+    RT --> VE
+    RT --> VF
+    RT --> VI
+    RT --> VN
+    RT --> VA
+    DM --> RT
+
+    VN --> PR
+    VN --> PN
+    VN --> PM
+    VE --> PROC
+    VF --> HTTP
+    VF --> FS
+    VI --> EVT
+
+    PR --> KN
+    PN --> KN
+    PM --> KN
+    PROC --> KN
+    HTTP --> KN
+    FS --> KN
+    BLOB --> KN
+    CLK --> KN
+    CRY --> KN
+    EVT --> KN
+
+    KN --> ERR
+    KN --> CAT
+    KM --> KN
+    SCH --> ERR
+    BND --> SCH
+    CAT --> ERR
+```
+
+<small>**Green** = admitted (all 12 gates passed) · **Gray** = planned · **Amber** = binary composition root</small>
+
+## Admitted crates (5 / ~40)
+
+| Crate | Layer | LOC | Tests | Gate |
+|---|---|---|---|---|
+| **nika-error** | L0 | 1,013 | 44 | ✅ All 12 |
+| **nika-catalog** | L0 | 3,741 | 138 | ✅ All 12 |
+| **nika-catalog-verify** | L4 | 600 | 9 | ✅ All 12 |
+| **nika-kernel** | L0.5 | 3,375 | 99 | ✅ All 12 |
+| **nika-kernel-mock** | L0.5 | 1,705 | 88 | ✅ All 12 |
+
+**Total admitted:** 10,434 LOC · 369 tests · 100% mutation tested
+
+## Next to build
+
+| Crate | Layer | Est. LOC | Priority |
+|---|---|---|---|
+| **nika-schema** | L0 | ~12,000 | Phase 1 — next |
+| **nika-binding** | L0 | ~8,000 | Phase 1 |
+| **nika-event** | L1 | ~3,000 | Phase 2 |
+| **nika-fs** | L1 | ~2,000 | Phase 2 |
+| **nika-http** | L1 | ~2,500 | Phase 2 |
+| **nika-process** | L1 | ~2,000 | Phase 2 |
+
+## Phase roadmap
+
+```mermaid
+gantt
+    title Nika Diamond — Crate admission phases
+    dateFormat YYYY-MM
+    axisFormat %b %Y
+
+    section Phase 1 · Foundations
+    nika-error ✅          :done, 2026-03, 2026-03
+    nika-catalog ✅        :done, 2026-03, 2026-04
+    nika-kernel ✅         :done, 2026-04, 2026-04
+    nika-kernel-mock ✅    :done, 2026-04, 2026-04
+    nika-schema            :active, 2026-04, 2026-06
+    nika-binding           :2026-05, 2026-07
+
+    section Phase 2 · Effects
+    nika-event             :2026-06, 2026-07
+    nika-fs                :2026-07, 2026-08
+    nika-http              :2026-07, 2026-08
+    nika-process           :2026-08, 2026-09
+
+    section Phase 3 · Verbs
+    nika-verb-exec         :2026-08, 2026-10
+    nika-verb-infer        :2026-09, 2026-11
+    nika-provider-rig      :2026-09, 2026-11
+
+    section v0.90 target
+    All 40 crates          :milestone, 2027-03, 0d
+```
+
+## The 12 gates
+
+Every crate must pass all 12 gates in the same commit before being added to `Cargo.toml [workspace.members]`.
+
+| # | Gate | Tool |
+|---|---|---|
+| 1 | **SPEC** | `docs/crate-specs/nika-X.md` — purpose, layer, LOC budget, public API |
+| 2 | **TDD** | Tests written before implementation (RED → GREEN) |
+| 3 | **IMPL** | Compiles, tests pass, no `# TEMP` without removal plan |
+| 4 | **CLIPPY 0** | `cargo clippy --workspace --all-targets -- -D warnings` |
+| 5 | **MUTATION ≥ 90%** | `cargo mutants -p nika-X` |
+| 6 | **PROPERTY** | `proptest` for parsers, security-sensitive paths |
+| 7 | **BENCHMARKS** | `criterion` for hot paths |
+| 8 | **DOCS** | `cargo doc --no-deps` — 0 warnings, all pub items documented |
+| 9 | **CANARY E2E** | `tests/canary-X.nika.yaml` passes end-to-end |
+| 10 | **PARITY** | Golden test vs legacy output — no regression |
+| 11 | **REVIEW SWARM** | 3 parallel agents: architecture + Rust + feature |
+| 12 | **ATOMIC COMMIT** | 1 crate = 1 commit |
+
+No exceptions. Gate exemptions require a written justification in the crate spec.
