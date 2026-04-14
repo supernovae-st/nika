@@ -30,12 +30,56 @@ pub fn find_mcp_server(name: &str) -> Option<&'static crate::types::McpServer> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used)]
 mod tests {
     use super::*;
 
     #[test]
     fn all_servers_non_empty() {
         assert!(!ALL_MCP_SERVERS.is_empty());
+    }
+
+    #[test]
+    fn all_servers_count_105() {
+        // 102 migrated from src/data/mcp_aliases.rs (v2 npm) +
+        // 3 Phase A restorations: qdrant (pypi+uvx), intercom (remote+oauth),
+        // grafana (oci). Total = 105.
+        assert_eq!(ALL_MCP_SERVERS.len(), 105);
+    }
+
+    #[test]
+    fn parity_every_legacy_alias_migrated() {
+        use crate::data::mcp_aliases::ALL_MCP_ALIASES;
+        for legacy in ALL_MCP_ALIASES {
+            let migrated = find_mcp_server(legacy.name).unwrap_or_else(|| {
+                panic!("legacy alias {:?} not migrated to new catalog", legacy.name)
+            });
+            assert_eq!(migrated.id, legacy.name);
+            // Every legacy alias had an npm package; verify it survived.
+            let has_npm = migrated.packages.iter().any(|p| {
+                p.registry_type == crate::types::RegistryType::Npm && p.identifier == legacy.package
+            });
+            assert!(
+                has_npm,
+                "migrated {:?} missing npm package {:?}",
+                legacy.name, legacy.package,
+            );
+        }
+    }
+
+    #[test]
+    fn restored_entries_use_new_distributions() {
+        // Phase A restorations — exercise the new Distribution model end-to-end.
+        let qdrant = find_mcp_server("qdrant").expect("qdrant restored");
+        assert_eq!(qdrant.packages[0].registry_type, crate::types::RegistryType::Pypi);
+        assert_eq!(qdrant.packages[0].runner, Some(crate::types::PyRunner::Uvx));
+
+        let intercom = find_mcp_server("intercom").expect("intercom restored");
+        assert!(intercom.packages.is_empty());
+        assert_eq!(intercom.remotes[0].auth, crate::types::AuthMode::OAuth);
+
+        let grafana = find_mcp_server("grafana").expect("grafana restored");
+        assert_eq!(grafana.packages[0].registry_type, crate::types::RegistryType::Oci);
     }
 
     #[test]
