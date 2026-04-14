@@ -1,5 +1,5 @@
 {
-  "description": "Nika Diamond — evolving DX settings (WAVE 1 hardened 2026-04-14 + HQ dashboard wired 2026-04-14)",
+  "description": "Nika Diamond — evolving DX settings (WAVE 1 hardened 2026-04-14 + HQ dashboard wired 2026-04-14 + GitNexus auto-reindex+session-status 2026-04-15)",
 
   "hooks": {
     "PreToolUse": [
@@ -58,6 +58,10 @@
           {
             "type": "command",
             "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git push' && ! echo \"$CMD\" | grep -qE '(--force|-f)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — update MEMORY.md Quick State if this session ends.\" >&2; fi"
+          },
+          {
+            "type": "command",
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git (commit|merge|pull|rebase)\\b' && [ -d .gitnexus ]; then (npx gitnexus analyze >/dev/null 2>&1 &); fi"
           }
         ]
       },
@@ -86,6 +90,10 @@
           {
             "type": "command",
             "command": "STATE=$(curl -sf http://127.0.0.1:4242/api/state 2>/dev/null); if [ -n \"$STATE\" ]; then echo \"$STATE\" | jq -r '\"🎛️  HQ LIVE — \\(.short_head) · \\(.crates_admitted)/\\(.crates_target) crates · hygiene \\(.hygiene_green)/\\(.hygiene_total) GREEN · Phase \\(.phase) · \\(.session_current) \\(.session_status) · Shadow \\(.shadow_zones_resolved)/\\(.shadow_zones_total) resolved\"' 2>/dev/null || echo '🎛️  HQ LIVE (open http://localhost:4321)'; else echo '🎛️  HQ offline (start: cd ../hq/dashboard && pnpm dev)'; fi"
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && META=.gitnexus/meta.json; if [ -f \"$META\" ]; then IDX=$(jq -r '.lastCommit // \"?\"' \"$META\" 2>/dev/null); CUR=$(git log -1 --format=%H 2>/dev/null); if [ \"${IDX:0:7}\" = \"${CUR:0:7}\" ]; then echo \"🧭 GitNexus: ✓ up-to-date (${CUR:0:7})\"; else echo \"🧭 GitNexus: ⚠ stale (indexed=${IDX:0:7}, head=${CUR:0:7}) — auto-reindex will fire on next commit, or run: npx gitnexus analyze\"; fi; else echo '🧭 GitNexus: not initialized — run bash scripts/gitnexus.sh setup once'; fi"
           }
         ]
       }
