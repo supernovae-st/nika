@@ -70,3 +70,39 @@ jobs:
           log-level: warn
           command: check
           arguments: --all-features
+
+  hack:
+    name: cargo-hack (feature matrix)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.91"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: diamond
+      - uses: taiki-e/install-action@cargo-hack
+      - name: check feature powerset (no dev deps)
+        run: cargo hack --feature-powerset --no-dev-deps check --workspace
+
+  miri:
+    name: miri (L0 UB detection)
+    runs-on: ubuntu-latest
+    # Miri is nightly-only and slow. Runs against nika-error + nika-catalog
+    # (L0, pure, zero I/O). Not on kernel/kernel-mock (async + tokio not
+    # supported under miri) and not on catalog-verify (network I/O).
+    # Non-blocking (continue-on-error) until workspace-wide miri stabilises.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: diamond-miri
+      - name: miri test — nika-error + nika-catalog
+        env:
+          MIRIFLAGS: "-Zmiri-strict-provenance"
+        run: cargo miri test --lib -p nika-error -p nika-catalog

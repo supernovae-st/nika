@@ -37,7 +37,27 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards         = "deny"
-# deny = []   # populated in Phase 1
+
+# Layer-ban wrappers. Each [[deny]] entry scopes a crate to specific wrappers;
+# any other workspace member that consumes it fails `cargo deny check`.
+# Extend the `wrappers` list as L1+ effect crates (nika-http, nika-fs,
+# nika-runtime, nika-daemon, verb-*) join the workspace via 12-gate admission.
+
+[[bans.deny]]
+name     = "tokio"
+wrappers = [
+  "nika-catalog-verify",   # L4 binary: async HTTP for online catalog verification
+  "nika-kernel-mock",      # L0.5 test mock: tokio channels for trait harness
+]
+
+[[bans.deny]]
+name     = "reqwest"
+wrappers = []              # no admitted crate may use reqwest directly today
+                           # populate with ["nika-http"] when that crate admits
+
+[[bans.deny]]
+name     = "hyper"
+wrappers = []              # HTTP goes through the kernel HttpClient trait
 
 [advisories]
 version = 2
