@@ -10,6 +10,7 @@ pub mod embedding;
 pub mod mcp_server;
 pub mod model;
 pub mod provider;
+pub mod tags;
 pub mod transform;
 
 pub use builtin::{Builtin, BuiltinCategory};
@@ -19,4 +20,5 @@ pub use embedding::{Embedding, Similarity};
 pub use mcp_server::{McpPricing, McpServer};
 pub use model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLimitParam};
 pub use provider::{validate_key_format, Provider, ProviderModel};
+pub use tags::{ParseTagError, Tag};
 pub use transform::{NullBehavior, TransformArity, TransformCategory, TransformDef};
