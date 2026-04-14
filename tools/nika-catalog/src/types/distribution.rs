@@ -101,6 +101,27 @@ pub struct McpPackage {
     pub runner: Option<PyRunner>,
 }
 
+impl McpPackage {
+    /// Explicit constructor — required because [`McpPackage`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(
+        registry_type: RegistryType,
+        identifier: &'static str,
+        version: Option<&'static str>,
+        transport: Transport,
+        runner: Option<PyRunner>,
+    ) -> Self {
+        Self {
+            registry_type,
+            identifier,
+            version,
+            transport,
+            runner,
+        }
+    }
+}
+
 /// A remote MCP endpoint (no local install).
 ///
 /// Corresponds to a single entry in the registry's `remotes[]` array.
@@ -114,6 +135,19 @@ pub struct McpRemote {
     pub url: &'static str,
     /// Authentication mode required by the endpoint.
     pub auth: AuthMode,
+}
+
+impl McpRemote {
+    /// Explicit constructor — required because [`McpRemote`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(transport: Transport, url: &'static str, auth: AuthMode) -> Self {
+        Self {
+            transport,
+            url,
+            auth,
+        }
+    }
 }
 
 /// Declarative description of an environment variable consumed by an MCP server.
@@ -138,6 +172,27 @@ pub struct EnvVarSpec {
     pub is_secret: bool,
     /// Short human-readable description.
     pub description: &'static str,
+}
+
+impl EnvVarSpec {
+    /// Explicit constructor — required because [`EnvVarSpec`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(
+        name: &'static str,
+        key_prefixes: &'static [&'static str],
+        required: bool,
+        is_secret: bool,
+        description: &'static str,
+    ) -> Self {
+        Self {
+            name,
+            key_prefixes,
+            required,
+            is_secret,
+            description,
+        }
+    }
 }
 
 #[cfg(test)]

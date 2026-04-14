@@ -282,51 +282,30 @@ pub(super) fn generate_capabilities_rs(caps: &ParsedCapabilities) -> String {
     out
 }
 
-fn emit_cap_patch(p: &CapsPatchEntry) -> String {
+/// Emit a single `Option<T>` field line. Used by [`emit_cap_patch`] so new
+/// optional fields in Session 2b+ add one line instead of a 4-line
+/// `writeln!` block each.
+///
+/// `render_some` takes the inner `T` and returns its Rust literal
+/// (e.g. `"true"`, `"Some(\"foo\")"`, `"crate::types::Modality::Image"`).
+fn emit_opt<T: ?Sized>(out: &mut String, name: &str, value: Option<&T>, render_some: impl Fn(&T) -> String) {
     use std::fmt::Write as _;
-
-    let mut out = String::with_capacity(256);
-    out.push_str("crate::types::capabilities::CapPatch {\n");
-    writeln!(
-        out,
-        "    token_limit_param: {},",
-        match p.token_limit_param.as_deref() {
-            Some(t) => format!(
-                "Some(crate::types::TokenLimitParam::{})",
-                token_limit_variant(t)
-            ),
-            None => "None".to_string(),
-        }
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "    supports_temperature: {},",
-        opt_bool(p.supports_temperature)
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "    supports_stop_sequences: {},",
-        opt_bool(p.supports_stop_sequences)
-    )
-    .unwrap();
-    writeln!(out, "    reasoning: {},", opt_bool(p.reasoning)).unwrap();
-    writeln!(
-        out,
-        "    supports_vision: {},",
-        opt_bool(p.supports_vision)
-    )
-    .unwrap();
-    out.push('}');
-    out
+    let rendered = value.map_or_else(|| "None".to_string(), |v| format!("Some({})", render_some(v)));
+    writeln!(out, "    {name}: {rendered},").unwrap();
 }
 
-fn opt_bool(b: Option<bool>) -> String {
-    match b {
-        Some(v) => format!("Some({v})"),
-        None => "None".to_string(),
-    }
+fn emit_cap_patch(p: &CapsPatchEntry) -> String {
+    let mut out = String::with_capacity(256);
+    out.push_str("crate::types::capabilities::CapPatch {\n");
+    emit_opt(&mut out, "token_limit_param", p.token_limit_param.as_deref(), |t| {
+        format!("crate::types::TokenLimitParam::{}", token_limit_variant(t))
+    });
+    emit_opt(&mut out, "supports_temperature", p.supports_temperature.as_ref(), bool::to_string);
+    emit_opt(&mut out, "supports_stop_sequences", p.supports_stop_sequences.as_ref(), bool::to_string);
+    emit_opt(&mut out, "reasoning", p.reasoning.as_ref(), bool::to_string);
+    emit_opt(&mut out, "supports_vision", p.supports_vision.as_ref(), bool::to_string);
+    out.push('}');
+    out
 }
 
 fn emit_rule(out: &mut String, rule: &RuleEntry) {

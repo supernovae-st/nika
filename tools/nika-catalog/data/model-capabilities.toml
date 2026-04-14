@@ -29,6 +29,24 @@
 #   5. materialise into `ModelCapabilities`, filling any still-unset field
 #      from `defaults`
 #
+# ⚠ FIRST-MATCH-WINS RULE AUTHORING (Session 2b+):
+#
+# When Session 2b adds modalities / tokenizer / supported_parameters to
+# `ModelCapabilities`, it is TEMPTING to write rules that each set ONE
+# family of fields (e.g. one rule for modalities, another for
+# token_limit_param). This would be WRONG: because resolution `break`s on
+# the first match, only ONE rule fires per (provider, model) pair.
+#
+# Rule-authoring invariant: for every (provider, model) input, the SINGLE
+# matching rule must carry EVERY capability the input needs. If two
+# capability families have different scoping needs (e.g. reasoning is
+# model-specific but vision is provider-wide), either:
+#   (a) duplicate the common fields across both rules, OR
+#   (b) pre-compute the superset and collapse into one rule.
+#
+# The proptest parity test at `src/data/models.rs` catches regressions
+# across 10 000 random inputs — run it after any rule addition.
+#
 # Parity with legacy (HEAD 1a29bd32f):
 #   * The legacy body is an if-else-if cascade that returned early on match.
 #     Every rule below is sized so that first-match-wins + merge-into-defaults

@@ -38,10 +38,16 @@ pub fn validate_catalog_integrity() -> Vec<CatalogError> {
     errors
 }
 
-#[cfg_attr(
-    not(all(feature = "providers", feature = "mcp", feature = "pricing", feature = "builtins-transforms")),
-    allow(dead_code)
-)]
+// Gated on the same feature set as the only caller
+// (`validate_catalog_integrity`) so the function simply does not exist
+// under narrow configs — avoids the `allow(dead_code)` footgun flagged
+// by the diamond-discipline zero-dead-code rule.
+#[cfg(all(
+    feature = "providers",
+    feature = "mcp",
+    feature = "pricing",
+    feature = "builtins-transforms"
+))]
 fn validate_sorted<'a>(
     catalog: &'static str,
     names: impl Iterator<Item = &'a str>,
@@ -60,10 +66,12 @@ fn validate_sorted<'a>(
     }
 }
 
-#[cfg_attr(
-    not(all(feature = "providers", feature = "mcp", feature = "pricing", feature = "builtins-transforms")),
-    allow(dead_code)
-)]
+#[cfg(all(
+    feature = "providers",
+    feature = "mcp",
+    feature = "pricing",
+    feature = "builtins-transforms"
+))]
 fn validate_no_duplicates<'a>(
     catalog: &'static str,
     names: impl Iterator<Item = &'a str>,

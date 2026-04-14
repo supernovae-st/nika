@@ -60,8 +60,50 @@ pub struct McpServer {
     /// Every MCP server MUST carry `Tag::ReadOnly` XOR `Tag::Destructive`.
     /// Sorted + deduplicated (enforced by build.rs assertion).
     pub tags: &'static [crate::types::Tag],
-    /// Community / vendor-specific tags not in the core [`Tag`] enum.
+    /// Community / vendor-specific tags not in the core [`Tag`](crate::types::Tag) enum.
     pub extra_tags: &'static [&'static str],
+}
+
+impl McpServer {
+    /// Explicit constructor — required because [`McpServer`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    // REASON: 12 fields reflect the real MCP-registry wire surface
+    // (id + aliases + title + description + packages + remotes +
+    // env_vars + homepage + category + pricing + last_verified + tags).
+    // A builder would fragment one catalog row for zero readability win.
+    pub const fn new(
+        id: &'static str,
+        aliases: &'static [&'static str],
+        title: &'static str,
+        description: &'static str,
+        packages: &'static [McpPackage],
+        remotes: &'static [McpRemote],
+        env_vars: &'static [EnvVarSpec],
+        homepage: Option<&'static str>,
+        category: Category,
+        pricing: McpPricing,
+        last_verified: &'static str,
+        tags: &'static [crate::types::Tag],
+        extra_tags: &'static [&'static str],
+    ) -> Self {
+        Self {
+            id,
+            aliases,
+            title,
+            description,
+            packages,
+            remotes,
+            env_vars,
+            homepage,
+            category,
+            pricing,
+            last_verified,
+            tags,
+            extra_tags,
+        }
+    }
 }
 
 #[cfg(test)]

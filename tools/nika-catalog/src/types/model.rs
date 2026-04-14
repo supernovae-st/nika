@@ -136,6 +136,25 @@ pub struct ModelPricing {
     pub output_per_million: f64,
 }
 
+impl ModelPricing {
+    /// Explicit constructor — required because [`ModelPricing`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(
+        provider: &'static str,
+        model_pattern: &'static str,
+        input_per_million: f64,
+        output_per_million: f64,
+    ) -> Self {
+        Self {
+            provider,
+            model_pattern,
+            input_per_million,
+            output_per_million,
+        }
+    }
+}
+
 /// Cost estimate result.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -151,4 +170,25 @@ pub struct CostEstimate {
     pub model: String,
     /// Provider name.
     pub provider: String,
+}
+
+impl CostEstimate {
+    /// Explicit constructor — required because [`CostEstimate`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub fn new(
+        usd: f64,
+        input_rate_per_million: f64,
+        output_rate_per_million: f64,
+        model: String,
+        provider: String,
+    ) -> Self {
+        Self {
+            usd,
+            input_rate_per_million,
+            output_rate_per_million,
+            model,
+            provider,
+        }
+    }
 }

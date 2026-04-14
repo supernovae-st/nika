@@ -99,6 +99,15 @@ pub struct ParseCategoryError {
     pub input: String,
 }
 
+impl ParseCategoryError {
+    /// Explicit constructor — required because [`ParseCategoryError`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(input: String) -> Self {
+        Self { input }
+    }
+}
+
 impl core::fmt::Display for ParseCategoryError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "unknown category {:?}", self.input)

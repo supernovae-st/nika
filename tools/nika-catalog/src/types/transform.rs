@@ -20,6 +20,25 @@ pub struct TransformDef {
     pub category: TransformCategory,
 }
 
+impl TransformDef {
+    /// Explicit constructor — required because [`TransformDef`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(
+        name: &'static str,
+        arity: TransformArity,
+        null_behavior: NullBehavior,
+        category: TransformCategory,
+    ) -> Self {
+        Self {
+            name,
+            arity,
+            null_behavior,
+            category,
+        }
+    }
+}
+
 /// Number of arguments a transform accepts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

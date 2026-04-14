@@ -10,8 +10,9 @@
 //! # Wire format
 //!
 //! TOML files store tags as kebab-case strings (e.g. `"prompt-caching"`),
-//! parsed at build time via [`FromStr`] with a hard compile error on unknown
-//! tags. Runtime callers use [`Tag::as_str`] for display / serialisation.
+//! parsed at build time via [`FromStr`](core::str::FromStr) with a hard
+//! compile error on unknown tags. Runtime callers use [`Tag::as_str`] for
+//! display / serialisation.
 //!
 //! # Escape hatch
 //!
@@ -221,9 +222,9 @@ impl Tag {
 
     /// Parse a kebab-case tag string. Returns `None` for unknown strings.
     ///
-    /// Thin `Option` wrapper over [`FromStr`]; use whichever fits the
-    /// call-site. `build.rs` uses `FromStr` directly to get the error message
-    /// with the offending input.
+    /// Thin `Option` wrapper over [`FromStr`](core::str::FromStr); use
+    /// whichever fits the call-site. `build.rs` uses `FromStr` directly to
+    /// get the error message with the offending input.
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         <Self as core::str::FromStr>::from_str(s).ok()
@@ -239,6 +240,15 @@ impl Tag {
 pub struct ParseTagError {
     /// The input string that failed to parse.
     pub input: String,
+}
+
+impl ParseTagError {
+    /// Explicit constructor — required because [`ParseTagError`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(input: String) -> Self {
+        Self { input }
+    }
 }
 
 impl core::fmt::Display for ParseTagError {

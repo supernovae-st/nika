@@ -44,7 +44,7 @@ impl Similarity {
 ///
 /// Generated into `$OUT_DIR/embeddings.rs` by the crate's `build.rs` from
 /// `data/embeddings.toml`. Lookup is O(1) case-insensitive via
-/// [`EMBEDDING_INDEX`].
+/// the generated `EMBEDDING_INDEX` phf map.
 // `Eq` is intentionally omitted — `input_per_million: f64` blocks it
 // (NaN != NaN). Values are curated constants so this never bites in
 // practice, but the derive would not compile.
@@ -73,8 +73,46 @@ pub struct Embedding {
     /// Typed tags describing embedding capabilities and domain.
     /// Sorted + deduplicated (enforced by build.rs assertion).
     pub tags: &'static [crate::types::Tag],
-    /// Community / vendor-specific tags not in the core [`Tag`] enum.
+    /// Community / vendor-specific tags not in the core [`Tag`](crate::types::Tag) enum.
     pub extra_tags: &'static [&'static str],
+}
+
+impl Embedding {
+    /// Explicit constructor — required because [`Embedding`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    // REASON: 10 fields reflect the real embedding-model wire surface
+    // (id, provider, model, dimensions, tokens, normalization, similarity,
+    // price, description, tags). A builder would fragment what is
+    // conceptually one catalog row. Named-arg call-site keeps it readable.
+    pub const fn new(
+        id: &'static str,
+        provider: &'static str,
+        model: &'static str,
+        dimensions: u32,
+        max_input_tokens: u32,
+        normalized_by_default: bool,
+        similarity: Similarity,
+        input_per_million: f64,
+        description: &'static str,
+        tags: &'static [crate::types::Tag],
+        extra_tags: &'static [&'static str],
+    ) -> Self {
+        Self {
+            id,
+            provider,
+            model,
+            dimensions,
+            max_input_tokens,
+            normalized_by_default,
+            similarity,
+            input_per_million,
+            description,
+            tags,
+            extra_tags,
+        }
+    }
 }
 
 #[cfg(test)]

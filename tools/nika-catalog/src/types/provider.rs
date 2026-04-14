@@ -83,7 +83,7 @@ pub struct Provider {
     pub models: &'static [ProviderModel],
     /// Wire-protocol dialect this provider speaks at the HTTPS layer.
     ///
-    /// Used by capability rules (see [`data/model-capabilities.toml`]) and
+    /// Used by capability rules (see `data/model-capabilities.toml`) and
     /// future adapter-sharing to identify provider families that speak the
     /// same request/response schema — e.g. `openai-chat` covers `OpenAI`,
     /// `OpenRouter`, `Azure`, and the OpenAI-compat modes of `Mistral` /
@@ -102,7 +102,7 @@ pub struct Provider {
     /// Typed tags describing capabilities, deployment, and economics.
     /// Sorted + deduplicated (enforced by build.rs assertion).
     pub tags: &'static [crate::types::Tag],
-    /// Community / vendor-specific tags not in the core [`Tag`] enum.
+    /// Community / vendor-specific tags not in the core [`Tag`](crate::types::Tag) enum.
     /// No validation — passthrough escape hatch for extension crates.
     ///
     /// # Safety (Gate 1 — nika serve input trust)

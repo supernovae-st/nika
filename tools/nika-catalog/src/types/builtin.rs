@@ -16,6 +16,15 @@ pub struct Builtin {
     pub category: BuiltinCategory,
 }
 
+impl Builtin {
+    /// Explicit constructor — required because [`Builtin`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(name: &'static str, category: BuiltinCategory) -> Self {
+        Self { name, category }
+    }
+}
+
 /// Category of builtin tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

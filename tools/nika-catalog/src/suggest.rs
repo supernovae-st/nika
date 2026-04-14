@@ -70,12 +70,26 @@ pub struct Suggestion {
     pub score: f64,
 }
 
-/// Find up to [`MAX_SUGGESTIONS`] catalog entries closest to `query` across
-/// all namespaces. Sorted by score descending.
+impl Suggestion {
+    /// Explicit constructor — required because [`Suggestion`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(name: &'static str, namespace: Namespace, score: f64) -> Self {
+        Self {
+            name,
+            namespace,
+            score,
+        }
+    }
+}
+
+/// Find up to `MAX_SUGGESTIONS` (currently 5) catalog entries closest to
+/// `query` across all namespaces. Sorted by score descending.
 ///
-/// Returns an empty vec when no entry crosses [`MIN_SCORE`]. Query is
-/// compared case-insensitively against canonical ids only — aliases are
-/// not repeated because they already resolve to the same entry.
+/// Returns an empty vec when no entry crosses `MIN_SCORE` (the
+/// Jaro-Winkler threshold, currently 0.7). Query is compared
+/// case-insensitively against canonical ids only — aliases are not
+/// repeated because they already resolve to the same entry.
 #[must_use]
 #[cfg_attr(
     not(any(

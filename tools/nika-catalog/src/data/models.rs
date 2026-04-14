@@ -28,10 +28,10 @@ use crate::types::model::ModelCapabilities;
 ///
 ///   1. canonicalises the provider via [`crate::data::find_provider`]
 ///      (so `"claude"` → `"anthropic"`, `"grok"` → `"xai"`, etc.);
-///   2. walks [`CAPABILITY_RULES`] in file order, skipping rules whose
+///   2. walks `CAPABILITY_RULES` in file order, skipping rules whose
 ///      `providers` scope or `api_dialect` scope doesn't match;
 ///   3. on the first matching rule, merges its `caps` into a `CapPatch`
-///      accumulator seeded from [`CAPABILITY_DEFAULTS`] and breaks;
+///      accumulator seeded from `CAPABILITY_DEFAULTS` and breaks;
 ///   4. materialises into a full [`ModelCapabilities`] using
 ///      [`ModelCapabilities::default`] for any still-unset field.
 ///
@@ -192,8 +192,8 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
 /// provider boundaries.
 ///
 /// Provider matching is case-insensitive and accepts the provider id
-/// (e.g. `"openai"`) or the capitalised display form used in
-/// [`ALL_PRICING`] (e.g. `"OpenAI"`).
+/// (e.g. `"openai"`) or the capitalised display form used in the
+/// pricing table (e.g. `"OpenAI"`).
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
@@ -214,6 +214,10 @@ pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static Model
 /// Estimate cost for a model invocation.
 #[cfg(feature = "pricing")]
 #[must_use]
+// REASON: casting `u64` token counts to `f64` for the rate multiplication.
+// Token counts cap at provider context windows (≤ 10 M = 2²³), well below
+// the `f64` precision horizon (2⁵³). A saturating conversion would hide a
+// real data bug if that ever changed; the cast is the right primitive here.
 #[allow(clippy::cast_precision_loss)]
 pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Option<CostEstimate> {
     let pricing = find_pricing(model)?;
