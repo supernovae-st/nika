@@ -1,6 +1,6 @@
 # /dashboard — Open the Nika HQ Mission Control
 
-Opens the local dashboard at `http://localhost:4321`. Starts it if not running.
+Opens the local dashboard at `http://localhost:4242`. Starts it if not running.
 
 ## What the dashboard shows
 
@@ -15,13 +15,13 @@ Opens the local dashboard at `http://localhost:4321`. Starts it if not running.
 
 ```bash
 # Check if dashboard is already running
-curl -sf http://127.0.0.1:4321/api/state >/dev/null 2>&1 && echo "✅ Dashboard LIVE" || echo "❌ Not running"
+curl -sf http://127.0.0.1:4242/api/state >/dev/null 2>&1 && echo "✅ Dashboard LIVE" || echo "❌ Not running"
 
 # Start it (in a separate terminal or background)
 cd ../hq/dashboard && pnpm dev
 
 # Open in browser
-open http://localhost:4321
+open http://localhost:4242
 ```
 
 ## Full stack

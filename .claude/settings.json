@@ -49,7 +49,7 @@
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit'; then DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then (cd \"$DASH\" && pnpm run collect >/dev/null 2>&1 &); curl -sf -X POST http://127.0.0.1:4321/api/invalidate >/dev/null 2>&1 || true; fi; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '^git commit'; then DASH=../hq/dashboard; if [ -d \"$DASH\" ]; then (cd \"$DASH\" && pnpm run collect >/dev/null 2>&1 &); curl -sf -X POST http://127.0.0.1:4242/api/invalidate >/dev/null 2>&1 || true; fi; fi"
           },
           {
             "type": "command",
@@ -85,7 +85,7 @@
           },
           {
             "type": "command",
-            "command": "STATE=$(curl -sf http://127.0.0.1:4321/api/state 2>/dev/null); if [ -n \"$STATE\" ]; then echo \"$STATE\" | jq -r '\"🎛️  HQ LIVE — \\(.short_head) · \\(.crates_admitted)/\\(.crates_target) crates · hygiene \\(.hygiene_green)/\\(.hygiene_total) GREEN · Phase \\(.phase) · \\(.session_current) \\(.session_status) · Shadow \\(.shadow_zones_resolved)/\\(.shadow_zones_total) resolved\"' 2>/dev/null || echo '🎛️  HQ LIVE (open http://localhost:4321)'; else echo '🎛️  HQ offline (start: cd ../hq/dashboard && pnpm dev)'; fi"
+            "command": "STATE=$(curl -sf http://127.0.0.1:4242/api/state 2>/dev/null); if [ -n \"$STATE\" ]; then echo \"$STATE\" | jq -r '\"🎛️  HQ LIVE — \\(.short_head) · \\(.crates_admitted)/\\(.crates_target) crates · hygiene \\(.hygiene_green)/\\(.hygiene_total) GREEN · Phase \\(.phase) · \\(.session_current) \\(.session_status) · Shadow \\(.shadow_zones_resolved)/\\(.shadow_zones_total) resolved\"' 2>/dev/null || echo '🎛️  HQ LIVE (open http://localhost:4321)'; else echo '🎛️  HQ offline (start: cd ../hq/dashboard && pnpm dev)'; fi"
           }
         ]
       }
