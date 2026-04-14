@@ -1,0 +1,39 @@
+---
+title: "Build an agent loop"
+description: "Use the `agent` verb to build a tool-calling loop with budgets, retries, and audit trail."
+sidebarTitle: "Agent loop"
+icon: "rotate"
+---
+
+<Warning>
+  **Draft — coming soon.** This guide is scheduled for week +2 of the
+  chrysalis. Follow [the changelog](https://nika.sh/changelog) or subscribe
+  to [RSS](https://nika.sh/changelog.xml) to see when it lands.
+</Warning>
+
+## What you'll learn
+
+- Declaring an agent with system prompt, tools, budgets
+- Reading the iteration trace from events
+- Bounding cost and time
+- When to use `agent` vs. a scripted sequence of `infer`/`invoke`
+
+## Stub example
+
+```yaml
+tasks:
+  - id: investigate
+    agent:
+      provider: anthropic
+      model: claude-opus-4-6
+      system: "You investigate issues. Be concise."
+      tools: [fetch, invoke]
+      max_iterations: 10
+      budget:
+        max_tokens: 100000
+        max_wall_time: 120s
+      task: "Investigate issue #{{ inputs.issue_number }}"
+```
+
+See [/concepts/verbs](/concepts/verbs) for the full `agent` contract in
+the meantime.

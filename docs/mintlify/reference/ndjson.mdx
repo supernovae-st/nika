@@ -1,0 +1,34 @@
+---
+title: "NDJSON event stream"
+description: "Full catalog of event kinds with schemas."
+sidebarTitle: "NDJSON"
+icon: "list"
+---
+
+<Warning>
+  **Draft — auto-generated reference lands before v0.90.**
+  See [/concepts/events](/concepts/events) for the overview.
+</Warning>
+
+## Enable
+
+```bash
+nika run workflow.nika.yaml --events ndjson
+```
+
+## Every event has
+
+```json
+{
+  "ts": "T+<offset>",
+  "run_id": "r_01J...",
+  "kind": "<event_kind>",
+  "...": "kind-specific fields"
+}
+```
+
+## Common kinds
+
+See [/concepts/events](/concepts/events) for the narrative introduction.
+
+Full per-kind schema tables land here once the `nika-event` crate is admitted.

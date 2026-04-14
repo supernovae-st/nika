@@ -1,0 +1,75 @@
+---
+title: "Welcome inside the chrysalis"
+description: "Nika is a semantic YAML workflow engine for AI. AGPL, Rust, runs on your laptop. Built in public — watch it grow."
+sidebarTitle: "Introduction"
+icon: "butterfly"
+---
+
+<Note>
+  Nika is in **chrysalis** — the pre-emergence phase. The engine grows one
+  organ at a time over 11–12 months. v0.90 marks emergence. Until then,
+  every Friday at 18:00 Paris time we publish a [dev log](https://nika.sh/changelog)
+  showing what grew.
+</Note>
+
+## What Nika is
+
+A workflow engine that reads `.nika.yaml` files and executes them as AI tasks. Five verbs (`exec`, `fetch`, `invoke`, `infer`, `agent`), nine providers (Anthropic, OpenAI, Google, Mistral, Cohere, Groq, DeepSeek, Ollama, local GGUF), 63 built-in tools.
+
+```yaml
+schema: nika/workflow@0.12
+workflow: hello
+
+tasks:
+  - id: greet
+    infer:
+      provider: anthropic
+      model: claude-opus-4-6
+      prompt: "Say hi to the chrysalis."
+```
+
+```bash
+nika run hello.nika.yaml
+```
+
+## What Nika is not
+
+- ❌ **Not an agent framework.** No abstractions over agent loops you can't read.
+- ❌ **Not a chatbot wrapper.** No conversation state hidden in vendor APIs.
+- ❌ **Not another SDK.** The YAML file *is* the SDK.
+- ❌ **Not a SaaS.** AGPL means the source travels with the binary.
+
+## Why YAML
+
+Because the same file is read by the machine and understood by the human. No DSL, no Python-pretending-to-be-config, no JavaScript callbacks scattered across nodes. The schema is the contract.
+
+## Why Rust
+
+Because workflows fail in production, and a single binary with zero runtime dependencies fails predictably. Because `.unwrap()` in production is unacceptable. Because the engine has to be auditable, line by line.
+
+## Why slow
+
+We craft 34 organs over 11–12 months. Each organ passes [12 gates](https://nika.sh/method) before admission to the workspace. Mutation testing ≥ 90%. No `.unwrap()` in `src/`. No file > 1500 LOC. No commit without `cargo clippy -- -D warnings`. Slow on purpose.
+
+This is what you're watching grow.
+
+## Read next
+
+<CardGroup cols={2}>
+  <Card title="Install Nika" icon="download" href="/getting-started/installation">
+    One curl command. Detects platform. Rust binary, zero daemon.
+  </Card>
+  <Card title="Your first workflow" icon="play" href="/getting-started/first-workflow">
+    Run a hello workflow in five minutes.
+  </Card>
+  <Card title="The organism" icon="brain" href="/concepts/the-organism">
+    Anatomy of Nika — kernel, schema, binding, verbs, events.
+  </Card>
+  <Card title="Watch it grow" icon="chart-line" href="https://nika.sh/changelog">
+    Weekly dev logs. Honest, with numbers.
+  </Card>
+</CardGroup>
+
+---
+
+🦋 **Rust. AGPL. Paris. SuperNovae.**

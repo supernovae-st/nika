@@ -1,0 +1,73 @@
+---
+title: "YAML syntax reference"
+description: "Full .nika.yaml schema. Every field, type, and validation rule."
+sidebarTitle: "YAML syntax"
+icon: "file-code"
+---
+
+<Warning>
+  The machine-readable schema is at
+  [https://nika.sh/schema/workflow.json](https://nika.sh/schema/workflow.json).
+  Point your editor at it for live validation — see [editor setup](/getting-started/editors).
+</Warning>
+
+## Top level
+
+```yaml
+schema: nika/workflow@0.12   # required, pinned version
+workflow: <identifier>       # required, unique within a project
+description: <string>        # optional
+
+provider: <name>             # default provider for all tasks
+model: <id>                  # default model for all tasks
+
+inputs: { ... }              # schema for runtime inputs
+context: { ... }             # constants
+skills: { ... }              # reusable blocks
+artifacts: { ... }           # declared outputs
+include: [ ... ]             # sub-workflows
+
+tasks: [ ... ]               # required
+```
+
+## A task
+
+```yaml
+- id: <identifier>           # required, unique within workflow
+  description: <string>      # optional
+
+  depends_on: [<id>, ...]    # optional DAG edge
+  when: <expression>         # optional conditional
+  for_each: <expression>     # optional fan-out
+  retry: { ... }             # optional retry policy
+
+  # exactly one verb block:
+  exec: { ... }
+  fetch: { ... }
+  invoke: { ... }
+  infer: { ... }
+  agent: { ... }
+```
+
+## Verbs
+
+See individual pages:
+- [`exec`](/concepts/verbs#exec) — shell commands
+- [`fetch`](/concepts/verbs#fetch) — HTTP / URL / file / GitHub
+- [`invoke`](/concepts/verbs#invoke) — built-in or MCP tool
+- [`infer`](/concepts/verbs#infer) — LLM call
+- [`agent`](/concepts/verbs#agent) — tool-calling loop
+
+## Full schema
+
+The canonical JSON Schema is at
+[https://nika.sh/schema/workflow.json](https://nika.sh/schema/workflow.json).
+It's 100% machine-authoritative. This doc is a readable summary.
+
+## Schema version policy
+
+`schema: nika/workflow@<major>.<minor>` — `minor` bumps are non-breaking,
+`major` bumps require migration via `nika migrate`.
+
+Current: `nika/workflow@0.12` (chrysalis). Stable: `nika/workflow@1.0`
+at v0.90 engine emergence.

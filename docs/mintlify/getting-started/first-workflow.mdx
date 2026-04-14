@@ -1,0 +1,155 @@
+---
+title: "Your first workflow"
+description: "Five minutes from install to a workflow that talks to Claude."
+sidebarTitle: "First workflow"
+icon: "play"
+---
+
+## Goal
+
+Write a `.nika.yaml` file, run it, get structured output. No setup beyond
+`nika` installed and one provider key.
+
+## 1. Make sure Nika sees a provider
+
+```bash
+nika doctor
+```
+
+If you see a warning like `no providers configured`, set one:
+
+```bash
+export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, etc.
+```
+
+## 2. Write the workflow
+
+Create `hello.nika.yaml`:
+
+```yaml
+schema: nika/workflow@0.12
+workflow: hello
+
+tasks:
+  - id: greet
+    infer:
+      provider: anthropic
+      model: claude-opus-4-6
+      prompt: "Say hi to the chrysalis. Be brief."
+```
+
+Three things to notice:
+
+- **`schema:`** — the version of the workflow language. Locked.
+- **`workflow:`** — a human-readable name for this workflow.
+- **`tasks:`** — a list. Each task has an `id` and one verb (here, `infer`).
+
+## 3. Run it
+
+```bash
+nika run hello.nika.yaml
+```
+
+You'll see:
+
+```
+▶ greet  infer  → claude-opus-4-6
+  ┌─ output ──────────────────
+  │ Welcome inside the chrysalis. 🦋
+  └───────────────────────────
+✓ greet  T+00:00:01.42  OK
+```
+
+## 4. Add a second task that depends on the first
+
+```yaml
+schema: nika/workflow@0.12
+workflow: hello
+
+tasks:
+  - id: greet
+    infer:
+      provider: anthropic
+      model: claude-opus-4-6
+      prompt: "Say hi to the chrysalis. Be brief."
+
+  - id: critique
+    depends_on: [greet]
+    infer:
+      provider: anthropic
+      model: claude-opus-4-6
+      prompt: |
+        The greeting was: {{ tasks.greet.output }}
+
+        Rewrite it shorter and more enigmatic.
+```
+
+Notice `{{ tasks.greet.output }}` — that's a [binding](/concepts/bindings).
+Nika injects the previous task's output into the prompt at runtime.
+
+```bash
+nika run hello.nika.yaml
+```
+
+You should see both tasks execute in order, with `critique` consuming `greet`'s output.
+
+## 5. Get structured output instead of free text
+
+```yaml
+schema: nika/workflow@0.12
+workflow: hello-structured
+
+tasks:
+  - id: greet
+    infer:
+      provider: anthropic
+      model: claude-opus-4-6
+      prompt: "Generate three names for a butterfly."
+      structured:
+        type: object
+        properties:
+          names:
+            type: array
+            items:
+              type: string
+              minLength: 3
+              maxLength: 20
+            minItems: 3
+            maxItems: 3
+        required: [names]
+```
+
+Nika takes the JSON Schema you provide, asks the provider for output that
+conforms (using each provider's native structured-output API where available),
+and validates the result against your schema before passing it on.
+
+```bash
+nika run hello.nika.yaml
+# Output is guaranteed to be { "names": ["...", "...", "..."] }
+```
+
+## What you just learned
+
+- Workflows are YAML files
+- Tasks are units of work, identified by `id`
+- Verbs (`infer`, `exec`, `fetch`, `invoke`, `agent`) define what each task does
+- `depends_on` builds a DAG
+- `{{ tasks.X.output }}` bindings flow data between tasks
+- `structured:` enforces schemas on AI output
+
+## Read next
+
+<CardGroup cols={2}>
+  <Card title="The five verbs" icon="dna" href="/concepts/verbs">
+    Deep dive on `exec`, `fetch`, `invoke`, `infer`, `agent`.
+  </Card>
+  <Card title="Bindings" icon="link" href="/concepts/bindings">
+    How data flows between tasks.
+  </Card>
+  <Card title="Editor setup" icon="code" href="/getting-started/editors">
+    LSP, schema validation, autocomplete.
+  </Card>
+  <Card title="More examples" icon="folder-open" href="/examples">
+    Real workflows from the registry.
+  </Card>
+</CardGroup>

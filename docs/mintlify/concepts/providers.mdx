@@ -1,0 +1,140 @@
+---
+title: "Providers"
+description: "9 inference providers. One unified InferRequest. Switch provider = one line."
+sidebarTitle: "Providers"
+icon: "cloud"
+---
+
+Nika ships with 9 inference providers out of the box. All behind the same
+`infer:` verb. Swapping provider = change one field.
+
+## Cloud providers
+
+| Provider | Key env | Structured output | Streaming | Tools |
+|---|---|---|---|---|
+| **Anthropic** | `ANTHROPIC_API_KEY` | ✅ native | ✅ | ✅ tool use |
+| **OpenAI** | `OPENAI_API_KEY` | ✅ JSON mode | ✅ | ✅ function calling |
+| **Google** (Gemini) | `GOOGLE_API_KEY` | ✅ | ✅ | ✅ |
+| **Mistral** | `MISTRAL_API_KEY` | ✅ | ✅ | ✅ |
+| **Cohere** | `COHERE_API_KEY` | ✅ | ✅ | ✅ |
+| **Groq** | `GROQ_API_KEY` | ✅ | ✅ | ✅ |
+| **DeepSeek** | `DEEPSEEK_API_KEY` | ✅ | ✅ | ⚠️ partial |
+
+## Local providers
+
+| Provider | Runtime | Notes |
+|---|---|---|
+| **Ollama** | HTTP to local daemon | `OLLAMA_HOST` defaults to `http://localhost:11434` |
+| **GGUF (native)** | In-process via `mistral.rs` | No external process. `model: file:///path/to/model.gguf` |
+
+## Usage
+
+```yaml
+# Anthropic
+- id: greet
+  infer:
+    provider: anthropic
+    model: claude-opus-4-6
+    prompt: "Hi"
+
+# Switch to OpenAI — change two fields
+- id: greet
+  infer:
+    provider: openai
+    model: gpt-5
+    prompt: "Hi"
+
+# Switch to local Ollama — same thing
+- id: greet
+  infer:
+    provider: ollama
+    model: llama3.2
+    prompt: "Hi"
+```
+
+## Model discovery
+
+```bash
+nika models list                          # all known models across providers
+nika models list --provider anthropic     # just one provider
+nika models info claude-opus-4-6          # spec sheet for a specific model
+```
+
+Model metadata (context window, pricing, structured output support, tools
+support) is shipped with the binary — no network call needed.
+
+## Key management
+
+<Tabs>
+  <Tab title="Env variables">
+    ```bash
+    export ANTHROPIC_API_KEY=sk-ant-...
+    nika run workflow.nika.yaml
+    ```
+    Works but keys live in shell history / process environment.
+  </Tab>
+  <Tab title="System keychain">
+    ```bash
+    nika keys add anthropic
+    # prompts for the key, stores in macOS Keychain / Linux Secret Service
+    nika run workflow.nika.yaml
+    ```
+    Persistent, not exposed to other processes.
+  </Tab>
+  <Tab title="1Password / bitwarden / vault">
+    ```bash
+    export ANTHROPIC_API_KEY=$(op read op://work/anthropic/key)
+    nika run workflow.nika.yaml
+    ```
+  </Tab>
+</Tabs>
+
+## Provider parity
+
+<Note>
+  **Shadow zone**: cross-provider structured output parity is actively
+  being hardened before v0.90. See [pre-launch gates](https://nika.sh/method)
+  for the current state.
+</Note>
+
+Nika runs the same test suite against every provider. Parity report at
+`nika doctor --parity`.
+
+Where providers differ:
+- Some return structured output as raw JSON, others as tool-call schema
+- Some stream token-by-token, others in batches
+- Tool use semantics vary (tool_choice, parallel tools, etc.)
+
+Nika normalizes all of this behind the `InferRequest` / `InferResponse`
+types. You write the workflow, Nika picks the right path per provider.
+
+## Unified request shape
+
+```rust
+#[non_exhaustive]
+pub struct InferRequest {
+    pub provider: ProviderId,
+    pub model: String,
+    pub prompt: PromptBody,
+    pub structured: Option<JsonSchema>,
+    pub tools: Vec<Tool>,
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
+    pub memory: Option<MemoryDirective>,
+    // ...
+}
+```
+
+This is the kernel's single LLM call shape. Providers implement it.
+Adding a 10th provider = implementing one trait against this struct.
+
+## Read next
+
+<CardGroup cols={2}>
+  <Card title="Local models guide" icon="microchip" href="/guides/local-models">
+    Ollama + native GGUF deep dive.
+  </Card>
+  <Card title="Structured output guide" icon="brackets-curly" href="/guides/structured-output">
+    Cross-provider JSON Schema enforcement.
+  </Card>
+</CardGroup>

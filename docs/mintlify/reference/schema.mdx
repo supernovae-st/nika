@@ -1,0 +1,41 @@
+---
+title: "JSON Schema"
+description: "The machine-authoritative schema for .nika.yaml."
+sidebarTitle: "JSON Schema"
+icon: "schema"
+---
+
+The canonical schema lives at:
+
+**[https://nika.sh/schema/workflow.json](https://nika.sh/schema/workflow.json)**
+
+It's a standard [JSON Schema draft 2020-12](https://json-schema.org/)
+document. Your editor's YAML LSP can consume it directly.
+
+## Current version
+
+`nika/workflow@0.12`
+
+## Point your editor
+
+Add this line at the top of any `.nika.yaml`:
+
+```yaml
+# yaml-language-server: $schema=https://nika.sh/schema/workflow.json
+schema: nika/workflow@0.12
+```
+
+See [editor setup](/getting-started/editors) for per-IDE instructions.
+
+## Local validation
+
+```bash
+nika check workflow.nika.yaml   # validates against current schema
+nika check workflow.nika.yaml --strict   # + extra lints
+```
+
+## Versioning policy
+
+- Minor bumps (`0.11 → 0.12`) are additive, backward-compatible.
+- Major bumps (`0.12 → 1.0`) may break. Always accompanied by `nika migrate`.
+- Stable milestone: `nika/workflow@1.0` shipped at engine v0.90 emergence.

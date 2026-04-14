@@ -1,0 +1,58 @@
+---
+title: "Error codes"
+description: "Every NIKA-XXX code Nika emits, with cause and fix."
+sidebarTitle: "Error codes"
+icon: "triangle-exclamation"
+---
+
+Every error Nika emits carries a unique `NIKA-XXX` code. The canonical,
+always-up-to-date list lives at
+**[https://nika.sh/errors](https://nika.sh/errors)**.
+
+Each code is addressable:
+
+- `https://nika.sh/errors/NIKA-001/` — detail page
+- `https://nika.sh/errors/catalog.json` — machine-readable catalog
+- Every message printed by `nika` includes the code and a link
+
+## Current categories
+
+| Category | Range | Example |
+|---|---|---|
+| Workflow parse | NIKA-001 to NIKA-050 | `NIKA-001` — YAML parse error |
+| Bindings | NIKA-051 to NIKA-100 | `NIKA-051` — unknown binding |
+| Verbs / exec | NIKA-101 to NIKA-200 | |
+| Verbs / fetch | NIKA-201 to NIKA-300 | |
+| Verbs / infer | NIKA-301 to NIKA-400 | |
+| Verbs / agent | NIKA-401 to NIKA-500 | |
+| Providers | NIKA-501 to NIKA-600 | |
+| Config / keys | NIKA-601 to NIKA-700 | |
+| Runtime | NIKA-701 to NIKA-800 | |
+
+## Always fresh
+
+This reference is generated from the `nika-error` crate at build time. The
+numbers and wording may drift between dev logs — see
+[nika.sh/errors](https://nika.sh/errors) for truth.
+
+## Common codes
+
+### NIKA-001 — Workflow parse error
+
+The `.nika.yaml` file could not be parsed. Check YAML indentation, quoting,
+and that top-level `schema:` and `tasks:` keys are present.
+
+### NIKA-042 — Missing provider key
+
+You wrote `provider: anthropic` but no `ANTHROPIC_API_KEY` is set. Run
+`nika doctor` for full diagnosis, or `nika keys add anthropic` to save one
+in your system keychain.
+
+### NIKA-107 — Taint violation
+
+A binding from an external source (fetch output, infer output, user input)
+is being passed to a sensitive sink (exec command, HTTP URL) without an
+explicit sanitization filter. Add `| shell_quote` or declare the task
+`trusted: true` (if you know what you're doing).
+
+...full catalog at [nika.sh/errors](https://nika.sh/errors).

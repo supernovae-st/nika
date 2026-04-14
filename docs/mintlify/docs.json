@@ -1,0 +1,135 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Nika",
+  "description": "Documentation for Nika — the AGPL workflow engine for AI. Semantic YAML, Rust, runs on your laptop.",
+  "theme": "mint",
+  "logo": {
+    "dark": "/images/logo-dark.svg",
+    "light": "/images/logo-light.svg",
+    "href": "https://nika.sh"
+  },
+  "favicon": "/images/favicon.svg",
+  "colors": {
+    "primary": "#FF6B1A",
+    "light": "#F5C28B",
+    "dark": "#FF6B1A"
+  },
+  "modeToggle": { "default": "dark", "isHidden": true },
+  "appearance": { "default": "dark" },
+  "background": {
+    "color": { "dark": "#0B0D17", "light": "#F4F1EA" }
+  },
+  "styling": { "eyebrows": "section" },
+  "layout": {
+    "tocPosition": "right",
+    "breadcrumbs": true,
+    "tocDepth": 3
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true,
+    "raiseIssue": true
+  },
+  "search": { "prompt": "Search the chrysalis…" },
+  "metadata": {
+    "og:image": "https://docs.nika.sh/images/og-default.png",
+    "og:type": "website",
+    "twitter:card": "summary_large_image"
+  },
+  "navbar": {
+    "links": [
+      { "label": "GitHub", "href": "https://github.com/supernovae-st/nika" },
+      { "label": "Changelog", "href": "https://nika.sh/changelog" }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Install",
+      "href": "https://nika.sh/install"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/supernovae-st/nika",
+      "x": "https://x.com/ThibautMelen"
+    },
+    "links": [
+      {
+        "header": "Nika",
+        "items": [
+          { "label": "Site", "href": "https://nika.sh" },
+          { "label": "Method", "href": "https://nika.sh/method" },
+          { "label": "Changelog", "href": "https://nika.sh/changelog" },
+          { "label": "Errors", "href": "https://nika.sh/errors" }
+        ]
+      },
+      {
+        "header": "Build",
+        "items": [
+          { "label": "Source (AGPL)", "href": "https://github.com/supernovae-st/nika" },
+          { "label": "TypeScript SDK", "href": "https://github.com/supernovae-st/nika-client" },
+          { "label": "Workflow registry", "href": "https://github.com/supernovae-st/nika-registry" },
+          { "label": "Design skill", "href": "https://github.com/supernovae-st/nika-design-skill" }
+        ]
+      },
+      {
+        "header": "Studio",
+        "items": [
+          { "label": "SuperNovae", "href": "https://supernovae.studio" }
+        ]
+      }
+    ]
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "introduction",
+              "getting-started/installation",
+              "getting-started/first-workflow",
+              "getting-started/editors"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/the-organism",
+              "concepts/verbs",
+              "concepts/workflows",
+              "concepts/bindings",
+              "concepts/events",
+              "concepts/providers"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/agent-loop",
+              "guides/structured-output",
+              "guides/mcp-client",
+              "guides/decompose",
+              "guides/local-models"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/cli",
+              "reference/yaml-syntax",
+              "reference/error-codes",
+              "reference/schema",
+              "reference/ndjson"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": ["examples/index"]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,178 @@
+---
+title: "Workflows"
+description: "How tasks compose into a DAG. Dependencies, fan-out, for_each, retries, conditional execution."
+sidebarTitle: "Workflows"
+icon: "diagram-project"
+---
+
+A workflow is a list of tasks. Tasks have `id`, one verb, and optional
+`depends_on` declarations. Together they form a directed acyclic graph
+(DAG) that Nika executes in topological order, parallelizing what it can.
+
+## Shape of a workflow
+
+```yaml
+schema: nika/workflow@0.12
+workflow: hello
+description: "A minimal workflow."
+
+# Optional top-level blocks
+inputs: {}      # parameters passed at runtime (--input key=value)
+context: {}     # constants available to all tasks
+skills: {}      # skill references
+artifacts: {}   # declared outputs
+include: []     # reusable sub-workflows
+
+tasks:
+  - id: greet
+    infer:
+      provider: anthropic
+      prompt: "Hi"
+```
+
+## Dependencies
+
+```yaml
+tasks:
+  - id: fetch_data
+    fetch:
+      url: https://example.com/data.json
+
+  - id: analyze
+    depends_on: [fetch_data]     # fetch_data must complete first
+    infer:
+      prompt: "{{ tasks.fetch_data.output }}"
+
+  - id: notify
+    depends_on: [analyze]
+    exec:
+      cmd: echo "{{ tasks.analyze.output }}"
+```
+
+Nika builds the DAG, topologically sorts, and runs tasks in parallel where
+dependencies allow.
+
+## Fan-out with `for_each`
+
+```yaml
+tasks:
+  - id: list_files
+    exec:
+      cmd: find src -name '*.rs'
+
+  - id: analyze_each
+    depends_on: [list_files]
+    for_each: "{{ tasks.list_files.output.lines }}"
+    infer:
+      provider: anthropic
+      prompt: "Review this file: {{ item }}"
+```
+
+`for_each` iterates over a list. Each iteration runs in parallel (bounded
+by `concurrency:`). Per-iteration errors are captured individually — one
+failure does not abort siblings unless `fail_fast: true`.
+
+## Retries
+
+```yaml
+- id: flaky_api
+  fetch:
+    url: https://example.com/api
+  retry:
+    max_attempts: 5
+    delay_ms: 1000
+    backoff: 2.0
+    on: [timeout, 5xx, network_error]
+```
+
+Exponential backoff with jitter. Retries only on listed error kinds.
+
+## Conditional execution
+
+```yaml
+- id: deploy
+  when: "{{ tasks.tests.output.passed == true }}"
+  exec:
+    cmd: ./deploy.sh
+```
+
+`when` evaluates an expression at runtime. If falsy, the task is skipped
+(not failed). Skipped tasks produce a `task_skipped` event.
+
+## Inputs and context
+
+```yaml
+inputs:
+  target:
+    type: string
+    required: true
+  verbose:
+    type: boolean
+    default: false
+
+tasks:
+  - id: greet
+    infer:
+      prompt: "Say hi to {{ inputs.target }}"
+```
+
+```bash
+nika run workflow.nika.yaml --input target=world
+```
+
+## Skills (reusable blocks)
+
+```yaml
+skills:
+  - id: writer
+    source: github://supernovae-st/nika-registry/skills/writer@main
+
+tasks:
+  - id: draft
+    use: writer
+    with:
+      topic: "Nika's 12 gates"
+```
+
+Skills are versioned, reusable sub-workflows fetched from the registry or
+a local path.
+
+## Artifacts
+
+```yaml
+artifacts:
+  summary:
+    path: ./out/summary.md
+    source: "{{ tasks.summarize.output }}"
+```
+
+Declared outputs with known paths. Useful for CI pipelines.
+
+## Include
+
+```yaml
+include:
+  - ./common/setup.nika.yaml
+
+tasks:
+  - id: main
+    depends_on: [setup]
+    ...
+```
+
+Sub-workflows are inlined at parse time. The included file's tasks become
+part of the parent DAG.
+
+## Read next
+
+<CardGroup cols={2}>
+  <Card title="Bindings" icon="link" href="/concepts/bindings">
+    Template expressions in depth.
+  </Card>
+  <Card title="Events" icon="signal" href="/concepts/events">
+    The NDJSON event stream.
+  </Card>
+  <Card title="Examples" icon="folder-open" href="/examples">
+    Full workflows you can copy.
+  </Card>
+</CardGroup>

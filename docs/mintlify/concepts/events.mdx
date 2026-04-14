@@ -1,0 +1,130 @@
+---
+title: "Events"
+description: "The NDJSON event stream. Every verb emits typed events you can pipe, filter, replay."
+sidebarTitle: "Events"
+icon: "signal"
+---
+
+Every run of Nika emits a structured stream of events. One event per line,
+each line a valid JSON object. The stream is deterministic, typed, and
+versioned.
+
+## Enable events
+
+```bash
+nika run workflow.nika.yaml --events ndjson
+```
+
+Events go to stdout by default. Redirect to a file:
+
+```bash
+nika run workflow.nika.yaml --events ndjson > run.log
+```
+
+Or send to a collector:
+
+```bash
+nika run workflow.nika.yaml --events ndjson | jq -c . | nc 127.0.0.1 9000
+```
+
+## Event shape
+
+Every event has:
+
+```json
+{
+  "ts": "T+00:00:01.42",
+  "run_id": "r_01JF9Z7K2H8Q5X4Y3W2V1U0T",
+  "kind": "task_complete",
+  "task": "greet",
+  "...": "..."
+}
+```
+
+Fields vary by `kind`. All events share: `ts`, `run_id`, `kind`.
+
+## Kinds
+
+<Note>
+  The full event kind catalog lives at [/reference/ndjson](/reference/ndjson).
+  Below is a selection of the most common.
+</Note>
+
+### Workflow-level
+
+- `workflow_start` — a run begins
+- `workflow_complete` — run ends (success or failure)
+- `workflow_skipped` — `when:` at the top level evaluated to false
+
+### Task-level
+
+- `task_start` — a task begins
+- `task_complete` — a task ends successfully
+- `task_failed` — a task ends with error
+- `task_skipped` — `when:` on the task evaluated to false
+- `task_retry` — a retry attempt begins
+
+### Verb-level
+
+- `infer_chunk` — streaming token from a provider
+- `infer_tool_call` — agent called a tool
+- `fetch_request` — HTTP request initiated
+- `fetch_response` — HTTP response received
+- `exec_output` — a line of stdout/stderr
+
+### Meta
+
+- `checkpoint` — serializable snapshot for resumption
+- `taint_violation` — binding crossed a taint boundary
+- `budget_warning` — nearing a budget ceiling
+- `budget_exceeded` — budget hard-stop triggered
+
+## One site emits each kind
+
+Each event kind is emitted from exactly one call site in the codebase. No
+ambiguous duplicates. The `nika-event` crate owns this invariant.
+
+This matters for tooling: if you see `infer_chunk`, you know it came from the
+single inference path. No "sometimes it emits, sometimes it doesn't."
+
+## Replay
+
+Events are a complete record. You can replay them:
+
+```bash
+nika replay run.log --show tasks
+```
+
+Replay respects `checkpoint` events — restart mid-workflow.
+
+## Example stream
+
+```ndjson
+{"ts":"T+00:00:00.00","kind":"workflow_start","workflow":"hello","run_id":"r_01JF9..."}
+{"ts":"T+00:00:00.01","kind":"task_start","task":"greet","verb":"infer"}
+{"ts":"T+00:00:00.02","kind":"infer_request","task":"greet","provider":"anthropic","model":"claude-opus-4-6"}
+{"ts":"T+00:00:00.45","kind":"infer_chunk","task":"greet","delta":"Welcome"}
+{"ts":"T+00:00:00.51","kind":"infer_chunk","task":"greet","delta":" inside"}
+{"ts":"T+00:00:00.57","kind":"infer_chunk","task":"greet","delta":" the"}
+{"ts":"T+00:00:00.62","kind":"infer_chunk","task":"greet","delta":" chrysalis."}
+{"ts":"T+00:00:01.42","kind":"task_complete","task":"greet","status":"ok","duration_ms":1415}
+{"ts":"T+00:00:01.43","kind":"workflow_complete","status":"ok","run_id":"r_01JF9..."}
+```
+
+## Why NDJSON
+
+- ✅ Line-delimited → `jq`, `grep`, `awk` friendly
+- ✅ Streaming → don't wait for the run to finish
+- ✅ No schema changes in-flight → each line self-describes
+- ✅ Cheap to parse in any language
+
+## Read next
+
+<CardGroup cols={2}>
+  <Card title="NDJSON reference" icon="file-code" href="/reference/ndjson">
+    Complete event catalog with schemas.
+  </Card>
+  <Card title="Providers" icon="cloud" href="/concepts/providers">
+    How each provider maps to unified events.
+  </Card>
+</CardGroup>

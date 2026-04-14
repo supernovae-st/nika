@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" width="240" height="60" role="img" aria-label="Nika">
+  <style>
+    .wordmark { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 32px; font-weight: 700; letter-spacing: 0.02em; fill: #0B0D17; }
+    .dot { fill: #FF6B1A; }
+  </style>
+  <text x="12" y="42" class="wordmark">nika</text>
+  <circle cx="108" cy="38" r="4" class="dot"/>
+</svg>

@@ -1,0 +1,130 @@
+---
+title: "Bindings"
+description: "Template expressions that flow data between tasks. Typed, tainted, evaluated at runtime."
+sidebarTitle: "Bindings"
+icon: "link"
+---
+
+A binding is a template expression wrapped in `{{ }}`. It's resolved at
+runtime against a typed scope containing inputs, context, task outputs,
+and environment variables.
+
+## Shape
+
+```
+{{ <expression> }}
+```
+
+Examples:
+
+```yaml
+prompt: "{{ inputs.target }}"
+prompt: "{{ tasks.fetch_issue.output.title }}"
+prompt: "{{ context.model_family }}"
+cmd: "echo {{ env.HOME }}/output.txt"
+```
+
+## Scopes
+
+| Scope | What's in it | Example |
+|---|---|---|
+| `inputs.*` | Parameters from `--input key=value` | `inputs.target` |
+| `context.*` | Top-level constants in the workflow | `context.model_family` |
+| `tasks.<id>.output` | Output of a completed task | `tasks.greet.output` |
+| `tasks.<id>.events` | Events emitted by a task | `tasks.greet.events` |
+| `env.*` | Environment variables | `env.HOME` |
+| `nika.*` | Built-in metadata | `nika.version`, `nika.run_id` |
+
+## Typed resolution
+
+Nika knows the type of each binding target at parse time. If `inputs.target`
+is declared as `string` and you use it where an `integer` is expected, Nika
+fails at validation, not runtime.
+
+```yaml
+inputs:
+  count:
+    type: integer
+
+tasks:
+  - id: loop
+    for_each: "{{ inputs.count }}"   # ❌ fails — for_each needs a list
+```
+
+## Taint tracking
+
+External data (from `fetch`, `exec`, `infer`) is **tainted** by default.
+Passing tainted data to a sensitive verb (e.g. `exec.cmd`) triggers a
+validation error:
+
+```yaml
+- id: pull_user_input
+  fetch:
+    url: https://api.example.com/comment
+
+- id: run_it
+  exec:
+    cmd: "{{ tasks.pull_user_input.output }}"   # ❌ taint violation
+```
+
+Fix: sanitize explicitly.
+
+```yaml
+- id: run_it
+  exec:
+    cmd: "echo {{ tasks.pull_user_input.output | shell_quote }}"
+```
+
+See the [taint rules in reference](/reference/schema#taint) for the full list.
+
+## Filters
+
+Pipe bindings through filters:
+
+```yaml
+prompt: "{{ tasks.fetch.output | json | truncate(2000) }}"
+```
+
+Built-in filters: `json`, `trim`, `upper`, `lower`, `truncate(n)`,
+`lines`, `shell_quote`, `yaml`, `base64`.
+
+## Multi-line
+
+```yaml
+prompt: |
+  You are reviewing the following pull request:
+
+  Title: {{ tasks.fetch_pr.output.title }}
+  Body:  {{ tasks.fetch_pr.output.body }}
+
+  Provide three concrete improvements.
+```
+
+## Null handling
+
+Missing bindings fail at validation unless declared optional:
+
+```yaml
+prompt: "{{ inputs.optional_field | default('(none)') }}"
+```
+
+## What bindings are NOT
+
+- ❌ Not a full scripting language. No loops, no conditionals inside the expression.
+- ❌ Not JavaScript. No arbitrary code execution.
+- ❌ Not Jinja2 / Liquid (no `for`/`if` blocks inside `{{ }}`).
+- ✅ Just: scope lookup + filter chain + validation.
+
+Workflow-level control flow (loops, conditionals) lives at the **task level**
+(`for_each:`, `when:`), not inside bindings.
+
+## Read next
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="signal" href="/concepts/events">
+    What gets emitted, when.
+  </Card>
+  <Card title="YAML syntax reference" icon="file-code" href="/reference/yaml-syntax">
+    Complete schema documentation.
+  </Card>
+</CardGroup>

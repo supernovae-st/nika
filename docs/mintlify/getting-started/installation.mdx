@@ -1,0 +1,100 @@
+---
+title: "Install Nika"
+description: "One curl command. Detects platform. Rust binary, zero daemon, zero runtime dependency."
+sidebarTitle: "Installation"
+icon: "download"
+---
+
+## Recommended
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl -LsSf https://nika.sh/install.sh | sh
+    ```
+    Detects your platform (macOS / Linux), prefers Homebrew if available, falls
+    back to the GitHub release binary.
+  </Tab>
+  <Tab title="Homebrew">
+    ```bash
+    brew tap supernovae-st/nika
+    brew install nika
+    ```
+  </Tab>
+  <Tab title="cargo">
+    ```bash
+    cargo install --git https://github.com/supernovae-st/nika nika --locked
+    ```
+    From source. Requires a Rust toolchain.
+  </Tab>
+</Tabs>
+
+## Verify
+
+```bash
+nika --version
+nika doctor    # checks keys, providers, system
+```
+
+`nika doctor` is the first thing to run after install. It tells you what's
+missing (provider keys, network access, write permissions) and how to fix it.
+
+## Platforms
+
+| Platform | Target triple | Status |
+|---|---|---|
+| macOS Apple Silicon | `aarch64-apple-darwin` | ✅ |
+| macOS Intel | `x86_64-apple-darwin` | ✅ |
+| Linux x86_64 | `x86_64-unknown-linux-gnu` | ✅ |
+| Linux aarch64 | `aarch64-unknown-linux-gnu` | ✅ |
+| Windows | `x86_64-pc-windows-msvc` | 🟡 planned post-v0.90 |
+
+## Trust but verify
+
+The install script lives at <a href="https://nika.sh/install.sh">nika.sh/install.sh</a>. **Read it before piping to `sh`.** It's about 80 lines of pure POSIX.
+
+All release binaries are signed and published at
+<a href="https://github.com/supernovae-st/nika/releases">github.com/supernovae-st/nika/releases</a>.
+
+## Provider keys
+
+Nika needs at least one provider to run inference. Set keys via your shell or
+the system keychain:
+
+```bash
+# Shell env (one-off)
+export ANTHROPIC_API_KEY=...
+export OPENAI_API_KEY=...
+
+# System keychain (persistent, recommended)
+nika keys add anthropic
+```
+
+See [Providers](/concepts/providers) for the full list.
+
+## What gets installed
+
+- **`nika`** — the binary (single file, no daemon, no plugins to install)
+- **Shell completions** (bash / zsh / fish) — auto-installed by the curl script
+- **Nothing else.** No service, no background process, no telemetry.
+
+To uninstall:
+
+```bash
+# Homebrew
+brew uninstall nika
+
+# Manual install
+rm /usr/local/bin/nika
+```
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="First workflow" icon="play" href="/getting-started/first-workflow">
+    Run a hello workflow in five minutes.
+  </Card>
+  <Card title="Editor setup" icon="code" href="/getting-started/editors">
+    LSP, syntax highlighting, schema validation.
+  </Card>
+</CardGroup>

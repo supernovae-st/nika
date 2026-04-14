@@ -1,0 +1,38 @@
+---
+title: "Run on local models"
+description: "Ollama + native GGUF. Airgapped workflows, zero cloud calls."
+sidebarTitle: "Local models"
+icon: "microchip"
+---
+
+<Warning>**Draft — coming soon.**</Warning>
+
+Two paths for local inference:
+
+## Ollama (HTTP daemon)
+
+```yaml
+- id: greet
+  infer:
+    provider: ollama
+    model: llama3.2
+    prompt: "Hi"
+```
+
+Runs against `http://localhost:11434` by default. Override with
+`OLLAMA_HOST=https://...`.
+
+## Native GGUF (in-process)
+
+```yaml
+- id: greet
+  infer:
+    provider: gguf
+    model: file:///path/to/model.gguf
+    prompt: "Hi"
+```
+
+Uses `mistral.rs` under the hood. No external process, no HTTP. Perfect for
+airgapped runs.
+
+Full benchmark + tuning guide coming.

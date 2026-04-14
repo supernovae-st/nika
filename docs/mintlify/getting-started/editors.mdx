@@ -1,0 +1,101 @@
+---
+title: "Editor setup"
+description: "LSP, syntax highlighting, schema validation. Make .nika.yaml feel native."
+sidebarTitle: "Editor setup"
+icon: "code"
+---
+
+Nika ships an LSP server and a JSON Schema. Together they give you autocomplete,
+inline error squiggles, hover docs, and "go to definition" across tasks.
+
+## Quick setup
+
+<Tabs>
+  <Tab title="VS Code">
+    Install the YAML extension (Red Hat). It will pick up the schema automatically
+    via the `# yaml-language-server` directive at the top of `.nika.yaml` files,
+    or you can add to `settings.json`:
+
+    ```json
+    {
+      "yaml.schemas": {
+        "https://nika.sh/schema/workflow.json": "*.nika.yaml"
+      }
+    }
+    ```
+
+    For full LSP (semantic completion, taint analysis), install the Nika LSP
+    extension *(planned post-v0.90)*.
+  </Tab>
+  <Tab title="Neovim">
+    Add a YAML schema mapping to your `nvim-lspconfig`:
+
+    ```lua
+    require('lspconfig').yamlls.setup {
+      settings = {
+        yaml = {
+          schemas = {
+            ["https://nika.sh/schema/workflow.json"] = "*.nika.yaml",
+          },
+        },
+      },
+    }
+    ```
+  </Tab>
+  <Tab title="Helix">
+    Add to `~/.config/helix/languages.toml`:
+
+    ```toml
+    [[language]]
+    name = "yaml"
+    file-types = [{ glob = "*.nika.yaml" }]
+    language-servers = ["yaml-language-server"]
+    ```
+  </Tab>
+  <Tab title="Cursor / Zed / others">
+    Any editor supporting `yaml-language-server` can validate `.nika.yaml`
+    against `https://nika.sh/schema/workflow.json`.
+  </Tab>
+</Tabs>
+
+## In-file schema hint
+
+Add this comment at the top of any `.nika.yaml` so the schema works with
+zero editor configuration:
+
+```yaml
+# yaml-language-server: $schema=https://nika.sh/schema/workflow.json
+schema: nika/workflow@0.12
+workflow: hello
+
+tasks:
+  - id: greet
+    infer:
+      provider: anthropic
+      prompt: "..."
+```
+
+## What you get
+
+- ✅ Autocomplete on verb keys, provider names, model identifiers
+- ✅ Hover docs on every field
+- ✅ Inline errors on missing required fields, schema mismatches
+- ✅ Format-on-save (with `prettier-plugin-yaml` or LSP-driven)
+
+## Coming post-v0.90
+
+- 🔜 Custom LSP with cross-task binding analysis (`{{ tasks.X.output }}` resolution)
+- 🔜 Taint propagation warnings (untrusted input → unsafe verb)
+- 🔜 "Go to definition" between tasks
+- 🔜 Workflow visualizer (DAG preview in editor)
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="The five verbs" icon="dna" href="/concepts/verbs">
+    What `exec`, `fetch`, `invoke`, `infer`, `agent` do.
+  </Card>
+  <Card title="Examples" icon="folder-open" href="/examples">
+    Real workflows you can copy.
+  </Card>
+</CardGroup>

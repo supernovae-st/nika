@@ -1,0 +1,56 @@
+---
+title: "CLI reference"
+description: "Every nika subcommand, flag, and environment variable."
+sidebarTitle: "CLI"
+icon: "terminal"
+---
+
+<Warning>
+  **Draft — the full CLI reference is auto-generated from the engine at
+  build time and will replace this stub before v0.90.**
+</Warning>
+
+## Core commands
+
+| Command | What it does |
+|---|---|
+| `nika run <file>` | Execute a workflow |
+| `nika check <file>` | Validate without running |
+| `nika explain <file>` | Show the DAG |
+| `nika doctor` | Diagnose setup (keys, providers, system) |
+| `nika keys` | Manage provider keys in system keychain |
+| `nika models` | List / inspect model catalog |
+| `nika replay <log>` | Replay a previous run from its NDJSON log |
+| `nika migrate` | Upgrade an older-schema workflow file |
+| `nika version` | Version + build info |
+
+## Global flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--events <format>` | off | `ndjson` \| `pretty` \| `off` |
+| `--output <path>` | stdout | Final output destination |
+| `--timeout <dur>` | none | Workflow-level wall-time limit |
+| `--input <key=val>` | — | Pass workflow inputs |
+| `--context <key=val>` | — | Override workflow context |
+| `--provider <name>` | from YAML | Override provider |
+| `--model <id>` | from YAML | Override model |
+| `--dry-run` | false | Validate + plan, do not execute |
+| `-v`, `-vv`, `-vvv` | info | Verbosity |
+
+## Environment variables
+
+| Var | Description |
+|---|---|
+| `NIKA_CONFIG_DIR` | Config location (default `~/.config/nika`) |
+| `NIKA_CACHE_DIR` | Cache (default `~/.cache/nika`) |
+| `ANTHROPIC_API_KEY` | Anthropic provider |
+| `OPENAI_API_KEY` | OpenAI provider |
+| `GOOGLE_API_KEY` | Google (Gemini) provider |
+| `MISTRAL_API_KEY` | Mistral provider |
+| `COHERE_API_KEY` | Cohere provider |
+| `GROQ_API_KEY` | Groq provider |
+| `DEEPSEEK_API_KEY` | DeepSeek provider |
+| `OLLAMA_HOST` | Ollama base URL (default `http://localhost:11434`) |
+
+Full auto-generated reference lands post-v0.90.
