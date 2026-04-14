@@ -22,13 +22,20 @@
 //! * `PROVIDER_INDEX: phf::Map<UniCase<&'static str>, usize>`.
 
 // `UniCase::ascii(...)` expressions appear in the phf_codegen output.
+#[cfg(any(feature = "mcp", feature = "providers", feature = "embeddings"))]
 use unicase::UniCase;
 
+#[cfg(feature = "mcp")]
 include!(concat!(env!("OUT_DIR"), "/mcp_servers.rs"));
+
+#[cfg(feature = "providers")]
 include!(concat!(env!("OUT_DIR"), "/providers.rs"));
+
+#[cfg(feature = "embeddings")]
 include!(concat!(env!("OUT_DIR"), "/embeddings.rs"));
 
 /// Case-insensitive MCP server lookup by id or alias. Returns `None` when unknown.
+#[cfg(feature = "mcp")]
 #[must_use]
 pub fn find_mcp_server(name: &str) -> Option<&'static crate::types::McpServer> {
     let idx = *MCP_INDEX.get(&UniCase::ascii(name))?;
@@ -36,6 +43,7 @@ pub fn find_mcp_server(name: &str) -> Option<&'static crate::types::McpServer> {
 }
 
 /// Case-insensitive provider lookup by id or alias. Returns `None` when unknown.
+#[cfg(feature = "providers")]
 #[must_use]
 pub fn find_provider(name: &str) -> Option<&'static crate::types::Provider> {
     let idx = *PROVIDER_INDEX.get(&UniCase::ascii(name))?;
@@ -43,13 +51,16 @@ pub fn find_provider(name: &str) -> Option<&'static crate::types::Provider> {
 }
 
 /// Case-insensitive embedding lookup by canonical id. Returns `None` when unknown.
+#[cfg(feature = "embeddings")]
 #[must_use]
 pub fn find_embedding(id: &str) -> Option<&'static crate::types::Embedding> {
     let idx = *EMBEDDING_INDEX.get(&UniCase::ascii(id))?;
     ALL_EMBEDDINGS.get(idx)
 }
 
-#[cfg(test)]
+// Tests require all three generated catalogs (cross-catalog invariants,
+// provider FK on embeddings, etc.). Only runs under the `full` feature set.
+#[cfg(all(test, feature = "mcp", feature = "providers", feature = "embeddings"))]
 #[allow(clippy::panic, clippy::expect_used)]
 mod tests {
     use super::*;

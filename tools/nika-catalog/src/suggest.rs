@@ -12,12 +12,29 @@
 //! Jaro-Winkler weights matching prefixes — exactly what happens with
 //! typos like `filesytem` → `filesystem` or `athropic` → `anthropic`.
 
+#[cfg(any(
+    feature = "mcp",
+    feature = "providers",
+    feature = "embeddings",
+    feature = "builtins-transforms"
+))]
 use strsim::jaro_winkler;
 
-use crate::data::{builtins, generated, transforms};
+#[cfg(feature = "builtins-transforms")]
+use crate::data::builtins;
+#[cfg(any(feature = "mcp", feature = "providers", feature = "embeddings"))]
+use crate::data::generated;
+#[cfg(feature = "builtins-transforms")]
+use crate::data::transforms;
 
 /// Minimum Jaro-Winkler score for a candidate to be considered a suggestion.
 /// 0.7 is empirically the threshold between "typo" and "different word".
+#[cfg(any(
+    feature = "mcp",
+    feature = "providers",
+    feature = "embeddings",
+    feature = "builtins-transforms"
+))]
 const MIN_SCORE: f64 = 0.7;
 
 /// Maximum number of suggestions returned per query.
@@ -60,34 +77,48 @@ pub struct Suggestion {
 /// compared case-insensitively against canonical ids only — aliases are
 /// not repeated because they already resolve to the same entry.
 #[must_use]
+#[cfg_attr(
+    not(any(
+        feature = "mcp",
+        feature = "providers",
+        feature = "embeddings",
+        feature = "builtins-transforms"
+    )),
+    allow(unused_variables)
+)]
 pub fn suggest(query: &str) -> Vec<Suggestion> {
     let q = query.to_ascii_lowercase();
     let mut hits: Vec<Suggestion> = Vec::new();
 
+    #[cfg(feature = "providers")]
     for p in generated::ALL_PROVIDERS {
         let s = jaro_winkler(&q, &p.id.to_ascii_lowercase());
         if s >= MIN_SCORE {
             hits.push(Suggestion { name: p.id, namespace: Namespace::Provider, score: s });
         }
     }
+    #[cfg(feature = "mcp")]
     for srv in generated::ALL_MCP_SERVERS {
         let s = jaro_winkler(&q, &srv.id.to_ascii_lowercase());
         if s >= MIN_SCORE {
             hits.push(Suggestion { name: srv.id, namespace: Namespace::McpServer, score: s });
         }
     }
+    #[cfg(feature = "embeddings")]
     for emb in generated::ALL_EMBEDDINGS {
         let s = jaro_winkler(&q, &emb.id.to_ascii_lowercase());
         if s >= MIN_SCORE {
             hits.push(Suggestion { name: emb.id, namespace: Namespace::Embedding, score: s });
         }
     }
+    #[cfg(feature = "builtins-transforms")]
     for b in builtins::ALL_BUILTINS {
         let s = jaro_winkler(&q, &b.name.to_ascii_lowercase());
         if s >= MIN_SCORE {
             hits.push(Suggestion { name: b.name, namespace: Namespace::Builtin, score: s });
         }
     }
+    #[cfg(feature = "builtins-transforms")]
     for t in transforms::ALL_TRANSFORMS {
         let s = jaro_winkler(&q, &t.name.to_ascii_lowercase());
         if s >= MIN_SCORE {
@@ -109,7 +140,10 @@ pub fn suggest_in(query: &str, namespace: Namespace) -> Vec<Suggestion> {
     suggest(query).into_iter().filter(|s| s.namespace == namespace).collect()
 }
 
-#[cfg(test)]
+// Suggestion tests reference specific catalog entries (filesystem, anthropic,
+// gpt). They require the full catalog — gated to avoid false-fails under
+// `--no-default-features --features minimal`.
+#[cfg(all(test, feature = "mcp", feature = "providers"))]
 mod tests {
     use super::*;
 

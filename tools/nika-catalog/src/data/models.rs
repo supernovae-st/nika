@@ -6,7 +6,10 @@
 //! Capabilities use pattern-matching (NOT phf) — model names are open-ended.
 //! Pricing uses 2-pass matching: exact match first, then `contains()` fallback.
 
-use crate::types::model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLimitParam};
+#[cfg(feature = "pricing")]
+use crate::types::model::{CostEstimate, ModelPricing};
+#[cfg(feature = "capabilities")]
+use crate::types::model::{ModelCapabilities, TokenLimitParam};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Model capabilities (pattern-matching function)
@@ -19,6 +22,7 @@ use crate::types::model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLi
 /// `o3-finetune` on a custom vLLM endpoint gets `max_tokens`.
 ///
 /// This is the ONLY function that should know about model-specific quirks.
+#[cfg(feature = "capabilities")]
 #[must_use]
 pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
     let lower = model.to_lowercase();
@@ -85,6 +89,7 @@ pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
     ModelCapabilities::default()
 }
 
+#[cfg(feature = "capabilities")]
 fn is_o_series(lower: &str) -> bool {
     lower == "o1"
         || lower.starts_with("o1-")
@@ -94,6 +99,7 @@ fn is_o_series(lower: &str) -> bool {
         || lower.starts_with("o4-")
 }
 
+#[cfg(feature = "capabilities")]
 fn is_gpt5(lower: &str) -> bool {
     lower == "gpt-5" || lower.starts_with("gpt-5-") || lower.starts_with("gpt-5.")
 }
@@ -106,6 +112,7 @@ fn is_gpt5(lower: &str) -> bool {
 ///
 /// **Ordering matters for `contains()` fallback**: more specific patterns MUST
 /// appear before less specific ones within each provider.
+#[cfg(feature = "pricing")]
 pub static ALL_PRICING: &[ModelPricing] = &[
     // ── Anthropic ───────────────────────────────────────────────
     ModelPricing { provider: "Anthropic", model_pattern: "claude-3-haiku", input_per_million: 0.25, output_per_million: 1.25 },
@@ -188,6 +195,7 @@ pub static ALL_PRICING: &[ModelPricing] = &[
 /// ⚠ The unscoped variant is vulnerable to cross-provider contains-collisions
 /// (e.g. `gpt-4o` could pick up an Azure pattern when the caller meant `OpenAI`).
 /// Prefer [`find_pricing_scoped`] when the provider is known.
+#[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
     // Pass 1: exact match
@@ -210,6 +218,7 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
 /// Provider matching is case-insensitive and accepts the provider id
 /// (e.g. `"openai"`) or the capitalised display form used in
 /// [`ALL_PRICING`] (e.g. `"OpenAI"`).
+#[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
     let prov_lower = provider.to_ascii_lowercase();
@@ -227,6 +236,7 @@ pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static Model
 }
 
 /// Estimate cost for a model invocation.
+#[cfg(feature = "pricing")]
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
 pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Option<CostEstimate> {

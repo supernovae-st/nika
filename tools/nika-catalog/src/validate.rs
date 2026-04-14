@@ -5,18 +5,28 @@
 //!
 //! Used by xtask and unit tests to ensure static data is consistent.
 
-use crate::data::{builtins, models, transforms, ALL_MCP_SERVERS, ALL_PROVIDERS};
 use crate::error::CatalogError;
 
 /// Validate all catalog cross-references. Returns all errors found.
+///
+/// Only available under the `full` feature set — this is the xtask /
+/// integrity-check entry point, not a runtime hot path.
 ///
 /// Checks:
 /// - Builtin array is sorted
 /// - Transform array is sorted
 /// - No duplicate names in any catalog
 /// - Cloud provider default/cheap models have pricing entries
+#[cfg(all(
+    feature = "providers",
+    feature = "mcp",
+    feature = "pricing",
+    feature = "builtins-transforms"
+))]
 #[must_use]
 pub fn validate_catalog_integrity() -> Vec<CatalogError> {
+    use crate::data::{builtins, transforms, ALL_MCP_SERVERS, ALL_PROVIDERS};
+
     let mut errors = Vec::new();
     validate_sorted("builtins", builtins::ALL_BUILTINS.iter().map(|b| b.name), &mut errors);
     validate_sorted("transforms", transforms::ALL_TRANSFORMS.iter().map(|t| t.name), &mut errors);
@@ -28,6 +38,9 @@ pub fn validate_catalog_integrity() -> Vec<CatalogError> {
     errors
 }
 
+// Pure helper: unit-tested in every config, but only the gated
+// `validate_catalog_integrity` entry-point drives it in non-test builds.
+#[allow(dead_code)]
 fn validate_sorted<'a>(
     catalog: &'static str,
     names: impl Iterator<Item = &'a str>,
@@ -46,6 +59,7 @@ fn validate_sorted<'a>(
     }
 }
 
+#[allow(dead_code)]
 fn validate_no_duplicates<'a>(
     catalog: &'static str,
     names: impl Iterator<Item = &'a str>,
@@ -68,7 +82,10 @@ fn validate_no_duplicates<'a>(
 /// org-prefixed model names (e.g. "anthropic/claude-sonnet-4-20250514")
 /// that won't match raw pricing patterns — they are exempt.
 /// Native and mock providers are also exempt (no cloud pricing).
+#[cfg(all(feature = "providers", feature = "pricing"))]
+#[allow(dead_code)] // exercised by tests in every feature config that enables both flags
 fn validate_provider_models(errors: &mut Vec<CatalogError>) {
+    use crate::data::{models, ALL_PROVIDERS};
     const CLOUD_IDS: &[&str] = &[
         "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
     ];
@@ -96,6 +113,12 @@ fn validate_provider_models(errors: &mut Vec<CatalogError>) {
 mod tests {
     use super::*;
 
+    #[cfg(all(
+        feature = "providers",
+        feature = "mcp",
+        feature = "pricing",
+        feature = "builtins-transforms"
+    ))]
     #[test]
     fn catalog_integrity_is_clean() {
         let errors = validate_catalog_integrity();
@@ -150,6 +173,7 @@ mod tests {
         assert!(errors.is_empty());
     }
 
+    #[cfg(all(feature = "providers", feature = "pricing"))]
     #[test]
     fn provider_models_have_pricing() {
         let mut errors = Vec::new();

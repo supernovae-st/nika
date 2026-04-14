@@ -15,13 +15,26 @@
 //! - Pattern-matching function for model capabilities
 //! - 2-pass matching (exact + contains) for pricing
 
+#[cfg(feature = "builtins-transforms")]
 pub mod builtins;
+
 pub mod generated;
+
+#[cfg(any(feature = "pricing", feature = "capabilities"))]
 pub mod models;
+
+#[cfg(feature = "builtins-transforms")]
 pub mod transforms;
 
-// In-crate re-exports for iteration helpers and the one lookup
-// (`find_provider`) that runs inside `data/models.rs`. External access
-// goes through `nika_catalog::{ALL_*, find_*}` (lib.rs) or the
-// `nika_catalog::lookup::*` module — the `data` module is `pub(crate)`.
-pub(crate) use generated::{find_provider, ALL_EMBEDDINGS, ALL_MCP_SERVERS, ALL_PROVIDERS};
+// In-crate re-exports. Gated on the narrowest consumer:
+//  * `ALL_PROVIDERS` — used by validate/suggest under `providers`
+//  * `find_provider` — used ONLY by data/models.rs (pricing/capabilities)
+//  * `ALL_MCP_SERVERS`, `ALL_EMBEDDINGS` — used by suggest/validate
+#[cfg(feature = "providers")]
+pub(crate) use generated::ALL_PROVIDERS;
+#[cfg(feature = "capabilities")]
+pub(crate) use generated::find_provider;
+#[cfg(feature = "mcp")]
+pub(crate) use generated::ALL_MCP_SERVERS;
+#[cfg(feature = "embeddings")]
+pub(crate) use generated::ALL_EMBEDDINGS;

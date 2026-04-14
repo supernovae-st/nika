@@ -10,6 +10,18 @@
 //!
 //! All lookups return `Option`, not `NikaError`. The catalog answers
 //! "is this known?", the caller decides if "unknown" is an error.
+//!
+//! # Cargo features
+//!
+//! `default = ["full", "serde"]` — every catalog + serde derives.
+//!
+//! Subset compilation is supported for community-extension crates:
+//! `nika-catalog = { default-features = false, features = ["extension-author"] }`
+//! pulls in only types + `Tag` enum, no bundled data. See
+//! [`COMMUNITY_EXTENSIONS.md`][1] for the full extension-author pattern,
+//! cargo-feature reference table, and reserved field names.
+//!
+//! [1]: https://github.com/supernovae-st/nika/blob/main/tools/nika-catalog/COMMUNITY_EXTENSIONS.md
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
@@ -29,53 +41,77 @@ pub mod validate;
 // ── Re-exports for ergonomic usage ──────────────────────────────────────
 
 pub use error::CatalogError;
-pub use lookup::{
-    estimate_cost, find_builtin, find_embedding, find_mcp_server, find_pricing,
-    find_pricing_scoped, find_provider, find_transform, is_known_builtin, is_known_mcp_server,
-    is_known_transform, model_capabilities, resolve_mcp_name, validate_key_format,
-};
 pub use suggest::{suggest, suggest_in, Namespace, Suggestion};
+// `types::*` already brings `validate_key_format`, `Tag`, and the rest of the
+// type surface into scope — it's a pure-logic function requiring no feature.
 pub use types::*;
+
+// Lookup functions are feature-gated on their respective content catalogs.
+#[cfg(feature = "mcp")]
+pub use lookup::{find_mcp_server, is_known_mcp_server, resolve_mcp_name};
+#[cfg(feature = "providers")]
+pub use lookup::find_provider;
+#[cfg(feature = "embeddings")]
+pub use lookup::find_embedding;
+#[cfg(feature = "pricing")]
+pub use lookup::{estimate_cost, find_pricing, find_pricing_scoped};
+#[cfg(feature = "capabilities")]
+pub use lookup::model_capabilities;
+#[cfg(feature = "builtins-transforms")]
+pub use lookup::{find_builtin, find_transform, is_known_builtin, is_known_transform};
 
 // ── Iteration helpers ───────────────────────────────────────────────────
 
 /// LLM providers (build-time generated from `data/llm-providers.toml`).
+#[cfg(feature = "providers")]
 #[must_use]
 pub fn all_providers() -> &'static [types::Provider] {
     data::ALL_PROVIDERS
 }
 
 /// MCP server entries (build-time generated from `data/mcp-servers.toml`).
+#[cfg(feature = "mcp")]
 #[must_use]
 pub fn all_mcp_servers() -> &'static [types::McpServer] {
     data::ALL_MCP_SERVERS
 }
 
 /// Embedding models (build-time generated from `data/embeddings.toml`).
+#[cfg(feature = "embeddings")]
 #[must_use]
 pub fn all_embeddings() -> &'static [types::Embedding] {
     data::ALL_EMBEDDINGS
 }
 
 /// Builtin tools (alphabetically sorted, binary-search lookup).
+#[cfg(feature = "builtins-transforms")]
 #[must_use]
 pub fn all_builtins() -> &'static [types::Builtin] {
     data::builtins::ALL_BUILTINS
 }
 
 /// Pipe transforms (alphabetically sorted, binary-search lookup).
+#[cfg(feature = "builtins-transforms")]
 #[must_use]
 pub fn all_transforms() -> &'static [types::TransformDef] {
     data::transforms::ALL_TRANSFORMS
 }
 
 /// Model pricing entries (pattern-matched at lookup time).
+#[cfg(feature = "pricing")]
 #[must_use]
 pub fn all_pricing() -> &'static [types::ModelPricing] {
     data::models::ALL_PRICING
 }
 
-#[cfg(test)]
+#[cfg(all(
+    test,
+    feature = "providers",
+    feature = "mcp",
+    feature = "embeddings",
+    feature = "pricing",
+    feature = "builtins-transforms"
+))]
 mod tests {
     use super::*;
 

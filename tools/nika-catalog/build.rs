@@ -226,24 +226,45 @@ fn run() -> Result<(), String> {
         }
     }
 
-    let mcp_path = data_dir.join("mcp-servers.toml");
-    let providers_path = data_dir.join("llm-providers.toml");
+    // Cargo sets CARGO_FEATURE_<NAME> for every enabled feature (uppercased,
+    // hyphens→underscores). Probe each content feature to decide whether to
+    // parse the corresponding TOML and emit `$OUT_DIR/<name>.rs`.
+    //
+    // When a feature is disabled we emit nothing — matching `#[cfg(feature)]`
+    // `include!` sites in `src/data/generated.rs` that skip the file entirely.
+    let has_mcp = env::var("CARGO_FEATURE_MCP").is_ok();
+    let has_providers = env::var("CARGO_FEATURE_PROVIDERS").is_ok();
+    let has_embeddings = env::var("CARGO_FEATURE_EMBEDDINGS").is_ok();
 
-    let servers = parse_mcp_servers(&mcp_path)?;
-    let generated = generate_mcp_servers_rs(&servers);
-    fs::write(out_dir.join("mcp_servers.rs"), generated)
-        .map_err(|e| format!("writing mcp_servers.rs: {e}"))?;
+    // Providers are parsed unconditionally when either `providers` OR
+    // `embeddings` is on — embeddings' FK check needs the provider list even
+    // when we won't emit providers.rs (rare config: embeddings-only consumer).
+    let providers = if has_providers || has_embeddings {
+        parse_llm_providers(&data_dir.join("llm-providers.toml"))?
+    } else {
+        Vec::new()
+    };
 
-    let providers = parse_llm_providers(&providers_path)?;
-    let generated = generate_providers_rs(&providers);
-    fs::write(out_dir.join("providers.rs"), generated)
-        .map_err(|e| format!("writing providers.rs: {e}"))?;
+    if has_providers {
+        let generated = generate_providers_rs(&providers);
+        fs::write(out_dir.join("providers.rs"), generated)
+            .map_err(|e| format!("writing providers.rs: {e}"))?;
+    }
 
-    let embeddings_path = data_dir.join("embeddings.toml");
-    let embeddings = parse_embeddings(&embeddings_path, &providers)?;
-    let generated = generate_embeddings_rs(&embeddings);
-    fs::write(out_dir.join("embeddings.rs"), generated)
-        .map_err(|e| format!("writing embeddings.rs: {e}"))?;
+    if has_mcp {
+        let servers = parse_mcp_servers(&data_dir.join("mcp-servers.toml"))?;
+        let generated = generate_mcp_servers_rs(&servers);
+        fs::write(out_dir.join("mcp_servers.rs"), generated)
+            .map_err(|e| format!("writing mcp_servers.rs: {e}"))?;
+    }
+
+    if has_embeddings {
+        let embeddings_path = data_dir.join("embeddings.toml");
+        let embeddings = parse_embeddings(&embeddings_path, &providers)?;
+        let generated = generate_embeddings_rs(&embeddings);
+        fs::write(out_dir.join("embeddings.rs"), generated)
+            .map_err(|e| format!("writing embeddings.rs: {e}"))?;
+    }
 
     Ok(())
 }
