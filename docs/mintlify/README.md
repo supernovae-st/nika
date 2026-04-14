@@ -6,7 +6,7 @@ Source of [docs.nika.sh](https://docs.nika.sh) — user documentation published 
 
 ```
 docs/mintlify/
-├── mintlify.json                Mintlify config + navigation (v4+)
+├── docs.json                    Mintlify config + navigation
 ├── introduction.mdx             Landing page
 ├── getting-started/             Install + first workflow + editors
 ├── concepts/                    Organism / verbs / workflows / bindings / events / providers
@@ -18,9 +18,14 @@ docs/mintlify/
 
 ## Local preview
 
+Requires Node 22 LTS (mintlify blocks Node 25+). A `.nvmrc` is present.
+
 ```bash
 cd docs/mintlify
-npx mintlify@latest dev           # http://localhost:3000 (no global install needed)
+# Switch to Node 22 first (reads .nvmrc):
+#   nvm: nvm use
+#   brew: export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
+npx mintlify@latest dev           # http://localhost:3000
 ```
 
 ## Deploy
