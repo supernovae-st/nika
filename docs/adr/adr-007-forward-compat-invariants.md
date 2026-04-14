@@ -90,6 +90,7 @@ Rejected: API churn at version boundaries is exactly what forever-v0.x (ADR-002)
 - ADR-002 — forever v0.x (the release model that demands forward-compat)
 - ADR-005 — error hierarchy (error enums also `#[non_exhaustive]`)
 - ADR-006 — kernel ISP traits (where the hooks land)
+- ADR-015 — `expect-test` inline snapshots (regression coverage when `#[non_exhaustive]` types grow new variants and rendered output drifts)
 - `docs/architecture/forward-compat-invariants.md` — full reference
 
 ## Notes

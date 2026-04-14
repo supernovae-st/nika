@@ -39,7 +39,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
 
-- **nika-error** — error infrastructure (44 tests, 100% mutation, `42909b1c7`)
+- **nika-error** — error infrastructure (45 tests, 100% mutation, `42909b1c7`)
 - **nika-catalog** — static catalogs with phf+unicase lookup (154 tests, `9feb96956`)
   - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
   - 105 MCP servers, 21 LLM providers, 13 embeddings, 63 builtins, 65 transforms
@@ -50,7 +50,7 @@ Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
 - **nika-catalog-verify** — online registry verifier binary (9 tests, `a977e35b1`)
 - **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (99 + 88 tests, `ef8804371`)
 
-Total: 385 tests, 0 clippy warnings, 0 unwrap in `src/`, Gate 8 GREEN.
+Total: 386 tests, 0 clippy warnings, 0 unwrap in `src/`, Gate 8 GREEN.
 
 Phase D progress: Session 1 ✅ (Tag + features + Shield), Session 2a ✅ (capability TOML).
 Next: Session 2b — Modality + TokenizerFamily + ParamFlag → Gate 2 advancement.

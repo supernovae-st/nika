@@ -20,6 +20,9 @@ test -d "tools/$CRATE" || { echo "❌ tools/$CRATE not found"; exit 1; }
 grep -q "\"tools/$CRATE\"" Cargo.toml && { echo "❌ already in workspace"; exit 1; }
 test -f "docs/crate-specs/$CRATE.md" || { echo "❌ Gate 1 fail: missing spec"; exit 1; }
 git diff --quiet || { echo "❌ working tree dirty — commit or stash first"; exit 1; }
+# Use a dedicated revert filename so we never clobber a user's own .bak
+BAK="Cargo.toml.admit-revert"
+[ -f "$BAK" ] && { echo "❌ $BAK already exists from a prior interrupted run — inspect and remove it first"; exit 1; }
 ```
 
 ## Gates in order — stop on first ❌
@@ -33,32 +36,30 @@ echo "Inspect git log for $CRATE — were #[test] commits BEFORE impl commits?"
 git log --oneline --reverse -- "tools/$CRATE/" | head -10
 
 echo "── Gate 3: IMPL compiles ──"
-# Temporarily add to workspace for the rest of the gates
-sed -i.bak "s|members  = \[|members  = [\"tools/$CRATE\", |" Cargo.toml
-cargo check -p "$CRATE" 2>&1 | tail -3 || { mv Cargo.toml.bak Cargo.toml; exit 1; }
+# Temporarily add to workspace for the rest of the gates. The revert
+# file is independent of sed so an existing user .bak never gets clobbered.
+cp Cargo.toml "$BAK"
+sed -i.swap "s|members  = \[|members  = [\"tools/$CRATE\", |" Cargo.toml \
+  && rm -f Cargo.toml.swap
+trap 'mv "$BAK" Cargo.toml 2>/dev/null' EXIT INT TERM
+cargo check -p "$CRATE" 2>&1 | tail -3 || exit 1
 
 echo "── Gate 3b: TESTS PASS ──"
-cargo test -p "$CRATE" --lib 2>&1 | tail -5 || { mv Cargo.toml.bak Cargo.toml; exit 1; }
+cargo test -p "$CRATE" --lib 2>&1 | tail -5 || exit 1
 
-echo "── Gate 4: CLIPPY 0 ──"
-cargo clippy -p "$CRATE" --all-targets -- -D warnings 2>&1 | tail -5 \
-  || { mv Cargo.toml.bak Cargo.toml; exit 1; }
-
-echo "── Gate 4b: ZERO UNWRAP IN src/ ──"
-UNWRAPS=$(rg '\.unwrap\(\)|\.expect\(' "tools/$CRATE/src" --type rust -g '!*test*' | wc -l | tr -d ' ')
-[ "$UNWRAPS" = "0" ] && echo "✅ 0 unwraps" \
-  || { echo "❌ $UNWRAPS unwrap/expect in src/"; mv Cargo.toml.bak Cargo.toml; exit 1; }
+echo "── Gate 4: CLIPPY 0 (covers Gate 4b — clippy unwrap_used = \"deny\" already excludes #[cfg(test)]) ──"
+cargo clippy -p "$CRATE" --all-targets -- -D warnings 2>&1 | tail -5 || exit 1
 
 echo "── Gate 4c: ZERO #[allow(dead_code)] ──"
 DEAD=$(rg '#\[allow\(dead_code\)\]' "tools/$CRATE/src" --type rust | wc -l | tr -d ' ')
 [ "$DEAD" = "0" ] && echo "✅ 0 dead_code allows" \
-  || { echo "❌ $DEAD dead_code allows"; mv Cargo.toml.bak Cargo.toml; exit 1; }
+  || { echo "❌ $DEAD dead_code allows"; exit 1; }
 
 echo "── Gate 4d: FILE SIZE ≤1500 LOC ──"
 OVER=$(find "tools/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null \
        | awk '$1 > 1500 && $2 != "total" {print}')
 [ -z "$OVER" ] && echo "✅ all files ≤1500 LOC" \
-  || { echo "❌ files over 1500 LOC: $OVER"; mv Cargo.toml.bak Cargo.toml; exit 1; }
+  || { echo "❌ files over 1500 LOC: $OVER"; exit 1; }
 
 echo "── Gate 5: MUTATION ≥90% (manual) ──"
 echo "Run: cargo mutants -p $CRATE --timeout 300"
@@ -95,8 +96,10 @@ bash scripts/ci/check-adr-coverage.sh
 echo "If $CRATE is not yet covered, write or extend an ADR before commit."
 
 # Cleanup the temp workspace edit — final commit must be a clean
-# single insertion, not an sed-bak-revert noise diff.
-mv Cargo.toml.bak Cargo.toml
+# single insertion, not a revert-noise diff. The trap also covers
+# Ctrl-C and unexpected exits earlier in the script.
+mv "$BAK" Cargo.toml
+trap - EXIT INT TERM
 echo "── Workspace edit reverted. Re-add tools/$CRATE to members manually for the commit. ──"
 ```
 
