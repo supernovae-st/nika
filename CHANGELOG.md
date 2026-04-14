@@ -106,7 +106,7 @@ no code inherited from main.
 - Workspace-level lint policy: `clippy::unwrap_used = "deny"`,
   `clippy::expect_used = "warn"`, `clippy::panic = "deny"`.
 - `.gitignore` excluding all 32 legacy crate directories and tool output.
-- `DIAMOND.md` architectural vision with complete 34-crate catalog.
+- `DIAMOND.md` architectural vision with core 34-crate catalog (expanded to 40-42 target for v0.90 after pck + natives additions per ROADMAP.md).
 - `README.md` rewritten for Phase 1 state.
 - Claude Code environment, DX rules, session discipline, and hooks.
 - Linear setup guide for diamond project tracking.

@@ -42,9 +42,12 @@ The monolithic `nika-engine` reached 138,654 LOC. Claude Opus 1M can hold
 and guess the rest → **I hallucinate**. Over 2 weeks of work, we produced
 only 156 lines of real engine change because I kept inventing broken code.
 
-The diamond solution : split everything into ~32-34 small crates, each
+The diamond solution : split everything into small crates, each
 **≤15k LOC**. Every crate fits entirely in my context window with its
 tests and kernel traits. I stop hallucinating. You get a reliable partner.
+
+Crate count targets (per ROADMAP.md): 40-42 at v0.90, ~63-65 at v0.95,
+~72-75 at v0.100, hard cap 100 ever.
 
 Full rationale : `~/.claude/projects/.../memory/project_ai_velocity_north_star.md`.
 
@@ -138,7 +141,12 @@ Full rationale : `~/.claude/projects/.../memory/project_ai_velocity_north_star.m
      │                        │    └─ (dag merged into schema)
      └───────────────────────┘
 
-TOTAL : 32-34 diamond crates + 3 memory satellites (Phase 9+)
+TARGETS (per ROADMAP.md, forever v0.x model):
+  v0.90  40-42 crates  (core + pck MVP + 7 natives + 5 gold pck types)
+  v0.95  ~63-65 crates (+ Cortex + media + 8 natives + agent-v2)
+  v0.100 ~72-75 crates (+ WASM host + observability + LSP)
+  Cap    100 ever
+
 Each ≤15k LOC · file ≤1500 · fn ≤100 · 0 unwrap src/
 Every I/O behind kernel trait · Tests with kernel-mock (pure memory)
 ```
@@ -192,11 +200,15 @@ Every I/O behind kernel trait · Tests with kernel-mock (pure memory)
 | 41 | nika-verb-infer         | L2   | ~5k   | `infer:` verb + streaming + structured | PHASE 3 |
 | 42 | nika-verb-invoke        | L2   | ~1k   | `invoke:` verb via BuiltinRouter + McpPool | PHASE 3 |
 
-**34 crates admitted** (= 42 entries − 1 deleted (`nika-sdk`) − 7 merged-as-modules).
+**Currently admitted: 4 crates** (nika-error, nika-catalog, nika-kernel,
+nika-kernel-mock). Table above = ~34 core crates PLANNED for v0.90 core
+engine. Target v0.90 total = **40-42** (adds 3 builtin bundles + 4-5 pck
+crates per ROADMAP.md).
 
-**Future (Phase 9+ v0.95)** : 3 memory satellites = `nika-memory-store` (Oxigraph),
-`nika-memory-embed` (HNSW), `nika-memory-recall` (FSRS-6). Plus agent-v2 features
-added to `nika-verb-agent` (parallel tools, ReWOO, reflection, resume, compression).
+**Future (v0.95)**: Cortex = 9-10 new crates (Oxigraph + FSRS-6 + OWL2 +
+agent-v2 + memory satellites). **v0.100**: WASM host + observability + LSP
+full (+4-6 crates). **Hard cap: 100 crates ever.** See ROADMAP.md for
+phase-by-phase breakdown.
 
 ---
 

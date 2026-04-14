@@ -108,8 +108,8 @@ of their Rust education.
 
 - **nika-memory / Cortex** — persistent agent memory (Oxigraph + FSRS-6 + OWL 2)
 - **Agent v2** — parallel tools, ReWOO planning, reflection, resume, compression
-- **Nika Cloud** (v1.0) — hosted runner, Tailscale model
-- **Nika Enterprise** (v1.x) — on-prem + SSO + web UI
+- **Nika Cloud** (v0.110+) — hosted runner, Tailscale model (optional, self-host remains primary)
+- **Nika Enterprise** (v0.110+) — on-prem + SSO + web UI (demand-driven)
 
 ## License
 

@@ -1,5 +1,14 @@
 # nika-kernel + nika-kernel-mock -- Design
 
+**[SHIPPED]** Implemented and admitted 2026-04-13. Commit `ef8804371`.
+- nika-kernel: 99 tests, ~3,700 LOC
+- nika-kernel-mock: 88 tests, ~850 LOC
+
+This document is kept as a historical record of design decisions. For
+current state see `docs/crate-specs/nika-kernel.md` + `nika-kernel-mock.md`.
+
+---
+
 Brainstorm session 2026-04-13. Validated by user.
 
 ## Decisions

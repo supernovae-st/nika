@@ -43,6 +43,10 @@ wildcards         = "deny"
 version = 2
 yanked  = "deny"
 # Advisory ignores (CVE IDs) listed explicitly here — never blanket-suppress.
+# Document every entry: RUSTSEC ID + reason + upstream issue + review date.
+ignore = [
+  # "RUSTSEC-YYYY-NNNN",  # example only — always document reason + upstream issue
+]
 
 [sources]
 unknown-registry = "deny"

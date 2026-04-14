@@ -263,14 +263,18 @@ No dependency added before its phase lands.
 
 ## Crate Count Impact
 
-Current diamond target: 32-34 crates + 3 memory satellites = 35-37 max.
+**UPDATED 2026-04-14** per ROADMAP.md (forever v0.x model):
+
+- v0.90 target: **40-42 crates** (32-34 core + 3 builtin bundles +
+  4-5 pck infrastructure crates, from vision brainstorm 2026-04-14)
+- v0.95: **~63-65 crates** (+ Cortex 9-10 + media 5 + 8 more natives)
+- v0.100: **~72-75 crates** (+ WASM host + observability + LSP full)
+- v0.110+: incremental additions
+- **Hard cap: 100 crates ever**
 
 Tier 2 features add zero new crates (integrated into existing crates).
-Tier 3 features add up to 3 new crates (nika-a2a, nika-plugin-wasm,
-nika-replay) plus nika-sandbox. These land post v0.90 and do not affect
-the diamond crate count ceiling.
-
-v0.95+ ceiling: 39-41 crates (diamond 35-37 + memory 3 + tier 3 up to 4).
+Tier 3 features (nika-a2a, nika-plugin-wasm, nika-replay, nika-sandbox)
+land at v0.100, included in the 72-75 ceiling above.
 
 ---
 

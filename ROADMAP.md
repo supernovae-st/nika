@@ -40,15 +40,37 @@ checks. GitHub Actions daily cron for drift detection. Multi-distribution
 support: `Distribution::{Npm,Pypi,Oci,Remote,Binary,Mcpb}` aligned with
 official MCP Registry schema (`packages[]` + `remotes[]`).
 
-**Providers**: 21 shipped. Split across 3 crates:
+**Providers**: 25 shipped (+4 Tier 1 additions from provider audit). Split across 3 crates:
 - `nika-provider-rig` — 7 cloud + 7 OpenAI-compat
 - `nika-provider-native` — GGUF via mistral.rs (feature-gated)
 - `nika-provider-mock` — deterministic tests
 
+**Tier 1 additions** (high-priority providers):
+- `moonshot` — Kimi K2 (1M+ context, top-tier open-weight)
+- `qwen` — Alibaba DashScope (Qwen3-Max competitive with GPT-5/Claude 4.5)
+- `deepinfra` — OpenAI-compat, popular open-weight hosting
+- `novita` — OpenAI-compat, growing rapidly
+
 **Default models updated to April 2026 flagships**: Claude Sonnet 4.5, GPT-5,
 Grok 4, Gemini 3.0 Pro, Command A, Jamba 1.6, Voyage 3.5, cross-region Bedrock
-profiles. Pricing entries for `gpt-5-{mini,nano}`, Perplexity Sonar (all
-variants), Cohere, AI21 Jamba, Voyage embeddings, Grok 4 variants.
+profiles. Pricing entries for `gpt-5-{mini,nano}`, Perplexity Sonar (all 4
+variants: sonar/sonar-pro/sonar-reasoning/sonar-deep-research), Cohere,
+AI21 Jamba 1.6, Voyage embeddings (voyage-3.5/voyage-3.5-lite/voyage-code-3),
+Grok 4 variants (grok-4/grok-4-fast).
+
+**Model metadata expanded** (all models):
+- `context_window_tokens: u32` — critical for `| token_count` sanity + cost
+  estimation + fallback decisions
+- `max_output_tokens: u32` — per-model output caps
+- Per-provider capabilities (vision, thinking, structured output)
+
+**Catalog P1 improvements** (fix silent bugs + UX):
+- Scope `find_pricing` by provider (fix silent wrong-cost on custom endpoints)
+- Enforce pricing-pattern ordering at compile time (no merge-conflict wrong pricing)
+- `suggest()` fuzzy matcher with `strsim` — "did you mean firecrawl?" on typos
+- Shared `Credential` type referenced by both Provider and McpServer
+  (de-dupes perplexity/brave/stripe credential data)
+- `Category` as enum, not `&'static str` (type safety)
 
 **Security (7 shadow zones GREEN, non-negotiable)**:
 - Gate 1: `nika serve` input trust (P0)

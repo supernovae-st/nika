@@ -92,14 +92,21 @@ impl NikaErrorCode for CatalogError;
 
 ## 3. Catalog entry counts
 
+**Post Phase A cleanup (2026-04-14)** — initial admission numbers updated
+after v2 enrichment (`6a943e885`) + Phase A broken-alias removal (`db0bf8e3f`):
+
 | Catalog | Entries | Lookup | Case |
 |---|---|---|---|
-| Providers | 16 (7 cloud + 7 compat + native + mock) | phf+unicase | insensitive |
-| Provider aliases | ~20 (claude→anthropic, gpt→openai, etc.) | merged into provider map | insensitive |
-| MCP aliases | ~125 (114 existing + 11 ex-MCP providers) | phf+unicase | insensitive |
+| Providers | **21** (7 cloud + 7 compat + 5 enterprise + native + mock) | phf+unicase | insensitive |
+| Provider aliases | ~25 (claude→anthropic, gpt→openai, gcp→vertex, aws-bedrock→bedrock, etc.) | merged into provider map | insensitive |
+| MCP aliases | **102** (post Phase A cleanup — removed 29 broken: 7 deprecated Anthropic + 19 non-existent + 3 zero-dl) | phf+unicase | insensitive |
 | Builtins | 63 | sorted + binary_search | sensitive |
-| Transforms | 63 | sorted + binary_search | sensitive |
+| Transforms | 65 | sorted + binary_search | sensitive |
 | Pricing | 62 patterns | sorted + 2-pass match | N/A |
+
+Original admission (`55a451695`, 2026-04-13): 16 providers / 113 MCP aliases.
+Phase C (planned) will migrate to TOML + build.rs + phf_codegen with
+Distribution enum supporting multi-dist (npm/pypi/oci/remote).
 
 ---
 
