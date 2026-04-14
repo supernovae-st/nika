@@ -26,6 +26,7 @@ use unicase::UniCase;
 
 include!(concat!(env!("OUT_DIR"), "/mcp_servers.rs"));
 include!(concat!(env!("OUT_DIR"), "/providers.rs"));
+include!(concat!(env!("OUT_DIR"), "/embeddings.rs"));
 
 /// Case-insensitive MCP server lookup by id or alias. Returns `None` when unknown.
 #[must_use]
@@ -39,6 +40,13 @@ pub fn find_mcp_server(name: &str) -> Option<&'static crate::types::McpServer> {
 pub fn find_provider(name: &str) -> Option<&'static crate::types::Provider> {
     let idx = *PROVIDER_INDEX.get(&UniCase::ascii(name))?;
     ALL_PROVIDERS.get(idx)
+}
+
+/// Case-insensitive embedding lookup by canonical id. Returns `None` when unknown.
+#[must_use]
+pub fn find_embedding(id: &str) -> Option<&'static crate::types::Embedding> {
+    let idx = *EMBEDDING_INDEX.get(&UniCase::ascii(id))?;
+    ALL_EMBEDDINGS.get(idx)
 }
 
 #[cfg(test)]
@@ -284,6 +292,68 @@ mod tests {
 
         let grafana = find_mcp_server("grafana").expect("grafana restored");
         assert_eq!(grafana.packages[0].registry_type, RegistryType::Oci);
+    }
+
+    // ─── Embeddings ──────────────────────────────────────────────────
+
+    #[test]
+    fn embeddings_non_empty() {
+        assert!(!ALL_EMBEDDINGS.is_empty());
+    }
+
+    #[test]
+    fn every_embedding_roundtrips() {
+        for e in ALL_EMBEDDINGS {
+            assert_eq!(
+                find_embedding(e.id).map(|x| x.id),
+                Some(e.id),
+                "embedding {:?} not resolvable via EMBEDDING_INDEX",
+                e.id,
+            );
+        }
+    }
+
+    #[test]
+    fn every_embedding_references_known_provider() {
+        for e in ALL_EMBEDDINGS {
+            assert!(
+                find_provider(e.provider).is_some(),
+                "embedding {:?} references unknown provider {:?}",
+                e.id, e.provider,
+            );
+        }
+    }
+
+    #[test]
+    fn embedding_dimensions_are_positive() {
+        for e in ALL_EMBEDDINGS {
+            assert!(e.dimensions > 0, "embedding {:?} has zero dimensions", e.id);
+            assert!(
+                e.max_input_tokens > 0,
+                "embedding {:?} has zero max_input_tokens",
+                e.id,
+            );
+        }
+    }
+
+    #[test]
+    fn embedding_pricing_non_negative_finite() {
+        for e in ALL_EMBEDDINGS {
+            assert!(
+                e.input_per_million.is_finite() && e.input_per_million >= 0.0,
+                "embedding {:?} has invalid price {}",
+                e.id, e.input_per_million,
+            );
+        }
+    }
+
+    #[test]
+    fn voyage_3_large_is_1024_dims() {
+        // Compile-time compatibility check — voyage-3-large is famously 1024.
+        // If this test fails, either the catalog drifted or Voyage changed
+        // its API (rare, bump schema version and update every consumer).
+        let e = find_embedding("voyage/voyage-3-large").expect("voyage-3-large present");
+        assert_eq!(e.dimensions, 1024);
     }
 
     // ─── Banned npm packages ────────────────────────────────────────

@@ -32,6 +32,8 @@ pub enum Namespace {
     Provider,
     /// MCP server id or alias.
     McpServer,
+    /// Embedding model id.
+    Embedding,
     /// Builtin tool name (e.g. `"nika:json_merge"`).
     Builtin,
     /// Pipe transform name (e.g. `"jq"`, `"upper"`).
@@ -72,6 +74,12 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
         let s = jaro_winkler(&q, &srv.id.to_ascii_lowercase());
         if s >= MIN_SCORE {
             hits.push(Suggestion { name: srv.id, namespace: Namespace::McpServer, score: s });
+        }
+    }
+    for emb in generated::ALL_EMBEDDINGS {
+        let s = jaro_winkler(&q, &emb.id.to_ascii_lowercase());
+        if s >= MIN_SCORE {
+            hits.push(Suggestion { name: emb.id, namespace: Namespace::Embedding, score: s });
         }
     }
     for b in builtins::ALL_BUILTINS {

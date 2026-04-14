@@ -7,7 +7,7 @@
 //! "is this known?", the caller decides if "unknown" is an error.
 
 pub use crate::data::builtins::{find_builtin, is_known_builtin};
-pub use crate::data::generated::{find_mcp_server, find_provider};
+pub use crate::data::generated::{find_embedding, find_mcp_server, find_provider};
 pub use crate::data::models::{estimate_cost, find_pricing, find_pricing_scoped, model_capabilities};
 pub use crate::data::transforms::{find_transform, is_known_transform};
 pub use crate::types::provider::validate_key_format;

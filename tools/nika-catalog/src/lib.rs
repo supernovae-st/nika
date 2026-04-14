@@ -24,9 +24,9 @@ pub mod validate;
 
 pub use error::CatalogError;
 pub use lookup::{
-    estimate_cost, find_builtin, find_mcp_server, find_pricing, find_pricing_scoped,
-    find_provider, find_transform, is_known_builtin, is_known_mcp_server, is_known_transform,
-    model_capabilities, resolve_mcp_name, validate_key_format,
+    estimate_cost, find_builtin, find_embedding, find_mcp_server, find_pricing,
+    find_pricing_scoped, find_provider, find_transform, is_known_builtin, is_known_mcp_server,
+    is_known_transform, model_capabilities, resolve_mcp_name, validate_key_format,
 };
 pub use suggest::{suggest, suggest_in, Namespace, Suggestion};
 pub use types::*;
@@ -43,6 +43,12 @@ pub fn all_providers() -> &'static [types::Provider] {
 #[must_use]
 pub fn all_mcp_servers() -> &'static [types::McpServer] {
     data::ALL_MCP_SERVERS
+}
+
+/// Embedding models (build-time generated from `data/embeddings.toml`).
+#[must_use]
+pub fn all_embeddings() -> &'static [types::Embedding] {
+    data::ALL_EMBEDDINGS
 }
 
 /// Builtin tools (alphabetically sorted, binary-search lookup).

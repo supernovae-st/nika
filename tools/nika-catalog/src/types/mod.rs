@@ -6,6 +6,7 @@
 pub mod builtin;
 pub mod category;
 pub mod distribution;
+pub mod embedding;
 pub mod mcp_server;
 pub mod model;
 pub mod provider;
@@ -14,6 +15,7 @@ pub mod transform;
 pub use builtin::{Builtin, BuiltinCategory};
 pub use category::{Category, ParseCategoryError};
 pub use distribution::{AuthMode, EnvVarSpec, McpPackage, McpRemote, PyRunner, RegistryType, Transport};
+pub use embedding::{Embedding, Similarity};
 pub use mcp_server::{McpPricing, McpServer};
 pub use model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLimitParam};
 pub use provider::{validate_key_format, Provider, ProviderModel};

@@ -15,5 +15,7 @@ pub mod models;
 pub mod transforms;
 
 // Re-export the generated statics so downstream stays at one path:
-// `crate::data::{ALL_MCP_SERVERS, ALL_PROVIDERS, find_mcp_server, find_provider}`.
-pub use generated::{find_mcp_server, find_provider, ALL_MCP_SERVERS, ALL_PROVIDERS};
+// `crate::data::{ALL_MCP_SERVERS, ALL_PROVIDERS, ALL_EMBEDDINGS, find_*}`.
+pub use generated::{
+    find_embedding, find_mcp_server, find_provider, ALL_EMBEDDINGS, ALL_MCP_SERVERS, ALL_PROVIDERS,
+};
