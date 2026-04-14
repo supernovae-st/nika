@@ -16,6 +16,7 @@
 pub mod data;
 pub mod error;
 pub mod lookup;
+pub mod suggest;
 pub mod types;
 pub mod validate;
 
@@ -23,10 +24,11 @@ pub mod validate;
 
 pub use error::CatalogError;
 pub use lookup::{
-    estimate_cost, find_builtin, find_mcp_server, find_pricing, find_provider, find_transform,
-    is_known_builtin, is_known_mcp_server, is_known_transform, model_capabilities,
-    resolve_mcp_name, validate_key_format,
+    estimate_cost, find_builtin, find_mcp_server, find_pricing, find_pricing_scoped,
+    find_provider, find_transform, is_known_builtin, is_known_mcp_server, is_known_transform,
+    model_capabilities, resolve_mcp_name, validate_key_format,
 };
+pub use suggest::{suggest, suggest_in, Namespace, Suggestion};
 pub use types::*;
 
 // ── Iteration helpers ───────────────────────────────────────────────────

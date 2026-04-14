@@ -184,6 +184,10 @@ pub static ALL_PRICING: &[ModelPricing] = &[
 /// Two-pass matching:
 /// 1. Exact match on `model_pattern`
 /// 2. `contains()` fallback (first match wins — ordering matters)
+///
+/// ⚠ The unscoped variant is vulnerable to cross-provider contains-collisions
+/// (e.g. `gpt-4o` could pick up an Azure pattern when the caller meant `OpenAI`).
+/// Prefer [`find_pricing_scoped`] when the provider is known.
 #[must_use]
 pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
     // Pass 1: exact match
@@ -192,6 +196,34 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
     }
     // Pass 2: contains() fallback (first match wins)
     ALL_PRICING.iter().find(|p| model.contains(p.model_pattern))
+}
+
+/// Find pricing for `model` scoped to a specific `provider`.
+///
+/// Fixes the silent-wrong-cost bug where `find_pricing("gpt-4o")` could
+/// resolve to an Azure pattern because a broader contains-match landed
+/// first. When the caller knows which provider issued the request, this
+/// variant restricts the search to pricing rows whose `provider` field
+/// matches (case-insensitively) so contains-fallback never crosses
+/// provider boundaries.
+///
+/// Provider matching is case-insensitive and accepts the provider id
+/// (e.g. `"openai"`) or the capitalised display form used in
+/// [`ALL_PRICING`] (e.g. `"OpenAI"`).
+#[must_use]
+pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
+    let prov_lower = provider.to_ascii_lowercase();
+    // Pass 1: exact model match within provider scope.
+    if let Some(p) = ALL_PRICING
+        .iter()
+        .find(|p| p.provider.eq_ignore_ascii_case(&prov_lower) && model == p.model_pattern)
+    {
+        return Some(p);
+    }
+    // Pass 2: contains() fallback within provider scope.
+    ALL_PRICING
+        .iter()
+        .find(|p| p.provider.eq_ignore_ascii_case(&prov_lower) && model.contains(p.model_pattern))
 }
 
 /// Estimate cost for a model invocation.
@@ -432,5 +464,76 @@ mod tests {
             assert!(!p.provider.is_empty());
             assert!(!p.model_pattern.is_empty());
         }
+    }
+
+    // ── Pattern ordering invariant ──────────────────────────────
+    //
+    // Two-pass contains-fallback only works when a longer pattern is
+    // tested BEFORE a shorter one that it contains — otherwise
+    // `gpt-4o-mini` matches `"gpt-4o"` before `"gpt-4o-mini"` and the
+    // wrong price wins. The test below walks each provider's slice and
+    // fails if any later pattern is a strict substring of an earlier one
+    // in the same provider — that would mean the longer, more specific
+    // one came second.
+
+    #[test]
+    fn pricing_patterns_ordered_longest_first_within_provider() {
+        use std::collections::BTreeMap;
+        let mut by_provider: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        for p in ALL_PRICING {
+            by_provider.entry(p.provider).or_default().push(p.model_pattern);
+        }
+        for (provider, patterns) in &by_provider {
+            for i in 0..patterns.len() {
+                for j in (i + 1)..patterns.len() {
+                    let earlier = patterns[i];
+                    let later = patterns[j];
+                    // If a LATER entry contains an EARLIER entry as a
+                    // substring, the later one is more specific and has
+                    // been placed wrong.
+                    assert!(
+                        !later.contains(earlier) || later == earlier,
+                        "{provider}: pattern {later:?} contains {earlier:?} — longer/more-specific pattern must come first (would cause wrong-cost match via contains-fallback)",
+                    );
+                }
+            }
+        }
+    }
+
+    // ── Scoped pricing lookup ────────────────────────────────────
+
+    #[test]
+    fn scoped_pricing_exact_match() {
+        let p = find_pricing_scoped("openai", "gpt-4o").unwrap();
+        assert_eq!(p.provider, "OpenAI");
+        assert!((p.input_per_million - 2.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn scoped_pricing_contains_fallback() {
+        // Dated variant — should fall through to the "claude-sonnet-4" contains match.
+        let p = find_pricing_scoped("anthropic", "claude-sonnet-4-20250514").unwrap();
+        assert_eq!(p.provider, "Anthropic");
+    }
+
+    #[test]
+    fn scoped_pricing_accepts_provider_id_or_display_form() {
+        // "openai" (id) and "OpenAI" (display) should both resolve.
+        let lower = find_pricing_scoped("openai", "gpt-4o").unwrap();
+        let proper = find_pricing_scoped("OpenAI", "gpt-4o").unwrap();
+        assert!(core::ptr::eq(lower, proper));
+    }
+
+    #[test]
+    fn scoped_pricing_rejects_cross_provider_contains() {
+        // "gpt-4o" ALSO contains-matches the "gpt-4" substring on any provider
+        // that lists it. Scoped to a made-up provider, lookup must fail rather
+        // than bleed into OpenAI rows.
+        assert!(find_pricing_scoped("made-up-provider", "gpt-4o").is_none());
+    }
+
+    #[test]
+    fn scoped_pricing_unknown_model_returns_none() {
+        assert!(find_pricing_scoped("openai", "gpt-999-imaginary").is_none());
     }
 }

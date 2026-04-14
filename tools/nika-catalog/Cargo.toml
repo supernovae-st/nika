@@ -16,6 +16,7 @@ unicase    = { workspace = true }
 thiserror  = { workspace = true }
 miette     = { workspace = true }
 serde      = { workspace = true, optional = true }
+strsim     = { workspace = true }  # fuzzy "did you mean" suggestion
 
 [features]
 default = ["serde"]
