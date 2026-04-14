@@ -10,14 +10,15 @@ Each crate is admitted through [12 gates](/concepts/architecture#build-model) be
 This page tracks the full constellation — admitted, in-progress, and planned.
 
 <Note>
-  **Current status (April 2026):** 5 of 40 crates admitted.
-  10,434 LOC · 369 tests · 0 `.unwrap()` in `src/` · 0 clippy warnings.
-  See [CHANGELOG](https://nika.sh/changelog) for weekly progress.
+  **Current status (April 2026):** 5 of ~40 crates admitted.
+  11,383 src LOC · 385 tests · 0 `.unwrap()` in `src/` · 0 clippy warnings.
+  See [Build status →](/reference/status) for live phase progress.
 </Note>
 
 ## Full dependency graph
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'background': 'transparent', 'mainBkg': 'transparent'}}}%%
 flowchart TD
     classDef admitted fill:#22c55e,color:#000,stroke:#16a34a,font-weight:bold
     classDef planned fill:#1f2937,color:#6b7280,stroke:#374151
@@ -129,7 +130,7 @@ flowchart TD
 | **nika-kernel** | L0.5 | 3,375 | 99 | ✅ All 12 |
 | **nika-kernel-mock** | L0.5 | 1,705 | 88 | ✅ All 12 |
 
-**Total admitted:** 10,434 LOC · 369 tests · 100% mutation tested
+**Total admitted:** 11,383 LOC · 385 tests · 100% mutation tested
 
 ## Next to build
 
@@ -145,6 +146,7 @@ flowchart TD
 ## Phase roadmap
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'background': 'transparent'}}}%%
 gantt
     title Nika Diamond — Crate admission phases
     dateFormat YYYY-MM

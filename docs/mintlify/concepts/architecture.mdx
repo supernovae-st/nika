@@ -12,6 +12,7 @@ executes them across providers, and emits a structured event stream.
 ## The seven layers
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'background': 'transparent', 'mainBkg': 'transparent'}}}%%
 flowchart TD
     classDef layer fill:#111827,color:#f9fafb,stroke:#374151,font-size:13px
 
@@ -114,6 +115,7 @@ zero I/O, usable in any `#[test]` without network or filesystem.
 A `.nika.yaml` file goes through four stages before execution:
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'background': 'transparent', 'mainBkg': 'transparent'}}}%%
 flowchart LR
     A["YAML file"] --> B["Parse\n(nika-schema)"]
     B --> C["Bind\n(nika-binding)"]

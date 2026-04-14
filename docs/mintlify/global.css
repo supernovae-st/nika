@@ -1,0 +1,15 @@
+/* Nika Diamond — Mintlify global styles */
+
+/* Make Mermaid diagram SVG backgrounds transparent so they
+   blend with the dark page (#0B0D17) rather than showing a white box. */
+.mermaid svg,
+[data-mermaid] svg,
+.prose .mermaid svg {
+  background: transparent !important;
+}
+
+/* Mermaid diagram container — match page background */
+pre.mermaid,
+div.mermaid {
+  background: transparent !important;
+}

@@ -1,14 +1,15 @@
 ---
-title: "Introduction"
+title: "Introduction 🦋"
 description: "Nika is a semantic YAML workflow engine for AI. AGPL, Rust, runs on your laptop."
 sidebarTitle: "Introduction"
 icon: "house"
 ---
 
 <Note>
-  Nika is in active development — **5 of 40 crates admitted** as of April 2026.
-  Each crate passes [12 gates](/reference/crates#the-12-gates) before landing in the workspace.
-  The engine is usable today; v0.90 marks the complete architecture.
+  Nika is in active development — **5 of ~40 crates admitted** as of April 2026.
+  11,383 src LOC · 385 tests · 0 clippy warnings · 0 unwraps in `src/`.
+  Each crate passes [12 gates](/concepts/architecture#build-model) before joining the workspace.
+  v0.90 marks the complete architecture. [Build status →](/reference/status)
 </Note>
 
 ## What Nika is
@@ -57,6 +58,7 @@ Because mutation testing ≥ 90% per crate is not negotiable.
 Nika Diamond — ~40 crates, rewritten from scratch, one at a time.
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': {'background': 'transparent', 'mainBkg': 'transparent'}}}%%
 flowchart LR
     classDef admitted fill:#22c55e,color:#000,stroke:#16a34a,font-weight:bold
     classDef building fill:#f59e0b,color:#000,stroke:#d97706

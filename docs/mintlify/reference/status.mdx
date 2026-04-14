@@ -1,0 +1,149 @@
+---
+title: "Build status"
+description: "Live state of Nika Diamond — phase progress, crate admissions, shadow zones, roadmap. Updated every session."
+sidebarTitle: "Build status"
+icon: "gauge"
+---
+
+<Warning>
+  This page is updated manually every development session.
+  Last update: **April 2026 · Phase D · Session 2a complete**.
+</Warning>
+
+## Where we are
+
+Nika Diamond is a ground-up rewrite of the Nika workflow engine — not an extraction of the legacy code, but a clean-room rebuild guided by what the legacy taught us. Every crate is crafted from scratch, one at a time, through a strict 12-gate process.
+
+| Metric | Value |
+|---|---|
+| Crates admitted | **5 / ~40** |
+| Total src LOC | **11,383** |
+| Tests | **385** |
+| Clippy warnings | **0** |
+| `.unwrap()` in `src/` | **0** |
+| Hygiene dashboard | **15/15 GREEN** |
+| Current phase | **Phase D — Catalog Scope Expansion** |
+| Active session | **Session 2b (next)** |
+
+## Admitted crates
+
+<Note>
+  Each crate listed here has passed all 12 gates in a single atomic commit.
+  See [the 12 gates](/concepts/architecture#build-model) for the full process.
+</Note>
+
+| Crate | Layer | LOC | Tests | Mutation | Admitted |
+|---|---|---|---|---|---|
+| **nika-error** | L0 | 1,013 | 44 | ✅ ≥90% | ✅ Phase 1 |
+| **nika-catalog** | L0 | 3,741 | 138 | ✅ ≥90% | ✅ Phase 1 |
+| **nika-catalog-verify** | L4 | 600 | 9 | ✅ ≥90% | ✅ Phase 1 |
+| **nika-kernel** | L0.5 | 3,375 | 99 | ✅ ≥90% | ✅ Phase 1 |
+| **nika-kernel-mock** | L0.5 | 1,705 | 88 | ✅ ≥90% | ✅ Phase 1 |
+
+## Phase D — Catalog scope expansion
+
+Phase D expands the catalog crate with richer capability modeling.
+9 sessions total. Session 1 and 2a done.
+
+| Session | Status | What it does |
+|---|---|---|
+| **1** | ✅ Done | Tag enum + Cargo features + Shield XOR invariant |
+| **2a** | ✅ Done | TOML capability rules + `api_dialect` on providers + proptest 10k + Gate 8 + Invariant #19 |
+| **2b** | 🔵 Next | `Modality` + `TokenizerFamily` + `ParamFlag` → 4 new MC fields → Gate 2 (provider parity) |
+| **2c–5** | ⬜ Planned | Remaining catalog fields + validation coverage |
+| **E1–E3** | ⬜ Planned | Phase E: effects crates begin (nika-event, nika-fs, nika-http) |
+
+## 7 shadow zones (pre-v0.90 gates)
+
+These 7 issues must be fully resolved before `git tag v0.90.0` is cut.
+They are not optional. They are not deferred.
+
+| # | Shadow zone | Priority | Status |
+|---|---|---|---|
+| 1 | **nika serve input trust** — untrusted data reaching `serve` endpoints | P0 | ⬜ Not started |
+| 2 | **Cross-provider structured output parity** — same schema, same behavior across all 9 providers | P0 | 🟡 In progress (Phase D Sess 2b) |
+| 3 | **binding/template LOC explosion** (was 7,243 LOC in legacy mod.rs) | P0 | ✅ Auto-resolved by nika-binding architecture |
+| 4 | **L1 taint runtime** — taint propagation through effect crates | P1 | ⬜ Not started (Phase 2) |
+| 5 | **for_each per-element spotlight** — spotlight wrapping in loops | P1 | ⬜ Not started |
+| 6 | **NikaError Display parity** — all error codes have matching Display | P1 | ✅ Auto-resolved by nika-error design |
+| 7 | **Provider parity matrix** — automated cross-provider test harness | P1 | 🟡 In progress (Phase D) |
+
+## What's crystal clear
+
+These decisions are locked. Re-reading them is the authority chain.
+
+- **40-42 crate target for v0.90** (confirmed by POST_AUDIT_REVISIONS 2026-04-14)
+- **Layer invariants** — L0 zero I/O, L0.5 traits only, strict downward deps, `cargo-deny` enforced
+- **12 gates per crate** — no exceptions, no partial admissions
+- **No `.unwrap()` in `src/`** — `?` propagation everywhere, `workspace.lints.clippy.unwrap_used = "deny"`
+- **Not an extraction** — every crate is written fresh, guided by legacy as reference
+- **Forever v0.x** — no v1.0 target, quality over speed, 11-12 months
+- **Test-first** — TDD, RED before GREEN, mutation testing ≥ 90% per crate
+
+## What's being designed (not yet locked)
+
+These areas need more thinking before the crate spec is written.
+
+<AccordionGroup>
+  <Accordion title="nika-schema — the biggest L0 crate (~12k LOC)">
+    The AST parser, DAG builder, taint analysis, and `ariadne` diagnostics.
+    The most complex crate in the constellation. Spec being drafted.
+
+    Key questions still open:
+    - How much of the legacy parser to preserve as reference vs rewrite completely
+    - Whether taint should live in the AST or be a separate pass
+    - `ariadne` vs `miette` for diagnostics (currently leaning `ariadne` for color)
+  </Accordion>
+  <Accordion title="nika-binding — template engine (~8k LOC)">
+    Template expression parser, scope resolution, 64 pipe filters, type coercion.
+    The legacy `mod.rs` was 7,243 LOC — the main reason for the diamond rewrite.
+
+    Design decision: split into sub-modules (parser, resolver, filters) within the crate.
+    The `#[non_exhaustive]` Filter enum is locked. Implementation TBD.
+  </Accordion>
+  <Accordion title="nika-verb-infer — provider routing (~4k LOC)">
+    The unified `infer:` verb. Routes `InferRequest` to the right provider.
+    Cross-provider structured output is shadow zone #2 — must be resolved here.
+
+    The `api_dialect` field added in Phase D Session 2a is the foundation.
+    Cross-provider proptest harness: 10k cases spec is locked.
+  </Accordion>
+  <Accordion title="Cortex v0.95 — memory subsystem (post-v0.90)">
+    3 memory satellite crates: `nika-memory-oxigraph`, `nika-memory-embedding`,
+    `nika-memory-fsrs`. Designed to plug into `nika-kernel`'s `MemoryStore` trait
+    without breaking changes (forward-compat hooks already in `InferRequest`).
+
+    Not starting until v0.90 is cut. Design lives in `project_nika_cortex_design.md`.
+  </Accordion>
+</AccordionGroup>
+
+## What's NOT in scope (cut by POST_AUDIT 2026-04-14)
+
+These were in earlier plans and have been explicitly removed or deferred:
+
+| What | Decision | Where it went |
+|---|---|---|
+| `nika-sdk` | Deleted — 0 consumers, speculative | Not rebuilt |
+| `nika-napi` | Deleted — W1 speculative | Not rebuilt |
+| `nika-py` | Deleted — W1 speculative | Not rebuilt |
+| `nika-tui` | Deleted — W1, rebuild Act 3 if needed | Deferred to post-v0.90 |
+| `nika-macros` | Inlined into `nika-event` | Not a separate crate |
+| `nika-lsp-core` | Merged into `nika-lsp` | Not a separate crate |
+| `nika-policy` | Module in `nika-runtime` | Not a crate |
+| `nika-storage` | Module in `nika-daemon` | Not a crate |
+| `nika-cache` | Module in `nika-runtime` | Not a crate |
+
+## Next session
+
+<Tip>
+  **Session 2b** — `Modality`, `TokenizerFamily`, `ParamFlag` fields in `nika-catalog`.
+  Target: 4 new `ModelCapabilities` fields + updated proptest harness + Gate 2 progress.
+  Spec in `MEGA_HANDOFF_PHASE_D.md` (memory/).
+</Tip>
+
+## Full roadmap
+
+See [Crate constellation](/reference/constellation) for the complete visual map
+and phase Gantt chart.
+
+The [CHANGELOG](https://nika.sh/changelog) tracks every crate admission with verified numbers.

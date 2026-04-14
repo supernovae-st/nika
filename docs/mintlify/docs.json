@@ -14,6 +14,7 @@
     "light": "#F5C28B",
     "dark": "#FF6B1A"
   },
+  "customCss": "/global.css",
   "modeToggle": { "default": "dark", "isHidden": true },
   "appearance": { "default": "dark" },
   "background": {
@@ -117,6 +118,7 @@
           {
             "group": "Reference",
             "pages": [
+              "reference/status",
               "reference/constellation",
               "reference/crates",
               "reference/cli",
