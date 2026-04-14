@@ -23,7 +23,11 @@ Diamond foundation, 4 crates admitted to workspace, orphan branch from scratch.
 
 Total: 318 tests, 0 clippy warnings, 0 unwrap in `src/`.
 
-## v0.90 — "Diamond Foundation" (target: May 2026)
+## v0.90 — "Diamond Foundation" (ships when ready)
+
+> **No deadline.** Quality > speed. This roadmap is a vision, not a production
+> schedule. v0.90 ships when all 40-42 crates pass 12 gates and the 7 shadow
+> zones are green. Could be 6 months. Could be 18 months. Whatever it takes.
 
 **Theme**: complete, runtime-grade workflow engine + package manager MVP +
 native API adapters + forward-compatible architecture for everything planned
@@ -164,7 +168,7 @@ v0.95+ without touching v0.90 code:
 `budget: Option<BudgetDirective>` (v0.100), `replay_seed: Option<u64>` (v0.100).
 All structs `#[non_exhaustive]` — future additions are NOT breaking changes.
 
-## v0.95 — "Memory Complete" (target: Oct-Dec 2026)
+## v0.95 — "Memory Complete" (ships after v0.90, no date)
 
 **Theme**: Cortex + agent-v2 ship complete, on foundations proven in v0.90.
 
@@ -214,7 +218,7 @@ own those ecosystems):
 - `nika-media-document` — html_to_md, readability
 - `nika-media-provenance` — C2PA
 
-## v0.100 — "Ecosystem" (target: Mid-2027)
+## v0.100 — "Ecosystem" (ships after v0.95, no date)
 
 - **WASM community plugins** (wasmtime + extism sandbox) — third-party native
   builtins via `nika pck install builtin:...` with signed WASM blobs
@@ -225,7 +229,7 @@ own those ecosystems):
 - **Keys subsystem**: macOS Keychain + Linux keyring + OAuth device flow
 - **Public launch**: `nika.sh`, community registry promotion, blog launch
 
-## v0.110+ — Ongoing (2027+)
+## v0.110+ — Ongoing
 
 Incremental quality additions. Order determined by community feedback + Nika
 team priorities. Possible directions include (no commitment):
