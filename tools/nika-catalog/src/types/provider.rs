@@ -62,6 +62,12 @@ pub struct Provider {
     pub description: &'static str,
     /// Known models exposed by this provider (nickname → wire model).
     pub models: &'static [ProviderModel],
+    /// Typed tags describing capabilities, deployment, and economics.
+    /// Sorted + deduplicated (enforced by build.rs assertion).
+    pub tags: &'static [crate::types::Tag],
+    /// Community / vendor-specific tags not in the core [`Tag`] enum.
+    /// No validation — passthrough escape hatch for extension crates.
+    pub extra_tags: &'static [&'static str],
 }
 
 /// Validate an API key format against a provider's declared prefixes.
@@ -115,6 +121,8 @@ mod tests {
             requires_key: true,
             description: "Claude models.",
             models: SONNET_MODELS,
+            tags: &[],
+            extra_tags: &[],
         }
     }
 
@@ -146,6 +154,8 @@ mod tests {
             requires_key: true,
             description: "OpenAI.",
             models: &[],
+            tags: &[],
+            extra_tags: &[],
         };
         assert!(validate_key_format(&p, "sk-proj-abc"));
         assert!(validate_key_format(&p, "sk-abc"));
@@ -170,6 +180,8 @@ mod tests {
             requires_key: true,
             description: "Mistral.",
             models: &[],
+            tags: &[],
+            extra_tags: &[],
         };
         assert!(validate_key_format(&p, "any-format"));
         assert!(!validate_key_format(&p, ""));

@@ -85,6 +85,10 @@ struct McpServerEntry {
     remotes: Vec<RemoteEntry>,
     #[serde(default)]
     env_vars: Vec<EnvVarEntry>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    extra_tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -154,6 +158,10 @@ struct EmbeddingEntry {
     similarity: String,
     input_per_million: f64,
     description: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    extra_tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -171,6 +179,10 @@ struct ProviderEntry {
     description: String,
     #[serde(default)]
     models: Vec<ProviderModelEntry>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    extra_tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -276,6 +288,7 @@ fn parse_mcp_servers(path: &Path) -> Result<Vec<McpServerEntry>, String> {
         }
         validate_category(&s.category, &s.id)?;
         validate_pricing(&s.pricing, &s.id)?;
+        validate_tags(&s.tags, &s.id)?;
 
         for pkg in &s.packages {
             validate_registry_type(&pkg.registry_type, &s.id)?;
@@ -398,6 +411,75 @@ fn validate_py_runner(r: &str, server: &str) -> Result<(), String> {
     }
 }
 
+/// Validate that every string in `tags` is a known kebab-case `Tag` variant.
+/// Fails the build with the entry id and the offending tag string.
+fn validate_tags(tags: &[String], entry_id: &str) -> Result<(), String> {
+    for t in tags {
+        if tag_variant(t).is_none() {
+            return Err(format!(
+                "entry {entry_id:?}: unknown tag {t:?} — must be a kebab-case variant from the Tag enum \
+                 (42 variants: vision, audio, realtime, multimodal, image-gen, embedding, reranker, \
+                 reasoning, extended-thinking, function-calling, parallel-tools, structured-output, \
+                 response-schema, streaming, long-context, prompt-caching, web-search, code-execution, \
+                 matryoshka, budget, frontier, fast, local, serverless, open-source, enterprise, \
+                 european, chinese, japanese, multilingual, code, math, rag, agent, legal, finance, \
+                 medical, read-only, destructive, sandbox, official, verified)"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Map a kebab-case tag string to its Rust variant name. Returns `None` for
+/// unknown strings (used by `validate_tags` to fail the build early).
+fn tag_variant(s: &str) -> Option<&'static str> {
+    Some(match s {
+        "vision" => "Vision",
+        "audio" => "Audio",
+        "realtime" => "Realtime",
+        "multimodal" => "Multimodal",
+        "image-gen" => "ImageGen",
+        "embedding" => "Embedding",
+        "reranker" => "Reranker",
+        "reasoning" => "Reasoning",
+        "extended-thinking" => "ExtendedThinking",
+        "function-calling" => "FunctionCalling",
+        "parallel-tools" => "ParallelTools",
+        "structured-output" => "StructuredOutput",
+        "response-schema" => "ResponseSchema",
+        "streaming" => "Streaming",
+        "long-context" => "LongContext",
+        "prompt-caching" => "PromptCaching",
+        "web-search" => "WebSearch",
+        "code-execution" => "CodeExecution",
+        "matryoshka" => "Matryoshka",
+        "budget" => "Budget",
+        "frontier" => "Frontier",
+        "fast" => "Fast",
+        "local" => "Local",
+        "serverless" => "Serverless",
+        "open-source" => "OpenSource",
+        "enterprise" => "Enterprise",
+        "european" => "European",
+        "chinese" => "Chinese",
+        "japanese" => "Japanese",
+        "multilingual" => "Multilingual",
+        "code" => "Code",
+        "math" => "Math",
+        "rag" => "Rag",
+        "agent" => "Agent",
+        "legal" => "Legal",
+        "finance" => "Finance",
+        "medical" => "Medical",
+        "read-only" => "ReadOnly",
+        "destructive" => "Destructive",
+        "sandbox" => "Sandbox",
+        "official" => "Official",
+        "verified" => "Verified",
+        _ => return None,
+    })
+}
+
 // ─── Rust source emission ────────────────────────────────────────────────
 
 fn generate_mcp_servers_rs(servers: &[McpServerEntry]) -> String {
@@ -462,6 +544,8 @@ fn emit_server(out: &mut String, s: &McpServerEntry) {
     writeln!(out, "        category: crate::types::Category::{},", category_variant(&s.category)).unwrap();
     writeln!(out, "        pricing: crate::types::McpPricing::{},", pricing_variant(&s.pricing)).unwrap();
     writeln!(out, "        last_verified: {},", rstr(&s.last_verified)).unwrap();
+    writeln!(out, "        tags: {},", tags_slice_expr(&s.tags)).unwrap();
+    writeln!(out, "        extra_tags: {},", str_slice_expr(&s.extra_tags)).unwrap();
     writeln!(out, "    }},").unwrap();
 }
 
@@ -562,6 +646,25 @@ fn write_env_vars(out: &mut String, env: &[EnvVarEntry]) {
         writeln!(out, "            }},").unwrap();
     }
     writeln!(out, "        ],").unwrap();
+}
+
+/// Emit a `&[crate::types::Tag]` expression for the `tags` field.
+///
+/// Validated upstream by `validate_tags`; `tag_variant` is infallible here.
+fn tags_slice_expr(tags: &[String]) -> String {
+    if tags.is_empty() {
+        return "&[]".to_string();
+    }
+    let mut out = String::from("&[");
+    for (i, t) in tags.iter().enumerate() {
+        if i > 0 {
+            out.push_str(", ");
+        }
+        let variant = tag_variant(t).unwrap(); // validated by validate_tags earlier
+        out.push_str(&format!("crate::types::Tag::{variant}"));
+    }
+    out.push(']');
+    out
 }
 
 /// Emit a `&[&str]` expression suitable for a `const`/`static` context.
@@ -679,6 +782,8 @@ fn parse_llm_providers(path: &Path) -> Result<Vec<ProviderEntry>, String> {
                 ));
             }
         }
+        validate_tags(&p.tags, &p.id)?;
+
         if p.requires_key && p.env_var.is_empty() {
             return Err(format!(
                 "provider {:?}: requires_key=true but env_var is empty",
@@ -803,6 +908,8 @@ fn emit_provider(out: &mut String, p: &ProviderEntry) {
     writeln!(out, "        requires_key: {},", p.requires_key).unwrap();
     writeln!(out, "        description: {},", rstr(&p.description)).unwrap();
     write_models(out, &p.models);
+    writeln!(out, "        tags: {},", tags_slice_expr(&p.tags)).unwrap();
+    writeln!(out, "        extra_tags: {},", str_slice_expr(&p.extra_tags)).unwrap();
     writeln!(out, "    }},").unwrap();
 }
 
@@ -884,6 +991,7 @@ fn parse_embeddings(
             return Err(format!("embedding {:?}: description is empty", e.id));
         }
         validate_similarity(&e.similarity, &e.id)?;
+        validate_tags(&e.tags, &e.id)?;
         if !known_providers.contains(&e.provider.to_ascii_lowercase()) {
             return Err(format!(
                 "embedding {:?}: provider {:?} is not declared in llm-providers.toml",
@@ -949,6 +1057,8 @@ fn generate_embeddings_rs(embeddings: &[EmbeddingEntry]) -> String {
         )
         .unwrap();
         writeln!(out, "        description: {},", rstr(&e.description)).unwrap();
+        writeln!(out, "        tags: {},", tags_slice_expr(&e.tags)).unwrap();
+        writeln!(out, "        extra_tags: {},", str_slice_expr(&e.extra_tags)).unwrap();
         writeln!(out, "    }},").unwrap();
     }
 

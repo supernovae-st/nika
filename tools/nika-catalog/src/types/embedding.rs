@@ -70,6 +70,11 @@ pub struct Embedding {
     pub input_per_million: f64,
     /// Short human-readable description.
     pub description: &'static str,
+    /// Typed tags describing embedding capabilities and domain.
+    /// Sorted + deduplicated (enforced by build.rs assertion).
+    pub tags: &'static [crate::types::Tag],
+    /// Community / vendor-specific tags not in the core [`Tag`] enum.
+    pub extra_tags: &'static [&'static str],
 }
 
 #[cfg(test)]
@@ -101,6 +106,8 @@ mod tests {
             similarity: Similarity::Cosine,
             input_per_million: 0.18,
             description: "Voyage 3 large embedding.",
+            tags: &[],
+            extra_tags: &[],
         };
         assert_eq!(e.dimensions, 1024);
         assert_eq!(e.similarity.as_str(), "cosine");

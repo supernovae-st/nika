@@ -56,6 +56,12 @@ pub struct McpServer {
     pub pricing: McpPricing,
     /// ISO date (YYYY-MM-DD) of the last `xtask verify-catalog` success.
     pub last_verified: &'static str,
+    /// Typed tags describing MCP server capabilities and permissioning.
+    /// Every MCP server MUST carry `Tag::ReadOnly` XOR `Tag::Destructive`.
+    /// Sorted + deduplicated (enforced by build.rs assertion).
+    pub tags: &'static [crate::types::Tag],
+    /// Community / vendor-specific tags not in the core [`Tag`] enum.
+    pub extra_tags: &'static [&'static str],
 }
 
 #[cfg(test)]
@@ -86,6 +92,8 @@ mod tests {
             category: Category::Anthropic,
             pricing: McpPricing::Free,
             last_verified: "2026-04-14",
+            tags: &[],
+            extra_tags: &[],
         };
         assert_eq!(s.id, "filesystem");
         assert_eq!(s.category, Category::Anthropic);
