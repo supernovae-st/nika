@@ -46,25 +46,20 @@ nika-error, nika-catalog, nika-kernel + mock, nika-schema, nika-binding.
 
 ### Step 2: nika-catalog -- DONE
 
-- Commit: `55a451695`
+- Commit: `55a451695` (initial admission) → `9feb96956` (Phase D S2a hardening)
 - Layer: L0 (pure, zero I/O, zero async)
 - Design: hybrid lookup strategy
   - `phf` + `unicase` compile-time maps for providers and MCP aliases
   - Sorted arrays with binary search for builtins, transforms, pricing
   - Case-insensitive zero-alloc via `UniCase::ascii()`
-- 3 design decisions locked:
-  - Case-sensitivity is per-catalog (providers insensitive, builtins exact)
-  - Provider catalog is LLM-only (MCP unified into `McpAlias`, 113 entries)
-  - Hybrid strategy over uniform phf (binary search better for sorted data)
-- Catalogs:
-  - 16 LLM providers
-  - 113 MCP aliases
-  - 63 builtins
-  - 65 transforms
-  - 61 pricing patterns
-- `model_capabilities()` provider-aware with alias normalization
-- Stats: 2,235 LOC | 85 tests | 94.7% mutation score (71/75 killed) | 0 unwrap in src/
-- Review: 3-agent swarm, all P0/P1 fixed same session
+  - **TOML-driven capability resolver** — 9 rules, `CapPatch` merge semantics, zero-alloc `eq_ignore_ascii_case`
+- Catalogs (post Phase D Session 2a):
+  - 21 LLM providers (all with `api_dialect` field, FK-validated at build time)
+  - 105 MCP servers (all carry `read-only` XOR `destructive` — Shield invariant)
+  - 63 builtins | 65 transforms | 62 pricing patterns | 13 embeddings
+- `model_capabilities()` TOML-driven, proptest parity (10k cases), `api_dialect` scoped
+- Stats: ~3,800 LOC | 154 tests | Gate 8 GREEN | Invariant #19 FULL (15 new()) | 0 unwrap in src/
+- Review: 5-agent swarm (S2a), all P0/P1 fixed same session (2 hardening commits)
 
 ### Step 3: nika-kernel + nika-kernel-mock -- DONE
 
@@ -74,8 +69,8 @@ nika-error, nika-catalog, nika-kernel + mock, nika-schema, nika-binding.
   for async support. Cortex and agent-v2 hooks (`MemoryStore`, `EmbeddingProvider`,
   `ToolExecutor`, `WasmPluginHost` reserved, `ObservabilitySink` reserved)
   baked in from day one per forward-compat invariants.
-- Stats nika-kernel: ~3,700 LOC | 99 tests | 0 unwrap in src/
-- Stats nika-kernel-mock: ~850 LOC | 88 tests | 0 unwrap in src/
+- Stats nika-kernel: ~3,375 LOC | 99 tests | 0 unwrap in src/
+- Stats nika-kernel-mock: ~1,705 LOC | 88 tests | 0 unwrap in src/
 - Review: 3-agent swarm, all P0/P1 fixed same session
 
 ### Catalog enrichment + Phase A cleanup -- DONE (2026-04-13/14)
@@ -90,12 +85,15 @@ Subsequent to Step 2 admission, nika-catalog was enriched v2 then cleaned:
   3 zero-download abandoned forks). 131 → 102 aliases.
 - New test `removed_broken_aliases_not_present` blocks regression.
 
-### Step 4: nika-schema -- PLANNED (NEXT)
+### Step 4: nika-catalog Phase D (in progress)
 
-AST + semantic analyzer + DAG resolution. Single crate (no ast/analyze split
-due to circular dependency risk). ~15k LOC budget (biggest L0).
+Expanding nika-catalog capabilities across 9 sessions:
+- ✅ Session 1: Tag enum + Cargo features + Shield XOR
+- ✅ Session 2a: TOML-driven capability rules + api_dialect + proptest + Gate 8
+- 🔄 Session 2b: Modality + TokenizerFamily + ParamFlag → Gate 2 advancement (NEXT)
+- ⏳ Sessions 3-5: 5-axis pricing, model families, HTTP API, CatalogOverlay
 
-### Step 4: nika-schema -- PLANNED
+### Step 5: nika-schema -- PLANNED
 
 AST + semantic analyzer + DAG resolution. Single crate (no ast/analyze split
 due to circular dependency risk). ~15k LOC budget.
@@ -158,11 +156,13 @@ Not yet started.
 
 | Metric              | Value                |
 | ------------------- | -------------------- |
-| Crates admitted     | 4 / 40-42 (v0.90)    |
-| Total LOC in src/   | ~8,900               |
-| Tests               | 318                  |
+| Crates admitted     | 5 / 40-42 (v0.90)    |
+| Total LOC in src/   | ~10,500              |
+| Tests               | 385 (44+154+99+88+9) |
 | Unwraps in src/     | 0                    |
 | Panics in src/      | 0                    |
 | Clippy warnings     | 0                    |
-| Branch HEAD         | `4ad16c22c`          |
+| Gate 8 (rustdoc)    | GREEN                |
+| Invariant #19       | FULL (15 new())      |
+| Branch HEAD         | `133ffa0ff`          |
 | Last updated        | 2026-04-14           |
