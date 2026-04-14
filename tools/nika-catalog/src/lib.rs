@@ -30,13 +30,13 @@ pub use types::*;
 
 // ── Iteration helpers ───────────────────────────────────────────────────
 
-/// All 16 LLM providers.
+/// All 21 LLM providers.
 #[must_use]
 pub fn all_providers() -> &'static [&'static types::Provider] {
     data::providers::ALL_PROVIDERS
 }
 
-/// All 113 MCP server aliases.
+/// All 131 MCP server aliases.
 #[must_use]
 pub fn all_mcp_aliases() -> &'static [types::McpAlias] {
     data::mcp_aliases::ALL_MCP_ALIASES
@@ -66,12 +66,12 @@ mod tests {
 
     #[test]
     fn all_providers_non_empty() {
-        assert_eq!(all_providers().len(), 16);
+        assert_eq!(all_providers().len(), 21);
     }
 
     #[test]
     fn all_mcp_aliases_non_empty() {
-        assert_eq!(all_mcp_aliases().len(), 113);
+        assert_eq!(all_mcp_aliases().len(), 131);
     }
 
     #[test]

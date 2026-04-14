@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn resolve_mcp_name_alias() {
         let result = resolve_mcp_name("neo4j");
-        assert_eq!(result, Some("@neo4j/mcp-neo4j".to_string()));
+        assert_eq!(result, Some("@johnymontana/neo4j-mcp".to_string()));
     }
 
     #[test]

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! LLM provider definition — 16 entries (7 cloud + 7 OpenAI-compat + native + mock).
+//! LLM provider definition — 21 entries (7 cloud + 7 OpenAI-compat + 5 enterprise + native + mock).
 //!
 //! Decision B (locked): providers are LLM-only. MCP providers live in [`crate::types::McpAlias`].
 //! `ProviderCategory` enum deleted — every provider IS an LLM provider.
 
 /// A known LLM provider with metadata for secret management and model resolution.
 ///
-/// All 16 providers are defined statically in [`crate::data::providers`].
+/// All 21 providers are defined statically in [`crate::data::providers`].
 /// Lookups are case-insensitive via phf + unicase.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

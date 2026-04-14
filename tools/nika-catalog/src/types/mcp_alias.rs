@@ -25,6 +25,7 @@ pub enum McpPricing {
 /// Maps short names (e.g. `"neo4j"`) to npm packages (e.g. `"@neo4j/mcp-neo4j"`).
 /// Ex-MCP providers gain `env_var` and `key_prefix` for secret management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct McpAlias {
     /// Short alias name (e.g. `"neo4j"`).
     pub name: &'static str,

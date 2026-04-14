@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static provider catalog — 16 LLM-only providers with phf+unicase lookup.
+//! Static provider catalog — 21 LLM-only providers with phf+unicase lookup.
 //!
 //! Decision B (locked): providers are LLM-only. The 11 ex-MCP "providers"
 //! from legacy migrate to [`crate::data::mcp_aliases`].
@@ -12,7 +12,7 @@ use unicase::UniCase;
 use crate::types::Provider;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Provider definitions (16 total: 7 cloud + 7 OpenAI-compat + native + mock)
+// Provider definitions (21 total: 7 cloud + 7 OpenAI-compat + 5 enterprise + native + mock)
 // ═══════════════════════════════════════════════════════════════════════════
 
 static ANTHROPIC: Provider = Provider {
@@ -185,6 +185,68 @@ static AI21: Provider = Provider {
     description: "Jamba models (SSM-Transformer hybrid)",
 };
 
+// Enterprise / specialized providers (5)
+
+static BEDROCK: Provider = Provider {
+    id: "bedrock",
+    name: "AWS Bedrock",
+    aliases: &["aws-bedrock"],
+    env_var: "AWS_ACCESS_KEY_ID",
+    key_prefix: None,
+    default_model: "anthropic.claude-sonnet-4-20250514-v1:0",
+    cheap_model: "anthropic.claude-haiku-4-5-20251001-v1:0",
+    requires_key: true,
+    description: "AWS-managed inference gateway (Claude, Llama, Mistral)",
+};
+
+static AZURE: Provider = Provider {
+    id: "azure",
+    name: "Azure OpenAI",
+    aliases: &["azure-openai"],
+    env_var: "AZURE_OPENAI_API_KEY",
+    key_prefix: None,
+    default_model: "gpt-4o",
+    cheap_model: "gpt-4o-mini",
+    requires_key: true,
+    description: "Azure-hosted OpenAI models with enterprise compliance",
+};
+
+static VERTEX: Provider = Provider {
+    id: "vertex",
+    name: "Google Vertex AI",
+    aliases: &["gcp"],
+    env_var: "GOOGLE_APPLICATION_CREDENTIALS",
+    key_prefix: None,
+    default_model: "gemini-2.5-flash",
+    cheap_model: "gemini-2.0-flash",
+    requires_key: true,
+    description: "GCP-managed AI gateway (Gemini, Claude, Llama)",
+};
+
+static PERPLEXITY_LLM: Provider = Provider {
+    id: "perplexity",
+    name: "Perplexity",
+    aliases: &["pplx"],
+    env_var: "PERPLEXITY_API_KEY",
+    key_prefix: Some("pplx-"),
+    default_model: "sonar-pro",
+    cheap_model: "sonar",
+    requires_key: true,
+    description: "Search-augmented LLM with real-time web access",
+};
+
+static VOYAGE: Provider = Provider {
+    id: "voyage",
+    name: "Voyage AI",
+    aliases: &[],
+    env_var: "VOYAGE_API_KEY",
+    key_prefix: Some("pa-"),
+    default_model: "voyage-3-large",
+    cheap_model: "voyage-3-lite",
+    requires_key: true,
+    description: "Best-in-class embedding models for RAG and search",
+};
+
 // Special providers (2)
 
 static NATIVE: Provider = Provider {
@@ -215,10 +277,11 @@ static MOCK: Provider = Provider {
 // Flat array for iteration
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// All 16 providers in definition order (7 cloud + 7 compat + native + mock).
+/// All 21 providers in definition order (7 cloud + 7 compat + 5 enterprise + native + mock).
 pub static ALL_PROVIDERS: &[&Provider] = &[
     &ANTHROPIC, &OPENAI, &MISTRAL, &GROQ, &DEEPSEEK, &GEMINI, &XAI,
     &OPENROUTER, &TOGETHER, &FIREWORKS, &CEREBRAS, &SAMBANOVA, &COHERE, &AI21,
+    &BEDROCK, &AZURE, &VERTEX, &PERPLEXITY_LLM, &VOYAGE,
     &NATIVE, &MOCK,
 ];
 
@@ -260,7 +323,17 @@ static PROVIDER_MAP: phf::Map<UniCase<&'static str>, &'static Provider> = phf_ma
     UniCase::ascii("samba") => &SAMBANOVA,
     UniCase::ascii("command-r") => &COHERE,
     UniCase::ascii("jamba") => &AI21,
+    UniCase::ascii("aws-bedrock") => &BEDROCK,
+    UniCase::ascii("azure-openai") => &AZURE,
+    UniCase::ascii("gcp") => &VERTEX,
+    UniCase::ascii("pplx") => &PERPLEXITY_LLM,
     UniCase::ascii("local") => &NATIVE,
+    // New canonical IDs
+    UniCase::ascii("bedrock") => &BEDROCK,
+    UniCase::ascii("azure") => &AZURE,
+    UniCase::ascii("vertex") => &VERTEX,
+    UniCase::ascii("perplexity") => &PERPLEXITY_LLM,
+    UniCase::ascii("voyage") => &VOYAGE,
 };
 
 /// Find a provider by id or alias (case-insensitive, O(1) via phf).
@@ -308,7 +381,7 @@ mod tests {
 
     #[test]
     fn provider_count() {
-        assert_eq!(ALL_PROVIDERS.len(), 16);
+        assert_eq!(ALL_PROVIDERS.len(), 21);
     }
 
     #[test]
@@ -316,6 +389,7 @@ mod tests {
         let ids = [
             "anthropic", "openai", "mistral", "groq", "deepseek", "gemini", "xai",
             "openrouter", "together", "fireworks", "cerebras", "sambanova", "cohere", "ai21",
+            "bedrock", "azure", "vertex", "perplexity", "voyage",
             "native", "mock",
         ];
         for id in ids {
@@ -340,6 +414,10 @@ mod tests {
             ("samba", "sambanova"),
             ("command-r", "cohere"),
             ("jamba", "ai21"),
+            ("aws-bedrock", "bedrock"),
+            ("azure-openai", "azure"),
+            ("gcp", "vertex"),
+            ("pplx", "perplexity"),
             ("local", "native"),
         ];
         for (alias, expected_id) in cases {
@@ -430,6 +508,20 @@ mod tests {
                 "duplicate provider id: `{}`",
                 provider.id
             );
+        }
+    }
+
+    #[test]
+    fn all_provider_aliases_in_map() {
+        for provider in ALL_PROVIDERS {
+            let p = find_provider(provider.id)
+                .unwrap_or_else(|| panic!("canonical id `{}` not in PROVIDER_MAP", provider.id));
+            assert_eq!(p.id, provider.id);
+            for alias in provider.aliases {
+                let p = find_provider(alias)
+                    .unwrap_or_else(|| panic!("alias `{alias}` for `{}` not in PROVIDER_MAP", provider.id));
+                assert_eq!(p.id, provider.id, "alias `{alias}` resolves to wrong provider");
+            }
         }
     }
 }
