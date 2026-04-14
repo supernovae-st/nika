@@ -12,6 +12,37 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### 🏷️ Phase D Session 1 — Tag vocabulary + Cargo features (2026-04-14)
+
+Typed tag system for catalog entries, Cargo feature gating, and Shield
+safety invariant enforcement.
+
+- **42-variant `Tag` enum** (`#[non_exhaustive]`) — model I/O modalities,
+  reasoning/generation behaviour, economics, deployment/sovereignty,
+  specialisation, domain, and MCP-server permissioning. Kebab-case wire
+  format (`Tag::as_str()` + `FromStr`). Locked as enum (not `&str`) so
+  pck authors get compile errors on typos.
+- **`tags` + `extra_tags` fields** on `Provider`, `McpServer`, `Embedding` —
+  `&'static [Tag]` (validated at build time) + `&'static [&'static str]`
+  (passthrough escape hatch for community-specific vocabulary).
+- **All 139 catalog entries tagged** (21 providers + 13 embeddings + 105 MCP
+  servers). build.rs enforces: known tags only, sorted, deduplicated, and
+  MCP entries MUST carry exactly one of `read-only` / `destructive` (Shield
+  security-filter invariant, compile-time enforced).
+- **Cargo features for subset compilation** — `full` (default), `minimal`,
+  `mcp`, `providers`, `embeddings`, `pricing`, `capabilities`,
+  `builtins-transforms`, `extension-author`. Community crates depend on
+  `features = ["extension-author"]` for types-only (no bundled data).
+- **7 runtime tag invariant tests** — XOR, Budget/Frontier mutex,
+  Embedding/Reranker presence, sort/dedup codegen integrity, spot-checks
+  (anthropic tags, stripe MCP tags).
+- **COMMUNITY_EXTENSIONS.md** — pck-author pattern documentation for
+  `nika-catalog-cn`, `nika-catalog-eu`, etc.
+- **3-agent review** (spn-nika + feature-dev + rust-pro) — all P0/P1
+  findings addressed: `f64::INFINITY` validation gap, `#[allow(dead_code)]`
+  scoping, `tag_variant` drift guard, `Tag::Sandbox` doc clarification,
+  `extra_tags` Gate 1 SAFETY note, version pin fix.
+
 ### ⚙️ Hygiene + automation (2026-04-14 PM)
 
 Autonomous ecosystem hygiene stack added to prevent drift over the 11-12 month build:

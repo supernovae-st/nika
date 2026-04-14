@@ -40,14 +40,16 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
 
 - **nika-error** — error infrastructure (44 tests, 100% mutation, `42909b1c7`)
-- **nika-catalog** — static catalogs with phf+unicase lookup (87 tests, `db0bf8e3f`)
-- **nika-catalog-verify** — online registry verifier binary (`a977e35b1`)
-  - 102 MCP aliases (post Phase A cleanup of 29 broken entries)
-  - 21 LLM providers (7 cloud + 7 OpenAI-compat + 5 enterprise + native + mock)
-  - 63 builtins, 65 transforms, 61 pricing entries
+- **nika-catalog** — static catalogs with phf+unicase lookup, 42-variant typed Tag enum,
+  Cargo feature gating (138 tests, `83a9afaf4`)
+  - 105 MCP servers (every entry carries `read-only` XOR `destructive` — Shield invariant)
+  - 21 LLM providers, 13 embeddings, 63 builtins, 65 transforms, 62 pricing entries
+  - Cargo features: full/minimal/mcp/providers/embeddings/pricing/capabilities/builtins-transforms
+  - Community extension pattern: `nika-catalog-cn`, `nika-catalog-eu` via `extension-author` feature
+- **nika-catalog-verify** — online registry verifier binary (9 tests, `a977e35b1`)
 - **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (99 + 88 tests, `ef8804371`)
 
-Total: 318 tests, 0 clippy warnings, 0 unwrap in `src/`.
+Total: 369 tests, 0 clippy warnings, 0 unwrap in `src/`.
 
 ## v0.90 — "Diamond Foundation" (ships when ready)
 
@@ -95,12 +97,17 @@ Grok 4 variants (grok-4/grok-4-fast).
 - Per-provider capabilities (vision, thinking, structured output)
 
 **Catalog P1 improvements** (fix silent bugs + UX):
-- Scope `find_pricing` by provider (fix silent wrong-cost on custom endpoints)
-- Enforce pricing-pattern ordering at compile time (no merge-conflict wrong pricing)
-- `suggest()` fuzzy matcher with `strsim` — "did you mean firecrawl?" on typos
-- Shared `Credential` type referenced by both Provider and McpServer
-  (de-dupes perplexity/brave/stripe credential data)
-- `Category` as enum, not `&'static str` (type safety)
+- ~~Scope `find_pricing` by provider~~ — ✅ DONE (`find_pricing_scoped`)
+- ~~Enforce pricing-pattern ordering at compile time~~ — ✅ DONE (build.rs assertion)
+- ~~`suggest()` fuzzy matcher with `strsim`~~ — ✅ DONE
+- ~~`Category` as enum, not `&'static str`~~ — ✅ DONE
+- 42-variant `Tag` enum — typed vocabulary for modalities, economics, sovereignty,
+  MCP permissioning. Build-time enforced sort/dedup + MCP read-only XOR destructive.
+- Cargo features for subset compilation (full/minimal/per-content + extension-author)
+- Community extension pattern (`nika-catalog-cn`, `-eu`, `-enterprise`)
+- Phase D remaining: capability migration to TOML, modality/tokenizer/supported_parameters,
+  5-axis pricing, provider trust/residency, model families, HTTP API catalog, MCP lifecycle,
+  CatalogOverlay trait (nika-kernel), perf polish, Gate 5 mutation ≥90%
 
 **Security (7 shadow zones GREEN, non-negotiable)**:
 - Gate 1: `nika serve` input trust (P0)
