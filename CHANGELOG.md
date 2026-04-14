@@ -2,114 +2,206 @@
 
 All notable changes to Nika are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.
 
 Nika Diamond is a ground-up rewrite on an orphan branch (`nika-diamond`).
-Legacy main sits at v0.79.3. Diamond starts at v0.80.0, targeting v0.90.0.
-No public releases yet -- internal tracking only.
+Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
+
+---
 
 ## [Unreleased]
 
-### Fixed
+### 🔨 Refactors
 
-- **nika-catalog Phase A cleanup** (db0bf8e3f, 2026-04-14) -- removed 29 broken
-  MCP aliases found via 5-agent deep audit:
-  - 7 deprecated Anthropic reference servers (puppeteer, brave-search, google-maps,
-    github, gitlab, postgres, neon -- Anthropic marked them "Package no longer
-    supported" on npm). Plus `brave` alias pointing to the deprecated brave-search.
-  - 18 aliases pointing to non-existent npm packages (fetch, sqlite, stability,
-    elevenlabs, deepgram, intercom, weaviate, qdrant, chroma, milvus, posthog,
-    grafana, coinbase, fly, asana, raygun, buildkite, bing -- Python-only, Go
-    binaries, remote-only, or fabricated names).
-  - 3 zero-weekly-download abandoned community forks (semrush, trello, todoist).
-  - New test `removed_broken_aliases_not_present` blocks regression.
-  - Total: 131 -> 102 aliases. Categories recounted: anthropic(9->3),
-    databases(10->7), search(9->7), developer(19->17), productivity(15->12),
-    image(4->3), audio(2->0), communication(6->5), vectordb(6->2),
-    analytics(8->6), ecommerce(7->6), devops(7->6), marketing(4->3).
+- **nika-catalog Phase C migration** — migrating catalog data from hardcoded
+  Rust arrays to `data/*.toml` source files, compiled at build time via
+  `build.rs` + `phf_codegen`. Same zero-runtime-overhead phf maps, but the
+  source of truth is now human-readable TOML. This unblocks community
+  contributions to the catalog (PR a TOML file, not a Rust array).
 
-### Added
+### 🐛 Fixes
 
-- **nika-catalog v2 enrichment** (6a943e885, 2026-04-13) -- 31 npm package
-  name corrections (all verified on npm registry), 20 new aliases, 6 gap-fill
-  additions (chrome-devtools 406k dl/wk, pdf 277k/wk official Anthropic,
-  dynatrace, apify, heroku, browserstack). 5 enterprise providers added:
-  bedrock, azure, vertex, perplexity (LLM), voyage. Aliases added:
-  aws-bedrock, azure-openai, gcp, pplx. #[non_exhaustive] on McpAlias.
-  New test `all_provider_aliases_in_map` enforces Provider.aliases coverage.
-  Pre-cleanup total: 131 MCP aliases, 21 providers. 86 tests.
-- **nika-catalog** -- L0 static catalogs crate admitted to workspace (55a451695).
-  Hybrid lookup: phf + unicase for providers/MCP (O(1)), sorted arrays for
-  builtins/transforms (O(log n)). 16 providers, 113 MCP aliases, 63 builtins,
-  65 transforms, 61 pricing entries. 2,235 LOC, 85 tests, 94.7% mutation killed.
-- **nika-kernel + nika-kernel-mock** -- L0.5 kernel traits admitted (ef8804371).
-  99 kernel tests, 88 kernel-mock tests.
-- **nika-error** -- L0 error infrastructure crate admitted to workspace (42909b1c7).
-  Strategy C+: trait `NikaErrorCode` + `NikaError(Box<dyn>)` + `CoreError`.
-  `NikaCode` dual wire format (Display `"NIKA-001"`, serde roundtrip).
-  1,013 LOC, 44 tests, 100% mutation killed.
+- **nika-catalog Phase A cleanup** (db0bf8e3f) — a 5-agent deep audit
+  discovered 29 of our 131 MCP aliases were broken. Some pointed to
+  Anthropic reference servers that were quietly deprecated ("Package no
+  longer supported" on npm). Others referenced npm packages that never
+  existed — Python-only tools, Go binaries, or names we'd fabricated from
+  incomplete documentation. Three were community forks with zero weekly
+  downloads.
 
-### Planned (Phase C — v0.90 catalog architecture)
+  We removed all 29 and added a regression test (`removed_broken_aliases_not_present`)
+  so they can't sneak back. The catalog went from 131 to 102 aliases.
+  Every remaining alias now resolves to a real, installable package.
 
-See `CATALOG_V3_PLAN.md` in private memory. Key moves:
+---
 
-- Migrate catalog data from hardcoded Rust arrays to `data/*.toml` files,
-  compiled via `build.rs` + `phf_codegen` to zero-runtime-overhead phf maps.
-- Adopt official MCP Registry schema (packages[] + remotes[]) for multi-
-  distribution support (npm, pypi, oci, remote streamable-http/sse).
-- New `xtask verify-catalog` with parallel npm/pypi/docker registry checks;
-  GitHub Actions daily cron on drift detection.
-- Add Tier 1 providers: moonshot (Kimi K2), qwen (Alibaba), deepinfra, novita.
-- Update 9 default model IDs to April 2026 flagships (Claude 4.5 Sonnet,
-  GPT-5, Grok 4, Gemini 3.0 Pro, Command A, Jamba 1.6, Voyage 3.5, cross-
-  region Bedrock profile).
-- Fill pricing gaps (gpt-5-mini/nano, Perplexity Sonar variants, Cohere,
-  AI21 Jamba 1.6, Voyage embeddings, grok-4).
-- Add `context_window_tokens` + `max_output_tokens` per model.
-- Scope `find_pricing` by provider (fix silent wrong-cost bug on custom endpoints).
-- Add `Credential` shared type de-duping Provider + McpAlias secret metadata.
+## [0.80.0-alpha.3] - 2026-04-13
 
-### Planned (Phase D — native API adapters, post-v0.90)
+### 🆕 Crates admitted: nika-kernel + nika-kernel-mock
 
-Based on 5-agent brainstorm 2026-04-14:
+The nervous system.
 
-- Top-10 native Rust adapters (~500 LOC each, ~5k LOC total, 3-5 new crates):
-  `nika:github` (octocrab), `nika:aws` (aws-sdk-rust), `nika:slack`
-  (slack-morphism), `nika:notion`, `nika:linear`, `nika:huggingface`
-  (hf-hub), `nika:ollama`, `nika:stripe` (async-stripe), `nika:cloudflare`
-  (cloudflare-rs).
-- Framing locked: thin adapters wrapping existing Rust SDKs, NOT CLI
-  reimplementations. Each builtin must erase >=80% of `fetch:` boilerplate
-  or it's not worth shipping.
-- Skip list: terraform, pulumi, modal, heroku (decline), spotify (niche),
-  railway (GraphQL churn), jira (enterprise auth complexity), full Discord
-  (stateful WS).
+`nika-kernel` defines the **trait contracts for every side effect** in Nika.
+It sits at L0.5 — above the pure types (error, catalog) and below the
+implementations (fs, http, process, provider). Zero implementations live here.
+This crate is the constitution: it says what each organ *must* do, not how.
 
-### Planned (Phase E — sharing primitive, v0.90 candidate)
+The design follows Interface Segregation Principle to the max: ~20 fine-grained
+atomic traits (`FsRead`, `FsWrite`, `HttpGet`, `ShellRun`...) grouped into ~6
+super-traits of convenience (`Fs`, `HttpClient`, `ShellExecutor`, `Provider`...).
+Consumers depend on exactly the surface they need — a context loader imports
+`FsRead` alone, not the entire filesystem umbrella.
 
-- `nika init --from github.com/user/repo` -- git-native template scaffold,
-  zero registry infrastructure. Covers 80% of the sharing use case.
-- `nika-catalog` extended to include curated workflows + skills + provider
-  configs, phf-compiled. PR-based contribution (Obsidian / Homebrew pattern).
-- `nika pck` full registry DEFERRED to v1.5+. Solo team cannot run a
-  cloud registry. Git-repo-as-registry (homebrew-tap model) when/if it ships.
+All async traits use `trait_variant` (Rust 1.91 native AFIT) instead of
+`async_trait`. Zero boxing on the static dispatch path. The kernel carries no
+tokio dependency — pure trait definitions that any async runtime can implement.
+
+We also planted the **Cortex + agent-v2 hooks** now: `MemoryStore`,
+`EmbeddingProvider`, `ToolExecutor`, `ContextCompressor`, and agent checkpoint
+types. These won't be implemented until v0.95, but defining them in Phase 1
+means we won't need breaking changes to `#[non_exhaustive]` structs later.
+Forward compatibility bought cheaply.
+
+`nika-kernel-mock` is the companion: deterministic mocks for every kernel trait
+(`MockClock`, `InMemoryFs`, `MockHttp`, `MockShell`, `MockProvider`...).
+Test hermeticity from day one — no test in Nika will ever touch a real
+filesystem, a real network, or a real LLM provider.
+
+| Metric | nika-kernel | nika-kernel-mock |
+|--------|-------------|------------------|
+| LOC | 3,369 | 1,731 |
+| Tests | 99 | 88 |
+| Mutation killed | 100% | 95.7% |
+| Clippy warnings | 0 | 0 |
+| Unwraps in src/ | 0 | 0 |
+
+### Key decisions
+
+- **Clock is SYNC, everything else ASYNC** — YAGNI on network time. Hot paths
+  stay simple.
+- **`BTreeMap` over `HashMap`** — deterministic iteration order, no hasher
+  dependency. Tests are reproducible.
+- **Cancel as `fn` param, not in struct** — keeps `ShellCommand` free of
+  tokio-util. The kernel stays runtime-agnostic.
+- **Provider = Infer + Stream + Meta** — all providers MUST stream (even mock).
+  Embed and Vision are opt-in traits.
+- **Errors per subsystem** — `ProviderError`, `ShellError`, `ToolExecError`,
+  `MemoryError`. No god-enum.
+
+All 12 gates passed. Commit `ef8804371`. 🦋
+
+---
+
+## [0.80.0-alpha.2] - 2026-04-13
+
+### 🆕 Crate admitted: nika-catalog
+
+The memory.
+
+`nika-catalog` is Nika's static knowledge of the world: every LLM provider it
+can talk to, every MCP server it knows how to install, every builtin tool it
+ships, every pipe transform it supports, and the pricing of every model it's
+seen.
+
+The catalog is compiled into the binary at build time. No runtime I/O, no
+config files, no network calls. You ask "do you know `anthropic`?" and the
+answer comes back in O(1) via a [perfect hash function](https://en.wikipedia.org/wiki/Perfect_hash_function).
+
+Why this matters: when a user writes `provider: claude` in their YAML, the
+engine resolves the alias → canonical provider → model → capabilities → pricing
+in a chain of zero-allocation lookups. No guessing, no fuzzy matching, no
+"did you mean?" The catalog is the ground truth.
+
+The lookup strategy is hybrid by design:
+- **phf + unicase** for case-insensitive lookups (providers, MCP aliases) —
+  because users write `Claude`, `claude`, `CLAUDE` and they all mean Anthropic.
+- **Sorted arrays + binary_search** for case-sensitive lookups (builtins,
+  transforms) — because `nika:read` and `nika:Read` are different things
+  (actually `nika:Read` doesn't exist, and the catalog should say so clearly).
+
+At admission: 16 providers, 113 MCP aliases, 63 builtins, 65 transforms,
+61 model pricing entries. All from a single `cargo build`.
+
+| Metric | Value |
+|--------|-------|
+| LOC | 2,235 |
+| Tests | 85 |
+| Mutation killed | 94.7% |
+| Clippy warnings | 0 |
+| Unwraps in src/ | 0 |
+
+All 12 gates passed. Commit `55a451695`. 🦋
+
+---
+
+## [0.80.0-alpha.1] - 2026-04-13
+
+### 🆕 Crate admitted: nika-error
+
+The DNA.
+
+Every error in Nika carries a code. `NIKA-001` means schema validation failed.
+`NIKA-053` means a blocked command was attempted. `NIKA-382` means a canary
+token leaked (prompt injection detected). There are hundreds of these codes,
+and every single one must roundtrip through Display, parse back from a string,
+serialize to JSON, and match the exact same format across every provider, every
+verb, every transport layer.
+
+`nika-error` is the crate that makes this possible. It defines:
+
+- **`NikaErrorCode`** — a trait that every per-crate error enum must implement.
+  This is the contract: if you want to be a Nika error, you carry a code, a
+  severity, a category, and you format yourself as `"NIKA-XXX: message"`.
+- **`NikaError`** — a `Box<dyn NikaErrorCode>` wrapper. The unified error type
+  that flows through `?` propagation across the entire codebase.
+- **`NikaCode`** — the code itself. Dual format: Display gives you `"NIKA-140"`,
+  serde gives you `{"num":140,"category":"ast","severity":"error","slug":"ast-analysis-failure"}`.
+- **`CoreError`** — cross-cutting errors that don't belong to any specific crate
+  (Validation, NotFound, Unsupported, Internal).
+
+This is the L0 anchor. Zero `nika-*` dependencies. Reachable from every crate
+in the workspace. The first cell of the organism.
+
+It also resolves **shadow zone 6** from the pre-launch audit: every admitted
+`NIKA-XXX` now ships with a Display parity golden test against the legacy
+format. No silent drift.
+
+| Metric | Value |
+|--------|-------|
+| LOC | 1,013 |
+| Tests | 44 |
+| Mutation killed | 100% |
+| Clippy warnings | 0 |
+| Unwraps in src/ | 0 |
+
+All 12 gates passed. Commit `42909b1c7`. 🦋
+
+---
 
 ## [0.80.0-alpha.0] - 2026-04-13
 
-Workspace scaffold. Orphan branch `nika-diamond` created from scratch --
-no code inherited from main.
+### The beginning
 
-### Added
+Orphan branch `nika-diamond` created from scratch. No code inherited from main.
+Clean slate, edition 2024, Rust 1.91.
 
-- Orphan branch initialized with workspace Cargo.toml (edition 2024, Rust 1.91).
-- Workspace-level lint policy: `clippy::unwrap_used = "deny"`,
-  `clippy::expect_used = "warn"`, `clippy::panic = "deny"`.
-- `.gitignore` excluding all 32 legacy crate directories and tool output.
-- `DIAMOND.md` architectural vision with core 34-crate catalog (expanded to 40-42 target for v0.90 after pck + natives additions per ROADMAP.md).
-- `README.md` rewritten for Phase 1 state.
-- Claude Code environment, DX rules, session discipline, and hooks.
-- Linear setup guide for diamond project tracking.
+From the start, the workspace enforces:
+- `clippy::unwrap_used = "deny"` — zero unwraps, everywhere, always.
+- `clippy::panic = "deny"` — if it can panic, it doesn't compile.
+- `clippy::expect_used = "warn"` — we'll get there.
 
-[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.0...HEAD
+32 legacy crate directories excluded via `.gitignore` — they exist on disk
+(the orphan branch inherits the working tree) but cargo ignores them. We read
+legacy code via `git show main:path/to/file.rs` when we need guidance, but
+nothing is copied verbatim. Every line is rewritten.
+
+The organism's skeleton is in place. Now it grows. 🦋
+
+---
+
+[Unreleased]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.3...HEAD
+[0.80.0-alpha.3]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.2...v0.80.0-alpha.3
+[0.80.0-alpha.2]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.1...v0.80.0-alpha.2
+[0.80.0-alpha.1]: https://github.com/supernovae-st/nika/compare/v0.80.0-alpha.0...v0.80.0-alpha.1
 [0.80.0-alpha.0]: https://github.com/supernovae-st/nika/commits/v0.80.0-alpha.0
