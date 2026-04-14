@@ -317,4 +317,98 @@ mod tests {
             }
         }
     }
+
+    // ─── Invariants that locked the P0 case-insensitive collision fix ────
+
+    #[test]
+    fn no_case_insensitive_collision_in_mcp_keys() {
+        // Every id + alias in the MCP catalog must be unique when lowered.
+        // This is the runtime mirror of the build.rs check — if someone ever
+        // disables build.rs validation, this test still catches the bug.
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for s in ALL_MCP_SERVERS {
+            let k = s.id.to_ascii_lowercase();
+            assert!(seen.insert(k), "case-insensitive collision on id {:?}", s.id);
+            for a in s.aliases {
+                let k = a.to_ascii_lowercase();
+                assert!(seen.insert(k), "case-insensitive collision on alias {a:?} (server {:?})", s.id);
+            }
+        }
+    }
+
+    #[test]
+    fn no_case_insensitive_collision_in_provider_keys() {
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for p in ALL_PROVIDERS_V3 {
+            let k = p.id.to_ascii_lowercase();
+            assert!(seen.insert(k), "case-insensitive collision on provider id {:?}", p.id);
+            for a in p.aliases {
+                let k = a.to_ascii_lowercase();
+                assert!(seen.insert(k), "case-insensitive collision on alias {a:?} (provider {:?})", p.id);
+            }
+        }
+    }
+
+    #[test]
+    fn all_keys_are_ascii() {
+        // UniCase::ascii vs UniCase::new hash mismatch would hit non-ASCII
+        // keys silently. build.rs rejects them; this test mirrors the rule
+        // at runtime.
+        for s in ALL_MCP_SERVERS {
+            assert!(s.id.is_ascii(), "non-ASCII server id {:?}", s.id);
+            for a in s.aliases {
+                assert!(a.is_ascii(), "non-ASCII alias {a:?} on server {:?}", s.id);
+            }
+        }
+        for p in ALL_PROVIDERS_V3 {
+            assert!(p.id.is_ascii(), "non-ASCII provider id {:?}", p.id);
+            for a in p.aliases {
+                assert!(a.is_ascii(), "non-ASCII alias {a:?} on provider {:?}", p.id);
+            }
+        }
+    }
+
+    #[test]
+    fn runner_only_on_pypi_packages() {
+        // Cross-constraint: `runner` is pypi-only. build.rs rejects violations;
+        // this test guards against the generated code drifting from that rule.
+        use crate::types::RegistryType;
+        for s in ALL_MCP_SERVERS {
+            for pkg in s.packages {
+                match pkg.registry_type {
+                    RegistryType::Pypi => assert!(
+                        pkg.runner.is_some(),
+                        "pypi package {:?} on {:?} missing runner",
+                        pkg.identifier, s.id,
+                    ),
+                    _ => assert!(
+                        pkg.runner.is_none(),
+                        "non-pypi package {:?} on {:?} has runner set",
+                        pkg.identifier, s.id,
+                    ),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_case_lookup_resolves() {
+        // Probe the phf map with canonical + uppercase + titlecase forms to
+        // confirm the build-time `UniCase::ascii` key and the runtime
+        // `UniCase::ascii` probe agree.
+        for variant in ["filesystem", "FILESYSTEM", "FileSystem", "filesysTEM"] {
+            assert_eq!(
+                find_mcp_server(variant).map(|s| s.id),
+                Some("filesystem"),
+                "variant {variant:?} did not resolve",
+            );
+        }
+        for variant in ["anthropic", "ANTHROPIC", "Anthropic", "AnThRoPiC"] {
+            assert_eq!(
+                find_provider_v3(variant).map(|p| p.id),
+                Some("anthropic"),
+                "variant {variant:?} did not resolve to anthropic",
+            );
+        }
+    }
 }

@@ -196,12 +196,18 @@ fn parse_mcp_servers(path: &Path) -> Result<Vec<McpServerEntry>, String> {
     let file: McpServersFile =
         toml::from_str(&raw).map_err(|e| format!("parsing {}: {e}", path.display()))?;
 
-    let mut seen_ids: HashSet<String> = HashSet::new();
-    let mut seen_aliases: HashSet<String> = HashSet::new();
+    // Unified bucket: every lookup key (id + aliases) routes through the
+    // same `UniCase::ascii` normalisation at runtime, so build.rs uniqueness
+    // checks must use the *same* lowering to stay consistent with the phf
+    // map that gets emitted. Mixing raw + lowered caches leaves silent
+    // collision holes (same UniCase key → two distinct entries).
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
     for s in &file.servers {
-        if !seen_ids.insert(s.id.clone()) {
-            return Err(format!("duplicate server id: {}", s.id));
+        assert_ascii_key("server id", &s.id)?;
+        let id_key = s.id.to_ascii_lowercase();
+        if !seen_keys.insert(id_key) {
+            return Err(format!("duplicate server id (case-insensitive): {:?}", s.id));
         }
         if s.packages.is_empty() && s.remotes.is_empty() {
             return Err(format!(
@@ -215,8 +221,23 @@ fn parse_mcp_servers(path: &Path) -> Result<Vec<McpServerEntry>, String> {
         for pkg in &s.packages {
             validate_registry_type(&pkg.registry_type, &s.id)?;
             validate_transport(&pkg.transport, &s.id)?;
-            if let Some(r) = &pkg.runner {
-                validate_py_runner(r, &s.id)?;
+            // Cross-constraint: `runner` is meaningful only for pypi packages.
+            // `pypi` with no runner is also a data smell — pick one.
+            match (pkg.registry_type.as_str(), pkg.runner.as_deref()) {
+                ("pypi", None) => {
+                    return Err(format!(
+                        "server {:?}: pypi package {:?} must set `runner` (uvx or pipx)",
+                        s.id, pkg.identifier
+                    ));
+                }
+                ("pypi", Some(r)) => validate_py_runner(r, &s.id)?,
+                (_, Some(r)) => {
+                    return Err(format!(
+                        "server {:?}: package {:?} is {:?} but sets runner={r:?} (runner is pypi-only)",
+                        s.id, pkg.identifier, pkg.registry_type
+                    ));
+                }
+                (_, None) => {}
             }
         }
         for r in &s.remotes {
@@ -224,19 +245,36 @@ fn parse_mcp_servers(path: &Path) -> Result<Vec<McpServerEntry>, String> {
             validate_auth(&r.auth, &s.id)?;
         }
 
-        // Aliases must not collide with any other server's id or aliases.
+        // Aliases go in the same unified bucket — they can't collide with
+        // any id OR any other alias (case-insensitive).
         for a in &s.aliases {
+            assert_ascii_key("alias", a)?;
             let key = a.to_ascii_lowercase();
-            if seen_ids.contains(a) {
-                return Err(format!("alias {a:?} on server {:?} collides with existing id", s.id));
-            }
-            if !seen_aliases.insert(key) {
-                return Err(format!("duplicate alias: {a:?} (on server {:?})", s.id));
+            if !seen_keys.insert(key) {
+                return Err(format!(
+                    "alias {a:?} on server {:?} collides with an existing id or alias (case-insensitive)",
+                    s.id
+                ));
             }
         }
     }
 
     Ok(file.servers)
+}
+
+/// MCP registry keys are ASCII by convention. Reject non-ASCII to avoid
+/// the `UniCase::new` (unicode folding) vs `UniCase::ascii` (ASCII folding)
+/// hash mismatch that would silently drop lookups.
+fn assert_ascii_key(kind: &str, s: &str) -> Result<(), String> {
+    if !s.is_ascii() {
+        return Err(format!(
+            "{kind} {s:?} contains non-ASCII characters (ASCII-only ids/aliases required for case-insensitive phf lookup)"
+        ));
+    }
+    if s.is_empty() {
+        return Err(format!("{kind} is empty"));
+    }
+    Ok(())
 }
 
 fn validate_category(cat: &str, server: &str) -> Result<(), String> {
@@ -332,9 +370,15 @@ fn generate_mcp_servers_rs(servers: &[McpServerEntry]) -> String {
         }
     }
     // Hold leaked 'static references for the builder.
+    // Use `UniCase::ascii(...)` at build time to match the runtime lookup
+    // path (`generated.rs::find_mcp_server` / `find_provider_v3`). If build
+    // used `UniCase::new` (unicode-fold) while runtime uses `UniCase::ascii`
+    // (ASCII-fold), non-ASCII keys would hash differently in the map vs the
+    // probe — a silent miss. `assert_ascii_key` in validation keeps this
+    // safe, but matching folding strategies is belt-and-braces.
     let leaked: Vec<(unicase::UniCase<&'static str>, String)> = entry_strings
         .into_iter()
-        .map(|(k, v)| (unicase::UniCase::new(Box::leak(k.into_boxed_str()) as &'static str), v))
+        .map(|(k, v)| (unicase::UniCase::ascii(Box::leak(k.into_boxed_str()) as &'static str), v))
         .collect();
     for (k, v) in &leaked {
         builder.entry(*k, v);
@@ -545,16 +589,20 @@ fn parse_llm_providers(path: &Path) -> Result<Vec<ProviderEntry>, String> {
     let file: LlmProvidersFile =
         toml::from_str(&raw).map_err(|e| format!("parsing {}: {e}", path.display()))?;
 
-    // Uniqueness: provider ids + their aliases must not collide with anything.
-    let mut seen_names: HashSet<String> = HashSet::new();
+    // Unified bucket: ids + aliases all resolve via `UniCase::ascii`, so
+    // uniqueness must match the same lowering to stay consistent with the
+    // emitted phf map.
+    let mut seen_keys: HashSet<String> = HashSet::new();
     for p in &file.providers {
-        if !seen_names.insert(p.id.to_ascii_lowercase()) {
-            return Err(format!("duplicate provider name: {:?}", p.id));
+        assert_ascii_key("provider id", &p.id)?;
+        if !seen_keys.insert(p.id.to_ascii_lowercase()) {
+            return Err(format!("duplicate provider id (case-insensitive): {:?}", p.id));
         }
         for a in &p.aliases {
-            if !seen_names.insert(a.to_ascii_lowercase()) {
+            assert_ascii_key("provider alias", a)?;
+            if !seen_keys.insert(a.to_ascii_lowercase()) {
                 return Err(format!(
-                    "provider {:?}: alias {a:?} collides with another provider id/alias",
+                    "provider {:?}: alias {a:?} collides with an existing id or alias (case-insensitive)",
                     p.id
                 ));
             }
@@ -566,8 +614,18 @@ fn parse_llm_providers(path: &Path) -> Result<Vec<ProviderEntry>, String> {
             ));
         }
 
-        // Every model must have non-empty wire identifier + sane token limits.
+        // Every provider ships at least one model; otherwise `default_model`
+        // and `cheap_model` can't be self-consistent against the models list.
+        if p.models.is_empty() {
+            return Err(format!(
+                "provider {:?}: models list is empty (at least one model required)",
+                p.id
+            ));
+        }
+
+        // Model invariants.
         let mut seen_nicks: HashSet<String> = HashSet::new();
+        let mut seen_wires: HashSet<String> = HashSet::new();
         for m in &p.models {
             if !seen_nicks.insert(m.id.clone()) {
                 return Err(format!(
@@ -581,12 +639,33 @@ fn parse_llm_providers(path: &Path) -> Result<Vec<ProviderEntry>, String> {
                     p.id, m.id
                 ));
             }
+            if !seen_wires.insert(m.model.clone()) {
+                return Err(format!(
+                    "provider {:?}: duplicate model wire {:?}",
+                    p.id, m.model
+                ));
+            }
             if m.context_window_tokens == 0 || m.max_output_tokens == 0 {
                 return Err(format!(
                     "provider {:?}: model {:?} has zero token limit",
                     p.id, m.id
                 ));
             }
+        }
+
+        // Self-consistency: default_model + cheap_model must appear in the
+        // models list (as wire identifiers). Fails the build, not a test.
+        if !seen_wires.contains(&p.default_model) {
+            return Err(format!(
+                "provider {:?}: default_model {:?} not in models list",
+                p.id, p.default_model
+            ));
+        }
+        if !seen_wires.contains(&p.cheap_model) {
+            return Err(format!(
+                "provider {:?}: cheap_model {:?} not in models list",
+                p.id, p.cheap_model
+            ));
         }
     }
 
