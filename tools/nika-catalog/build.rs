@@ -749,9 +749,11 @@ fn generate_providers_rs(providers: &[ProviderEntry]) -> String {
             entries.push((a.clone(), i.to_string()));
         }
     }
+    // Must match the runtime `UniCase::ascii` probe — see the comment block
+    // in `generate_mcp_servers_rs` for the full rationale.
     let leaked: Vec<(unicase::UniCase<&'static str>, String)> = entries
         .into_iter()
-        .map(|(k, v)| (unicase::UniCase::new(Box::leak(k.into_boxed_str()) as &'static str), v))
+        .map(|(k, v)| (unicase::UniCase::ascii(Box::leak(k.into_boxed_str()) as &'static str), v))
         .collect();
     for (k, v) in &leaked {
         builder.entry(*k, v);
