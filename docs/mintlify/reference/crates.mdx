@@ -10,7 +10,7 @@ Nika is composed of ~40 Rust crates (we call them **organs**). Each passes
 
 <Note>
   Numbers are grep-verified from the `nika-diamond` branch. Last updated: 2026-04-14.
-  **5 of ~40 organs admitted.** 10,434 lines of src. 369 tests. 0 unwraps. 0 clippy warnings.
+  **5 of ~40 organs admitted.** 11,383 lines of src. 385 tests. 0 unwraps. 0 clippy warnings.
 </Note>
 
 ## The seven layers
@@ -34,12 +34,12 @@ These have passed all 12 gates and live in the workspace.
 | Organ | Layer | LOC | Tests | Status | What it does |
 |---|---|---|---|---|---|
 | **nika-error** | L0 | 1,013 | 44 | ✅ Admitted | Error propagation, `NikaError` enum, `NIKA-XXX` codes |
-| **nika-catalog** | L0 | 3,741 | 138 | ✅ Admitted | Provider/model/MCP registry. 102 MCP aliases, 21 providers. TOML-sourced, `phf` compiled |
+| **nika-catalog** | L0 | 4,690 | 154 | ✅ Admitted | Provider/model/MCP registry. 102 MCP aliases, 21 providers. TOML-sourced, `phf` compiled |
 | **nika-catalog-verify** | L4 | 600 | 9 | ✅ Admitted | CI binary: validates catalog TOML, checks for stale/broken entries |
 | **nika-kernel** | L0.5 | 3,375 | 99 | ✅ Admitted | Trait definitions: `InferRequest`, `MemoryStore`, `ShellExecutor`, `ToolExecutor`. ISP-layered |
 | **nika-kernel-mock** | L0.5 | 1,705 | 88 | ✅ Admitted | Test doubles for every kernel trait. Deterministic, no I/O |
 
-**Total admitted**: 10,434 LOC · 369 tests · 100% mutation tested · 0 `.unwrap()` in src
+**Total admitted**: 11,383 LOC · 385 tests · 100% mutation tested · 0 `.unwrap()` in src
 
 ## Next to grow — Phase 1 remaining
 
