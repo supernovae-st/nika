@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["tools/nika-error", "tools/nika-catalog", "tools/nika-kernel", "tools/nika-kernel-mock"]
+members  = ["tools/nika-error", "tools/nika-catalog", "tools/nika-catalog-verify", "tools/nika-kernel", "tools/nika-kernel-mock"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under tools/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
