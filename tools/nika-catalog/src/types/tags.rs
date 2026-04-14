@@ -156,6 +156,9 @@ pub enum Tag {
     /// Every MCP server entry MUST carry `ReadOnly` XOR `Destructive`.
     Destructive,
     /// MCP runs in a sandboxed environment (Playwright, Browserbase).
+    /// Orthogonal to `ReadOnly`/`Destructive` — sandbox does NOT reduce
+    /// the risk classification. A sandbox + destructive MCP is still
+    /// destructive from Shield's perspective.
     Sandbox,
     /// Published by the vendor themselves (Stripe-official, HubSpot-official).
     Official,

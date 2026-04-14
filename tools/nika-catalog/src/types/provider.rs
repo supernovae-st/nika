@@ -67,6 +67,12 @@ pub struct Provider {
     pub tags: &'static [crate::types::Tag],
     /// Community / vendor-specific tags not in the core [`Tag`] enum.
     /// No validation — passthrough escape hatch for extension crates.
+    ///
+    /// # Safety (Gate 1 — nika serve input trust)
+    ///
+    /// These strings come from TOML authored by pck maintainers, NOT
+    /// end-users. Never pass `extra_tags` values into template engines,
+    /// prompts, or shell commands without treating them as untrusted.
     pub extra_tags: &'static [&'static str],
 }
 

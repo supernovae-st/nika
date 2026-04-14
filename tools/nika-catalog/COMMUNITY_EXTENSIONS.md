@@ -16,7 +16,7 @@ Your extension crate depends on `nika-catalog` with **minimal features**:
 
 ```toml
 [dependencies]
-nika-catalog = { version = "0.90", default-features = false, features = ["extension-author"] }
+nika-catalog = { version = "0.80", default-features = false, features = ["extension-author"] }
 ```
 
 This pulls in only the type definitions (`Provider`, `McpServer`, `Embedding`,

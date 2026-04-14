@@ -38,9 +38,10 @@ pub fn validate_catalog_integrity() -> Vec<CatalogError> {
     errors
 }
 
-// Pure helper: unit-tested in every config, but only the gated
-// `validate_catalog_integrity` entry-point drives it in non-test builds.
-#[allow(dead_code)]
+#[cfg_attr(
+    not(all(feature = "providers", feature = "mcp", feature = "pricing", feature = "builtins-transforms")),
+    allow(dead_code)
+)]
 fn validate_sorted<'a>(
     catalog: &'static str,
     names: impl Iterator<Item = &'a str>,
@@ -59,7 +60,10 @@ fn validate_sorted<'a>(
     }
 }
 
-#[allow(dead_code)]
+#[cfg_attr(
+    not(all(feature = "providers", feature = "mcp", feature = "pricing", feature = "builtins-transforms")),
+    allow(dead_code)
+)]
 fn validate_no_duplicates<'a>(
     catalog: &'static str,
     names: impl Iterator<Item = &'a str>,
@@ -83,7 +87,10 @@ fn validate_no_duplicates<'a>(
 /// that won't match raw pricing patterns — they are exempt.
 /// Native and mock providers are also exempt (no cloud pricing).
 #[cfg(all(feature = "providers", feature = "pricing"))]
-#[allow(dead_code)] // exercised by tests in every feature config that enables both flags
+#[cfg_attr(
+    not(all(feature = "mcp", feature = "builtins-transforms")),
+    allow(dead_code)
+)]
 fn validate_provider_models(errors: &mut Vec<CatalogError>) {
     use crate::data::{models, ALL_PROVIDERS};
     const CLOUD_IDS: &[&str] = &[

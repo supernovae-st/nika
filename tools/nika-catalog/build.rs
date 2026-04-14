@@ -492,8 +492,19 @@ fn validate_tags(tags: &[String], entry_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Number of known tag variants. Must match `Tag` enum in `src/types/tags.rs`.
+/// The runtime test `variant_count_is_42` in `tags.rs` guards this; update both
+/// when adding a new Tag variant.
+const TAG_VARIANT_COUNT: usize = 42;
+
 /// Map a kebab-case tag string to its Rust variant name. Returns `None` for
 /// unknown strings (used by `validate_tags` to fail the build early).
+///
+/// SYNC NOTE: This mapping is intentionally duplicated from `tags.rs::FromStr`.
+/// build.rs cannot `use` library types. The `TAG_VARIANT_COUNT` constant +
+/// `variant_count_is_42` test in tags.rs guard against drift. If you add a new
+/// Tag variant: update `Tag` enum, `as_str()`, `FromStr`, this function, and
+/// bump `TAG_VARIANT_COUNT` to match.
 fn tag_variant(s: &str) -> Option<&'static str> {
     Some(match s {
         "vision" => "Vision",
@@ -541,6 +552,27 @@ fn tag_variant(s: &str) -> Option<&'static str> {
         _ => return None,
     })
 }
+
+/// Exhaustive list of all known kebab-case tag strings. Used to verify
+/// `TAG_VARIANT_COUNT` stays in sync with `tag_variant()` arms.
+const ALL_KNOWN_TAGS: &[&str] = &[
+    "agent", "audio", "budget", "chinese", "code", "code-execution",
+    "destructive", "embedding", "enterprise", "european",
+    "extended-thinking", "fast", "finance", "frontier",
+    "function-calling", "image-gen", "japanese", "legal", "local",
+    "long-context", "math", "matryoshka", "medical", "multimodal",
+    "multilingual", "official", "open-source", "parallel-tools",
+    "prompt-caching", "rag", "read-only", "realtime", "reasoning",
+    "reranker", "response-schema", "sandbox", "serverless",
+    "streaming", "structured-output", "verified", "vision", "web-search",
+];
+
+// Compile-time assertion: if someone adds to tag_variant() without updating
+// TAG_VARIANT_COUNT (or vice versa), this panics during build.
+const _: () = assert!(
+    ALL_KNOWN_TAGS.len() == TAG_VARIANT_COUNT,
+    "ALL_KNOWN_TAGS length must equal TAG_VARIANT_COUNT — did you add a tag variant without updating both?"
+);
 
 // ─── Rust source emission ────────────────────────────────────────────────
 
@@ -1040,7 +1072,7 @@ fn parse_embeddings(
         if e.max_input_tokens == 0 {
             return Err(format!("embedding {:?}: max_input_tokens must be > 0", e.id));
         }
-        if e.input_per_million.is_nan() || e.input_per_million < 0.0 {
+        if !e.input_per_million.is_finite() || e.input_per_million < 0.0 {
             return Err(format!(
                 "embedding {:?}: input_per_million must be a finite non-negative number",
                 e.id
