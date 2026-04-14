@@ -4,12 +4,18 @@
 //! Type definitions for catalog entries.
 
 pub mod builtin;
+pub mod category;
+pub mod credential;
+pub mod distribution;
 pub mod mcp_alias;
 pub mod model;
 pub mod provider;
 pub mod transform;
 
 pub use builtin::{Builtin, BuiltinCategory};
+pub use category::Category;
+pub use credential::Credential;
+pub use distribution::{AuthMode, EnvVarSpec, McpPackage, McpRemote, PyRunner, RegistryType, Transport};
 pub use mcp_alias::{McpAlias, McpPricing};
 pub use model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLimitParam};
 pub use provider::Provider;
