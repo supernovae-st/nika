@@ -93,10 +93,12 @@ cargo-mutants       — mutation testing
 dylint + nika-lints — custom architectural lints (Phase 4+)
 ```
 
-## 🎯 Current state (2026-04-14)
+## 🎯 Current state (2026-04-15)
 
 - 5 crates admitted : error + catalog + catalog-verify + kernel + kernel-mock
-- 385 tests, 0 clippy, 0 unwrap in src/, Gate 8 GREEN, Invariant #19 FULL
+- 386 tests, 0 clippy, 0 unwrap in src/, Gate 8 GREEN, Invariant #19 FULL
+- 15 ADRs Accepted (ADR-001..015) — bidirectional Related: cross-refs landed
+- 2026 SOTA toolchain green : machete clean, semver-checks live, typos live, miri+hack+deny in CI matrix (9 jobs)
 - Phase D Session 2a DONE : TOML capability rules, api_dialect, proptest, inv #19
 - Next : Session 2b — Modality + TokenizerFamily + ParamFlag → Gate 2
 
