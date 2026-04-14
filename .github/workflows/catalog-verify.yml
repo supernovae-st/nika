@@ -1,0 +1,122 @@
+name: Catalog Verify
+
+# Daily probe of nika-catalog entries against upstream registries.
+# Surfaces drift (deleted packages, renamed endpoints, dead remotes) as
+# a GitHub issue on scheduled failure, as a PR comment on PR drift.
+#
+# Security note: every `run:` step uses env-var indirection (no inline
+# `${{ }}` expansion into shell). The github-script step consumes
+# repository/run metadata only — no user-controlled strings.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  pull_request:
+    branches: [nika-diamond]
+    paths:
+      - 'tools/nika-catalog/data/**'
+      - 'tools/nika-catalog-verify/**'
+      - '.github/workflows/catalog-verify.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: catalog-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  NIKA_VERIFY_CONCURRENCY: '16'
+
+jobs:
+  verify:
+    name: probe registries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          shared-key: catalog-verify
+
+      - name: Build verifier
+        run: cargo build -p nika-catalog-verify --release
+
+      - name: Run probes (JSON report)
+        id: verify
+        continue-on-error: true
+        run: |
+          ./target/release/nika-catalog-verify --json --concurrency "$NIKA_VERIFY_CONCURRENCY" > report.json
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit "$exit_code"
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-verify-report
+          path: report.json
+          retention-days: 30
+
+      - name: Print human summary
+        continue-on-error: true
+        run: |
+          ./target/release/nika-catalog-verify --concurrency "$NIKA_VERIFY_CONCURRENCY"
+
+      - name: Fail PR on drift
+        if: github.event_name == 'pull_request' && steps.verify.outputs.exit_code != '0'
+        run: |
+          echo "::error ::catalog drift detected — see the uploaded report.json artifact"
+          exit 1
+
+      - name: File GitHub issue on scheduled drift
+        if: github.event_name == 'schedule' && steps.verify.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('report.json', 'utf8'));
+            const notFound = report.findings.filter(f => f.result.kind === 'not-found');
+            if (notFound.length === 0) return;
+            const title = `catalog drift: ${notFound.length} entries missing upstream`;
+            const rows = notFound.map(f => `| \`${f.entry}\` | ${f.kind} | ${f.result.url} |`);
+            const body = [
+              '# Catalog drift detected',
+              '',
+              `The daily verifier found **${notFound.length}** catalog entries that no longer resolve upstream.`,
+              '',
+              '| entry | kind | url |',
+              '|---|---|---|',
+              ...rows,
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'Triage: either remove the entry from `data/*.toml`, or restore via pypi/oci/remote.',
+            ].join('\n');
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'catalog-drift',
+            });
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['catalog-drift'],
+              });
+            }
