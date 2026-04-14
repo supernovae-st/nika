@@ -12,6 +12,7 @@
 #   * input_per_million >= 0.0
 #   * similarity ∈ {cosine, dot-product, l2}
 #   * provider references an existing entry in llm-providers.toml
+#   * tags must be sorted alphabetically (kebab-case) and deduplicated
 #
 # Pricing snapshot: 2026-04-14. Prices DRIFT — xtask verify-catalog cron
 # flags drift against upstream pricing pages.
@@ -30,6 +31,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.18
 description = "Voyage 3 large — best-in-class RAG / retrieval."
+tags = ["embedding", "matryoshka", "rag"]
 
 [[embeddings]]
 id = "voyage/voyage-3-lite"
@@ -41,6 +43,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.02
 description = "Voyage 3 lite — cheap fallback, half the dimensions."
+tags = ["budget", "embedding"]
 
 [[embeddings]]
 id = "voyage/voyage-code-3"
@@ -52,6 +55,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.18
 description = "Voyage code — optimised for source code retrieval."
+tags = ["code", "embedding"]
 
 [[embeddings]]
 id = "voyage/voyage-multilingual-2"
@@ -63,6 +67,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.12
 description = "Voyage multilingual — 50+ languages."
+tags = ["embedding", "multilingual"]
 
 # ─── OpenAI ────────────────────────────────────────────────────────────
 
@@ -76,6 +81,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.02
 description = "OpenAI text-embedding-3-small — budget general-purpose."
+tags = ["budget", "embedding", "matryoshka"]
 
 [[embeddings]]
 id = "openai/text-embedding-3-large"
@@ -87,6 +93,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.13
 description = "OpenAI text-embedding-3-large — 3072 dims, strong retrieval."
+tags = ["embedding", "matryoshka"]
 
 [[embeddings]]
 id = "openai/text-embedding-ada-002"
@@ -97,7 +104,8 @@ max_input_tokens = 8191
 normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.10
-description = "OpenAI ada-002 — legacy, use text-embedding-3 instead."
+description = "OpenAI ada-002 — deprecated upstream, prefer text-embedding-3."
+tags = ["embedding"]
 
 # ─── Cohere ────────────────────────────────────────────────────────────
 
@@ -111,6 +119,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.10
 description = "Cohere Embed v3 English — English-only."
+tags = ["embedding", "enterprise"]
 
 [[embeddings]]
 id = "cohere/embed-multilingual-v3"
@@ -122,6 +131,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.10
 description = "Cohere Embed v3 multilingual — 100+ languages."
+tags = ["embedding", "enterprise", "multilingual"]
 
 [[embeddings]]
 id = "cohere/embed-english-light-v3"
@@ -133,6 +143,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.10
 description = "Cohere Embed v3 English light — 384 dims."
+tags = ["budget", "embedding"]
 
 # ─── Mistral ───────────────────────────────────────────────────────────
 
@@ -146,6 +157,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.10
 description = "Mistral Embed — general-purpose multilingual."
+tags = ["embedding", "european", "multilingual"]
 
 # ─── Gemini ────────────────────────────────────────────────────────────
 
@@ -159,6 +171,7 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.15
 description = "Gemini Embedding 001 — Matryoshka (truncatable)."
+tags = ["embedding", "matryoshka", "multilingual"]
 
 [[embeddings]]
 id = "gemini/text-embedding-004"
@@ -170,3 +183,4 @@ normalized_by_default = true
 similarity = "cosine"
 input_per_million = 0.0
 description = "Gemini text-embedding-004 — free tier."
+tags = ["budget", "embedding"]

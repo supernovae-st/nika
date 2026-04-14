@@ -411,8 +411,12 @@ fn validate_py_runner(r: &str, server: &str) -> Result<(), String> {
     }
 }
 
-/// Validate that every string in `tags` is a known kebab-case `Tag` variant.
-/// Fails the build with the entry id and the offending tag string.
+/// Validate that every string in `tags` is a known kebab-case `Tag` variant,
+/// and that the slice is sorted and deduplicated.
+///
+/// Sorting is validated (not auto-applied) so TOML authors see an explicit
+/// error message instead of silently getting reordered output. Use
+/// alphabetical kebab-case order (same as `Tag::as_str()` alphabetical sort).
 fn validate_tags(tags: &[String], entry_id: &str) -> Result<(), String> {
     for t in tags {
         if tag_variant(t).is_none() {
@@ -424,6 +428,22 @@ fn validate_tags(tags: &[String], entry_id: &str) -> Result<(), String> {
                  matryoshka, budget, frontier, fast, local, serverless, open-source, enterprise, \
                  european, chinese, japanese, multilingual, code, math, rag, agent, legal, finance, \
                  medical, read-only, destructive, sandbox, official, verified)"
+            ));
+        }
+    }
+    // Sorted + deduplication check (alphabetical kebab-case order).
+    for w in tags.windows(2) {
+        if w[0] == w[1] {
+            return Err(format!(
+                "entry {entry_id:?}: duplicate tag {:?} — each tag must appear at most once",
+                w[0]
+            ));
+        }
+        if w[0] > w[1] {
+            return Err(format!(
+                "entry {entry_id:?}: tags are not sorted — {:?} must come before {:?} \
+                 (sort tags alphabetically by kebab-case string)",
+                w[1], w[0]
             ));
         }
     }

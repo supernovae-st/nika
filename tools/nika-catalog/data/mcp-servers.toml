@@ -26,6 +26,7 @@ description = "Read and write local files with path-based access control."
 category = "anthropic"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -46,6 +47,7 @@ description = "Persistent key/value memory store."
 category = "anthropic"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -66,6 +68,7 @@ description = "PDF text + structure extraction."
 category = "anthropic"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -83,6 +86,7 @@ description = "Neo4j integration."
 category = "databases"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -103,6 +107,7 @@ description = "MySQL integration."
 category = "databases"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -123,6 +128,7 @@ description = "MongoDB integration."
 category = "databases"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -143,6 +149,7 @@ description = "Redis integration."
 category = "databases"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -163,6 +170,7 @@ description = "Supabase integration."
 category = "databases"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -183,6 +191,7 @@ description = "Upstash integration."
 category = "databases"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "serverless"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -203,6 +212,7 @@ description = "Turso integration."
 category = "databases"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -220,6 +230,7 @@ description = "Perplexity search + sonar models."
 category = "search"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -241,6 +252,7 @@ description = "Web scraping + crawling API."
 category = "search"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -262,6 +274,7 @@ description = "Exa integration."
 category = "search"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -282,6 +295,7 @@ description = "Tavily integration."
 category = "search"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -303,6 +317,7 @@ description = "Serper integration."
 category = "search"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -323,6 +338,7 @@ description = "Searchapi integration."
 category = "search"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -343,6 +359,7 @@ description = "Apify integration."
 category = "search"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -366,6 +383,7 @@ description = "Linear integration."
 category = "developer"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -387,6 +405,7 @@ description = "Sentry integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -407,6 +426,7 @@ description = "CircleCI integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -427,6 +447,7 @@ description = "Vercel integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -447,6 +468,7 @@ description = "Cloudflare integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -467,6 +489,7 @@ description = "AWS integration."
 category = "developer"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -487,6 +510,7 @@ description = "Browser automation via Playwright."
 category = "developer"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -501,6 +525,7 @@ description = "Browserbase integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -521,6 +546,7 @@ description = "Figma integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -541,6 +567,7 @@ description = "Xcode build + simulator control."
 category = "developer"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -555,6 +582,7 @@ description = "ESLint integration."
 category = "developer"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -569,6 +597,7 @@ description = "Nx integration."
 category = "developer"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -583,6 +612,7 @@ description = "LaunchDarkly integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -603,6 +633,7 @@ description = "Postman integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -617,6 +648,7 @@ description = "Bitbucket integration."
 category = "developer"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -637,6 +669,7 @@ description = "Chrome DevTools integration."
 category = "developer"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -651,6 +684,7 @@ description = "BrowserStack integration."
 category = "developer"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -674,6 +708,7 @@ description = "Slack integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -695,6 +730,7 @@ description = "Google Drive integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -709,6 +745,7 @@ description = "Notion integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -730,6 +767,7 @@ description = "Airtable integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -751,6 +789,7 @@ description = "Monday integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -771,6 +810,7 @@ description = "Obsidian vault access."
 category = "productivity"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "local"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -785,6 +825,7 @@ description = "Jira integration."
 category = "productivity"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -805,6 +846,7 @@ description = "Zendesk integration."
 category = "productivity"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -825,6 +867,7 @@ description = "ClickUp integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -845,6 +888,7 @@ description = "n8n integration."
 category = "productivity"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -865,6 +909,7 @@ description = "Google Calendar integration."
 category = "productivity"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -879,6 +924,7 @@ description = "Excel integration."
 category = "productivity"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -896,6 +942,7 @@ description = "Langchain integration."
 category = "ai"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -910,6 +957,7 @@ description = "E2B integration."
 category = "ai"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -930,6 +978,7 @@ description = "Sequential Thinking integration."
 category = "ai"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -944,6 +993,7 @@ description = "Context7 integration."
 category = "ai"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -958,6 +1008,7 @@ description = "21st.dev Magic integration."
 category = "ai"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -972,6 +1023,7 @@ description = "Supadata integration."
 category = "ai"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -992,6 +1044,7 @@ description = "DataForSEO integration."
 category = "ai"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1012,6 +1065,7 @@ description = "Ahrefs integration."
 category = "ai"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1035,6 +1089,7 @@ description = "Replicate integration."
 category = "image"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "image-gen"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1056,6 +1111,7 @@ description = "ComfyUI integration."
 category = "image"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "image-gen", "local", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1070,6 +1126,7 @@ description = "Fal integration."
 category = "image"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "image-gen"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1093,6 +1150,7 @@ description = "Discord integration."
 category = "communication"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1113,6 +1171,7 @@ description = "Telegram integration."
 category = "communication"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1133,6 +1192,7 @@ description = "Resend integration."
 category = "communication"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1154,6 +1214,7 @@ description = "SendGrid integration."
 category = "communication"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1175,6 +1236,7 @@ description = "Twilio integration."
 category = "communication"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1198,6 +1260,7 @@ description = "Pinecone integration."
 category = "vectordb"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1218,6 +1281,7 @@ description = "Turbopuffer integration."
 category = "vectordb"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1235,6 +1299,7 @@ description = "Mixpanel integration."
 category = "analytics"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1255,6 +1320,7 @@ description = "Datadog integration."
 category = "analytics"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1275,6 +1341,7 @@ description = "Prometheus integration."
 category = "analytics"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["open-source", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1289,6 +1356,7 @@ description = "Plausible integration."
 category = "analytics"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["open-source", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1303,6 +1371,7 @@ description = "Axiom integration."
 category = "analytics"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1323,6 +1392,7 @@ description = "Dynatrace integration."
 category = "analytics"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["enterprise", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1346,6 +1416,7 @@ description = "Stripe integration."
 category = "ecommerce"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1367,6 +1438,7 @@ description = "Shopify integration."
 category = "ecommerce"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1388,6 +1460,7 @@ description = "PayPal integration."
 category = "ecommerce"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1408,6 +1481,7 @@ description = "Polygon integration."
 category = "ecommerce"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1428,6 +1502,7 @@ description = "Alpaca integration."
 category = "ecommerce"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1448,6 +1523,7 @@ description = "Salesforce integration."
 category = "ecommerce"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1465,6 +1541,7 @@ description = "Wordpress integration."
 category = "cms"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1479,6 +1556,7 @@ description = "Contentful integration."
 category = "cms"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1499,6 +1577,7 @@ description = "Sanity integration."
 category = "cms"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1519,6 +1598,7 @@ description = "Strapi integration."
 category = "cms"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1539,6 +1619,7 @@ description = "Ghost integration."
 category = "cms"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1559,6 +1640,7 @@ description = "HubSpot integration."
 category = "cms"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1582,6 +1664,7 @@ description = "Docker daemon control."
 category = "devops"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1596,6 +1679,7 @@ description = "Kubernetes cluster API."
 category = "devops"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1610,6 +1694,7 @@ description = "Terraform integration."
 category = "devops"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1624,6 +1709,7 @@ description = "Pulumi integration."
 category = "devops"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1638,6 +1724,7 @@ description = "Railway integration."
 category = "devops"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1652,6 +1739,7 @@ description = "Heroku integration."
 category = "devops"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1675,6 +1763,7 @@ description = "Twitter integration."
 category = "social"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1695,6 +1784,7 @@ description = "LinkedIn integration."
 category = "social"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1709,6 +1799,7 @@ description = "YouTube integration."
 category = "social"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1723,6 +1814,7 @@ description = "TikTok integration."
 category = "social"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1737,6 +1829,7 @@ description = "Reddit integration."
 category = "social"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["destructive"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1754,6 +1847,7 @@ description = "Spotify integration."
 category = "lifestyle"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1774,6 +1868,7 @@ description = "OpenWeather integration."
 category = "lifestyle"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1794,6 +1889,7 @@ description = "NewsAPI integration."
 category = "lifestyle"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1814,6 +1910,7 @@ description = "Recipe integration."
 category = "lifestyle"
 pricing = "free"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1828,6 +1925,7 @@ description = "Wolfram integration."
 category = "lifestyle"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1851,6 +1949,7 @@ description = "Mailchimp integration."
 category = "marketing"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1871,6 +1970,7 @@ description = "Google Ads integration."
 category = "marketing"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1891,6 +1991,7 @@ description = "Meta Ads integration."
 category = "marketing"
 pricing = "paid"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1914,6 +2015,7 @@ description = "Mapbox integration."
 category = "maps"
 pricing = "freemium"
 last_verified = "2026-04-14"
+tags = ["official", "read-only"]
 
 [[servers.packages]]
 registry_type = "npm"
@@ -1939,6 +2041,7 @@ category = "vectordb"
 pricing = "free"
 homepage = "https://qdrant.tech/"
 last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
 
 [[servers.packages]]
 registry_type = "pypi"
@@ -1961,6 +2064,7 @@ category = "communication"
 pricing = "paid"
 homepage = "https://www.intercom.com/"
 last_verified = "2026-04-14"
+tags = ["destructive", "official"]
 
 [[servers.remotes]]
 transport = "streamable-http"
@@ -1976,6 +2080,7 @@ category = "analytics"
 pricing = "freemium"
 homepage = "https://grafana.com/"
 last_verified = "2026-04-14"
+tags = ["official", "open-source", "read-only"]
 
 [[servers.packages]]
 registry_type = "oci"

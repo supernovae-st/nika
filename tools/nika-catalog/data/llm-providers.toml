@@ -11,6 +11,7 @@
 #   * every provider has at least one model
 #   * default_model + cheap_model must appear in the models list (wire id match)
 #   * context_window_tokens + max_output_tokens are REQUIRED (no silent default)
+#   * tags must be sorted alphabetically (kebab-case) and deduplicated
 
 schema = "nika/llm-providers@1.0"
 
@@ -24,6 +25,7 @@ default_model = "claude-sonnet-4-20250514"
 cheap_model = "claude-haiku-4-5-20251001"
 requires_key = true
 description = "Claude models (Opus, Sonnet, Haiku)."
+tags = ["extended-thinking", "frontier", "function-calling", "long-context", "prompt-caching", "streaming", "structured-output", "vision"]
 
 [[providers.models]]
 id = "sonnet"
@@ -50,6 +52,7 @@ default_model = "gpt-4o"
 cheap_model = "gpt-4o-mini"
 requires_key = true
 description = "GPT-4, GPT-4o, and other OpenAI models."
+tags = ["code-execution", "frontier", "function-calling", "image-gen", "prompt-caching", "realtime", "streaming", "vision"]
 
 [[providers.models]]
 id = "gpt-4o"
@@ -72,6 +75,7 @@ default_model = "mistral-large-latest"
 cheap_model = "mistral-small-latest"
 requires_key = true
 description = "Mistral Large, Medium, Small models."
+tags = ["code", "european", "frontier", "function-calling", "open-source", "streaming", "structured-output"]
 
 [[providers.models]]
 id = "large"
@@ -95,6 +99,7 @@ default_model = "llama-3.3-70b-versatile"
 cheap_model = "llama-3.1-8b-instant"
 requires_key = true
 description = "Fast inference with Llama, Mixtral models."
+tags = ["fast", "function-calling", "parallel-tools", "streaming", "structured-output"]
 
 [[providers.models]]
 id = "llama-70b"
@@ -118,6 +123,7 @@ default_model = "deepseek-chat"
 cheap_model = "deepseek-chat"
 requires_key = true
 description = "DeepSeek Chat and Coder models."
+tags = ["budget", "chinese", "code", "function-calling", "open-source", "reasoning", "streaming", "structured-output"]
 
 [[providers.models]]
 id = "chat"
@@ -134,6 +140,7 @@ default_model = "gemini-2.5-flash"
 cheap_model = "gemini-2.0-flash"
 requires_key = true
 description = "Gemini Pro, Flash, and Ultra models."
+tags = ["code-execution", "frontier", "function-calling", "long-context", "multimodal", "streaming", "vision", "web-search"]
 
 [[providers.models]]
 id = "flash-25"
@@ -156,6 +163,7 @@ default_model = "grok-3"
 cheap_model = "grok-3-mini-fast"
 requires_key = true
 description = "Grok models (Grok-3, Grok-4)."
+tags = ["frontier", "function-calling", "reasoning", "streaming", "structured-output", "vision", "web-search"]
 
 [[providers.models]]
 id = "grok-3"
@@ -179,6 +187,7 @@ default_model = "anthropic/claude-sonnet-4-20250514"
 cheap_model = "anthropic/claude-haiku-4-5-20251001"
 requires_key = true
 description = "200+ models via unified gateway."
+tags = ["function-calling", "streaming"]
 
 [[providers.models]]
 id = "default"
@@ -201,6 +210,7 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 cheap_model = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
 requires_key = true
 description = "Open-source models (Llama, Mixtral, Qwen)."
+tags = ["budget", "function-calling", "open-source", "streaming", "structured-output"]
 
 [[providers.models]]
 id = "default"
@@ -224,6 +234,7 @@ default_model = "accounts/fireworks/models/llama-v3p3-70b-instruct"
 cheap_model = "accounts/fireworks/models/llama-v3p1-8b-instruct"
 requires_key = true
 description = "Fast inference for open-source models."
+tags = ["fast", "function-calling", "open-source", "streaming"]
 
 [[providers.models]]
 id = "default"
@@ -247,6 +258,7 @@ default_model = "llama-3.3-70b"
 cheap_model = "llama-3.1-8b"
 requires_key = true
 description = "Wafer-scale inference (2000+ tok/sec)."
+tags = ["fast", "function-calling", "open-source", "streaming"]
 
 [[providers.models]]
 id = "llama-70b"
@@ -269,6 +281,7 @@ default_model = "Meta-Llama-3.3-70B-Instruct"
 cheap_model = "Meta-Llama-3.1-8B-Instruct"
 requires_key = true
 description = "RDU-accelerated inference."
+tags = ["fast", "function-calling", "open-source", "streaming"]
 
 [[providers.models]]
 id = "default"
@@ -291,6 +304,7 @@ default_model = "command-r-plus"
 cheap_model = "command-r"
 requires_key = true
 description = "Command R+ and Embed models."
+tags = ["enterprise", "function-calling", "multilingual", "rag", "streaming", "structured-output"]
 
 [[providers.models]]
 id = "r-plus"
@@ -313,6 +327,7 @@ default_model = "jamba-1.5-large"
 cheap_model = "jamba-1.5-mini"
 requires_key = true
 description = "Jamba models (SSM-Transformer hybrid)."
+tags = ["function-calling", "long-context", "streaming"]
 
 [[providers.models]]
 id = "large"
@@ -335,6 +350,7 @@ default_model = "anthropic.claude-sonnet-4-20250514-v1:0"
 cheap_model = "anthropic.claude-haiku-4-5-20251001-v1:0"
 requires_key = true
 description = "AWS-managed inference gateway."
+tags = ["enterprise", "function-calling", "prompt-caching", "streaming"]
 
 [[providers.models]]
 id = "default"
@@ -357,6 +373,7 @@ default_model = "gpt-4o"
 cheap_model = "gpt-4o-mini"
 requires_key = true
 description = "Azure-hosted OpenAI models with enterprise compliance."
+tags = ["enterprise", "function-calling", "streaming"]
 
 [[providers.models]]
 id = "default"
@@ -379,6 +396,7 @@ default_model = "gemini-2.5-flash"
 cheap_model = "gemini-2.0-flash"
 requires_key = true
 description = "GCP-managed AI gateway."
+tags = ["enterprise", "function-calling", "multimodal", "streaming"]
 
 [[providers.models]]
 id = "default"
@@ -402,6 +420,7 @@ default_model = "sonar-pro"
 cheap_model = "sonar"
 requires_key = true
 description = "Search-augmented LLM with real-time web access."
+tags = ["reasoning", "streaming", "web-search"]
 
 [[providers.models]]
 id = "sonar-pro"
@@ -425,6 +444,7 @@ default_model = "voyage-3-large"
 cheap_model = "voyage-3-lite"
 requires_key = true
 description = "Best-in-class embedding models for RAG and search."
+tags = ["enterprise", "multilingual", "rag"]
 
 [[providers.models]]
 id = "large"
@@ -447,6 +467,7 @@ default_model = "Qwen/Qwen3-8B"
 cheap_model = "Qwen/Qwen3-8B"
 requires_key = false
 description = "Local GGUF models via mistral.rs."
+tags = ["local", "open-source"]
 
 [[providers.models]]
 id = "qwen"
@@ -463,10 +484,10 @@ default_model = "mock-default"
 cheap_model = "mock-default"
 requires_key = false
 description = "Deterministic test responses — no API calls, no keys needed."
+tags = []
 
 [[providers.models]]
 id = "default"
 model = "mock-default"
 context_window_tokens = 1000000
 max_output_tokens = 1000000
-
