@@ -25,6 +25,7 @@ default_model = "claude-sonnet-4-20250514"
 cheap_model = "claude-haiku-4-5-20251001"
 requires_key = true
 description = "Claude models (Opus, Sonnet, Haiku)."
+api_dialect = "anthropic"
 tags = ["extended-thinking", "frontier", "function-calling", "long-context", "prompt-caching", "streaming", "structured-output", "vision"]
 
 [[providers.models]]
@@ -52,6 +53,7 @@ default_model = "gpt-4o"
 cheap_model = "gpt-4o-mini"
 requires_key = true
 description = "GPT-4, GPT-4o, and other OpenAI models."
+api_dialect = "openai-chat"
 tags = ["code-execution", "frontier", "function-calling", "image-gen", "prompt-caching", "realtime", "streaming", "vision"]
 
 [[providers.models]]
@@ -75,6 +77,7 @@ default_model = "mistral-large-latest"
 cheap_model = "mistral-small-latest"
 requires_key = true
 description = "Mistral Large, Medium, Small models."
+api_dialect = "openai-chat"
 tags = ["code", "european", "frontier", "function-calling", "open-source", "streaming", "structured-output"]
 
 [[providers.models]]
@@ -99,6 +102,7 @@ default_model = "llama-3.3-70b-versatile"
 cheap_model = "llama-3.1-8b-instant"
 requires_key = true
 description = "Fast inference with Llama, Mixtral models."
+api_dialect = "openai-chat"
 tags = ["fast", "function-calling", "parallel-tools", "streaming", "structured-output"]
 
 [[providers.models]]
@@ -123,6 +127,7 @@ default_model = "deepseek-chat"
 cheap_model = "deepseek-chat"
 requires_key = true
 description = "DeepSeek Chat and Coder models."
+api_dialect = "openai-chat"
 tags = ["budget", "chinese", "code", "function-calling", "open-source", "reasoning", "streaming", "structured-output"]
 
 [[providers.models]]
@@ -140,6 +145,7 @@ default_model = "gemini-2.5-flash"
 cheap_model = "gemini-2.0-flash"
 requires_key = true
 description = "Gemini Pro, Flash, and Ultra models."
+api_dialect = "gemini"
 tags = ["code-execution", "frontier", "function-calling", "long-context", "multimodal", "streaming", "vision", "web-search"]
 
 [[providers.models]]
@@ -163,6 +169,7 @@ default_model = "grok-3"
 cheap_model = "grok-3-mini-fast"
 requires_key = true
 description = "Grok models (Grok-3, Grok-4)."
+api_dialect = "openai-chat"
 tags = ["frontier", "function-calling", "reasoning", "streaming", "structured-output", "vision", "web-search"]
 
 [[providers.models]]
@@ -187,6 +194,7 @@ default_model = "anthropic/claude-sonnet-4-20250514"
 cheap_model = "anthropic/claude-haiku-4-5-20251001"
 requires_key = true
 description = "200+ models via unified gateway."
+api_dialect = "openai-chat"
 tags = ["function-calling", "streaming"]
 
 [[providers.models]]
@@ -210,6 +218,7 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 cheap_model = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
 requires_key = true
 description = "Open-source models (Llama, Mixtral, Qwen)."
+api_dialect = "openai-chat"
 tags = ["budget", "function-calling", "open-source", "streaming", "structured-output"]
 
 [[providers.models]]
@@ -234,6 +243,7 @@ default_model = "accounts/fireworks/models/llama-v3p3-70b-instruct"
 cheap_model = "accounts/fireworks/models/llama-v3p1-8b-instruct"
 requires_key = true
 description = "Fast inference for open-source models."
+api_dialect = "openai-chat"
 tags = ["fast", "function-calling", "open-source", "streaming"]
 
 [[providers.models]]
@@ -258,6 +268,7 @@ default_model = "llama-3.3-70b"
 cheap_model = "llama-3.1-8b"
 requires_key = true
 description = "Wafer-scale inference (2000+ tok/sec)."
+api_dialect = "openai-chat"
 tags = ["fast", "function-calling", "open-source", "streaming"]
 
 [[providers.models]]
@@ -281,6 +292,7 @@ default_model = "Meta-Llama-3.3-70B-Instruct"
 cheap_model = "Meta-Llama-3.1-8B-Instruct"
 requires_key = true
 description = "RDU-accelerated inference."
+api_dialect = "openai-chat"
 tags = ["fast", "function-calling", "open-source", "streaming"]
 
 [[providers.models]]
@@ -304,6 +316,7 @@ default_model = "command-r-plus"
 cheap_model = "command-r"
 requires_key = true
 description = "Command R+ and Embed models."
+api_dialect = "cohere"
 tags = ["enterprise", "function-calling", "multilingual", "rag", "streaming", "structured-output"]
 
 [[providers.models]]
@@ -327,6 +340,7 @@ default_model = "jamba-1.5-large"
 cheap_model = "jamba-1.5-mini"
 requires_key = true
 description = "Jamba models (SSM-Transformer hybrid)."
+api_dialect = "ai21"
 tags = ["function-calling", "long-context", "streaming"]
 
 [[providers.models]]
@@ -350,6 +364,7 @@ default_model = "anthropic.claude-sonnet-4-20250514-v1:0"
 cheap_model = "anthropic.claude-haiku-4-5-20251001-v1:0"
 requires_key = true
 description = "AWS-managed inference gateway."
+api_dialect = "bedrock"
 tags = ["enterprise", "function-calling", "prompt-caching", "streaming"]
 
 [[providers.models]]
@@ -373,6 +388,7 @@ default_model = "gpt-4o"
 cheap_model = "gpt-4o-mini"
 requires_key = true
 description = "Azure-hosted OpenAI models with enterprise compliance."
+api_dialect = "openai-chat"
 tags = ["enterprise", "function-calling", "streaming"]
 
 [[providers.models]]
@@ -396,6 +412,7 @@ default_model = "gemini-2.5-flash"
 cheap_model = "gemini-2.0-flash"
 requires_key = true
 description = "GCP-managed AI gateway."
+api_dialect = "gemini"
 tags = ["enterprise", "function-calling", "multimodal", "streaming"]
 
 [[providers.models]]
@@ -420,6 +437,7 @@ default_model = "sonar-pro"
 cheap_model = "sonar"
 requires_key = true
 description = "Search-augmented LLM with real-time web access."
+api_dialect = "openai-chat"
 tags = ["reasoning", "streaming", "web-search"]
 
 [[providers.models]]
@@ -444,6 +462,7 @@ default_model = "voyage-3-large"
 cheap_model = "voyage-3-lite"
 requires_key = true
 description = "Best-in-class embedding models for RAG and search."
+api_dialect = "voyage"
 tags = ["enterprise", "multilingual", "rag"]
 
 [[providers.models]]
@@ -467,6 +486,7 @@ default_model = "Qwen/Qwen3-8B"
 cheap_model = "Qwen/Qwen3-8B"
 requires_key = false
 description = "Local GGUF models via mistral.rs."
+api_dialect = "openai-chat"
 tags = ["local", "open-source"]
 
 [[providers.models]]
@@ -484,6 +504,7 @@ default_model = "mock-default"
 cheap_model = "mock-default"
 requires_key = false
 description = "Deterministic test responses — no API calls, no keys needed."
+api_dialect = "mock"
 tags = []
 
 [[providers.models]]

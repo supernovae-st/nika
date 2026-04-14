@@ -9,7 +9,7 @@
 #[cfg(feature = "pricing")]
 use crate::types::model::{CostEstimate, ModelPricing};
 #[cfg(feature = "capabilities")]
-use crate::types::model::{ModelCapabilities, TokenLimitParam};
+use crate::types::model::ModelCapabilities;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Model capabilities (pattern-matching function)
@@ -21,91 +21,67 @@ use crate::types::model::{ModelCapabilities, TokenLimitParam};
 /// on the provider. `o3` on `OpenAI` gets `max_completion_tokens`, but
 /// `o3-finetune` on a custom vLLM endpoint gets `max_tokens`.
 ///
-/// This is the ONLY function that should know about model-specific quirks.
+/// # How it works
+///
+/// Rules live in `data/model-capabilities.toml` and are materialised by
+/// `build.rs` into a `&'static [Rule]` slice. The resolver:
+///
+///   1. canonicalises the provider via [`crate::data::find_provider`]
+///      (so `"claude"` → `"anthropic"`, `"grok"` → `"xai"`, etc.);
+///   2. walks [`CAPABILITY_RULES`] in file order, skipping rules whose
+///      `providers` scope or `api_dialect` scope doesn't match;
+///   3. on the first matching rule, merges its `caps` into a `CapPatch`
+///      accumulator seeded from [`CAPABILITY_DEFAULTS`] and breaks;
+///   4. materialises into a full [`ModelCapabilities`] using
+///      [`ModelCapabilities::default`] for any still-unset field.
+///
+/// Zero heap allocations: every string comparison uses
+/// `eq_ignore_ascii_case` on the raw slice, no `to_lowercase()`.
 #[cfg(feature = "capabilities")]
 #[must_use]
+#[inline]
 pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
-    let lower = model.to_lowercase();
-    // Normalize provider via catalog lookup (e.g. "claude" → "anthropic", "grok" → "xai")
-    let canonical = crate::data::find_provider(provider).map(|p| p.id);
-    let prov = canonical.unwrap_or(provider).to_lowercase();
+    use crate::data::{find_provider, CAPABILITY_DEFAULTS, CAPABILITY_RULES};
 
-    // Only apply reasoning-model rules for actual OpenAI API endpoints.
-    let is_openai_api = matches!(prov.as_str(), "openai" | "openrouter");
+    // Canonicalise provider + surface api_dialect in one phf hit.
+    let provider_entry = find_provider(provider);
+    let canonical = provider_entry.map_or(provider, |p| p.id);
+    let dialect = provider_entry.and_then(|p| p.api_dialect);
 
-    if is_openai_api {
-        // o-series: max_completion_tokens + NO temperature
-        if is_o_series(&lower) {
-            return ModelCapabilities {
-                token_limit_param: TokenLimitParam::MaxCompletionTokens,
-                supports_temperature: false,
-                supports_thinking: true,
-                ..Default::default()
-            };
+    let mut patch = CAPABILITY_DEFAULTS;
+
+    for rule in CAPABILITY_RULES {
+        // Provider scope: empty list = global; otherwise canonical must be
+        // in the list (case-insensitive ASCII).
+        if !rule.providers.is_empty()
+            && !rule
+                .providers
+                .iter()
+                .any(|p| canonical.eq_ignore_ascii_case(p))
+        {
+            continue;
         }
-        // gpt-5.x: max_completion_tokens + YES temperature
-        if is_gpt5(&lower) {
-            return ModelCapabilities {
-                token_limit_param: TokenLimitParam::MaxCompletionTokens,
-                supports_temperature: true,
-                supports_thinking: true,
-                ..Default::default()
-            };
+        // Dialect scope: `None` on the rule = any dialect; otherwise the
+        // provider must declare that exact dialect.
+        if let Some(required) = rule.api_dialect {
+            match dialect {
+                Some(d) if d.eq_ignore_ascii_case(required) => {}
+                _ => continue,
+            }
         }
-    }
-
-    // Anthropic / Claude (alias "claude" already normalized to "anthropic")
-    if prov == "anthropic" || lower.starts_with("claude") {
-        return ModelCapabilities {
-            supports_thinking: true,
-            ..Default::default()
-        };
-    }
-
-    // DeepSeek (alias "deep-seek" already normalized to "deepseek")
-    if prov == "deepseek" {
-        if lower == "deepseek-reasoner" {
-            return ModelCapabilities {
-                supports_temperature: false,
-                supports_vision: false,
-                ..Default::default()
-            };
+        if !rule.matcher.matches(model) {
+            continue;
         }
-        return ModelCapabilities {
-            supports_vision: false,
-            ..Default::default()
-        };
+        // First match wins.
+        patch = patch.merge_with(rule.caps);
+        break;
     }
 
-    // xAI (alias "grok" already normalized to "xai")
-    if prov == "xai" && lower == "grok-4" {
-        return ModelCapabilities {
-            supports_stop_sequences: false,
-            ..Default::default()
-        };
-    }
-
-    // Everything else: safe defaults
-    ModelCapabilities::default()
-}
-
-#[cfg(feature = "capabilities")]
-fn is_o_series(lower: &str) -> bool {
-    lower == "o1"
-        || lower.starts_with("o1-")
-        || lower == "o3"
-        || lower.starts_with("o3-")
-        || lower == "o4"
-        || lower.starts_with("o4-")
-}
-
-#[cfg(feature = "capabilities")]
-fn is_gpt5(lower: &str) -> bool {
-    lower == "gpt-5" || lower.starts_with("gpt-5-") || lower.starts_with("gpt-5.")
+    patch.materialize()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Pricing catalog (61 entries, sorted by provider → specificity)
+// Pricing catalog (62 entries, sorted by provider → specificity)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Static pricing table — model patterns matched by exact name or `contains()`.
@@ -256,6 +232,8 @@ pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "capabilities")]
+    use crate::types::model::TokenLimitParam;
 
     // ── Pricing count ───────────────────────────────────────────
 
@@ -271,7 +249,7 @@ mod tests {
         let caps = model_capabilities("openai", "o3");
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
         assert!(!caps.supports_temperature);
-        assert!(caps.supports_thinking);
+        assert!(caps.reasoning);
     }
 
     #[test]
@@ -285,7 +263,7 @@ mod tests {
         let caps = model_capabilities("openai", "gpt-5.2");
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
         assert!(caps.supports_temperature);
-        assert!(caps.supports_thinking);
+        assert!(caps.reasoning);
     }
 
     #[test]
@@ -296,9 +274,9 @@ mod tests {
     }
 
     #[test]
-    fn claude_supports_thinking() {
+    fn claude_has_reasoning() {
         let caps = model_capabilities("anthropic", "claude-sonnet-4-6");
-        assert!(caps.supports_thinking);
+        assert!(caps.reasoning);
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxTokens);
     }
 
@@ -545,5 +523,215 @@ mod tests {
     #[test]
     fn scoped_pricing_unknown_model_returns_none() {
         assert!(find_pricing_scoped("openai", "gpt-999-imaginary").is_none());
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Parity test — new resolver vs legacy (pre-Session-2a) body
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Lives in this file (not in `tests/`) so the `#[cfg(test)]` module can
+// construct `#[non_exhaustive]` `ModelCapabilities` values directly and so
+// the test runs under the workspace-wide `cargo test --workspace --lib`
+// invocation (no `--test` flag required, no macOS Keychain risk).
+
+#[cfg(all(test, feature = "capabilities"))]
+mod parity_tests {
+    //! Property-based parity between the new TOML-driven resolver and the
+    //! hand-rolled body that shipped at HEAD `1a29bd32f`.
+    //!
+    //! The migration must be behaviour-preserving: a misplaced rule, missed
+    //! alias, or wrong ordering would silently corrupt `token_limit_param`
+    //! for every provider call. Proptest explores the edge-case space with
+    //! 10 000 randomised inputs + 17 explicit spot-checks on aliases.
+    //!
+    //! The `reasoning` field name below reflects the Session 2a rename
+    //! (`supports_thinking` → `reasoning`). Legacy *semantics* are unchanged.
+
+    use super::{model_capabilities, ModelCapabilities};
+    use crate::types::model::TokenLimitParam;
+
+    /// Verbatim body of `model_capabilities` at HEAD `1a29bd32f`, with the
+    /// single mechanical substitution `supports_thinking` → `reasoning` so
+    /// the function populates the renamed field on the shared type.
+    fn legacy_model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
+        let lower = model.to_lowercase();
+        let canonical = crate::data::find_provider(provider).map(|p| p.id);
+        let prov = canonical.unwrap_or(provider).to_lowercase();
+
+        let is_openai_api = matches!(prov.as_str(), "openai" | "openrouter");
+
+        if is_openai_api {
+            if is_o_series(&lower) {
+                return ModelCapabilities {
+                    token_limit_param: TokenLimitParam::MaxCompletionTokens,
+                    supports_temperature: false,
+                    reasoning: true,
+                    ..Default::default()
+                };
+            }
+            if is_gpt5(&lower) {
+                return ModelCapabilities {
+                    token_limit_param: TokenLimitParam::MaxCompletionTokens,
+                    supports_temperature: true,
+                    reasoning: true,
+                    ..Default::default()
+                };
+            }
+        }
+
+        if prov == "anthropic" || lower.starts_with("claude") {
+            return ModelCapabilities {
+                reasoning: true,
+                ..Default::default()
+            };
+        }
+
+        if prov == "deepseek" {
+            if lower == "deepseek-reasoner" {
+                return ModelCapabilities {
+                    supports_temperature: false,
+                    supports_vision: false,
+                    ..Default::default()
+                };
+            }
+            return ModelCapabilities {
+                supports_vision: false,
+                ..Default::default()
+            };
+        }
+
+        if prov == "xai" && lower == "grok-4" {
+            return ModelCapabilities {
+                supports_stop_sequences: false,
+                ..Default::default()
+            };
+        }
+
+        ModelCapabilities::default()
+    }
+
+    fn is_o_series(lower: &str) -> bool {
+        lower == "o1"
+            || lower.starts_with("o1-")
+            || lower == "o3"
+            || lower.starts_with("o3-")
+            || lower == "o4"
+            || lower.starts_with("o4-")
+    }
+
+    fn is_gpt5(lower: &str) -> bool {
+        lower == "gpt-5" || lower.starts_with("gpt-5-") || lower.starts_with("gpt-5.")
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10_000))]
+
+        /// Byte-for-byte parity across 10 000 randomised `(provider, model)`
+        /// pairs. A single divergence fails the build; proptest shrinks to
+        /// the minimal offending pair for the failure message.
+        #[test]
+        fn capability_parity_across_any_input(
+            provider in "[a-z][a-z0-9-]{0,15}",
+            model in "[a-zA-Z0-9.-]{1,40}",
+        ) {
+            let new_caps = model_capabilities(&provider, &model);
+            let legacy_caps = legacy_model_capabilities(&provider, &model);
+            prop_assert_eq!(
+                new_caps,
+                legacy_caps,
+                "parity break: provider={:?} model={:?}",
+                provider,
+                model,
+            );
+        }
+    }
+
+    /// Snapshot of resolved capabilities for 30 representative
+    /// (provider, model) pairs. Reviewable `.snap` file catches silent
+    /// semantic breakage that leaves proptest happy (e.g. a new rule that
+    /// changes `reasoning` on a model the parity test doesn't exercise).
+    #[test]
+    fn snapshot_capabilities_for_representative_models() {
+        let cases: &[(&str, &str)] = &[
+            // Anthropic family (canonical + alias + various versions).
+            ("anthropic", "claude-opus-4-20250514"),
+            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("anthropic", "claude-haiku-4-5-20251001"),
+            ("claude", "claude-sonnet-4-20250514"),
+            // OpenAI — classic, o-series, gpt-5 family.
+            ("openai", "gpt-4o"),
+            ("openai", "gpt-4o-mini"),
+            ("openai", "gpt-4.1"),
+            ("openai", "o1"),
+            ("openai", "o1-preview"),
+            ("openai", "o3"),
+            ("openai", "o3-mini"),
+            ("openai", "o4-mini"),
+            ("openai", "gpt-5"),
+            ("openai", "gpt-5-turbo"),
+            ("openai", "gpt-5.1"),
+            // OpenRouter — aliased API surface.
+            ("openrouter", "o3"),
+            ("openrouter", "anthropic/claude-sonnet-4-5-20250929"),
+            // Mistral, Groq, DeepSeek, Gemini, xAI, Cohere.
+            ("mistral", "mistral-large-latest"),
+            ("groq", "llama-3.3-70b-versatile"),
+            ("deepseek", "deepseek-chat"),
+            ("deepseek", "deepseek-reasoner"),
+            ("deep-seek", "deepseek-chat"),
+            ("gemini", "gemini-2.5-pro"),
+            ("xai", "grok-3"),
+            ("xai", "grok-4"),
+            ("grok", "grok-4"),
+            ("cohere", "command-r-plus"),
+            // Bedrock, Azure, Vertex, Native, Mock.
+            ("bedrock", "anthropic.claude-sonnet-4-20250514-v1:0"),
+            ("azure", "gpt-4o"),
+            ("native", "Qwen/Qwen3-8B"),
+            // Unknown provider + model → safe defaults.
+            ("unknown", "unknown-model"),
+        ];
+        let rendered: Vec<String> = cases
+            .iter()
+            .map(|(p, m)| format!("{p:>12} / {m:<40} → {:?}", model_capabilities(p, m)))
+            .collect();
+        insta::assert_snapshot!(rendered.join("\n"));
+    }
+
+    /// Explicit spot-checks for the 12 legacy shapes, including alias
+    /// resolution (`claude` → `anthropic`, `grok` → `xai`, `deep-seek` →
+    /// `deepseek`) and the fallthrough path for unknown providers. Random
+    /// generation is unlikely to hit these exact combinations within 10 000
+    /// cases, so we enumerate them.
+    #[test]
+    fn parity_spot_checks() {
+        for case in [
+            ("openai", "o1"),
+            ("openai", "o1-preview"),
+            ("openai", "o3"),
+            ("openai", "o3-mini"),
+            ("openai", "o4-mini"),
+            ("openai", "gpt-5"),
+            ("openai", "gpt-5-turbo"),
+            ("openai", "gpt-5.1"),
+            ("openrouter", "o3"),
+            ("anthropic", "claude-opus-4-20250514"),
+            ("claude", "claude-sonnet-4-20250514"),
+            ("deepseek", "deepseek-reasoner"),
+            ("deepseek", "deepseek-chat"),
+            ("deep-seek", "deepseek-chat"),
+            ("xai", "grok-4"),
+            ("grok", "grok-4"),
+            ("unknown", "unknown-model"),
+        ] {
+            assert_eq!(
+                model_capabilities(case.0, case.1),
+                legacy_model_capabilities(case.0, case.1),
+                "spot-check failed: {case:?}",
+            );
+        }
     }
 }

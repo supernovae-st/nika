@@ -4,6 +4,8 @@
 //! Type definitions for catalog entries.
 
 pub mod builtin;
+#[cfg(feature = "capabilities")]
+pub mod capabilities;
 pub mod category;
 pub mod distribution;
 pub mod embedding;

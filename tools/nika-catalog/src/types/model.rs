@@ -12,8 +12,15 @@
 pub enum TokenLimitParam {
     /// Standard: `"max_tokens"` in JSON body.
     MaxTokens,
-    /// `OpenAI` reasoning models (o-series, gpt-5.x): `"max_completion_tokens"`.
+    /// `OpenAI` Chat Completions reasoning models (o-series, gpt-5.x):
+    /// `"max_completion_tokens"`.
     MaxCompletionTokens,
+    /// `OpenAI` Responses API (`/v1/responses`): `"max_output_tokens"`.
+    ///
+    /// Reserved for Session 2b — no rule in `data/model-capabilities.toml`
+    /// maps to this variant yet, but the variant is materialised now so the
+    /// `#[non_exhaustive]` enum can grow without a schema bump.
+    MaxOutputTokens,
 }
 
 /// Capabilities of a specific model on a specific provider.
@@ -21,6 +28,10 @@ pub enum TokenLimitParam {
 /// Provider-aware: the same model name gets different treatment depending
 /// on the provider (e.g. `o3` on `OpenAI` vs custom vLLM endpoint).
 #[derive(Debug, Clone, PartialEq, Eq)]
+// Four boolean capability flags that each name a distinct wire-protocol
+// concern (temperature param, stop-sequences param, reasoning mode, vision
+// input). Lifting them into a bitflags enum would save nothing and obscure
+// serde/Debug output — the struct_excessive_bools heuristic does not apply.
 #[allow(clippy::struct_excessive_bools)]
 #[non_exhaustive]
 pub struct ModelCapabilities {
@@ -30,8 +41,15 @@ pub struct ModelCapabilities {
     pub supports_temperature: bool,
     /// Model accepts `stop` / `stop_sequences` parameter.
     pub supports_stop_sequences: bool,
-    /// Model supports extended thinking (Claude) or `reasoning_effort` (`OpenAI`).
-    pub supports_thinking: bool,
+    /// Model exposes a reasoning / extended-thinking mode.
+    ///
+    /// Covers Claude `thinking_budget`, `OpenAI` `reasoning_effort`, `DeepSeek`
+    /// reasoner path, and the `/reasoning` param on `OpenRouter` / mainland-
+    /// China providers. Named `reasoning` (not `supports_thinking`) to match
+    /// the 2026 industry convention — `LiteLLM` `supports_reasoning`, `models.dev`
+    /// `reasoning`, `OpenRouter` `reasoning` — rather than the
+    /// Anthropic-specific "thinking" jargon.
+    pub reasoning: bool,
     /// Model supports image/vision input.
     pub supports_vision: bool,
 }
@@ -42,7 +60,7 @@ impl Default for ModelCapabilities {
             token_limit_param: TokenLimitParam::MaxTokens,
             supports_temperature: true,
             supports_stop_sequences: true,
-            supports_thinking: false,
+            reasoning: false,
             supports_vision: true,
         }
     }

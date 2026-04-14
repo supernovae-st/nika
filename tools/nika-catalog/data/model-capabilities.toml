@@ -1,0 +1,132 @@
+# nika-catalog — model capabilities rule table
+#
+# Drives `model_capabilities(provider, model) -> ModelCapabilities` from the
+# `nika-catalog` crate. Every rule is materialised into a `&'static` slice at
+# build time (`build.rs`) and resolved at runtime with zero allocation.
+#
+# Schema invariants (enforced in build.rs — fail the build, not a runtime test):
+#   * top-level `schema` matches CAPABILITIES_SCHEMA constant
+#   * every `scope.providers[i]` is a canonical provider id declared in
+#     llm-providers.toml (FK check — catches typos immediately)
+#   * every `scope.api_dialect` is in the declared dialect set
+#   * every `match.kind` is one of: any | exact | exact_any | prefix_any
+#     (NO regex — keeps zero runtime deps in L0)
+#   * every rule `name` is unique
+#   * `caps.token_limit_param`, when present, is one of:
+#     max-tokens | max-completion-tokens | max-output-tokens
+#
+# Resolution algorithm (see `src/types/capabilities.rs`):
+#   1. start from `[defaults]` (hard-coded baseline, mirrors
+#      `ModelCapabilities::default()`)
+#   2. scan `[[rules]]` in file order
+#   3. for each rule: skip if scope.providers is non-empty and canonical
+#      provider id is not in the list (case-insensitive ASCII), or if
+#      scope.api_dialect is Some and the provider's declared dialect does not
+#      match
+#   4. if the matcher matches the (possibly case-different) model name,
+#      merge `caps` into the accumulator (Some fields win) and BREAK —
+#      first-match-wins
+#   5. materialise into `ModelCapabilities`, filling any still-unset field
+#      from `defaults`
+#
+# Parity with legacy (HEAD 1a29bd32f):
+#   * The legacy body is an if-else-if cascade that returned early on match.
+#     Every rule below is sized so that first-match-wins + merge-into-defaults
+#     yields the same `ModelCapabilities` as legacy's early return.
+#   * `tests/parity_tests` (inside `src/data/models.rs`) runs proptest over
+#     10 000 random (provider, model) pairs against the extracted legacy body.
+
+schema = "nika/model-capabilities@1.0"
+
+# ─── Baseline — mirrors ModelCapabilities::default() ────────────────────────
+[defaults]
+token_limit_param       = "max-tokens"
+supports_temperature    = true
+supports_stop_sequences = true
+reasoning               = false
+supports_vision         = true
+
+# ─── Rules — ordered, FIRST MATCH WINS ──────────────────────────────────────
+#
+# Keep the order stable: the proptest parity test is sensitive to ordering
+# when two rules could both match a (provider, model) pair.
+
+# 1. OpenAI reasoning series, exact names (o1, o3, o4).
+#    Legacy: `is_o_series` matched `lower == "o1" || lower.starts_with("o1-")`
+#    — split into exact + family rules so that "o1x" does NOT get reasoning
+#    treatment (legacy prefix "o1" would have been permissive; the legacy
+#    `==` was not).
+[[rules]]
+name  = "openai-o-series-exact"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "exact_any", models = ["o1", "o3", "o4"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true }
+
+# 2. OpenAI reasoning series, dash-suffix family (o1-preview, o3-mini, o4-mini, …).
+[[rules]]
+name  = "openai-o-series-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["o1-", "o3-", "o4-"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true }
+
+# 3. OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
+[[rules]]
+name  = "openai-gpt5-exact"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "exact_any", models = ["gpt-5"] }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true }
+
+# 4. OpenAI GPT-5 family — dash and dot variants (gpt-5-turbo, gpt-5.1, …).
+[[rules]]
+name  = "openai-gpt5-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-5-", "gpt-5."] }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true }
+
+# 5. Any model starting with "claude", on ANY provider. Legacy matched
+#    `lower.starts_with("claude")` independent of provider, so models
+#    routed through Bedrock / OpenRouter / a custom gateway still pick up
+#    reasoning when the model name announces it.
+#
+#    LOAD-BEARING ORDER: this rule sits BEFORE the deepseek rules below.
+#    Legacy hit the `lower.starts_with("claude")` arm before the `prov ==
+#    "deepseek"` arm, so a (provider="deepseek", model="claude-foo") input
+#    picked up `reasoning=true` instead of `supports_vision=false`. Moving
+#    rule 5 after the deepseek rules would silently flip that edge case.
+#    Proptest catches it if you try.
+[[rules]]
+name  = "claude-family-any-provider"
+match = { kind = "prefix_any", prefixes = ["claude"] }
+caps  = { reasoning = true }
+
+# 6. Anthropic provider default — captures anthropic-hosted models that
+#    don't start with "claude" (e.g. future internal codenames). Legacy's
+#    `prov == "anthropic"` branch returned reasoning=true regardless of
+#    model prefix.
+[[rules]]
+name  = "anthropic-any-model"
+scope = { providers = ["anthropic"] }
+match = { kind = "any" }
+caps  = { reasoning = true }
+
+# 7. DeepSeek reasoner — rejects temperature AND loses vision. Must be
+#    listed before `deepseek-any-model` so the reasoner-specific caps win.
+[[rules]]
+name  = "deepseek-reasoner"
+scope = { providers = ["deepseek"] }
+match = { kind = "exact", model = "deepseek-reasoner" }
+caps  = { supports_temperature = false, supports_vision = false }
+
+# 8. Any other DeepSeek model — loses vision (API limitation).
+[[rules]]
+name  = "deepseek-any-model"
+scope = { providers = ["deepseek"] }
+match = { kind = "any" }
+caps  = { supports_vision = false }
+
+# 9. xAI Grok-4 — rejects stop sequences (per provider API quirk).
+[[rules]]
+name  = "xai-grok4"
+scope = { providers = ["xai"] }
+match = { kind = "exact", model = "grok-4" }
+caps  = { supports_stop_sequences = false }

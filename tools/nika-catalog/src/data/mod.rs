@@ -33,7 +33,7 @@ pub mod transforms;
 #[cfg(feature = "providers")]
 pub(crate) use generated::ALL_PROVIDERS;
 #[cfg(feature = "capabilities")]
-pub(crate) use generated::find_provider;
+pub(crate) use generated::{find_provider, CAPABILITY_DEFAULTS, CAPABILITY_RULES};
 #[cfg(feature = "mcp")]
 pub(crate) use generated::ALL_MCP_SERVERS;
 #[cfg(feature = "embeddings")]

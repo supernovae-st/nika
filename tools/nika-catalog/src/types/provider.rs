@@ -62,6 +62,24 @@ pub struct Provider {
     pub description: &'static str,
     /// Known models exposed by this provider (nickname → wire model).
     pub models: &'static [ProviderModel],
+    /// Wire-protocol dialect this provider speaks at the HTTPS layer.
+    ///
+    /// Used by capability rules (see [`data/model-capabilities.toml`]) and
+    /// future adapter-sharing to identify provider families that speak the
+    /// same request/response schema — e.g. `openai-chat` covers `OpenAI`,
+    /// `OpenRouter`, `Azure`, and the OpenAI-compat modes of `Mistral` /
+    /// `Groq` / `xAI` / `DeepSeek`.
+    ///
+    /// Closed set, validated at build time:
+    /// `"anthropic" | "openai-chat" | "openai-responses" | "gemini" |
+    /// "cohere" | "ai21" | "bedrock" | "voyage" | "mock"`.
+    /// `None` means bespoke / no known family (rare).
+    ///
+    /// Note: Session 2a capability rules scope by `providers` (exact id match)
+    /// for parity with the legacy body. `api_dialect` is populated now so
+    /// rules authored in Session 2b+ can switch to dialect scoping without a
+    /// schema bump on `data/llm-providers.toml`.
+    pub api_dialect: Option<&'static str>,
     /// Typed tags describing capabilities, deployment, and economics.
     /// Sorted + deduplicated (enforced by build.rs assertion).
     pub tags: &'static [crate::types::Tag],
@@ -127,6 +145,7 @@ mod tests {
             requires_key: true,
             description: "Claude models.",
             models: SONNET_MODELS,
+            api_dialect: Some("anthropic"),
             tags: &[],
             extra_tags: &[],
         }
@@ -160,6 +179,7 @@ mod tests {
             requires_key: true,
             description: "OpenAI.",
             models: &[],
+            api_dialect: Some("openai-chat"),
             tags: &[],
             extra_tags: &[],
         };
@@ -186,6 +206,7 @@ mod tests {
             requires_key: true,
             description: "Mistral.",
             models: &[],
+            api_dialect: Some("openai-chat"),
             tags: &[],
             extra_tags: &[],
         };
