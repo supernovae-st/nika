@@ -36,7 +36,7 @@ pub fn all_providers() -> &'static [&'static types::Provider] {
     data::providers::ALL_PROVIDERS
 }
 
-/// All 131 MCP server aliases.
+/// All 102 MCP server aliases.
 #[must_use]
 pub fn all_mcp_aliases() -> &'static [types::McpAlias] {
     data::mcp_aliases::ALL_MCP_ALIASES
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn all_mcp_aliases_non_empty() {
-        assert_eq!(all_mcp_aliases().len(), 131);
+        assert_eq!(all_mcp_aliases().len(), 102);
     }
 
     #[test]
