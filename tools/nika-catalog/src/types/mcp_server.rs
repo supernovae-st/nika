@@ -31,7 +31,7 @@ pub enum McpPricing {
 /// from `data/mcp-servers.toml`. All fields are `&'static` — every entry is
 /// embedded in the binary at compile time.
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct McpServer {
     /// Canonical identifier (e.g. `"filesystem"`, `"qdrant"`).
@@ -63,8 +63,10 @@ mod tests {
     use super::*;
 
     const _: () = {
-        const fn assert_copy_send_sync<T: Copy + Send + Sync>() {}
-        assert_copy_send_sync::<McpServer>();
+        const fn assert_send_sync<T: Send + Sync>() {}
+        // McpServer is intentionally not Copy — 11 fields with slices
+        // (~200 bytes on 64-bit). Always pass by reference.
+        assert_send_sync::<McpServer>();
     };
 
     #[test]

@@ -22,7 +22,11 @@ pub mod validate;
 // ── Re-exports for ergonomic usage ──────────────────────────────────────
 
 pub use error::CatalogError;
-pub use lookup::*;
+pub use lookup::{
+    estimate_cost, find_builtin, find_mcp_server, find_pricing, find_provider, find_transform,
+    is_known_builtin, is_known_mcp_alias, is_known_transform, model_capabilities,
+    resolve_mcp_name, validate_key_format,
+};
 pub use types::*;
 
 // ── Iteration helpers ───────────────────────────────────────────────────

@@ -392,27 +392,22 @@ fn generate_mcp_servers_rs(servers: &[McpServerEntry]) -> String {
     writeln!(out).unwrap();
 
     // phf index: id (+ aliases) → array index, case-insensitive via UniCase.
+    // Keys are borrowed from `entries` which lives until `builder.build()`
+    // serialises them — no Box::leak needed. `UniCase::ascii` matches the
+    // runtime probe in `find_mcp_server`.
     let mut builder = phf_codegen::Map::<unicase::UniCase<&str>>::new();
-    let mut entry_strings: Vec<(String, String)> = Vec::new();
-    for (i, s) in servers.iter().enumerate() {
-        entry_strings.push((s.id.clone(), i.to_string()));
-        for a in &s.aliases {
-            entry_strings.push((a.clone(), i.to_string()));
+    let entries: Vec<(String, String)> = {
+        let mut v = Vec::new();
+        for (i, s) in servers.iter().enumerate() {
+            v.push((s.id.clone(), i.to_string()));
+            for a in &s.aliases {
+                v.push((a.clone(), i.to_string()));
+            }
         }
-    }
-    // Hold leaked 'static references for the builder.
-    // Use `UniCase::ascii(...)` at build time to match the runtime lookup
-    // path (`generated.rs::find_mcp_server` / `find_provider_v3`). If build
-    // used `UniCase::new` (unicode-fold) while runtime uses `UniCase::ascii`
-    // (ASCII-fold), non-ASCII keys would hash differently in the map vs the
-    // probe — a silent miss. `assert_ascii_key` in validation keeps this
-    // safe, but matching folding strategies is belt-and-braces.
-    let leaked: Vec<(unicase::UniCase<&'static str>, String)> = entry_strings
-        .into_iter()
-        .map(|(k, v)| (unicase::UniCase::ascii(Box::leak(k.into_boxed_str()) as &'static str), v))
-        .collect();
-    for (k, v) in &leaked {
-        builder.entry(*k, v);
+        v
+    };
+    for (k, v) in &entries {
+        builder.entry(unicase::UniCase::ascii(k.as_str()), v.as_str());
     }
     writeln!(
         out,
@@ -740,23 +735,21 @@ fn generate_providers_rs(providers: &[ProviderEntry]) -> String {
     writeln!(out, "];").unwrap();
     writeln!(out).unwrap();
 
-    // phf index: id + aliases → array index.
+    // phf index: id + aliases → array index. Same scoped-borrow pattern
+    // as the MCP side — no Box::leak.
     let mut builder = phf_codegen::Map::<unicase::UniCase<&str>>::new();
-    let mut entries: Vec<(String, String)> = Vec::new();
-    for (i, p) in providers.iter().enumerate() {
-        entries.push((p.id.clone(), i.to_string()));
-        for a in &p.aliases {
-            entries.push((a.clone(), i.to_string()));
+    let entries: Vec<(String, String)> = {
+        let mut v = Vec::new();
+        for (i, p) in providers.iter().enumerate() {
+            v.push((p.id.clone(), i.to_string()));
+            for a in &p.aliases {
+                v.push((a.clone(), i.to_string()));
+            }
         }
-    }
-    // Must match the runtime `UniCase::ascii` probe — see the comment block
-    // in `generate_mcp_servers_rs` for the full rationale.
-    let leaked: Vec<(unicase::UniCase<&'static str>, String)> = entries
-        .into_iter()
-        .map(|(k, v)| (unicase::UniCase::ascii(Box::leak(k.into_boxed_str()) as &'static str), v))
-        .collect();
-    for (k, v) in &leaked {
-        builder.entry(*k, v);
+        v
+    };
+    for (k, v) in &entries {
+        builder.entry(unicase::UniCase::ascii(k.as_str()), v.as_str());
     }
     writeln!(
         out,
@@ -823,18 +816,24 @@ fn write_models(out: &mut String, models: &[ProviderModelEntry]) {
 // ─── String helpers ──────────────────────────────────────────────────────
 
 /// Rust-escape a string into a double-quoted source literal.
+///
+/// Uses `char::escape_debug` for coverage of C0 controls, DEL (0x7F),
+/// C1 controls (0x80..=0x9F), and Unicode scalars in general — wider
+/// than a hand-rolled match ladder. Double-quote is the only char
+/// `escape_debug` leaves unescaped that Rust string syntax requires
+/// escaped, so we handle it explicitly.
 fn rstr(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
-            c => out.push(c),
+        if c == '"' {
+            out.push_str("\\\"");
+        } else {
+            // escape_debug handles: \n, \r, \t, \\, \u{xx} for controls,
+            // and passes readable UTF-8 through unchanged.
+            for ec in c.escape_debug() {
+                out.push(ec);
+            }
         }
     }
     out.push('"');

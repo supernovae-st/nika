@@ -38,7 +38,7 @@ pub struct ProviderModel {
 /// from `data/llm-providers.toml`. All fields are `&'static` — every
 /// entry is embedded in the binary at compile time.
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Provider {
     /// Canonical id (e.g. `"anthropic"`, always lowercase).
@@ -87,8 +87,12 @@ mod tests {
 
     const _: () = {
         const fn assert_copy_send_sync<T: Copy + Send + Sync>() {}
+        const fn assert_send_sync<T: Send + Sync>() {}
         assert_copy_send_sync::<ProviderModel>();
-        assert_copy_send_sync::<Provider>();
+        // Provider is intentionally not Copy — 10 pointer-width fields
+        // (~160 bytes on 64-bit) make implicit memcpy a footgun when
+        // passed by value. Always pass `&Provider`.
+        assert_send_sync::<Provider>();
     };
 
     const SONNET_MODELS: &[ProviderModel] = &[ProviderModel {
