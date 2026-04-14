@@ -13,7 +13,13 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-pub mod data;
+// `data` is crate-internal — external consumers reach the generated
+// statics via `nika_catalog::{ALL_*, find_*}` (lib.rs re-exports below)
+// or `nika_catalog::lookup::*` (single public module entry point).
+// Collapsing to two public paths avoids the drift an architect review
+// flagged: callers could otherwise write `nika_catalog::data::generated::*`
+// and our `cargo public-api` diff would churn on every data edit.
+pub(crate) mod data;
 pub mod error;
 pub mod lookup;
 pub mod suggest;
