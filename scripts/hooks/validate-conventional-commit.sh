@@ -61,7 +61,6 @@ if ! [[ "$HEADER" =~ $HEADER_RE ]]; then
   die "Header must match 'type(scope): description'. Got: '${HEADER}'"
 fi
 
-COMMIT_TYPE="${BASH_REMATCH[1]}"
 COMMIT_SCOPE="${BASH_REMATCH[2]:-}" # includes parens, may be empty
 DESCRIPTION="${HEADER#*: }"
 
@@ -101,7 +100,6 @@ fi
 # ---------------------------------------------------------------------------
 # 6. Body validation (lines after blank separator)
 # ---------------------------------------------------------------------------
-FOUND_BLANK=0
 for ((i = 1; i < ${#LINES[@]}; i++)); do
   line="${LINES[$i]}"
 
@@ -109,8 +107,6 @@ for ((i = 1; i < ${#LINES[@]}; i++)); do
   if ((i == 1)) && [[ -n "$line" ]]; then
     die "Missing blank line between header and body. Add an empty line after '${HEADER}'"
   fi
-
-  [[ -z "$line" ]] && FOUND_BLANK=1
 
   # Trailing whitespace
   if [[ "$line" =~ [[:space:]]$ ]]; then
