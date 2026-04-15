@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+// TODO(Phase F): delete this allow when `supports_vision` is removed from
+// ModelCapabilities + CapPatch. Scoped to this module so our own merge_with
+// and materialize still compile for one commit while external consumers
+// see the deprecation nudge.
+#![allow(deprecated, reason = "supports_vision retired in the next Session 3 commit")]
+
 //! Runtime types backing the TOML-driven `model_capabilities` resolver.
 //!
 //! These types are **crate-internal**. Workflow callers see only the final

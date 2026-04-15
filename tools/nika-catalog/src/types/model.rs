@@ -6,6 +6,12 @@
 //! Capabilities are resolved via pattern-matching function (not phf) because
 //! model names are open-ended. Pricing uses 2-pass matching (exact + contains).
 
+// TODO(Phase F): delete this allow when `supports_vision` is removed from
+// ModelCapabilities. The attribute is module-scoped so this crate's own
+// definitions / Default / new() / tests keep compiling for one commit,
+// while every OTHER crate still sees the deprecation nudge.
+#![allow(deprecated, reason = "supports_vision retired in the next Session 3 commit")]
+
 #[cfg(feature = "capabilities")]
 use crate::types::{Modality, ParamFlag, TokenizerFamily};
 
@@ -69,10 +75,17 @@ pub struct ModelCapabilities {
     pub reasoning: bool,
     /// Model supports image/vision input.
     ///
-    /// Scheduled for decommission in Session 3 — replaced by
-    /// `input_modalities.contains(Modality::Image)`. Kept for now so the
-    /// Session 2b migration is incremental and existing consumers in
-    /// `nika-provider-*` (not yet rewritten) keep compiling.
+    /// ⚠ **Deprecated since Session 3 / 0.80.0.** Use
+    /// [`Self::input_modalities`]`.contains(&`[`Modality`]`::Image)` instead.
+    /// The next Session 3 commit removes this field outright — the
+    /// `#[deprecated]` attribute is here so external consumers see a
+    /// single-version nudge before the hard break. Forever-v0.x permits
+    /// the break; consumers already on `input_modalities` see nothing.
+    #[deprecated(
+        since = "0.80.0",
+        note = "use input_modalities.contains(&Modality::Image) instead — \
+                field removed in the next Session 3 commit"
+    )]
     pub supports_vision: bool,
     /// Modalities this model accepts as input. Emitted by `build.rs` from
     /// the TOML `input_modalities = ["text", "image", …]` list, sorted by

@@ -6,6 +6,11 @@
 //! Capabilities use pattern-matching (NOT phf) — model names are open-ended.
 //! Pricing uses 2-pass matching: exact match first, then `contains()` fallback.
 
+// TODO(Phase F): delete this allow when `supports_vision` is removed from
+// ModelCapabilities. Session 2a/2b provenance tests read .supports_vision;
+// scoped to this module so they stay green for one commit.
+#![allow(deprecated, reason = "supports_vision retired in the next Session 3 commit")]
+
 #[cfg(feature = "pricing")]
 use crate::types::model::{CostEstimate, ModelPricing};
 #[cfg(feature = "capabilities")]
