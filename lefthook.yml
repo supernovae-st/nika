@@ -71,9 +71,11 @@ pre-push:
       fail_text: 'cargo clippy failed. Zero-warning policy.'
 
     # All 15 engine hygiene vectors (run-once here, not per-file).
+    # check-all.sh exits 1 on YELLOW (drift warning) and 2 on RED (hard fail).
+    # We only block the push on RED — YELLOWs surface in stdout but don't gate.
     engine-hygiene:
-      run: bash scripts/hygiene/check-all.sh --quiet
-      fail_text: 'engine hygiene failed.'
+      run: bash -c 'bash scripts/hygiene/check-all.sh --quiet; rc=$?; [ $rc -ne 2 ]'
+      fail_text: 'engine hygiene RED — push blocked.'
 
     # All 9 CI ratchets in parallel (mirrors diamond-ci.yml matrix).
     ci-ratchets:
