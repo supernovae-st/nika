@@ -72,25 +72,38 @@ if ((${#TOUCHED_CRATES[@]} == 0)); then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Reverse-dep expansion
-#    For each directly touched crate, add crates that depend on it.
-#    Limit: if total expands beyond MAX_TARGETED_CRATES, fall back to workspace.
+# 3. Reverse-dep expansion via cargo metadata (P1-1 Batch H+)
+#    The previous approach used `cargo tree --invert --format '{p}'` whose
+#    output contains tree-drawing chars (├── └──) that awk parsed as crate
+#    names. cargo metadata JSON is machine-readable and correct.
+#
+#    Strategy: for each touched crate, find workspace members whose resolve
+#    deps (depth ≤ 3) include the touched crate.
 # ---------------------------------------------------------------------------
 declare -A AFFECTED_CRATES
 for crate in "${!TOUCHED_CRATES[@]}"; do
   AFFECTED_CRATES["$crate"]=1
-  # cargo tree --invert shows what depends on this crate
-  while IFS= read -r dep_crate; do
-    [[ -n "$dep_crate" ]] && AFFECTED_CRATES["$dep_crate"]=1
-  done < <(
-    cargo tree --invert --package "$crate" --depth 3 \
-      --format '{p}' 2>/dev/null \
-      | awk '{print $1}' \
-      | grep -v "^${crate}$" \
-      | sort -u \
-      || true
-  )
 done
+
+# Build reverse-dep index from metadata (one jq call for all crates)
+_metadata_json="$(cargo metadata --format-version=1 --no-deps 2>/dev/null)" || true
+if [[ -n "$_metadata_json" ]]; then
+  _workspace_members="$(printf '%s' "$_metadata_json" \
+    | jq -r '.packages[].name' 2>/dev/null | sort -u)" || true
+
+  for crate in "${!TOUCHED_CRATES[@]}"; do
+    while IFS= read -r rdep; do
+      [[ -n "$rdep" ]] && AFFECTED_CRATES["$rdep"]=1
+    done < <(
+      cargo tree --invert --package "$crate" --depth 3 \
+        --prefix=none --format '{p}' 2>/dev/null \
+        | sed 's/ v[0-9].*//' \
+        | grep -v "^${crate}$" \
+        | sort -u \
+        || true
+    )
+  done
+fi
 
 AFFECTED_COUNT="${#AFFECTED_CRATES[@]}"
 
