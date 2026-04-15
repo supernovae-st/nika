@@ -2,7 +2,7 @@
 
 ## Crate structure
 
-- Total target : **40-42 crates diamond v0.90** (cap 100) + 3 memory satellites (v0.95 Cortex)
+- Total target : **40-42 crates diamond v0.90** (cap 100) + **9 memory crates** at v0.95 Cortex (1 L2 orchestrator `nika-memory` + 8 L1 satellites: hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc) — separate count. See `nika/hq/docs/nika-memory/` ADR-004 + `project_nika_cortex_design.md`.
 - Max LOC per crate : **15,000** (strict, enforced by xtask/CI)
 - Max LOC per file : **1,500** (strict, CI blocks)
 - Max lines per fn : **100** (warning, ≤100 preferred)
