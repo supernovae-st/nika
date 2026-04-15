@@ -77,7 +77,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls {tools,crates}/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | crates admitted: $CRATES/40-42. Read MEMORY.md Quick State first.\""
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls crates/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | crates admitted: $CRATES/40-42. Read MEMORY.md Quick State first.\""
           },
           {
             "type": "command",
