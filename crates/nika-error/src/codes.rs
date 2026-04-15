@@ -57,7 +57,9 @@ impl<'de> serde::Deserialize<'de> for NikaCode {
 /// Numeric ranges are a convention (not enforced at type level):
 /// Core 001-049, Shell 050-099, `FileIo` 100-139, Http 140-189,
 /// Auth 190-229, Mcp 230-279, Schema 280-329, Binding 330-379,
-/// Provider 380-429, Verb 430-479, Runtime 480-529.
+/// Provider 380-429, Verb 430-479, Runtime 480-529,
+/// Memory 600-649, `WasmPlugin` 700-749, Sandbox 750-799,
+/// Observability 800-819.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
@@ -74,6 +76,12 @@ pub enum Category {
     Provider,
     Verb,
     Runtime,
+    /// WASM plugin host execution (700-749).
+    WasmPlugin,
+    /// Capability-based sandbox (750-799).
+    Sandbox,
+    /// Observability/telemetry sinks (800-819).
+    Observability,
 }
 
 /// Severity level for an error code.
@@ -112,6 +120,30 @@ pub const NIKA_003: NikaCode = NikaCode {
     slug: "unsupported",
 };
 
+/// NIKA-700: WASM plugin error (range placeholder 700-749).
+pub const NIKA_700: NikaCode = NikaCode {
+    num: 700,
+    category: Category::WasmPlugin,
+    severity: Severity::Error,
+    slug: "wasm-plugin",
+};
+
+/// NIKA-750: Sandbox error (range placeholder 750-799).
+pub const NIKA_750: NikaCode = NikaCode {
+    num: 750,
+    category: Category::Sandbox,
+    severity: Severity::Error,
+    slug: "sandbox",
+};
+
+/// NIKA-800: Observability error (range placeholder 800-819).
+pub const NIKA_800: NikaCode = NikaCode {
+    num: 800,
+    category: Category::Observability,
+    severity: Severity::Error,
+    slug: "observability",
+};
+
 /// NIKA-999: Internal error (catch-all).
 pub const NIKA_999: NikaCode = NikaCode {
     num: 999,
@@ -121,7 +153,9 @@ pub const NIKA_999: NikaCode = NikaCode {
 };
 
 /// All registered codes. Used for uniqueness validation and iteration.
-pub const ALL: &[NikaCode] = &[NIKA_001, NIKA_002, NIKA_003, NIKA_999];
+pub const ALL: &[NikaCode] = &[
+    NIKA_001, NIKA_002, NIKA_003, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
+];
 
 /// Returns an actionable help message for a given code.
 ///
@@ -133,6 +167,9 @@ pub fn code_help(code: NikaCode) -> &'static str {
         1 => "Check your workflow YAML syntax and field values.",
         2 => "Referenced item not found in catalogs or task outputs.",
         3 => "Feature not supported in current configuration.",
+        700 => "WASM plugin host reported an error. Check plugin manifest and capability grants.",
+        750 => "Sandbox denied or failed. Verify capability allowlist and platform support.",
+        800 => "Observability sink rejected the event. Check exporter configuration.",
         999 => "Internal error. Please report at github.com/supernovae-st/nika/issues",
         _ => "Unknown error code. Check documentation for details.",
     }

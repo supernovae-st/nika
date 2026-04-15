@@ -76,7 +76,7 @@ impl Clone for Secret {
 /// Production: env vars, vault, SSM, etc.
 /// Tests: `NullSecretResolver` returns the reference as-is.
 #[trait_variant::make(SecretResolverDyn: Send)]
-pub trait SecretResolver: Send + Sync {
+pub trait SecretResolver: Send + Sync + crate::sealed::Sealed {
     /// Resolve a secret reference to its value.
     async fn resolve(&self, secret: &SecretRef) -> Result<Secret, NikaError>;
 }

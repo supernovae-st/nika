@@ -18,6 +18,8 @@ impl NullSecretResolver {
     }
 }
 
+impl nika_kernel::sealed::Sealed for NullSecretResolver {}
+
 impl SecretResolver for NullSecretResolver {
     async fn resolve(&self, secret: &SecretRef) -> Result<Secret, NikaError> {
         Ok(Secret::new(&secret.reference))

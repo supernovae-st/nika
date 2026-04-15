@@ -50,16 +50,24 @@ impl CancelCtx {
 
     /// Check whether cancellation has been requested.
     ///
-    /// Uses `Ordering::Relaxed` — sufficient for cooperative cancellation
-    /// where exact timing is not critical.
+    /// Uses `Ordering::Acquire`: pairs with the `Release` store in
+    /// [`Self::cancel`] to establish a happens-before edge, so any data a
+    /// producer writes *before* signalling cancel is visible to consumers
+    /// that observe `is_cancelled() == true`. Zero cost on x86-64 TSO;
+    /// required for ADR-016 v0.95 DAG cancel propagation, where the parent
+    /// writes final state then flips the flag.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Relaxed)
+        self.cancelled.load(Ordering::Acquire)
     }
 
     /// Request cancellation. All clones of this context will observe it.
+    ///
+    /// Uses `Ordering::Release` so any data written before this call is
+    /// visible to any consumer that observes `is_cancelled() == true` via
+    /// [`Self::is_cancelled`].
     pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Relaxed);
+        self.cancelled.store(true, Ordering::Release);
     }
 }
 

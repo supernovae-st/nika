@@ -10,14 +10,20 @@
 //! - 230–279: MCP/tools (`ToolExecError`)
 //! - 380–429: Provider (`ProviderError`)
 //! - 600–649: Memory (`MemoryError`)
+//! - 700–749: WASM plugin (`WasmPluginError`)
+//! - 750–799: Sandbox (`SandboxError`)
+//! - 800–819: Observability (`ObservabilityError`)
 
 use nika_error::prelude::*;
 
 use crate::blob::BlobError;
 use crate::http::HttpError;
 use crate::memory::MemoryError;
+use crate::observability::ObservabilityError;
+use crate::plugin::WasmPluginError;
 use crate::process::ShellError;
 use crate::provider::ProviderError;
+use crate::sandbox::SandboxError;
 use crate::tool_executor::ToolExecError;
 
 // ─── Error code constants ────────────────────────────────────────────
@@ -305,6 +311,24 @@ impl NikaErrorCode for MemoryError {
     }
 }
 
+impl NikaErrorCode for WasmPluginError {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_700
+    }
+}
+
+impl NikaErrorCode for SandboxError {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_750
+    }
+}
+
+impl NikaErrorCode for ObservabilityError {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_800
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,5 +451,37 @@ mod tests {
         .nika_code();
         let _ = MemoryError::EmbeddingFailed { reason: "".into() }.nika_code();
         let _ = MemoryError::Storage { reason: "".into() }.nika_code();
+    }
+
+    #[test]
+    fn wasm_plugin_error_code_in_range() {
+        let err = WasmPluginError::NotFound { name: "x".into() };
+        let code = err.nika_code();
+        assert!(code.num >= 700 && code.num <= 749, "wasm code {}", code.num);
+        assert_eq!(code.category, Category::WasmPlugin);
+    }
+
+    #[test]
+    fn sandbox_error_code_in_range() {
+        let err = SandboxError::Unavailable { reason: "x".into() };
+        let code = err.nika_code();
+        assert!(
+            code.num >= 750 && code.num <= 799,
+            "sandbox code {}",
+            code.num
+        );
+        assert_eq!(code.category, Category::Sandbox);
+    }
+
+    #[test]
+    fn observability_error_code_in_range() {
+        let err = ObservabilityError::NotConfigured { reason: "x".into() };
+        let code = err.nika_code();
+        assert!(
+            code.num >= 800 && code.num <= 819,
+            "observability code {}",
+            code.num
+        );
+        assert_eq!(code.category, Category::Observability);
     }
 }
