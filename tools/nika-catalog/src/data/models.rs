@@ -679,8 +679,14 @@ mod provenance_tests {
             "default input_modalities must contain text");
         assert!(c.output_modalities.contains(&Modality::Text));
         assert!(c.supports_system_messages, "default: supports_system_messages=true");
-        // Default tokenizer = None (most providers don't disclose).
-        assert!(c.tokenizer.is_none() || c.tokenizer == Some(TokenizerFamily::Cl100k));
+        // Default tokenizer = None. TOML [defaults] intentionally omits the
+        // field (most providers don't disclose their tokenizer), so for an
+        // unknown provider the materialised tokenizer MUST be None. Earlier
+        // draft of this assert had a dead `|| == Some(Cl100k)` branch that
+        // made it vacuous (is_none() was always true); tightened per
+        // Session 2b review swarm P1.
+        assert!(c.tokenizer.is_none(),
+            "default tokenizer must be None (TOML [defaults] omits the field)");
         // Default supported_parameters = [] (rules add them).
         // Contain-check on a known flag is false by default.
         assert!(!c.supported_parameters.contains(&ParamFlag::StructuredOutputNative));

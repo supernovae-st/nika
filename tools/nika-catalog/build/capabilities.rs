@@ -51,15 +51,18 @@ struct RuleEntry {
     match_: MatchEntry,
     caps: CapsPatchEntry,
     /// Author-asserted "this rule intentionally inherits defaults for any
-    /// un-set routing-critical field". Default `false` — absence = warn in
-    /// CI if the rule omits a field that would make the runtime fall back
-    /// to generic defaults on a provider-specific path.
+    /// un-set routing-critical field". Session-2b flag — purely
+    /// documentary at build time (not yet wired into a `cargo::warning`
+    /// emitter). Read by `deny_unknown_fields` so the TOML can carry it
+    /// for `Matcher::Any` rules that intentionally fall back. Session 3
+    /// plans to wire it to the routing-critical-field warning; until
+    /// then, the flag serves as inline author intent.
     ///
-    /// Read-only at build time; not emitted into the runtime `Rule` struct
-    /// (would be dead data there — routing happens at TOML-authoring time,
-    /// not at materialise time).
+    /// Not emitted into the runtime `Rule` struct (would be dead data
+    /// there — routing happens at TOML-authoring time, not at
+    /// materialise time).
     #[serde(default)]
-    #[allow(dead_code, reason = "build-time authoring hint, not emitted to runtime Rule")]
+    #[allow(dead_code, reason = "Session 2b authoring hint; Session 3 wires to `cargo::warning`")]
     routing_complete: bool,
 }
 
@@ -202,10 +205,58 @@ pub(super) fn parse_capabilities(
         validate_caps_patch(&rule.caps, &format!("rule {:?}", rule.name))?;
     }
 
+    // Enforce the "`Matcher::Any` must be last within its provider scope"
+    // invariant documented at the top of data/model-capabilities.toml.
+    // Without this, a scoped rule inserted after a `Matcher::Any` rule for
+    // the same provider gets silently shadowed — first-match-wins + `any`
+    // always matches = the later rule is dead. P0 fix from Session 2b
+    // review swarm.
+    check_any_last_in_scope(&file.rules)?;
+
     Ok(ParsedCapabilities {
         defaults: file.defaults,
         rules: file.rules,
     })
+}
+
+/// Enforce "`Matcher::Any` must be last within its provider scope".
+///
+/// Two rules share a scope when their `scope.providers` lists are equal
+/// (order-sensitive via `Vec<String>` equality; the TOML author must use
+/// a canonical ordering per scope — every `[openai, openrouter]` rule
+/// uses exactly that order). Within each scope bucket, any non-`Any`
+/// rule that appears after an `Any` rule is dead. The check is O(N²) but
+/// N ≤ 40 at build time, so the cost is negligible.
+fn check_any_last_in_scope(rules: &[RuleEntry]) -> Result<(), String> {
+    for i in 0..rules.len() {
+        let MatchEntry::Any = rules[i].match_ else { continue };
+        let scope_i = &rules[i].scope.providers;
+        let dialect_i = rules[i].scope.api_dialect.as_deref();
+        for later in rules.iter().skip(i + 1) {
+            let scope_j = &later.scope.providers;
+            let dialect_j = later.scope.api_dialect.as_deref();
+            if scope_i == scope_j
+                && dialect_i == dialect_j
+                && !matches!(later.match_, MatchEntry::Any)
+            {
+                return Err(format!(
+                    "rule {:?} (`Matcher::Any`) appears BEFORE non-Any rule \
+                     {:?} in the same scope (providers={:?}, \
+                     api_dialect={:?}) — Any always matches, so rule \
+                     {:?} is dead. Move rule {:?} to appear BEFORE rule \
+                     {:?}, or remove one of them.",
+                    rules[i].name,
+                    later.name,
+                    scope_i,
+                    dialect_i,
+                    later.name,
+                    later.name,
+                    rules[i].name,
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Validate every field of a `CapsPatchEntry`.

@@ -38,6 +38,14 @@ pub enum TokenizerFamily {
     MistralV3,
     /// `DeepSeek` tokenizer — `cl100k`-family variant; distinct variant kept
     /// for accurate per-provider token accounting.
+    ///
+    /// Explicit `#[serde(rename = "deepseek")]` override — the enclosing
+    /// `rename_all = "kebab-case"` would otherwise produce `"deep-seek"`
+    /// (hyphen at the lowercase→uppercase transition) and break
+    /// round-tripping with the canonical TOML value, the `as_str()`
+    /// output, and the `FromStr` impl (all of which are `"deepseek"`).
+    /// P0 fix — Session 2b review swarm finding.
+    #[cfg_attr(feature = "serde", serde(rename = "deepseek"))]
     DeepSeek,
 }
 
@@ -175,22 +183,39 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn serde_roundtrip_kebab_case_produces_expected_strings() {
-        let cases = [
-            (TokenizerFamily::Cl100k, "\"cl100k\""),
-            (TokenizerFamily::O200k, "\"o200k\""),
-            (TokenizerFamily::ClaudeV3, "\"claude-v3\""),
-            (TokenizerFamily::Gemini, "\"gemini\""),
-            (TokenizerFamily::LlamaV3, "\"llama-v3\""),
-            (TokenizerFamily::MistralV3, "\"mistral-v3\""),
-            // DeepSeek is the exception: kebab-case would produce
-            // "deep-seek" but serde attribute is not on this enum directly
-            // — it is on the TokenizerFamilyToml mirror in build.rs.
-        ];
-        for (t, expected_json) in cases {
+        // Every variant MUST serialize to its canonical `as_str()` output.
+        // The P0 was that `DeepSeek` serialised as `"deep-seek"` under the
+        // outer `rename_all = "kebab-case"` — fixed by the per-variant
+        // `#[serde(rename = "deepseek")]`.
+        for t in [
+            TokenizerFamily::Cl100k,
+            TokenizerFamily::O200k,
+            TokenizerFamily::ClaudeV3,
+            TokenizerFamily::Gemini,
+            TokenizerFamily::LlamaV3,
+            TokenizerFamily::MistralV3,
+            TokenizerFamily::DeepSeek,
+        ] {
             let actual = serde_json::to_string(&t).unwrap();
-            assert_eq!(actual, expected_json, "serde mismatch for {t:?}");
+            let expected = format!("\"{}\"", t.as_str());
+            assert_eq!(actual, expected, "serde mismatch for {t:?}");
             let back: TokenizerFamily = serde_json::from_str(&actual).unwrap();
             assert_eq!(back, t);
         }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_deepseek_emits_compact_not_kebab() {
+        // Regression guard for the P0 — the DeepSeek serde rename. If the
+        // `#[serde(rename = "deepseek")]` attribute disappears from the
+        // variant, this test fails instead of the bug shipping silently.
+        let json = serde_json::to_string(&TokenizerFamily::DeepSeek).unwrap();
+        assert_eq!(json, "\"deepseek\"", "DeepSeek must serde as compact");
+        assert_ne!(json, "\"deep-seek\"", "must NOT be kebab-hyphenated");
+        let back: TokenizerFamily = serde_json::from_str("\"deepseek\"").unwrap();
+        assert_eq!(back, TokenizerFamily::DeepSeek);
+        // The hyphenated form must fail to deserialize — not an alias.
+        assert!(serde_json::from_str::<TokenizerFamily>("\"deep-seek\"").is_err());
     }
 }

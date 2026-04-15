@@ -45,7 +45,8 @@
 #   * Every Matcher::Any rule (anthropic-any-model, deepseek-any-model,
 #     xai-any-model, gemini-any-model, mistral-any-model, native-any,
 #     voyage-any, mock-full) MUST appear LAST within its provider scope,
-#     enforced by check_any_last_in_scope() at build time.
+#     enforced by check_any_last_in_scope() at build time in
+#     build/capabilities.rs (P0 fix — Session 2b review swarm).
 
 schema = "nika/model-capabilities@1.0"
 
