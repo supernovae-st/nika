@@ -538,8 +538,14 @@ pub trait ProviderMeta: Send + Sync {
 }
 
 /// Full provider — Infer + Stream + Meta.
-pub trait Provider: ProviderInfer + ProviderStream + ProviderMeta {}
-impl<T: ProviderInfer + ProviderStream + ProviderMeta> Provider for T {}
+///
+/// Sealed: external crates can implement the individual sub-traits
+/// (`ProviderInfer`, `ProviderStream`, `ProviderMeta`) but NOT the
+/// combined `Provider` trait. Workspace-controlled providers and mocks
+/// opt in by also impl-ing `crate::sealed::Sealed`. This lets us add
+/// methods to `Provider` in future versions without a semver break.
+pub trait Provider: ProviderInfer + ProviderStream + ProviderMeta + crate::sealed::Sealed {}
+impl<T: ProviderInfer + ProviderStream + ProviderMeta + crate::sealed::Sealed> Provider for T {}
 
 /// Embedding generation (opt-in, not part of Provider).
 #[trait_variant::make(ProviderEmbedDyn: Send)]
@@ -707,6 +713,8 @@ mod tests {
 
     /// Verify blanket super-trait: implementing all 3 atomics gives Provider for free.
     struct DummyProvider;
+
+    impl crate::sealed::Sealed for DummyProvider {}
 
     impl ProviderInfer for DummyProvider {
         async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {

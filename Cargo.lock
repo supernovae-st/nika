@@ -910,6 +910,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "trait-variant",
+ "zeroize",
 ]
 
 [[package]]
@@ -918,12 +919,14 @@ version = "0.80.0"
 dependencies = [
  "bytes",
  "futures-core",
+ "nika-error",
  "nika-kernel",
  "parking_lot",
  "proptest",
  "rstest",
  "serde_json",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

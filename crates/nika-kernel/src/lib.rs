@@ -46,21 +46,28 @@
 )]
 
 pub mod agent;
+pub mod billing;
 pub mod blob;
 pub mod cancel;
 pub mod checkpoint;
 pub mod clock;
 pub mod context;
 pub mod errors;
+pub mod event_sink;
 pub mod fs;
 pub mod http;
+pub mod id_gen;
 pub mod memory;
+pub mod metrics;
 pub mod observability;
 pub mod plugin;
 pub mod process;
 pub mod provider;
 pub mod sandbox;
+pub mod sealed;
+pub mod secret;
 pub mod tool_executor;
+pub mod trace;
 pub mod types;
 
 // Re-export the most commonly used items for convenience.
@@ -68,20 +75,24 @@ pub use agent::{
     AgentLoopConfig, AgentOutcome, AgentStopReason, CompressionPolicy, PlanningStrategy,
     ReflectionConfig, ToolErrorPolicy,
 };
+pub use billing::BillingSink;
 pub use blob::{BlobError, BlobMetadata, BlobStore};
 pub use cancel::CancelCtx;
 pub use checkpoint::{AgentCheckpoint, CheckpointMessage, ToolCallRecord};
 pub use clock::Clock;
 pub use context::{CompressedContext, ContextCompressor};
+pub use event_sink::{Event, EventSink};
 pub use fs::{FileMetadata, Fs, FsList, FsMeta, FsRead, FsWrite};
 pub use http::{
     HttpClient, HttpError, HttpGet, HttpMethod, HttpPost, HttpRequest, HttpResponse,
     HttpStreamResponse,
 };
+pub use id_gen::IdGenerator;
 pub use memory::{
     EmbeddingProvider, MemoryDirective, MemoryError, MemoryForget, MemoryFrame, MemoryFrameRef,
     MemoryHit, MemoryId, MemoryLevel, MemoryRecall, MemoryRemember, MemoryStore, RecallQuery,
 };
+pub use metrics::{MetricTag, MetricsExporter};
 pub use observability::{MetricEvent, ObservabilityError, ObservabilitySink, SpanEvent};
 pub use plugin::{PluginFs, PluginHttp, WasmPluginError, WasmPluginHost};
 pub use process::{ShellCancel, ShellCommand, ShellError, ShellExecutor, ShellResult, ShellRun};
@@ -91,7 +102,9 @@ pub use provider::{
     ProviderVision, ResponseFormat, Role, StopReason, TokenUsage, ToolChoice, ToolDef,
 };
 pub use sandbox::{Capability, Sandbox, SandboxError};
+pub use secret::{Secret, SecretRef, SecretResolver};
 pub use tool_executor::{
     ToolBatch, ToolCall, ToolCallId, ToolExecError, ToolExecute, ToolExecutor, ToolResult,
 };
+pub use trace::{SpanGuard, TracerProvider};
 pub use types::{TaskId, WorkflowMeta};

@@ -31,28 +31,40 @@
     )
 )]
 
+pub mod billing;
 pub mod blob;
 pub mod clock;
 pub mod compressor;
+pub mod event_sink;
 pub mod filesystem;
 pub mod http;
+pub mod id_gen;
 pub mod memory;
+pub mod metrics;
 pub mod observability;
 pub mod plugin;
 pub mod provider;
 pub mod sandbox;
+pub mod secret;
 pub mod shell;
 pub mod tool_executor;
+pub mod trace;
 
+pub use billing::NullBillingSink;
 pub use blob::MockBlob;
 pub use clock::MockClock;
 pub use compressor::NullContextCompressor;
+pub use event_sink::NullEventSink;
 pub use filesystem::MockFs;
 pub use http::MockHttp;
+pub use id_gen::{MockIdGenerator, SequentialIdGenerator};
 pub use memory::{NullEmbeddingProvider, NullMemoryStore};
+pub use metrics::NullMetricsExporter;
 pub use observability::NullObservabilitySink;
 pub use plugin::NullWasmPluginHost;
 pub use provider::MockProvider;
 pub use sandbox::NullSandbox;
+pub use secret::NullSecretResolver;
 pub use shell::MockShell;
 pub use tool_executor::{MockToolExecutor, NullToolExecutor};
+pub use trace::NullTracerProvider;

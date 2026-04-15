@@ -27,6 +27,10 @@ pub struct MockProvider {
     supports_response_format: Arc<Mutex<bool>>,
 }
 
+// Sealing: MockProvider lives in nika-kernel-mock (workspace-controlled),
+// so it is allowed to participate in the sealed Provider lattice.
+impl nika_kernel::sealed::Sealed for MockProvider {}
+
 impl MockProvider {
     /// Create a new mock provider with the given name.
     #[must_use]

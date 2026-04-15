@@ -17,10 +17,12 @@ workspace = true
 
 [dependencies]
 nika-kernel   = { path = "../nika-kernel", version = "0.80.0" }
+nika-error    = { path = "../nika-error", version = "0.80.0" }
 parking_lot   = { workspace = true }
 bytes         = { workspace = true }
 serde_json    = { workspace = true }
 futures-core  = { workspace = true }
+uuid          = { workspace = true }
 
 [dev-dependencies]
 tokio    = { workspace = true, features = ["rt", "macros"] }
