@@ -1,0 +1,212 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! `Cost` newtype — nano-USD precision for LLM billing.
+//!
+//! 1 nano-USD = 1e-9 USD. An i128 gives ~170 quintillion USD range
+//! with nano-USD precision, sufficient for any realistic billing scenario.
+//!
+//! ## Why not f64?
+//! - f64 cannot represent 0.1 exactly.
+//! - 10M inference calls at $0.0001 = drift by cents.
+//! - Stripe uses i64 micro-units; `OpenAI` uses Decimal server-side.
+//! - Migration from f64 after 1M runs in `SQLite` = pain.
+
+use std::fmt;
+use std::ops::{Add, Sub};
+
+use serde::{Deserialize, Serialize};
+
+/// Cost in nano-USD (1e-9 USD). Signed to support credits/refunds.
+///
+/// # Display
+///
+/// Formats as `"$X.XXXXXX"` (6 decimal places, micro-USD resolution).
+///
+/// ```
+/// use nika_error::cost::Cost;
+/// let c = Cost::from_micro_usd(1_500_000); // $1.50
+/// assert_eq!(c.to_string(), "$1.500000");
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Cost {
+    /// Value in nano-USD.
+    pub nano_usd: i128,
+}
+
+impl Cost {
+    /// Create a cost from nano-USD.
+    #[must_use]
+    pub fn new(nano_usd: i128) -> Self {
+        Self { nano_usd }
+    }
+
+    /// Zero cost.
+    #[must_use]
+    pub fn zero() -> Self {
+        Self { nano_usd: 0 }
+    }
+
+    /// Create from micro-USD (1e-6 USD). Convenience for typical API pricing.
+    #[must_use]
+    pub fn from_micro_usd(micro: i64) -> Self {
+        Self {
+            nano_usd: i128::from(micro) * 1_000,
+        }
+    }
+
+    /// Create from milli-USD (1e-3 USD).
+    #[must_use]
+    pub fn from_milli_usd(milli: i64) -> Self {
+        Self {
+            nano_usd: i128::from(milli) * 1_000_000,
+        }
+    }
+
+    /// Whether this cost is zero.
+    #[must_use]
+    pub fn is_zero(&self) -> bool {
+        self.nano_usd == 0
+    }
+
+    /// Multiply by a scalar (e.g., token count). Saturating.
+    #[must_use]
+    pub fn saturating_mul(self, factor: u64) -> Self {
+        Self {
+            nano_usd: self.nano_usd.saturating_mul(i128::from(factor)),
+        }
+    }
+}
+
+impl Add for Cost {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        Self {
+            nano_usd: self.nano_usd.saturating_add(rhs.nano_usd),
+        }
+    }
+}
+
+impl Sub for Cost {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            nano_usd: self.nano_usd.saturating_sub(rhs.nano_usd),
+        }
+    }
+}
+
+impl fmt::Display for Cost {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sign = if self.nano_usd < 0 { "-" } else { "" };
+        let abs = self.nano_usd.unsigned_abs();
+        let dollars = abs / 1_000_000_000;
+        let frac = (abs % 1_000_000_000) / 1_000; // micro-USD resolution
+        write!(f, "{sign}${dollars}.{frac:06}")
+    }
+}
+
+impl Default for Cost {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zero_cost() {
+        let c = Cost::zero();
+        assert!(c.is_zero());
+        assert_eq!(c.nano_usd, 0);
+    }
+
+    #[test]
+    fn from_micro_usd() {
+        let c = Cost::from_micro_usd(1_500_000); // $1.50
+        assert_eq!(c.nano_usd, 1_500_000_000);
+        assert_eq!(c.to_string(), "$1.500000");
+    }
+
+    #[test]
+    fn from_milli_usd() {
+        let c = Cost::from_milli_usd(2500); // $2.50
+        assert_eq!(c.nano_usd, 2_500_000_000);
+        assert_eq!(c.to_string(), "$2.500000");
+    }
+
+    #[test]
+    fn display_zero() {
+        assert_eq!(Cost::zero().to_string(), "$0.000000");
+    }
+
+    #[test]
+    fn display_negative() {
+        let c = Cost::new(-500_000_000); // -$0.50
+        assert_eq!(c.to_string(), "-$0.500000");
+    }
+
+    #[test]
+    fn display_sub_penny() {
+        let c = Cost::from_micro_usd(50); // $0.000050
+        assert_eq!(c.to_string(), "$0.000050");
+    }
+
+    #[test]
+    fn add_costs() {
+        let a = Cost::from_micro_usd(100);
+        let b = Cost::from_micro_usd(200);
+        assert_eq!((a + b).nano_usd, 300_000);
+    }
+
+    #[test]
+    fn sub_costs() {
+        let a = Cost::from_micro_usd(300);
+        let b = Cost::from_micro_usd(100);
+        assert_eq!((a - b).nano_usd, 200_000);
+    }
+
+    #[test]
+    fn saturating_mul() {
+        let per_token = Cost::new(50); // 50 nano-USD per token
+        let total = per_token.saturating_mul(1000);
+        assert_eq!(total.nano_usd, 50_000);
+    }
+
+    #[test]
+    fn saturating_mul_overflow() {
+        let big = Cost::new(i128::MAX / 2);
+        let result = big.saturating_mul(u64::MAX);
+        assert_eq!(result.nano_usd, i128::MAX); // saturated, not panicked
+    }
+
+    #[test]
+    fn ordering() {
+        let small = Cost::from_micro_usd(100);
+        let large = Cost::from_micro_usd(200);
+        assert!(small < large);
+    }
+
+    #[test]
+    fn serde_roundtrip() {
+        let c = Cost::from_micro_usd(42_000);
+        let json = serde_json::to_string(&c).expect("serialize");
+        let back: Cost = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(c, back);
+    }
+
+    #[test]
+    fn default_is_zero() {
+        assert!(Cost::default().is_zero());
+    }
+
+    fn _assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn cost_is_send_sync() {
+        _assert_send_sync::<Cost>();
+    }
+}

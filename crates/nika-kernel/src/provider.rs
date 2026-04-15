@@ -221,6 +221,12 @@ pub struct InferRequest {
     /// Cancellation context (v0.95 structured cancellation hook).
     /// Reserved: always `None` until DAG propagation ships.
     pub cancel: Option<CancelCtx>,
+    /// Budget directive for resource limits (v0.95 cost tracking seed).
+    pub budget: Option<nika_error::budget::BudgetDirective>,
+    /// Baggage for W3C context propagation.
+    pub baggage: Option<nika_error::baggage::Baggage>,
+    /// Tenant identifier for multi-tenant deployments.
+    pub tenant: Option<nika_error::id::TenantId>,
 }
 
 impl InferRequest {
@@ -240,6 +246,9 @@ impl InferRequest {
             extra: ProviderExtras::new(),
             memory: None,
             cancel: None,
+            budget: None,
+            baggage: None,
+            tenant: None,
         }
     }
 }
@@ -247,6 +256,10 @@ impl InferRequest {
 // ─── InferResponse ───────────────────────────────────────────────────
 
 /// Token usage statistics.
+///
+/// All new fields (post-v0.80) are `Option<u64>` for backward compatibility.
+/// Producers opt in by setting individual fields. The struct is
+/// `#[non_exhaustive]` so future additions are non-breaking.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct TokenUsage {
@@ -258,10 +271,41 @@ pub struct TokenUsage {
     pub cache_read_tokens: Option<u64>,
     /// Tokens written to cache.
     pub cache_write_tokens: Option<u64>,
+    // ─── New fields (v0.81 ADR-033 expansion) ─────────────────────
+    /// Cache creation tokens (Anthropic-specific).
+    pub cache_creation_tokens: Option<u64>,
+    /// Reasoning/chain-of-thought tokens (`OpenAI` o1/o3/o4).
+    pub reasoning_tokens: Option<u64>,
+    /// Extended thinking tokens (Anthropic).
+    pub thinking_tokens: Option<u64>,
+    /// Audio input tokens (`OpenAI` realtime).
+    pub audio_input_tokens: Option<u64>,
+    /// Audio output tokens (`OpenAI` realtime).
+    pub audio_output_tokens: Option<u64>,
+    /// Image input tokens (vision).
+    pub image_input_tokens: Option<u64>,
+    /// Image output tokens (Gemini image gen).
+    pub image_output_tokens: Option<u64>,
+    /// Video input tokens (Gemini).
+    pub video_input_tokens: Option<u64>,
+    /// Accepted prediction tokens (speculative decoding).
+    pub accepted_prediction_tokens: Option<u64>,
+    /// Rejected prediction tokens (speculative decoding).
+    pub rejected_prediction_tokens: Option<u64>,
+    /// Total tokens (provider-reported, may differ from input+output sum).
+    pub total_tokens: Option<u64>,
+    /// Search context size (Perplexity sonar).
+    pub search_context_tokens: Option<u64>,
+    /// Citation tokens.
+    pub citation_tokens: Option<u64>,
+    /// Number of API requests this represents (batch awareness).
+    pub num_requests: Option<u32>,
 }
 
 impl TokenUsage {
     /// Create a new token usage with input and output counts.
+    ///
+    /// All new (v0.81+) fields default to `None`.
     #[must_use]
     pub fn new(input_tokens: u64, output_tokens: u64) -> Self {
         Self {
@@ -269,6 +313,20 @@ impl TokenUsage {
             output_tokens,
             cache_read_tokens: None,
             cache_write_tokens: None,
+            cache_creation_tokens: None,
+            reasoning_tokens: None,
+            thinking_tokens: None,
+            audio_input_tokens: None,
+            audio_output_tokens: None,
+            image_input_tokens: None,
+            image_output_tokens: None,
+            video_input_tokens: None,
+            accepted_prediction_tokens: None,
+            rejected_prediction_tokens: None,
+            total_tokens: None,
+            search_context_tokens: None,
+            citation_tokens: None,
+            num_requests: None,
         }
     }
 }
@@ -314,6 +372,12 @@ pub struct InferResponse {
     pub finish_reason_raw: Option<String>,
     /// Memory frames created during inference (Cortex hook, Phase 1).
     pub memory_frames: Vec<MemoryFrameRef>,
+    /// Trace ID for distributed tracing (W3C Trace Context).
+    pub trace_id: Option<nika_error::id::TraceId>,
+    /// Span ID for this specific inference call.
+    pub span_id: Option<nika_error::id::SpanId>,
+    /// Trust level of this response (T3:A — trust is a property of the data).
+    pub trust_level: Option<nika_error::trust::TrustLevel>,
 }
 
 impl InferResponse {
@@ -330,6 +394,9 @@ impl InferResponse {
             cost_usd: None,
             finish_reason_raw: None,
             memory_frames: Vec::new(),
+            trace_id: None,
+            span_id: None,
+            trust_level: None,
         }
     }
 }
