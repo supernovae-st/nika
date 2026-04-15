@@ -54,7 +54,7 @@
           {
             "type": "command",
             "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git push\\b' && ! echo \"$CMD\" | grep -qE '(^|[[:space:]])(--force|-f)([[:space:]]|$)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — update MEMORY.md Quick State if this session ends.\" >&2; fi"
-          },
+          }
         ]
       },
       {
@@ -82,7 +82,7 @@
           {
             "type": "command",
             "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && if [ -x scripts/hygiene/check-all.sh ]; then RESULT=$(scripts/hygiene/check-all.sh --quiet 2>&1 | tail -1); echo \"🩺 Hygiene: $RESULT\"; fi"
-          },
+          }
         ]
       }
     ],
