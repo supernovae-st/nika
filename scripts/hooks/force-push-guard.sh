@@ -47,9 +47,12 @@ check_force_push() {
   return 0
 }
 
-# If stdin is a pipe / regular file, use git's native pre-push protocol
-# (<local-ref> <local-sha> <remote-ref> <remote-sha> lines).
-if [[ ! -t 0 && -p /dev/stdin ]] || [[ ! -t 0 && -s /dev/stdin ]]; then
+# P1-3 Batch H+: the previous check used `-p /dev/stdin` which tests for a
+# named pipe. On macOS, /dev/stdin is a character device (not a pipe), so
+# the test always failed even when git provided real stdin data. The correct
+# portable test is simply `! -t 0` — "stdin is not a terminal" — which is
+# true for both pipes and redirections on all platforms.
+if [[ ! -t 0 ]]; then
   while IFS=' ' read -r _local_ref local_sha remote_ref remote_sha; do
     [[ -z "$_local_ref" ]] && continue
     branch="${remote_ref#refs/heads/}"
