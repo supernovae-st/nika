@@ -54,7 +54,7 @@ schema = "nika/model-capabilities@1.0"
 # Session 2b additions:
 #   * input_modalities / output_modalities — declaration-order sorted by
 #     build.rs at codegen time (text=0, image=1, audio=2, video=3, pdf=4).
-#     Default mirrors supports_vision=true (text + image).
+#     Default input_modalities = ["text", "image"] (vision capable baseline).
 #   * tokenizer — omitted → None (most providers don't disclose).
 #   * supported_parameters — empty; rules add flags for specific models.
 #   * supports_system_messages — true (virtually all chat models).
@@ -98,8 +98,8 @@ caps  = { token_limit_param = "max-completion-tokens", supports_temperature = fa
 
 # [3] OpenAI reasoning series, dash-suffix family (o1-preview, o1-mini,
 #     o3-mini, …). Text-only: o1-mini and o3-mini never got the vision
-#     update that o1-2024-12-17 received. supports_vision=false explicit —
-#     contradicts default=true.
+#     update that o1-2024-12-17 received. input_modalities=["text"] explicit —
+#     contradicts the default baseline ["text", "image"].
 [[rules]]
 name  = "openai-o-series-family"
 scope = { providers = ["openai", "openrouter"] }
@@ -154,8 +154,8 @@ caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_mod
 #     budget per Anthropic API.
 #
 #     LOAD-BEARING ORDER: sits BEFORE the deepseek rules so (deepseek,
-#     "claude-foo") picks up reasoning=true instead of
-#     supports_vision=false. Proptest-era parity pinned this; kept same.
+#     "claude-foo") picks up reasoning=true instead of the text-only
+#     deepseek baseline. Proptest-era parity pinned this; kept same.
 [[rules]]
 name  = "claude-family-any-provider"
 match = { kind = "prefix_any", prefixes = ["claude"] }
@@ -175,7 +175,7 @@ routing_complete = true
 
 # [11] DeepSeek reasoner — rejects temperature. IS a reasoning model
 #      (reasoning=true was MISSING from the pre-2b TOML: current rule only
-#      had supports_temperature=false + supports_vision=false). DeepSeek R1
+#      had supports_temperature=false + text-only modalities). DeepSeek R1
 #      returns reasoning_content on the reasoner endpoint.
 #      ⚠ NO StructuredOutputNative — DeepSeek supports json_object only,
 #        not json_schema (confirmed from api-docs.deepseek.com).
@@ -222,8 +222,8 @@ caps  = { supports_temperature = false, supports_stop_sequences = false, reasoni
 # [15] Any other xAI model (grok-3, grok-3-fast, grok-3-beta). Text-only
 #      (grok-3 inputModalities=[1] per xAI docs). reasoning=false. stop=true
 #      (non-reasoning models keep stop sequences per xAI docs).
-#      ⚠ supports_vision=false REQUIRED — without it, defaults give true,
-#        which is WRONG for grok-3.
+#      ⚠ input_modalities = ["text"] REQUIRED — without it, defaults give
+#        ["text", "image"], which is WRONG for grok-3.
 [[rules]]
 name             = "xai-any-model"
 scope            = { providers = ["xai"] }
@@ -294,8 +294,8 @@ match = { kind = "prefix_any", prefixes = ["magistral"] }
 caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
 
 # [22] Any other Mistral model (codestral, devstral, ministral, …). Text.
-#      ⚠ supports_vision=false REQUIRED (defaults give true; text-only
-#        contradicts).
+#      ⚠ input_modalities = ["text"] REQUIRED (defaults give ["text", "image"];
+#        text-only contradicts).
 #      supported_parameters includes structured-output-native: Mistral
 #      OpenAPI spec lists ResponseFormats = [text, json_object, json_schema]
 #      for ALL chat completions models (codestral/devstral included).
@@ -337,7 +337,7 @@ caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image"
 
 # [26] Native (local GGUF / mistral.rs) — text-only by default. No
 #      structured output native. No system messages restriction.
-#      ⚠ supports_vision=false REQUIRED (defaults give true; text-only).
+#      ⚠ input_modalities = ["text"] REQUIRED (defaults give ["text", "image"]; text-only).
 [[rules]]
 name             = "native-any"
 scope            = { providers = ["native"] }

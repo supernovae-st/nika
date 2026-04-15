@@ -401,13 +401,16 @@ mod model_pricing_tests {
     }
 
     #[test]
+    #[cfg(feature = "pricing")]
     fn three_session3_axes_default_to_none_everywhere_in_all_pricing() {
-        // The 62 ALL_PRICING entries are all populated with None for the
-        // 3 new Session 3 axes — real values land in Phase E2 (the TOML
-        // migration) with per-provider research. This test guards against
-        // a silent regression where a future commit flips one to Some()
-        // without updating the corresponding test + documentation.
-        #[cfg(feature = "pricing")]
+        // TODO(Phase-E2): replace the all-None assertions with value-range
+        // checks once the TOML-driven pricing catalog lands and real
+        // per-provider rates (cached_input, image, reasoning_tokens) are
+        // populated. Until then, the 62 ALL_PRICING entries are None for
+        // the 3 new Session 3 axes — real values await per-provider
+        // research. This test guards against a silent regression where a
+        // future commit flips one to Some() without updating the
+        // corresponding test + documentation.
         for entry in crate::data::models::ALL_PRICING {
             assert_eq!(
                 entry.cached_input_per_million, None,
