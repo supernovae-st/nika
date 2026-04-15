@@ -92,6 +92,10 @@ pre-push:
       fail_text: 'cargo machete: unused dependencies detected.'
 
     force-push-guard:
+      # Forward git's pre-push refspec (<local-ref> <local-sha> <remote-ref>
+      # <remote-sha>) to the hook — lefthook v2 defaults to /dev/null otherwise,
+      # which hangs the `while read` loop indefinitely.
+      stdin: true
       run: bash scripts/hooks/force-push-guard.sh
 
 post-commit:
