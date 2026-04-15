@@ -102,7 +102,7 @@ for filepath in "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md; do
   title="$(fm_scalar "title" "$fm")"
   status="$(fm_scalar "status" "$fm")"
   date="$(fm_scalar "date" "$fm")"
-  deciders="$(fm_scalar "deciders" "$fm")"
+  deciders="$(fm_array "deciders" "$fm" | head -1)"
 
   # Check id matches filename
   fname_num="$(printf '%s' "$fname" | grep -oE 'adr-[0-9]{3}' | grep -oE '[0-9]{3}')"

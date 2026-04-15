@@ -142,7 +142,7 @@
       "supersedes": [],
       "superseded_by": [],
       "related": ["ADR-003","ADR-011"],
-      "requires": [],
+      "requires": ["ADR-003"],
       "enables": []
     }
     ,
