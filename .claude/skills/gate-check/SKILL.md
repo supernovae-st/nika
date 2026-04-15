@@ -18,9 +18,9 @@ test -f docs/crate-specs/$ARGUMENTS.md && echo PASS || echo FAIL
 ## Gate 2 — TDD (tests written first)
 
 ```bash
-grep -rc -E '#\[(test|tokio::test)\]' tools/$ARGUMENTS/src 2>/dev/null | awk -F: '{s+=$2} END{print s " tests"}'
+grep -rc -E '#\[(test|tokio::test)\]' crates/$ARGUMENTS/src 2>/dev/null | awk -F: '{s+=$2} END{print s " tests"}'
 ```
-PASS if tests > 20 per 1k LOC. Check `git log --oneline tools/$ARGUMENTS/` for test-first commit order.
+PASS if tests > 20 per 1k LOC. Check `git log --oneline crates/$ARGUMENTS/` for test-first commit order.
 
 ## Gate 3 — IMPL (compiles, tests pass)
 
@@ -44,14 +44,14 @@ cargo mutants -p $ARGUMENTS --timeout 30 2>&1 | tail -5
 ## Gate 6 — PROPERTY (proptest if parser/security/encoding)
 
 ```bash
-grep -rE 'proptest!|quickcheck!' tools/$ARGUMENTS/ 2>/dev/null | wc -l
+grep -rE 'proptest!|quickcheck!' crates/$ARGUMENTS/ 2>/dev/null | wc -l
 ```
 N/A if crate is pure types. Document exemption in spec.
 
 ## Gate 7 — BENCHMARKS (if hot path)
 
 ```bash
-test -d tools/$ARGUMENTS/benches && echo PASS || echo "N/A (not hot path)"
+test -d crates/$ARGUMENTS/benches && echo PASS || echo "N/A (not hot path)"
 ```
 
 ## Gate 8 — DOCS (cargo doc 0 warnings, pub items documented)
@@ -77,7 +77,7 @@ Launch 3 parallel agents. See `.claude/agents/review-swarm.md`.
 ## Gate 12 — ATOMIC COMMIT
 
 ```bash
-git log --oneline --grep "admit to workspace" tools/$ARGUMENTS/ | head -5
+git log --oneline --grep "admit to workspace" crates/$ARGUMENTS/ | head -5
 ```
 PASS = exactly 1 commit `feat($ARGUMENTS): admit to workspace — all 12 gates passed`, co-authored Nika 🦋.
 

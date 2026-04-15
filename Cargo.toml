@@ -1,19 +1,19 @@
 [workspace]
 resolver = "3"
-members  = ["tools/nika-error", "tools/nika-catalog", "tools/nika-catalog-verify", "tools/nika-kernel", "tools/nika-kernel-mock"]
+members  = ["crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-mock"]
 # Excluded so cargo does not try to descend into untracked main-leftover
-# manifests under tools/ (the orphan working tree carries them but they
+# manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
 exclude = [
-  "tools/nika-blob", "tools/nika-builtin", "tools/nika-cli", "tools/nika-clock",
-  "tools/nika-core", "tools/nika-daemon", "tools/nika-display", "tools/nika-engine",
-  "tools/nika-event", "tools/nika-exec-runner", "tools/nika-extract", "tools/nika-fs",
-  "tools/nika-http", "tools/nika-init",
-  "tools/nika-lsp", "tools/nika-lsp-core", "tools/nika-macros", "tools/nika-mcp",
-  "tools/nika-media", "tools/nika-policy", "tools/nika-sdk", "tools/nika-security",
-  "tools/nika-serve", "tools/nika-storage", "tools/nika-vault",
-  "tools/nika-verb-exec", "tools/nika-verb-fetch", "tools/nika-verb-infer",
-  "tools/nika-verb-invoke", "tools/nika",
+  "crates/nika-blob", "crates/nika-builtin", "crates/nika-cli", "crates/nika-clock",
+  "crates/nika-core", "crates/nika-daemon", "crates/nika-display", "crates/nika-engine",
+  "crates/nika-event", "crates/nika-exec-runner", "crates/nika-extract", "crates/nika-fs",
+  "crates/nika-http", "crates/nika-init",
+  "crates/nika-lsp", "crates/nika-lsp-core", "crates/nika-macros", "crates/nika-mcp",
+  "crates/nika-media", "crates/nika-policy", "crates/nika-sdk", "crates/nika-security",
+  "crates/nika-serve", "crates/nika-storage", "crates/nika-vault",
+  "crates/nika-verb-exec", "crates/nika-verb-fetch", "crates/nika-verb-infer",
+  "crates/nika-verb-invoke", "crates/nika",
 ]
 
 [workspace.package]
@@ -24,6 +24,19 @@ authors      = ["Thibaut Melen <thibaut@supernovae.studio>"]
 rust-version = "1.91"
 repository   = "https://github.com/supernovae-st/nika"
 homepage     = "https://supernovae.studio"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Diamond layer assignments — enforced by scripts/ci/check-layering.sh.
+# L0 = zero I/O, zero async. L0.5 = trait-only. L4 = interface crates.
+# See docs/architecture/crate-layer-registry.md for the full discipline.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[workspace.metadata.diamond]
+layers.nika-error = "L0"
+layers.nika-catalog = "L0"
+layers.nika-catalog-verify = "L4"
+layers.nika-kernel = "L0.5"
+layers.nika-kernel-mock = "L0.5"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Workspace-wide lint policy. Every member crate MUST opt in via:

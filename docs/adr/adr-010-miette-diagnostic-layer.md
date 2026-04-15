@@ -55,9 +55,9 @@ The Rust 2026 ecosystem has converged on **miette** for this role (ruff, uv, car
 
 ## Evidence
 
-- `tools/nika-error/Cargo.toml:14` — `miette = { workspace = true, features = ["fancy-no-backtrace"] }`
-- `tools/nika-error/src/nika_error.rs:97` — `impl miette::Diagnostic for NikaError`
-- `tools/nika-error/src/codes.rs:128` — per-code help strings
+- `crates/nika-error/Cargo.toml:14` — `miette = { workspace = true, features = ["fancy-no-backtrace"] }`
+- `crates/nika-error/src/nika_error.rs:97` — `impl miette::Diagnostic for NikaError`
+- `crates/nika-error/src/codes.rs:128` — per-code help strings
 - ADR-005 — the structural error hierarchy this extends
 
 ## Alternatives considered

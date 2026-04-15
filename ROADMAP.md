@@ -104,12 +104,10 @@ P2/P3 into the pre-push full path.
 
 ## v0.81–v0.82 — Workspace rename + release automation (ships when ready)
 
-- **`tools/` → `crates/` rename** — converge on the Cargo community
-  convention. One commit: `git mv tools crates`, update workspace
-  `members` / `exclude`, update all path references in docs, scripts,
-  and CI workflows. Verified by `cargo test --workspace --lib` staying
+- **`tools/` -> `crates/` rename** -- DONE (converged on Cargo community
+  convention; verified by `cargo test --workspace --lib` staying
   green and grep returning zero `tools/nika-` outside historical ADR
-  prose.
+  references and legacy-lookup commands).
 - **Release automation skeleton** — `release-plz.toml`, `cliff.toml`,
   `justfile` at engine root, and `crates/xtask/` port of the release +
   hygiene runners into typed Rust.

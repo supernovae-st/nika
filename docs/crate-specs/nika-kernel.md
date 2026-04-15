@@ -657,7 +657,7 @@ coming from the memory/agent-v2 hooks (~500 LOC) that did not exist in legacy.
 ## 4. File layout
 
 ```
-tools/nika-kernel/
+crates/nika-kernel/
   Cargo.toml
   src/
     lib.rs              (~60 LOC — pub mod + re-exports)

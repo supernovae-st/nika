@@ -310,7 +310,7 @@ impl NullContextCompressor {
 ## 3. File layout
 
 ```
-tools/nika-kernel-mock/
+crates/nika-kernel-mock/
   Cargo.toml
   src/
     lib.rs                (~40 LOC — pub mod + re-exports of all 11 types)

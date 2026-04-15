@@ -113,11 +113,7 @@ Before modifying any crate, read:
 
 ### Workspace layout
 
-Crates currently live under `tools/nika-*`. The v0.81 milestone renames
-`tools/` to `crates/` to converge on the Cargo community convention
-(single commit, grep-driven, verified by `cargo test --workspace --lib`
-staying green). Until the rename lands, scripts and docs reference
-`tools/nika-*`; after the rename, all references become `crates/nika-*`.
+Crates live under `crates/nika-*` (renamed from `tools/` at v0.81).
 
 ### Hygiene vectors
 

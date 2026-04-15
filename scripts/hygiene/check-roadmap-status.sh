@@ -2,11 +2,14 @@
 # Vector 5: ROADMAP.md checkboxes for admitted crates should be ticked.
 set -u
 ROADMAP="ROADMAP.md"
-[ -f "$ROADMAP" ] || { echo "ROADMAP.md not found"; exit 1; }
+[ -f "$ROADMAP" ] || {
+  echo "ROADMAP.md not found"
+  exit 1
+}
 
 # For each admitted crate, check the roadmap box.
 missed=""
-for cargo in tools/*/Cargo.toml; do
+for cargo in crates/*/Cargo.toml; do
   [ -f "$cargo" ] || continue
   crate="$(basename "$(dirname "$cargo")")"
   # Look for "- [ ] nika-X" or "- [ ] `nika-X`" or similar unticked entries
@@ -16,6 +19,8 @@ for cargo in tools/*/Cargo.toml; do
 done
 
 if [ -n "$missed" ]; then
-  echo "unchecked boxes: ${missed}"; exit 1
+  echo "unchecked boxes: ${missed}"
+  exit 1
 fi
-echo "OK (roadmap consistent)"; exit 0
+echo "OK (roadmap consistent)"
+exit 0

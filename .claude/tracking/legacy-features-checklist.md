@@ -11,7 +11,7 @@
 |---|---|---|
 | `nika-core/src/error.rs` + `error_codes.rs` | `nika-error` | ✅ admitted `42909b1c7` |
 | `nika-core/src/catalogs/*` (7 catalogs) | `nika-catalog` | ✅ admitted `55a451695` |
-| `tools/catalog-verify` (xtask) | `nika-catalog-verify` | ✅ admitted `a977e35b1` |
+| `crates/catalog-verify` (xtask) | `nika-catalog-verify` | ✅ admitted `a977e35b1` |
 | `nika-kernel/src/*` | `nika-kernel` | ✅ admitted `ef8804371` |
 | kernel mocks | `nika-kernel-mock` | ✅ admitted `ef8804371` |
 

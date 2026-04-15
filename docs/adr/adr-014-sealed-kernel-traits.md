@@ -74,7 +74,7 @@ Adding a trait method still requires care, but the set of implementors is **fini
 ## Evidence
 
 - Pattern sources: axum, serde (`private::Sealed`), rustls (`server::ServerConfig` sealed), tokio-stream
-- `tools/nika-kernel/src/lib.rs:19-34` — trait hierarchy (to be updated with sealed pattern)
+- `crates/nika-kernel/src/lib.rs:19-34` — trait hierarchy (to be updated with sealed pattern)
 
 ## Alternatives considered
 

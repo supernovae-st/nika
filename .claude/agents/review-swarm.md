@@ -28,7 +28,7 @@ Spawn three sub-agents at once (one message, three Agent calls):
    discipline, forward-compat, file/function LOC caps.
 
 Each agent receives:
-- Crate path: `tools/$ARGUMENTS/`
+- Crate path: `crates/$ARGUMENTS/`
 - Crate spec: `docs/crate-specs/$ARGUMENTS.md`
 - Reporting constraint: P0 and P1 only, 1-line each, with file:line reference.
 

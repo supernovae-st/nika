@@ -21,15 +21,15 @@ echo "=== GATE 4: CLIPPY 0 ==="
 cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tail -5
 
 echo "=== GATE 4b: UNWRAP 0 ==="
-UNWRAPS=$(rg '\.unwrap\(\)' "tools/$CRATE/src" --type rust -g '!*test*' 2>/dev/null | wc -l | tr -d ' ')
+UNWRAPS=$(rg '\.unwrap\(\)' "crates/$CRATE/src" --type rust -g '!*test*' 2>/dev/null | wc -l | tr -d ' ')
 echo "Unwraps in src/: $UNWRAPS (target: 0)"
 
 echo "=== GATE 4c: DEAD CODE 0 ==="
-rg '#\[allow\(dead_code\)\]' "tools/$CRATE/src" --type rust 2>/dev/null | wc -l
+rg '#\[allow\(dead_code\)\]' "crates/$CRATE/src" --type rust 2>/dev/null | wc -l
 
 echo "=== GATE 4d: FILE SIZE ==="
-find "tools/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null | awk '$1 > 1500 {print "❌", $0}'
-find "tools/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null | tail -1
+find "crates/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null | awk '$1 > 1500 {print "❌", $0}'
+find "crates/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null | tail -1
 
 echo "=== GATE 8: DOCS ==="
 cargo doc --no-deps -p "$CRATE" 2>&1 | grep -c 'warning' || echo "0 warnings"
@@ -48,10 +48,10 @@ GATE 5  — MUTATION: cargo mutants -p $CRATE (≥90% killed?)
            → Run: cargo mutants -p $CRATE
 
 GATE 6  — PROPERTY: proptest exists if security-sensitive?
-           → Check: grep -r 'proptest' tools/$CRATE/
+           → Check: grep -r 'proptest' crates/$CRATE/
 
 GATE 7  — BENCHMARKS: benches/ exists if hot path?
-           → Check: ls tools/$CRATE/benches/ 2>/dev/null
+           → Check: ls crates/$CRATE/benches/ 2>/dev/null
 
 GATE 9  — CANARY E2E: tests/canary-$CRATE.nika.yaml exists?
            → Check: ls tests/canary-$CRATE.nika.yaml 2>/dev/null

@@ -85,11 +85,11 @@ Session 2a (2026-04-14) set the target: move all catalog data to TOML with schem
 
 ## Evidence
 
-- `tools/nika-catalog/data/model-capabilities.toml` lines 1–80 — schema, FK invariants, resolution algorithm, first-match-wins authoring note
-- `tools/nika-catalog/data/llm-providers.toml` lines 1–50 — `api_dialect` on every provider
-- `tools/nika-catalog/build.rs` lines 1–50 — build script overview
-- `tools/nika-catalog/build/capabilities.rs` — 380 LOC codegen (extracted per 1,500 LOC cap, ADR-004)
-- `tools/nika-catalog/src/types/capabilities.rs` — 276 LOC: `CapPatch`, `Matcher`, `Rule`
+- `crates/nika-catalog/data/model-capabilities.toml` lines 1–80 — schema, FK invariants, resolution algorithm, first-match-wins authoring note
+- `crates/nika-catalog/data/llm-providers.toml` lines 1–50 — `api_dialect` on every provider
+- `crates/nika-catalog/build.rs` lines 1–50 — build script overview
+- `crates/nika-catalog/build/capabilities.rs` — 380 LOC codegen (extracted per 1,500 LOC cap, ADR-004)
+- `crates/nika-catalog/src/types/capabilities.rs` — 276 LOC: `CapPatch`, `Matcher`, `Rule`
 - `docs/crate-specs/nika-catalog.md` lines 1–60 — hybrid lookup rationale
 - `CHANGELOG.md` — Session 2a entry "TOML-driven model capabilities" (Unreleased section)
 - Related crates: **`nika-catalog`** (L0, 4,690 LOC, 154 tests), **`nika-catalog-verify`** (L4 binary, online check)

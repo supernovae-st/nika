@@ -56,7 +56,7 @@ Vectors:
 | # | Vector | What it catches |
 |---|---|---|
 | 1 | memory-head-sha | MEMORY.md HEAD out of sync with `git rev-parse HEAD` |
-| 2 | crate-count | `ls tools/*/Cargo.toml` ≠ MEMORY's count |
+| 2 | crate-count | `ls crates/*/Cargo.toml` ≠ MEMORY's count |
 | 3 | loc-totals | Per-crate LOC drift |
 | 4 | changelog-dates | CHANGELOG top entry date sanity |
 | 5 | roadmap-crate-status | ROADMAP mentions match admitted crates |

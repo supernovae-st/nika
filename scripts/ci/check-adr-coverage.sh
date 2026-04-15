@@ -37,7 +37,7 @@ if [ ! -f "$CARGO_TOML" ]; then
 fi
 
 # Extract admitted workspace members (first-level only, skip exclude list)
-# Handles two styles: `members = ["tools/...", ...]` on a single line, or multi-line array.
+# Handles two styles: `members = ["crates/...", ...]` on a single line, or multi-line array.
 members=$(awk '
   /^members[[:space:]]*=/ { in_members=1 }
   in_members {
@@ -48,7 +48,7 @@ members=$(awk '
     gsub(/[\[\]"]/, "")
     gsub(/,/, " ")
     for (i=1; i<=NF; i++) {
-      if ($i ~ /^tools\//) print $i
+      if ($i ~ /^crates\//) print $i
     }
     if (has_close) in_members=0
   }
@@ -90,7 +90,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
     printf '   %s↳%s %s  (add reference in docs/adr/adr-NNN-*.md or write a new ADR)\n' "$C_YELLOW" "$C_RESET" "$m"
   done
   # P1-5 Batch H+ (Q-RATCHET scoped fail): if the staged diff adds a NEW
-  # Cargo.toml under tools/ or crates/ without a matching ADR in the same
+  # Cargo.toml under crates/ without a matching ADR in the same
   # diff, FAIL hard. Historical crates without ADR coverage remain warn-only.
   if [ "${FAIL_ON_MISS:-0}" = "1" ]; then
     exit 1

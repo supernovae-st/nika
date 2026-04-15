@@ -404,7 +404,7 @@ Every file stays under 1,500 LOC. The legacy `parser.rs` (4,377 LOC) and
 `guardrails.rs` (2,166 LOC) are split into modules.
 
 ```
-tools/nika-schema/
+crates/nika-schema/
   Cargo.toml
   src/
     lib.rs                          (~80 LOC — pub mod + re-exports + parse_analyzed)
@@ -568,7 +568,7 @@ serde_json = { workspace = true }
 ## 6. File structure
 
 ```
-tools/nika-schema/
+crates/nika-schema/
 ├── Cargo.toml
 ├── src/
 │   ├── lib.rs

@@ -193,7 +193,7 @@ impl nika_error::NikaErrorCode for CatalogError;
 ## 4. File layout
 
 ```
-tools/nika-catalog/
+crates/nika-catalog/
 ├── Cargo.toml
 ├── COMMUNITY_EXTENSIONS.md       ← extension-author guide
 ├── build.rs                      (~1,264 LOC — MCP/providers/embeddings parse+emit)

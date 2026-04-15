@@ -140,7 +140,7 @@ Phase 1 admits only codes 001-003, 999. Other codes ship with their owner crates
 ## 5. File layout
 
 ```
-tools/nika-error/
+crates/nika-error/
   Cargo.toml
   src/
     lib.rs          (~50 LOC — pub mod + re-exports)

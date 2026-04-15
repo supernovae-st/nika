@@ -8,7 +8,7 @@ Usage: `/admit nika-foo`
 ## Argument
 
 $ARGUMENTS = candidate crate name (e.g. `nika-foo`). Must already
-exist on disk under `tools/$ARGUMENTS/` with at minimum a `Cargo.toml`
+exist on disk under `crates/$ARGUMENTS/` with at minimum a `Cargo.toml`
 and `src/lib.rs`, but **must not yet** be in `[workspace] members`.
 
 ## Pre-flight (run first, abort if any fail)
@@ -22,8 +22,8 @@ CRATE="$ARGUMENTS"
 [[ "$CRATE" =~ ^nika-[a-z0-9][a-z0-9-]{0,40}$ ]] \
   || { echo "❌ invalid crate name: must match ^nika-[a-z0-9][a-z0-9-]{0,40}$"; exit 1; }
 
-test -d "tools/$CRATE" || { echo "❌ tools/$CRATE not found"; exit 1; }
-grep -q "\"tools/$CRATE\"" Cargo.toml && { echo "❌ already in workspace"; exit 1; }
+test -d "crates/$CRATE" || { echo "❌ crates/$CRATE not found"; exit 1; }
+grep -q "\"crates/$CRATE\"" Cargo.toml && { echo "❌ already in workspace"; exit 1; }
 test -f "docs/crate-specs/$CRATE.md" || { echo "❌ Gate 1 fail: missing spec"; exit 1; }
 git diff --quiet || { echo "❌ working tree dirty — commit or stash first"; exit 1; }
 # Use a dedicated revert filename so we never clobber a user's own .bak
@@ -39,13 +39,13 @@ test -f "docs/crate-specs/$CRATE.md" && echo "✅" || exit 1
 
 echo "── Gate 2: TDD (manual review) ──"
 echo "Inspect git log for $CRATE — were #[test] commits BEFORE impl commits?"
-git log --oneline --reverse -- "tools/$CRATE/" | head -10
+git log --oneline --reverse -- "crates/$CRATE/" | head -10
 
 echo "── Gate 3: IMPL compiles ──"
 # Temporarily add to workspace for the rest of the gates. The revert
 # file is independent of sed so an existing user .bak never gets clobbered.
 cp Cargo.toml "$BAK"
-sed -i.swap "s|members  = \[|members  = [\"tools/$CRATE\", |" Cargo.toml \
+sed -i.swap "s|members  = \[|members  = [\"crates/$CRATE\", |" Cargo.toml \
   && rm -f Cargo.toml.swap
 trap 'mv "$BAK" Cargo.toml 2>/dev/null' EXIT INT TERM
 cargo check -p "$CRATE" 2>&1 | tail -3 || exit 1
@@ -57,12 +57,12 @@ echo "── Gate 4: CLIPPY 0 (covers Gate 4b — clippy unwrap_used = \"deny\" 
 cargo clippy -p "$CRATE" --all-targets -- -D warnings 2>&1 | tail -5 || exit 1
 
 echo "── Gate 4c: ZERO #[allow(dead_code)] ──"
-DEAD=$(rg '#\[allow\(dead_code\)\]' "tools/$CRATE/src" --type rust | wc -l | tr -d ' ')
+DEAD=$(rg '#\[allow\(dead_code\)\]' "crates/$CRATE/src" --type rust | wc -l | tr -d ' ')
 [ "$DEAD" = "0" ] && echo "✅ 0 dead_code allows" \
   || { echo "❌ $DEAD dead_code allows"; exit 1; }
 
 echo "── Gate 4d: FILE SIZE ≤1500 LOC ──"
-OVER=$(find "tools/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null \
+OVER=$(find "crates/$CRATE/src" -name '*.rs' | xargs wc -l 2>/dev/null \
        | awk '$1 > 1500 && $2 != "total" {print}')
 [ -z "$OVER" ] && echo "✅ all files ≤1500 LOC" \
   || { echo "❌ files over 1500 LOC: $OVER"; exit 1; }
@@ -72,11 +72,11 @@ echo "Run: cargo mutants -p $CRATE --timeout 300"
 echo "Must report ≥90% killed before continuing."
 
 echo "── Gate 6: PROPERTY (manual) ──"
-grep -rl proptest "tools/$CRATE/" 2>/dev/null && echo "✅ proptest present" \
+grep -rl proptest "crates/$CRATE/" 2>/dev/null && echo "✅ proptest present" \
   || echo "⚠️  no proptest — exempt only if non-security-sensitive (justify in spec)"
 
 echo "── Gate 7: BENCHMARKS (manual) ──"
-test -d "tools/$CRATE/benches" && echo "✅ benches/ present" \
+test -d "crates/$CRATE/benches" && echo "✅ benches/ present" \
   || echo "⚠️  no benches — exempt only if not hot-path (justify in spec)"
 
 echo "── Gate 8: DOCS — 0 cargo doc warnings ──"
@@ -106,15 +106,15 @@ echo "If $CRATE is not yet covered, write or extend an ADR before commit."
 # Ctrl-C and unexpected exits earlier in the script.
 mv "$BAK" Cargo.toml
 trap - EXIT INT TERM
-echo "── Workspace edit reverted. Re-add tools/$CRATE to members manually for the commit. ──"
+echo "── Workspace edit reverted. Re-add crates/$CRATE to members manually for the commit. ──"
 ```
 
 ## Gate 12 — atomic commit
 
 After all 11 gates green:
 
-1. Edit `Cargo.toml` `members = […]` — add `"tools/$CRATE"` (one line)
-2. Stage exactly: `git add Cargo.toml tools/$CRATE/`
+1. Edit `Cargo.toml` `members = […]` — add `"crates/$CRATE"` (one line)
+2. Stage exactly: `git add Cargo.toml crates/$CRATE/`
 3. Verify staged scope: `git diff --cached --stat`
 4. Commit with the canonical body (per `.claude/rules/commit-granularity.md`):
 

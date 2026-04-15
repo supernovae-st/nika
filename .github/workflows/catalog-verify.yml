@@ -14,8 +14,8 @@ on:
   pull_request:
     branches: [nika-diamond]
     paths:
-      - 'tools/nika-catalog/data/**'
-      - 'tools/nika-catalog-verify/**'
+      - 'crates/nika-catalog/data/**'
+      - 'crates/nika-catalog-verify/**'
       - '.github/workflows/catalog-verify.yml'
   workflow_dispatch:
 

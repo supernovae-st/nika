@@ -78,8 +78,8 @@ Three alternatives were weighed during `nika-error` admission:
 
 ## Evidence
 
-- `tools/nika-error/src/traits.rs` lines 43–71 — `NikaErrorCode` trait definition with `is_transient`, `fingerprint` defaults
-- `tools/nika-error/src/lib.rs` — full crate structure, 1,013 LOC, 44 tests, Gate 5 mutation 100%
+- `crates/nika-error/src/traits.rs` lines 43–71 — `NikaErrorCode` trait definition with `is_transient`, `fingerprint` defaults
+- `crates/nika-error/src/lib.rs` — full crate structure, 1,013 LOC, 44 tests, Gate 5 mutation 100%
 - `docs/architecture/forward-compat-invariants.md` lines 105–127 — reserved error code ranges table
 - `CHANGELOG.md` — `nika-error` admission commit `42909b1c7`
 - Related crate: **`nika-error`** (first admitted, L0)
@@ -100,7 +100,7 @@ Evaluated in Rust Council. Rejected: snafu's context pattern is ergonomic for sm
 - ADR-007 — forward-compat invariants (`#[non_exhaustive]` on error enums)
 - ADR-010 — miette as L4 presentation (the rendering contract that wraps this structural contract)
 - ADR-015 — `expect-test` inline snapshots (regression coverage for rendered error output)
-- `tools/nika-error` — implementation
+- `crates/nika-error` — implementation
 - `docs/architecture/forward-compat-invariants.md` — error code range registry
 
 ## Notes

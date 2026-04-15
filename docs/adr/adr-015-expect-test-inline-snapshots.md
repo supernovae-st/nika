@@ -65,8 +65,8 @@ The Rust 2026 ecosystem (rust-analyzer, ruff-equivalent crates, hashbrown, rustl
 ## Evidence
 
 - `Cargo.toml:90` — `expect-test = "1.5"` pinned in `[workspace.dependencies]` dev block.
-- `tools/nika-error/src/nika_error.rs` — first use site: `display_format_pinned_inline` test pinning the `NIKA-002: not found: task foo` rendering.
-- `tools/nika-error/Cargo.toml` — `[dev-dependencies] expect-test.workspace = true`.
+- `crates/nika-error/src/nika_error.rs` — first use site: `display_format_pinned_inline` test pinning the `NIKA-002: not found: task foo` rendering.
+- `crates/nika-error/Cargo.toml` — `[dev-dependencies] expect-test.workspace = true`.
 
 ## Alternatives considered
 
@@ -86,7 +86,7 @@ Rejected. The pattern is 200 LOC and three macros. Reinventing it costs more tha
 
 - ADR-010 — miette as the L4 presentation layer (this ADR pins regression coverage *of* that layer).
 - ADR-007 — forward-compat invariants (snapshot tests are how we detect when `#[non_exhaustive]` types grow new variants that change rendered output).
-- `tools/nika-catalog/src/data/snapshots/` — existing `insta` snapshots for the larger structured cases (pattern preserved).
+- `crates/nika-catalog/src/data/snapshots/` — existing `insta` snapshots for the larger structured cases (pattern preserved).
 
 ## Notes
 

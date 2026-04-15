@@ -3,9 +3,9 @@ name: Forward-compat — API surface + semver
 on:
   pull_request:
     paths:
-      - 'tools/**/src/lib.rs'
-      - 'tools/**/src/**/*.rs'
-      - 'tools/**/Cargo.toml'
+      - 'crates/**/src/lib.rs'
+      - 'crates/**/src/**/*.rs'
+      - 'crates/**/Cargo.toml'
       - 'Cargo.toml'
   workflow_dispatch:
 
@@ -34,7 +34,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          for crate in tools/*/Cargo.toml; do
+          for crate in crates/*/Cargo.toml; do
             name=$(basename "$(dirname "$crate")")
             echo "::group::$name public API diff"
             cargo public-api --package "$name" \

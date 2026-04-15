@@ -2,7 +2,7 @@
 # Vector 6: docs/crate-specs/nika-X.md exists for each admitted crate.
 set -u
 missing=""
-for cargo in tools/*/Cargo.toml; do
+for cargo in crates/*/Cargo.toml; do
   [ -f "$cargo" ] || continue
   crate="$(basename "$(dirname "$cargo")")"
   spec="docs/crate-specs/${crate}.md"
@@ -10,6 +10,8 @@ for cargo in tools/*/Cargo.toml; do
 done
 
 if [ -n "$missing" ]; then
-  echo "missing specs: ${missing}"; exit 2
+  echo "missing specs: ${missing}"
+  exit 2
 fi
-echo "OK (all specs present)"; exit 0
+echo "OK (all specs present)"
+exit 0

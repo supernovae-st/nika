@@ -29,7 +29,7 @@ Brainstorm session 2026-04-13. Validated by user.
 ## File layout (10 files)
 
 ```
-tools/nika-kernel/src/
+crates/nika-kernel/src/
   lib.rs           (~40 LOC -- re-exports)
   clock.rs         (~30 LOC -- Clock sync, Instant/SystemTime)
   fs.rs            (~120 LOC -- FsRead/FsWrite/FsMeta/FsList + Fs)
@@ -45,7 +45,7 @@ TOTAL: ~1,350 LOC
 ```
 
 ```
-tools/nika-kernel-mock/src/
+crates/nika-kernel-mock/src/
   lib.rs
   mock_clock.rs    (MockClock -- controllable Instant)
   mock_fs.rs       (InMemoryFs -- HashMap<PathBuf, Bytes>)

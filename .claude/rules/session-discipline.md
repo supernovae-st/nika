@@ -7,7 +7,7 @@
 3. Grep-verify les 3 chiffres clés :
    ```bash
    git log --oneline -1                    # HEAD correct ?
-   ls tools/*/Cargo.toml 2>/dev/null | wc -l  # crates admises ?
+   ls crates/*/Cargo.toml 2>/dev/null | wc -l  # crates admises ?
    cargo clippy --workspace 2>&1 | tail -3  # CI green ?
    ```
 4. Si divergence avec docs → STOP, escalader, fixer avant de coder

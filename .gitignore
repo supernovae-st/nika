@@ -13,7 +13,7 @@ Cargo.lock.bak
 
 # Runtime state (nika serve traces, db, media cache)
 /.nika/
-**/tools/.nika/
+**/crates/.nika/
 
 # Local env files (secrets never in repo — use nika-vault)
 .env
@@ -25,43 +25,43 @@ Cargo.lock.bak
 # MCP server config (local, not in repo)
 .mcp.json
 
-# Legacy from main — NOT part of diamond workspace.
-# Only tools/nika-error/ is admitted. Everything else is excluded.
+# Legacy from main -- NOT part of diamond workspace.
+# Only crates/nika-error/ is admitted. Everything else is excluded.
 /dx
 /editors/
-/tools/nika-blob/
-/tools/nika-builtin/
-/tools/nika-cli/
-/tools/nika-clock/
-/tools/nika-core/
-/tools/nika-daemon/
-/tools/nika-display/
-/tools/nika-engine/
-/tools/nika-event/
-/tools/nika-exec-runner/
-/tools/nika-extract/
-/tools/nika-fs/
-/tools/nika-http/
-/tools/nika-init/
-# /tools/nika-kernel/       — ADMITTED Step 3
-# /tools/nika-kernel-mock/  — ADMITTED Step 3
-/tools/nika-lsp/
-/tools/nika-lsp-core/
-/tools/nika-macros/
-/tools/nika-mcp/
-/tools/nika-media/
-/tools/nika-policy/
-/tools/nika-sdk/
-/tools/nika-security/
-/tools/nika-serve/
-/tools/nika-storage/
-/tools/nika-vault/
-/tools/nika-verb-exec/
-/tools/nika-verb-fetch/
-/tools/nika-verb-infer/
-/tools/nika-verb-invoke/
-/tools/nika/
-/tools/.claude/
+/crates/nika-blob/
+/crates/nika-builtin/
+/crates/nika-cli/
+/crates/nika-clock/
+/crates/nika-core/
+/crates/nika-daemon/
+/crates/nika-display/
+/crates/nika-engine/
+/crates/nika-event/
+/crates/nika-exec-runner/
+/crates/nika-extract/
+/crates/nika-fs/
+/crates/nika-http/
+/crates/nika-init/
+# /crates/nika-kernel/       -- ADMITTED Step 3
+# /crates/nika-kernel-mock/  -- ADMITTED Step 3
+/crates/nika-lsp/
+/crates/nika-lsp-core/
+/crates/nika-macros/
+/crates/nika-mcp/
+/crates/nika-media/
+/crates/nika-policy/
+/crates/nika-sdk/
+/crates/nika-security/
+/crates/nika-serve/
+/crates/nika-storage/
+/crates/nika-vault/
+/crates/nika-verb-exec/
+/crates/nika-verb-fetch/
+/crates/nika-verb-infer/
+/crates/nika-verb-invoke/
+/crates/nika/
+/crates/.claude/
 
 # Mutation testing output
 mutants.out/

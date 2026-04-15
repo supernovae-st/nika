@@ -17,7 +17,7 @@ this skill.
 ```bash
 # Grep-verify current state
 git log -1 --oneline
-ls tools/$ARGUMENTS/Cargo.toml 2>/dev/null || echo "NOT SCAFFOLDED"
+ls crates/$ARGUMENTS/Cargo.toml 2>/dev/null || echo "NOT SCAFFOLDED"
 test -f docs/crate-specs/$ARGUMENTS.md || echo "SPEC MISSING — create it first"
 ```
 
@@ -32,8 +32,8 @@ File `docs/crate-specs/$ARGUMENTS.md` exists with: Purpose, Layer, LOC budget,
 Public API, Dependencies, Exemptions (if any).
 
 ### Gate 2 — TDD
-Verify test commits precede impl commits via `git log --oneline tools/$ARGUMENTS/`.
-Count tests in `tools/$ARGUMENTS/src/` and `tools/$ARGUMENTS/tests/`.
+Verify test commits precede impl commits via `git log --oneline crates/$ARGUMENTS/`.
+Count tests in `crates/$ARGUMENTS/src/` and `crates/$ARGUMENTS/tests/`.
 
 ### Gate 3 — IMPL
 `cargo test -p $ARGUMENTS --lib` must be all-green.
@@ -72,7 +72,7 @@ findings in the SAME session before proceeding.
 When all 11 prior gates PASS, stage ONLY the files for this crate:
 
 ```bash
-git add tools/$ARGUMENTS/ docs/crate-specs/$ARGUMENTS.md
+git add crates/$ARGUMENTS/ docs/crate-specs/$ARGUMENTS.md
 # NEVER `git add -A` or `git add .`
 ```
 
