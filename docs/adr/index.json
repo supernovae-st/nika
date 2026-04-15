@@ -1,0 +1,245 @@
+{
+  "schema_version": "v1",
+  "generated": true,
+  "adrs": [
+    {
+      "id": "ADR-001",
+      "title": "Diamond orphan branch rewrite instead of iterative refactor",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-001-diamond-orphan-branch.md",
+      "tags": ["architecture","rewrite","diamond","orphan-branch"],
+      "affects_crates": [],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-004"],
+      "requires": [],
+      "enables": ["ADR-002","ADR-003","ADR-004"]
+    }
+    ,
+    {
+      "id": "ADR-002",
+      "title": "Forever v0.x -- no v1.0 target",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-002-forever-v0x.md",
+      "tags": ["versioning","release-model","semver"],
+      "affects_crates": [],
+      "affects_layers": [],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-007"],
+      "requires": ["ADR-001"],
+      "enables": ["ADR-007"]
+    }
+    ,
+    {
+      "id": "ADR-003",
+      "title": "12-gate crate admission protocol",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-003-12-gate-admission.md",
+      "tags": ["process","quality","gates","admission"],
+      "affects_crates": [],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-004","ADR-009"],
+      "requires": ["ADR-001"],
+      "enables": ["ADR-009"]
+    }
+    ,
+    {
+      "id": "ADR-004",
+      "title": "Context-window-sized crate architecture",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-004-context-window-sized-crates.md",
+      "tags": ["architecture","sizing","crate-structure","context-window"],
+      "affects_crates": [],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-003","ADR-006","ADR-011"],
+      "requires": ["ADR-001"],
+      "enables": ["ADR-003","ADR-006"]
+    }
+    ,
+    {
+      "id": "ADR-005",
+      "title": "Trait-based error hierarchy with NikaErrorCode and Box<dyn>",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-005-error-hierarchy.md",
+      "tags": ["error-handling","traits","error-codes"],
+      "affects_crates": ["nika-error"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-007","ADR-010","ADR-015"],
+      "requires": [],
+      "enables": ["ADR-010"]
+    }
+    ,
+    {
+      "id": "ADR-006",
+      "title": "Layered architecture with kernel ISP atomic traits and trait_variant",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-006-layered-kernel-isp-traits.md",
+      "tags": ["architecture","kernel","traits","isp","layers","trait-variant"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock"],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-004","ADR-007","ADR-012","ADR-013","ADR-014"],
+      "requires": ["ADR-004"],
+      "enables": ["ADR-007","ADR-012","ADR-014"]
+    }
+    ,
+    {
+      "id": "ADR-007",
+      "title": "Forward-compat invariants with non_exhaustive, new(), and pre-planted hooks",
+      "status": "accepted",
+      "date": "2026-04-13",
+      "filename": "adr-007-forward-compat-invariants.md",
+      "tags": ["forward-compat","non-exhaustive","invariants","kernel-hooks"],
+      "affects_crates": ["nika-error","nika-kernel","nika-catalog"],
+      "affects_layers": ["L0","L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-002","ADR-005","ADR-006","ADR-015"],
+      "requires": ["ADR-002","ADR-006"],
+      "enables": ["ADR-015"]
+    }
+    ,
+    {
+      "id": "ADR-008",
+      "title": "TOML-driven catalog with build-time codegen and perfect-hash lookup",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-008-toml-driven-catalog.md",
+      "tags": ["catalog","toml","codegen","build-time","phf"],
+      "affects_crates": ["nika-catalog","nika-catalog-verify"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-004","ADR-007"],
+      "requires": ["ADR-004"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-009",
+      "title": "ADR process and hook discipline (meta)",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-009-adr-process.md",
+      "tags": ["process","adr","documentation","meta"],
+      "affects_crates": [],
+      "affects_layers": [],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-011"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-010",
+      "title": "miette as the L4 diagnostic presentation layer",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-010-miette-diagnostic-layer.md",
+      "tags": ["diagnostics","miette","error-rendering","l4"],
+      "affects_crates": ["nika-error"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-005","ADR-007","ADR-015"],
+      "requires": ["ADR-005"],
+      "enables": ["ADR-015"]
+    }
+    ,
+    {
+      "id": "ADR-011",
+      "title": "cargo xtask as canonical automation surface",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-011-cargo-xtask.md",
+      "tags": ["tooling","xtask","automation","ci"],
+      "affects_crates": [],
+      "affects_layers": [],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-004","ADR-009"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-012",
+      "title": "Typestate for nika-runtime workflow lifecycle",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-012-typestate-runtime.md",
+      "tags": ["typestate","runtime","workflow","lifecycle"],
+      "affects_crates": ["nika-kernel"],
+      "affects_layers": ["L0.5","L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-007","ADR-014"],
+      "requires": ["ADR-006"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-013",
+      "title": "Loom-based concurrency verification for L0.5 and L3",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-013-loom-concurrency-verification.md",
+      "tags": ["testing","concurrency","loom","verification"],
+      "affects_crates": ["nika-kernel-mock"],
+      "affects_layers": ["L0.5","L3"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006"],
+      "requires": ["ADR-006"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-014",
+      "title": "Sealed kernel traits with explicit adapter registration",
+      "status": "accepted",
+      "date": "2026-04-14",
+      "filename": "adr-014-sealed-kernel-traits.md",
+      "tags": ["kernel","sealed-traits","api-stability"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-012"],
+      "requires": ["ADR-006"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-015",
+      "title": "expect-test for inline snapshot assertions on rendered output",
+      "status": "accepted",
+      "date": "2026-04-15",
+      "filename": "adr-015-expect-test-inline-snapshots.md",
+      "tags": ["testing","snapshots","expect-test","dx"],
+      "affects_crates": ["nika-error"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-007","ADR-010"],
+      "requires": ["ADR-010"],
+      "enables": []
+    }
+  ]
+}

@@ -1,9 +1,28 @@
-# ADR-015: `expect-test` for inline snapshot assertions on rendered output
+---
+id: ADR-015
+title: "expect-test for inline snapshot assertions on rendered output"
+status: accepted
+date: "2026-04-15"
+phase: "Phase D (post-Session 2a DX retrofit)"
+deciders: ["@ThibautMelen"]
+tags: ["testing", "snapshots", "expect-test", "dx"]
+affects_crates: ["nika-error"]
+affects_layers: ["L0"]
+supersedes: []
+superseded_by: []
+related: ["ADR-007", "ADR-010"]
+requires: ["ADR-010"]
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase D"
+follow_ups: ["Use expect-test for --explain NIKA-NNN golden test in nika-cli"]
+---
 
-**Status:** Accepted
-**Date:** 2026-04-15
-**Phase:** Phase D (post-Session 2a DX retrofit)
-**Deciders:** @ThibautMelen
+# ADR-015: `expect-test` for inline snapshot assertions on rendered output
 
 ## Context
 

@@ -1,9 +1,28 @@
-# ADR-008: TOML-driven catalog with build-time codegen + perfect-hash lookup
+---
+id: ADR-008
+title: "TOML-driven catalog with build-time codegen and perfect-hash lookup"
+status: accepted
+date: "2026-04-14"
+phase: "Phase D -- Session 2a"
+deciders: ["@ThibautMelen"]
+tags: ["catalog", "toml", "codegen", "build-time", "phf"]
+affects_crates: ["nika-catalog", "nika-catalog-verify"]
+affects_layers: ["L0", "L4"]
+supersedes: []
+superseded_by: []
+related: ["ADR-004", "ADR-007"]
+requires: ["ADR-004"]
+enables: []
+amends: []
+fci: []
+inv: ["INV-019"]
+shadow_zones: []
+nika_codes: ["NIKA-300"]
+timeline: "v0.80.0, Session 2a -- expanded Session 2b/3"
+follow_ups: ["Phase E2: full TOML-driven pricing migration"]
+---
 
-**Status:** Accepted
-**Date:** 2026-04-14 (Session 2a shipped)
-**Phase:** Phase D — Session 2a
-**Deciders:** @ThibautMelen
+# ADR-008: TOML-driven catalog with build-time codegen + perfect-hash lookup
 
 ## Context
 

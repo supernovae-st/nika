@@ -1,9 +1,28 @@
-# ADR-005: Trait-based error hierarchy (`NikaErrorCode` + `Box<dyn>` + code registry)
+---
+id: ADR-005
+title: "Trait-based error hierarchy with NikaErrorCode and Box<dyn>"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 1 (first admitted crate)"
+deciders: ["@ThibautMelen"]
+tags: ["error-handling", "traits", "error-codes"]
+affects_crates: ["nika-error"]
+affects_layers: ["L0"]
+supersedes: []
+superseded_by: []
+related: ["ADR-007", "ADR-010", "ADR-015"]
+requires: []
+enables: ["ADR-010"]
+amends: []
+fci: ["FCI-005"]
+inv: []
+shadow_zones: [6]
+nika_codes: []
+timeline: "v0.80.0, Phase 1"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13
-**Phase:** Phase 1 (first admitted crate)
-**Deciders:** @ThibautMelen
+# ADR-005: Trait-based error hierarchy (`NikaErrorCode` + `Box<dyn>` + code registry)
 
 ## Context
 

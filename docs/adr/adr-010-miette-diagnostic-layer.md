@@ -1,9 +1,28 @@
-# ADR-010: miette as the L4 diagnostic presentation layer
+---
+id: ADR-010
+title: "miette as the L4 diagnostic presentation layer"
+status: accepted
+date: "2026-04-14"
+phase: "Phase D (post-Session 2a retrofit)"
+deciders: ["@ThibautMelen"]
+tags: ["diagnostics", "miette", "error-rendering", "l4"]
+affects_crates: ["nika-error"]
+affects_layers: ["L0", "L4"]
+supersedes: []
+superseded_by: []
+related: ["ADR-005", "ADR-007", "ADR-015"]
+requires: ["ADR-005"]
+enables: ["ADR-015"]
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase D"
+follow_ups: ["test-miette-render.rs golden test when nika-cli lands"]
+---
 
-**Status:** Accepted
-**Date:** 2026-04-14
-**Phase:** Phase D (post-Session 2a retrofit)
-**Deciders:** @ThibautMelen
+# ADR-010: miette as the L4 diagnostic presentation layer
 
 ## Context
 

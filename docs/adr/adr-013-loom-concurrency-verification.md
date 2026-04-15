@@ -1,9 +1,28 @@
-# ADR-013: Loom-based concurrency verification for L0.5 + L3
+---
+id: ADR-013
+title: "Loom-based concurrency verification for L0.5 and L3"
+status: accepted
+date: "2026-04-14"
+phase: "Phase 3 (runtime admission)"
+deciders: ["@ThibautMelen"]
+tags: ["testing", "concurrency", "loom", "verification"]
+affects_crates: ["nika-kernel-mock"]
+affects_layers: ["L0.5", "L3"]
+supersedes: []
+superseded_by: []
+related: ["ADR-006"]
+requires: ["ADR-006"]
+enables: []
+amends: []
+fci: []
+inv: ["INV-029"]
+shadow_zones: [4]
+nika_codes: []
+timeline: "v0.80.0, Phase 3 spec -- harness lands with first concurrent primitive"
+follow_ups: ["Evaluate Shuttle in Phase 4 for >3-thread state spaces"]
+---
 
-**Status:** Accepted (spec — harness lands with first concurrent primitive)
-**Date:** 2026-04-14
-**Phase:** Phase 3 (runtime admission)
-**Deciders:** @ThibautMelen
+# ADR-013: Loom-based concurrency verification for L0.5 + L3
 
 ## Context
 

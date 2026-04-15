@@ -1,9 +1,28 @@
-# ADR-011: `cargo xtask` as canonical automation surface
+---
+id: ADR-011
+title: "cargo xtask as canonical automation surface"
+status: accepted
+date: "2026-04-14"
+phase: "Phase 2 (migration window)"
+deciders: ["@ThibautMelen"]
+tags: ["tooling", "xtask", "automation", "ci"]
+affects_crates: []
+affects_layers: []
+supersedes: []
+superseded_by: []
+related: ["ADR-003", "ADR-004", "ADR-009"]
+requires: ["ADR-003"]
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 2 spec -- migration before Phase 3"
+follow_ups: ["Migrate scripts/ci/*.sh to xtask subcommands"]
+---
 
-**Status:** Accepted (spec — migration deferred)
-**Date:** 2026-04-14
-**Phase:** Phase 2 (migration window)
-**Deciders:** @ThibautMelen
+# ADR-011: `cargo xtask` as canonical automation surface
 
 ## Context
 

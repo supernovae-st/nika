@@ -1,9 +1,28 @@
-# ADR-012: Typestate for `nika-runtime` workflow lifecycle
+---
+id: ADR-012
+title: "Typestate for nika-runtime workflow lifecycle"
+status: accepted
+date: "2026-04-14"
+phase: "Phase 3 (locks pattern before admission)"
+deciders: ["@ThibautMelen"]
+tags: ["typestate", "runtime", "workflow", "lifecycle"]
+affects_crates: ["nika-kernel"]
+affects_layers: ["L0.5", "L2"]
+supersedes: []
+superseded_by: []
+related: ["ADR-006", "ADR-007", "ADR-014"]
+requires: ["ADR-006"]
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: [1]
+nika_codes: []
+timeline: "v0.80.0, Phase 3 spec"
+follow_ups: ["Define AnyWorkflow erasure trait at nika-runtime admission"]
+---
 
-**Status:** Accepted (spec — locks pattern before `nika-runtime` admission)
-**Date:** 2026-04-14
-**Phase:** Phase 3 (locks now, implements at admission)
-**Deciders:** @ThibautMelen
+# ADR-012: Typestate for `nika-runtime` workflow lifecycle
 
 ## Context
 

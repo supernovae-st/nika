@@ -1,9 +1,28 @@
-# ADR-004: Context-window-sized crate architecture
+---
+id: ADR-004
+title: "Context-window-sized crate architecture"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 0 (sizing)"
+deciders: ["@ThibautMelen"]
+tags: ["architecture", "sizing", "crate-structure", "context-window"]
+affects_crates: []
+affects_layers: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
+supersedes: []
+superseded_by: []
+related: ["ADR-001", "ADR-003", "ADR-006", "ADR-011"]
+requires: ["ADR-001"]
+enables: ["ADR-003", "ADR-006"]
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 0"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13 (updated 2026-04-14 with expansion to 40–42)
-**Phase:** Phase 0 (sizing)
-**Deciders:** @ThibautMelen
+# ADR-004: Context-window-sized crate architecture
 
 ## Context
 

@@ -1,9 +1,28 @@
-# ADR-006: Layered architecture + kernel ISP atomic traits + `trait_variant`
+---
+id: ADR-006
+title: "Layered architecture with kernel ISP atomic traits and trait_variant"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 1 (kernel admission)"
+deciders: ["@ThibautMelen"]
+tags: ["architecture", "kernel", "traits", "isp", "layers", "trait-variant"]
+affects_crates: ["nika-kernel", "nika-kernel-mock"]
+affects_layers: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
+supersedes: []
+superseded_by: []
+related: ["ADR-003", "ADR-004", "ADR-007", "ADR-012", "ADR-013", "ADR-014"]
+requires: ["ADR-004"]
+enables: ["ADR-007", "ADR-012", "ADR-014"]
+amends: []
+fci: ["FCI-001", "FCI-006"]
+inv: ["INV-016", "INV-017", "INV-027"]
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 1"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13
-**Phase:** Phase 1 (kernel admission)
-**Deciders:** @ThibautMelen
+# ADR-006: Layered architecture + kernel ISP atomic traits + `trait_variant`
 
 ## Context
 

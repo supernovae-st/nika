@@ -33,7 +33,7 @@ extract_array() {
     | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//' \
     | sed -E 's/^"//; s/"$//' \
     | sed -E "s/^'//; s/'$//" \
-    | grep -v '^$'
+    | { grep -v '^$' || true; }
 }
 
 # --- Helper: format array as JSON array ---

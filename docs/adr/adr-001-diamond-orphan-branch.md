@@ -1,9 +1,28 @@
-# ADR-001: Diamond — orphan branch rewrite instead of iterative refactor
+---
+id: ADR-001
+title: "Diamond orphan branch rewrite instead of iterative refactor"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 0 (bootstrap)"
+deciders: ["@ThibautMelen"]
+tags: ["architecture", "rewrite", "diamond", "orphan-branch"]
+affects_crates: []
+affects_layers: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
+supersedes: []
+superseded_by: []
+related: ["ADR-003", "ADR-004"]
+requires: []
+enables: ["ADR-002", "ADR-003", "ADR-004"]
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 0"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13
-**Phase:** Phase 0 (bootstrap)
-**Deciders:** @ThibautMelen
+# ADR-001: Diamond — orphan branch rewrite instead of iterative refactor
 
 ## Context
 

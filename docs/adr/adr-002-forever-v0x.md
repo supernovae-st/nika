@@ -1,9 +1,28 @@
-# ADR-002: Forever v0.x — no v1.0 target
+---
+id: ADR-002
+title: "Forever v0.x -- no v1.0 target"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 0 (release model)"
+deciders: ["@ThibautMelen"]
+tags: ["versioning", "release-model", "semver"]
+affects_crates: []
+affects_layers: []
+supersedes: []
+superseded_by: []
+related: ["ADR-001", "ADR-007"]
+requires: ["ADR-001"]
+enables: ["ADR-007"]
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 0"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13
-**Phase:** Phase 0 (release model)
-**Deciders:** @ThibautMelen
+# ADR-002: Forever v0.x — no v1.0 target
 
 ## Context
 

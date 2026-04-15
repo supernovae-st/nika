@@ -1,9 +1,28 @@
-# ADR-003: 12-gate crate admission protocol
+---
+id: ADR-003
+title: "12-gate crate admission protocol"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 0 (process)"
+deciders: ["@ThibautMelen", "16-agent Rust Council"]
+tags: ["process", "quality", "gates", "admission"]
+affects_crates: []
+affects_layers: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
+supersedes: []
+superseded_by: []
+related: ["ADR-001", "ADR-004", "ADR-009"]
+requires: ["ADR-001"]
+enables: ["ADR-009"]
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 0"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13
-**Phase:** Phase 0 (process)
-**Deciders:** @ThibautMelen + 16-agent Rust Council (post-audit)
+# ADR-003: 12-gate crate admission protocol
 
 ## Context
 

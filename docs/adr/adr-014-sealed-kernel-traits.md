@@ -1,9 +1,28 @@
-# ADR-014: Sealed kernel traits with explicit adapter registration
+---
+id: ADR-014
+title: "Sealed kernel traits with explicit adapter registration"
+status: accepted
+date: "2026-04-14"
+phase: "Phase 2 (first non-mock impl)"
+deciders: ["@ThibautMelen"]
+tags: ["kernel", "sealed-traits", "api-stability"]
+affects_crates: ["nika-kernel", "nika-kernel-mock"]
+affects_layers: ["L0.5"]
+supersedes: []
+superseded_by: []
+related: ["ADR-006", "ADR-012"]
+requires: ["ADR-006"]
+enables: []
+amends: []
+fci: ["FCI-006"]
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 2 -- sealing before first L1 admission"
+follow_ups: ["Apply sealed pattern in single commit before Phase 2 Session 1"]
+---
 
-**Status:** Accepted (applies progressively as kernel traits finalize)
-**Date:** 2026-04-14
-**Phase:** Phase 2 (first non-mock impl)
-**Deciders:** @ThibautMelen
+# ADR-014: Sealed kernel traits with explicit adapter registration
 
 ## Context
 

@@ -1,9 +1,28 @@
-# ADR-007: Forward-compat invariants (`#[non_exhaustive]` + `::new()` + pre-planted kernel hooks)
+---
+id: ADR-007
+title: "Forward-compat invariants with non_exhaustive, new(), and pre-planted hooks"
+status: accepted
+date: "2026-04-13"
+phase: "Phase 0 -- cross-cutting"
+deciders: ["@ThibautMelen", "16-agent Rust Council"]
+tags: ["forward-compat", "non-exhaustive", "invariants", "kernel-hooks"]
+affects_crates: ["nika-error", "nika-kernel", "nika-catalog"]
+affects_layers: ["L0", "L0.5"]
+supersedes: []
+superseded_by: []
+related: ["ADR-002", "ADR-005", "ADR-006", "ADR-015"]
+requires: ["ADR-002", "ADR-006"]
+enables: ["ADR-015"]
+amends: []
+fci: ["FCI-002", "FCI-003", "FCI-004"]
+inv: ["INV-019"]
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 0 -- invariant #19 FULL Session 2a"
+follow_ups: []
+---
 
-**Status:** Accepted
-**Date:** 2026-04-13 (invariant #19 FULL as of Session 2a, 2026-04-14)
-**Phase:** Phase 0 → cross-cutting
-**Deciders:** @ThibautMelen + 16-agent Rust Council
+# ADR-007: Forward-compat invariants (`#[non_exhaustive]` + `::new()` + pre-planted kernel hooks)
 
 ## Context
 

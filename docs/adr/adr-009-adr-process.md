@@ -1,9 +1,28 @@
-# ADR-009: ADR process + hook discipline (meta)
+---
+id: ADR-009
+title: "ADR process and hook discipline (meta)"
+status: accepted
+date: "2026-04-14"
+phase: "Phase 0 (process bootstrap)"
+deciders: ["@ThibautMelen"]
+tags: ["process", "adr", "documentation", "meta"]
+affects_crates: []
+affects_layers: []
+supersedes: []
+superseded_by: []
+related: ["ADR-003", "ADR-011"]
+requires: []
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: "v0.80.0, Phase 0"
+follow_ups: ["Auto-generated INDEX.md at 50+ ADRs"]
+---
 
-**Status:** Accepted
-**Date:** 2026-04-14
-**Phase:** Phase 0 (process bootstrap)
-**Deciders:** @ThibautMelen
+# ADR-009: ADR process + hook discipline (meta)
 
 ## Context
 
