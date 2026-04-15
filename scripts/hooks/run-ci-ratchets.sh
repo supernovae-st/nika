@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# run-ci-ratchets.sh — Tier 2 pre-push, engine context
+#
+# Runs all 9 CI ratchets from scripts/ci/ in parallel (mirrors diamond-ci.yml
+# matrix). Collects failures and reports them together rather than bailing
+# at the first failure, so the user sees all failures in one push attempt.
+#
+# Ratchets run:
+#   loc-limits, crate-size, fn-length, unwrap, expect,
+#   dead-code, no-default-features, adr-coverage, tests
+#
+# Note: check-tests.sh is excluded here (cargo test runs separately at pre-push
+# to ensure --lib flag and avoid --test which triggers keychain popup on macOS).
+#
+# Exit: 0 = all pass | 1 = one or more failed
+#
+# Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+CI_DIR="${SCRIPT_DIR}/../ci"
+
+readonly RATCHETS=(
+  'loc-limits'
+  'crate-size'
+  'fn-length'
+  'unwrap'
+  'expect'
+  'dead-code'
+  'no-default-features'
+  'adr-coverage'
+)
+
+TMPDIR_BASE="$(mktemp -d)"
+trap 'rm -rf -- "$TMPDIR_BASE"' EXIT
+
+PIDS=()
+RATCHET_NAMES=()
+
+# ---------------------------------------------------------------------------
+# Launch all ratchets in parallel
+# ---------------------------------------------------------------------------
+for ratchet in "${RATCHETS[@]}"; do
+  script="${CI_DIR}/check-${ratchet}.sh"
+  if [[ ! -x "$script" ]]; then
+    printf '[ci-ratchets] WARNING: %s not found or not executable\n' "$script" >&2
+    continue
+  fi
+  out_file="${TMPDIR_BASE}/${ratchet}.out"
+  # Run in subshell, capture output + exit code
+  (
+    "$script" >"$out_file" 2>&1
+    printf '%d' "$?" >"${out_file}.exit"
+  ) &
+  PIDS+=($!)
+  RATCHET_NAMES+=("$ratchet")
+done
+
+# ---------------------------------------------------------------------------
+# Wait for all and collect results
+# ---------------------------------------------------------------------------
+# Wait for all background jobs (Bash 4.3+ wait -n not needed here; we track PIDs)
+for pid in "${PIDS[@]}"; do
+  wait "$pid" 2>/dev/null || true # failures are captured via .exit files
+done
+
+FAILED=()
+for ratchet in "${RATCHET_NAMES[@]}"; do
+  out_file="${TMPDIR_BASE}/${ratchet}.out"
+  exit_file="${out_file}.exit"
+  rc=0
+  [[ -f "$exit_file" ]] && rc="$(cat "$exit_file")"
+  if ((rc != 0)); then
+    FAILED+=("$ratchet")
+    printf '\n[ci-ratchets] FAILED: %s\n' "$ratchet" >&2
+    cat "$out_file" >&2
+  fi
+done
+
+if ((${#FAILED[@]} > 0)); then
+  printf '\n[ci-ratchets] %d ratchet(s) failed: %s\n' "${#FAILED[@]}" "${FAILED[*]}" >&2
+  printf 'Run individually: bash scripts/ci/check-<name>.sh\n' >&2
+  exit 1
+fi
+
+printf '[ci-ratchets] all %d ratchets passed\n' "${#RATCHET_NAMES[@]}" >&2
+exit 0

@@ -1,0 +1,116 @@
+# lefthook-engine.yml — nika/engine submodule hook pipeline
+# Separate config because the engine is a separate git repo (public submodule).
+# Install: cd nika/engine && lefthook install -c lefthook-engine.yml
+#
+# This fixes the dangling core.hooksPath that currently points to
+# /Users/thibaut/dev/supernovae/nika/.husky (deleted path = no hooks fire).
+#
+# Engine-specific additions on top of what the root lefthook.yml covers:
+#   - commit-msg: same Conventional Commits validator, scoped to engine types
+#   - pre-commit: fmt + clippy-touched-crates (fast, targeted)
+#   - pre-push: full workspace test + all CI ratchets
+#   No duplication with root: root hooks fire on monorepo commits;
+#   engine hooks fire on commits made inside nika/engine/.
+
+commit-msg:
+  commands:
+    validate-message:
+      run: bash scripts/hooks/validate-conventional-commit.sh {1}
+      fail_text: |
+        Commit message rejected.
+        type(scope): lowercase description
+        Valid types: feat fix chore docs perf test refactor build ci revert security
+        Valid scopes: workspace kernel catalog error kernel-mock ci hygiene docs adr
+        Footer must include: Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+
+pre-commit:
+  parallel: true
+
+  commands:
+    rust-fmt:
+      glob: '**/*.rs'
+      run: cargo fmt --check --quiet
+      fail_text: 'cargo fmt check failed. Run: cargo fmt'
+
+    # Targeted clippy: only the crates touched in this commit + their reverse-deps.
+    # Faster than full --workspace on large commits but still catches ripple effects.
+    clippy-touched:
+      glob: '**/*.rs'
+      run: bash scripts/hooks/clippy-touched-crates.sh
+      fail_text: 'clippy found warnings in touched crates. Fix before committing.'
+
+    # Ratchets that are cheap and fast: unwrap + fn-length only.
+    # Full ratchet suite runs at pre-push, not here.
+    unwrap-ratchet:
+      glob: '**/*.rs'
+      run: bash scripts/ci/check-unwrap.sh
+      fail_text: 'unwrap/expect found in src/. Use ? operator.'
+
+    shellcheck-engine:
+      glob: '**/*.sh'
+      run: shellcheck {staged_files}
+
+    shfmt-engine:
+      glob: '**/*.sh'
+      run: shfmt -d -i 2 -ci -bn {staged_files}
+
+    block-private-paths:
+      run: bash scripts/hooks/block-private-paths.sh
+      fail_text: 'Private path reference in public engine files. Engine is PUBLIC.'
+
+pre-push:
+  parallel: false
+
+  commands:
+    rust-tests:
+      run: cargo test --workspace --lib --quiet
+      fail_text: 'cargo test --workspace --lib failed.'
+
+    rust-clippy:
+      run: cargo clippy --workspace --all-targets -- -D warnings
+      fail_text: 'cargo clippy failed. Zero-warning policy.'
+
+    # All 15 engine hygiene vectors (run-once here, not per-file).
+    engine-hygiene:
+      run: bash scripts/hygiene/check-all.sh --quiet
+      fail_text: 'engine hygiene failed.'
+
+    # All 9 CI ratchets in parallel (mirrors diamond-ci.yml matrix).
+    ci-ratchets:
+      run: >
+        bash scripts/hooks/run-ci-ratchets.sh
+      fail_text: 'One or more CI ratchets failed. See output above.'
+
+    cargo-deny:
+      glob: 'Cargo.*'
+      run: cargo deny check
+      fail_text: 'cargo deny: security advisory or license violation.'
+
+    cargo-machete:
+      glob: 'Cargo.*'
+      run: cargo machete --with-metadata
+      fail_text: 'cargo machete: unused dependencies detected.'
+
+    force-push-guard:
+      run: bash scripts/hooks/force-push-guard.sh
+
+post-commit:
+  commands:
+    changelog-preview:
+      run: bash scripts/hooks/changelog-preview.sh 2>/dev/null || true
+
+    activity-log:
+      run: bash scripts/hooks/activity-log.sh
+
+    sequence-reminder:
+      glob: 'memory/execution-roadmap/**/*'
+      run: >
+        printf '\n[reminder] execution-roadmap/ touched — update SEQUENCE.md status.\n'
+
+post-merge:
+  commands:
+    adr-seal-check:
+      run: bash scripts/hooks/adr-seal-check.sh post-merge
+
+    coauthor-squash-detect:
+      run: bash scripts/hooks/coauthor-squash-detect.sh
