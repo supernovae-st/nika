@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase D (catalog scope expansion, Session 2a DONE). 5 crates admitted.
+Current: Phase D (catalog scope expansion, Session 2a+2b+3 DONE). 5 crates admitted, 416 tests, 25 providers, 42 capability rules.
 
 ## 🚫 Interdits stricts
 
