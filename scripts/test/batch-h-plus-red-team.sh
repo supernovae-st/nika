@@ -104,9 +104,51 @@ hook_must_allow() {
 # P0 fixtures — added incrementally as each P0 fix lands
 # ──────────────────────────────────────────────────────────────────────────
 
-test_p0_1_basic_claude_trailer() { return 77; }
-test_p0_1_claudia_human_contributor() { return 77; }
-test_p0_1_claude_via_nika_relay() { return 77; }
+_p0_1_run_check() {
+  local repo="$1" body="$2" rc=0
+  (
+    cd "$repo" || exit 1
+    printf '%s' "$body" >/tmp/rt-msg.$$
+    git commit --allow-empty -q -F /tmp/rt-msg.$$
+    rm -f /tmp/rt-msg.$$
+    bash "$ENGINE_DIR/scripts/hygiene/check-claude-coauthor.sh" >/dev/null 2>&1
+  ) || rc=$?
+  echo "$rc"
+}
+
+test_p0_1_basic_claude_trailer() {
+  local repo rc
+  repo="$(mk_tmp_repo)"
+  rc="$(_p0_1_run_check "$repo" "feat(test): basic
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+")"
+  rm_tmp_repo "$repo"
+  [[ $rc -ne 0 ]] # expect BLOCK
+}
+
+test_p0_1_claudia_human_contributor() {
+  local repo rc
+  repo="$(mk_tmp_repo)"
+  rc="$(_p0_1_run_check "$repo" "feat(test): legit Claudia
+
+Co-Authored-By: Claudia Smith <claudia@example.com>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+")"
+  rm_tmp_repo "$repo"
+  [[ $rc -eq 0 ]] # expect ALLOW — Claudia is not Claude
+}
+
+test_p0_1_claude_via_nika_relay() {
+  local repo rc
+  repo="$(mk_tmp_repo)"
+  rc="$(_p0_1_run_check "$repo" "feat(test): bypass attempt
+
+Co-Authored-By: Claude-via-Nika-relay <claude@anthropic.com>
+")"
+  rm_tmp_repo "$repo"
+  [[ $rc -ne 0 ]] # expect BLOCK — hyphen-separated Claude must still trigger
+}
 test_p0_2_substring_only_not_trailer() { return 77; }
 test_p0_3_dot_claude_projects_ref() { return 77; }
 test_p0_4_monorepo_nika_hq_ref_in_dx() { return 77; }
