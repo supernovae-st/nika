@@ -241,5 +241,117 @@
       "requires": ["ADR-007","ADR-010"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-016",
+      "title": "Cancellation model: future-drop primary, CancelCtx cooperative module",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-016-cancellation-model.md",
+      "tags": ["kernel","async","cancellation","forward-compat","tokio-free"],
+      "affects_crates": ["nika-kernel"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-017","ADR-018","ADR-020","ADR-034"],
+      "requires": ["ADR-007"],
+      "enables": ["ADR-034"]
+    }
+    ,
+    {
+      "id": "ADR-017",
+      "title": "Streaming policy: bounded mpsc(32), ReceiverStream at kernel boundary",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-017-streaming-policy.md",
+      "tags": ["kernel","async","streaming","backpressure","channels"],
+      "affects_crates": ["nika-kernel"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-016","ADR-018"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-018",
+      "title": "Runtime + sync primitives: single Tokio rt, parking_lot default",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-018-runtime-sync-primitives.md",
+      "tags": ["runtime","tokio","parking-lot","concurrency","lints"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock"],
+      "affects_layers": ["L0.5","L1","L2","L3"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-013","ADR-016","ADR-017","ADR-019"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-019",
+      "title": "Retry + timeout ownership: stratified by layer",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-019-retry-timeout-ownership.md",
+      "tags": ["retry","timeout","reliability","layer-discipline"],
+      "affects_crates": ["nika-kernel"],
+      "affects_layers": ["L0.5","L1","L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-007","ADR-018","ADR-033"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-020",
+      "title": "WASM plugin boundary + Sandbox: trait stubs now, dual timeout later",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-020-wasm-plugin-boundary.md",
+      "tags": ["wasm","plugin","sandbox","capability","forward-compat"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-034"],
+      "requires": ["ADR-007","ADR-014"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-033",
+      "title": "L0 foundational types: Cost, UUIDv7, TrustLevel, TokenUsage evolution",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-033-l0-foundational-types.md",
+      "tags": ["l0","types","foundational","cost","uuid","trust-level","token-usage"],
+      "affects_crates": ["nika-error","nika-kernel"],
+      "affects_layers": ["L0","L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-005","ADR-007","ADR-019","ADR-034"],
+      "requires": ["ADR-005","ADR-007"],
+      "enables": ["ADR-034"]
+    }
+    ,
+    {
+      "id": "ADR-034",
+      "title": "L0.5 kernel traits expansion: 6 new traits scoped to v0.81+ additions",
+      "status": "accepted",
+      "date": "2026-04-16",
+      "filename": "adr-034-l05-kernel-traits-expansion.md",
+      "tags": ["l0.5","kernel","traits","isp","sealing","id-generator","secrets","metrics","tracing","events","billing"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock","nika-error"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-020","ADR-033"],
+      "requires": ["ADR-006","ADR-014","ADR-033"],
+      "enables": []
+    }
   ]
 }
