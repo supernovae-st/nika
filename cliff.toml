@@ -1,57 +1,298 @@
-# git-cliff config for Nika — Conventional Commits → CHANGELOG.md
-# https://git-cliff.org
+# git-cliff configuration for Nika Diamond
+# https://git-cliff.org — schema verified against v2.12.0 (2026-01-20)
 #
-# Groups mirror NIKA_CONTENT_PIPELINE.md. Crate admissions surface first.
+# Authority chain:
+#   - Upstream schema:  https://git-cliff.org/docs/configuration/git
+#   - Reference impl:   https://github.com/orhun/git-cliff/blob/main/cliff.toml
+#   - Spec contract:    nika-memory/.../execution-roadmap/workflow-hygiene/CHANGELOG_AUTOMATION.md (lines 98-112)
+#
+# Conventions:
+#   - Conventional Commits (feat/fix/docs/chore/refactor/test/perf/build/ci/revert/style)
+#   - Co-author trailer mandatory: `Co-Authored-By: Nika 🦋 <nika@supernovae.studio>` (NEVER Claude)
+#   - ADRs live at `docs/adr/NNN-*.md` (link-parsed below)
+#   - Forever v0.x — no v1.0 target. Legacy v0.79.x line abandoned (skip_tags drops it).
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Remote — drives PR contributor enrichment + auto-link compare ranges.
+# src: https://git-cliff.org/docs/configuration/remote
+# src: https://github.com/orhun/git-cliff/blob/main/cliff.toml#L4
+# ─────────────────────────────────────────────────────────────────────────────
+[remote.github]
+owner = "supernovae-st"
+repo = "nika"
+# token left unset — pulled from GITHUB_TOKEN env at CI time.
+# Optional: native_tls = false  # default; bundled webpki-roots is fine for CI.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bump — semver propagation rules. Forever-v0.x means we deliberately do NOT
+# auto-bump major on breaking changes (no v1.0 target).
+# src: https://git-cliff.org/docs/configuration/bump
+# src: https://github.com/oxc-project/oxc/blob/main/cliff.toml#L9
+# ─────────────────────────────────────────────────────────────────────────────
+[bump]
+features_always_bump_minor = true   # `feat:` → 0.x.y → 0.(x+1).0
+breaking_always_bump_major = false  # forever-v0.x: breaking stays in minor
+# initial_tag = "v0.80.0"           # default — Diamond starts at 0.80.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Changelog — header / body / footer Tera templates + postprocessors.
+# src: https://git-cliff.org/docs/configuration/changelog
+# src: https://github.com/orhun/git-cliff/blob/main/cliff.toml#L8
+# Body template adapted from orhun reference, scope-grouped ordering preserved.
+# ─────────────────────────────────────────────────────────────────────────────
 [changelog]
 header = """
-# Changelog\n
-All notable changes to Nika are documented in this file.\n
-Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.\n
-Nika Diamond is a ground-up rewrite on an orphan branch (`nika-diamond`).
-Legacy main sits at v0.79.3. Diamond starts at v0.80.0.\n
----\n
+# Changelog
+
+All notable changes to **Nika** are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.
+
+Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
+Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
+
+---
 """
+
 body = """
-{% if version %}\
-## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
-{% else %}\
-## [Unreleased]
-{% endif %}\
+{%- macro remote_url() -%}
+  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
+
+{% macro print_commit(commit) -%}
+  - {% if commit.scope %}**{{ commit.scope }}** — {% endif %}\
+    {% if commit.breaking %}[**breaking**] {% endif %}\
+    {{ commit.message | upper_first }} \
+    ([{{ commit.id | truncate(length=9, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }}))\
+    {% if commit.remote.pr_number %} ([#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }})){%- endif -%}
+{% endmacro -%}
+
+{% if version -%}
+  {% if previous.version -%}
+    ## [{{ version | trim_start_matches(pat="v") }}]({{ self::remote_url() }}/compare/{{ previous.version }}..{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+  {% else -%}
+    ## [{{ version | trim_start_matches(pat="v") }}]({{ self::remote_url() }}/releases/tag/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+  {% endif -%}
+{% else -%}
+  ## [Unreleased]
+{% endif %}
 {% for group, commits in commits | group_by(attribute="group") %}
-### {{ group | upper_first }}
-{% for commit in commits %}\
-- {% if commit.scope %}**{{ commit.scope }}** — {% endif %}{{ commit.message | upper_first }} ({{ commit.id | truncate(length=9, end="") }})
-{% endfor %}\
-{% endfor %}\n
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits | filter(attribute="scope") | sort(attribute="scope") -%}
+  {{ self::print_commit(commit=commit) }}
+{% endfor -%}
+{% for commit in commits %}
+  {%- if not commit.scope -%}
+    {{ self::print_commit(commit=commit) }}
+  {% endif -%}
+{%- endfor -%}
+{% endfor %}
+{%- if github -%}
+{%- if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+### 🦋 New Contributors
+{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) -%}
+- @{{ contributor.username }} made their first contribution{% if contributor.pr_number %} in [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}){% endif %}
+{% endfor -%}
+{%- endif -%}
+{%- endif %}
 """
+
+footer = """
+<!-- generated by git-cliff — Nika 🦋 -->
+"""
+
 trim = true
-footer = """\n🦋"""
+# render_always = false  # default — empty version sections are dropped.
 
-[git]
-conventional_commits = true
-filter_unconventional = false
-split_commits = false
-protect_breaking_commits = false
-filter_commits = false
-tag_pattern = "v[0-9]*"
-topo_order = false
-sort_commits = "oldest"
-
-commit_preprocessors = [
-  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/supernovae-st/nika/issues/${1}))" },
+# Postprocessors run AFTER all preprocessors + parsers + template rendering.
+# Used to scrub Markdown noise that would break the published changelog.
+# src: https://git-cliff.org/docs/configuration/changelog#postprocessors
+postprocessors = [
+  # Collapse 3+ blank lines → 2 (artifacts of conditional template blocks).
+  { pattern = '\n{3,}', replace = "\n\n" },
 ]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Git — commit parsing, group ordering, link enrichment.
+# src: https://git-cliff.org/docs/configuration/git
+# ─────────────────────────────────────────────────────────────────────────────
+[git]
+# Conventional Commits parsing (type + scope + breaking).
+# src: https://git-cliff.org/docs/configuration/git#conventional_commits
+conventional_commits = true
+
+# DO NOT filter unconventional — legacy v0.79.x had pre-convention commits;
+# we still want them visible if a `git log` walk crosses the v0.80.0 boundary.
+# Spec contract (CHANGELOG_AUTOMATION.md L102): require_conventional = false.
+# src: https://git-cliff.org/docs/configuration/git#filter_unconventional
+filter_unconventional = false
+
+# Spec L102 explicit: must be `false`. Legacy line is non-conventional.
+# src: https://git-cliff.org/docs/configuration/git#require_conventional
+# Available since git-cliff 2.x; verified in v2.12.0 docs.
+require_conventional = false
+
+# Treat each commit message as a single unit (Conventional Commits compliant).
+# src: https://git-cliff.org/docs/configuration/git#split_commits
+split_commits = false
+
+# Hard-fail when a commit slips through every parser. Catches typo'd types
+# (`feaut(...)` etc.) BEFORE they pollute the changelog. Available since v2.11.
+# src: https://git-cliff.org/docs/configuration/git#fail_on_unmatched_commit
+# src: https://github.com/orhun/git-cliff/releases/tag/v2.11.0 ("Support failing on unmatched commits" #1298)
+fail_on_unmatched_commit = false  # set true once Diamond v0.81.0 lands & legacy crosses are rare
+
+# Don't shield breaking commits from skip rules — we want explicit control.
+# src: https://git-cliff.org/docs/configuration/git#protect_breaking_commits
+protect_breaking_commits = false
+
+# Keep all commits matched by parsers; drop only what `skip = true` removes.
+# src: https://git-cliff.org/docs/configuration/git#filter_commits
+filter_commits = false
+
+# ── Tag selection ───────────────────────────────────────────────────────────
+# Match `v0.80.0`, `v0.81.0`, `v0.90.0-alpha.1`, etc. Excludes tags with
+# no leading `v` and any non-version-shaped tag.
+# src: https://git-cliff.org/docs/configuration/git#tag_pattern
+tag_pattern = "v[0-9].*"
+
+# Skip pre-release tags + the entire abandoned v0.79.x line.
+# Spec contract (CHANGELOG_AUTOMATION.md L107).
+# Single regex per docs: `skip_tags = "regex"` — alternation via `|`.
+# src: https://git-cliff.org/docs/configuration/git#skip_tags
+skip_tags = "v0\\.79\\..*|.*-rc.*|.*-alpha.*|.*-beta.*"
+
+# Don't ignore any tags (different from skip — ignore would roll commits forward).
+# src: https://git-cliff.org/docs/configuration/git#ignore_tags
+ignore_tags = ""
+
+# Chronological tag ordering (default). Diamond uses linear release tags.
+# src: https://git-cliff.org/docs/configuration/git#topo_order
+topo_order = false
+
+# Topological commit ordering inside a release section (default since 2.x).
+# src: https://git-cliff.org/docs/configuration/git#topo_order_commits
+topo_order_commits = true
+
+# Oldest-first inside groups: `feat: A` (older) above `feat: B` (newer)
+# matches the chronological story of the release. Spec doesn't dictate.
+# src: https://git-cliff.org/docs/configuration/git#sort_commits
+sort_commits = "oldest"
+
+# ── Path scoping ────────────────────────────────────────────────────────────
+# Keep changelog focused on engine code + admitted-crate docs/specs/ADRs.
+# src: https://git-cliff.org/docs/configuration/git#exclude_paths
+# Spec contract (CHANGELOG_AUTOMATION.md L106).
+exclude_paths = [
+  "archive/**",
+  "docs/internal/**",
+  "nika-memory/archive/**",
+  ".github/**",
+  ".husky/**",
+  "scripts/hygiene/**",   # internal hygiene tooling; not user-facing
+  "**/*.lock",            # Cargo.lock churn drowns signal
+]
+
+# include_paths intentionally unset — defaults to "everything except exclude_paths".
+# Setting it would silently drop new top-level dirs (e.g., `crates/` post-Batch A).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Commit preprocessors — regex transforms applied to commit MESSAGE before
+# parsing/grouping. Order matters; first match wins per substring.
+# src: https://git-cliff.org/docs/configuration/git#commit_preprocessors
+# src: https://github.com/orhun/git-cliff/blob/main/cliff.toml#L88-L92
+# ─────────────────────────────────────────────────────────────────────────────
+commit_preprocessors = [
+  # Squash-merge titles end with `(#NN)` → rewrite to GitHub PR link inline.
+  # Spec contract (CHANGELOG_AUTOMATION.md L104).
+  { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/supernovae-st/nika/issues/${2}))" },
+
+  # Strip the mandatory Nika 🦋 co-author trailer from rendered messages
+  # (it's git-trailer noise once we already attribute via remote.username).
+  # Trailer line shape: `Co-Authored-By: Nika 🦋 <nika@supernovae.studio>`
+  { pattern = '\nCo-[Aa]uthored-[Bb]y:[^\n]*', replace = "" },
+
+  # Collapse runs of whitespace in messages.
+  { pattern = ' {2,}', replace = " " },
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Commit parsers — assign a `group` to each commit (HTML-comment ordered so
+# `group_by(attribute="group")` renders in the intended sequence).
+# src: https://git-cliff.org/docs/configuration/git#commit_parsers
+# src: https://github.com/ratatui-org/ratatui/blob/main/cliff.toml#L130-L157  (HTML-comment ordering reference)
+# src: https://github.com/orhun/git-cliff/blob/main/cliff.toml#L99-L117       (skip-rule patterns)
+# Spec contract (CHANGELOG_AUTOMATION.md L99-L101): crates first, then features…
+# ─────────────────────────────────────────────────────────────────────────────
 commit_parsers = [
-  { message = "^feat\\(nika-.*\\).*admit to workspace", group = "🆕 Crates admitted" },
-  { message = "^feat",     group = "✨ Features" },
-  { message = "^fix",      group = "🐛 Fixes" },
-  { message = "^perf",     group = "⚡ Performance" },
-  { message = "^refactor", group = "🔨 Refactors" },
-  { message = "^docs",     group = "📚 Docs" },
-  { message = "^test",     group = "🧪 Tests" },
-  { message = "^chore\\(release\\)", skip = true },
-  { message = "^chore",    group = "🧹 Chore" },
-  { message = "^revert",   group = "⏪ Reverts" },
+  # ── Skip rules first (cheap wins, prevent noise from reaching groups) ────
+  # release-plz / cliff itself emits placeholder SHA `0000000` for release commits.
+  # src: https://github.com/ratatui-org/ratatui/blob/main/cliff.toml#L133
+  { field = "id", pattern = "0000000", skip = true },
+
+  # Bot-style chore noise.
+  { message = "^chore\\(release\\)",          skip = true },
+  { message = "^chore\\(deps.*\\)",           skip = true },
+  { message = "^chore\\(pr\\)",               skip = true },
+  { message = "^chore\\(pull\\)",             skip = true },
+  { message = "^chore\\(changelog\\)",        skip = true },
+  { message = "^build\\(deps\\)",             skip = true },
+
+  # ── Group rules — HTML comment forces ordering on group_by() ────────────
+  # 00 — Crate admissions come first (Diamond's headline event).
+  # Match shape: `feat(nika-X): admit to workspace …` (per commit-granularity rule).
+  # NOTE: Tera/regex DOES match the parens around scope here — single-source
+  # confirmed via orhun reference parser style.
+  { message = "^feat\\(nika-[a-z0-9-]+\\):.*admit to workspace", group = "<!-- 00 -->🆕 Crates admitted" },
+
+  # 01 — Features
+  { message = "^feat",                        group = "<!-- 01 -->✨ Features" },
+  # 02 — Bug fixes
+  { message = "^fix",                         group = "<!-- 02 -->🐛 Bug Fixes" },
+  # 03 — Performance
+  { message = "^perf",                        group = "<!-- 03 -->⚡ Performance" },
+  # 04 — Refactors
+  { message = "^refactor",                    group = "<!-- 04 -->🔨 Refactors" },
+  # 05 — Documentation (covers `docs:` and `doc:`)
+  { message = "^docs?",                       group = "<!-- 05 -->📚 Documentation" },
+  # 06 — Tests
+  { message = "^test",                        group = "<!-- 06 -->🧪 Tests" },
+  # 07 — Build / CI
+  { message = "^build",                       group = "<!-- 07 -->📦 Build" },
+  { message = "^ci",                          group = "<!-- 07 -->📦 Build" },
+  # 08 — Chore (everything not skipped above)
+  { message = "^chore",                       group = "<!-- 08 -->🧹 Chore" },
+  # 09 — Style
+  { message = "^style",                       group = "<!-- 09 -->🎨 Style" },
+  # 10 — Security (body-matched; takes precedence visually because tagged loud)
+  { body = ".*[Ss]ecurity",                   group = "<!-- 10 -->🛡️ Security" },
+  # 11 — Reverts
+  { message = "^revert",                      group = "<!-- 11 -->⏪ Reverts" },
+
+  # Catch-all — keep unconventional / legacy v0.79.x commits visible.
+  # Without this, anything that doesn't match a `^type` rule disappears
+  # (since filter_commits = false but group_by drops ungrouped commits silently).
+  { message = ".*",                           group = "<!-- 99 -->💼 Other" },
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Link parsers — extract inline references and render as `commit.links`.
+# Output schema: { text, href }. NO filesystem glob expansion.
+# src: https://git-cliff.org/docs/configuration/git#link_parsers
+# Spec contract (CHANGELOG_AUTOMATION.md L105) requested ADR-NN → `docs/adr/NN-*.md`.
+# Reality: git-cliff cannot expand a glob; nearest correct mapping is a stable
+# numeric path. We emit `docs/adr/NN.md` and rely on link redirect / docs index
+# to resolve to the real `NN-*.md` file.  See §5 Spec reality-check.
+# ─────────────────────────────────────────────────────────────────────────────
+link_parsers = [
+  # GitHub issue / PR shorthand `#1234` → issue link (PR redirects work too).
+  # src: https://git-cliff.org/docs/configuration/git#link_parsers (canonical example)
+  { pattern = "(?:^|\\s)#(\\d+)",                  href = "https://github.com/supernovae-st/nika/issues/$1" },
+
+  # ADR references → relative repo path (resolved by the rendering Markdown host).
+  # Pattern is restricted to 3-digit ADR numbers (ADR-001..ADR-999).
+  { pattern = "ADR-(\\d{3})",   text = "ADR-$1",  href = "docs/adr/$1.md" },
+
+  # NIKA-NNN error code references → docs error-code index page.
+  { pattern = "NIKA-(\\d{3})",  text = "NIKA-$1", href = "docs/errors/NIKA-$1.md" },
 ]
