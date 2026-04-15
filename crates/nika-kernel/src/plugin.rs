@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! WASM plugin host traits — reserved for v0.100.
+//!
+//! These stubs define the trait shape for the future WASM sandbox.
+//! No implementations exist until `nika-wasm-host` ships.
+//! See `docs/architecture/forward-compat-invariants.md` Pattern 1.
+
+/// Host-side WASM plugin execution.
+///
+/// Reserved for v0.100. Implementations will live in `nika-wasm-host`.
+#[trait_variant::make(WasmPluginHostDyn: Send)]
+pub trait WasmPluginHost: Send + Sync {
+    /// Execute a WASM plugin by name with the given input.
+    ///
+    /// Returns serialized output. Shape TBD when `nika-wasm-host` ships.
+    async fn call_plugin(
+        &self,
+        plugin_name: &str,
+        input: &[u8],
+    ) -> Result<Vec<u8>, WasmPluginError>;
+}
+
+/// Filesystem access for WASM plugins (sandboxed).
+///
+/// Reserved for v0.100. Grants limited fs to WASM guests.
+pub trait PluginFs: Send + Sync {
+    /// Read a file within the plugin sandbox.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WasmPluginError::SandboxViolation`] if the path escapes
+    /// the granted capability set.
+    fn read_sandboxed(&self, path: &str) -> Result<Vec<u8>, WasmPluginError>;
+}
+
+/// HTTP access for WASM plugins (sandboxed).
+///
+/// Reserved for v0.100. Grants limited HTTP to WASM guests.
+pub trait PluginHttp: Send + Sync {
+    /// Fetch a URL within the plugin sandbox (allowlist enforced).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WasmPluginError::SandboxViolation`] if the URL is not on
+    /// the allowlist.
+    fn fetch_sandboxed(&self, url: &str) -> Result<Vec<u8>, WasmPluginError>;
+}
+
+/// WASM plugin errors.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum WasmPluginError {
+    /// Plugin not found.
+    #[error("wasm plugin not found: {name}")]
+    NotFound {
+        /// Plugin name.
+        name: String,
+    },
+
+    /// Plugin execution failed.
+    #[error("wasm plugin execution failed: {reason}")]
+    ExecutionFailed {
+        /// What went wrong.
+        reason: String,
+    },
+
+    /// Sandbox violation (capability denied).
+    #[error("wasm sandbox violation: {reason}")]
+    SandboxViolation {
+        /// What was denied.
+        reason: String,
+    },
+
+    /// Plugin timed out.
+    #[error("wasm plugin timed out after {timeout_ms}ms")]
+    Timeout {
+        /// Timeout in milliseconds.
+        timeout_ms: u64,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn _assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn wasm_plugin_error_is_send_sync() {
+        _assert_send_sync::<WasmPluginError>();
+    }
+
+    #[test]
+    fn wasm_plugin_error_display() {
+        let err = WasmPluginError::NotFound {
+            name: "my-plugin".into(),
+        };
+        assert_eq!(err.to_string(), "wasm plugin not found: my-plugin");
+
+        let err = WasmPluginError::Timeout { timeout_ms: 5000 };
+        assert!(err.to_string().contains("5000"));
+    }
+
+    #[test]
+    fn wasm_plugin_error_sandbox_violation_display() {
+        let err = WasmPluginError::SandboxViolation {
+            reason: "fs denied".into(),
+        };
+        assert!(err.to_string().contains("fs denied"));
+    }
+
+    #[test]
+    fn wasm_plugin_error_execution_failed_display() {
+        let err = WasmPluginError::ExecutionFailed {
+            reason: "oom".into(),
+        };
+        assert!(err.to_string().contains("oom"));
+    }
+}

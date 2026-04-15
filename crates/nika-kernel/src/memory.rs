@@ -100,6 +100,18 @@ pub struct MemoryFrame {
     pub source: Option<String>,
     /// When the observation was made (Unix epoch millis).
     pub observed_at: Option<u64>,
+    /// Encryption cipher used (v0.95 Cortex — encrypted memory).
+    /// Reserved: always `None` until nika-memory crate ships.
+    pub cipher: Option<String>,
+    /// Provenance chain (v0.95 Cortex — who created this memory).
+    /// Reserved: always `None` until nika-memory crate ships.
+    pub provenance: Option<String>,
+    /// Retention policy tag (v0.95 Cortex — TTL / archival).
+    /// Reserved: always `None` until nika-memory crate ships.
+    pub retention: Option<String>,
+    /// Redacted field paths (v0.95 Cortex — PII scrubbing).
+    /// Reserved: always `None` until nika-memory crate ships.
+    pub redactions: Option<Vec<String>>,
 }
 
 impl MemoryFrame {
@@ -113,6 +125,10 @@ impl MemoryFrame {
             metadata: BTreeMap::new(),
             source: None,
             observed_at: None,
+            cipher: None,
+            provenance: None,
+            retention: None,
+            redactions: None,
         }
     }
 }
@@ -348,6 +364,24 @@ mod tests {
         assert!(frame.metadata.is_empty());
         assert!(frame.source.is_none());
         assert!(frame.observed_at.is_none());
+    }
+
+    #[test]
+    fn memory_frame_new_cortex_reserved_fields_default_none() {
+        let frame = MemoryFrame::new("test", MemoryLevel::Working);
+        assert!(frame.cipher.is_none(), "cipher should default to None");
+        assert!(
+            frame.provenance.is_none(),
+            "provenance should default to None"
+        );
+        assert!(
+            frame.retention.is_none(),
+            "retention should default to None"
+        );
+        assert!(
+            frame.redactions.is_none(),
+            "redactions should default to None"
+        );
     }
 
     #[test]

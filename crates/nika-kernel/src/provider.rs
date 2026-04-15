@@ -18,6 +18,7 @@ use std::pin::Pin;
 use futures_core::Stream;
 use serde::{Deserialize, Serialize};
 
+use crate::cancel::CancelCtx;
 use crate::memory::{MemoryDirective, MemoryFrameRef};
 
 // ─── Message types ───────────────────────────────────────────────────
@@ -217,6 +218,9 @@ pub struct InferRequest {
     pub extra: ProviderExtras,
     /// Memory directive (Cortex hook, Phase 1).
     pub memory: Option<MemoryDirective>,
+    /// Cancellation context (v0.95 structured cancellation hook).
+    /// Reserved: always `None` until DAG propagation ships.
+    pub cancel: Option<CancelCtx>,
 }
 
 impl InferRequest {
@@ -235,6 +239,7 @@ impl InferRequest {
             thinking_budget: None,
             extra: ProviderExtras::new(),
             memory: None,
+            cancel: None,
         }
     }
 }
@@ -541,6 +546,7 @@ mod tests {
         assert!(req.stop_sequences.is_empty());
         assert!(req.thinking_budget.is_none());
         assert!(req.memory.is_none());
+        assert!(req.cancel.is_none());
     }
 
     #[test]
