@@ -1,0 +1,71 @@
+[package]
+name          = "nika-catalog"
+description   = "Static catalogs for the Nika diamond — LLM providers, MCP servers, builtins, transforms, pricing. Layer L0 — pure, zero I/O, zero async, build.rs-generated phf maps."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+
+[dependencies]
+nika-error = { path = "../nika-error" }
+phf        = { workspace = true }
+unicase    = { workspace = true }
+thiserror  = { workspace = true }
+miette     = { workspace = true }
+serde      = { workspace = true, optional = true }
+strsim     = { workspace = true }  # fuzzy "did you mean" suggestion
+
+[features]
+# Default: every catalog + serde. Keeps backward-compat for existing consumers.
+default = ["full", "serde"]
+
+# serde Serialize/Deserialize on public types. Optional — most callers want it,
+# but zero-alloc extension crates can skip it.
+serde = ["dep:serde"]
+
+# `full` turns on every content catalog. This is what `nika` the binary uses.
+full = ["mcp", "providers", "embeddings", "pricing", "capabilities", "builtins-transforms"]
+
+# `minimal` gates every catalog off — only `types` + `Tag` + `error` + `suggest`
+# + `validate` (pure logic, no data). Used by community-extension crates that
+# plug into `CatalogOverlay` without dragging in core catalog data.
+minimal = []
+
+# Alias for extension-author DX: `features = ["extension-author"]` reads nicely.
+extension-author = ["minimal"]
+
+# ── Content features ───────────────────────────────────────────────────────
+# Each feature gates a single catalog. Internal deps are automatic: enabling
+# `capabilities` or `pricing` also enables `providers` (used by model lookup).
+
+mcp                  = []
+providers            = []
+embeddings           = ["providers"]  # FK check + runtime provider lookup
+pricing              = ["providers"]  # find_pricing_scoped consults providers
+capabilities         = ["providers"]  # model_capabilities canonicalises via find_provider
+builtins-transforms  = []
+
+[build-dependencies]
+phf_codegen = "0.13"
+phf_shared  = { version = "0.13", features = ["unicase"] }
+toml        = "1.1"
+serde       = { workspace = true, features = ["derive"] }
+unicase     = { workspace = true }
+
+[dev-dependencies]
+insta      = { workspace = true }
+proptest   = { workspace = true }
+rstest     = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
+
+# phf is used by build.rs-generated code (src/data/generated.rs references
+# `phf::Map<...>`). cargo-machete cannot trace through build-codegen, so
+# explicit ignore prevents a false positive.
+[package.metadata.cargo-machete]
+ignored = ["phf"]

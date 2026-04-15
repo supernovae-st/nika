@@ -1,0 +1,1109 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Model capabilities and pricing catalog.
+//!
+//! Capabilities use pattern-matching (NOT phf) — model names are open-ended.
+//! Pricing uses 2-pass matching: exact match first, then `contains()` fallback.
+
+#[cfg(feature = "capabilities")]
+use crate::types::model::ModelCapabilities;
+#[cfg(feature = "pricing")]
+use crate::types::model::{CostEstimate, ModelPricing};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Model capabilities (pattern-matching function)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Resolve capabilities for a given provider + model combination.
+///
+/// **Provider-aware:** the same model name gets different treatment depending
+/// on the provider. `o3` on `OpenAI` gets `max_completion_tokens`, but
+/// `o3-finetune` on a custom vLLM endpoint gets `max_tokens`.
+///
+/// # How it works
+///
+/// Rules live in `data/model-capabilities.toml` and are materialised by
+/// `build.rs` into a `&'static [Rule]` slice. The resolver:
+///
+///   1. canonicalises the provider via [`crate::data::find_provider`]
+///      (so `"claude"` → `"anthropic"`, `"grok"` → `"xai"`, etc.);
+///   2. walks `CAPABILITY_RULES` in file order, skipping rules whose
+///      `providers` scope or `api_dialect` scope doesn't match;
+///   3. on the first matching rule, merges its `caps` into a `CapPatch`
+///      accumulator seeded from `CAPABILITY_DEFAULTS` and breaks;
+///   4. materialises into a full [`ModelCapabilities`] using
+///      [`ModelCapabilities::default`] for any still-unset field.
+///
+/// Zero heap allocations: every string comparison uses
+/// `eq_ignore_ascii_case` on the raw slice, no `to_lowercase()`.
+#[cfg(feature = "capabilities")]
+#[must_use]
+#[inline]
+pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
+    use crate::data::{CAPABILITY_DEFAULTS, CAPABILITY_RULES, find_provider};
+
+    // Canonicalise provider + surface api_dialect in one phf hit.
+    let provider_entry = find_provider(provider);
+    let canonical = provider_entry.map_or(provider, |p| p.id);
+    let dialect = provider_entry.and_then(|p| p.api_dialect);
+
+    let mut patch = CAPABILITY_DEFAULTS;
+
+    for rule in CAPABILITY_RULES {
+        // Provider scope: empty list = global; otherwise canonical must be
+        // in the list (case-insensitive ASCII).
+        if !rule.providers.is_empty()
+            && !rule
+                .providers
+                .iter()
+                .any(|p| canonical.eq_ignore_ascii_case(p))
+        {
+            continue;
+        }
+        // Dialect scope: `None` on the rule = any dialect; otherwise the
+        // provider must declare that exact dialect.
+        if let Some(required) = rule.api_dialect {
+            match dialect {
+                Some(d) if d.eq_ignore_ascii_case(required) => {}
+                _ => continue,
+            }
+        }
+        if !rule.matcher.matches(model) {
+            continue;
+        }
+        // First match wins.
+        patch = patch.merge_with(rule.caps);
+        break;
+    }
+
+    patch.materialize(&CAPABILITY_DEFAULTS)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pricing catalog (62 entries, sorted by provider → specificity)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Static pricing table — model patterns matched by exact name or `contains()`.
+///
+/// **Ordering matters for `contains()` fallback**: more specific patterns MUST
+/// appear before less specific ones within each provider.
+///
+/// Entries use the [`ModelPricing::new`] constructor (not struct-literal syntax).
+/// The struct is `#[non_exhaustive]` (invariant #19): using `new()` here — even
+/// though we are in the same crate — means that when Session 3 Phase E extends
+/// [`ModelPricing`] with new `Option<f64>` pricing axes, every unupdated call
+/// site becomes a hard compile error instead of silently taking a default
+/// value. That is the entire point of invariant #19 at this site.
+#[cfg(feature = "pricing")]
+pub static ALL_PRICING: &[ModelPricing] = &[
+    // ── Anthropic ───────────────────────────────────────────────
+    ModelPricing::new("Anthropic", "claude-3-haiku", 0.25, 1.25, None, None, None),
+    ModelPricing::new("Anthropic", "opus-4", 15.0, 75.0, None, None, None),
+    ModelPricing::new("Anthropic", "sonnet-4", 3.0, 15.0, None, None, None),
+    ModelPricing::new("Anthropic", "haiku-4", 0.8, 4.0, None, None, None),
+    ModelPricing::new(
+        "Anthropic",
+        "claude-3-5-sonnet",
+        3.0,
+        15.0,
+        None,
+        None,
+        None,
+    ),
+    ModelPricing::new("Anthropic", "claude-3-5-haiku", 0.8, 4.0, None, None, None),
+    ModelPricing::new("Anthropic", "claude-3-opus", 15.0, 75.0, None, None, None),
+    ModelPricing::new("Anthropic", "claude-3-sonnet", 3.0, 15.0, None, None, None),
+    // ── OpenAI (ordering critical for contains fallback) ────────
+    ModelPricing::new("OpenAI", "gpt-4o-mini", 0.15, 0.6, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-4o", 2.5, 10.0, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-4.1-nano", 0.1, 0.4, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-4.1-mini", 0.4, 1.6, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-4.1", 2.0, 8.0, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-3.5-turbo", 0.5, 1.5, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-4-turbo", 10.0, 30.0, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-4", 30.0, 60.0, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-5.4-nano", 0.10, 0.40, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-5.4-mini", 0.40, 1.60, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-5.4", 2.00, 8.00, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-5.2-pro", 21.0, 168.0, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-5.2", 1.75, 14.0, None, None, None),
+    ModelPricing::new("OpenAI", "gpt-5", 1.75, 14.0, None, None, None),
+    ModelPricing::new("OpenAI", "o1-mini", 3.0, 12.0, None, None, None),
+    ModelPricing::new("OpenAI", "o1", 15.0, 60.0, None, None, None),
+    ModelPricing::new("OpenAI", "o3-mini", 1.1, 4.4, None, None, None),
+    ModelPricing::new("OpenAI", "o4-mini", 1.1, 4.4, None, None, None),
+    ModelPricing::new("OpenAI", "o3", 2.0, 8.0, None, None, None),
+    // o4-mini BEFORE o4 (contains "o4" substring)
+    ModelPricing::new("OpenAI", "o4", 2.0, 8.0, None, None, None),
+    // ── Mistral ─────────────────────────────────────────────────
+    ModelPricing::new("Mistral", "mistral-large", 2.0, 6.0, None, None, None),
+    ModelPricing::new("Mistral", "mistral-medium", 2.7, 8.1, None, None, None),
+    ModelPricing::new("Mistral", "mistral-small", 0.2, 0.6, None, None, None),
+    ModelPricing::new("Mistral", "codestral", 0.3, 0.9, None, None, None),
+    ModelPricing::new("Mistral", "ministral-8b", 0.1, 0.1, None, None, None),
+    ModelPricing::new("Mistral", "ministral-3b", 0.04, 0.04, None, None, None),
+    ModelPricing::new("Mistral", "pixtral-large", 2.0, 6.0, None, None, None),
+    ModelPricing::new("Mistral", "pixtral-12b", 0.15, 0.15, None, None, None),
+    // ── Groq ────────────────────────────────────────────────────
+    ModelPricing::new(
+        "Groq",
+        "llama-3.3-70b-specdec",
+        0.59,
+        0.99,
+        None,
+        None,
+        None,
+    ),
+    ModelPricing::new("Groq", "llama-3.3-70b", 0.59, 0.79, None, None, None),
+    ModelPricing::new("Groq", "llama-3.1-70b", 0.59, 0.79, None, None, None),
+    ModelPricing::new("Groq", "llama-3.1-8b", 0.05, 0.08, None, None, None),
+    ModelPricing::new("Groq", "llama3-70b", 0.59, 0.79, None, None, None),
+    ModelPricing::new("Groq", "llama3-8b", 0.05, 0.08, None, None, None),
+    ModelPricing::new("Groq", "mixtral-8x7b", 0.24, 0.24, None, None, None),
+    ModelPricing::new("Groq", "gemma2-9b", 0.20, 0.20, None, None, None),
+    // ── DeepSeek ────────────────────────────────────────────────
+    ModelPricing::new("DeepSeek", "deepseek-chat", 0.14, 0.28, None, None, None),
+    ModelPricing::new(
+        "DeepSeek",
+        "deepseek-reasoner",
+        0.55,
+        2.19,
+        None,
+        None,
+        None,
+    ),
+    ModelPricing::new("DeepSeek", "deepseek-coder", 0.14, 0.28, None, None, None),
+    // ── Gemini ──────────────────────────────────────────────────
+    ModelPricing::new("Gemini", "gemini-2.5-flash", 0.15, 0.6, None, None, None),
+    ModelPricing::new("Gemini", "gemini-2.5-pro", 1.25, 10.0, None, None, None),
+    ModelPricing::new("Gemini", "gemini-2.0-flash-exp", 0.0, 0.0, None, None, None),
+    ModelPricing::new(
+        "Gemini",
+        "gemini-2.0-flash-thinking",
+        0.0,
+        0.0,
+        None,
+        None,
+        None,
+    ),
+    ModelPricing::new("Gemini", "gemini-2.0-flash", 0.1, 0.4, None, None, None),
+    ModelPricing::new(
+        "Gemini",
+        "gemini-1.5-flash-8b",
+        0.0375,
+        0.15,
+        None,
+        None,
+        None,
+    ),
+    ModelPricing::new("Gemini", "gemini-1.5-flash", 0.075, 0.3, None, None, None),
+    ModelPricing::new("Gemini", "gemini-1.5-pro", 1.25, 5.0, None, None, None),
+    ModelPricing::new("Gemini", "gemini-pro", 0.5, 1.5, None, None, None),
+    // ── xAI ─────────────────────────────────────────────────────
+    ModelPricing::new("xAI", "grok-4", 3.0, 15.0, None, None, None),
+    ModelPricing::new("xAI", "grok-3-mini-fast", 0.1, 0.4, None, None, None),
+    ModelPricing::new("xAI", "grok-3-mini", 0.3, 0.5, None, None, None),
+    ModelPricing::new("xAI", "grok-3-fast", 0.6, 4.0, None, None, None),
+    ModelPricing::new("xAI", "grok-3", 3.0, 15.0, None, None, None),
+    ModelPricing::new("xAI", "grok-2", 2.0, 10.0, None, None, None),
+];
+
+/// Find pricing for a model.
+///
+/// Two-pass matching:
+/// 1. Exact match on `model_pattern`
+/// 2. `contains()` fallback (first match wins — ordering matters)
+///
+/// ⚠ The unscoped variant is vulnerable to cross-provider contains-collisions
+/// (e.g. `gpt-4o` could pick up an Azure pattern when the caller meant `OpenAI`).
+/// Prefer [`find_pricing_scoped`] when the provider is known.
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
+    // Pass 1: exact match
+    if let Some(p) = ALL_PRICING.iter().find(|p| model == p.model_pattern) {
+        return Some(p);
+    }
+    // Pass 2: contains() fallback (first match wins)
+    ALL_PRICING.iter().find(|p| model.contains(p.model_pattern))
+}
+
+/// Find pricing for `model` scoped to a specific `provider`.
+///
+/// Fixes the silent-wrong-cost bug where `find_pricing("gpt-4o")` could
+/// resolve to an Azure pattern because a broader contains-match landed
+/// first. When the caller knows which provider issued the request, this
+/// variant restricts the search to pricing rows whose `provider` field
+/// matches (case-insensitively) so contains-fallback never crosses
+/// provider boundaries.
+///
+/// Provider matching is case-insensitive and accepts the provider id
+/// (e.g. `"openai"`) or the capitalised display form used in the
+/// pricing table (e.g. `"OpenAI"`).
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
+    let prov_lower = provider.to_ascii_lowercase();
+    // Pass 1: exact model match within provider scope.
+    if let Some(p) = ALL_PRICING
+        .iter()
+        .find(|p| p.provider.eq_ignore_ascii_case(&prov_lower) && model == p.model_pattern)
+    {
+        return Some(p);
+    }
+    // Pass 2: contains() fallback within provider scope.
+    ALL_PRICING
+        .iter()
+        .find(|p| p.provider.eq_ignore_ascii_case(&prov_lower) && model.contains(p.model_pattern))
+}
+
+/// Estimate cost for a model invocation.
+#[cfg(feature = "pricing")]
+#[must_use]
+// REASON: casting `u64` token counts to `f64` for the rate multiplication.
+// Token counts cap at provider context windows (≤ 10 M = 2²³), well below
+// the `f64` precision horizon (2⁵³). A saturating conversion would hide a
+// real data bug if that ever changed; the cast is the right primitive here.
+#[allow(clippy::cast_precision_loss)]
+pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Option<CostEstimate> {
+    let pricing = find_pricing(model)?;
+    let usd = (input_tokens as f64 * pricing.input_per_million
+        + output_tokens as f64 * pricing.output_per_million)
+        / 1_000_000.0;
+    Some(CostEstimate {
+        usd,
+        input_rate_per_million: pricing.input_per_million,
+        output_rate_per_million: pricing.output_per_million,
+        model: model.to_string(),
+        provider: pricing.provider.to_string(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(feature = "capabilities")]
+    use crate::types::Modality;
+    #[cfg(feature = "capabilities")]
+    use crate::types::model::TokenLimitParam;
+
+    // ── Pricing count ───────────────────────────────────────────
+
+    #[test]
+    fn pricing_count() {
+        assert_eq!(ALL_PRICING.len(), 62);
+    }
+
+    // ── Capabilities ────────────────────────────────────────────
+
+    #[test]
+    fn o3_needs_max_completion_tokens() {
+        let caps = model_capabilities("openai", "o3");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+        assert!(!caps.supports_temperature);
+        assert!(caps.reasoning);
+    }
+
+    #[test]
+    fn o4_mini_reasoning() {
+        let caps = model_capabilities("openai", "o4-mini");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn gpt52_uses_max_completion_tokens_but_supports_temperature() {
+        let caps = model_capabilities("openai", "gpt-5.2");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+        assert!(caps.supports_temperature);
+        assert!(caps.reasoning);
+    }
+
+    #[test]
+    fn gpt4p1_is_not_reasoning() {
+        let caps = model_capabilities("openai", "gpt-4.1");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxTokens);
+        assert!(caps.supports_temperature);
+    }
+
+    #[test]
+    fn claude_has_reasoning() {
+        let caps = model_capabilities("anthropic", "claude-sonnet-4-6");
+        assert!(caps.reasoning);
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxTokens);
+    }
+
+    #[test]
+    fn deepseek_reasoner_no_vision_no_temperature() {
+        let caps = model_capabilities("deepseek", "deepseek-reasoner");
+        assert!(!caps.supports_temperature);
+        assert!(!caps.input_modalities.contains(&Modality::Image));
+    }
+
+    #[test]
+    fn deepseek_chat_no_vision() {
+        let caps = model_capabilities("deepseek", "deepseek-chat");
+        assert!(caps.supports_temperature);
+        assert!(!caps.input_modalities.contains(&Modality::Image));
+    }
+
+    #[test]
+    fn grok4_rejects_stop_sequences() {
+        let caps = model_capabilities("xai", "grok-4");
+        assert!(!caps.supports_stop_sequences);
+    }
+
+    #[test]
+    fn custom_endpoint_safe_defaults() {
+        let caps = model_capabilities("h100", "o3-finetune");
+        assert_eq!(
+            caps.token_limit_param,
+            TokenLimitParam::MaxTokens,
+            "custom endpoints should use max_tokens even for o3-like names"
+        );
+    }
+
+    #[test]
+    fn openrouter_gets_openai_treatment() {
+        let caps = model_capabilities("openrouter", "o3");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn case_insensitive_model_names() {
+        let caps = model_capabilities("OpenAI", "GPT-5.2");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    // ── Kill mutants: each o-series pattern independently ───────
+
+    #[test]
+    fn o1_is_reasoning() {
+        let caps = model_capabilities("openai", "o1");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn o1_pro_is_reasoning() {
+        let caps = model_capabilities("openai", "o1-pro");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn o3_mini_is_reasoning() {
+        let caps = model_capabilities("openai", "o3-mini");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn o4_is_reasoning() {
+        let caps = model_capabilities("openai", "o4");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn gpt5_base_is_reasoning() {
+        let caps = model_capabilities("openai", "gpt-5");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn gpt5_dash_variant_is_reasoning() {
+        let caps = model_capabilities("openai", "gpt-5-turbo");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    #[test]
+    fn gpt5_dot_variant_is_reasoning() {
+        let caps = model_capabilities("openai", "gpt-5.4");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    // ── Kill mutants: provider alias detection ──────────────────
+
+    #[test]
+    fn gpt_provider_alias_gets_openai_treatment() {
+        let caps = model_capabilities("gpt", "o3");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+    }
+
+    // ── Kill mutants: xai grok-4 specific ───────────────────────
+
+    #[test]
+    fn grok_alias_grok4() {
+        let caps = model_capabilities("grok", "grok-4");
+        assert!(!caps.supports_stop_sequences);
+    }
+
+    #[test]
+    fn xai_non_grok4_supports_stop() {
+        let caps = model_capabilities("xai", "grok-3");
+        assert!(caps.supports_stop_sequences);
+    }
+
+    // ── Kill mutants: anthropic temperature ─────────────────────
+
+    #[test]
+    fn o3_no_temperature() {
+        let caps = model_capabilities("openai", "o3");
+        assert!(!caps.supports_temperature);
+    }
+
+    #[test]
+    fn standard_model_supports_temperature() {
+        let caps = model_capabilities("openai", "gpt-4o");
+        assert!(caps.supports_temperature);
+    }
+
+    // ── Pricing 2-pass matching ─────────────────────────────────
+
+    #[test]
+    fn exact_match_takes_priority() {
+        let p = find_pricing("gpt-4o-mini").unwrap();
+        assert!((p.input_per_million - 0.15).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn contains_fallback_for_dated_variants() {
+        let p = find_pricing("claude-sonnet-4-20250514").unwrap();
+        assert_eq!(p.provider, "Anthropic");
+        assert!((p.input_per_million - 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn unknown_model_returns_none() {
+        assert!(find_pricing("some-random-model").is_none());
+    }
+
+    #[test]
+    fn estimate_cost_sonnet_1k_tokens() {
+        let est = estimate_cost("claude-sonnet-4-20250514", 1000, 500).unwrap();
+        let expected = (1000.0 * 3.0 + 500.0 * 15.0) / 1_000_000.0;
+        assert!((est.usd - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn gpt4p1_variants_differentiated() {
+        let nano = find_pricing("gpt-4.1-nano").unwrap();
+        let mini = find_pricing("gpt-4.1-mini").unwrap();
+        let base = find_pricing("gpt-4.1").unwrap();
+        assert!(nano.input_per_million < mini.input_per_million);
+        assert!(mini.input_per_million < base.input_per_million);
+    }
+
+    #[test]
+    fn specdec_different_from_versatile() {
+        let specdec = find_pricing("llama-3.3-70b-specdec").unwrap();
+        let versatile = find_pricing("llama-3.3-70b-versatile").unwrap();
+        assert!((specdec.output_per_million - 0.99).abs() < f64::EPSILON);
+        assert!((versatile.output_per_million - 0.79).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn all_pricing_entries_have_non_empty_fields() {
+        for p in ALL_PRICING {
+            assert!(!p.provider.is_empty());
+            assert!(!p.model_pattern.is_empty());
+        }
+    }
+
+    // ── Pattern ordering invariant ──────────────────────────────
+    //
+    // Two-pass contains-fallback only works when a longer pattern is
+    // tested BEFORE a shorter one that it contains — otherwise
+    // `gpt-4o-mini` matches `"gpt-4o"` before `"gpt-4o-mini"` and the
+    // wrong price wins. The test below walks each provider's slice and
+    // fails if any later pattern is a strict substring of an earlier one
+    // in the same provider — that would mean the longer, more specific
+    // one came second.
+
+    #[test]
+    fn pricing_patterns_ordered_longest_first_within_provider() {
+        use std::collections::BTreeMap;
+        let mut by_provider: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        for p in ALL_PRICING {
+            by_provider
+                .entry(p.provider)
+                .or_default()
+                .push(p.model_pattern);
+        }
+        for (provider, patterns) in &by_provider {
+            for i in 0..patterns.len() {
+                for j in (i + 1)..patterns.len() {
+                    let earlier = patterns[i];
+                    let later = patterns[j];
+                    // If a LATER entry contains an EARLIER entry as a
+                    // substring, the later one is more specific and has
+                    // been placed wrong.
+                    assert!(
+                        !later.contains(earlier) || later == earlier,
+                        "{provider}: pattern {later:?} contains {earlier:?} — longer/more-specific pattern must come first (would cause wrong-cost match via contains-fallback)",
+                    );
+                }
+            }
+        }
+    }
+
+    // ── Scoped pricing lookup ────────────────────────────────────
+
+    #[test]
+    fn scoped_pricing_exact_match() {
+        let p = find_pricing_scoped("openai", "gpt-4o").unwrap();
+        assert_eq!(p.provider, "OpenAI");
+        assert!((p.input_per_million - 2.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn scoped_pricing_contains_fallback() {
+        // Dated variant — should fall through to the "claude-sonnet-4" contains match.
+        let p = find_pricing_scoped("anthropic", "claude-sonnet-4-20250514").unwrap();
+        assert_eq!(p.provider, "Anthropic");
+    }
+
+    #[test]
+    fn scoped_pricing_accepts_provider_id_or_display_form() {
+        // "openai" (id) and "OpenAI" (display) should both resolve.
+        let lower = find_pricing_scoped("openai", "gpt-4o").unwrap();
+        let proper = find_pricing_scoped("OpenAI", "gpt-4o").unwrap();
+        assert!(core::ptr::eq(lower, proper));
+    }
+
+    #[test]
+    fn scoped_pricing_rejects_cross_provider_contains() {
+        // "gpt-4o" ALSO contains-matches the "gpt-4" substring on any provider
+        // that lists it. Scoped to a made-up provider, lookup must fail rather
+        // than bleed into OpenAI rows.
+        assert!(find_pricing_scoped("made-up-provider", "gpt-4o").is_none());
+    }
+
+    #[test]
+    fn scoped_pricing_unknown_model_returns_none() {
+        assert!(find_pricing_scoped("openai", "gpt-999-imaginary").is_none());
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Session 2b onward — provenance tests (post-legacy-parity)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The Session 2a→2b transition deleted the `legacy_model_capabilities` body
+// + its `proptest! { 10_000 cases }` parity harness. Legacy only knew the 5
+// Session-2a fields; after 2b adds modalities/tokenizer/supported_parameters
+// /supports_system_messages, byte-for-byte parity is no longer meaningful.
+//
+// These tests replace it with an explicit oracle: every rule in
+// `data/model-capabilities.toml` is exercised by a canonical (provider,
+// model) pair that MUST resolve to a specific expected value. If a rule
+// is accidentally shadowed (e.g. someone adds `openai-gpt4-family` before
+// `openai-gpt4o-family`), one of the `assert_eq!` calls below fails with
+// a message pointing at the offending rule.
+//
+// The insta snapshot test remains as the reviewable wide-angle oracle.
+
+#[cfg(all(test, feature = "capabilities"))]
+mod provenance_tests {
+    use super::model_capabilities;
+    use crate::types::{Modality, ParamFlag, TokenizerFamily};
+
+    /// Snapshot of resolved capabilities for representative (provider, model)
+    /// pairs. Reviewable `.snap` file catches silent semantic breakage.
+    #[test]
+    fn snapshot_capabilities_for_representative_models() {
+        let cases: &[(&str, &str)] = &[
+            // Anthropic family (canonical + alias + various versions).
+            ("anthropic", "claude-opus-4-20250514"),
+            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("anthropic", "claude-haiku-4-5-20251001"),
+            ("claude", "claude-sonnet-4-20250514"),
+            // OpenAI — classic, o-series, gpt-5 family.
+            ("openai", "gpt-4o"),
+            ("openai", "gpt-4o-mini"),
+            ("openai", "gpt-4.1"),
+            ("openai", "o1"),
+            ("openai", "o1-preview"),
+            ("openai", "o3"),
+            ("openai", "o3-mini"),
+            ("openai", "o4-mini"),
+            ("openai", "gpt-5"),
+            ("openai", "gpt-5-turbo"),
+            ("openai", "gpt-5.1"),
+            // OpenRouter — aliased API surface.
+            ("openrouter", "o3"),
+            ("openrouter", "anthropic/claude-sonnet-4-5-20250929"),
+            // Mistral, Groq, DeepSeek, Gemini, xAI, Cohere.
+            ("mistral", "mistral-large-latest"),
+            ("groq", "llama-3.3-70b-versatile"),
+            ("deepseek", "deepseek-chat"),
+            ("deepseek", "deepseek-reasoner"),
+            ("deep-seek", "deepseek-chat"),
+            ("gemini", "gemini-2.5-pro"),
+            ("xai", "grok-3"),
+            ("xai", "grok-4"),
+            ("grok", "grok-4"),
+            ("cohere", "command-r-plus"),
+            // Bedrock, Azure, Vertex, Native, Mock.
+            ("bedrock", "anthropic.claude-sonnet-4-20250514-v1:0"),
+            ("azure", "gpt-4o"),
+            ("native", "Qwen/Qwen3-8B"),
+            // Unknown provider + model → safe defaults.
+            ("unknown", "unknown-model"),
+        ];
+        let rendered: Vec<String> = cases
+            .iter()
+            .map(|(p, m)| format!("{p:>12} / {m:<40} → {:?}", model_capabilities(p, m)))
+            .collect();
+        insta::assert_snapshot!(rendered.join("\n"));
+    }
+
+    /// Core Session 2a semantics — tokenizer-agnostic behavioural asserts
+    /// that survive the 2b migration because they only reference fields
+    /// that existed before 2b. Covers alias resolution + fallthrough.
+    #[test]
+    fn session_2a_core_spot_checks() {
+        use crate::types::model::TokenLimitParam;
+
+        // OpenAI reasoning family — max_completion_tokens + no temperature.
+        for (prov, model) in [
+            ("openai", "o1"),
+            ("openai", "o3"),
+            ("openai", "o1-preview"),
+            ("openai", "o3-mini"),
+            ("openai", "o4-mini"),
+            ("openrouter", "o3"),
+            ("openai", "O3"),    // case-insensitive
+            ("OpEnAi", "gpt-5"), // canonical provider mixed-case
+        ] {
+            let c = model_capabilities(prov, model);
+            assert_eq!(
+                c.token_limit_param,
+                TokenLimitParam::MaxCompletionTokens,
+                "reasoning family must get max_completion_tokens: {prov}/{model}",
+            );
+        }
+
+        // Claude family — reasoning=true via prefix, independent of provider.
+        // Note: "anthropic/claude-*" on openrouter does NOT match the
+        // `claude-family-any-provider` rule (prefix "claude") and needs an
+        // explicit `openrouter-claude` rule (scheduled for the full 28-rule
+        // migration commit). Only bare "claude-*" is asserted here.
+        for (prov, model) in [
+            ("anthropic", "claude-opus-4-20250514"),
+            ("claude", "claude-sonnet-4-20250514"),
+        ] {
+            let c = model_capabilities(prov, model);
+            assert!(
+                c.reasoning,
+                "claude family: reasoning=true ({prov}/{model})"
+            );
+        }
+
+        // DeepSeek — loses vision + reasoner rejects temperature.
+        let r = model_capabilities("deepseek", "deepseek-reasoner");
+        assert!(
+            !r.input_modalities.contains(&Modality::Image),
+            "deepseek-reasoner: no vision"
+        );
+        assert!(!r.supports_temperature, "deepseek-reasoner: no temperature");
+        let c = model_capabilities("deep-seek", "deepseek-chat");
+        assert!(
+            !c.input_modalities.contains(&Modality::Image),
+            "deep-seek alias: no vision"
+        );
+
+        // xAI grok-4 — still uses existing rule (kind=exact for Session 2a;
+        // 2b expands the prefix list. Exact "grok-4" still matches.)
+        let g = model_capabilities("xai", "grok-4");
+        assert!(!g.supports_stop_sequences, "grok-4: no stop sequences");
+        assert!(
+            model_capabilities("grok", "grok-4") == g,
+            "grok alias → xai"
+        );
+
+        // Unknown provider + model → defaults.
+        let u = model_capabilities("unknown", "unknown-model");
+        assert_eq!(u.token_limit_param, TokenLimitParam::MaxTokens);
+        assert!(u.supports_temperature);
+        assert!(u.input_modalities.contains(&Modality::Image));
+    }
+
+    /// Session 2b additions — baseline defaults round-trip through
+    /// `materialize()` to the public struct. These are exercised here
+    /// rather than in the types test module because we need the full
+    /// `model_capabilities()` pipeline (TOML → `CAPABILITY_DEFAULTS` →
+    /// materialize).
+    ///
+    /// After the 28 TOML rules land in the same commit, this test grows
+    /// with per-rule provenance asserts (`o3` tokenizer=o200k, claude PDF,
+    /// deepseek NO `StructuredOutputNative`, magistral reasoning, etc.).
+    #[test]
+    fn session_2b_default_fields_materialize() {
+        // Unknown model → full defaults from [defaults] block.
+        let c = model_capabilities("unknown-provider", "unknown-model");
+        assert!(
+            c.input_modalities.contains(&Modality::Text),
+            "default input_modalities must contain text"
+        );
+        assert!(c.output_modalities.contains(&Modality::Text));
+        assert!(
+            c.supports_system_messages,
+            "default: supports_system_messages=true"
+        );
+        // Default tokenizer = None. TOML [defaults] intentionally omits the
+        // field (most providers don't disclose their tokenizer), so for an
+        // unknown provider the materialised tokenizer MUST be None. Earlier
+        // draft of this assert had a dead `|| == Some(Cl100k)` branch that
+        // made it vacuous (is_none() was always true); tightened per
+        // Session 2b review swarm P1.
+        assert!(
+            c.tokenizer.is_none(),
+            "default tokenizer must be None (TOML [defaults] omits the field)"
+        );
+        // Default supported_parameters = [] (rules add them).
+        // Contain-check on a known flag is false by default.
+        assert!(
+            !c.supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative)
+        );
+    }
+
+    /// Per-rule provenance spot-checks — every rule is exercised by the
+    /// canonical (provider, model) pair that should trigger it. If a rule
+    /// is accidentally shadowed (e.g. `openai-gpt4-family` before
+    /// `openai-gpt4o-family`), the corresponding assert below fails with a
+    /// message pointing at the offending rule.
+    // REASON: 120 lines exercise one (provider, model) per rule + a handful
+    // of per-rule assertions. Splitting into 28 one-rule tests would bloat
+    // the file with duplicated `use` + `let caps = …` boilerplate — keeping
+    // a single harness with contiguous asserts reads cleaner.
+    #[allow(clippy::too_many_lines)]
+    #[test]
+    fn session_2b_per_rule_provenance() {
+        // [1] openai-o-series-exact — o1 + o3 vision YES, developer role.
+        let o3 = model_capabilities("openai", "o3");
+        assert_eq!(
+            o3.tokenizer,
+            Some(TokenizerFamily::O200k),
+            "o3: must match o-series-exact rule"
+        );
+        assert!(
+            !o3.supports_system_messages,
+            "o-series: developer role canonical (system silently reclassified)"
+        );
+        assert!(
+            o3.input_modalities.contains(&Modality::Image),
+            "o3: vision YES (not same as o3-mini)"
+        );
+        assert!(
+            o3.supported_parameters
+                .contains(&ParamFlag::ReasoningEffort)
+        );
+
+        let o1 = model_capabilities("openai", "o1");
+        assert!(
+            o1.input_modalities.contains(&Modality::Image),
+            "o1: vision YES"
+        );
+        assert!(!o1.supports_system_messages, "o1: developer role");
+
+        // [2] openai-o4-family — o4-mini vision YES, stop=false.
+        let o4mini = model_capabilities("openai", "o4-mini");
+        assert!(
+            o4mini.input_modalities.contains(&Modality::Image),
+            "o4-mini: vision YES (April 2025)"
+        );
+        assert_eq!(o4mini.tokenizer, Some(TokenizerFamily::O200k));
+        assert!(!o4mini.supports_system_messages, "o4-mini: developer role");
+        assert!(
+            !o4mini.supports_stop_sequences,
+            "o4-mini: stop NOT supported per OpenAI SDK docstring"
+        );
+
+        // [3] openai-o-series-family — o3-mini text-only, o1-mini o200k.
+        let o3mini = model_capabilities("openai", "o3-mini");
+        assert!(
+            !o3mini.input_modalities.contains(&Modality::Image),
+            "o3-mini: text only, NOT o3"
+        );
+        assert!(!o3mini.supports_system_messages, "o3-mini: developer role");
+
+        let o1mini = model_capabilities("openai", "o1-mini");
+        assert!(
+            !o1mini.input_modalities.contains(&Modality::Image),
+            "o1-mini: text only (never got vision update)"
+        );
+        assert_eq!(
+            o1mini.tokenizer,
+            Some(TokenizerFamily::O200k),
+            "o1-mini: o200k (tiktoken model.py prefix o1-)"
+        );
+
+        // [6] openai-gpt4o-family — o200k (NOT cl100k).
+        let gpt4o = model_capabilities("openai", "gpt-4o");
+        assert_eq!(
+            gpt4o.tokenizer,
+            Some(TokenizerFamily::O200k),
+            "gpt-4o: must match gpt4o-family rule (NOT gpt-4-family)"
+        );
+        assert_ne!(
+            gpt4o.tokenizer,
+            Some(TokenizerFamily::Cl100k),
+            "ORDERING: if this fails, gpt4-family fired before gpt4o-family"
+        );
+
+        // [7] openai-gpt4p1-family — o200k (NOT cl100k).
+        let gpt4p1 = model_capabilities("openai", "gpt-4.1");
+        assert_eq!(
+            gpt4p1.tokenizer,
+            Some(TokenizerFamily::O200k),
+            "gpt-4.1: o200k confirmed from tiktoken source"
+        );
+        assert_ne!(
+            gpt4p1.tokenizer,
+            Some(TokenizerFamily::Cl100k),
+            "ORDERING: if this fails, gpt4-family fired before gpt4p1-family"
+        );
+
+        // [8] openai-gpt4-family — cl100k legacy.
+        let gpt4 = model_capabilities("openai", "gpt-4");
+        assert_eq!(
+            gpt4.tokenizer,
+            Some(TokenizerFamily::Cl100k),
+            "gpt-4 legacy: cl100k (GPT-4 original, not 4.1/4o)"
+        );
+
+        // [9] claude-family-any-provider — PDF + prompt-caching.
+        let claude = model_capabilities("anthropic", "claude-sonnet-4-5-20250929");
+        assert_eq!(claude.tokenizer, Some(TokenizerFamily::ClaudeV3));
+        assert!(
+            claude
+                .supported_parameters
+                .contains(&ParamFlag::PromptCaching),
+            "prompt-caching: from claude-family rule"
+        );
+        assert!(
+            claude
+                .supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative)
+        );
+        assert!(
+            claude
+                .supported_parameters
+                .contains(&ParamFlag::ThinkingBudget)
+        );
+        assert!(
+            claude.supports_system_messages,
+            "Claude: system messages YES"
+        );
+        assert!(
+            claude.input_modalities.contains(&Modality::Pdf),
+            "claude: PDF supported (all active models)"
+        );
+
+        // [11-12] deepseek — no StructuredOutputNative (json_object only).
+        let deepseek = model_capabilities("deepseek", "deepseek-chat");
+        assert!(
+            !deepseek.input_modalities.contains(&Modality::Image),
+            "deepseek: no vision API"
+        );
+        assert!(
+            !deepseek
+                .supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative),
+            "deepseek: json_object only (NOT json_schema)"
+        );
+        assert_eq!(deepseek.tokenizer, Some(TokenizerFamily::DeepSeek));
+
+        let deepseek_r = model_capabilities("deepseek", "deepseek-reasoner");
+        assert!(
+            deepseek_r.reasoning,
+            "deepseek-reasoner: reasoning=true (was MISSING pre-2b)"
+        );
+        assert!(
+            !deepseek_r
+                .supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative)
+        );
+
+        // [13] xai-grok4 — reasoning, no temperature, no stop, no tokenizer.
+        let grok4 = model_capabilities("xai", "grok-4");
+        assert!(grok4.reasoning, "grok-4: reasoning=true");
+        assert!(!grok4.supports_temperature, "grok-4: no temperature");
+        assert!(!grok4.supports_stop_sequences, "grok-4: no stop");
+        assert_eq!(
+            grok4.tokenizer, None,
+            "grok-4: no enum variant (custom SentencePiece)"
+        );
+
+        // [14] xai-grok3-mini — P0 FIX (reasoning model).
+        let grok3mini = model_capabilities("xai", "grok-3-mini");
+        assert!(
+            grok3mini.reasoning,
+            "grok-3-mini: P0 — IS a reasoning model"
+        );
+        assert!(!grok3mini.supports_temperature);
+        assert!(
+            !grok3mini.input_modalities.contains(&Modality::Image),
+            "grok-3-mini: text-only"
+        );
+        assert!(
+            grok3mini
+                .supported_parameters
+                .contains(&ParamFlag::ReasoningEffort),
+            "grok-3-mini: supports reasoning_effort (unlike grok-4)"
+        );
+
+        // [15] xai-any-model — grok-3 text-only, not reasoning.
+        let grok3 = model_capabilities("xai", "grok-3");
+        assert!(!grok3.reasoning, "grok-3: not reasoning (grok-3-mini is)");
+        assert!(
+            !grok3.input_modalities.contains(&Modality::Image),
+            "grok-3: text-only (MUST override default=true)"
+        );
+
+        // [16-17] gemini — Pro has PDF, Flash does not.
+        let gemini_pro = model_capabilities("gemini", "gemini-2.5-pro");
+        assert!(
+            gemini_pro.input_modalities.contains(&Modality::Pdf),
+            "gemini-2.5-pro: PDF confirmed"
+        );
+        assert!(gemini_pro.input_modalities.contains(&Modality::Audio));
+        assert!(gemini_pro.input_modalities.contains(&Modality::Video));
+
+        let gemini_flash = model_capabilities("gemini", "gemini-2.5-flash");
+        assert!(
+            gemini_flash.input_modalities.contains(&Modality::Video),
+            "gemini-2.5-flash: video confirmed"
+        );
+        assert!(
+            !gemini_flash.input_modalities.contains(&Modality::Pdf),
+            "gemini-2.5-flash: PDF absent (Pro-only)"
+        );
+
+        // [19] mistral-small-3/4 — vision YES.
+        let mistral_small = model_capabilities("mistral", "mistral-small-latest");
+        assert!(
+            mistral_small.input_modalities.contains(&Modality::Image),
+            "mistral-small-latest: Small 4.0 vision confirmed"
+        );
+        let mistral_small_4 = model_capabilities("mistral", "mistral-small-4-0-26-03");
+        assert!(
+            mistral_small_4.input_modalities.contains(&Modality::Image),
+            "mistral-small-4-0-26-03: prefix mistral-small-4 catches versioned ID"
+        );
+
+        // [21] magistral-family — reasoning + multimodal.
+        let magistral = model_capabilities("mistral", "magistral-medium-latest");
+        assert!(
+            magistral.reasoning,
+            "magistral: always-on reasoning model (confirmed docs.mistral.ai)"
+        );
+        assert!(
+            magistral.input_modalities.contains(&Modality::Image),
+            "magistral-medium: frontier multimodal reasoning"
+        );
+
+        // [22] mistral-any-model — codestral text-only + json_schema.
+        let codestral = model_capabilities("mistral", "codestral-2508");
+        assert!(
+            !codestral.input_modalities.contains(&Modality::Image),
+            "codestral: text-only"
+        );
+        assert!(
+            codestral
+                .supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative),
+            "codestral: json_schema on chat completions endpoint"
+        );
+
+        // [23] bedrock-claude — anthropic.claude-* prefix.
+        let bedrock_claude = model_capabilities("bedrock", "anthropic.claude-sonnet-4-6-v1:0");
+        assert_eq!(
+            bedrock_claude.tokenizer,
+            Some(TokenizerFamily::ClaudeV3),
+            "bedrock-claude rule must fire (NOT defaults)"
+        );
+        assert!(bedrock_claude.input_modalities.contains(&Modality::Pdf));
+
+        // [25] openrouter-claude — anthropic/claude-* prefix.
+        let or_claude = model_capabilities("openrouter", "anthropic/claude-sonnet-4-6");
+        assert_eq!(
+            or_claude.tokenizer,
+            Some(TokenizerFamily::ClaudeV3),
+            "openrouter-claude rule must fire"
+        );
+
+        // [26] native-any — text-only local GGUF.
+        let native = model_capabilities("native", "qwen-3-8b");
+        assert!(
+            !native.input_modalities.contains(&Modality::Image),
+            "native: text-only override"
+        );
+        assert!(!native.input_modalities.contains(&Modality::Image));
+
+        // [27] voyage-any — embedding-only.
+        let voyage = model_capabilities("voyage", "voyage-3");
+        assert!(
+            !voyage.supports_system_messages,
+            "voyage: no chat API, no system messages"
+        );
+        assert!(
+            !voyage.input_modalities.contains(&Modality::Image),
+            "voyage: embedding-only"
+        );
+        assert!(
+            !voyage
+                .supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative)
+        );
+
+        // [28] mock-full — all flags.
+        let mock = model_capabilities("mock", "any-model");
+        assert!(
+            mock.supported_parameters
+                .contains(&ParamFlag::StructuredOutputNative)
+        );
+        assert!(
+            mock.supported_parameters
+                .contains(&ParamFlag::ThinkingBudget)
+        );
+        assert!(mock.supported_parameters.contains(&ParamFlag::WebSearch));
+        assert!(mock.input_modalities.contains(&Modality::Audio));
+        assert!(mock.input_modalities.contains(&Modality::Video));
+        assert!(mock.input_modalities.contains(&Modality::Pdf));
+    }
+
+    /// Post-materialize invariant: `reasoning=true` MUST come with at
+    /// least one reasoning parameter flag (`ReasoningEffort` or
+    /// `ThinkingBudget`). A model that advertises reasoning but exposes
+    /// no knob to control it is a TOML authoring bug.
+    ///
+    /// Note: magistral and grok-4 reason automatically (no knob) — both
+    /// are excluded here and documented as known gaps. The invariant is
+    /// enforced only on models where reasoning IS runtime-controllable.
+    #[test]
+    fn reasoning_models_have_controllable_parameter_flag() {
+        for (prov, model) in [
+            ("anthropic", "claude-sonnet-4-20250514"),
+            ("openai", "o3"),
+            ("openai", "o4-mini"),
+            ("openai", "o3-mini"),
+            ("xai", "grok-3-mini"),
+            ("deepseek", "deepseek-reasoner"),
+        ] {
+            let c = model_capabilities(prov, model);
+            if c.reasoning {
+                let has_effort = c.supported_parameters.contains(&ParamFlag::ReasoningEffort);
+                let has_budget = c.supported_parameters.contains(&ParamFlag::ThinkingBudget);
+                // deepseek-reasoner has neither — reasoning is automatic,
+                // exposed on the model endpoint. Document the known gap.
+                if prov == "deepseek" {
+                    continue;
+                }
+                assert!(
+                    has_effort || has_budget,
+                    "{prov}/{model}: reasoning=true but no ReasoningEffort / ThinkingBudget flag",
+                );
+            }
+        }
+    }
+}

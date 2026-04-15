@@ -1,0 +1,2094 @@
+# nika-catalog — MCP server catalog
+#
+# Aligns with the official MCP Registry schema (registry.modelcontextprotocol.io,
+# v2025-12-11): each server exposes one or more local-install `packages`
+# (npm/pypi/oci/cargo/mcpb) and/or one or more `remotes` (HTTP/SSE endpoints).
+#
+# Schema invariants (enforced in build.rs):
+#   * top-level `schema` matches MCP_SERVERS_SCHEMA constant
+#   * unique server id (case-insensitive, ASCII-only)
+#   * packages.len() + remotes.len() >= 1
+#   * category parses to a known Category variant
+#   * pricing ∈ {free, freemium, paid}
+#   * runner is pypi-only (non-pypi + runner = error; pypi + no runner = error)
+#   * aliases never collide with any id or another alias
+
+schema = "nika/mcp-servers@1.0"
+
+
+# ─── Anthropic Official (3) ──────────────────────────
+
+[[servers]]
+id = "filesystem"
+aliases = []
+title = "Filesystem"
+description = "Read and write local files with path-based access control."
+category = "anthropic"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-filesystem"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "FILESYSTEM_ALLOWED_PATHS"
+required = true
+is_secret = false
+description = "API key / token for Filesystem."
+
+[[servers]]
+id = "memory"
+aliases = []
+title = "Memory"
+description = "Persistent key/value memory store."
+category = "anthropic"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-memory"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MEMORY_STORAGE_PATH"
+required = true
+is_secret = false
+description = "API key / token for Memory."
+
+[[servers]]
+id = "pdf"
+aliases = []
+title = "PDF"
+description = "PDF text + structure extraction."
+category = "anthropic"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-pdf"
+transport = "stdio"
+
+
+# ─── Databases (7) ──────────────────────────────────
+
+[[servers]]
+id = "neo4j"
+aliases = []
+title = "Neo4j"
+description = "Neo4j integration."
+category = "databases"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@johnymontana/neo4j-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "NEO4J_PASSWORD"
+required = true
+is_secret = true
+description = "API key / token for Neo4j."
+
+[[servers]]
+id = "mysql"
+aliases = []
+title = "MySQL"
+description = "MySQL integration."
+category = "databases"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mcp-server-mysql"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MYSQL_URL"
+required = true
+is_secret = true
+description = "API key / token for MySQL."
+
+[[servers]]
+id = "mongodb"
+aliases = []
+title = "MongoDB"
+description = "MongoDB integration."
+category = "databases"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mongodb-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MDB_MCP_CONNECTION_STRING"
+required = true
+is_secret = true
+description = "API key / token for MongoDB."
+
+[[servers]]
+id = "redis"
+aliases = []
+title = "Redis"
+description = "Redis integration."
+category = "databases"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "redis-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "REDIS_URL"
+required = true
+is_secret = true
+description = "API key / token for Redis."
+
+[[servers]]
+id = "supabase"
+aliases = []
+title = "Supabase"
+description = "Supabase integration."
+category = "databases"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "supabase-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SUPABASE_URL"
+required = true
+is_secret = true
+description = "API key / token for Supabase."
+
+[[servers]]
+id = "upstash"
+aliases = []
+title = "Upstash"
+description = "Upstash integration."
+category = "databases"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "serverless"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@upstash/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "UPSTASH_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Upstash."
+
+[[servers]]
+id = "turso"
+aliases = []
+title = "Turso"
+description = "Turso integration."
+category = "databases"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mcp-server-turso"
+transport = "stdio"
+
+
+# ─── Search & Web (7) ───────────────────────────────
+
+[[servers]]
+id = "perplexity"
+aliases = []
+title = "Perplexity"
+description = "Perplexity search + sonar models."
+category = "search"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "perplexity-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "PERPLEXITY_API_KEY"
+key_prefixes = ["pplx-"]
+required = true
+is_secret = true
+description = "API key / token for Perplexity."
+
+[[servers]]
+id = "firecrawl"
+aliases = []
+title = "Firecrawl"
+description = "Web scraping + crawling API."
+category = "search"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "firecrawl-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "FIRECRAWL_API_KEY"
+key_prefixes = ["fc-"]
+required = true
+is_secret = true
+description = "API key / token for Firecrawl."
+
+[[servers]]
+id = "exa"
+aliases = []
+title = "Exa"
+description = "Exa integration."
+category = "search"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "exa-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "EXA_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Exa."
+
+[[servers]]
+id = "tavily"
+aliases = []
+title = "Tavily"
+description = "Tavily integration."
+category = "search"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "tavily-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "TAVILY_API_KEY"
+key_prefixes = ["tvly-"]
+required = true
+is_secret = true
+description = "API key / token for Tavily."
+
+[[servers]]
+id = "serper"
+aliases = []
+title = "Serper"
+description = "Serper integration."
+category = "search"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mcp-server-serper"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SERPER_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Serper."
+
+[[servers]]
+id = "searchapi"
+aliases = []
+title = "Searchapi"
+description = "Searchapi integration."
+category = "search"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "searchapi-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SEARCHAPI_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Searchapi."
+
+[[servers]]
+id = "apify"
+aliases = []
+title = "Apify"
+description = "Apify integration."
+category = "search"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@apify/actors-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "APIFY_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Apify."
+
+
+# ─── Developer Tools (17) ───────────────────────────
+
+[[servers]]
+id = "linear"
+aliases = []
+title = "Linear"
+description = "Linear integration."
+category = "developer"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mcp-server-linear"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "LINEAR_API_KEY"
+key_prefixes = ["lin_api_"]
+required = true
+is_secret = true
+description = "API key / token for Linear."
+
+[[servers]]
+id = "sentry"
+aliases = []
+title = "Sentry"
+description = "Sentry integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@sentry/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SENTRY_AUTH_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Sentry."
+
+[[servers]]
+id = "circleci"
+aliases = []
+title = "CircleCI"
+description = "CircleCI integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@circleci/mcp-server-circleci"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "CIRCLECI_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for CircleCI."
+
+[[servers]]
+id = "vercel"
+aliases = []
+title = "Vercel"
+description = "Vercel integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "vercel-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "VERCEL_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Vercel."
+
+[[servers]]
+id = "cloudflare"
+aliases = []
+title = "Cloudflare"
+description = "Cloudflare integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@cloudflare/mcp-server-cloudflare"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "CLOUDFLARE_API_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Cloudflare."
+
+[[servers]]
+id = "aws"
+aliases = []
+title = "AWS"
+description = "AWS integration."
+category = "developer"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "aws-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "AWS_ACCESS_KEY_ID"
+required = true
+is_secret = true
+description = "API key / token for AWS."
+
+[[servers]]
+id = "playwright"
+aliases = []
+title = "Playwright"
+description = "Browser automation via Playwright."
+category = "developer"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@playwright/mcp"
+transport = "stdio"
+
+[[servers]]
+id = "browserbase"
+aliases = []
+title = "Browserbase"
+description = "Browserbase integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@browserbasehq/mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "BROWSERBASE_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Browserbase."
+
+[[servers]]
+id = "figma"
+aliases = []
+title = "Figma"
+description = "Figma integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "figma-developer-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "FIGMA_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Figma."
+
+[[servers]]
+id = "xcode"
+aliases = []
+title = "Xcode"
+description = "Xcode build + simulator control."
+category = "developer"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "xcodebuildmcp"
+transport = "stdio"
+
+[[servers]]
+id = "eslint"
+aliases = []
+title = "ESLint"
+description = "ESLint integration."
+category = "developer"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@eslint/mcp"
+transport = "stdio"
+
+[[servers]]
+id = "nx"
+aliases = []
+title = "Nx"
+description = "Nx integration."
+category = "developer"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "nx-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "launchdarkly"
+aliases = []
+title = "LaunchDarkly"
+description = "LaunchDarkly integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@launchdarkly/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "LD_ACCESS_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for LaunchDarkly."
+
+[[servers]]
+id = "postman"
+aliases = []
+title = "Postman"
+description = "Postman integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@postman/postman-mcp-server"
+transport = "stdio"
+
+[[servers]]
+id = "bitbucket"
+aliases = []
+title = "Bitbucket"
+description = "Bitbucket integration."
+category = "developer"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@nexus2520/bitbucket-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "BITBUCKET_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Bitbucket."
+
+[[servers]]
+id = "chrome-devtools"
+aliases = []
+title = "Chrome DevTools"
+description = "Chrome DevTools integration."
+category = "developer"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "chrome-devtools-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "browserstack"
+aliases = []
+title = "BrowserStack"
+description = "BrowserStack integration."
+category = "developer"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@browserstack/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "BROWSERSTACK_ACCESS_KEY"
+required = true
+is_secret = true
+description = "API key / token for BrowserStack."
+
+
+# ─── Productivity (12) ──────────────────────────────
+
+[[servers]]
+id = "slack"
+aliases = []
+title = "Slack"
+description = "Slack integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-slack"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SLACK_BOT_TOKEN"
+key_prefixes = ["xoxb-"]
+required = true
+is_secret = true
+description = "API key / token for Slack."
+
+[[servers]]
+id = "google-drive"
+aliases = []
+title = "Google Drive"
+description = "Google Drive integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-gdrive"
+transport = "stdio"
+
+[[servers]]
+id = "notion"
+aliases = []
+title = "Notion"
+description = "Notion integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@notionhq/notion-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "NOTION_TOKEN"
+key_prefixes = ["ntn_"]
+required = true
+is_secret = true
+description = "API key / token for Notion."
+
+[[servers]]
+id = "airtable"
+aliases = []
+title = "Airtable"
+description = "Airtable integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "airtable-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "AIRTABLE_API_KEY"
+key_prefixes = ["pat"]
+required = true
+is_secret = true
+description = "API key / token for Airtable."
+
+[[servers]]
+id = "monday"
+aliases = []
+title = "Monday"
+description = "Monday integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@mondaydotcomorg/monday-api-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MONDAY_API_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Monday."
+
+[[servers]]
+id = "obsidian"
+aliases = []
+title = "Obsidian"
+description = "Obsidian vault access."
+category = "productivity"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "local"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "obsidian-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "jira"
+aliases = []
+title = "Jira"
+description = "Jira integration."
+category = "productivity"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "jira-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "JIRA_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Jira."
+
+[[servers]]
+id = "zendesk"
+aliases = []
+title = "Zendesk"
+description = "Zendesk integration."
+category = "productivity"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "zendesk-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "ZENDESK_API_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Zendesk."
+
+[[servers]]
+id = "clickup"
+aliases = []
+title = "ClickUp"
+description = "ClickUp integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@taazkareem/clickup-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "CLICKUP_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for ClickUp."
+
+[[servers]]
+id = "n8n"
+aliases = []
+title = "n8n"
+description = "n8n integration."
+category = "productivity"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "n8n-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "N8N_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for n8n."
+
+[[servers]]
+id = "google-calendar"
+aliases = []
+title = "Google Calendar"
+description = "Google Calendar integration."
+category = "productivity"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@cocal/google-calendar-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "excel"
+aliases = []
+title = "Excel"
+description = "Excel integration."
+category = "productivity"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@negokaz/excel-mcp-server"
+transport = "stdio"
+
+
+# ─── AI & Specialized (8) ───────────────────────────
+
+[[servers]]
+id = "langchain"
+aliases = []
+title = "Langchain"
+description = "Langchain integration."
+category = "ai"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "langchain-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "e2b"
+aliases = []
+title = "E2B"
+description = "E2B integration."
+category = "ai"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "sandbox"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@e2b/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "E2B_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for E2B."
+
+[[servers]]
+id = "sequential-thinking"
+aliases = []
+title = "Sequential Thinking"
+description = "Sequential Thinking integration."
+category = "ai"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@modelcontextprotocol/server-sequential-thinking"
+transport = "stdio"
+
+[[servers]]
+id = "context7"
+aliases = []
+title = "Context7"
+description = "Context7 integration."
+category = "ai"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@upstash/context7-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "21st"
+aliases = []
+title = "21st.dev Magic"
+description = "21st.dev Magic integration."
+category = "ai"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@21st-dev/magic"
+transport = "stdio"
+
+[[servers]]
+id = "supadata"
+aliases = []
+title = "Supadata"
+description = "Supadata integration."
+category = "ai"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only", "web-search"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@supadata/mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SUPADATA_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Supadata."
+
+[[servers]]
+id = "dataforseo"
+aliases = []
+title = "DataForSEO"
+description = "DataForSEO integration."
+category = "ai"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "dataforseo-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "DATAFORSEO_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for DataForSEO."
+
+[[servers]]
+id = "ahrefs"
+aliases = []
+title = "Ahrefs"
+description = "Ahrefs integration."
+category = "ai"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@ahrefs/mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "AHREFS_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Ahrefs."
+
+
+# ─── AI Image Generation (3) ────────────────────────
+
+[[servers]]
+id = "replicate"
+aliases = []
+title = "Replicate"
+description = "Replicate integration."
+category = "image"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "image-gen"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "replicate-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "REPLICATE_API_TOKEN"
+key_prefixes = ["r8_"]
+required = true
+is_secret = true
+description = "API key / token for Replicate."
+
+[[servers]]
+id = "comfyui"
+aliases = []
+title = "ComfyUI"
+description = "ComfyUI integration."
+category = "image"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "image-gen", "local", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "comfyui-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "fal"
+aliases = []
+title = "Fal"
+description = "Fal integration."
+category = "image"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "image-gen"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "fal-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "FAL_KEY"
+required = true
+is_secret = true
+description = "API key / token for Fal."
+
+
+# ─── Communication (5) ──────────────────────────────
+
+[[servers]]
+id = "discord"
+aliases = []
+title = "Discord"
+description = "Discord integration."
+category = "communication"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "discord-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "DISCORD_BOT_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Discord."
+
+[[servers]]
+id = "telegram"
+aliases = []
+title = "Telegram"
+description = "Telegram integration."
+category = "communication"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "telegram-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "TELEGRAM_BOT_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Telegram."
+
+[[servers]]
+id = "resend"
+aliases = []
+title = "Resend"
+description = "Resend integration."
+category = "communication"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "resend-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "RESEND_API_KEY"
+key_prefixes = ["re_"]
+required = true
+is_secret = true
+description = "API key / token for Resend."
+
+[[servers]]
+id = "sendgrid"
+aliases = []
+title = "SendGrid"
+description = "SendGrid integration."
+category = "communication"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "sendgrid-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SENDGRID_API_KEY"
+key_prefixes = ["SG."]
+required = true
+is_secret = true
+description = "API key / token for SendGrid."
+
+[[servers]]
+id = "twilio"
+aliases = []
+title = "Twilio"
+description = "Twilio integration."
+category = "communication"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "twilio-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "TWILIO_AUTH_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Twilio."
+
+
+# ─── Vector DB (2 npm + 1 pypi restoration) ─────────
+
+[[servers]]
+id = "pinecone"
+aliases = []
+title = "Pinecone"
+description = "Pinecone integration."
+category = "vectordb"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@pinecone-database/mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "PINECONE_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Pinecone."
+
+[[servers]]
+id = "turbopuffer"
+aliases = []
+title = "Turbopuffer"
+description = "Turbopuffer integration."
+category = "vectordb"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@turbopuffer/turbopuffer-mcp"
+transport = "stdio"
+
+
+# ─── Analytics & Monitoring (6 + 1 oci restoration) ─
+
+[[servers]]
+id = "mixpanel"
+aliases = []
+title = "Mixpanel"
+description = "Mixpanel integration."
+category = "analytics"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mixpanel-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MIXPANEL_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Mixpanel."
+
+[[servers]]
+id = "datadog"
+aliases = []
+title = "Datadog"
+description = "Datadog integration."
+category = "analytics"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@winor30/mcp-server-datadog"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "DATADOG_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Datadog."
+
+[[servers]]
+id = "prometheus"
+aliases = []
+title = "Prometheus"
+description = "Prometheus integration."
+category = "analytics"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["open-source", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "prometheus-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "plausible"
+aliases = []
+title = "Plausible"
+description = "Plausible integration."
+category = "analytics"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["open-source", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "plausible-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "axiom"
+aliases = []
+title = "Axiom"
+description = "Axiom integration."
+category = "analytics"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mcp-server-axiom"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "AXIOM_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Axiom."
+
+[[servers]]
+id = "dynatrace"
+aliases = []
+title = "Dynatrace"
+description = "Dynatrace integration."
+category = "analytics"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["enterprise", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@dynatrace-oss/dynatrace-mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "DYNATRACE_API_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Dynatrace."
+
+
+# ─── E-commerce & Finance (6) ──────────────────────
+
+[[servers]]
+id = "stripe"
+aliases = []
+title = "Stripe"
+description = "Stripe integration."
+category = "ecommerce"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@stripe/mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "STRIPE_SECRET_KEY"
+key_prefixes = ["sk_"]
+required = true
+is_secret = true
+description = "API key / token for Stripe."
+
+[[servers]]
+id = "shopify"
+aliases = []
+title = "Shopify"
+description = "Shopify integration."
+category = "ecommerce"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "shopify-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SHOPIFY_ACCESS_TOKEN"
+key_prefixes = ["shpat_"]
+required = true
+is_secret = true
+description = "API key / token for Shopify."
+
+[[servers]]
+id = "paypal"
+aliases = []
+title = "PayPal"
+description = "PayPal integration."
+category = "ecommerce"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@paypal/mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "PAYPAL_CLIENT_ID"
+required = true
+is_secret = true
+description = "API key / token for PayPal."
+
+[[servers]]
+id = "polygon"
+aliases = []
+title = "Polygon"
+description = "Polygon integration."
+category = "ecommerce"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "polygon-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "POLYGON_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Polygon."
+
+[[servers]]
+id = "alpaca"
+aliases = []
+title = "Alpaca"
+description = "Alpaca integration."
+category = "ecommerce"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "alpaca-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "ALPACA_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Alpaca."
+
+[[servers]]
+id = "salesforce"
+aliases = []
+title = "Salesforce"
+description = "Salesforce integration."
+category = "ecommerce"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "enterprise"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@salesforce/mcp"
+transport = "stdio"
+
+
+# ─── CMS & Content (6) ─────────────────────────────
+
+[[servers]]
+id = "wordpress"
+aliases = []
+title = "Wordpress"
+description = "Wordpress integration."
+category = "cms"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "wordpress-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "contentful"
+aliases = []
+title = "Contentful"
+description = "Contentful integration."
+category = "cms"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@contentful/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "CONTENTFUL_MANAGEMENT_ACCESS_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Contentful."
+
+[[servers]]
+id = "sanity"
+aliases = []
+title = "Sanity"
+description = "Sanity integration."
+category = "cms"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@sanity/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SANITY_API_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Sanity."
+
+[[servers]]
+id = "strapi"
+aliases = []
+title = "Strapi"
+description = "Strapi integration."
+category = "cms"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "strapi-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "STRAPI_API_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Strapi."
+
+[[servers]]
+id = "ghost"
+aliases = []
+title = "Ghost"
+description = "Ghost integration."
+category = "cms"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "ghost-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "GHOST_ADMIN_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Ghost."
+
+[[servers]]
+id = "hubspot"
+aliases = []
+title = "HubSpot"
+description = "HubSpot integration."
+category = "cms"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@hubspot/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "HUBSPOT_ACCESS_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for HubSpot."
+
+
+# ─── Infrastructure & DevOps (6) ───────────────────
+
+[[servers]]
+id = "docker"
+aliases = []
+title = "Docker"
+description = "Docker daemon control."
+category = "devops"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "docker-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "kubernetes"
+aliases = []
+title = "Kubernetes"
+description = "Kubernetes cluster API."
+category = "devops"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mcp-server-kubernetes"
+transport = "stdio"
+
+[[servers]]
+id = "terraform"
+aliases = []
+title = "Terraform"
+description = "Terraform integration."
+category = "devops"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "terraform-mcp-server"
+transport = "stdio"
+
+[[servers]]
+id = "pulumi"
+aliases = []
+title = "Pulumi"
+description = "Pulumi integration."
+category = "devops"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@pulumi/mcp-server"
+transport = "stdio"
+
+[[servers]]
+id = "railway"
+aliases = []
+title = "Railway"
+description = "Railway integration."
+category = "devops"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@railway/mcp-server"
+transport = "stdio"
+
+[[servers]]
+id = "heroku"
+aliases = []
+title = "Heroku"
+description = "Heroku integration."
+category = "devops"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@heroku/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "HEROKU_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Heroku."
+
+
+# ─── Social Media (5) ──────────────────────────────
+
+[[servers]]
+id = "twitter"
+aliases = []
+title = "Twitter"
+description = "Twitter integration."
+category = "social"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "twitter-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "TWITTER_BEARER_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Twitter."
+
+[[servers]]
+id = "linkedin"
+aliases = []
+title = "LinkedIn"
+description = "LinkedIn integration."
+category = "social"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "linkedin-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "youtube"
+aliases = []
+title = "YouTube"
+description = "YouTube integration."
+category = "social"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "youtube-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "tiktok"
+aliases = []
+title = "TikTok"
+description = "TikTok integration."
+category = "social"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "tiktok-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "reddit"
+aliases = []
+title = "Reddit"
+description = "Reddit integration."
+category = "social"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["destructive"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "reddit-mcp"
+transport = "stdio"
+
+
+# ─── Lifestyle (5) ─────────────────────────────────
+
+[[servers]]
+id = "spotify"
+aliases = []
+title = "Spotify"
+description = "Spotify integration."
+category = "lifestyle"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "spotify-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "SPOTIFY_CLIENT_ID"
+required = true
+is_secret = true
+description = "API key / token for Spotify."
+
+[[servers]]
+id = "openweather"
+aliases = []
+title = "OpenWeather"
+description = "OpenWeather integration."
+category = "lifestyle"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "openweather-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "OPENWEATHER_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for OpenWeather."
+
+[[servers]]
+id = "news-api"
+aliases = []
+title = "NewsAPI"
+description = "NewsAPI integration."
+category = "lifestyle"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "newsapi-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "NEWS_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for NewsAPI."
+
+[[servers]]
+id = "recipe"
+aliases = []
+title = "Recipe"
+description = "Recipe integration."
+category = "lifestyle"
+pricing = "free"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "recipe-mcp"
+transport = "stdio"
+
+[[servers]]
+id = "wolfram"
+aliases = []
+title = "Wolfram"
+description = "Wolfram integration."
+category = "lifestyle"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "wolfram-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "WOLFRAM_APP_ID"
+required = true
+is_secret = true
+description = "API key / token for Wolfram."
+
+
+# ─── Marketing (3) ─────────────────────────────────
+
+[[servers]]
+id = "mailchimp"
+aliases = []
+title = "Mailchimp"
+description = "Mailchimp integration."
+category = "marketing"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "mailchimp-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MAILCHIMP_API_KEY"
+required = true
+is_secret = true
+description = "API key / token for Mailchimp."
+
+[[servers]]
+id = "google-ads"
+aliases = []
+title = "Google Ads"
+description = "Google Ads integration."
+category = "marketing"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "google-ads-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "GOOGLE_ADS_DEVELOPER_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Google Ads."
+
+[[servers]]
+id = "meta-ads"
+aliases = []
+title = "Meta Ads"
+description = "Meta Ads integration."
+category = "marketing"
+pricing = "paid"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "meta-ads-mcp"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "META_ACCESS_TOKEN"
+required = true
+is_secret = true
+description = "API key / token for Meta Ads."
+
+
+# ─── Maps & Location (1) ───────────────────────────
+
+[[servers]]
+id = "mapbox"
+aliases = []
+title = "Mapbox"
+description = "Mapbox integration."
+category = "maps"
+pricing = "freemium"
+last_verified = "2026-04-14"
+tags = ["official", "read-only"]
+
+[[servers.packages]]
+registry_type = "npm"
+identifier = "@mapbox/mcp-server"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "MAPBOX_ACCESS_TOKEN"
+key_prefixes = ["pk."]
+required = true
+is_secret = true
+description = "API key / token for Mapbox."
+
+
+# ─── Non-npm distributions (pypi / remote / oci) ────────────────────
+
+[[servers]]
+id = "qdrant"
+aliases = []
+title = "Qdrant"
+description = "Qdrant vector database MCP server (Python)."
+category = "vectordb"
+pricing = "free"
+homepage = "https://qdrant.tech/"
+last_verified = "2026-04-14"
+tags = ["destructive", "open-source"]
+
+[[servers.packages]]
+registry_type = "pypi"
+identifier = "mcp-server-qdrant"
+transport = "stdio"
+runner = "uvx"
+
+[[servers.env_vars]]
+name = "QDRANT_URL"
+required = true
+is_secret = false
+description = "Qdrant server URL (http://host:port)."
+
+[[servers]]
+id = "intercom"
+aliases = []
+title = "Intercom"
+description = "Intercom customer messaging (remote OAuth endpoint)."
+category = "communication"
+pricing = "paid"
+homepage = "https://www.intercom.com/"
+last_verified = "2026-04-14"
+tags = ["destructive", "official"]
+
+[[servers.remotes]]
+transport = "streamable-http"
+url = "https://mcp.intercom.com/sse"
+auth = "oauth"
+
+[[servers]]
+id = "grafana"
+aliases = []
+title = "Grafana"
+description = "Grafana dashboards + alerting (Go binary via OCI image)."
+category = "analytics"
+pricing = "freemium"
+homepage = "https://grafana.com/"
+last_verified = "2026-04-14"
+tags = ["official", "open-source", "read-only"]
+
+[[servers.packages]]
+registry_type = "oci"
+identifier = "ghcr.io/grafana/mcp-grafana"
+transport = "stdio"
+
+[[servers.env_vars]]
+name = "GRAFANA_URL"
+required = true
+is_secret = false
+description = "Grafana instance URL."

@@ -1,0 +1,32 @@
+[package]
+name          = "nika-catalog-verify"
+description   = "Online verifier for nika-catalog — probes npm/pypi/oci registries and remote MCP endpoints, reports drift."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+
+[[bin]]
+name = "nika-catalog-verify"
+path = "src/main.rs"
+
+[dependencies]
+nika-catalog = { path = "../nika-catalog" }
+
+clap       = { version = "4.5", features = ["derive"] }
+tokio      = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net"] }
+reqwest    = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "http2"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+futures    = "0.3"
+
+[dev-dependencies]
+rstest = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Fuzzy "did you mean?" suggestion across catalog namespaces.
+//!
+//! The engine occasionally receives a slightly wrong name — typo'd provider,
+//! mis-cased MCP alias, renamed transform. Rather than returning a bare
+//! `None`, the CLI surfaces the closest catalog entry so the user can
+//! self-correct in one hop.
+//!
+//! Uses Jaro-Winkler similarity (`strsim::jaro_winkler`) with a 0.7 cutoff.
+//! Jaro-Winkler weights matching prefixes — exactly what happens with
+//! typos like `filesytem` → `filesystem` or `athropic` → `anthropic`.
+
+#[cfg(any(
+    feature = "mcp",
+    feature = "providers",
+    feature = "embeddings",
+    feature = "builtins-transforms"
+))]
+use strsim::jaro_winkler;
+
+#[cfg(feature = "builtins-transforms")]
+use crate::data::builtins;
+#[cfg(any(feature = "mcp", feature = "providers", feature = "embeddings"))]
+use crate::data::generated;
+#[cfg(feature = "builtins-transforms")]
+use crate::data::transforms;
+
+/// Minimum Jaro-Winkler score for a candidate to be considered a suggestion.
+/// 0.7 is empirically the threshold between "typo" and "different word".
+#[cfg(any(
+    feature = "mcp",
+    feature = "providers",
+    feature = "embeddings",
+    feature = "builtins-transforms"
+))]
+const MIN_SCORE: f64 = 0.7;
+
+/// Maximum number of suggestions returned per query.
+const MAX_SUGGESTIONS: usize = 5;
+
+/// Which catalog a suggestion came from.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Namespace {
+    /// LLM provider id or alias.
+    Provider,
+    /// MCP server id or alias.
+    McpServer,
+    /// Embedding model id.
+    Embedding,
+    /// Builtin tool name (e.g. `"nika:json_merge"`).
+    Builtin,
+    /// Pipe transform name (e.g. `"jq"`, `"upper"`).
+    Transform,
+}
+
+/// A single suggestion with its source namespace and match score.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct Suggestion {
+    /// The catalog entry name (id or canonical form).
+    pub name: &'static str,
+    /// Which catalog the entry lives in.
+    pub namespace: Namespace,
+    /// Jaro-Winkler similarity, in `[0.0, 1.0]`. Higher = closer match.
+    pub score: f64,
+}
+
+impl Suggestion {
+    /// Explicit constructor — required because [`Suggestion`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(name: &'static str, namespace: Namespace, score: f64) -> Self {
+        Self {
+            name,
+            namespace,
+            score,
+        }
+    }
+}
+
+/// Find up to `MAX_SUGGESTIONS` (currently 5) catalog entries closest to
+/// `query` across all namespaces. Sorted by score descending.
+///
+/// Returns an empty vec when no entry crosses `MIN_SCORE` (the
+/// Jaro-Winkler threshold, currently 0.7). Query is compared
+/// case-insensitively against canonical ids only — aliases are not
+/// repeated because they already resolve to the same entry.
+#[must_use]
+#[cfg_attr(
+    not(any(
+        feature = "mcp",
+        feature = "providers",
+        feature = "embeddings",
+        feature = "builtins-transforms"
+    )),
+    allow(unused_variables)
+)]
+pub fn suggest(query: &str) -> Vec<Suggestion> {
+    let q = query.to_ascii_lowercase();
+    let mut hits: Vec<Suggestion> = Vec::new();
+
+    #[cfg(feature = "providers")]
+    for p in generated::ALL_PROVIDERS {
+        let s = jaro_winkler(&q, &p.id.to_ascii_lowercase());
+        if s >= MIN_SCORE {
+            hits.push(Suggestion {
+                name: p.id,
+                namespace: Namespace::Provider,
+                score: s,
+            });
+        }
+    }
+    #[cfg(feature = "mcp")]
+    for srv in generated::ALL_MCP_SERVERS {
+        let s = jaro_winkler(&q, &srv.id.to_ascii_lowercase());
+        if s >= MIN_SCORE {
+            hits.push(Suggestion {
+                name: srv.id,
+                namespace: Namespace::McpServer,
+                score: s,
+            });
+        }
+    }
+    #[cfg(feature = "embeddings")]
+    for emb in generated::ALL_EMBEDDINGS {
+        let s = jaro_winkler(&q, &emb.id.to_ascii_lowercase());
+        if s >= MIN_SCORE {
+            hits.push(Suggestion {
+                name: emb.id,
+                namespace: Namespace::Embedding,
+                score: s,
+            });
+        }
+    }
+    #[cfg(feature = "builtins-transforms")]
+    for b in builtins::ALL_BUILTINS {
+        let s = jaro_winkler(&q, &b.name.to_ascii_lowercase());
+        if s >= MIN_SCORE {
+            hits.push(Suggestion {
+                name: b.name,
+                namespace: Namespace::Builtin,
+                score: s,
+            });
+        }
+    }
+    #[cfg(feature = "builtins-transforms")]
+    for t in transforms::ALL_TRANSFORMS {
+        let s = jaro_winkler(&q, &t.name.to_ascii_lowercase());
+        if s >= MIN_SCORE {
+            hits.push(Suggestion {
+                name: t.name,
+                namespace: Namespace::Transform,
+                score: s,
+            });
+        }
+    }
+
+    hits.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    hits.truncate(MAX_SUGGESTIONS);
+    hits
+}
+
+/// Scoped variant of [`suggest`] — only searches within one namespace.
+///
+/// Useful when the caller already knows the expected kind of name
+/// (e.g. `nika provider set <typo>` should not propose MCP aliases).
+#[must_use]
+pub fn suggest_in(query: &str, namespace: Namespace) -> Vec<Suggestion> {
+    suggest(query)
+        .into_iter()
+        .filter(|s| s.namespace == namespace)
+        .collect()
+}
+
+// Suggestion tests reference specific catalog entries (filesystem, anthropic,
+// gpt). They require the full catalog — gated to avoid false-fails under
+// `--no-default-features --features minimal`.
+#[cfg(all(test, feature = "mcp", feature = "providers"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filesystem_typo_resolves_to_filesystem() {
+        let hits = suggest("filesytem");
+        assert!(!hits.is_empty(), "expected suggestions for `filesytem`");
+        assert_eq!(hits[0].name, "filesystem");
+        assert_eq!(hits[0].namespace, Namespace::McpServer);
+        assert!(hits[0].score > 0.9);
+    }
+
+    #[test]
+    fn provider_typo_resolves_to_anthropic() {
+        let hits = suggest("athropic");
+        assert!(!hits.is_empty());
+        let top = hits
+            .iter()
+            .find(|s| s.namespace == Namespace::Provider)
+            .unwrap();
+        assert_eq!(top.name, "anthropic");
+    }
+
+    #[test]
+    fn nonsense_returns_empty() {
+        // A string of the same character has essentially no Jaro-Winkler
+        // similarity to any real catalog entry — the test doubles as a
+        // smoke check on the threshold.
+        let hits = suggest("qqqqqqqqqqqqqqqqqq");
+        assert!(
+            hits.is_empty(),
+            "expected empty suggestions but got: {hits:?}",
+        );
+    }
+
+    #[test]
+    fn results_sorted_by_score_descending() {
+        let hits = suggest("anthropic");
+        for pair in hits.windows(2) {
+            assert!(pair[0].score >= pair[1].score);
+        }
+    }
+
+    #[test]
+    fn capped_at_max_suggestions() {
+        // "g" is a short query — multiple matches possible, capped at MAX.
+        let hits = suggest("gpt");
+        assert!(hits.len() <= MAX_SUGGESTIONS);
+    }
+
+    #[test]
+    fn suggest_in_namespace_filters_correctly() {
+        let hits = suggest_in("anthropic", Namespace::Provider);
+        assert!(hits.iter().all(|s| s.namespace == Namespace::Provider));
+    }
+
+    #[test]
+    fn case_insensitive_query() {
+        let lower = suggest("FILESYSTEM");
+        let upper = suggest("filesystem");
+        assert_eq!(lower.len(), upper.len());
+        assert_eq!(lower[0].name, upper[0].name);
+    }
+}
