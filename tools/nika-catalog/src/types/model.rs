@@ -289,6 +289,24 @@ mod model_capabilities_tests {
 ///
 /// Two-pass matching: exact match first, then `contains()` fallback.
 /// More specific patterns MUST appear before less specific ones.
+///
+/// # Session 3 additions (3 new axes)
+///
+/// The original Session 2a `input_per_million` + `output_per_million` pair
+/// is insufficient for 2026 pricing shapes:
+///
+/// - **Prompt caching** (`Anthropic`, `OpenAI`, `DeepSeek`, `Gemini`) can
+///   cut input cost 90% on cache hits.
+/// - **Image / multimodal inputs** price per-image separately from per-token
+///   (`OpenAI` vision, `Gemini`, `xAI` `Grok-4`).
+/// - **Reasoning-token billing** — o-series, `GPT-5`, `Claude` `thinking`,
+///   `DeepSeek` `R1` all surface thinking tokens with a distinct rate.
+///
+/// The three fields are `Option<f64>` — `None` means "this axis is not
+/// disclosed / not billed differently / data not yet populated". The full
+/// TOML-driven pricing schema (`data/model-pricing.toml`) that replaces
+/// `ALL_PRICING` with rule-based per-axis overrides is tracked as
+/// **Phase E2** in the next session.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ModelPricing {
@@ -300,23 +318,48 @@ pub struct ModelPricing {
     pub input_per_million: f64,
     /// Price per million output tokens in USD.
     pub output_per_million: f64,
+    /// Price per million cached input tokens (prompt caching) in USD.
+    /// `None` = provider does not disclose a cache rate or this model
+    /// does not support prompt caching.
+    pub cached_input_per_million: Option<f64>,
+    /// Price per image input in USD (flat per-image rate; applies only on
+    /// providers that bill images separately from tokens — `OpenAI`,
+    /// `Gemini`, `xAI`).
+    pub image_per_million: Option<f64>,
+    /// Price per million reasoning / thinking tokens in USD. Used by
+    /// o-series, `GPT-5`, `Claude` thinking, `DeepSeek` `R1`. `None` means
+    /// reasoning tokens are billed at the `output_per_million` rate.
+    pub reasoning_tokens_per_million: Option<f64>,
 }
 
 impl ModelPricing {
     /// Explicit constructor — required because [`ModelPricing`] is
     /// `#[non_exhaustive]` (invariant #19).
+    ///
+    /// 7 args after Session 3: the 4 original axes plus three
+    /// `Option<f64>` for cached input, image, and reasoning tokens.
+    /// Pass `None` for any axis the provider does not disclose.
     #[must_use]
+    // REASON: 7 args = 1 per pricing axis by design; grouping into sub-structs
+    // would hide the per-provider axis-matrix the pricing table encodes.
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         provider: &'static str,
         model_pattern: &'static str,
         input_per_million: f64,
         output_per_million: f64,
+        cached_input_per_million: Option<f64>,
+        image_per_million: Option<f64>,
+        reasoning_tokens_per_million: Option<f64>,
     ) -> Self {
         Self {
             provider,
             model_pattern,
             input_per_million,
             output_per_million,
+            cached_input_per_million,
+            image_per_million,
+            reasoning_tokens_per_million,
         }
     }
 }
@@ -355,6 +398,62 @@ impl CostEstimate {
             output_rate_per_million,
             model,
             provider,
+        }
+    }
+}
+
+#[cfg(test)]
+mod model_pricing_tests {
+    use super::ModelPricing;
+
+    #[test]
+    fn new_builds_all_7_axes() {
+        // Regression guard for the Session 3 field expansion. If a future
+        // session adds an 8th axis without updating every ALL_PRICING site,
+        // this test plus the 62 call sites force a hard compile error
+        // (invariant #19 teeth — that is the entire point).
+        let p = ModelPricing::new(
+            "Anthropic",
+            "sonnet-4",
+            3.0,
+            15.0,
+            Some(0.30),
+            None,
+            None,
+        );
+        assert_eq!(p.provider, "Anthropic");
+        assert_eq!(p.model_pattern, "sonnet-4");
+        assert!((p.input_per_million - 3.0).abs() < f64::EPSILON);
+        assert!((p.output_per_million - 15.0).abs() < f64::EPSILON);
+        assert_eq!(p.cached_input_per_million, Some(0.30));
+        assert_eq!(p.image_per_million, None);
+        assert_eq!(p.reasoning_tokens_per_million, None);
+    }
+
+    #[test]
+    fn three_session3_axes_default_to_none_everywhere_in_all_pricing() {
+        // The 62 ALL_PRICING entries are all populated with None for the
+        // 3 new Session 3 axes — real values land in Phase E2 (the TOML
+        // migration) with per-provider research. This test guards against
+        // a silent regression where a future commit flips one to Some()
+        // without updating the corresponding test + documentation.
+        #[cfg(feature = "pricing")]
+        for entry in crate::data::models::ALL_PRICING {
+            assert_eq!(
+                entry.cached_input_per_million, None,
+                "{} / {}: cache pricing awaits Phase E2 research — keep None until populated in TOML",
+                entry.provider, entry.model_pattern,
+            );
+            assert_eq!(
+                entry.image_per_million, None,
+                "{} / {}: image pricing awaits Phase E2",
+                entry.provider, entry.model_pattern,
+            );
+            assert_eq!(
+                entry.reasoning_tokens_per_million, None,
+                "{} / {}: reasoning-token pricing awaits Phase E2",
+                entry.provider, entry.model_pattern,
+            );
         }
     }
 }
