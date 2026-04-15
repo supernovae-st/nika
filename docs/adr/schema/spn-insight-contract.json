@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.sh/adr/schema/spn-insight-contract.json",
+  "title": "spn-insight ADR consumption contract v1",
+  "description": "Stable fields that spn-insight DX MCP tools can depend on. Subset of adr-v1.json. Fields outside this set may change without notice.",
+  "type": "object",
+  "required": ["id", "title", "status", "date"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ADR-[0-9]{3}$",
+      "description": "Unique ADR identifier"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 120,
+      "description": "Short decision title"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "proposed", "accepted", "rejected", "deprecated", "superseded"],
+      "description": "Lifecycle state"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Decision date ISO 8601"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Classification tags"
+    },
+    "affects_crates": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Workspace crates affected"
+    },
+    "affects_layers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Architecture layers impacted"
+    },
+    "supersedes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "ADRs this replaces"
+    },
+    "superseded_by": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "ADRs that replaced this"
+    },
+    "related": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Complementary ADRs"
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Prerequisite ADRs"
+    },
+    "enables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "ADRs this makes possible"
+    },
+    "fci": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Forward-compat invariant codes"
+    },
+    "inv": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Nika invariant codes"
+    },
+    "shadow_zones": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "default": [],
+      "description": "Shadow zone numbers addressed"
+    }
+  },
+  "$defs": {
+    "tool_adr_search": {
+      "description": "spn-insight tool: search ADRs by tag, crate, layer, or status",
+      "examples": [
+        { "query": "kernel", "match_fields": ["tags", "affects_crates", "title"] },
+        { "query": "L0.5", "match_fields": ["affects_layers"] },
+        { "query": "shadow_zone:1", "match_fields": ["shadow_zones"] }
+      ]
+    },
+    "tool_adr_graph": {
+      "description": "spn-insight tool: visualize ADR dependency graph",
+      "edges": ["supersedes", "superseded_by", "related", "requires", "enables", "amends"],
+      "node_label": "id + title",
+      "node_color_by": "status"
+    },
+    "tool_adr_impact": {
+      "description": "spn-insight tool: given a crate name, return all ADRs that affect it",
+      "input": { "crate_name": "string" },
+      "output": { "adrs": "array of {id, title, status, relationship}" }
+    }
+  }
+}

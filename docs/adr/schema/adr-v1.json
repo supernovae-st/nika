@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.sh/adr/schema/adr-v1.json",
+  "title": "Nika ADR YAML Frontmatter v1",
+  "description": "JSON Schema for YAML frontmatter in Nika Diamond ADR files. MADR 3.x compatible.",
+  "type": "object",
+  "required": ["id", "title", "status", "date", "deciders"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ADR-[0-9]{3}$",
+      "description": "Unique ADR identifier, e.g. ADR-001"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 120,
+      "description": "Short decision title in imperative form"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "proposed", "accepted", "rejected", "deprecated", "superseded"],
+      "description": "Lifecycle state (lowercase)"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Decision date in ISO 8601 (YYYY-MM-DD)"
+    },
+    "phase": {
+      "type": "string",
+      "description": "Diamond phase or session, e.g. 'Phase 0', 'Phase D -- Session 2a'"
+    },
+    "deciders": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "GitHub handles of decision makers, e.g. ['@ThibautMelen']"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "default": [],
+      "description": "Lowercase kebab-case classification tags"
+    },
+    "affects_crates": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^nika-[a-z0-9-]+$" },
+      "default": [],
+      "description": "Workspace crates directly affected by this decision"
+    },
+    "affects_layers": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"] },
+      "default": [],
+      "description": "Architecture layers impacted"
+    },
+    "supersedes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{3}$" },
+      "default": [],
+      "description": "ADRs this decision replaces"
+    },
+    "superseded_by": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{3}$" },
+      "default": [],
+      "description": "ADRs that have replaced this decision"
+    },
+    "related": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{3}$" },
+      "default": [],
+      "description": "ADRs that complement or interact with this decision"
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{3}$" },
+      "default": [],
+      "description": "ADRs that must be accepted for this decision to hold"
+    },
+    "enables": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{3}$" },
+      "default": [],
+      "description": "ADRs that this decision makes possible"
+    },
+    "amends": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{3}$" },
+      "default": [],
+      "description": "ADRs whose interpretation this decision modifies without superseding"
+    },
+    "fci": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^FCI-[0-9]{3}$" },
+      "default": [],
+      "description": "Forward-compat invariant codes referenced (from forward-compat-invariants.md)"
+    },
+    "inv": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^INV-[0-9]{3}$" },
+      "default": [],
+      "description": "Nika invariant codes referenced (from nika-invariants.md)"
+    },
+    "shadow_zones": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1, "maximum": 7 },
+      "default": [],
+      "description": "Shadow zone numbers (1-7) addressed by this decision"
+    },
+    "nika_codes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^NIKA-[0-9]{3}$" },
+      "default": [],
+      "description": "Error code ranges referenced (e.g. NIKA-100..199 for MCP)"
+    },
+    "timeline": {
+      "type": "string",
+      "description": "Version and session context, e.g. 'v0.80.0, Session 2a'"
+    },
+    "follow_ups": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Known future actions tied to this ADR"
+    }
+  }
+}

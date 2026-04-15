@@ -1,13 +1,32 @@
-# ADR-NNN: <Short decision in imperative form>
+---
+id: ADR-NNN
+title: "<Short decision in imperative form>"
+status: proposed
+date: YYYY-MM-DD
+phase: ""
+deciders: ["@ThibautMelen"]
+tags: []
+affects_crates: []
+affects_layers: []
+supersedes: []
+superseded_by: []
+related: []
+requires: []
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: ""
+follow_ups: []
+---
 
-**Status:** Proposed | Accepted | Superseded by ADR-XXX
-**Date:** YYYY-MM-DD
-**Phase:** Phase X / Session Y (if applicable)
-**Deciders:** @ThibautMelen (+ any co-deciders)
+# ADR-NNN: <Short decision in imperative form>
 
 ## Context
 
-What is the problem we're solving? What forces are in play — technical,
+What is the problem we're solving? What forces are in play -- technical,
 organizational, project-specific? Keep it factual. ~3-6 sentences.
 
 Include grep-verifiable evidence (file paths, commit SHAs, LOC counts) if the
@@ -33,16 +52,16 @@ we explicitly reject? Cite specific types, modules, or patterns when concrete.
 
 ## Evidence / Affected code
 
-- `path/to/file.rs:line` — what lives here
-- Commit `abc1234` — when this first shipped
+- `path/to/file.rs:line` -- what lives here
+- Commit `abc1234` -- when this first shipped
 - Related crate: `nika-foo`
 
 ## Alternatives considered
 
-### Alt A — <name>
+### Alt A -- <name>
 Short description. Why rejected.
 
-### Alt B — <name>
+### Alt B -- <name>
 Short description. Why rejected.
 
 ## Related
