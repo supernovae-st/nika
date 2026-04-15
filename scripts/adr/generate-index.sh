@@ -11,6 +11,11 @@ ADR_DIR="$REPO_ROOT/docs/adr"
 INDEX_TOML="$ADR_DIR/index.toml"
 INDEX_JSON="$ADR_DIR/index.json"
 
+# --- Helper: escape for JSON string interpolation ---
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 # --- Helper: extract a scalar field from frontmatter ---
 # Usage: extract_scalar "field_name" "$frontmatter"
 extract_scalar() {
@@ -44,6 +49,7 @@ to_json_array() {
     [ -z "$item" ] && continue
     [ $first -eq 0 ] && result="${result},"
     first=0
+    item="$(json_escape "$item")"
     result="${result}\"${item}\""
   done
   result="${result}]"
@@ -132,10 +138,10 @@ echo "Generated $INDEX_TOML (${#adr_files[@]} ADRs)"
     frontmatter="$(awk '/^---$/{n++; next} n==1{print} n>=2{exit}' "$filepath")"
     [ -z "$frontmatter" ] && continue
 
-    adr_id="$(extract_scalar "id" "$frontmatter")"
-    title="$(extract_scalar "title" "$frontmatter")"
-    status="$(extract_scalar "status" "$frontmatter")"
-    date="$(extract_scalar "date" "$frontmatter")"
+    adr_id="$(json_escape "$(extract_scalar "id" "$frontmatter")")"
+    title="$(json_escape "$(extract_scalar "title" "$frontmatter")")"
+    status="$(json_escape "$(extract_scalar "status" "$frontmatter")")"
+    date="$(json_escape "$(extract_scalar "date" "$frontmatter")")"
 
     tags_json="$(extract_array "tags" "$frontmatter" | to_json_array)"
     crates_json="$(extract_array "affects_crates" "$frontmatter" | to_json_array)"
@@ -155,7 +161,7 @@ echo "Generated $INDEX_TOML (${#adr_files[@]} ADRs)"
       "title": "${title}",
       "status": "${status}",
       "date": "${date}",
-      "filename": "${fname}",
+      "filename": "$(json_escape "$fname")",
       "tags": ${tags_json},
       "affects_crates": ${crates_json},
       "affects_layers": ${layers_json},

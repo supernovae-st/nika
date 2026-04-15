@@ -13,7 +13,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-003","ADR-004"],
+      "related": ["ADR-002","ADR-003","ADR-004"],
       "requires": [],
       "enables": ["ADR-002","ADR-003","ADR-004"]
     }
@@ -45,9 +45,9 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-004","ADR-009"],
-      "requires": ["ADR-001"],
-      "enables": ["ADR-009"]
+      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011"],
+      "requires": ["ADR-001","ADR-004"],
+      "enables": ["ADR-009","ADR-011"]
     }
     ,
     {
@@ -61,9 +61,9 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-003","ADR-006","ADR-011"],
+      "related": ["ADR-001","ADR-003","ADR-006","ADR-008","ADR-011"],
       "requires": ["ADR-001"],
-      "enables": ["ADR-003","ADR-006"]
+      "enables": ["ADR-003","ADR-006","ADR-008"]
     }
     ,
     {
@@ -95,7 +95,7 @@
       "superseded_by": [],
       "related": ["ADR-003","ADR-004","ADR-007","ADR-012","ADR-013","ADR-014"],
       "requires": ["ADR-004"],
-      "enables": ["ADR-007","ADR-012","ADR-014"]
+      "enables": ["ADR-007","ADR-012","ADR-013","ADR-014"]
     }
     ,
     {
@@ -109,7 +109,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-002","ADR-005","ADR-006","ADR-015"],
+      "related": ["ADR-002","ADR-005","ADR-006","ADR-008","ADR-010","ADR-012","ADR-015"],
       "requires": ["ADR-002","ADR-006"],
       "enables": ["ADR-015"]
     }
@@ -237,8 +237,8 @@
       "affects_layers": ["L0"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-007","ADR-010"],
-      "requires": ["ADR-010"],
+      "related": ["ADR-005","ADR-007","ADR-010"],
+      "requires": ["ADR-007","ADR-010"],
       "enables": []
     }
   ]

@@ -95,6 +95,13 @@ for filepath in "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md; do
     continue
   fi
 
+  # Guard: unclosed frontmatter (single --- without closing ---) parses entire body
+  fm_lines="$(printf '%s\n' "$fm" | wc -l | tr -d ' ')"
+  if [ "$fm_lines" -gt 50 ]; then
+    error "$fname: frontmatter not closed (${fm_lines} lines, max 50)"
+    continue
+  fi
+
   # Store frontmatter for cross-checks
   printf '%s\n' "$fm" >"$TMPDIR_VAL/$fname.fm"
 
@@ -208,6 +215,38 @@ for filepath in "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md; do
       fi
     fi
   done <<<"$(fm_array "superseded_by" "$fm")"
+
+  # Bidirectional: if A enables B, B.requires should contain A
+  while IFS= read -r ref; do
+    [ -z "$ref" ] && continue
+    ref_fname="$(grep -rl "^id: ${ref}" "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md 2>/dev/null | head -1)"
+    if [ -n "$ref_fname" ]; then
+      ref_bn="$(basename "$ref_fname")"
+      ref_fm_file="$TMPDIR_VAL/$ref_bn.fm"
+      if [ -f "$ref_fm_file" ]; then
+        other_req="$(fm_array "requires" "$(cat "$ref_fm_file")")"
+        if ! printf '%s\n' "$other_req" | grep -qx "$adr_id"; then
+          warn "$adr_id enables $ref, but $ref.requires does not contain $adr_id"
+        fi
+      fi
+    fi
+  done <<<"$(fm_array "enables" "$fm")"
+
+  # Bidirectional: if A.related contains B, B.related should contain A
+  while IFS= read -r ref; do
+    [ -z "$ref" ] && continue
+    ref_fname="$(grep -rl "^id: ${ref}" "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md 2>/dev/null | head -1)"
+    if [ -n "$ref_fname" ]; then
+      ref_bn="$(basename "$ref_fname")"
+      ref_fm_file="$TMPDIR_VAL/$ref_bn.fm"
+      if [ -f "$ref_fm_file" ]; then
+        other_rel="$(fm_array "related" "$(cat "$ref_fm_file")")"
+        if ! printf '%s\n' "$other_rel" | grep -qx "$adr_id"; then
+          warn "$adr_id related $ref, but $ref.related does not contain $adr_id"
+        fi
+      fi
+    fi
+  done <<<"$(fm_array "related" "$fm")"
 done
 
 # --- Report ---
