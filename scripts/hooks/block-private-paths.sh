@@ -20,9 +20,13 @@
 
 set -Eeuo pipefail
 
+# P0-3 Batch H+: patterns are now plain strings matched via grep -F (fixed
+# strings). The previous `\.claude/projects/` contained a backslash-dot that
+# grep -F treated LITERALLY — so it matched `\.claude/projects/` but NOT the
+# actual path `.claude/projects/`. Plain dot is correct for -F mode.
 readonly PRIVATE_PATTERNS=(
   'nika/hq/'
-  '\.claude/projects/'
+  '.claude/projects/'
   'studio-spn/'
   'jungo/hq/'
   'novanet/hq/'

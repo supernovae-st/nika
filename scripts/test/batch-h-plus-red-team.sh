@@ -167,7 +167,20 @@ MSG
   rm -f "$msgfile"
   [[ $rc -ne 0 ]] # expect REJECT — validator must not accept prose substring
 }
-test_p0_3_dot_claude_projects_ref() { return 77; }
+test_p0_3_dot_claude_projects_ref() {
+  local repo rc
+  repo="$(mk_tmp_repo)"
+  (
+    cd "$repo" || exit 1
+    mkdir -p docs
+    printf 'See .claude/projects/foo/memory/ for context.\n' >docs/note.md
+    git add docs/note.md
+    bash "$ENGINE_DIR/scripts/hooks/block-private-paths.sh" >/dev/null 2>&1
+  )
+  rc=$?
+  rm_tmp_repo "$repo"
+  [[ $rc -ne 0 ]] # expect BLOCK — .claude/projects/ is a private path
+}
 test_p0_4_monorepo_nika_hq_ref_in_dx() { return 77; }
 test_p0_5_squash_drops_trailer() { return 77; }
 test_p0_6_layer_registry_is_six_tier() { return 77; }
