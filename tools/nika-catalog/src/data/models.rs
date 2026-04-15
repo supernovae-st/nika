@@ -6,11 +6,6 @@
 //! Capabilities use pattern-matching (NOT phf) — model names are open-ended.
 //! Pricing uses 2-pass matching: exact match first, then `contains()` fallback.
 
-// TODO(Phase F): delete this allow when `supports_vision` is removed from
-// ModelCapabilities. Session 2a/2b provenance tests read .supports_vision;
-// scoped to this module so they stay green for one commit.
-#![allow(deprecated, reason = "supports_vision retired in the next Session 3 commit")]
-
 #[cfg(feature = "pricing")]
 use crate::types::model::{CostEstimate, ModelPricing};
 #[cfg(feature = "capabilities")]
@@ -250,6 +245,8 @@ mod tests {
     use super::*;
     #[cfg(feature = "capabilities")]
     use crate::types::model::TokenLimitParam;
+    #[cfg(feature = "capabilities")]
+    use crate::types::Modality;
 
     // ── Pricing count ───────────────────────────────────────────
 
@@ -300,14 +297,14 @@ mod tests {
     fn deepseek_reasoner_no_vision_no_temperature() {
         let caps = model_capabilities("deepseek", "deepseek-reasoner");
         assert!(!caps.supports_temperature);
-        assert!(!caps.supports_vision);
+        assert!(!caps.input_modalities.contains(&Modality::Image));
     }
 
     #[test]
     fn deepseek_chat_no_vision() {
         let caps = model_capabilities("deepseek", "deepseek-chat");
         assert!(caps.supports_temperature);
-        assert!(!caps.supports_vision);
+        assert!(!caps.input_modalities.contains(&Modality::Image));
     }
 
     #[test]
@@ -656,10 +653,10 @@ mod provenance_tests {
 
         // DeepSeek — loses vision + reasoner rejects temperature.
         let r = model_capabilities("deepseek", "deepseek-reasoner");
-        assert!(!r.supports_vision, "deepseek-reasoner: no vision");
+        assert!(!r.input_modalities.contains(&Modality::Image), "deepseek-reasoner: no vision");
         assert!(!r.supports_temperature, "deepseek-reasoner: no temperature");
         let c = model_capabilities("deep-seek", "deepseek-chat");
-        assert!(!c.supports_vision, "deep-seek alias: no vision");
+        assert!(!c.input_modalities.contains(&Modality::Image), "deep-seek alias: no vision");
 
         // xAI grok-4 — still uses existing rule (kind=exact for Session 2a;
         // 2b expands the prefix list. Exact "grok-4" still matches.)
@@ -671,7 +668,7 @@ mod provenance_tests {
         let u = model_capabilities("unknown", "unknown-model");
         assert_eq!(u.token_limit_param, TokenLimitParam::MaxTokens);
         assert!(u.supports_temperature);
-        assert!(u.supports_vision);
+        assert!(u.input_modalities.contains(&Modality::Image));
     }
 
     /// Session 2b additions — baseline defaults round-trip through
@@ -783,7 +780,7 @@ mod provenance_tests {
 
         // [11-12] deepseek — no StructuredOutputNative (json_object only).
         let deepseek = model_capabilities("deepseek", "deepseek-chat");
-        assert!(!deepseek.supports_vision, "deepseek: no vision API");
+        assert!(!deepseek.input_modalities.contains(&Modality::Image), "deepseek: no vision API");
         assert!(!deepseek.supported_parameters.contains(&ParamFlag::StructuredOutputNative),
             "deepseek: json_object only (NOT json_schema)");
         assert_eq!(deepseek.tokenizer, Some(TokenizerFamily::DeepSeek));
@@ -811,7 +808,7 @@ mod provenance_tests {
         // [15] xai-any-model — grok-3 text-only, not reasoning.
         let grok3 = model_capabilities("xai", "grok-3");
         assert!(!grok3.reasoning, "grok-3: not reasoning (grok-3-mini is)");
-        assert!(!grok3.supports_vision, "grok-3: text-only (MUST override default=true)");
+        assert!(!grok3.input_modalities.contains(&Modality::Image), "grok-3: text-only (MUST override default=true)");
 
         // [16-17] gemini — Pro has PDF, Flash does not.
         let gemini_pro = model_capabilities("gemini", "gemini-2.5-pro");
@@ -861,14 +858,14 @@ mod provenance_tests {
 
         // [26] native-any — text-only local GGUF.
         let native = model_capabilities("native", "qwen-3-8b");
-        assert!(!native.supports_vision, "native: text-only override");
+        assert!(!native.input_modalities.contains(&Modality::Image), "native: text-only override");
         assert!(!native.input_modalities.contains(&Modality::Image));
 
         // [27] voyage-any — embedding-only.
         let voyage = model_capabilities("voyage", "voyage-3");
         assert!(!voyage.supports_system_messages,
             "voyage: no chat API, no system messages");
-        assert!(!voyage.supports_vision, "voyage: embedding-only");
+        assert!(!voyage.input_modalities.contains(&Modality::Image), "voyage: embedding-only");
         assert!(!voyage.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
 
         // [28] mock-full — all flags.

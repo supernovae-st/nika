@@ -6,12 +6,6 @@
 //! Capabilities are resolved via pattern-matching function (not phf) because
 //! model names are open-ended. Pricing uses 2-pass matching (exact + contains).
 
-// TODO(Phase F): delete this allow when `supports_vision` is removed from
-// ModelCapabilities. The attribute is module-scoped so this crate's own
-// definitions / Default / new() / tests keep compiling for one commit,
-// while every OTHER crate still sees the deprecation nudge.
-#![allow(deprecated, reason = "supports_vision retired in the next Session 3 commit")]
-
 #[cfg(feature = "capabilities")]
 use crate::types::{Modality, ParamFlag, TokenizerFamily};
 
@@ -37,11 +31,11 @@ pub enum TokenLimitParam {
 /// Provider-aware: the same model name gets different treatment depending
 /// on the provider (e.g. `o3` on `OpenAI` vs custom vLLM endpoint).
 ///
-/// # Session 2b additions (5 new fields)
+/// # Session 2b additions (4 new fields — + 1 retired)
 ///
 /// - [`Self::input_modalities`] / [`Self::output_modalities`] — precise
-///   per-modality capability; supersedes [`Self::supports_vision`] which is
-///   scheduled for decommission in Session 3.
+///   per-modality capability; replaces the retired `supports_vision: bool`
+///   (retired in Session 3 — use `input_modalities.contains(&Modality::Image)`).
 /// - [`Self::tokenizer`] — known tokenizer family for context-window
 ///   estimation; `None` when the provider does not disclose.
 /// - [`Self::supported_parameters`] — API-level optional-parameter
@@ -50,11 +44,10 @@ pub enum TokenLimitParam {
 ///   (the API silently reclassifies `system` → `developer`) and on
 ///   chat-less providers like Voyage (embedding only).
 #[derive(Debug, Clone, PartialEq, Eq)]
-// Five boolean capability flags that each name a distinct wire-protocol
-// concern (temperature param, stop-sequences param, reasoning mode, vision
-// input, system-message role). Lifting them into a bitflags enum would
-// save nothing and obscure serde/Debug output — the struct_excessive_bools
-// heuristic does not apply.
+// Four boolean capability flags that each name a distinct wire-protocol
+// concern (temperature param, stop-sequences param, reasoning mode,
+// system-message role). Lifting them into a bitflags enum would save
+// nothing and obscure serde/Debug output.
 #[allow(clippy::struct_excessive_bools)]
 #[non_exhaustive]
 pub struct ModelCapabilities {
@@ -73,20 +66,6 @@ pub struct ModelCapabilities {
     /// `reasoning`, `OpenRouter` `reasoning` — rather than the
     /// Anthropic-specific "thinking" jargon.
     pub reasoning: bool,
-    /// Model supports image/vision input.
-    ///
-    /// ⚠ **Deprecated since Session 3 / 0.80.0.** Use
-    /// [`Self::input_modalities`]`.contains(&`[`Modality`]`::Image)` instead.
-    /// The next Session 3 commit removes this field outright — the
-    /// `#[deprecated]` attribute is here so external consumers see a
-    /// single-version nudge before the hard break. Forever-v0.x permits
-    /// the break; consumers already on `input_modalities` see nothing.
-    #[deprecated(
-        since = "0.80.0",
-        note = "use input_modalities.contains(&Modality::Image) instead — \
-                field removed in the next Session 3 commit"
-    )]
-    pub supports_vision: bool,
     /// Modalities this model accepts as input. Emitted by `build.rs` from
     /// the TOML `input_modalities = ["text", "image", …]` list, sorted by
     /// declaration order of [`Modality`] so a `binary_search` with the
@@ -128,7 +107,6 @@ impl Default for ModelCapabilities {
             supports_temperature: true,
             supports_stop_sequences: true,
             reasoning: false,
-            supports_vision: true,
             #[cfg(feature = "capabilities")]
             input_modalities: &[Modality::Text, Modality::Image],
             #[cfg(feature = "capabilities")]
@@ -153,16 +131,16 @@ impl ModelCapabilities {
     /// Consider [`ModelCapabilities::default`] + direct field assignment
     /// if only one or two fields differ from the baseline.
     ///
-    /// The 5 Session 2b slice/option fields are only present under the
+    /// The 4 Session 2b slice/option fields are only present under the
     /// `capabilities` feature; with the feature off, `new()` keeps the
-    /// original 5-argument Session 2a shape for backwards-compat with
+    /// minimal Session 2a shape (4 args) for backwards-compat with
     /// `minimal`-feature consumers.
     #[must_use]
-    // REASON: five booleans each name a distinct wire-protocol capability
+    // REASON: four booleans each name a distinct wire-protocol capability
     // (see the struct-level comment). Grouping them into a bitflags / bools
     // struct would obscure serde and Debug output with zero readability win.
     #[allow(clippy::fn_params_excessive_bools)]
-    // REASON: 10 parameters = 1 per capability field; by design. Grouping
+    // REASON: 9 parameters = 1 per capability field; by design. Grouping
     // into sub-structs would hide the wire-protocol mapping.
     #[cfg_attr(feature = "capabilities", allow(clippy::too_many_arguments))]
     #[cfg(feature = "capabilities")]
@@ -171,7 +149,6 @@ impl ModelCapabilities {
         supports_temperature: bool,
         supports_stop_sequences: bool,
         reasoning: bool,
-        supports_vision: bool,
         input_modalities: &'static [Modality],
         output_modalities: &'static [Modality],
         tokenizer: Option<TokenizerFamily>,
@@ -183,7 +160,6 @@ impl ModelCapabilities {
             supports_temperature,
             supports_stop_sequences,
             reasoning,
-            supports_vision,
             input_modalities,
             output_modalities,
             tokenizer,
@@ -192,7 +168,7 @@ impl ModelCapabilities {
         }
     }
 
-    /// 5-argument constructor used when the `capabilities` feature is off
+    /// 4-argument constructor used when the `capabilities` feature is off
     /// (the pre-Session-2b shape). Covered by build-time `cargo hack
     /// --feature-powerset`.
     #[must_use]
@@ -203,14 +179,12 @@ impl ModelCapabilities {
         supports_temperature: bool,
         supports_stop_sequences: bool,
         reasoning: bool,
-        supports_vision: bool,
     ) -> Self {
         Self {
             token_limit_param,
             supports_temperature,
             supports_stop_sequences,
             reasoning,
-            supports_vision,
             supports_system_messages: true,
         }
     }
@@ -232,7 +206,6 @@ mod model_capabilities_tests {
             false,
             true,
             true,
-            false,
             INPUT,
             OUTPUT,
             Some(TokenizerFamily::O200k),
@@ -243,7 +216,6 @@ mod model_capabilities_tests {
         assert!(!caps.supports_temperature);
         assert!(caps.supports_stop_sequences);
         assert!(caps.reasoning);
-        assert!(!caps.supports_vision);
         assert_eq!(caps.input_modalities, INPUT);
         assert_eq!(caps.output_modalities, OUTPUT);
         assert_eq!(caps.tokenizer, Some(TokenizerFamily::O200k));
@@ -254,12 +226,11 @@ mod model_capabilities_tests {
     #[test]
     #[cfg(not(feature = "capabilities"))]
     fn new_builds_all_fields_minimal() {
-        let caps = ModelCapabilities::new(TokenLimitParam::MaxCompletionTokens, false, true, true, false);
+        let caps = ModelCapabilities::new(TokenLimitParam::MaxCompletionTokens, false, true, true);
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
         assert!(!caps.supports_temperature);
         assert!(caps.supports_stop_sequences);
         assert!(caps.reasoning);
-        assert!(!caps.supports_vision);
         assert!(caps.supports_system_messages);
     }
 
@@ -274,7 +245,6 @@ mod model_capabilities_tests {
             true,
             true,
             false,
-            true,
             INPUT,
             OUTPUT,
             None,

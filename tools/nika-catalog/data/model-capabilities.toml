@@ -63,7 +63,6 @@ token_limit_param        = "max-tokens"
 supports_temperature     = true
 supports_stop_sequences  = true
 reasoning                = false
-supports_vision          = true
 input_modalities         = ["text", "image"]
 output_modalities        = ["text"]
 supported_parameters     = []
@@ -105,7 +104,7 @@ caps  = { token_limit_param = "max-completion-tokens", supports_temperature = fa
 name  = "openai-o-series-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["o1-", "o3-", "o4-"] }
-caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, supports_vision = false, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"], supports_system_messages = false }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"], supports_system_messages = false }
 
 # [4] OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
 [[rules]]
@@ -184,7 +183,7 @@ routing_complete = true
 name  = "deepseek-reasoner"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-reasoner" }
-caps  = { supports_temperature = false, reasoning = true, supports_vision = false, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
 
 # [12] Any other DeepSeek model — loses vision (API limitation).
 #      ⚠ NO StructuredOutputNative (same json_object-only constraint).
@@ -192,7 +191,7 @@ caps  = { supports_temperature = false, reasoning = true, supports_vision = fals
 name  = "deepseek-any-model"
 scope = { providers = ["deepseek"] }
 match = { kind = "any" }
-caps  = { supports_vision = false, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
+caps  = { tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
 
 # [13] xAI grok-4 family (grok-4, grok-4-0709, grok-4.20, grok-4-1-fast,
 #      grok-4-latest). ALL are reasoning models per xAI docs. Temperature
@@ -218,7 +217,7 @@ caps  = { supports_temperature = false, supports_stop_sequences = false, reasoni
 name  = "xai-grok3-mini"
 scope = { providers = ["xai"] }
 match = { kind = "prefix_any", prefixes = ["grok-3-mini"] }
-caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"] }
 
 # [15] Any other xAI model (grok-3, grok-3-fast, grok-3-beta). Text-only
 #      (grok-3 inputModalities=[1] per xAI docs). reasoning=false. stop=true
@@ -229,7 +228,7 @@ caps  = { supports_temperature = false, supports_stop_sequences = false, reasoni
 name             = "xai-any-model"
 scope            = { providers = ["xai"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
 routing_complete = true
 
 # [16] Gemini 2.5 Pro — full multimodal (audio + image + pdf + text + video).
@@ -304,7 +303,7 @@ caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image
 name             = "mistral-any-model"
 scope            = { providers = ["mistral"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, tokenizer = "mistral-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { tokenizer = "mistral-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
 routing_complete = true
 
 # [23] AWS Bedrock — Claude models via Bedrock use "anthropic.claude-<name>
@@ -343,7 +342,7 @@ caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image"
 name             = "native-any"
 scope            = { providers = ["native"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
 routing_complete = true
 
 # [27] Voyage — embedding-only API. No chat, no structured output, no
@@ -353,7 +352,7 @@ routing_complete = true
 name             = "voyage-any"
 scope            = { providers = ["voyage"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], supports_system_messages = false }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], supports_system_messages = false }
 routing_complete = true
 
 # ─── Session 3 additions (12 new rules) ─────────────────────────────────────
@@ -368,7 +367,7 @@ routing_complete = true
 name  = "moonshot-kimi"
 scope = { providers = ["moonshot"] }
 match = { kind = "any" }
-caps  = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 
 # [30] Qwen VL — vision model (qwen-vl-plus, qwen-vl-max). Must be BEFORE
 #      qwen-any-model (Matcher::Any must be last).
@@ -385,7 +384,7 @@ caps  = { tokenizer = "qwen", input_modalities = ["image", "text"], output_modal
 name             = "qwen-any-model"
 scope            = { providers = ["qwen"] }
 match            = { kind = "any" }
-caps             = { tokenizer = "qwen", supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { tokenizer = "qwen", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [32] MiniMax VL-01 — vision model. Must be BEFORE minimax-any-model.
@@ -400,7 +399,7 @@ caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], su
 name             = "minimax-any-model"
 scope            = { providers = ["minimax"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
 routing_complete = true
 
 # [34] Zhipu GLM — vision YES (GLM-4.5+ and -flash both support vision).
@@ -418,7 +417,7 @@ routing_complete = true
 name             = "groq-any-model"
 scope            = { providers = ["groq"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [36] Together AI — text-only fallback (specific Llama 4 Maverick /
@@ -427,7 +426,7 @@ routing_complete = true
 name             = "together-any-model"
 scope            = { providers = ["together"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [37] Fireworks — hardware inference. No vision. json_schema YES.
@@ -435,7 +434,7 @@ routing_complete = true
 name             = "fireworks-any-model"
 scope            = { providers = ["fireworks"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [38] Cerebras — hardware inference (WSC). No vision. json_schema YES.
@@ -443,7 +442,7 @@ routing_complete = true
 name             = "cerebras-any-model"
 scope            = { providers = ["cerebras"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [39] SambaNova — hardware inference. No vision. json_schema YES.
@@ -451,7 +450,7 @@ routing_complete = true
 name             = "sambanova-any-model"
 scope            = { providers = ["sambanova"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [40] Cohere — text-only. structured output via tool-calling (distinct
@@ -461,7 +460,7 @@ routing_complete = true
 name             = "cohere-any-model"
 scope            = { providers = ["cohere"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
 routing_complete = true
 
 # [41] AI21 Jamba — text-only. json_object only (no json_schema — similar
@@ -470,7 +469,7 @@ routing_complete = true
 name             = "ai21-any-model"
 scope            = { providers = ["ai21"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
 routing_complete = true
 
 # [42] Perplexity — search-augmented. Some models have vision (sonar-pro
@@ -480,7 +479,7 @@ routing_complete = true
 name             = "perplexity-any-model"
 scope            = { providers = ["perplexity"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native", "web-search"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native", "web-search"] }
 routing_complete = true
 
 # [28] Mock — all flags enabled. Covers every runtime conditional branch

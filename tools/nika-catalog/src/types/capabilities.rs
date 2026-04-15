@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-// TODO(Phase F): delete this allow when `supports_vision` is removed from
-// ModelCapabilities + CapPatch. Scoped to this module so our own merge_with
-// and materialize still compile for one commit while external consumers
-// see the deprecation nudge.
-#![allow(deprecated, reason = "supports_vision retired in the next Session 3 commit")]
-
 //! Runtime types backing the TOML-driven `model_capabilities` resolver.
 //!
 //! These types are **crate-internal**. Workflow callers see only the final
@@ -57,8 +51,6 @@ pub(crate) struct CapPatch {
     pub supports_stop_sequences: Option<bool>,
     /// Per-field override for [`ModelCapabilities::reasoning`].
     pub reasoning: Option<bool>,
-    /// Per-field override for [`ModelCapabilities::supports_vision`].
-    pub supports_vision: Option<bool>,
     // ── Session 2b additions (5 new slots) ─────────────────────────────
     /// Per-field override for [`ModelCapabilities::input_modalities`].
     pub input_modalities: Option<&'static [Modality]>,
@@ -104,7 +96,6 @@ impl CapPatch {
             supports_temperature,
             supports_stop_sequences,
             reasoning,
-            supports_vision,
             input_modalities,
             output_modalities,
             tokenizer,
@@ -149,10 +140,6 @@ impl CapPatch {
                 .or(defaults.supports_stop_sequences)
                 .unwrap_or(true),
             reasoning: self.reasoning.or(defaults.reasoning).unwrap_or(false),
-            supports_vision: self
-                .supports_vision
-                .or(defaults.supports_vision)
-                .unwrap_or(true),
             input_modalities: self
                 .input_modalities
                 .or(defaults.input_modalities)
@@ -258,7 +245,6 @@ mod tests {
             supports_temperature: Some(true),
             supports_stop_sequences: Some(true),
             reasoning: Some(false),
-            supports_vision: Some(true),
             input_modalities: Some(&[Modality::Text, Modality::Image]),
             output_modalities: Some(&[Modality::Text]),
             tokenizer: None,
@@ -271,7 +257,7 @@ mod tests {
     fn merge_with_takes_some_fields_from_other() {
         let base = CapPatch {
             reasoning: Some(false),
-            supports_vision: Some(true),
+            supports_temperature: Some(true),
             ..CapPatch::default()
         };
         let patch = CapPatch {
@@ -281,7 +267,7 @@ mod tests {
         let merged = base.merge_with(patch);
         assert_eq!(merged.reasoning, Some(true));
         assert_eq!(
-            merged.supports_vision,
+            merged.supports_temperature,
             Some(true),
             "fields not set on patch must be preserved from base",
         );
@@ -336,13 +322,12 @@ mod tests {
         let defaults = toml_like_defaults();
         let caps = CapPatch {
             reasoning: Some(true),
-            supports_vision: Some(false),
             input_modalities: Some(&[Modality::Text]),
             ..CapPatch::default()
         }
         .materialize(&defaults);
         assert!(caps.reasoning);
-        assert!(!caps.supports_vision);
+        assert!(!caps.input_modalities.contains(&Modality::Image));
         assert_eq!(caps.input_modalities, &[Modality::Text]);
     }
 

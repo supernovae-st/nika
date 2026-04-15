@@ -117,8 +117,6 @@ struct CapsPatchEntry {
     supports_stop_sequences: Option<bool>,
     #[serde(default)]
     reasoning: Option<bool>,
-    #[serde(default)]
-    supports_vision: Option<bool>,
     // ── Session 2b additions (5 new slots) ─────────────────────────────
     /// Typed enum (not String) — serde parse error replaces hand-written
     /// validation on an unknown tokenizer name.
@@ -278,7 +276,6 @@ fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), Strin
         supports_temperature,
         supports_stop_sequences,
         reasoning,
-        supports_vision,
         tokenizer,                 // typed enum — serde already validated
         input_modalities,
         output_modalities,
@@ -376,7 +373,6 @@ fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), Strin
             && supports_temperature.is_none()
             && supports_stop_sequences.is_none()
             && reasoning.is_none()
-            && supports_vision.is_none()
             && tokenizer.is_none()
             && input_modalities.is_none()
             && output_modalities.is_none()
@@ -598,7 +594,6 @@ fn emit_cap_patch(p: &CapsPatchEntry) -> String {
     emit_opt(&mut out, "supports_temperature", p.supports_temperature.as_ref(), bool::to_string);
     emit_opt(&mut out, "supports_stop_sequences", p.supports_stop_sequences.as_ref(), bool::to_string);
     emit_opt(&mut out, "reasoning", p.reasoning.as_ref(), bool::to_string);
-    emit_opt(&mut out, "supports_vision", p.supports_vision.as_ref(), bool::to_string);
     // Session 2b additions — 5 new slots.
     emit_opt(&mut out, "input_modalities", p.input_modalities.as_deref(), |list: &[String]| {
         emit_modality_slice(list)
