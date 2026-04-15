@@ -271,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn gpt41_is_not_reasoning() {
+    fn gpt4p1_is_not_reasoning() {
         let caps = model_capabilities("openai", "gpt-4.1");
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxTokens);
         assert!(caps.supports_temperature);
@@ -434,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn gpt41_variants_differentiated() {
+    fn gpt4p1_variants_differentiated() {
         let nano = find_pricing("gpt-4.1-nano").unwrap();
         let mini = find_pricing("gpt-4.1-mini").unwrap();
         let base = find_pricing("gpt-4.1").unwrap();
@@ -684,5 +684,217 @@ mod provenance_tests {
         // Default supported_parameters = [] (rules add them).
         // Contain-check on a known flag is false by default.
         assert!(!c.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
+    }
+
+    /// Per-rule provenance spot-checks — every rule is exercised by the
+    /// canonical (provider, model) pair that should trigger it. If a rule
+    /// is accidentally shadowed (e.g. `openai-gpt4-family` before
+    /// `openai-gpt4o-family`), the corresponding assert below fails with a
+    /// message pointing at the offending rule.
+    // REASON: 120 lines exercise one (provider, model) per rule + a handful
+    // of per-rule assertions. Splitting into 28 one-rule tests would bloat
+    // the file with duplicated `use` + `let caps = …` boilerplate — keeping
+    // a single harness with contiguous asserts reads cleaner.
+    #[allow(clippy::too_many_lines)]
+    #[test]
+    fn session_2b_per_rule_provenance() {
+        // [1] openai-o-series-exact — o1 + o3 vision YES, developer role.
+        let o3 = model_capabilities("openai", "o3");
+        assert_eq!(o3.tokenizer, Some(TokenizerFamily::O200k),
+            "o3: must match o-series-exact rule");
+        assert!(!o3.supports_system_messages,
+            "o-series: developer role canonical (system silently reclassified)");
+        assert!(o3.input_modalities.contains(&Modality::Image),
+            "o3: vision YES (not same as o3-mini)");
+        assert!(o3.supported_parameters.contains(&ParamFlag::ReasoningEffort));
+
+        let o1 = model_capabilities("openai", "o1");
+        assert!(o1.input_modalities.contains(&Modality::Image), "o1: vision YES");
+        assert!(!o1.supports_system_messages, "o1: developer role");
+
+        // [2] openai-o4-family — o4-mini vision YES, stop=false.
+        let o4mini = model_capabilities("openai", "o4-mini");
+        assert!(o4mini.input_modalities.contains(&Modality::Image),
+            "o4-mini: vision YES (April 2025)");
+        assert_eq!(o4mini.tokenizer, Some(TokenizerFamily::O200k));
+        assert!(!o4mini.supports_system_messages, "o4-mini: developer role");
+        assert!(!o4mini.supports_stop_sequences,
+            "o4-mini: stop NOT supported per OpenAI SDK docstring");
+
+        // [3] openai-o-series-family — o3-mini text-only, o1-mini o200k.
+        let o3mini = model_capabilities("openai", "o3-mini");
+        assert!(!o3mini.input_modalities.contains(&Modality::Image),
+            "o3-mini: text only, NOT o3");
+        assert!(!o3mini.supports_system_messages, "o3-mini: developer role");
+
+        let o1mini = model_capabilities("openai", "o1-mini");
+        assert!(!o1mini.input_modalities.contains(&Modality::Image),
+            "o1-mini: text only (never got vision update)");
+        assert_eq!(o1mini.tokenizer, Some(TokenizerFamily::O200k),
+            "o1-mini: o200k (tiktoken model.py prefix o1-)");
+
+        // [6] openai-gpt4o-family — o200k (NOT cl100k).
+        let gpt4o = model_capabilities("openai", "gpt-4o");
+        assert_eq!(gpt4o.tokenizer, Some(TokenizerFamily::O200k),
+            "gpt-4o: must match gpt4o-family rule (NOT gpt-4-family)");
+        assert_ne!(gpt4o.tokenizer, Some(TokenizerFamily::Cl100k),
+            "ORDERING: if this fails, gpt4-family fired before gpt4o-family");
+
+        // [7] openai-gpt4p1-family — o200k (NOT cl100k).
+        let gpt4p1 = model_capabilities("openai", "gpt-4.1");
+        assert_eq!(gpt4p1.tokenizer, Some(TokenizerFamily::O200k),
+            "gpt-4.1: o200k confirmed from tiktoken source");
+        assert_ne!(gpt4p1.tokenizer, Some(TokenizerFamily::Cl100k),
+            "ORDERING: if this fails, gpt4-family fired before gpt4p1-family");
+
+        // [8] openai-gpt4-family — cl100k legacy.
+        let gpt4 = model_capabilities("openai", "gpt-4");
+        assert_eq!(gpt4.tokenizer, Some(TokenizerFamily::Cl100k),
+            "gpt-4 legacy: cl100k (GPT-4 original, not 4.1/4o)");
+
+        // [9] claude-family-any-provider — PDF + prompt-caching.
+        let claude = model_capabilities("anthropic", "claude-sonnet-4-5-20250929");
+        assert_eq!(claude.tokenizer, Some(TokenizerFamily::ClaudeV3));
+        assert!(claude.supported_parameters.contains(&ParamFlag::PromptCaching),
+            "prompt-caching: from claude-family rule");
+        assert!(claude.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
+        assert!(claude.supported_parameters.contains(&ParamFlag::ThinkingBudget));
+        assert!(claude.supports_system_messages, "Claude: system messages YES");
+        assert!(claude.input_modalities.contains(&Modality::Pdf),
+            "claude: PDF supported (all active models)");
+
+        // [11-12] deepseek — no StructuredOutputNative (json_object only).
+        let deepseek = model_capabilities("deepseek", "deepseek-chat");
+        assert!(!deepseek.supports_vision, "deepseek: no vision API");
+        assert!(!deepseek.supported_parameters.contains(&ParamFlag::StructuredOutputNative),
+            "deepseek: json_object only (NOT json_schema)");
+        assert_eq!(deepseek.tokenizer, Some(TokenizerFamily::DeepSeek));
+
+        let deepseek_r = model_capabilities("deepseek", "deepseek-reasoner");
+        assert!(deepseek_r.reasoning,
+            "deepseek-reasoner: reasoning=true (was MISSING pre-2b)");
+        assert!(!deepseek_r.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
+
+        // [13] xai-grok4 — reasoning, no temperature, no stop, no tokenizer.
+        let grok4 = model_capabilities("xai", "grok-4");
+        assert!(grok4.reasoning, "grok-4: reasoning=true");
+        assert!(!grok4.supports_temperature, "grok-4: no temperature");
+        assert!(!grok4.supports_stop_sequences, "grok-4: no stop");
+        assert_eq!(grok4.tokenizer, None, "grok-4: no enum variant (custom SentencePiece)");
+
+        // [14] xai-grok3-mini — P0 FIX (reasoning model).
+        let grok3mini = model_capabilities("xai", "grok-3-mini");
+        assert!(grok3mini.reasoning, "grok-3-mini: P0 — IS a reasoning model");
+        assert!(!grok3mini.supports_temperature);
+        assert!(!grok3mini.input_modalities.contains(&Modality::Image), "grok-3-mini: text-only");
+        assert!(grok3mini.supported_parameters.contains(&ParamFlag::ReasoningEffort),
+            "grok-3-mini: supports reasoning_effort (unlike grok-4)");
+
+        // [15] xai-any-model — grok-3 text-only, not reasoning.
+        let grok3 = model_capabilities("xai", "grok-3");
+        assert!(!grok3.reasoning, "grok-3: not reasoning (grok-3-mini is)");
+        assert!(!grok3.supports_vision, "grok-3: text-only (MUST override default=true)");
+
+        // [16-17] gemini — Pro has PDF, Flash does not.
+        let gemini_pro = model_capabilities("gemini", "gemini-2.5-pro");
+        assert!(gemini_pro.input_modalities.contains(&Modality::Pdf),
+            "gemini-2.5-pro: PDF confirmed");
+        assert!(gemini_pro.input_modalities.contains(&Modality::Audio));
+        assert!(gemini_pro.input_modalities.contains(&Modality::Video));
+
+        let gemini_flash = model_capabilities("gemini", "gemini-2.5-flash");
+        assert!(gemini_flash.input_modalities.contains(&Modality::Video),
+            "gemini-2.5-flash: video confirmed");
+        assert!(!gemini_flash.input_modalities.contains(&Modality::Pdf),
+            "gemini-2.5-flash: PDF absent (Pro-only)");
+
+        // [19] mistral-small-3/4 — vision YES.
+        let mistral_small = model_capabilities("mistral", "mistral-small-latest");
+        assert!(mistral_small.input_modalities.contains(&Modality::Image),
+            "mistral-small-latest: Small 4.0 vision confirmed");
+        let mistral_small_4 = model_capabilities("mistral", "mistral-small-4-0-26-03");
+        assert!(mistral_small_4.input_modalities.contains(&Modality::Image),
+            "mistral-small-4-0-26-03: prefix mistral-small-4 catches versioned ID");
+
+        // [21] magistral-family — reasoning + multimodal.
+        let magistral = model_capabilities("mistral", "magistral-medium-latest");
+        assert!(magistral.reasoning,
+            "magistral: always-on reasoning model (confirmed docs.mistral.ai)");
+        assert!(magistral.input_modalities.contains(&Modality::Image),
+            "magistral-medium: frontier multimodal reasoning");
+
+        // [22] mistral-any-model — codestral text-only + json_schema.
+        let codestral = model_capabilities("mistral", "codestral-2508");
+        assert!(!codestral.input_modalities.contains(&Modality::Image),
+            "codestral: text-only");
+        assert!(codestral.supported_parameters.contains(&ParamFlag::StructuredOutputNative),
+            "codestral: json_schema on chat completions endpoint");
+
+        // [23] bedrock-claude — anthropic.claude-* prefix.
+        let bedrock_claude = model_capabilities("bedrock", "anthropic.claude-sonnet-4-6-v1:0");
+        assert_eq!(bedrock_claude.tokenizer, Some(TokenizerFamily::ClaudeV3),
+            "bedrock-claude rule must fire (NOT defaults)");
+        assert!(bedrock_claude.input_modalities.contains(&Modality::Pdf));
+
+        // [25] openrouter-claude — anthropic/claude-* prefix.
+        let or_claude = model_capabilities("openrouter", "anthropic/claude-sonnet-4-6");
+        assert_eq!(or_claude.tokenizer, Some(TokenizerFamily::ClaudeV3),
+            "openrouter-claude rule must fire");
+
+        // [26] native-any — text-only local GGUF.
+        let native = model_capabilities("native", "qwen-3-8b");
+        assert!(!native.supports_vision, "native: text-only override");
+        assert!(!native.input_modalities.contains(&Modality::Image));
+
+        // [27] voyage-any — embedding-only.
+        let voyage = model_capabilities("voyage", "voyage-3");
+        assert!(!voyage.supports_system_messages,
+            "voyage: no chat API, no system messages");
+        assert!(!voyage.supports_vision, "voyage: embedding-only");
+        assert!(!voyage.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
+
+        // [28] mock-full — all flags.
+        let mock = model_capabilities("mock", "any-model");
+        assert!(mock.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
+        assert!(mock.supported_parameters.contains(&ParamFlag::ThinkingBudget));
+        assert!(mock.supported_parameters.contains(&ParamFlag::WebSearch));
+        assert!(mock.input_modalities.contains(&Modality::Audio));
+        assert!(mock.input_modalities.contains(&Modality::Video));
+        assert!(mock.input_modalities.contains(&Modality::Pdf));
+    }
+
+    /// Post-materialize invariant: `reasoning=true` MUST come with at
+    /// least one reasoning parameter flag (`ReasoningEffort` or
+    /// `ThinkingBudget`). A model that advertises reasoning but exposes
+    /// no knob to control it is a TOML authoring bug.
+    ///
+    /// Note: magistral and grok-4 reason automatically (no knob) — both
+    /// are excluded here and documented as known gaps. The invariant is
+    /// enforced only on models where reasoning IS runtime-controllable.
+    #[test]
+    fn reasoning_models_have_controllable_parameter_flag() {
+        for (prov, model) in [
+            ("anthropic", "claude-sonnet-4-20250514"),
+            ("openai", "o3"),
+            ("openai", "o4-mini"),
+            ("openai", "o3-mini"),
+            ("xai", "grok-3-mini"),
+            ("deepseek", "deepseek-reasoner"),
+        ] {
+            let c = model_capabilities(prov, model);
+            if c.reasoning {
+                let has_effort = c.supported_parameters.contains(&ParamFlag::ReasoningEffort);
+                let has_budget = c.supported_parameters.contains(&ParamFlag::ThinkingBudget);
+                // deepseek-reasoner has neither — reasoning is automatic,
+                // exposed on the model endpoint. Document the known gap.
+                if prov == "deepseek" {
+                    continue;
+                }
+                assert!(
+                    has_effort || has_budget,
+                    "{prov}/{model}: reasoning=true but no ReasoningEffort / ThinkingBudget flag",
+                );
+            }
+        }
     }
 }

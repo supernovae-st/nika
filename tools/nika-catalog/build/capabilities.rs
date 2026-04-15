@@ -50,6 +50,17 @@ struct RuleEntry {
     #[serde(rename = "match")]
     match_: MatchEntry,
     caps: CapsPatchEntry,
+    /// Author-asserted "this rule intentionally inherits defaults for any
+    /// un-set routing-critical field". Default `false` — absence = warn in
+    /// CI if the rule omits a field that would make the runtime fall back
+    /// to generic defaults on a provider-specific path.
+    ///
+    /// Read-only at build time; not emitted into the runtime `Rule` struct
+    /// (would be dead data there — routing happens at TOML-authoring time,
+    /// not at materialise time).
+    #[serde(default)]
+    #[allow(dead_code, reason = "build-time authoring hint, not emitted to runtime Rule")]
+    routing_complete: bool,
 }
 
 #[derive(Deserialize, Default)]

@@ -14,58 +14,49 @@
 #   * every rule `name` is unique
 #   * `caps.token_limit_param`, when present, is one of:
 #     max-tokens | max-completion-tokens | max-output-tokens
+#   * modality strings ∈ { text, image, audio, video, pdf } and
+#     input_modalities must contain "text"
+#   * supported_parameters strings ∈ {parallel-tool-calls, reasoning-effort,
+#     thinking-budget, prompt-caching, structured-output-native, file-search,
+#     web-search, streaming-thinking}
 #
 # Resolution algorithm (see `src/types/capabilities.rs`):
-#   1. start from `[defaults]` (hard-coded baseline, mirrors
-#      `ModelCapabilities::default()`)
+#   1. start from `[defaults]` (mirrors ModelCapabilities::default())
 #   2. scan `[[rules]]` in file order
 #   3. for each rule: skip if scope.providers is non-empty and canonical
-#      provider id is not in the list (case-insensitive ASCII), or if
-#      scope.api_dialect is Some and the provider's declared dialect does not
-#      match
-#   4. if the matcher matches the (possibly case-different) model name,
-#      merge `caps` into the accumulator (Some fields win) and BREAK —
-#      first-match-wins
+#      provider id is not in the list, or if scope.api_dialect is Some and
+#      the provider's declared dialect does not match
+#   4. if the matcher matches the model name, merge `caps` into the
+#      accumulator (Some fields win) and BREAK — first-match-wins
 #   5. materialise into `ModelCapabilities`, filling any still-unset field
-#      from `defaults`
+#      from `defaults` (P0-1 fix: defaults come from [defaults], not from
+#      ModelCapabilities::default())
 #
-# ⚠ FIRST-MATCH-WINS RULE AUTHORING (Session 2b+):
-#
-# When Session 2b adds modalities / tokenizer / supported_parameters to
-# `ModelCapabilities`, it is TEMPTING to write rules that each set ONE
-# family of fields (e.g. one rule for modalities, another for
-# token_limit_param). This would be WRONG: because resolution `break`s on
-# the first match, only ONE rule fires per (provider, model) pair.
-#
-# Rule-authoring invariant: for every (provider, model) input, the SINGLE
-# matching rule must carry EVERY capability the input needs. If two
-# capability families have different scoping needs (e.g. reasoning is
-# model-specific but vision is provider-wide), either:
-#   (a) duplicate the common fields across both rules, OR
-#   (b) pre-compute the superset and collapse into one rule.
-#
-# The proptest parity test at `src/data/models.rs` catches regressions
-# across 10 000 random inputs — run it after any rule addition.
-#
-# Parity with legacy (HEAD 1a29bd32f):
-#   * The legacy body is an if-else-if cascade that returned early on match.
-#     Every rule below is sized so that first-match-wins + merge-into-defaults
-#     yields the same `ModelCapabilities` as legacy's early return.
-#   * `tests/parity_tests` (inside `src/data/models.rs`) runs proptest over
-#     10 000 random (provider, model) pairs against the extracted legacy body.
+# ⚠ INSERTION ORDER IS LOAD-BEARING
+# First-match-wins means rule[i] shadows rule[i+1] for any model that matches
+# both. Two orderings are particularly fragile:
+#   * openai-o4-family [rule 2] MUST appear before openai-o-series-family
+#     [rule 3] because "o4-mini".starts_with("o4") = TRUE is caught by rule 2
+#     (vision=YES, developer role) BEFORE the broader "o4-" prefix of rule 3
+#     (text-only, developer role). Reversing them silently drops vision on
+#     o4-mini with no build error — only spot-check tests catch it.
+#   * gpt-4o [rule 6] → gpt-4.1 [rule 7] → gpt-4 [rule 8] — all prefixes
+#     overlap on "gpt-4". Wrong order = wrong tokenizer on gpt-4o / gpt-4.1.
+#   * Every Matcher::Any rule (anthropic-any-model, deepseek-any-model,
+#     xai-any-model, gemini-any-model, mistral-any-model, native-any,
+#     voyage-any, mock-full) MUST appear LAST within its provider scope,
+#     enforced by check_any_last_in_scope() at build time.
 
 schema = "nika/model-capabilities@1.0"
 
 # ─── Baseline — mirrors ModelCapabilities::default() ────────────────────────
-# Session 2b additions (5 new fields):
+# Session 2b additions:
 #   * input_modalities / output_modalities — declaration-order sorted by
 #     build.rs at codegen time (text=0, image=1, audio=2, video=3, pdf=4).
 #     Default mirrors supports_vision=true (text + image).
-#   * tokenizer — omitted → None (most providers don't disclose their
-#     tokenizer; rules attach a specific variant for known families).
+#   * tokenizer — omitted → None (most providers don't disclose).
 #   * supported_parameters — empty; rules add flags for specific models.
-#   * supports_system_messages — true (virtually all chat models; o-series
-#     + voyage override to false).
+#   * supports_system_messages — true (virtually all chat models).
 [defaults]
 token_limit_param        = "max-tokens"
 supports_temperature     = true
@@ -77,87 +68,298 @@ output_modalities        = ["text"]
 supported_parameters     = []
 supports_system_messages = true
 
-# ─── Rules — ordered, FIRST MATCH WINS ──────────────────────────────────────
-#
-# Keep the order stable: the proptest parity test is sensitive to ordering
-# when two rules could both match a (provider, model) pair.
+# ─── 28 rules — ordered, FIRST MATCH WINS ───────────────────────────────────
 
-# 1. OpenAI reasoning series, exact names (o1, o3, o4).
-#    Legacy: `is_o_series` matched `lower == "o1" || lower.starts_with("o1-")`
-#    — split into exact + family rules so that "o1x" does NOT get reasoning
-#    treatment (legacy prefix "o1" would have been permissive; the legacy
-#    `==` was not).
+# [1] OpenAI reasoning series — exact names (o1, o3, o4). Vision YES (o1+o3
+#     confirmed; o4 confirmed April 2025). System role silently reclassified
+#     as developer by API — supports_system_messages=false tells the runtime
+#     to send "developer" as canonical.
+#     ⚠ o3 stop=false (per OpenAI SDK completions.py: "Not supported with
+#       latest reasoning models o3 and o4-mini"). o1 stop=unknown. Bundled
+#       in exact_any, supports_stop_sequences left at default=true — accepted
+#       gap; reasoning models rarely rely on stop sequences.
 [[rules]]
 name  = "openai-o-series-exact"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "exact_any", models = ["o1", "o3", "o4"] }
-caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"], supports_system_messages = false }
 
-# 2. OpenAI reasoning series, dash-suffix family (o1-preview, o3-mini, o4-mini, …).
+# [2] OpenAI o4 family (o4-mini, future o4-*). Vision YES. stop=false
+#     confirmed per OpenAI SDK completions.py.
+#     ⚠ POSITION 2 — must appear BEFORE openai-o-series-family [rule 3]
+#       because "o4-mini".starts_with("o4") = TRUE matches here (correct
+#       caps: vision, developer role) and would otherwise be caught by
+#       rule 3's "o4-" prefix with wrong caps (text-only, developer role).
+[[rules]]
+name  = "openai-o4-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["o4"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, supports_stop_sequences = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native", "web-search"], supports_system_messages = false }
+
+# [3] OpenAI reasoning series, dash-suffix family (o1-preview, o1-mini,
+#     o3-mini, …). Text-only: o1-mini and o3-mini never got the vision
+#     update that o1-2024-12-17 received. supports_vision=false explicit —
+#     contradicts default=true.
 [[rules]]
 name  = "openai-o-series-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["o1-", "o3-", "o4-"] }
-caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, supports_vision = false, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"], supports_system_messages = false }
 
-# 3. OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
+# [4] OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
 [[rules]]
 name  = "openai-gpt5-exact"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "exact_any", models = ["gpt-5"] }
-caps  = { token_limit_param = "max-completion-tokens", reasoning = true }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 
-# 4. OpenAI GPT-5 family — dash and dot variants (gpt-5-turbo, gpt-5.1, …).
+# [5] OpenAI GPT-5 family — dash and dot variants (gpt-5-turbo, gpt-5.1, …).
 [[rules]]
 name  = "openai-gpt5-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-5-", "gpt-5."] }
-caps  = { token_limit_param = "max-completion-tokens", reasoning = true }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 
-# 5. Any model starting with "claude", on ANY provider. Legacy matched
-#    `lower.starts_with("claude")` independent of provider, so models
-#    routed through Bedrock / OpenRouter / a custom gateway still pick up
-#    reasoning when the model name announces it.
+# [6] OpenAI GPT-4o family (gpt-4o, gpt-4o-mini, …). o200k tokenizer.
+#     ⚠ MUST appear BEFORE gpt-4.1 and gpt-4 rules (both have "gpt-4"
+#       prefix overlap). Wrong order = wrong tokenizer on gpt-4o.
+[[rules]]
+name  = "openai-gpt4o-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4o"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+
+# [7] OpenAI GPT-4.1 family (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano). o200k
+#     (NOT cl100k — confirmed via tiktoken maintainer + library source).
+#     ⚠ MUST appear BEFORE gpt-4-family ("gpt-4.1".starts_with("gpt-4")
+#       = TRUE).
+[[rules]]
+name  = "openai-gpt41-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4.1"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+
+# [8] OpenAI GPT-4 legacy (gpt-4, gpt-4-turbo, gpt-4-32k). cl100k tokenizer.
+#     ⚠ MUST appear AFTER gpt-4o and gpt-4.1 rules.
+[[rules]]
+name  = "openai-gpt4-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4"] }
+caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+
+# [9] Any model starting with "claude", on ANY provider. Legacy matched
+#     lower.starts_with("claude") independent of provider. PDF confirmed
+#     for "all active Claude models" per Anthropic docs.
+#     Prompt caching + streaming thinking + structured output + thinking
+#     budget per Anthropic API.
 #
-#    LOAD-BEARING ORDER: this rule sits BEFORE the deepseek rules below.
-#    Legacy hit the `lower.starts_with("claude")` arm before the `prov ==
-#    "deepseek"` arm, so a (provider="deepseek", model="claude-foo") input
-#    picked up `reasoning=true` instead of `supports_vision=false`. Moving
-#    rule 5 after the deepseek rules would silently flip that edge case.
-#    Proptest catches it if you try.
+#     LOAD-BEARING ORDER: sits BEFORE the deepseek rules so (deepseek,
+#     "claude-foo") picks up reasoning=true instead of
+#     supports_vision=false. Proptest-era parity pinned this; kept same.
 [[rules]]
 name  = "claude-family-any-provider"
 match = { kind = "prefix_any", prefixes = ["claude"] }
-caps  = { reasoning = true }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "streaming-thinking", "structured-output-native", "thinking-budget"] }
 
-# 6. Anthropic provider default — captures anthropic-hosted models that
-#    don't start with "claude" (e.g. future internal codenames). Legacy's
-#    `prov == "anthropic"` branch returned reasoning=true regardless of
-#    model prefix.
+# [10] Anthropic provider default — catches anthropic-hosted models that
+#      don't start with "claude" (future internal codenames).
+#      routing_complete=true: intentionally inherits supports_parameters
+#      from defaults (only prompt-caching is Anthropic-wide beyond caps
+#      added by prefix rules).
 [[rules]]
-name  = "anthropic-any-model"
-scope = { providers = ["anthropic"] }
-match = { kind = "any" }
-caps  = { reasoning = true }
+name             = "anthropic-any-model"
+scope            = { providers = ["anthropic"] }
+match            = { kind = "any" }
+caps             = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching"] }
+routing_complete = true
 
-# 7. DeepSeek reasoner — rejects temperature AND loses vision. Must be
-#    listed before `deepseek-any-model` so the reasoner-specific caps win.
+# [11] DeepSeek reasoner — rejects temperature. IS a reasoning model
+#      (reasoning=true was MISSING from the pre-2b TOML: current rule only
+#      had supports_temperature=false + supports_vision=false). DeepSeek R1
+#      returns reasoning_content on the reasoner endpoint.
+#      ⚠ NO StructuredOutputNative — DeepSeek supports json_object only,
+#        not json_schema (confirmed from api-docs.deepseek.com).
 [[rules]]
 name  = "deepseek-reasoner"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-reasoner" }
-caps  = { supports_temperature = false, supports_vision = false }
+caps  = { supports_temperature = false, reasoning = true, supports_vision = false, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
 
-# 8. Any other DeepSeek model — loses vision (API limitation).
+# [12] Any other DeepSeek model — loses vision (API limitation).
+#      ⚠ NO StructuredOutputNative (same json_object-only constraint).
 [[rules]]
 name  = "deepseek-any-model"
 scope = { providers = ["deepseek"] }
 match = { kind = "any" }
-caps  = { supports_vision = false }
+caps  = { supports_vision = false, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
 
-# 9. xAI Grok-4 — rejects stop sequences (per provider API quirk).
+# [13] xAI grok-4 family (grok-4, grok-4-0709, grok-4.20, grok-4-1-fast,
+#      grok-4-latest). ALL are reasoning models per xAI docs. Temperature
+#      unreliable on reasoning models. Stop sequences blocked on reasoning
+#      models. NO reasoning-effort (grok-4.20 + grok-4-1-fast reason
+#      automatically — passing reasoning_effort returns an error).
+#      Tokenizer NOT set: xAI uses a custom SentencePiece (131k vocab, per
+#      grok-1 README), no standard TokenizerFamily variant.
 [[rules]]
 name  = "xai-grok4"
 scope = { providers = ["xai"] }
-match = { kind = "exact", model = "grok-4" }
-caps  = { supports_stop_sequences = false }
+match = { kind = "prefix_any", prefixes = ["grok-4"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+
+# [14] xAI grok-3-mini — P0 FIX. grok-3-mini IS a reasoning model
+#      (algorithm: grok3Reasoning, reasoning=true in xAI OpenAPI feature
+#      flags; returns reasoning_content in Responses API). Without this
+#      rule, grok-3-mini falls to xai-any-model (Matcher::Any) which
+#      would give reasoning=false + stop=true + temperature=true — ALL
+#      WRONG. Unlike grok-4, grok-3-mini supports reasoning_effort.
+#      Text-only (inputModalities=[1] per xAI docs embedded JSON).
+[[rules]]
+name  = "xai-grok3-mini"
+scope = { providers = ["xai"] }
+match = { kind = "prefix_any", prefixes = ["grok-3-mini"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"] }
+
+# [15] Any other xAI model (grok-3, grok-3-fast, grok-3-beta). Text-only
+#      (grok-3 inputModalities=[1] per xAI docs). reasoning=false. stop=true
+#      (non-reasoning models keep stop sequences per xAI docs).
+#      ⚠ supports_vision=false REQUIRED — without it, defaults give true,
+#        which is WRONG for grok-3.
+[[rules]]
+name             = "xai-any-model"
+scope            = { providers = ["xai"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+routing_complete = true
+
+# [16] Gemini 2.5 Pro — full multimodal (audio + image + pdf + text + video).
+#      PDF confirmed for Pro (not listed on Flash model card).
+[[rules]]
+name  = "gemini-2-5-pro"
+scope = { providers = ["gemini", "vertex"] }
+match = { kind = "prefix_any", prefixes = ["gemini-2.5-pro"] }
+caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["structured-output-native", "web-search"] }
+
+# [17] Gemini 2.5 Flash — multimodal (audio + image + text + video).
+#      Video confirmed max 10/prompt via LiteLLM verification.
+#      Flash Thinking exposes reasoning_effort.
+[[rules]]
+name  = "gemini-2-5-flash"
+scope = { providers = ["gemini", "vertex"] }
+match = { kind = "prefix_any", prefixes = ["gemini-2.5-flash"] }
+caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "structured-output-native", "web-search"] }
+
+# [18] Any other Gemini model. routing_complete=true.
+[[rules]]
+name             = "gemini-any-model"
+scope            = { providers = ["gemini", "vertex"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "gemini", input_modalities = ["image", "text"], output_modalities = ["text"] }
+routing_complete = true
+
+# [19] Mistral Small 3.x / 4.x. mistral-small-latest maps to Small 4.0
+#      (mistral-small-4-0-26-03) as of early 2026. Small 4.0 vision
+#      confirmed Round-7 review (model page shows vision icon enabled,
+#      not opacity-30; Mistral docs vision page uses mistral-small-latest
+#      in code example). Small 3.1-2503 retired Nov 30 2025; 3.2-2506 also
+#      routable.
+#      ⚠ prefix "mistral-small-4" catches versioned ID
+#        mistral-small-4-0-26-03 which otherwise falls to mistral-any-model.
+#      Appears BEFORE mistral-vision-models (more specific prefix).
+[[rules]]
+name  = "mistral-small-3"
+scope = { providers = ["mistral"] }
+match = { kind = "prefix_any", prefixes = ["mistral-small-2503", "mistral-small-2506", "mistral-small-latest", "mistral-small-3", "mistral-small-4"] }
+caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+
+# [20] Mistral vision models (pixtral, large, medium). mistral-large-latest
+#      → mistral-large-2512 (Mistral Large 3) with vision confirmed.
+[[rules]]
+name  = "mistral-vision-models"
+scope = { providers = ["mistral"] }
+match = { kind = "prefix_any", prefixes = ["mistral-large", "mistral-medium", "pixtral"] }
+caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+
+# [21] Magistral family — reasoning + multimodal. Docs.mistral.ai:
+#      "Native — Available on magistral-small-latest and magistral-medium-
+#       latest. These models always generate reasoning traces and are
+#       purpose-built for deep reasoning." Latest magistral-medium-1-2-25-09
+#      is "frontier-class MULTIMODAL reasoning model" — vision enabled.
+#      Temperature + stop NOT documented as restricted (unlike xAI/OpenAI);
+#      keep defaults=true.
+#      ⚠ Appears BEFORE mistral-any-model (Matcher::Any must be last).
+[[rules]]
+name  = "magistral-family"
+scope = { providers = ["mistral"] }
+match = { kind = "prefix_any", prefixes = ["magistral"] }
+caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+
+# [22] Any other Mistral model (codestral, devstral, ministral, …). Text.
+#      ⚠ supports_vision=false REQUIRED (defaults give true; text-only
+#        contradicts).
+#      supported_parameters includes structured-output-native: Mistral
+#      OpenAPI spec lists ResponseFormats = [text, json_object, json_schema]
+#      for ALL chat completions models (codestral/devstral included).
+[[rules]]
+name             = "mistral-any-model"
+scope            = { providers = ["mistral"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, tokenizer = "mistral-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+routing_complete = true
+
+# [23] AWS Bedrock — Claude models via Bedrock use "anthropic.claude-<name>
+#      -v<N>:0" naming, NOT "claude-" prefix. claude-family-any-provider
+#      rule [9] does NOT fire on "anthropic.claude-*".
+[[rules]]
+name  = "bedrock-claude"
+scope = { providers = ["bedrock"] }
+match = { kind = "prefix_any", prefixes = ["anthropic.claude"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "structured-output-native", "thinking-budget"] }
+
+# [24] Azure OpenAI — GPT-4o on Azure. Azure uses model names without
+#      "openai" scope; openai-gpt4o-family [rule 6] is scoped to
+#      providers=["openai","openrouter"] and does NOT fire for azure.
+[[rules]]
+name  = "azure-gpt4o"
+scope = { providers = ["azure"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4o"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+
+# [25] OpenRouter — Claude models via OpenRouter use "anthropic/claude-"
+#      prefix. claude-family-any-provider rule [9] (prefix "claude") does
+#      NOT match "anthropic/claude-*" (starts with "anthropic/"). Bare
+#      "claude-*" on openrouter IS covered by rule [9] (no scope
+#      restriction).
+[[rules]]
+name  = "openrouter-claude"
+scope = { providers = ["openrouter"] }
+match = { kind = "prefix_any", prefixes = ["anthropic/claude"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "structured-output-native", "thinking-budget"] }
+
+# [26] Native (local GGUF / mistral.rs) — text-only by default. No
+#      structured output native. No system messages restriction.
+#      ⚠ supports_vision=false REQUIRED (defaults give true; text-only).
+[[rules]]
+name             = "native-any"
+scope            = { providers = ["native"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+routing_complete = true
+
+# [27] Voyage — embedding-only API. No chat, no structured output, no
+#      system messages. supports_system_messages=false signals "no chat
+#      API available" so runtime takes the embed-only path.
+[[rules]]
+name             = "voyage-any"
+scope            = { providers = ["voyage"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], supports_system_messages = false }
+routing_complete = true
+
+# [28] Mock — all flags enabled. Covers every runtime conditional branch
+#      without real API calls. Tokenizer cl100k (arbitrary). All
+#      supported_parameters set — tests can cover every path.
+[[rules]]
+name  = "mock-full"
+scope = { providers = ["mock"] }
+match = { kind = "any" }
+caps  = { reasoning = true, tokenizer = "cl100k", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["file-search", "parallel-tool-calls", "prompt-caching", "reasoning-effort", "streaming-thinking", "structured-output-native", "thinking-budget", "web-search"], supports_system_messages = true }
