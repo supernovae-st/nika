@@ -52,14 +52,15 @@ nika-error, nika-catalog, nika-kernel + mock, nika-schema, nika-binding.
   - `phf` + `unicase` compile-time maps for providers and MCP aliases
   - Sorted arrays with binary search for builtins, transforms, pricing
   - Case-insensitive zero-alloc via `UniCase::ascii()`
-  - **TOML-driven capability resolver** — 9 rules, `CapPatch` merge semantics, zero-alloc `eq_ignore_ascii_case`
-- Catalogs (post Phase D Session 2a):
-  - 21 LLM providers (all with `api_dialect` field, FK-validated at build time)
+  - **TOML-driven capability resolver** — 42 rules, `CapPatch` merge semantics, zero-alloc `eq_ignore_ascii_case`
+- Catalogs (post Phase D Session 3):
+  - 25 LLM providers (all with `api_dialect` field, FK-validated at build time)
   - 105 MCP servers (all carry `read-only` XOR `destructive` — Shield invariant)
   - 63 builtins | 65 transforms | 62 pricing patterns | 13 embeddings
-- `model_capabilities()` TOML-driven, proptest parity (10k cases), `api_dialect` scoped
-- Stats: ~3,800 LOC | 154 tests | Gate 8 GREEN | Invariant #19 FULL (15 new()) | 0 unwrap in src/
-- Review: 5-agent swarm (S2a), all P0/P1 fixed same session (2 hardening commits)
+- `model_capabilities()` TOML-driven, proptest parity (10k cases), `api_dialect` scoped, 9-field `ModelCapabilities` (`supports_vision` retired, superseded by `input_modalities.contains(Image)`)
+- `ModelPricing` 7-axis: `input` / `output` / `cached_input` / `image` / `reasoning_tokens` (+ 2 for provider/pattern)
+- Stats: ~13k LOC | 416 tests | Gate 8 GREEN | Invariant #19 FULL | 0 unwrap in src/
+- Review: 5-agent swarm (S2a), all P0/P1 fixed same session (2 hardening commits); Session 3 4-agent review swarm, all findings landed same session
 
 ### Step 3: nika-kernel + nika-kernel-mock -- DONE
 
@@ -90,8 +91,10 @@ Subsequent to Step 2 admission, nika-catalog was enriched v2 then cleaned:
 Expanding nika-catalog capabilities across 9 sessions:
 - ✅ Session 1: Tag enum + Cargo features + Shield XOR
 - ✅ Session 2a: TOML-driven capability rules + api_dialect + proptest + Gate 8
-- 🔄 Session 2b: Modality + TokenizerFamily + ParamFlag → Gate 2 advancement (NEXT)
-- ⏳ Sessions 3-5: 5-axis pricing, model families, HTTP API, CatalogOverlay
+- ✅ Session 2b: Modality + TokenizerFamily + ParamFlag + `supports_system_messages` (9-field resolve)
+- ✅ Session 3: 4 new providers (qwen, minimax, moonshot, zhipu) + 14 new rules (reaching 42 total), TokenizerFamily::Qwen, ModelPricing extended with 3 `Option<f64>` axes (cached_input / image / reasoning_tokens), `supports_vision: bool` retired, `validate_caps_patch` require-all tightening on `[defaults]`, scope.providers canonicalisation
+- 🔄 Session 4 (NEXT): HTTP API + DataSource + MCP lifecycle — new feature territory, distinct scope
+- ⏳ Phase E2 (a Session 4 prep): full TOML-driven pricing catalog (`data/model-pricing.toml` + `build/pricing.rs`), 1000-case proptest, delete `ALL_PRICING` slice
 
 ### Step 5: nika-schema -- PLANNED
 
@@ -157,12 +160,12 @@ Not yet started.
 | Metric              | Value                |
 | ------------------- | -------------------- |
 | Crates admitted     | 5 / 40-42 (v0.90)    |
-| Total LOC in src/   | ~10,500              |
-| Tests               | 386 (45+154+99+88+9) |
+| Total LOC in src/   | ~13,000              |
+| Tests               | 416                  |
 | Unwraps in src/     | 0                    |
 | Panics in src/      | 0                    |
 | Clippy warnings     | 0                    |
 | Gate 8 (rustdoc)    | GREEN                |
-| Invariant #19       | FULL (15 new())      |
-| Branch HEAD         | `133ffa0ff`          |
+| Invariant #19       | FULL                 |
+| Branch HEAD         | `42fb140e4` (post-S3) |
 | Last updated        | 2026-04-15           |

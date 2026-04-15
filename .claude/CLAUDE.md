@@ -57,6 +57,7 @@ Current: Phase D (catalog scope expansion, Session 2a DONE). 5 crates admitted.
 - ✓ Every I/O behind kernel trait (MemoryStore, ShellExecutor, etc.)
 - ✓ workspace.lints.clippy `unwrap_used = "deny"` enforced
 - ✓ Commit message : `feat(nika-X): admit to workspace — all 12 gates passed`
+- ✓ Tout refactor/rename touchant un symbole Rust → `mcp__gitnexus__impact` AVANT edit, `mcp__gitnexus__detect_changes` AVANT commit (voir `../CLAUDE.md` §GitNexus)
 
 ## 📋 12 Gates per crate admission
 
@@ -104,12 +105,11 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 ## 🎯 Current state (2026-04-15)
 
 - 5 crates admitted : error + catalog + catalog-verify + kernel + kernel-mock
-- 386 tests, 0 clippy, 0 unwrap in src/, Gate 8 GREEN, Invariant #19 FULL
-- 15 ADRs Accepted (ADR-001..015) — bidirectional Related: cross-refs landed
+- 416 tests, 0 clippy, 0 unwrap in src/, Gate 8 GREEN, Invariant #19 FULL
+- 15 ADRs Accepted (ADR-001..015) + Session 3 addendum on ADR-008
 - 2026 SOTA toolchain green : machete clean, semver-checks live, typos live, miri+hack+deny in CI matrix (9 jobs)
-- Phase D Session 2a DONE : TOML capability rules, api_dialect, proptest, inv #19
-- Next : Session 2b — Modality + TokenizerFamily + ParamFlag → Gate 2
-
-Follow `MEGA_HANDOFF_SESSION_2B.md` (memory/) for next session spec.
+- Phase D Session 2a DONE ; Session 2b DONE ; Session 3 DONE
+- Session 3 deliverables : 25 providers, 42 capability rules, TokenizerFamily::Qwen, `ModelPricing` 7-axis (cached_input / image / reasoning_tokens), `supports_vision` retired → `input_modalities.contains(Modality::Image)`, `validate_caps_patch(require_all)` on `[defaults]`, scope.providers canonicalisation, ADR-008 addendum
+- Next : Session 4 — HTTP API + DataSource + MCP lifecycle (new feature territory). Phase E2 companion — full TOML-driven pricing migration — lands alongside.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
