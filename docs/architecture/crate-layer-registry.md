@@ -8,13 +8,24 @@ here is the ground truth that `[workspace.metadata.diamond.layers]` and
 
 40-42 crates without a layer contract converge on a kitchen-sink dependency
 graph: everything imports everything, every crate pulls in tokio, every
-change ripples through the workspace. Diamond discipline defines five
-layers (L0 → L4, with an L0.5 for trait-only crates) and makes upward
+change ripples through the workspace. Diamond discipline defines six
+layers (L0 → L5, with an L0.5 for trait-only crates) and makes upward
 dependencies a CI hard failure.
 
 The goal is **mechanical sorting**: every new crate has an unambiguous
 home, and "which crate should this go in" becomes a look-up instead of a
 debate.
+
+### Mechanical sort test (< 10 seconds)
+
+Given a crate `nika-<role>`, ask these questions in order:
+
+1. Does it produce the `nika` binary? → **L5**
+2. Does it expose a transport / UI surface (CLI, HTTP, MCP, LSP, SDK)? → **L4**
+3. Does it enforce runtime policy, sandboxing, or orchestration? → **L3**
+4. Does it implement a verb or domain workflow? → **L2**
+5. Is it a primitive with I/O (fs, net, exec, env)? → **L1**
+6. Otherwise → **L0**
 
 ## Architecture map
 
@@ -28,6 +39,7 @@ debate.
 │ nika-catalog              [axes: none]      Cow<'static, str>, phf lookup │
 │ nika-catalog-codegen      [build-dep]       Extracted build.rs logic      │
 │ nika-pck-manifest         [axes: none]      TOML types only               │
+│ nika-event                [axes: none]      Event envelope types          │
 │ nika-stdx                 [axes: none]      Cross-cutting helpers         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲ (every upper-layer depends down only)
@@ -46,7 +58,7 @@ debate.
               ▲
 ╭─ L1  (effect impls, async) ───────────────────────────────────────────────╮
 │ nika-fs                   [axes: rw-fs]                                   │
-│ nika-http                 [axes: net-egress]   rustls only, no openssl    │
+│ nika-http-client          [axes: net-egress]   rustls only, no openssl    │
 │ nika-process              [axes: exec-shell]                              │
 │ nika-git                  [axes: rw-fs, net]   gix wrapper                │
 │ nika-keys                 [axes: reads-env]    KeyProvider trait          │
@@ -57,35 +69,61 @@ debate.
 │ nika-pck-store            [axes: rw-fs]                                   │
 │ nika-<provider>-*         [axes: net-egress]   1 crate per frontier prov. │
 │ nika-kernel-mock          [axes: none]         1:1 mirror, auto_impl      │
+│ nika-catalog-sync         [axes: net-egress]   freshness pipeline         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
-╭─ L2  (composition) ───────────────────────────────────────────────────────╮
+╭─ L2  (verbs + domain services) ──────────────────────────────────────────╮
 │ nika-pck              nika-mcp             nika-builtin-github            │
 │ nika-verb-*           nika-policy          nika-builtin-cloud             │
-│ nika-observability                         nika-builtin-workspace         │
+│ nika-observability    nika-memory          nika-builtin-workspace         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
-╭─ L3  (runtime + binaries) ────────────────────────────────────────────────╮
-│ nika-engine           nika-daemon          nika-cli                       │
+╭─ L3  (runtime + policy + sandbox) ────────────────────────────────────────╮
+│ nika-runtime          nika-shield          nika-wasm-host (v0.100)        │
+│                       nika-observability   nika-sandbox   (v0.100)        │
+╰──────────────────────────────────────────────────────────────────────────╯
+              ▲
+╭─ L4  (interfaces — libraries) ───────────────────────────────────────────╮
+│ nika-cli (lib)        nika-daemon (lib)    nika-http (lib)                │
+│ nika-mcp (lib)        nika-lsp (lib)       nika-sdk                      │
 │                                             └─ xtask (build-only)         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
-╭─ L4  (community overlays, unstable-*, WASM plugins) ──────────────────────╮
-│ nika-catalog-cn       nika-catalog-eu      nika-wasm-host                 │
+╭─ L5  (the binary — sole [[bin]] composition root) ────────────────────────╮
+│ nika                  <500 LOC, wires L4 interfaces                       │
 ╰──────────────────────────────────────────────────────────────────────────╯
 ```
+
+### Community overlays are NOT a layer
+
+Community-contributed catalog overlays (e.g., `nika-catalog-cn`,
+`nika-catalog-eu`) and `unstable-*` features live inside their natural
+layer (typically L1 or L2) behind `pck` admission gates and feature
+flags. They obey the same 12-gate admission as any other crate.
+
+`unstable-*` is a distribution flag, not a layer:
+`[workspace.metadata.diamond.unstable = true]` + `#![doc(cfg(unstable))]`.
 
 ## Layer table
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs | none | (leaf) | `nika-error`, `nika-catalog`, `nika-pck-manifest`, `nika-stdx` |
+| L0 | Pure types, lookup tables, sync-only APIs | none | (leaf) | `nika-error`, `nika-catalog`, `nika-pck-manifest`, `nika-stdx`, `nika-event` |
 | L0-proc | Proc-macro crates (kept separate for compile-time cost) | none (build-host only) | L0 | `nika-macros`, `nika-macros-core` |
 | L0.5 | Kernel trait definitions — async signatures, zero impl | none (traits only) | L0 | `nika-kernel-*` |
-| L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env) | L0, L0.5 | `nika-fs`, `nika-http`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-kernel-mock` |
-| L2 | Composition — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-mcp`, `nika-verb-*`, `nika-policy`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
-| L3 | Runtime + binaries | via L2 | L0..L2 | `nika-engine`, `nika-daemon`, `nika-cli`, `xtask` |
-| L4 | Community overlays, `unstable-*` features, WASM plugins | gated via feature flags | L0..L3 | `nika-catalog-cn`, `nika-catalog-eu`, `nika-wasm-host` |
+| L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-kernel-mock`, `nika-catalog-sync` |
+| L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-mcp`, `nika-verb-*`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
+| L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
+| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-daemon`, `nika-http`, `nika-mcp`, `nika-lsp`, `nika-sdk` |
+| L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
+
+### Forward compatibility
+
+- **v0.95 Cortex** memory crates: 1 L2 orchestrator (`nika-memory`) + 8 L1
+  satellites (hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos,
+  autodesc). No renumber needed — they slot into L1/L2 naturally.
+- **v0.100 WASM** plugin host + sandbox: L3 crates alongside `nika-runtime`.
+  No renumber needed — L3 is "runtime + policy + sandbox" by design.
 
 ### Axis vocabulary
 
@@ -139,8 +177,8 @@ source trees, fails on any match.
    in. If a helper has one caller, it stays in that caller.
 2. **Facade mega-crate.** "Let's re-export everything from `nika` for
    convenience" collapses the layer contract and tanks compile time.
-   Public re-exports cross at most one layer (e.g., L3 → L2 for the CLI
-   prelude), never the whole stack.
+   Public re-exports cross at most one layer (e.g., L5 → L4 for the
+   binary's main.rs), never the whole stack.
 3. **Upward re-exports.** An L1 crate that `pub use nika_pck::...` turns
    its API surface into an L2 consumer — breaks mechanical sorting. Each
    crate re-exports only from strictly lower layers.
@@ -149,7 +187,7 @@ source trees, fails on any match.
    in build scripts. L0 is sync-only. Async traits live in L0.5.
 5. **`anyhow::Error` in library code.** Per ADR-005, Nika uses
    `thiserror` + a typed error hierarchy. `anyhow` is allowed only in
-   L3 binary crates and `xtask`, never in L0/L0.5/L1/L2 library surfaces.
+   L5 binary `nika` and `xtask`, never in L0..L4 library surfaces.
 6. **`Box<dyn Error>` in public API.** Hygiene vector 19 bans
    `Box<dyn Error>` on public signatures — swap to the typed error
    hierarchy.
@@ -186,7 +224,7 @@ re-export kept in `nika-kernel` for the v0.8x tail.
 - `docs/adr/adr-004-context-window-sized-crates.md` — Accepted
 - `docs/adr/adr-006-layered-kernel-isp-traits.md` — Accepted
 - `docs/adr/adr-014-sealed-kernel-traits.md` — Accepted
-- ADR-016 (planned) — Cancellation model
+- ADR-016 (planned) — Six-layer crate topology (locks L5 = sole-binary)
 - ADR-018 (planned) — Runtime + sync primitives
 - ADR-020 (planned) — WASM plugin boundary + Sandbox
 

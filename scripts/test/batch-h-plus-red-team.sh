@@ -183,28 +183,36 @@ test_p0_3_dot_claude_projects_ref() {
 }
 test_p0_4_monorepo_nika_hq_ref_in_dx() { return 77; }
 test_p0_5_squash_drops_trailer() {
-  local repo rc
+  local repo output
   repo="$(mk_tmp_repo)"
-  rc=0
+  # Build up the squash scenario outside of set -e subshell
   (
     cd "$repo" || exit 1
-    # Create real file changes on the feature branch so squash has something to merge
     echo "feature-a" >a.txt && git add a.txt
     git commit -q -m "$(printf 'feat(a): first\n\nCo-Authored-By: Nika 🦋 <nika@supernovae.studio>')"
     echo "feature-b" >b.txt && git add b.txt
     git commit -q -m "$(printf 'feat(b): second\n\nCo-Authored-By: Nika 🦋 <nika@supernovae.studio>')"
-    # Go back to main and squash-merge WITHOUT trailer (simulates GitHub squash)
     git checkout -q main
-    git merge --squash nika-diamond -q 2>/dev/null
+    git merge --squash nika-diamond -q 2>/dev/null || true
     git commit -q -m "feat(squash): merged without trailer"
-    # Hook should print a warning — check stderr for the WARNING string
-    bash "$ENGINE_DIR/scripts/hooks/coauthor-squash-detect.sh" 2>&1 \
-      | grep -q 'WARNING.*dropped'
-  ) || rc=$?
+  ) >/dev/null 2>&1
+  # Run hook separately — capture combined output for grep
+  output="$(cd "$repo" && bash "$ENGINE_DIR/scripts/hooks/coauthor-squash-detect.sh" 2>&1)" || true
   rm_tmp_repo "$repo"
-  [[ $rc -eq 0 ]] # expect the grep to FIND the warning message
+  echo "$output" | grep -q 'WARNING.*dropped'
 }
-test_p0_6_layer_registry_is_six_tier() { return 77; }
+test_p0_6_layer_registry_is_six_tier() {
+  local regfile="$ENGINE_DIR/docs/architecture/crate-layer-registry.md"
+  [[ -f "$regfile" ]] || return 1
+  # Must mention L5 (6-tier) and NOT describe itself as five layers
+  grep -q 'L5' "$regfile" || return 1
+  grep -q 'six' "$regfile" || return 1
+  # Must NOT claim five layers anymore
+  if grep -qi 'five.*layers\|five.*layer' "$regfile" 2>/dev/null; then
+    return 1
+  fi
+  return 0
+}
 
 # Scenarios (fixtures flesh out as each P0 fix lands):
 #   P0-1  vector 13 must block Claude trailer (basic + Claudia no-FP +
