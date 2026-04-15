@@ -57,7 +57,7 @@ Current: Phase D (catalog scope expansion, Session 2a+2b+3 DONE). 5 crates admit
 - ✓ Every I/O behind kernel trait (MemoryStore, ShellExecutor, etc.)
 - ✓ workspace.lints.clippy `unwrap_used = "deny"` enforced
 - ✓ Commit message : `feat(nika-X): admit to workspace — all 12 gates passed`
-- ✓ Tout refactor/rename touchant un symbole Rust → `mcp__gitnexus__impact` AVANT edit, `mcp__gitnexus__detect_changes` AVANT commit (voir `../CLAUDE.md` §GitNexus)
+- ✓ Tout refactor/rename touchant un symbole Rust → grep callers + impact analysis AVANT edit
 
 ## 📋 12 Gates per crate admission
 

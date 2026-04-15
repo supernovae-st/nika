@@ -19,7 +19,7 @@ User asks you to …                    → Load rule
 "make a commit"                        commit-granularity
 "starting a session"                   session-discipline + diamond-discipline
 "update memory / MEMORY.md"            evolution
-"rename a crate / symbol"              nika-invariants + diamond-discipline (plus mcp__gitnexus__rename)
+"rename a crate / symbol"              nika-invariants + diamond-discipline
 "write an ADR"                         nika-invariants + evolution
 "skip a gate"                          diamond-discipline (NO exceptions rule)
 ```
