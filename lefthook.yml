@@ -120,3 +120,11 @@ post-merge:
 
     coauthor-squash-detect:
       run: bash scripts/hooks/coauthor-squash-detect.sh
+
+# P1-4 Batch H+: rebases that modify sealed ADRs were undetected because
+# post-rewrite was not wired. The adr-seal-check.sh script already supports
+# the post-rewrite context (reads rewritten pairs from stdin).
+post-rewrite:
+  commands:
+    adr-seal-check:
+      run: bash scripts/hooks/adr-seal-check.sh post-rewrite
