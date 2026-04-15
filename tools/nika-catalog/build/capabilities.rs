@@ -154,7 +154,7 @@ pub(super) fn parse_capabilities(
 
     assert_schema(CAPABILITIES_SCHEMA, &file.schema, path)?;
 
-    validate_caps_patch(&file.defaults, "[defaults]")?;
+    validate_caps_patch(&file.defaults, "[defaults]", /* require_all */ true)?;
 
     // Set of canonical provider ids (lowercased) for FK checks — rules
     // reference providers by canonical id only, not by alias.
@@ -201,7 +201,11 @@ pub(super) fn parse_capabilities(
         }
 
         validate_match(&rule.match_, &rule.name)?;
-        validate_caps_patch(&rule.caps, &format!("rule {:?}", rule.name))?;
+        validate_caps_patch(
+            &rule.caps,
+            &format!("rule {:?}", rule.name),
+            /* require_all */ false,
+        )?;
     }
 
     // Enforce the "`Matcher::Any` must be last within its provider scope"
@@ -264,13 +268,30 @@ fn check_any_last_in_scope(rules: &[RuleEntry]) -> Result<(), String> {
 /// top of the parent module turns an omitted field into a compile error
 /// — adding a new slot to [`CapsPatchEntry`] without updating this
 /// function fails the build.
-// REASON: 105 lines cover 10 fields with per-field error-message branches
+///
+/// `require_all` — when `true`, every `Option<T>` field that has a
+/// `unwrap_or` fallback in `CapPatch::materialize` MUST be `Some`. This
+/// applies to `[defaults]` so the hard-coded fallbacks in `materialize`
+/// become structurally unreachable: a mis-authored `[defaults]` block that
+/// omits (for example) `supports_temperature` gets caught at build time
+/// instead of silently letting `materialize` take the `unwrap_or(true)`
+/// branch. Rules pass `false` — rules intentionally omit fields they
+/// don't override. The single exception is `tokenizer`, which stays
+/// legitimately optional on both `[defaults]` and rules because
+/// `materialize` uses `self.tokenizer.or(defaults.tokenizer)` with NO
+/// `unwrap_or` fallback (absent tokenizer = conservative estimation by
+/// design, not a missing value).
+// REASON: covers 9 fields with per-field error-message branches
 // (input/output modality validation including must-contain-"text", param-flag
-// vocabulary, token_limit_param whitelist, all-None check). Splitting the
-// vocabulary checks into helpers would scatter the error-message text across
-// the file — readability win is zero.
+// vocabulary, token_limit_param whitelist, per-field require-some check,
+// all-None rule check). Splitting the vocabulary checks into helpers would
+// scatter the error-message text across the file — readability win is zero.
 #[allow(clippy::too_many_lines)]
-fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), String> {
+fn validate_caps_patch(
+    patch: &CapsPatchEntry,
+    where_: &str,
+    require_all: bool,
+) -> Result<(), String> {
     let CapsPatchEntry {
         token_limit_param,
         supports_temperature,
@@ -365,9 +386,9 @@ fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), Strin
 
     // Rule-scoped caps must set at least one field; an all-None caps block
     // matches the rule but merges nothing, silently shadowing every later
-    // rule for the same (provider, model) pair. `[defaults]` is allowed to
-    // be all-None (would fall back to ModelCapabilities::default()), so skip
-    // the check for the defaults block.
+    // rule for the same (provider, model) pair. `[defaults]` never lands
+    // here — it goes through the require_all branch below, which is
+    // strictly stronger.
     if where_.starts_with("rule ") {
         let all_none = token_limit_param.is_none()
             && supports_temperature.is_none()
@@ -386,6 +407,39 @@ fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), Strin
             ));
         }
     }
+
+    // `require_all` — the `[defaults]` block MUST set every field that has
+    // a fallback in `CapPatch::materialize` (8 fields). Without this, an
+    // omitted field in `[defaults]` silently collapses to the `unwrap_or`
+    // in `materialize` — two sources of truth disagreeing invisibly.
+    // `tokenizer` is excluded by design: `materialize` uses
+    // `self.tokenizer.or(defaults.tokenizer)` with no unwrap_or, so
+    // `tokenizer = None` in `[defaults]` is semantically well-defined
+    // ("no tokenizer baseline; fall back to conservative estimation").
+    if require_all {
+        let missing: &[(&str, bool)] = &[
+            ("token_limit_param", token_limit_param.is_none()),
+            ("supports_temperature", supports_temperature.is_none()),
+            ("supports_stop_sequences", supports_stop_sequences.is_none()),
+            ("reasoning", reasoning.is_none()),
+            ("input_modalities", input_modalities.is_none()),
+            ("output_modalities", output_modalities.is_none()),
+            ("supported_parameters", supported_parameters.is_none()),
+            ("supports_system_messages", supports_system_messages.is_none()),
+        ];
+        for (name, is_none) in missing {
+            if *is_none {
+                return Err(format!(
+                    "{where_}: field `{name}` is required — every field with a \
+                     `unwrap_or` fallback in CapPatch::materialize must be \
+                     explicitly set in `[defaults]` so the fallback branch \
+                     stays structurally unreachable. `tokenizer` is the only \
+                     legitimately optional field on `[defaults]`."
+                ));
+            }
+        }
+    }
+
     Ok(())
 }
 

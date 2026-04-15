@@ -124,8 +124,51 @@ impl CapPatch {
     /// `validate_caps_patch` at build time.
     ///
     /// Called exactly once at the tail of `model_capabilities`.
+    ///
+    /// # Debug-mode invariants (Phase G teeth)
+    ///
+    /// `build/capabilities.rs::validate_caps_patch(_, _, require_all=true)`
+    /// guarantees that `defaults` has every `unwrap_or` field populated.
+    /// In debug builds we `debug_assert!` that the combined
+    /// `self.X.or(defaults.X)` is `Some` before the `unwrap_or` — if either
+    /// fires, the TOML author committed an invalid `[defaults]` block that
+    /// slipped past build-time validation (impossible without a code-
+    /// path bug). Release builds still take the fallback silently, so the
+    /// asserts are zero-cost in prod.
     #[must_use]
     pub(crate) fn materialize(self, defaults: &Self) -> ModelCapabilities {
+        debug_assert!(
+            self.token_limit_param.or(defaults.token_limit_param).is_some(),
+            "[defaults].token_limit_param missing — validate_caps_patch(require_all=true) should have rejected the TOML",
+        );
+        debug_assert!(
+            self.supports_temperature.or(defaults.supports_temperature).is_some(),
+            "[defaults].supports_temperature missing",
+        );
+        debug_assert!(
+            self.supports_stop_sequences.or(defaults.supports_stop_sequences).is_some(),
+            "[defaults].supports_stop_sequences missing",
+        );
+        debug_assert!(
+            self.reasoning.or(defaults.reasoning).is_some(),
+            "[defaults].reasoning missing",
+        );
+        debug_assert!(
+            self.input_modalities.or(defaults.input_modalities).is_some(),
+            "[defaults].input_modalities missing",
+        );
+        debug_assert!(
+            self.output_modalities.or(defaults.output_modalities).is_some(),
+            "[defaults].output_modalities missing",
+        );
+        debug_assert!(
+            self.supported_parameters.or(defaults.supported_parameters).is_some(),
+            "[defaults].supported_parameters missing",
+        );
+        debug_assert!(
+            self.supports_system_messages.or(defaults.supports_system_messages).is_some(),
+            "[defaults].supports_system_messages missing",
+        );
         ModelCapabilities {
             token_limit_param: self
                 .token_limit_param
