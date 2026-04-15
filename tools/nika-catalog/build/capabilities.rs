@@ -149,10 +149,28 @@ pub(super) fn parse_capabilities(
     providers: &[ProviderEntry],
 ) -> Result<ParsedCapabilities, String> {
     let raw = fs::read_to_string(path).map_err(|e| format!("reading {}: {e}", path.display()))?;
-    let file: CapabilitiesFile =
+    let mut file: CapabilitiesFile =
         toml::from_str(&raw).map_err(|e| format!("parsing {}: {e}", path.display()))?;
 
     assert_schema(CAPABILITIES_SCHEMA, &file.schema, path)?;
+
+    // Canonicalise scope.providers at parse time — sort + dedup in place.
+    //
+    // Phase H fix: `check_any_last_in_scope` compares `scope.providers`
+    // lists via `Vec<String>` equality, which is order-sensitive. Two
+    // rules that author-cosmetic differ only in provider ordering
+    // (`["openai", "openrouter"]` vs `["openrouter", "openai"]`) would
+    // be treated as different scopes, silently escaping the
+    // Any-must-be-last check. Canonicalising to a stable sort means the
+    // invariant holds regardless of TOML-author order.
+    //
+    // `sort` is stable; `dedup` removes accidental duplicates (a future
+    // author could paste `["openai", "openai"]`). Provider names are
+    // short, count ≤ 10 per rule — cost is negligible.
+    for rule in &mut file.rules {
+        rule.scope.providers.sort();
+        rule.scope.providers.dedup();
+    }
 
     validate_caps_patch(&file.defaults, "[defaults]", /* require_all */ true)?;
 
