@@ -15,7 +15,7 @@ merges both at load time.
 
 ## 🔐 Authority hierarchy
 
-1. `~/.claude/projects/-Users-thibaut-dev-supernovae-nika/memory/POST_AUDIT_REVISIONS.md` — SUPREME AUTHORITY, overrides all other docs.
+1. `~/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/POST_AUDIT_REVISIONS.md` — SUPREME AUTHORITY, overrides all other docs.
 2. `~/.claude/.../PRE_LAUNCH_GATES.md` — 7 shadow zones mandatory before v0.90.
 3. `~/.claude/.../HANDOFF_PHASE_1_REVISED.md` — current execution plan.
 4. `.claude/rules/*.md` (this directory) — project-specific enforcement.

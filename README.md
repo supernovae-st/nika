@@ -45,7 +45,7 @@ L0/L0.5  [SPLIT CORE]    🔄 NOW   splitting legacy nika-core monolith
   ✅ nika-catalog         admitted v0.80.0-alpha.2+ (154 tests, 42-tag vocab, TOML capabilities, 9 feature subsets)
   ✅ nika-kernel + mock   admitted v0.80.0-alpha.3 (99 + 88 tests)
   ✅ nika-catalog-verify  admitted v0.80.0-alpha.4 (9 tests, online registry verifier)
-  🔄 nika-catalog         Phase D — Session 2a ✅ (TOML rules, api_dialect, inv #19 full, Gate 8 green) · Session 2b next
+  🔄 nika-catalog         Phase D — Sessions 2a+2b+3 ✅ (TOML rules, api_dialect, inv #19 full, Gate 8 green, 25 providers, 42 capability rules, ModelPricing 7-axis) · Session 4 next (HTTP API + DataSource + MCP lifecycle + Phase E2 TOML pricing)
   ⏳ nika-schema          next (AST + DAG + taint, ~13k LOC)
   ⏳ nika-binding         after schema (65 transforms, ~13k LOC)
 L1       [EFFECTS]        ⏸        ~11 effect crates

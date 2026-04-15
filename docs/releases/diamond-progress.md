@@ -167,5 +167,5 @@ Not yet started.
 | Clippy warnings     | 0                    |
 | Gate 8 (rustdoc)    | GREEN                |
 | Invariant #19       | FULL                 |
-| Branch HEAD         | `42fb140e4` (post-S3) |
+| Branch HEAD         | `68240f922` (post-hygiene-sprint) |
 | Last updated        | 2026-04-15           |

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Admitted** — Phase D Session 2a hardened |
+| Status | **Admitted** — Phase D Sessions 2a+2b+3 hardened (see `docs/releases/diamond-progress.md` for live stats) |
 | Layer | L0 (PURE, zero I/O, zero async) |
 | Design | **Hybrid lookup** — phf+unicase (case-insensitive) + sorted arrays (case-sensitive) + TOML-driven rule table (capabilities) |
 | LOC budget | ≤15,000 src (current: ~6,100) |

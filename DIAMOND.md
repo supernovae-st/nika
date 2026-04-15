@@ -102,9 +102,11 @@ Full rationale : `~/.claude/projects/.../memory/project_ai_velocity_north_star.m
        nika-media-document                                             │
        nika-media-provenance
                                │
-   L2.5  MEMORY (future v0.95) │  (stubs reserved Phase 0 for
-     nika-memory                │   Cortex integration non-breaking)
-     (+3 satellites Phase 9+)
+   L2    MEMORY (future v0.95) │  (stubs reserved Phase 0 for
+     nika-memory (orchestrator) │   Cortex integration non-breaking)
+     + 8 L1 satellites          │   hnsw · bm25 · rrf · fsrs · rdfs-reasoner
+                                │   temporal · graph-algos · autodesc
+                                │   (locked by ADR-004, separate count)
                                │
    L1  SUPPORT + EFFECTS       │
      ┌─────────────┬───────────┴─────────┬─────────┐

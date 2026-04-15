@@ -109,11 +109,15 @@ These areas need more thinking before the crate spec is written.
     Cross-provider proptest harness: 10k cases spec is locked.
   </Accordion>
   <Accordion title="Cortex v0.95 — memory subsystem (post-v0.90)">
-    3 memory satellite crates: `nika-memory-oxigraph`, `nika-memory-embedding`,
-    `nika-memory-fsrs`. Designed to plug into `nika-kernel`'s `MemoryStore` trait
-    without breaking changes (forward-compat hooks already in `InferRequest`).
+    9 memory crates (separate from the 40-42 diamond cap): 1 L2 orchestrator
+    `nika-memory` + 8 L1 satellites — `nika-hnsw`, `nika-bm25`, `nika-rrf`,
+    `nika-fsrs`, `nika-rdfs-reasoner`, `nika-temporal`, `nika-graph-algos`,
+    `nika-autodesc`. All plug into `nika-kernel`'s `MemoryStore` trait without
+    breaking changes (forward-compat hooks already in `InferRequest`). Locked
+    by ADR-004 (Option B — Oxigraph satellites, no fork).
 
-    Not starting until v0.90 is cut. Design lives in `project_nika_cortex_design.md`.
+    Not starting until v0.90 is cut. Design lives in `nika/hq/docs/nika-memory/`
+    (hub ADR-004 + 9 design docs) and `project_nika_cortex_design.md` (memory).
   </Accordion>
 </AccordionGroup>
 
