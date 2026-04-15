@@ -74,7 +74,7 @@ while IFS= read -r member; do
   else
     missing+=("$crate_name")
   fi
-done <<< "$members"
+done <<<"$members"
 
 # Report
 echo
@@ -89,8 +89,35 @@ if [ "${#missing[@]}" -gt 0 ]; then
   for m in "${missing[@]}"; do
     printf '   %s↳%s %s  (add reference in docs/adr/adr-NNN-*.md or write a new ADR)\n' "$C_YELLOW" "$C_RESET" "$m"
   done
+  # P1-5 Batch H+ (Q-RATCHET scoped fail): if the staged diff adds a NEW
+  # Cargo.toml under tools/ or crates/ without a matching ADR in the same
+  # diff, FAIL hard. Historical crates without ADR coverage remain warn-only.
   if [ "${FAIL_ON_MISS:-0}" = "1" ]; then
     exit 1
+  fi
+
+  new_crate_manifests="$(git diff --cached --name-only --diff-filter=A 2>/dev/null \
+    | grep -E '^(tools|crates)/[^/]+/Cargo\.toml$' || true)"
+  if [ -n "$new_crate_manifests" ]; then
+    new_adrs="$(git diff --cached --name-only --diff-filter=A 2>/dev/null \
+      | grep -E '^docs/adr/adr-[0-9]+-.*\.md$' || true)"
+    for manifest in $new_crate_manifests; do
+      new_crate="$(basename "$(dirname "$manifest")")"
+      has_adr=0
+      for adr in $new_adrs; do
+        if grep -lqE "\\b${new_crate}\\b" "$REPO_ROOT/$adr" 2>/dev/null; then
+          has_adr=1
+          break
+        fi
+      done
+      if [ "$has_adr" -eq 0 ]; then
+        printf '%s[adr-coverage] FAIL%s: new crate %s has no ADR in this commit\n' \
+          "$C_RED" "$C_RESET" "$new_crate" >&2
+        printf '  Stage a docs/adr/adr-NNN-*.md mentioning "%s" in the same commit.\n' \
+          "$new_crate" >&2
+        exit 1
+      fi
+    done
   fi
 else
   printf '%sAll%s admitted crates have ADR coverage\n' "$C_GREEN" "$C_RESET"
