@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # force-push-guard.sh — Tier 2 pre-push gate
 #
-# Reads the push refspec from stdin (standard pre-push protocol).
 # Refuses force-pushes to protected branches unless FORCE_PUSH_OVERRIDE=1.
 #
-# Protected branches: nika-diamond, main
-# Override: FORCE_PUSH_OVERRIDE=1 git push --force (requires explicit set)
+# NOTE: Lefthook v2 does not forward git's native pre-push stdin refspec
+# to hooks, so we can't rely on the standard
+#     <local-ref> <local-sha> <remote-ref> <remote-sha>
+# protocol. Instead we read from stdin when it IS a pipe (direct git hook)
+# AND fall back to computing state from the current branch's remote ref
+# when stdin is /dev/null (lefthook-invoked).
 #
-# Format from git pre-push hook stdin:
-#   <local-ref> <local-sha> <remote-ref> <remote-sha>
-#   (remote-sha is 0000000... when remote branch doesn't exist yet)
+# Protected branches: nika-diamond, main
+# Override: FORCE_PUSH_OVERRIDE=1 git push --force
 #
 # Exit: 0 = allowed | 1 = blocked
 #
@@ -20,38 +22,50 @@ set -Eeuo pipefail
 readonly PROTECTED_BRANCHES=('nika-diamond' 'main')
 readonly ZERO_SHA='0000000000000000000000000000000000000000'
 
-# Check override first
 if [[ "${FORCE_PUSH_OVERRIDE:-0}" == '1' ]]; then
   printf '[force-push-guard] FORCE_PUSH_OVERRIDE=1 set — bypass active (USE WITH CARE)\n' >&2
   exit 0
 fi
 
-# Read pre-push stdin
-while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
-  [[ -z "$local_ref" ]] && continue
-
-  # Extract branch name from remote ref (refs/heads/name)
-  branch="${remote_ref#refs/heads/}"
-
-  # Check if target is a protected branch
+check_force_push() {
+  local branch="$1" local_sha="$2" remote_sha="$3"
+  local is_protected=0
   for protected in "${PROTECTED_BRANCHES[@]}"; do
-    if [[ "$branch" == "$protected" ]]; then
-      # Detect force-push: remote has a SHA that is NOT an ancestor of local
-      # (git will only show non-zero remote SHA when the branch exists)
-      if [[ "$remote_sha" != "$ZERO_SHA" && "$remote_sha" != '' ]]; then
-        # Check if remote SHA is ancestor of local SHA
-        if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
-          printf '\n[force-push-guard] BLOCKED — force-push to protected branch "%s"\n' "$branch" >&2
-          printf '  remote: %s\n' "${remote_sha:0:12}" >&2
-          printf '  local:  %s\n' "${local_sha:0:12}" >&2
-          printf '\nTo override (requires explicit approval):\n' >&2
-          printf '  FORCE_PUSH_OVERRIDE=1 git push --force\n\n' >&2
-          exit 1
-        fi
-      fi
-      break
-    fi
+    [[ "$branch" == "$protected" ]] && is_protected=1
   done
-done
+  [[ "$is_protected" -eq 0 ]] && return 0
+  [[ "$remote_sha" == "$ZERO_SHA" || -z "$remote_sha" ]] && return 0
 
+  if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    printf '\n[force-push-guard] BLOCKED — force-push to protected branch "%s"\n' "$branch" >&2
+    printf '  remote: %s\n' "${remote_sha:0:12}" >&2
+    printf '  local:  %s\n' "${local_sha:0:12}" >&2
+    printf '\nTo override (requires explicit approval):\n' >&2
+    printf '  FORCE_PUSH_OVERRIDE=1 git push --force\n\n' >&2
+    return 1
+  fi
+  return 0
+}
+
+# If stdin is a pipe / regular file, use git's native pre-push protocol
+# (<local-ref> <local-sha> <remote-ref> <remote-sha> lines).
+if [[ ! -t 0 && -p /dev/stdin ]] || [[ ! -t 0 && -s /dev/stdin ]]; then
+  while IFS=' ' read -r _local_ref local_sha remote_ref remote_sha; do
+    [[ -z "$_local_ref" ]] && continue
+    branch="${remote_ref#refs/heads/}"
+    check_force_push "$branch" "$local_sha" "$remote_sha" || exit 1
+  done
+  exit 0
+fi
+
+# Lefthook-invoked path (stdin is /dev/null): derive branch + remote sha
+# from the current repo state. Only protects the currently-checked-out
+# branch when pushed to its tracking remote — the common case.
+current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+[[ -z "$current_branch" ]] && exit 0
+
+local_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+remote_sha="$(git rev-parse "origin/${current_branch}" 2>/dev/null || echo "$ZERO_SHA")"
+
+check_force_push "$current_branch" "$local_sha" "$remote_sha" || exit 1
 exit 0
