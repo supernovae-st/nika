@@ -51,6 +51,15 @@ implements `MemoryStore`. Zero v0.90 code modification.
 - `ObservabilitySink` — impl v0.100+
 - `Sandbox` — impl v0.100+ (Landlock/seccomp)
 
+**Stub traits land in kernel v0.81.** `WasmPluginHost`, `Sandbox`, and
+`ObservabilitySink` are defined as kernel traits — with their DTOs marked
+`#[non_exhaustive]` — in the v0.81 kernel files `src/plugin.rs`,
+`src/sandbox.rs`, and `src/observability.rs`. Real implementations land in
+v0.95+ / v0.100+ crates (`nika-wasm-host`, `nika-sandbox-*`,
+`nika-observability-otel`). Reserving the trait shape and field layout **now**
+keeps v0.95/v0.100 strictly additive — no consumer of v0.8x breaks when the
+impls arrive. See §9 below.
+
 ### 2. `#[non_exhaustive]` on every public struct, enum, error variant
 
 **Pattern**: Every public type is marked `#[non_exhaustive]`. External code
@@ -332,6 +341,57 @@ these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 | Lints | nika-lints crate | New lints additive | LOW | Per-lint allow attribute namespace |
 | Observability | EventLog only | Tracing, OTel, replay v0.100 | MED | `EventKind::Trace` reserved |
 
+## 9. v0.95 / v0.100 reservation policy
+
+Reserving trait shapes and DTO field layout **before** implementations exist
+is the explicit mechanism that makes v0.95 and v0.100 additive-only releases.
+
+**Policy**:
+
+1. **Trait stubs land in kernel v0.81.** Every subsystem that v0.95 or v0.100
+   will ship (Cortex, WASM plugins, observability, sandbox) has its trait
+   signature, companion `*Dyn: Send` object-safe twin, and DTO types locked
+   in `nika-kernel` at v0.81. Impls arrive later in their own crates.
+2. **All DTOs are `#[non_exhaustive]`.** New fields become additive in later
+   releases. Callers never construct via literal — builders or `::new` only.
+3. **Reserved optional fields on load-bearing structs.** Types that flow
+   through every verb and every provider (`InferRequest`, `MemoryFrame`,
+   `CatalogEntry`) carry `Option<_>` fields for v0.95/v0.100 directives
+   today. Default is `None`; v0.95 populates without breaking v0.8x.
+4. **Cancellation is passed explicitly where future-drop is insufficient.**
+   A `CancelCtx` module in the kernel re-exports `tokio_util::sync::CancellationToken`
+   so trait methods whose futures are outlived by their outputs (streams,
+   spawned compressors) take `cancel: CancelCtx` as a reserved parameter.
+5. **Capability-scoped subsets accompany broad traits.** `WasmPluginHost` ships
+   alongside narrower companion traits (`PluginFs`, `PluginHttp`, …) so
+   v0.100 impls can wire capability-gated subsets without the community
+   re-implementing the main trait.
+
+**Planned kernel files (v0.81)**:
+
+| File | Purpose | Impl crate (v0.95+ / v0.100+) |
+|---|---|---|
+| `src/cancel.rs` | `CancelCtx` re-export + `CancelDropGuard` | in-tree, zero-impl |
+| `src/plugin.rs` | `WasmPluginHost` + `PluginCall` / `PluginResult` / `PluginError` + capability-scoped subsets | `nika-wasm-host` (v0.100) |
+| `src/sandbox.rs` | `Sandbox` trait + `SandboxPolicy` + `PluginCapabilities` | `nika-sandbox-linux`/`-macos`/`-windows` (v0.100) |
+| `src/observability.rs` | `ObservabilitySink` + `Event` | `nika-observability-otel` (v0.100) |
+
+**Modifications to existing kernel files (v0.81)**:
+- `provider.rs` — `ProviderStream::infer_stream` gains `cancel: CancelCtx`
+- `context.rs` — `ContextCompressor::compress` gains `cancel: CancelCtx`
+- `memory.rs` — `MemoryFrame` gains reserved `Option<_>` fields
+  (`cipher`, `provenance`, `retention`, `redactions`), all `#[non_exhaustive]`,
+  default `None` in v0.80
+- `lib.rs` — `pub mod cancel; pub mod plugin; pub mod sandbox; pub mod observability;`
+
+**Verification**: CI runs `cargo public-api --diff-git-checkouts` plus
+`cargo semver-checks check-release` on every PR. Any change to a reserved
+trait or DTO that is not strictly additive fails the gate.
+
+**Rationale**: once v0.95 Cortex and v0.100 WASM plugins start landing,
+shipping the trait surface is a mechanical crate addition rather than a
+breaking-change negotiation across every consumer of v0.8x.
+
 ## Enforcement
 
 Every crate admitted to nika-diamond workspace passes Gate 12 verification:
@@ -348,5 +408,19 @@ Every crate admitted to nika-diamond workspace passes Gate 12 verification:
 - [ ] Reserved error code ranges respected
 
 Violating any invariant blocks admission. No exceptions.
+
+## See also
+
+- `docs/architecture/crate-layer-registry.md` — L0 through L4 layering discipline
+- `docs/adr/adr-006-layered-kernel-isp-traits.md` — Accepted
+- `docs/adr/adr-007-forward-compat-invariants.md` — Accepted
+- `docs/adr/adr-014-sealed-kernel-traits.md` — Accepted
+- ADR-016 (planned) — Cancellation model: future-drop + `CancelCtx` module
+- ADR-017 (planned) — Streaming policy: bounded `mpsc` + `futures_core::Stream`
+- ADR-018 (planned) — Runtime + sync primitives
+- ADR-019 (planned) — Retry + timeout ownership by layer
+- ADR-020 (planned) — WASM plugin boundary + Sandbox capability model
+- ADR-021 (planned) — Latency budgets as code
+- ADR-022 (planned) — Catalog allocation shape (`Arc<str>` / `Cow<'static, str>`)
 
 🦋

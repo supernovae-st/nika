@@ -57,6 +57,63 @@ Total: 416 tests, 0 clippy warnings, 0 unwrap in `src/`, Gate 8 GREEN.
 Phase D progress: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅.
 Next: Session 4 — HTTP API + DataSource + MCP lifecycle. Phase E2 (pricing TOML migration) is the Session 4 prep companion — deferred from Session 3 to land with its own proptest + TDD discipline.
 
+## v0.81 — Forward-compat seams + hygiene hardening (ships when ready)
+
+**Theme**: lock the structural seams that turn 5 → 42 crates into a
+non-breaking extension (not a rewrite), before admission velocity picks up.
+Pure additions — no behaviour change for v0.80 consumers.
+
+### Kernel forward-compat seams
+
+- New `crates/nika-kernel/src/cancel.rs` — `CancelCtx` module (re-export
+  of `tokio_util::sync::CancellationToken` under Nika idiom)
+- New `crates/nika-kernel/src/plugin.rs` — `WasmPluginHost` trait stub +
+  `PluginCall` / `PluginResult` / `PluginError` DTOs, all
+  `#[non_exhaustive]`, zero impls
+- New `crates/nika-kernel/src/sandbox.rs` — `Sandbox` trait stub +
+  `SandboxPolicy` + `PluginCapabilities` enums, all `#[non_exhaustive]`
+- New `crates/nika-kernel/src/observability.rs` — `ObservabilitySink`
+  trait stub + `Event` DTO
+- `MemoryFrame` gains reserved `Option<_>` fields (`cipher`, `provenance`,
+  `retention`, `redactions`) — all default `None` in v0.80, future impls
+  populate without breaking callers
+- `ProviderStream::infer_stream` and `ContextCompressor::compress` gain
+  an explicit `cancel: CancelCtx` parameter (future-drop insufficient for
+  outlived streams)
+
+Reserving these v0.81 keeps v0.95 Cortex + v0.100 WASM plugins strictly
+additive. See `docs/architecture/forward-compat-invariants.md` §9.
+
+### Reserved traits (visible v0.81, impl v0.95+)
+
+| Trait | Kernel file (v0.81) | First impl |
+|---|---|---|
+| `WasmPluginHost` | `src/plugin.rs` | `nika-wasm-host` (v0.100) |
+| `Sandbox` | `src/sandbox.rs` | `nika-sandbox-{linux,macos,windows}` (v0.100) |
+| `ObservabilitySink` | `src/observability.rs` | `nika-observability-otel` (v0.100) |
+| `MemoryStore` | `src/memory.rs` (locked v0.80) | `nika-memory-oxigraph` (v0.95) |
+| `EmbeddingProvider` | `src/memory.rs` (locked v0.80) | Cortex providers (v0.95) |
+
+### Hygiene vectors expansion (10 → 21)
+
+Adds 11 new checkers (layering, security-axes, cargo-geiger unsafe-deps,
+env-example parity, license consistency, no-async-in-L0, catalog owned
+strings, kernel-no-spawn, no-`Box<dyn Error>`, cancel-safety docs,
+case-insensitive collisions). Routed P0/P1 into the pre-commit fast path;
+P2/P3 into the pre-push full path.
+
+## v0.81–v0.82 — Workspace rename + release automation (ships when ready)
+
+- **`tools/` → `crates/` rename** — converge on the Cargo community
+  convention. One commit: `git mv tools crates`, update workspace
+  `members` / `exclude`, update all path references in docs, scripts,
+  and CI workflows. Verified by `cargo test --workspace --lib` staying
+  green and grep returning zero `tools/nika-` outside historical ADR
+  prose.
+- **Release automation skeleton** — `release-plz.toml`, `cliff.toml`,
+  `justfile` at engine root, and `crates/xtask/` port of the release +
+  hygiene runners into typed Rust.
+
 ## v0.90 — "Diamond Foundation" (ships when ready)
 
 > **No deadline.** Quality > speed. This roadmap is a vision, not a production
@@ -355,6 +412,28 @@ v0.95+ without touching v0.90 code:
 `InferRequest` reserves `memory: Option<MemoryDirective>` (v0.95),
 `budget: Option<BudgetDirective>` (v0.100), `replay_seed: Option<u64>` (v0.100).
 All structs `#[non_exhaustive]` — future additions are NOT breaking changes.
+
+### Layer discipline (L0 → L4)
+
+The 40-42 crates slot into a strict downward-only dependency stack.
+Enforced by `[workspace.metadata.diamond.layers]` in `Cargo.toml` and
+`scripts/ci/check-layering.sh` (landing v0.81, hygiene vector 11).
+
+| Layer | Role | Allowed I/O | Depends on |
+|---|---|---|---|
+| L0 | Pure types + lookup — zero I/O, sync only | none | (leaf) |
+| L0.5 | Kernel trait definitions — async OK, zero impl | none (traits only) | L0 |
+| L1 | Effect implementations — async, tokio-based | fs / net / process per declared axes | L0, L0.5 |
+| L2 | Composition — pcks, verbs, policies, builtins | via L1 traits | L0, L0.5, L1 |
+| L3 | Runtime + binaries — engine, daemon, cli | via L2 | L0..L2 |
+| L4 | Community overlays — unstable, WASM plugins | gated via `unstable-*` | L0..L3 |
+
+L0 and L0.5 are the context-window discipline backbone. `nika-error` and
+`nika-catalog` (L0) plus `nika-kernel-*` (L0.5) stay small and sync-safe so
+that L1 effect crates can be swapped without touching the lower tiers.
+
+See `docs/architecture/crate-layer-registry.md` for the full ASCII map,
+the allowed I/O axes per layer, and the enforcement anti-patterns.
 
 ## v0.95 — "Memory Complete" (ships after v0.90, no date)
 
