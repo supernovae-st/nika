@@ -95,17 +95,18 @@ change** to the public API.
 
 From main CLAUDE.md + deletion-first.md + honest-assessment.md :
 
-- #11 : `Command::new` MUST set `kill_on_drop(true)`
-- #12 : concurrent pipe reading MUST use `tokio::try_join!`
-- #16 : `parking_lot::RwLockReadGuard` is !Send, never across `.await`
-- #17 : unified `InferRequest` is the kernel's single LLM call shape
-- #19 : per-crate `new()` constructors on all `#[non_exhaustive]` structs
-- #23 : kernel-adjacent helpers use std / primitive / bytes::Bytes only
-- #24 : EventKind emission from exactly 1 site per verb path
-- #25 : all verb-crate error enums `#[non_exhaustive]` from day one
-- #26 : one-headline-per-session
-- #27 : Clock + ShellExecutor injection for test hermeticity
-- #28 : every commit compiles + passes tests + clippy 0
+- #11 <!-- INV-011 --> : `Command::new` MUST set `kill_on_drop(true)`
+- #12 <!-- INV-012 --> : concurrent pipe reading MUST use `tokio::try_join!`
+- #16 <!-- INV-016 --> : `parking_lot::RwLockReadGuard` is !Send, never across `.await`
+- #17 <!-- INV-017 --> : unified `InferRequest` is the kernel's single LLM call shape
+- #19 <!-- INV-019 --> : per-crate `new()` constructors on all `#[non_exhaustive]` structs
+- #23 <!-- INV-023 --> : kernel-adjacent helpers use std / primitive / bytes::Bytes only
+- #24 <!-- INV-024 --> : EventKind emission from exactly 1 site per verb path
+- #25 <!-- INV-025 --> : all verb-crate error enums `#[non_exhaustive]` from day one
+- #26 <!-- INV-026 --> : one-headline-per-session
+- #27 <!-- INV-027 --> : Clock + ShellExecutor injection for test hermeticity
+- #28 <!-- INV-028 --> : every commit compiles + passes tests + clippy 0
+- #29 <!-- INV-029 --> : every crate with concurrent primitives ships Loom tests (ADR-013)
 
 And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 

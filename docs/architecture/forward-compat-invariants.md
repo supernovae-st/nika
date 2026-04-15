@@ -18,7 +18,7 @@ Cargo, Serde (9+ years stable), Axum/Tower, Bevy.
 
 ## The 8 patterns (ranked by ROI)
 
-### 1. Kernel traits upfront, implementations deferred
+### 1. Kernel traits upfront, implementations deferred <!-- FCI-001 -->
 
 **Pattern**: Define traits in `nika-kernel` at v0.90 for subsystems that
 ship later. Provide default method implementations that return
@@ -60,7 +60,7 @@ v0.95+ / v0.100+ crates (`nika-wasm-host`, `nika-sandbox-*`,
 keeps v0.95/v0.100 strictly additive — no consumer of v0.8x breaks when the
 impls arrive. See §9 below.
 
-### 2. `#[non_exhaustive]` on every public struct, enum, error variant
+### 2. `#[non_exhaustive]` on every public struct, enum, error variant <!-- FCI-002 -->
 
 **Pattern**: Every public type is marked `#[non_exhaustive]`. External code
 can never construct via `MyStruct { a, b }` literal — must use
@@ -72,7 +72,7 @@ can never construct via `MyStruct { a, b }` literal — must use
 **Rule**: If you forget `#[non_exhaustive]` on a public type, CI fails via
 `cargo public-api --diff-git-checkouts`.
 
-### 3. Versioned file formats with explicit `schema:` field
+### 3. Versioned file formats with explicit `schema:` field <!-- FCI-003 -->
 
 **Pattern**: Every file format (workflows, pck manifests, event logs,
 memory frames) carries a `schema:` version field. Parser dispatches by
@@ -98,7 +98,7 @@ pub enum WorkflowDoc {
 
 **Migration tooling** ships parallel to schema bumps. No silent migrations.
 
-### 4. Extension namespaces (`nika.*` core + `x-*` community)
+### 4. Extension namespaces (`nika.*` core + `x-*` community) <!-- FCI-004 -->
 
 **Pattern**: Every registry (pck types, EventKind variants, MCP aliases,
 error codes, builtin names) uses explicit namespaces. Core Nika reserves
@@ -112,7 +112,7 @@ error codes, builtin names) uses explicit namespaces. Core Nika reserves
 - **Skill targets**: `claude-code`, `cursor`, `windsurf`, `zed` (4 IDEs) +
   future additions
 
-### 5. Reserved error code ranges
+### 5. Reserved error code ranges <!-- FCI-005 -->
 
 **Pattern**: Error codes are assigned in ranges by subsystem. Ranges are
 reserved even if unused, preventing collision when future subsystems ship.
@@ -132,7 +132,7 @@ reserved even if unused, preventing collision when future subsystems ship.
 | NIKA-800..899 | WASM plugins | reserved v0.80, active v0.100+ |
 | NIKA-900..999 | Community / x-* extensions | reserved v0.80 |
 
-### 6. Sealed traits for core, open traits for extension
+### 6. Sealed traits for core, open traits for extension <!-- FCI-006 -->
 
 **Pattern**: Traits the Nika team wants to evolve privately (adding methods,
 changing internals) are sealed via private supertrait pattern. Traits that
@@ -159,7 +159,7 @@ pub trait MemoryStore: Send + Sync { ... }
 - **Open**: `MemoryStore`, `EmbeddingProvider`, `ToolExecutor`, `Sandbox`,
   `ObservabilitySink`, `WasmPluginHost` — community may implement
 
-### 7. Feature flags with stable defaults
+### 7. Feature flags with stable defaults <!-- FCI-007 -->
 
 **Pattern**: Experimental subsystems live behind `unstable-*` feature
 flags. Default features are stable. CI runs both matrices.
@@ -178,7 +178,7 @@ unstable-sandbox    = ["dep:nika-sandbox"]
 **Rule**: an `unstable-*` feature can change API in minor versions. Stable
 features follow strict semver.
 
-### 8. Public API discipline via CI
+### 8. Public API discipline via CI <!-- FCI-008 -->
 
 **Pattern**: Every PR runs `cargo public-api --diff-git-checkouts` and
 `cargo semver-checks check-release` to catch accidental breaking changes
@@ -195,7 +195,7 @@ before merge.
 If these are wrong, we pay the breaking-change tax for the life of the
 project.
 
-### Decision 1 — EventKind extensibility model
+### Decision 1 — EventKind extensibility model <!-- FCI-009 -->
 
 ```rust
 #[non_exhaustive]
@@ -218,7 +218,7 @@ pub enum EventKind {
 tracking. A closed enum would force every new subsystem into a breaking
 change.
 
-### Decision 2 — `InferRequest` / `InferResponse` field reservation
+### Decision 2 — `InferRequest` / `InferResponse` field reservation <!-- FCI-010 -->
 
 ```rust
 #[non_exhaustive]
@@ -241,7 +241,7 @@ impl InferRequest {
 every memory call. Adding fields in v0.95 requires them to be `Option` with
 `None` defaults today.
 
-### Decision 3 — `schema:` field mandatory day-1
+### Decision 3 — `schema:` field mandatory day-1 <!-- FCI-011 -->
 
 Every file format ships with `schema:` from v0.80. Fail-fast on missing
 schema. Never parse unversioned files.
@@ -249,7 +249,7 @@ schema. Never parse unversioned files.
 **Rationale**: Cargo's `edition = "2018"` pattern. Without this, v1.0 can't
 introduce a schema version without parsing every existing file as legacy.
 
-### Decision 4 — Provider trait shape
+### Decision 4 — Provider trait shape <!-- FCI-012 -->
 
 ```rust
 #[trait_variant::make(Send)]
@@ -270,7 +270,7 @@ pub trait Provider {
 **Rationale**: 9 providers in v0.90, 20+ in v0.100. Trait shape locks all
 downstream.
 
-### Decision 5 — `CatalogEntry` shape with Cortex-ready fields
+### Decision 5 — `CatalogEntry` shape with Cortex-ready fields <!-- FCI-013 -->
 
 ```rust
 #[non_exhaustive]
@@ -288,43 +288,43 @@ pub struct CatalogEntry {
 (tool selection), CLI (autocomplete), observability (cost tracking). If
 these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 
-## 10 concrete API design rules
+## 10 concrete API design rules <!-- FCI-014..023 -->
 
-1. **Never `Vec<T>` returns** → `impl Iterator<Item = T>` or `impl
+1. **Never `Vec<T>` returns** <!-- FCI-014 --> → `impl Iterator<Item = T>` or `impl
    IntoIterator<Item = T>`. Locks allocation strategy.
-2. **Never expose third-party types in public API**. Wrap:
+2. **Never expose third-party types in public API**. <!-- FCI-015 --> Wrap:
    `pub struct Message { inner: rig::Message }`. Tokio learned this
    with Mio in 0.1 → 0.2.
-3. **Never public fields** — even on `#[non_exhaustive]` structs. Use
+3. **Never public fields** <!-- FCI-016 --> — even on `#[non_exhaustive]` structs. Use
    accessors or builder pattern.
-4. **Never closed numeric enums** — always `#[non_exhaustive]` +
+4. **Never closed numeric enums** <!-- FCI-017 --> — always `#[non_exhaustive]` +
    `#[serde(other)]` for the catch-all variant.
-5. **Newtype every ID** — `ProviderId(SmolStr)`, `WorkflowName(String)`,
+5. **Newtype every ID** <!-- FCI-018 --> — `ProviderId(SmolStr)`, `WorkflowName(String)`,
    `SkillName(String)`. Validation, normalization, interning become
    additive.
-6. **All errors `#[non_exhaustive]` + `thiserror` + `#[from]` chains**.
+6. **All errors `#[non_exhaustive]` + `thiserror` + `#[from]` chains**. <!-- FCI-019 -->
    Never `String` error types in public API.
-7. **Sealed traits + default methods** — `fn dry_run(&self) -> Result<...>
+7. **Sealed traits + default methods** <!-- FCI-020 --> — `fn dry_run(&self) -> Result<...>
    { Err(Unsupported("dry_run")) }`. Adding methods later is additive.
-8. **Opaque handles** — `pub struct Runtime { _inner: Arc<dyn RuntimeInner> }`.
+8. **Opaque handles** <!-- FCI-021 --> — `pub struct Runtime { _inner: Arc<dyn RuntimeInner> }`.
    Scheduler rewrites don't break users.
-9. **`schema:` field mandatory on every file format**. Fail-fast on missing.
-10. **`#[must_use]` on every Result-returning API**. Silently dropped
+9. **`schema:` field mandatory on every file format**. <!-- FCI-022 --> Fail-fast on missing.
+10. **`#[must_use]` on every Result-returning API**. <!-- FCI-023 --> Silently dropped
     errors are forward-compat tax when tightening error reporting.
 
-## 10 anti-patterns to avoid
+## 10 anti-patterns to avoid <!-- FCI-024..033 -->
 
-1. Returning `Vec<T>` from public APIs.
-2. Exposing third-party types (`pub fn foo() -> rig::Message`).
-3. Public fields on structs, even `#[non_exhaustive]`.
-4. Closed enums with literal numeric discriminants.
-5. `pub use` of internal modules — use a curated `prelude` instead.
+1. Returning `Vec<T>` from public APIs. <!-- FCI-024 -->
+2. Exposing third-party types (`pub fn foo() -> rig::Message`). <!-- FCI-025 -->
+3. Public fields on structs, even `#[non_exhaustive]`. <!-- FCI-026 -->
+4. Closed enums with literal numeric discriminants. <!-- FCI-027 -->
+5. `pub use` of internal modules — use a curated `prelude` instead. <!-- FCI-028 -->
 6. Hard-coded paths in error messages — use `Path::display()` + structured
-   fields.
-7. `String` types everywhere — always newtype IDs.
-8. Trait methods without default impls — adding a method = breaking change.
-9. `async fn` in public traits without `Send` bound — locks runtime choice.
-10. Forgetting `#[must_use]` on Result-returning APIs.
+   fields. <!-- FCI-029 -->
+7. `String` types everywhere — always newtype IDs. <!-- FCI-030 -->
+8. Trait methods without default impls — adding a method = breaking change. <!-- FCI-031 -->
+9. `async fn` in public traits without `Send` bound — locks runtime choice. <!-- FCI-032 -->
+10. Forgetting `#[must_use]` on Result-returning APIs. <!-- FCI-033 -->
 
 ## Per-subsystem forward-compat matrix
 
@@ -341,7 +341,7 @@ these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 | Lints | nika-lints crate | New lints additive | LOW | Per-lint allow attribute namespace |
 | Observability | EventLog only | Tracing, OTel, replay v0.100 | MED | `EventKind::Trace` reserved |
 
-## 9. v0.95 / v0.100 reservation policy
+## 9. v0.95 / v0.100 reservation policy <!-- FCI-034 -->
 
 Reserving trait shapes and DTO field layout **before** implementations exist
 is the explicit mechanism that makes v0.95 and v0.100 additive-only releases.
