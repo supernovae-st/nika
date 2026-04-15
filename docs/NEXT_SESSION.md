@@ -49,7 +49,7 @@ clippy 0, machete clean.
 | [`scripts/ci/`](../scripts/ci/) | gate check scripts |
 | [`Cargo.toml`](../Cargo.toml) | `[workspace.dependencies]` is the version pin floor |
 | [`.claude/commands/`](../.claude/commands/) | `/diamond-gates`, `/diamond-health`, `/legacy-lookup`, `/admit` |
-| [`.claude/skills/`](../.claude/skills/) | `crate-admit`, `gate-check`, `gitnexus`, `generated/*` |
+| [`.claude/skills/`](../.claude/skills/) | `crate-admit`, `gate-check` |
 
 ## Where the *current session* handoff lives
 

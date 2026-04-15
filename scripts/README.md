@@ -7,9 +7,10 @@ One folder = one concern. Keep it this way.
 
 ```
 scripts/
+├── adr/          ADR DX scripts — schema validation, index generation, scaffolding
 ├── ci/           CI ratchets — LOC caps, unwrap scan, clippy, tests, etc.
-├── gitnexus/     GitNexus install + verify + rollback (PolyForm-NC, MCP-only)
-└── hygiene/      15 drift vectors dashboard — keeps ecosystem in sync
+├── hooks/        Git hook scripts (lefthook integration)
+└── hygiene/      20 drift vectors dashboard — keeps ecosystem in sync
 ```
 
 ## ci/ — CI enforcement
@@ -29,20 +30,19 @@ a single-purpose ratchet. See `ci/` for the full list.
 | `check-tests.sh` | `cargo test --workspace --lib` |
 | `check-no-default-features.sh` | compiles with no default features |
 
-## gitnexus/ — graph intelligence tooling
+## adr/ — ADR DX tooling
 
-See [`gitnexus/README.md`](gitnexus/README.md) for full documentation.
-Commands:
+Schema validation, index generation, and scaffolding for Architecture Decision Records.
 
 ```bash
-bash scripts/gitnexus/install.sh    # one-shot install
-bash scripts/gitnexus/verify.sh     # integrity check (runs anytime)
-bash scripts/gitnexus/rollback.sh <BACKUP_DIR>   # full reverse
+bash scripts/adr/generate-index.sh   # regen index.toml + index.json from frontmatter
+bash scripts/adr/validate.sh         # schema + cycles + dangling refs
+bash scripts/adr/new.sh "Title"      # scaffold next ADR from template
 ```
 
 ## hygiene/ — drift detection dashboard
 
-The autonomous ecosystem hygiene system. 15 drift vectors. Runs locally + in
+The autonomous ecosystem hygiene system. 20 drift vectors. Runs locally + in
 CI nightly. Opens an idempotent issue on the repo if anything is RED.
 
 ```bash
