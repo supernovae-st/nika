@@ -1,6 +1,6 @@
 # scripts/hygiene/ — drift detection dashboard
 
-15 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
+20 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
 building in public. Zero maintenance required. Runs locally on every
 commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
@@ -19,7 +19,7 @@ commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
 Exit codes: `0` = all green, `1` = at least one yellow, `2` = at least one red.
 
-## The 15 vectors
+## The 20 vectors
 
 Each vector is a single `check-*.sh` script. Single responsibility.
 Exits `0`/`1`/`2` to signal green/yellow/red.
@@ -27,7 +27,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | # | Script | Detects |
 |---|---|---|
 | 1 | `check-memory-head.sh` | MEMORY.md HEAD SHA ≠ actual `git rev-parse HEAD` |
-| 2 | `check-crate-count.sh` | `ls tools/*/Cargo.toml` ≠ MEMORY's recorded count |
+| 2 | `check-crate-count.sh` | `ls crates/*/Cargo.toml` ≠ MEMORY's recorded count |
 | 3 | `check-loc.sh` | src LOC drift (> 2% = yellow, > 5% = red) |
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
 | 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
@@ -41,6 +41,11 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 13 | `check-claude-coauthor.sh` | No `Co-Authored-By: Claude` on diamond branch |
 | 14 | `check-private-leaks.sh` | No `/.claude/projects/…` in tracked code |
 | 15 | `check-cargo-audit.sh` | `cargo audit` shows no RustSec advisories |
+| 16 | `check-adr-schema.sh` | ADR frontmatter missing required fields or invalid format |
+| 17 | `check-adr-cycles.sh` | Supersession cycle in ADR graph (A supersedes B supersedes A) |
+| 18 | `check-adr-dangling.sh` | Reference to non-existent ADR ID in frontmatter |
+| 19 | `check-adr-orphan-proposed.sh` | ADR stuck in proposed/draft >30 days |
+| 20 | `check-adr-evidence.sh` | File path in Evidence section no longer exists |
 
 ## Adding a new vector
 
