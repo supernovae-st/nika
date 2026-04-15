@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1091  # _lib.sh sourced at runtime
 # Ratchet: every member crate must have <= MAX LOC of tracked .rs source
 # (src/ + tests/ + benches/). See CONSTELLATION_PLAN §7 criterion 3.
 set -euo pipefail
@@ -13,8 +14,11 @@ violations=0
 while IFS= read -r manifest; do
   [ -z "$manifest" ] && continue
   crate_dir=$(dirname "$manifest")
+  # P1-6 Batch H+: glob "$crate_dir/*.rs" was non-recursive — missed
+  # src/submod/*.rs and deeper nested modules. Use trailing / to recurse.
   total=$(
-    git ls-files -- "$crate_dir/*.rs" 2>/dev/null \
+    git ls-files -- "$crate_dir/" 2>/dev/null \
+      | grep '\.rs$' \
       | xargs -I {} wc -l {} 2>/dev/null \
       | awk 'NR > 0 { sum += $1 } END { print sum + 0 }'
   )
