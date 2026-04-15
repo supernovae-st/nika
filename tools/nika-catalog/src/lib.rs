@@ -117,7 +117,9 @@ mod tests {
 
     #[test]
     fn all_providers_non_empty() {
-        assert_eq!(all_providers().len(), 21);
+        // Session 2b follow-up added 4 Chinese frontier providers:
+        // moonshot, qwen, minimax, zhipu (21 → 25).
+        assert_eq!(all_providers().len(), 25);
     }
 
     #[test]

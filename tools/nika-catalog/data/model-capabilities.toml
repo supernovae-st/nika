@@ -356,6 +356,132 @@ match            = { kind = "any" }
 caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], supports_system_messages = false }
 routing_complete = true
 
+# ─── Session 3 additions (12 new rules) ─────────────────────────────────────
+# New Chinese-frontier providers + capability fallbacks for 8 in-catalog
+# providers that previously had no rules (all were inheriting defaults ——
+# vision=true, which is WRONG for most of them).
+
+# [29] Moonshot Kimi K2 — text base models. -vision-preview suffix gets
+#      vision but those model IDs are not in our catalog yet (deferred).
+#      OpenAI-compat: json_schema YES, stop YES. Tokenizer unknown.
+[[rules]]
+name  = "moonshot-kimi"
+scope = { providers = ["moonshot"] }
+match = { kind = "any" }
+caps  = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+
+# [30] Qwen VL — vision model (qwen-vl-plus, qwen-vl-max). Must be BEFORE
+#      qwen-any-model (Matcher::Any must be last).
+[[rules]]
+name  = "qwen-vl"
+scope = { providers = ["qwen"] }
+match = { kind = "prefix_any", prefixes = ["qwen-vl"] }
+caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+
+# [31] Qwen any other — text base models (qwen-max, qwen-turbo, qwen-plus).
+#      OpenAI-compat: json_schema YES, stop YES.
+[[rules]]
+name             = "qwen-any-model"
+scope            = { providers = ["qwen"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+routing_complete = true
+
+# [32] MiniMax VL-01 — vision model. Must be BEFORE minimax-any-model.
+[[rules]]
+name  = "minimax-vl"
+scope = { providers = ["minimax"] }
+match = { kind = "prefix_any", prefixes = ["MiniMax-VL"] }
+caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+
+# [33] MiniMax any other — text (MiniMax-M2.x). OpenAI-compat json_schema YES.
+[[rules]]
+name             = "minimax-any-model"
+scope            = { providers = ["minimax"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+routing_complete = true
+
+# [34] Zhipu GLM — vision YES (GLM-4.5+ and -flash both support vision).
+[[rules]]
+name             = "zhipu-any-model"
+scope            = { providers = ["zhipu"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+routing_complete = true
+
+# [35] Groq — text-only fallback (Llama 4 Scout 17B has vision via a
+#      specific model ID, not covered here). OpenAI-compat: json_schema
+#      YES, stop YES. Tokenizer: llama-v3.
+[[rules]]
+name             = "groq-any-model"
+scope            = { providers = ["groq"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+routing_complete = true
+
+# [36] Together AI — text-only fallback (specific Llama 4 Maverick /
+#      Qwen3-VL model IDs have vision, not covered here).
+[[rules]]
+name             = "together-any-model"
+scope            = { providers = ["together"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+routing_complete = true
+
+# [37] Fireworks — hardware inference. No vision. json_schema YES.
+[[rules]]
+name             = "fireworks-any-model"
+scope            = { providers = ["fireworks"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+routing_complete = true
+
+# [38] Cerebras — hardware inference (WSC). No vision. json_schema YES.
+[[rules]]
+name             = "cerebras-any-model"
+scope            = { providers = ["cerebras"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+routing_complete = true
+
+# [39] SambaNova — hardware inference. No vision. json_schema YES.
+[[rules]]
+name             = "sambanova-any-model"
+scope            = { providers = ["sambanova"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+routing_complete = true
+
+# [40] Cohere — text-only. structured output via tool-calling (distinct
+#      dialect); no StructuredOutputNative until we model the Cohere
+#      response_format contract in a dedicated ParamFlag.
+[[rules]]
+name             = "cohere-any-model"
+scope            = { providers = ["cohere"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
+routing_complete = true
+
+# [41] AI21 Jamba — text-only. json_object only (no json_schema — similar
+#      to DeepSeek). NO StructuredOutputNative.
+[[rules]]
+name             = "ai21-any-model"
+scope            = { providers = ["ai21"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+routing_complete = true
+
+# [42] Perplexity — search-augmented. Some models have vision (sonar-pro
+#      with image context), others text-only. Default to text-only; cover
+#      vision via a dedicated prefix rule when specific model IDs arrive.
+[[rules]]
+name             = "perplexity-any-model"
+scope            = { providers = ["perplexity"] }
+match            = { kind = "any" }
+caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native", "web-search"] }
+routing_complete = true
+
 # [28] Mock — all flags enabled. Covers every runtime conditional branch
 #      without real API calls. Tokenizer cl100k (arbitrary). All
 #      supported_parameters set — tests can cover every path.

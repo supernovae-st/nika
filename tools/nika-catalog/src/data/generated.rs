@@ -79,8 +79,10 @@ mod tests {
 
     #[test]
     fn providers_count_pinned() {
-        // Pinned to detect silent additions/removals.
-        assert_eq!(ALL_PROVIDERS.len(), 21);
+        // Pinned to detect silent additions/removals. Session 2b follow-up
+        // added 4 Chinese frontier providers (moonshot/qwen/minimax/zhipu)
+        // driving the count from 21 to 25.
+        assert_eq!(ALL_PROVIDERS.len(), 25);
     }
 
     #[test]

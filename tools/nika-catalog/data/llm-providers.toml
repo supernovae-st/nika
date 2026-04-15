@@ -477,6 +477,114 @@ model = "voyage-3-lite"
 context_window_tokens = 32000
 max_output_tokens = 1
 
+# ── Chinese frontier providers — OpenAI-compat via DashScope / api.moonshot / bigmodel ──
+# Added Session 2b follow-up (Session 3 primary item). All speak openai-chat
+# dialect so rig-core's openai::Client can talk to them via base_url override.
+
+[[providers]]
+id = "moonshot"
+name = "Moonshot (Kimi)"
+aliases = ["kimi"]
+env_var = "MOONSHOT_API_KEY"
+key_prefixes = ["sk-"]
+default_model = "kimi-k2"
+cheap_model = "kimi-k2"
+requires_key = true
+description = "Moonshot AI — Kimi K2, K2.5 (international endpoint api.moonshot.ai/v1). rig-core native provider."
+api_dialect = "openai-chat"
+tags = ["frontier", "function-calling", "long-context", "streaming", "structured-output"]
+
+[[providers.models]]
+id = "k2"
+model = "kimi-k2"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "k2-5"
+model = "kimi-k2.5"
+context_window_tokens = 256000
+max_output_tokens = 8192
+
+[[providers]]
+id = "qwen"
+name = "Qwen (Alibaba DashScope)"
+aliases = ["dashscope", "alibaba"]
+env_var = "DASHSCOPE_API_KEY"
+key_prefixes = ["sk-"]
+default_model = "qwen-max"
+cheap_model = "qwen-turbo"
+requires_key = true
+description = "Alibaba Qwen — 48 models including qwen-vl-plus (vision) via DashScope OpenAI-compat endpoint."
+api_dialect = "openai-chat"
+tags = ["frontier", "function-calling", "long-context", "multilingual", "streaming", "structured-output", "vision"]
+
+[[providers.models]]
+id = "max"
+model = "qwen-max"
+context_window_tokens = 32000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "turbo"
+model = "qwen-turbo"
+context_window_tokens = 1000000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "vl-plus"
+model = "qwen-vl-plus"
+context_window_tokens = 32000
+max_output_tokens = 2048
+
+[[providers]]
+id = "minimax"
+name = "MiniMax"
+aliases = []
+env_var = "MINIMAX_API_KEY"
+default_model = "MiniMax-M2"
+cheap_model = "MiniMax-M2"
+requires_key = true
+description = "MiniMax — MiniMax-M2 chat + MiniMax-VL-01 vision. OpenAI-compat endpoint."
+api_dialect = "openai-chat"
+tags = ["function-calling", "long-context", "streaming", "structured-output"]
+
+[[providers.models]]
+id = "m2"
+model = "MiniMax-M2"
+context_window_tokens = 245000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "vl-01"
+model = "MiniMax-VL-01"
+context_window_tokens = 100000
+max_output_tokens = 4096
+
+[[providers]]
+id = "zhipu"
+name = "Zhipu (BigModel)"
+aliases = ["z-ai", "bigmodel"]
+env_var = "ZHIPU_API_KEY"
+default_model = "glm-4.5"
+cheap_model = "glm-4-flash"
+requires_key = true
+description = "Zhipu AI — GLM-4.5+ series, vision YES. OpenAI-compat at api.bigmodel.cn/v1."
+api_dialect = "openai-chat"
+tags = ["frontier", "function-calling", "multilingual", "streaming", "structured-output", "vision"]
+
+[[providers.models]]
+id = "glm-4-5"
+model = "glm-4.5"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers.models]]
+id = "flash"
+model = "glm-4-flash"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
 [[providers]]
 id = "native"
 name = "Native Inference"
