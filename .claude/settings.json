@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git push[[:space:]]+.*(--force|-f)\\b'; then echo '❌ FORBIDDEN: git push --force. Main branch is read-only. Would destroy history.' >&2; exit 2; fi"
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git push[[:space:]]+.*(--force(-with-lease)?|-f)\\b'; then echo '❌ FORBIDDEN: git push --force (incl --force-with-lease). Would destroy history.' >&2; exit 2; fi"
           },
           {
             "type": "command",
@@ -67,6 +67,10 @@
           {
             "type": "command",
             "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$' && [ -f \"$FILE\" ]; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap per nika-invariants.md)\" >&2; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -qE '(MEMORY|SEQUENCE)\\.md$'; then REPO=$(git rev-parse --show-toplevel 2>/dev/null || echo '.'); LOG=\"$REPO/.nika/state-changes.jsonl\"; mkdir -p \"$(dirname \"$LOG\")\" 2>/dev/null; printf '{\"ts\":\"%s\",\"file\":\"%s\"}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$FILE\" >>\"$LOG\" 2>/dev/null || true; fi"
           }
         ]
       }
@@ -77,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls tools/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | crates admitted: $CRATES/40-42. Read MEMORY.md Quick State first.\""
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls {tools,crates}/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | crates admitted: $CRATES/40-42. Read MEMORY.md Quick State first.\""
           },
           {
             "type": "command",
