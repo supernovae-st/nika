@@ -48,10 +48,14 @@ for ratchet in "${RATCHETS[@]}"; do
     continue
   fi
   out_file="${TMPDIR_BASE}/${ratchet}.out"
-  # Run in subshell, capture output + exit code
+  # P1-2 Batch H+: the subshell inherits `set -e` from the parent, so if
+  # "$script" exits non-zero the subshell terminates before writing .exit.
+  # Fix: capture exit code explicitly with `|| rc=$?` to prevent errexit
+  # from short-circuiting.
   (
-    "$script" >"$out_file" 2>&1
-    printf '%d' "$?" >"${out_file}.exit"
+    rc=0
+    "$script" >"$out_file" 2>&1 || rc=$?
+    printf '%d' "$rc" >"${out_file}.exit"
   ) &
   PIDS+=($!)
   RATCHET_NAMES+=("$ratchet")
