@@ -7,12 +7,17 @@ set -uo pipefail
 # Find merge-base with main — scope check to diamond-only commits
 base=$(git merge-base nika-diamond main 2>/dev/null || git rev-parse HEAD~100 2>/dev/null || echo "HEAD~50")
 
+# Anchor the pattern to line-start so only actual Git trailers count —
+# prose like "- Co-Authored-By: Claude guard" (documenting the rule)
+# would otherwise false-positive.
 found=$(git log "${base}..HEAD" --format='%H %B' 2>/dev/null \
-        | grep -iE 'Co-Authored-By:[[:space:]]+Claude' \
-        | grep -v 'Nika' || true)
+  | grep -iE '^Co-Authored-By:[[:space:]]+Claude' \
+  | grep -v 'Nika' || true)
 
 if [ -n "$found" ]; then
   count=$(printf '%s\n' "$found" | wc -l | tr -d ' ')
-  echo "${count} diamond-branch commits with Claude co-author (use Nika 🦋 only)"; exit 2
+  echo "${count} diamond-branch commits with Claude co-author (use Nika 🦋 only)"
+  exit 2
 fi
-echo "OK (only Nika 🦋 co-authors on diamond branch)"; exit 0
+echo "OK (only Nika 🦋 co-authors on diamond branch)"
+exit 0
