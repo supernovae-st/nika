@@ -9,11 +9,14 @@ repository.workspace = true
 homepage.workspace = true
 description  = "Deterministic in-memory test doubles for nika-kernel traits — L0.5"
 
+[package.metadata.cargo-machete]
+ignored = ["proptest", "rstest"]  # dev-deps used in #[cfg(test)] blocks
+
 [lints]
 workspace = true
 
 [dependencies]
-nika-kernel   = { path = "../nika-kernel" }
+nika-kernel   = { path = "../nika-kernel", version = "0.80.0" }
 parking_lot   = { workspace = true }
 bytes         = { workspace = true }
 serde_json    = { workspace = true }

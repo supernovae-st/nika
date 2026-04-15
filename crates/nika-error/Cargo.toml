@@ -25,5 +25,8 @@ rstest      = { workspace = true }
 serde_json  = { workspace = true }
 expect-test = { workspace = true }  # inline snapshots, see ADR-015
 
+[package.metadata.cargo-machete]
+ignored = ["insta", "rstest"]  # dev-deps used in #[cfg(test)] blocks
+
 [lints]
 workspace = true

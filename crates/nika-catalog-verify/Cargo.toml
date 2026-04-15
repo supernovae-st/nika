@@ -14,7 +14,7 @@ name = "nika-catalog-verify"
 path = "src/main.rs"
 
 [dependencies]
-nika-catalog = { path = "../nika-catalog" }
+nika-catalog = { path = "../nika-catalog", version = "0.80.0" }
 
 clap       = { version = "4.5", features = ["derive"] }
 tokio      = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net"] }
@@ -27,6 +27,9 @@ futures    = "0.3"
 
 [dev-dependencies]
 rstest = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["rstest"]  # dev-dep used in #[cfg(test)] blocks
 
 [lints]
 workspace = true

@@ -9,11 +9,14 @@ repository.workspace = true
 homepage.workspace = true
 description  = "Trait contracts for every side effect in the Nika diamond — L0.5"
 
+[package.metadata.cargo-machete]
+ignored = ["insta", "proptest", "rstest"]  # dev-deps used in #[cfg(test)] blocks
+
 [lints]
 workspace = true
 
 [dependencies]
-nika-error    = { path = "../nika-error" }
+nika-error    = { path = "../nika-error", version = "0.80.0" }
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }

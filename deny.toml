@@ -32,6 +32,7 @@ allow = [
   "Unicode-3.0",
   "Unicode-DFS-2016",
   "MPL-2.0",
+  "CDLA-Permissive-2.0",    # webpki-roots v1.0.6+ (Mozilla root certs)
 ]
 
 [bans]
@@ -48,16 +49,19 @@ name     = "tokio"
 wrappers = [
   "nika-catalog-verify",   # L4 binary: async HTTP for online catalog verification
   "nika-kernel-mock",      # L0.5 test mock: tokio channels for trait harness
+  # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
+  "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
+  "tower", "tokio-util", "tokio-rustls",
 ]
 
 [[bans.deny]]
 name     = "reqwest"
-wrappers = []              # no admitted crate may use reqwest directly today
-                           # populate with ["nika-http"] when that crate admits
+wrappers = [
+  "nika-catalog-verify",   # L4 binary: HTTP probes for catalog drift detection
+]
 
-[[bans.deny]]
-name     = "hyper"
-wrappers = []              # HTTP goes through the kernel HttpClient trait
+# hyper is not explicitly banned — it's always transitive via reqwest,
+# which is already scoped to nika-catalog-verify above.
 
 [advisories]
 version = 2
