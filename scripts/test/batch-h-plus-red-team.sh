@@ -149,7 +149,24 @@ Co-Authored-By: Claude-via-Nika-relay <claude@anthropic.com>
   rm_tmp_repo "$repo"
   [[ $rc -ne 0 ]] # expect BLOCK — hyphen-separated Claude must still trigger
 }
-test_p0_2_substring_only_not_trailer() { return 77; }
+test_p0_2_substring_only_not_trailer() {
+  local rc=0 msgfile
+  msgfile="$(mktemp -t rt-p02.XXXXXX)"
+  cat >"$msgfile" <<'MSG'
+feat(test): prose mentions trailer but does not include one
+
+This commit body references the trailer format for documentation
+purposes:
+
+  Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+
+but no actual trailer line is present at the end of this message.
+MSG
+  bash "$ENGINE_DIR/scripts/hooks/validate-conventional-commit.sh" "$msgfile" \
+    >/dev/null 2>&1 || rc=$?
+  rm -f "$msgfile"
+  [[ $rc -ne 0 ]] # expect REJECT — validator must not accept prose substring
+}
 test_p0_3_dot_claude_projects_ref() { return 77; }
 test_p0_4_monorepo_nika_hq_ref_in_dx() { return 77; }
 test_p0_5_squash_drops_trailer() { return 77; }

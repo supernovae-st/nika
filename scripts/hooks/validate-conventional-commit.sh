@@ -19,7 +19,7 @@ set -Eeuo pipefail
 
 readonly VALID_TYPES='feat|fix|chore|docs|perf|test|refactor|build|ci|revert|security'
 readonly VALID_SCOPES='workspace|kernel|catalog|error|kernel-mock|ci|hygiene|docs|adr|hq|deps|release|dx|rules|skills|hooks|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|runtime|provider|dag|event|resilience|core|db|mcp|cli|tui|schema'
-readonly COAUTHOR_PATTERN='Co-Authored-By: Nika 🦋 <nika@supernovae\.studio>'
+readonly COAUTHOR_PATTERN='^Co-Authored-By: Nika 🦋 <nika@supernovae\.studio>$'
 readonly MAX_HEADER=100
 readonly MAX_BODY_LINE=72
 
@@ -121,11 +121,18 @@ for ((i = 1; i < ${#LINES[@]}; i++)); do
 done
 
 # ---------------------------------------------------------------------------
-# 7. Co-Authored-By: Nika 🦋 must be present in footer
+# 7. Co-Authored-By: Nika 🦋 must be present in footer (as a REAL trailer)
 # ---------------------------------------------------------------------------
+# P0-2 Batch H+: both patterns anchored with ^...$ to reject commits that
+# only MENTION the trailer in prose (docs, comments, code fences) but lack
+# an actual trailer line. The previous `grep -qP` path relied on Perl regex
+# which BSD grep (default macOS) silently rejects; `2>/dev/null` hid the
+# failure and the non-anchored fallback made this gate substring-permissive.
+# Both patterns now use POSIX `grep -E`, portable across BSD + GNU.
+#
 # Only enforce on non-automated commits (already returned early for merge/fixup above)
-if ! printf '%s\n' "${LINES[@]}" | grep -qP "$COAUTHOR_PATTERN" 2>/dev/null \
-  && ! printf '%s\n' "${LINES[@]}" | grep -q 'Co-Authored-By: Nika'; then
+if ! printf '%s\n' "${LINES[@]}" | grep -qE "$COAUTHOR_PATTERN" \
+  && ! printf '%s\n' "${LINES[@]}" | grep -qE '^Co-Authored-By: Nika( |$)'; then
   die "Missing footer: Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   Add it to your commit template or use: git commit --trailer 'Co-Authored-By: Nika 🦋 <nika@supernovae.studio>'"
 fi
