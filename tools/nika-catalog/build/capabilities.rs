@@ -102,6 +102,7 @@ enum TokenizerFamilyToml {
     MistralV3,
     #[serde(rename = "deepseek")]
     DeepSeek,
+    Qwen,
 }
 
 #[derive(Deserialize, Default)]
@@ -584,6 +585,7 @@ fn emit_tokenizer_variant(t: TokenizerFamilyToml) -> &'static str {
         TokenizerFamilyToml::LlamaV3 => "crate::types::TokenizerFamily::LlamaV3",
         TokenizerFamilyToml::MistralV3 => "crate::types::TokenizerFamily::MistralV3",
         TokenizerFamilyToml::DeepSeek => "crate::types::TokenizerFamily::DeepSeek",
+        TokenizerFamilyToml::Qwen => "crate::types::TokenizerFamily::Qwen",
     }
 }
 

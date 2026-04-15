@@ -47,6 +47,11 @@ pub enum TokenizerFamily {
     /// P0 fix — Session 2b review swarm finding.
     #[cfg_attr(feature = "serde", serde(rename = "deepseek"))]
     DeepSeek,
+    /// Alibaba Qwen tokenizer (Qwen-family BPE) — shared across Qwen-Max,
+    /// Qwen-Turbo, Qwen-Plus, Qwen-VL series, and Qwen-Coder. Distinct
+    /// from `Cl100k`/`O200k` because vocab and special-token handling
+    /// differ materially. Session 3 addition.
+    Qwen,
 }
 
 impl TokenizerFamily {
@@ -62,6 +67,7 @@ impl TokenizerFamily {
             Self::LlamaV3 => "llama-v3",
             Self::MistralV3 => "mistral-v3",
             Self::DeepSeek => "deepseek",
+            Self::Qwen => "qwen",
         }
     }
 }
@@ -94,7 +100,7 @@ impl core::fmt::Display for ParseTokenizerFamilyError {
         write!(
             f,
             "unknown tokenizer family {:?} — expected one of: \
-             cl100k, o200k, claude-v3, gemini, llama-v3, mistral-v3, deepseek",
+             cl100k, o200k, claude-v3, gemini, llama-v3, mistral-v3, deepseek, qwen",
             self.input
         )
     }
@@ -114,6 +120,7 @@ impl core::str::FromStr for TokenizerFamily {
             "llama-v3" => Ok(Self::LlamaV3),
             "mistral-v3" => Ok(Self::MistralV3),
             "deepseek" => Ok(Self::DeepSeek),
+            "qwen" => Ok(Self::Qwen),
             _ => Err(ParseTokenizerFamilyError::new(s.to_string())),
         }
     }
@@ -134,11 +141,26 @@ mod tests {
             TokenizerFamily::LlamaV3,
             TokenizerFamily::MistralV3,
             TokenizerFamily::DeepSeek,
+            TokenizerFamily::Qwen,
         ] {
             let s = t.as_str();
             let parsed = TokenizerFamily::from_str(s).expect("round-trip must succeed");
             assert_eq!(parsed, t, "as_str({t:?}) → {s:?} did not round-trip");
         }
+    }
+
+    #[test]
+    fn qwen_variant_roundtrips_with_canonical_string() {
+        // Session 3 addition — dedicated test for the new variant so the
+        // P0 regression (reintroducing a hyphen, or serde producing the
+        // wrong string) fails loud instead of being absorbed by the generic
+        // round-trip loop.
+        assert_eq!(TokenizerFamily::Qwen.as_str(), "qwen");
+        assert_eq!(
+            TokenizerFamily::from_str("qwen").expect("qwen must parse"),
+            TokenizerFamily::Qwen
+        );
+        assert_eq!(format!("{}", TokenizerFamily::Qwen), "qwen");
     }
 
     #[test]
@@ -159,11 +181,17 @@ mod tests {
 
     #[test]
     fn from_str_unknown_returns_error_with_input() {
-        let err = TokenizerFamily::from_str("qwen").unwrap_err();
-        assert_eq!(err, ParseTokenizerFamilyError::new("qwen".to_string()));
+        // NB: "qwen" became a valid variant in Session 3 — use a nonsense
+        // token that is NOT a tokenizer family to keep the test meaningful.
+        let err = TokenizerFamily::from_str("sentencepiece-alien").unwrap_err();
+        assert_eq!(
+            err,
+            ParseTokenizerFamilyError::new("sentencepiece-alien".to_string())
+        );
         let msg = format!("{err}");
-        assert!(msg.contains("qwen"), "error must echo input: {msg}");
+        assert!(msg.contains("sentencepiece-alien"), "error must echo input: {msg}");
         assert!(msg.contains("cl100k"), "error must list expected values: {msg}");
+        assert!(msg.contains("qwen"), "error must list Session 3 additions: {msg}");
     }
 
     #[test]
@@ -195,6 +223,7 @@ mod tests {
             TokenizerFamily::LlamaV3,
             TokenizerFamily::MistralV3,
             TokenizerFamily::DeepSeek,
+            TokenizerFamily::Qwen,
         ] {
             let actual = serde_json::to_string(&t).unwrap();
             let expected = format!("\"{}\"", t.as_str());

@@ -376,15 +376,16 @@ caps  = { supports_vision = false, input_modalities = ["text"], output_modalitie
 name  = "qwen-vl"
 scope = { providers = ["qwen"] }
 match = { kind = "prefix_any", prefixes = ["qwen-vl"] }
-caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { tokenizer = "qwen", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
 
 # [31] Qwen any other — text base models (qwen-max, qwen-turbo, qwen-plus).
-#      OpenAI-compat: json_schema YES, stop YES.
+#      OpenAI-compat: json_schema YES, stop YES. Tokenizer: Qwen-family BPE
+#      (Session 3 addition — distinct from cl100k/o200k vocab).
 [[rules]]
 name             = "qwen-any-model"
 scope            = { providers = ["qwen"] }
 match            = { kind = "any" }
-caps             = { supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { tokenizer = "qwen", supports_vision = false, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
 routing_complete = true
 
 # [32] MiniMax VL-01 — vision model. Must be BEFORE minimax-any-model.
