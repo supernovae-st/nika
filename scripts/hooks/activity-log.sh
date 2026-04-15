@@ -17,14 +17,18 @@
 set -uo pipefail
 
 # ---------------------------------------------------------------------------
-# Detect context and log path
+# Detect context and log path (P1-9 Batch H+: use git toplevel, not cwd)
 # ---------------------------------------------------------------------------
-if [[ -f 'Cargo.toml' ]] && grep -q '^\[workspace\]' 'Cargo.toml' 2>/dev/null; then
-  # Engine context
-  LOG_FILE='memory/execution-roadmap/activity-log.jsonl'
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  printf '[activity-log] not inside a git repo — skipping\n' >&2
+  exit 0
+}
+
+if [[ -f "${REPO_ROOT}/Cargo.toml" ]] \
+  && grep -q '^\[workspace\]' "${REPO_ROOT}/Cargo.toml" 2>/dev/null; then
+  LOG_FILE="${REPO_ROOT}/memory/execution-roadmap/activity-log.jsonl"
 else
-  # Root monorepo context
-  LOG_FILE='dx/activity-log.jsonl'
+  LOG_FILE="${REPO_ROOT}/dx/activity-log.jsonl"
 fi
 
 # Ensure directory exists
