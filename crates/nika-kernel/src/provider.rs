@@ -18,6 +18,8 @@ use std::pin::Pin;
 use futures_core::Stream;
 use serde::{Deserialize, Serialize};
 
+use nika_error::cost::Cost;
+
 use crate::cancel::CancelCtx;
 use crate::memory::{MemoryDirective, MemoryFrameRef};
 
@@ -366,8 +368,15 @@ pub struct InferResponse {
     pub cached_tokens: Option<u32>,
     /// Provider-assigned request identifier.
     pub request_id: Option<String>,
-    /// Estimated cost in USD.
+    /// Estimated cost in USD (f64).
+    ///
+    /// Prefer [`Self::cost`] (exact nano-USD) for billing; `cost_usd` is kept
+    /// for one cycle for backward compatibility and will be marked
+    /// `#[deprecated]` in the next release and removed in v0.85.
     pub cost_usd: Option<f64>,
+    /// Exact cost as nano-USD `Cost`. Preferred over [`Self::cost_usd`] for
+    /// billing aggregation and ledger reconciliation (no f64 drift).
+    pub cost: Option<Cost>,
     /// Raw finish reason from the provider.
     pub finish_reason_raw: Option<String>,
     /// Memory frames created during inference (Cortex hook, Phase 1).
@@ -392,6 +401,7 @@ impl InferResponse {
             cached_tokens: None,
             request_id: None,
             cost_usd: None,
+            cost: None,
             finish_reason_raw: None,
             memory_frames: Vec::new(),
             trace_id: None,
@@ -635,6 +645,8 @@ mod tests {
         let resp = InferResponse::new(vec![], TokenUsage::new(10, 20), StopReason::EndTurn);
         assert!(resp.ttft_ms.is_none());
         assert!(resp.memory_frames.is_empty());
+        assert!(resp.cost.is_none());
+        assert!(resp.cost_usd.is_none());
     }
 
     #[test]

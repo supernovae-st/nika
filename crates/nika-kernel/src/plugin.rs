@@ -7,6 +7,8 @@
 //! No implementations exist until `nika-wasm-host` ships.
 //! See `docs/architecture/forward-compat-invariants.md` Pattern 1.
 
+use crate::sandbox::DenialKind;
+
 /// Host-side WASM plugin execution.
 ///
 /// Reserved for v0.100. Implementations will live in `nika-wasm-host`.
@@ -67,10 +69,10 @@ pub enum WasmPluginError {
     },
 
     /// Sandbox violation (capability denied).
-    #[error("wasm sandbox violation: {reason}")]
+    #[error("wasm sandbox violation: {kind}")]
     SandboxViolation {
-        /// What was denied.
-        reason: String,
+        /// Structured denial class (no free-form text; see `DenialKind`).
+        kind: DenialKind,
     },
 
     /// Plugin timed out.
@@ -106,9 +108,11 @@ mod tests {
     #[test]
     fn wasm_plugin_error_sandbox_violation_display() {
         let err = WasmPluginError::SandboxViolation {
-            reason: "fs denied".into(),
+            kind: DenialKind::FsNotGranted,
         };
-        assert!(err.to_string().contains("fs denied"));
+        let s = err.to_string();
+        assert!(s.contains("sandbox violation"));
+        assert!(s.contains("filesystem path not granted"));
     }
 
     #[test]

@@ -7,6 +7,8 @@
 //! `nika-sandbox-landlock` (Linux) and `nika-sandbox-seatbelt` (macOS).
 //! See `docs/architecture/forward-compat-invariants.md` Pattern 1.
 
+use std::fmt;
+
 /// Capability-based sandbox for WASM plugins and MCP servers.
 ///
 /// Reserved for v0.100. The capability model will gate:
@@ -82,6 +84,42 @@ impl Capability {
     }
 }
 
+/// Structured reason why a capability check failed.
+///
+/// Replaces the prior free-form `String` which could leak allowlist
+/// contents to untrusted callers (P1-4, rust-security). Variants describe
+/// the *class* of denial, not the specific resource that was being
+/// requested. Use [`Capability`] on the host side if per-request detail
+/// is needed in logs — `DenialKind` itself is safe to surface to guests.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DenialKind {
+    /// Filesystem path not in the granted capability set.
+    FsNotGranted,
+    /// Network host not on the allowlist.
+    NetworkHostNotAllowlisted,
+    /// Process spawning disabled in this sandbox.
+    ProcessSpawnDisabled,
+    /// Environment variable key not in the allowlist.
+    EnvKeyNotAllowlisted,
+    /// Capability denied for a reason that does not fit the other
+    /// variants. Does NOT carry free-form text (oracle vector).
+    Unknown,
+}
+
+impl fmt::Display for DenialKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::FsNotGranted => "filesystem path not granted",
+            Self::NetworkHostNotAllowlisted => "network host not allowlisted",
+            Self::ProcessSpawnDisabled => "process spawn disabled",
+            Self::EnvKeyNotAllowlisted => "environment variable not allowlisted",
+            Self::Unknown => "capability denied",
+        };
+        f.write_str(s)
+    }
+}
+
 /// Sandbox errors.
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
@@ -94,10 +132,10 @@ pub enum SandboxError {
     },
 
     /// Capability denied.
-    #[error("capability denied: {reason}")]
+    #[error("capability denied: {kind}")]
     CapabilityDenied {
-        /// What was denied and why.
-        reason: String,
+        /// Structured denial class (no free-form text; see `DenialKind`).
+        kind: DenialKind,
     },
 
     /// Sandbox setup failed.
@@ -146,9 +184,10 @@ mod tests {
     #[test]
     fn sandbox_error_display() {
         let err = SandboxError::CapabilityDenied {
-            reason: "no network access".into(),
+            kind: DenialKind::NetworkHostNotAllowlisted,
         };
         assert!(err.to_string().contains("capability denied"));
+        assert!(err.to_string().contains("network host"));
 
         let err = SandboxError::Unavailable {
             reason: "platform".into(),
@@ -159,5 +198,31 @@ mod tests {
             reason: "no privs".into(),
         };
         assert!(err.to_string().contains("setup failed"));
+    }
+
+    #[test]
+    fn denial_kind_display_is_stable() {
+        assert_eq!(
+            DenialKind::FsNotGranted.to_string(),
+            "filesystem path not granted"
+        );
+        assert_eq!(
+            DenialKind::NetworkHostNotAllowlisted.to_string(),
+            "network host not allowlisted"
+        );
+        assert_eq!(
+            DenialKind::ProcessSpawnDisabled.to_string(),
+            "process spawn disabled"
+        );
+        assert_eq!(
+            DenialKind::EnvKeyNotAllowlisted.to_string(),
+            "environment variable not allowlisted"
+        );
+        assert_eq!(DenialKind::Unknown.to_string(), "capability denied");
+    }
+
+    #[test]
+    fn denial_kind_is_send_sync() {
+        _assert_send_sync::<DenialKind>();
     }
 }
