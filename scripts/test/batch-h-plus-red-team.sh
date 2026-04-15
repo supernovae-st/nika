@@ -182,7 +182,28 @@ test_p0_3_dot_claude_projects_ref() {
   [[ $rc -ne 0 ]] # expect BLOCK — .claude/projects/ is a private path
 }
 test_p0_4_monorepo_nika_hq_ref_in_dx() { return 77; }
-test_p0_5_squash_drops_trailer() { return 77; }
+test_p0_5_squash_drops_trailer() {
+  local repo rc
+  repo="$(mk_tmp_repo)"
+  rc=0
+  (
+    cd "$repo" || exit 1
+    # Create real file changes on the feature branch so squash has something to merge
+    echo "feature-a" >a.txt && git add a.txt
+    git commit -q -m "$(printf 'feat(a): first\n\nCo-Authored-By: Nika 🦋 <nika@supernovae.studio>')"
+    echo "feature-b" >b.txt && git add b.txt
+    git commit -q -m "$(printf 'feat(b): second\n\nCo-Authored-By: Nika 🦋 <nika@supernovae.studio>')"
+    # Go back to main and squash-merge WITHOUT trailer (simulates GitHub squash)
+    git checkout -q main
+    git merge --squash nika-diamond -q 2>/dev/null
+    git commit -q -m "feat(squash): merged without trailer"
+    # Hook should print a warning — check stderr for the WARNING string
+    bash "$ENGINE_DIR/scripts/hooks/coauthor-squash-detect.sh" 2>&1 \
+      | grep -q 'WARNING.*dropped'
+  ) || rc=$?
+  rm_tmp_repo "$repo"
+  [[ $rc -eq 0 ]] # expect the grep to FIND the warning message
+}
 test_p0_6_layer_registry_is_six_tier() { return 77; }
 
 # Scenarios (fixtures flesh out as each P0 fix lands):

@@ -35,17 +35,19 @@ if printf '%s' "$HEAD_MSG" | grep -q "$COAUTHOR_PATTERN"; then
   exit 0 # co-author preserved
 fi
 
-# Check if the commits that were squashed HAD the co-author (to confirm it was lost)
-ORIG_SHA="$(git rev-parse ORIG_HEAD 2>/dev/null)" || exit 0
-SQUASHED_WITH_COAUTHOR="$(git log "${ORIG_SHA}..HEAD~1" --format='%B' 2>/dev/null \
-  | grep "$COAUTHOR_PATTERN" | head -1 || true)"
-
-if [[ -n "$SQUASHED_WITH_COAUTHOR" ]]; then
-  printf '\n' >&2
-  printf '[coauthor-squash-detect] WARNING: squash at %s dropped Co-Authored-By: Nika 🦋\n' "$HEAD_SHA" >&2
-  printf '  The squashed commits had Nika attribution but the squash message does not.\n' >&2
-  printf '  Fix: git commit --amend (if unpublished) and add:\n' >&2
-  printf '    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>\n\n' >&2
-fi
+# P0-5 Batch H+: the previous logic tried `git log "${ORIG_SHA}..HEAD~1"` to
+# confirm the squashed commits HAD the co-author before warning. But after a
+# squash, HEAD~1 is the pre-squash parent (not a squashed commit), so that
+# range was always empty → warning never fired.
+#
+# Simplified: if we're in post-merge context (ORIG_HEAD exists), HEAD is a
+# single-parent commit (squash indicator), and HEAD lacks the co-author
+# trailer, that's enough to warn. We don't need to prove the squashed
+# commits had it — the convention is ALL commits must have it.
+printf '\n' >&2
+printf '[coauthor-squash-detect] WARNING: squash at %s dropped Co-Authored-By: Nika 🦋\n' "$HEAD_SHA" >&2
+printf '  The squash message does not contain Nika attribution.\n' >&2
+printf '  Fix: git commit --amend (if unpublished) and add:\n' >&2
+printf '    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>\n\n' >&2
 
 exit 0
