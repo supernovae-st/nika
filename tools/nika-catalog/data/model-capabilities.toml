@@ -57,12 +57,25 @@
 schema = "nika/model-capabilities@1.0"
 
 # ─── Baseline — mirrors ModelCapabilities::default() ────────────────────────
+# Session 2b additions (5 new fields):
+#   * input_modalities / output_modalities — declaration-order sorted by
+#     build.rs at codegen time (text=0, image=1, audio=2, video=3, pdf=4).
+#     Default mirrors supports_vision=true (text + image).
+#   * tokenizer — omitted → None (most providers don't disclose their
+#     tokenizer; rules attach a specific variant for known families).
+#   * supported_parameters — empty; rules add flags for specific models.
+#   * supports_system_messages — true (virtually all chat models; o-series
+#     + voyage override to false).
 [defaults]
-token_limit_param       = "max-tokens"
-supports_temperature    = true
-supports_stop_sequences = true
-reasoning               = false
-supports_vision         = true
+token_limit_param        = "max-tokens"
+supports_temperature     = true
+supports_stop_sequences  = true
+reasoning                = false
+supports_vision          = true
+input_modalities         = ["text", "image"]
+output_modalities        = ["text"]
+supported_parameters     = []
+supports_system_messages = true
 
 # ─── Rules — ordered, FIRST MATCH WINS ──────────────────────────────────────
 #

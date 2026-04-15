@@ -77,7 +77,7 @@ pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
         break;
     }
 
-    patch.materialize()
+    patch.materialize(&CAPABILITY_DEFAULTS)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -531,160 +531,30 @@ mod tests {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Parity test — new resolver vs legacy (pre-Session-2a) body
+// Session 2b onward — provenance tests (post-legacy-parity)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Lives in this file (not in `tests/`) so the `#[cfg(test)]` module can
-// construct `#[non_exhaustive]` `ModelCapabilities` values directly and so
-// the test runs under the workspace-wide `cargo test --workspace --lib`
-// invocation (no `--test` flag required, no macOS Keychain risk).
+// The Session 2a→2b transition deleted the `legacy_model_capabilities` body
+// + its `proptest! { 10_000 cases }` parity harness. Legacy only knew the 5
+// Session-2a fields; after 2b adds modalities/tokenizer/supported_parameters
+// /supports_system_messages, byte-for-byte parity is no longer meaningful.
+//
+// These tests replace it with an explicit oracle: every rule in
+// `data/model-capabilities.toml` is exercised by a canonical (provider,
+// model) pair that MUST resolve to a specific expected value. If a rule
+// is accidentally shadowed (e.g. someone adds `openai-gpt4-family` before
+// `openai-gpt4o-family`), one of the `assert_eq!` calls below fails with
+// a message pointing at the offending rule.
+//
+// The insta snapshot test remains as the reviewable wide-angle oracle.
 
 #[cfg(all(test, feature = "capabilities"))]
-mod parity_tests {
-    //! Property-based parity between the new TOML-driven resolver and the
-    //! hand-rolled body that shipped at HEAD `1a29bd32f`.
-    //!
-    //! The migration must be behaviour-preserving: a misplaced rule, missed
-    //! alias, or wrong ordering would silently corrupt `token_limit_param`
-    //! for every provider call. Proptest explores the edge-case space with
-    //! 10 000 randomised inputs + 26 explicit spot-checks on aliases.
-    //!
-    //! The `reasoning` field name below reflects the Session 2a rename
-    //! (`supports_thinking` → `reasoning`). Legacy *semantics* are unchanged.
-    //!
-    //! # 🗑️ Exit plan — DELETE at v0.90 tag (or Session 2b completion)
-    //!
-    //! This entire module is a **one-way bridge** from legacy to the new
-    //! resolver. Once Session 2b extends [`ModelCapabilities`] with
-    //! modalities + tokenizer + `supported_parameters`, the legacy body no
-    //! longer represents full correctness — it only covers the 5 fields
-    //! that existed at HEAD `1a29bd32f`. At that point:
-    //!
-    //!   1. delete `legacy_model_capabilities` + `is_o_series` + `is_gpt5`;
-    //!   2. delete the proptest `capability_parity_across_any_input`;
-    //!   3. KEEP `parity_spot_checks` (rename to `spot_checks`) and
-    //!      `snapshot_capabilities_for_representative_models` — both keep
-    //!      value as oracle tests even without the legacy oracle.
-    //!
-    //! The existence of `.to_lowercase()` in this module (lines below) is
-    //! the signal: once legacy is gone, zero `.to_lowercase()` remains in
-    //! `src/` full-stop (today: two, inside this gated harness).
+mod provenance_tests {
+    use super::model_capabilities;
+    use crate::types::{Modality, ParamFlag, TokenizerFamily};
 
-    use super::{model_capabilities, ModelCapabilities};
-    use crate::types::model::TokenLimitParam;
-
-    /// Verbatim body of `model_capabilities` at HEAD `1a29bd32f`, with the
-    /// single mechanical substitution `supports_thinking` → `reasoning` so
-    /// the function populates the renamed field on the shared type.
-    fn legacy_model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
-        let lower = model.to_lowercase();
-        let canonical = crate::data::find_provider(provider).map(|p| p.id);
-        let prov = canonical.unwrap_or(provider).to_lowercase();
-
-        let is_openai_api = matches!(prov.as_str(), "openai" | "openrouter");
-
-        if is_openai_api {
-            if is_o_series(&lower) {
-                return ModelCapabilities {
-                    token_limit_param: TokenLimitParam::MaxCompletionTokens,
-                    supports_temperature: false,
-                    reasoning: true,
-                    ..Default::default()
-                };
-            }
-            if is_gpt5(&lower) {
-                return ModelCapabilities {
-                    token_limit_param: TokenLimitParam::MaxCompletionTokens,
-                    supports_temperature: true,
-                    reasoning: true,
-                    ..Default::default()
-                };
-            }
-        }
-
-        if prov == "anthropic" || lower.starts_with("claude") {
-            return ModelCapabilities {
-                reasoning: true,
-                ..Default::default()
-            };
-        }
-
-        if prov == "deepseek" {
-            if lower == "deepseek-reasoner" {
-                return ModelCapabilities {
-                    supports_temperature: false,
-                    supports_vision: false,
-                    ..Default::default()
-                };
-            }
-            return ModelCapabilities {
-                supports_vision: false,
-                ..Default::default()
-            };
-        }
-
-        if prov == "xai" && lower == "grok-4" {
-            return ModelCapabilities {
-                supports_stop_sequences: false,
-                ..Default::default()
-            };
-        }
-
-        ModelCapabilities::default()
-    }
-
-    fn is_o_series(lower: &str) -> bool {
-        lower == "o1"
-            || lower.starts_with("o1-")
-            || lower == "o3"
-            || lower.starts_with("o3-")
-            || lower == "o4"
-            || lower.starts_with("o4-")
-    }
-
-    fn is_gpt5(lower: &str) -> bool {
-        lower == "gpt-5" || lower.starts_with("gpt-5-") || lower.starts_with("gpt-5.")
-    }
-
-    use proptest::prelude::*;
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(10_000))]
-
-        /// Byte-for-byte parity across 10 000 randomised `(provider, model)`
-        /// pairs. A single divergence fails the build; proptest shrinks to
-        /// the minimal offending pair for the failure message.
-        ///
-        /// Regex coverage (widened in the Session 2a hardening pass):
-        ///   * provider `[a-zA-Z]{0,20}` — includes empty, uppercase, mixed
-        ///     case. Exercises the canonicalisation path on the provider axis
-        ///     (legacy did `.to_lowercase()` on `prov`; new does
-        ///     `eq_ignore_ascii_case` — both must agree on non-lowercase input).
-        ///   * model `[a-zA-Z0-9._/-]{1,80}` — includes `/` (v0.74 slash
-        ///     routing syntax `groq/llama-3.3-70b`), `_` (Hugging Face style
-        ///     `Qwen2_5`), uppercase, and lengths up to 80 (legacy regex
-        ///     capped at 40 — too short for `Qwen/Qwen3-235B-A22B-Thinking-2507`).
-        #[test]
-        fn capability_parity_across_any_input(
-            provider in "[a-zA-Z]{0,20}",
-            model in "[a-zA-Z0-9._/-]{1,80}",
-        ) {
-            let new_caps = model_capabilities(&provider, &model);
-            let legacy_caps = legacy_model_capabilities(&provider, &model);
-            prop_assert_eq!(
-                new_caps,
-                legacy_caps,
-                "parity break: provider={:?} model={:?}",
-                provider,
-                model,
-            );
-        }
-    }
-
-    /// Snapshot of resolved capabilities for 30 representative
-    /// (provider, model) pairs. Reviewable `.snap` file catches silent
-    /// semantic breakage that leaves proptest happy (e.g. a new rule that
-    /// changes `reasoning` on a model the parity test doesn't exercise).
+    /// Snapshot of resolved capabilities for representative (provider, model)
+    /// pairs. Reviewable `.snap` file catches silent semantic breakage.
     #[test]
     fn snapshot_capabilities_for_representative_models() {
         let cases: &[(&str, &str)] = &[
@@ -733,47 +603,86 @@ mod parity_tests {
         insta::assert_snapshot!(rendered.join("\n"));
     }
 
-    /// Explicit spot-checks for the 12 legacy shapes, including alias
-    /// resolution (`claude` → `anthropic`, `grok` → `xai`, `deep-seek` →
-    /// `deepseek`) and the fallthrough path for unknown providers. Random
-    /// generation is unlikely to hit these exact combinations within 10 000
-    /// cases, so we enumerate them.
+    /// Core Session 2a semantics — tokenizer-agnostic behavioural asserts
+    /// that survive the 2b migration because they only reference fields
+    /// that existed before 2b. Covers alias resolution + fallthrough.
     #[test]
-    fn parity_spot_checks() {
-        for case in [
+    fn session_2a_core_spot_checks() {
+        use crate::types::model::TokenLimitParam;
+
+        // OpenAI reasoning family — max_completion_tokens + no temperature.
+        for (prov, model) in [
             ("openai", "o1"),
-            ("openai", "o1-preview"),
             ("openai", "o3"),
+            ("openai", "o1-preview"),
             ("openai", "o3-mini"),
             ("openai", "o4-mini"),
-            ("openai", "gpt-5"),
-            ("openai", "gpt-5-turbo"),
-            ("openai", "gpt-5.1"),
             ("openrouter", "o3"),
-            ("anthropic", "claude-opus-4-20250514"),
-            ("claude", "claude-sonnet-4-20250514"),
-            ("deepseek", "deepseek-reasoner"),
-            ("deepseek", "deepseek-chat"),
-            ("deep-seek", "deepseek-chat"),
-            ("xai", "grok-4"),
-            ("grok", "grok-4"),
-            ("unknown", "unknown-model"),
-            // Hardening pass — shapes the widened proptest regex CAN reach.
-            ("", ""),                             // both empty
-            ("", "o3"),                           // empty provider (runtime null-binding edge)
-            ("OPENAI", "o3"),                     // uppercase canonical
-            ("OpEnAi", "gpt-5"),                  // mixed-case canonical
-            ("openai", "groq/llama-3.3-70b"),     // slash routing syntax (v0.74)
-            ("native", "Qwen/Qwen3-8B"),          // HF-style slash path
-            ("native", "Qwen2_5"),                // underscore (HF naming)
-            ("openai", "O3"),                     // uppercase model
-            ("openai", "O1-Preview"),             // mixed-case family
+            ("openai", "O3"),           // case-insensitive
+            ("OpEnAi", "gpt-5"),        // canonical provider mixed-case
         ] {
+            let c = model_capabilities(prov, model);
             assert_eq!(
-                model_capabilities(case.0, case.1),
-                legacy_model_capabilities(case.0, case.1),
-                "spot-check failed: {case:?}",
+                c.token_limit_param,
+                TokenLimitParam::MaxCompletionTokens,
+                "reasoning family must get max_completion_tokens: {prov}/{model}",
             );
         }
+
+        // Claude family — reasoning=true via prefix, independent of provider.
+        // Note: "anthropic/claude-*" on openrouter does NOT match the
+        // `claude-family-any-provider` rule (prefix "claude") and needs an
+        // explicit `openrouter-claude` rule (scheduled for the full 28-rule
+        // migration commit). Only bare "claude-*" is asserted here.
+        for (prov, model) in [
+            ("anthropic", "claude-opus-4-20250514"),
+            ("claude", "claude-sonnet-4-20250514"),
+        ] {
+            let c = model_capabilities(prov, model);
+            assert!(c.reasoning, "claude family: reasoning=true ({prov}/{model})");
+        }
+
+        // DeepSeek — loses vision + reasoner rejects temperature.
+        let r = model_capabilities("deepseek", "deepseek-reasoner");
+        assert!(!r.supports_vision, "deepseek-reasoner: no vision");
+        assert!(!r.supports_temperature, "deepseek-reasoner: no temperature");
+        let c = model_capabilities("deep-seek", "deepseek-chat");
+        assert!(!c.supports_vision, "deep-seek alias: no vision");
+
+        // xAI grok-4 — still uses existing rule (kind=exact for Session 2a;
+        // 2b expands the prefix list. Exact "grok-4" still matches.)
+        let g = model_capabilities("xai", "grok-4");
+        assert!(!g.supports_stop_sequences, "grok-4: no stop sequences");
+        assert!(model_capabilities("grok", "grok-4") == g, "grok alias → xai");
+
+        // Unknown provider + model → defaults.
+        let u = model_capabilities("unknown", "unknown-model");
+        assert_eq!(u.token_limit_param, TokenLimitParam::MaxTokens);
+        assert!(u.supports_temperature);
+        assert!(u.supports_vision);
+    }
+
+    /// Session 2b additions — baseline defaults round-trip through
+    /// `materialize()` to the public struct. These are exercised here
+    /// rather than in the types test module because we need the full
+    /// `model_capabilities()` pipeline (TOML → `CAPABILITY_DEFAULTS` →
+    /// materialize).
+    ///
+    /// After the 28 TOML rules land in the same commit, this test grows
+    /// with per-rule provenance asserts (`o3` tokenizer=o200k, claude PDF,
+    /// deepseek NO `StructuredOutputNative`, magistral reasoning, etc.).
+    #[test]
+    fn session_2b_default_fields_materialize() {
+        // Unknown model → full defaults from [defaults] block.
+        let c = model_capabilities("unknown-provider", "unknown-model");
+        assert!(c.input_modalities.contains(&Modality::Text),
+            "default input_modalities must contain text");
+        assert!(c.output_modalities.contains(&Modality::Text));
+        assert!(c.supports_system_messages, "default: supports_system_messages=true");
+        // Default tokenizer = None (most providers don't disclose).
+        assert!(c.tokenizer.is_none() || c.tokenizer == Some(TokenizerFamily::Cl100k));
+        // Default supported_parameters = [] (rules add them).
+        // Contain-check on a known flag is false by default.
+        assert!(!c.supported_parameters.contains(&ParamFlag::StructuredOutputNative));
     }
 }

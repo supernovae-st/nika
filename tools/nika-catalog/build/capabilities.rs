@@ -70,9 +70,30 @@ enum MatchEntry {
     PrefixAny { prefixes: Vec<String> },
 }
 
+/// Typed TOML tokenizer enum — serde replaces hand-written string validation.
+///
+/// The `DeepSeek` variant uses an explicit `#[serde(rename = "deepseek")]`
+/// because the `rename_all = "kebab-case"` attribute would produce
+/// `"deep-seek"` (hyphen at the lowercase→uppercase transition) — not the
+/// compact `"deepseek"` the canonical TOML uses. This is the P0 fix
+/// surfaced in Session 2b round-5 review.
+#[derive(Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "kebab-case")]
+enum TokenizerFamilyToml {
+    Cl100k,
+    O200k,
+    ClaudeV3,
+    Gemini,
+    LlamaV3,
+    MistralV3,
+    #[serde(rename = "deepseek")]
+    DeepSeek,
+}
+
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct CapsPatchEntry {
+    // ── existing 5 slots (Session 2a) ──────────────────────────────────
     #[serde(default)]
     token_limit_param: Option<String>,
     #[serde(default)]
@@ -83,6 +104,22 @@ struct CapsPatchEntry {
     reasoning: Option<bool>,
     #[serde(default)]
     supports_vision: Option<bool>,
+    // ── Session 2b additions (5 new slots) ─────────────────────────────
+    /// Typed enum (not String) — serde parse error replaces hand-written
+    /// validation on an unknown tokenizer name.
+    #[serde(default)]
+    tokenizer: Option<TokenizerFamilyToml>,
+    /// String list validated against the fixed Modality vocabulary below;
+    /// invalid strings are build-time errors (not runtime panics).
+    #[serde(default)]
+    input_modalities: Option<Vec<String>>,
+    #[serde(default)]
+    output_modalities: Option<Vec<String>>,
+    /// String list validated against the fixed `ParamFlag` vocabulary.
+    #[serde(default)]
+    supported_parameters: Option<Vec<String>>,
+    #[serde(default)]
+    supports_system_messages: Option<bool>,
 }
 
 // ─── Parse + validate ────────────────────────────────────────────────────
@@ -160,8 +197,33 @@ pub(super) fn parse_capabilities(
     })
 }
 
+/// Validate every field of a `CapsPatchEntry`.
+///
+/// Uses an exhaustive destructure so `#![deny(unused_variables)]` at the
+/// top of the parent module turns an omitted field into a compile error
+/// — adding a new slot to [`CapsPatchEntry`] without updating this
+/// function fails the build.
+// REASON: 105 lines cover 10 fields with per-field error-message branches
+// (input/output modality validation including must-contain-"text", param-flag
+// vocabulary, token_limit_param whitelist, all-None check). Splitting the
+// vocabulary checks into helpers would scatter the error-message text across
+// the file — readability win is zero.
+#[allow(clippy::too_many_lines)]
 fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), String> {
-    if let Some(t) = patch.token_limit_param.as_deref() {
+    let CapsPatchEntry {
+        token_limit_param,
+        supports_temperature,
+        supports_stop_sequences,
+        reasoning,
+        supports_vision,
+        tokenizer,                 // typed enum — serde already validated
+        input_modalities,
+        output_modalities,
+        supported_parameters,
+        supports_system_messages,
+    } = patch;
+
+    if let Some(t) = token_limit_param.as_deref() {
         match t {
             "max-tokens" | "max-completion-tokens" | "max-output-tokens" => {}
             _ => {
@@ -172,17 +234,91 @@ fn validate_caps_patch(patch: &CapsPatchEntry, where_: &str) -> Result<(), Strin
             }
         }
     }
+
+    // Validate input_modalities strings against the fixed Modality vocabulary.
+    // Reject unknown modalities at build time — clearer error than silently
+    // falling through to a parse failure in the generated Rust.
+    if let Some(list) = input_modalities {
+        if list.is_empty() {
+            return Err(format!(
+                "{where_}: input_modalities = [] is invalid — omit the field \
+                 to inherit defaults, or list at least \"text\""
+            ));
+        }
+        for m in list {
+            match m.as_str() {
+                "text" | "image" | "audio" | "video" | "pdf" => {}
+                _ => {
+                    return Err(format!(
+                        "{where_}: unknown input modality {m:?} — expected \
+                         one of: text, image, audio, video, pdf"
+                    ));
+                }
+            }
+        }
+        if !list.iter().any(|m| m == "text") {
+            return Err(format!(
+                "{where_}: input_modalities must include \"text\" (chat-capable \
+                 models always accept text input — explicit omission would \
+                 corrupt the runtime's prompt-building path)"
+            ));
+        }
+    }
+    if let Some(list) = output_modalities {
+        if list.is_empty() {
+            return Err(format!(
+                "{where_}: output_modalities = [] is invalid — omit the field \
+                 to inherit defaults, or list at least \"text\""
+            ));
+        }
+        for m in list {
+            match m.as_str() {
+                "text" | "image" | "audio" | "video" | "pdf" => {}
+                _ => {
+                    return Err(format!(
+                        "{where_}: unknown output modality {m:?} — expected \
+                         one of: text, image, audio, video, pdf"
+                    ));
+                }
+            }
+        }
+    }
+
+    // Validate supported_parameters strings against ParamFlag vocabulary.
+    if let Some(flags) = supported_parameters {
+        for f in flags {
+            match f.as_str() {
+                "parallel-tool-calls" | "reasoning-effort" | "thinking-budget"
+                | "prompt-caching" | "structured-output-native" | "file-search"
+                | "web-search" | "streaming-thinking" => {}
+                _ => {
+                    return Err(format!(
+                        "{where_}: unknown param_flag {f:?} — expected one of: \
+                         parallel-tool-calls, reasoning-effort, thinking-budget, \
+                         prompt-caching, structured-output-native, file-search, \
+                         web-search, streaming-thinking"
+                    ));
+                }
+            }
+        }
+    }
+
     // Rule-scoped caps must set at least one field; an all-None caps block
     // matches the rule but merges nothing, silently shadowing every later
     // rule for the same (provider, model) pair. `[defaults]` is allowed to
     // be all-None (would fall back to ModelCapabilities::default()), so skip
     // the check for the defaults block.
     if where_.starts_with("rule ") {
-        let all_none = patch.token_limit_param.is_none()
-            && patch.supports_temperature.is_none()
-            && patch.supports_stop_sequences.is_none()
-            && patch.reasoning.is_none()
-            && patch.supports_vision.is_none();
+        let all_none = token_limit_param.is_none()
+            && supports_temperature.is_none()
+            && supports_stop_sequences.is_none()
+            && reasoning.is_none()
+            && supports_vision.is_none()
+            && tokenizer.is_none()
+            && input_modalities.is_none()
+            && output_modalities.is_none()
+            && supported_parameters.is_none()
+            && supports_system_messages.is_none();
         if all_none {
             return Err(format!(
                 "{where_}: all caps fields are None — an empty-caps rule \
@@ -294,8 +430,103 @@ fn emit_opt<T: ?Sized>(out: &mut String, name: &str, value: Option<&T>, render_s
     writeln!(out, "    {name}: {rendered},").unwrap();
 }
 
+/// Declaration-order sort key for [`Modality`] strings.
+///
+/// P0-2 fix: the enum derives `Ord` by declaration order
+/// (`Text=0, Image=1, Audio=2, Video=3, Pdf=4`), but naive alphabetical
+/// sorting emits `audio < image < pdf < text < video` — the emitted slice
+/// would NOT be sorted under the derived `Ord`, and any future caller
+/// using `binary_search(&Modality::Text)` would silently miss.
+fn modality_sort_order(s: &str) -> u8 {
+    match s {
+        "text" => 0,
+        "image" => 1,
+        "audio" => 2,
+        "video" => 3,
+        "pdf" => 4,
+        _ => 255, // validate_caps_patch rejects unknown strings earlier
+    }
+}
+
+/// Same invariant as [`modality_sort_order`] — declaration order must
+/// agree with emitted slice order.
+fn param_flag_sort_order(s: &str) -> u8 {
+    match s {
+        "parallel-tool-calls" => 0,
+        "reasoning-effort" => 1,
+        "thinking-budget" => 2,
+        "prompt-caching" => 3,
+        "structured-output-native" => 4,
+        "file-search" => 5,
+        "web-search" => 6,
+        "streaming-thinking" => 7,
+        _ => 255,
+    }
+}
+
+fn modality_variant(s: &str) -> &'static str {
+    match s {
+        "text" => "Text",
+        "image" => "Image",
+        "audio" => "Audio",
+        "video" => "Video",
+        "pdf" => "Pdf",
+        _ => unreachable!("validated earlier: modality={s}"),
+    }
+}
+
+fn param_flag_variant(s: &str) -> &'static str {
+    match s {
+        "parallel-tool-calls" => "ParallelToolCalls",
+        "reasoning-effort" => "ReasoningEffort",
+        "thinking-budget" => "ThinkingBudget",
+        "prompt-caching" => "PromptCaching",
+        "structured-output-native" => "StructuredOutputNative",
+        "file-search" => "FileSearch",
+        "web-search" => "WebSearch",
+        "streaming-thinking" => "StreamingThinking",
+        _ => unreachable!("validated earlier: param_flag={s}"),
+    }
+}
+
+/// Emit a `&[Modality::X, Modality::Y, …]` literal, sorted by declaration
+/// order (P0-2 invariant) with duplicates collapsed.
+fn emit_modality_slice(list: &[String]) -> String {
+    let mut sorted = list.to_vec();
+    sorted.sort_by_key(|m| modality_sort_order(m));
+    sorted.dedup();
+    let variants: Vec<String> = sorted
+        .iter()
+        .map(|m| format!("crate::types::Modality::{}", modality_variant(m)))
+        .collect();
+    format!("&[{}]", variants.join(", "))
+}
+
+fn emit_param_flag_slice(list: &[String]) -> String {
+    let mut sorted = list.to_vec();
+    sorted.sort_by_key(|p| param_flag_sort_order(p));
+    sorted.dedup();
+    let variants: Vec<String> = sorted
+        .iter()
+        .map(|p| format!("crate::types::ParamFlag::{}", param_flag_variant(p)))
+        .collect();
+    format!("&[{}]", variants.join(", "))
+}
+
+fn emit_tokenizer_variant(t: TokenizerFamilyToml) -> &'static str {
+    match t {
+        TokenizerFamilyToml::Cl100k => "crate::types::TokenizerFamily::Cl100k",
+        TokenizerFamilyToml::O200k => "crate::types::TokenizerFamily::O200k",
+        TokenizerFamilyToml::ClaudeV3 => "crate::types::TokenizerFamily::ClaudeV3",
+        TokenizerFamilyToml::Gemini => "crate::types::TokenizerFamily::Gemini",
+        TokenizerFamilyToml::LlamaV3 => "crate::types::TokenizerFamily::LlamaV3",
+        TokenizerFamilyToml::MistralV3 => "crate::types::TokenizerFamily::MistralV3",
+        TokenizerFamilyToml::DeepSeek => "crate::types::TokenizerFamily::DeepSeek",
+    }
+}
+
 fn emit_cap_patch(p: &CapsPatchEntry) -> String {
-    let mut out = String::with_capacity(256);
+    let mut out = String::with_capacity(512);
     out.push_str("crate::types::capabilities::CapPatch {\n");
     emit_opt(&mut out, "token_limit_param", p.token_limit_param.as_deref(), |t| {
         format!("crate::types::TokenLimitParam::{}", token_limit_variant(t))
@@ -304,6 +535,20 @@ fn emit_cap_patch(p: &CapsPatchEntry) -> String {
     emit_opt(&mut out, "supports_stop_sequences", p.supports_stop_sequences.as_ref(), bool::to_string);
     emit_opt(&mut out, "reasoning", p.reasoning.as_ref(), bool::to_string);
     emit_opt(&mut out, "supports_vision", p.supports_vision.as_ref(), bool::to_string);
+    // Session 2b additions — 5 new slots.
+    emit_opt(&mut out, "input_modalities", p.input_modalities.as_deref(), |list: &[String]| {
+        emit_modality_slice(list)
+    });
+    emit_opt(&mut out, "output_modalities", p.output_modalities.as_deref(), |list: &[String]| {
+        emit_modality_slice(list)
+    });
+    emit_opt(&mut out, "tokenizer", p.tokenizer.as_ref(), |t: &TokenizerFamilyToml| {
+        emit_tokenizer_variant(*t).to_string()
+    });
+    emit_opt(&mut out, "supported_parameters", p.supported_parameters.as_deref(), |list: &[String]| {
+        emit_param_flag_slice(list)
+    });
+    emit_opt(&mut out, "supports_system_messages", p.supports_system_messages.as_ref(), bool::to_string);
     out.push('}');
     out
 }
