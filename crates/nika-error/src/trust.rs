@@ -71,11 +71,11 @@ impl TrustLevel {
     }
 }
 
-impl Default for TrustLevel {
-    fn default() -> Self {
-        Self::UNTRUSTED
-    }
-}
+// No `Default` impl: trust must be a deliberate construction at every
+// call site. `TrustLevel::default()` previously returned `UNTRUSTED` (50),
+// which sits ABOVE `SANDBOXED` (10) in the lattice — a silent inversion of
+// safe-by-default for capability gates using `is_at_least(SANDBOXED)`.
+// Removed in Wave 3 (P1-2, rust-security).
 
 impl fmt::Display for TrustLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -209,11 +209,6 @@ mod tests {
         let err = "bogus".parse::<TrustLevel>().unwrap_err();
         assert_eq!(err.input, "bogus");
         assert!(err.to_string().contains("bogus"));
-    }
-
-    #[test]
-    fn default_is_untrusted() {
-        assert_eq!(TrustLevel::default(), TrustLevel::UNTRUSTED);
     }
 
     #[test]

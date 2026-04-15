@@ -71,28 +71,62 @@ impl Cost {
     }
 
     /// Multiply by a scalar (e.g., token count). Saturating.
+    ///
+    /// Kept saturating because the scale factor is always non-negative
+    /// (token count) — overflow here means we're pricing more tokens than
+    /// the universe can hold, so clamping to `i128::MAX` is safe.
     #[must_use]
     pub fn saturating_mul(self, factor: u64) -> Self {
         Self {
             nano_usd: self.nano_usd.saturating_mul(i128::from(factor)),
         }
     }
+
+    /// Checked addition. Returns `None` on overflow.
+    ///
+    /// Prefer this over `+` in billing aggregation where overflow must be
+    /// observable (ledger reconciliation, invoice generation).
+    #[must_use]
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
+        self.nano_usd
+            .checked_add(rhs.nano_usd)
+            .map(|nano_usd| Self { nano_usd })
+    }
+
+    /// Checked subtraction. Returns `None` on underflow.
+    ///
+    /// Prefer this over `-` in billing aggregation where underflow must be
+    /// observable (credit balance, refund reconciliation).
+    #[must_use]
+    pub fn checked_sub(self, rhs: Self) -> Option<Self> {
+        self.nano_usd
+            .checked_sub(rhs.nano_usd)
+            .map(|nano_usd| Self { nano_usd })
+    }
 }
 
+/// `+` follows stdlib `i128` semantics (panic in debug, wrap in release).
+///
+/// For billing aggregation where overflow must be observable, use
+/// [`Cost::checked_add`] instead.
 impl Add for Cost {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
         Self {
-            nano_usd: self.nano_usd.saturating_add(rhs.nano_usd),
+            nano_usd: self.nano_usd + rhs.nano_usd,
         }
     }
 }
 
+/// `-` follows stdlib `i128` semantics (panic in debug, wrap in release).
+///
+/// For billing aggregation where underflow must be observable, use
+/// [`Cost::checked_sub`] instead.
 impl Sub for Cost {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
         Self {
-            nano_usd: self.nano_usd.saturating_sub(rhs.nano_usd),
+            nano_usd: self.nano_usd - rhs.nano_usd,
         }
     }
 }
@@ -181,6 +215,34 @@ mod tests {
         let big = Cost::new(i128::MAX / 2);
         let result = big.saturating_mul(u64::MAX);
         assert_eq!(result.nano_usd, i128::MAX); // saturated, not panicked
+    }
+
+    #[test]
+    fn checked_add_overflow_returns_none() {
+        let a = Cost::new(i128::MAX);
+        let b = Cost::new(1);
+        assert_eq!(a.checked_add(b), None);
+    }
+
+    #[test]
+    fn checked_add_in_range_returns_some() {
+        let a = Cost::from_micro_usd(100);
+        let b = Cost::from_micro_usd(200);
+        assert_eq!(a.checked_add(b), Some(Cost::from_micro_usd(300)));
+    }
+
+    #[test]
+    fn checked_sub_underflow_returns_none() {
+        let a = Cost::new(i128::MIN);
+        let b = Cost::new(1);
+        assert_eq!(a.checked_sub(b), None);
+    }
+
+    #[test]
+    fn checked_sub_in_range_returns_some() {
+        let a = Cost::from_micro_usd(300);
+        let b = Cost::from_micro_usd(100);
+        assert_eq!(a.checked_sub(b), Some(Cost::from_micro_usd(200)));
     }
 
     #[test]
