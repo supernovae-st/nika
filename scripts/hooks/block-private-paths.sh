@@ -31,12 +31,19 @@ readonly PRIVATE_PATTERNS=(
 )
 
 # Get staged files in the engine context (exclude deleted files).
-# Skip scripts/hooks/ — those files legitimately list the very patterns we
-# guard against (as regex literals in PRIVATE_PATTERNS), which would cause
-# a self-referential false-positive.
+# Self-exclusion — these directories legitimately enumerate the very patterns
+# we guard against, which would cause self-referential false-positives:
+#   scripts/hooks/     the guarding code + its PRIVATE_PATTERNS constants
+#   scripts/hygiene/   vectors that spot-check privacy (patterns.conf, tests)
+#   scripts/test/      red-team fixtures that describe blocked scenarios
+#   scripts/ci/        CI ratchets that may count/grep private-path refs
+# See P1-7 Batch H+ (per BATCH_H_PLUS_DECISIONS.md Q-PRIVATE).
 STAGED=()
 while IFS= read -r _f; do
-  [[ -n "$_f" && "$_f" != scripts/hooks/* ]] && STAGED+=("$_f")
+  case "$_f" in
+    '' | scripts/hooks/* | scripts/hygiene/* | scripts/test/* | scripts/ci/*) ;;
+    *) STAGED+=("$_f") ;;
+  esac
 done < <(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
 
 if ((${#STAGED[@]} == 0)); then
