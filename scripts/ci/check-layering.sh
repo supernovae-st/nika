@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# check-layering.sh — enforce L0 → L5 dependency discipline per ADR-006.
+#
+# Validates that every admitted crate declared in [workspace.metadata.diamond.layers]
+# respects DOWNWARD-ONLY dependency flow:
+#
+#   L0  → nothing (zero deps on workspace members)
+#   L0.5 → L0 only
+#   L1  → L0, L0.5
+#   L2  → L0, L0.5, L1
+#   L3  → L0, L0.5, L1, L2
+#   L4  → L0, L0.5, L1, L2, L3
+#   L5  → L0, L0.5, L1, L2, L3, L4
+#
+# Usage:
+#   bash scripts/ci/check-layering.sh
+#
+# Exit:
+#   0 — all layer constraints respected
+#   2 — at least one upward dep (RED)
+#
+# Source of truth:
+#   - Cargo.toml [workspace.metadata.diamond.layers]
+#   - docs/architecture/crate-layer-registry.md
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT" || exit 2
+
+# Layer numeric rank (for comparison).
+layer_rank() {
+  case "$1" in
+    "L0") echo 0 ;;
+    "L0.5") echo 1 ;;
+    "L1") echo 2 ;;
+    "L2") echo 3 ;;
+    "L3") echo 4 ;;
+    "L4") echo 5 ;;
+    "L5") echo 6 ;;
+    *) echo -1 ;;
+  esac
+}
+
+# Parse [workspace.metadata.diamond.layers] from Cargo.toml.
+# Output: one "crate=layer" per line.
+parse_layers() {
+  awk '
+    /^\[workspace\.metadata\.diamond\]/ { in_section = 1; next }
+    /^\[/ && in_section { in_section = 0 }
+    in_section && /^layers\./ {
+      gsub(/^layers\./, "")
+      gsub(/ /, "")
+      gsub(/"/, "")
+      print
+    }
+  ' Cargo.toml
+}
+
+# Build an associative array: crate → layer
+declare -A CRATE_LAYER
+while IFS='=' read -r crate layer; do
+  [ -z "$crate" ] && continue
+  CRATE_LAYER["$crate"]="$layer"
+done < <(parse_layers)
+
+if [ ${#CRATE_LAYER[@]} -eq 0 ]; then
+  echo "❌ No [workspace.metadata.diamond.layers] section found in Cargo.toml" >&2
+  exit 2
+fi
+
+violations=0
+
+# For each admitted crate, check its Cargo.toml dependencies.
+for crate in "${!CRATE_LAYER[@]}"; do
+  crate_toml="crates/${crate}/Cargo.toml"
+  if [ ! -f "$crate_toml" ]; then
+    echo "⚠️  ${crate}: Cargo.toml not found (skipping)" >&2
+    continue
+  fi
+
+  current_layer="${CRATE_LAYER[$crate]}"
+  current_rank=$(layer_rank "$current_layer")
+
+  # Extract workspace-member deps (lines like `nika-xxx = { ... path = "../..." ... }`
+  # or `nika-xxx = { workspace = true }` or `nika-xxx.workspace = true`).
+  # Matches the crate name (LHS) before `=`.
+  deps=$(awk '
+    /^\[dependencies\]/ || /^\[dev-dependencies\]/ || /^\[build-dependencies\]/ { in_deps = 1; next }
+    /^\[/ && in_deps { in_deps = 0 }
+    in_deps && /^nika-[a-z-]+[[:space:]]*=/ {
+      split($0, parts, "=")
+      gsub(/[[:space:]]/, "", parts[1])
+      print parts[1]
+    }
+    in_deps && /^nika-[a-z-]+\.workspace[[:space:]]*=/ {
+      split($0, parts, ".")
+      gsub(/[[:space:]]/, "", parts[1])
+      print parts[1]
+    }
+  ' "$crate_toml" | sort -u)
+
+  for dep in $deps; do
+    # Only check workspace-member deps
+    if [ -z "${CRATE_LAYER[$dep]:-}" ]; then
+      continue
+    fi
+    dep_layer="${CRATE_LAYER[$dep]}"
+    dep_rank=$(layer_rank "$dep_layer")
+
+    # Strict-upward only: dep must be at SAME or LOWER layer than consumer.
+    # (Same-layer OK: L0 can use L0, L0.5 mock can use L0.5 kernel, etc.)
+    if [ "$dep_rank" -gt "$current_rank" ]; then
+      echo "❌ UPWARD DEP: ${crate} (${current_layer}) depends on ${dep} (${dep_layer})" >&2
+      violations=$((violations + 1))
+    fi
+  done
+done
+
+if [ "$violations" -gt 0 ]; then
+  echo "" >&2
+  echo "Found $violations layering violation(s). See docs/architecture/crate-layer-registry.md." >&2
+  exit 2
+fi
+
+echo "OK: all ${#CRATE_LAYER[@]} admitted crates respect layer discipline"
+exit 0

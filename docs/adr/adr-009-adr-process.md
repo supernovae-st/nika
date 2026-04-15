@@ -109,7 +109,7 @@ ADRs are **never deleted**.
 - `docs/adr/README.md` — full process doc + template usage
 - `docs/adr/TEMPLATE.md` — mandatory template
 - `scripts/ci/check-adr-coverage.sh` — the coverage hook
-- `docs/adr/adr-001-...` through `adr-008-...` — 8 inaugural ADRs demonstrating the process
+- `docs/adr/adr-001-diamond-orphan-branch.md` through `adr-008-toml-driven-catalog.md` — 8 inaugural ADRs demonstrating the process
 - memory: `POST_AUDIT_REVISIONS.md` — the process hole that motivated this meta-ADR
 - Legacy reference: `archive/nika-v0.79/adr/LEGACY-NOTE.md` (supernovae-hq monorepo) — the rot that this ADR prevents
 

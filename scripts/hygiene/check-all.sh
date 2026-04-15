@@ -69,7 +69,7 @@ run_check() {
   fi
 }
 
-# --- All 20 vectors ---
+# --- All 21 vectors ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"
@@ -90,6 +90,7 @@ run_check "17 adr-supersede-cycles " "check-adr-cycles.sh"
 run_check "18 adr-dangling-refs    " "check-adr-dangling.sh"
 run_check "19 adr-orphan-proposed  " "check-adr-orphan-proposed.sh"
 run_check "20 adr-evidence-paths   " "check-adr-evidence.sh"
+run_check "21 layer-discipline     " "check-layering.sh"
 
 # --- Output ---
 g=0

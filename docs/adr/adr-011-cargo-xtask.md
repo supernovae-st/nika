@@ -63,7 +63,7 @@ Shell scripts stay as **thin shims** calling `cargo xtask <subcmd>` until fully 
 
 ## Evidence
 
-- Pattern source: rust-lang/rust `src/tools/x`, rust-analyzer `xtask`, tokio `xtask`
+- Pattern source: [rust-lang/rust x tool](https://github.com/rust-lang/rust/tree/master/src/tools/x), rust-analyzer `xtask`, tokio `xtask` (upstream examples, not local paths)
 - `scripts/ci/*.sh` — 10 scripts currently
 - `scripts/hygiene/*.sh` (in supernovae-hq parent) — 11 scripts
 
