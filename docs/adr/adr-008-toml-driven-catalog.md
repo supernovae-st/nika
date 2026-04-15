@@ -98,3 +98,13 @@ Rejected. No comments, more fragile indentation, harder to review in diff.
 ## Notes
 
 Session 2b (next) expands the rule table to 28 entries + 5 new ModelCapabilities fields (Modality, TokenizerFamily, ParamFlag, supports_system_messages, supports_reasoning). Session 3 adds pricing schema + 8 providers without rules + 4 new providers (qwen, minimax, moonshot, zhipu). Schema version stays `@1.0` — invariants #19 and #11 of `forward-compat-invariants.md` allow extension without version bump.
+
+## Implementation notes — Session 2b / Session 3
+
+The P0-1 "two sources of truth" hazard (Rust `Default` impl + TOML `[defaults]` diverging silently) is now closed by three coordinated measures:
+
+- `CapPatch::materialize(&CAPABILITY_DEFAULTS)` draws every unset field from the TOML `[defaults]` block at resolve time. The Rust `ModelCapabilities::default()` impl is kept only as an internal-crate shortcut for test scaffolding and struct-literal ergonomics; it is never consulted by the resolver.
+- The `materialize_defaults_agree_with_rust_default_impl` unit test (in `src/types/capabilities.rs`) asserts that the TOML-shaped defaults materialise into the same `ModelCapabilities` as the Rust `Default` impl — any edit to one without the other fails the test.
+- Session 3 Phase G tightens `validate_caps_patch(&file.defaults, "[defaults]", require_all=true)` so the `[defaults]` block must explicitly set every field that has an `unwrap_or` fallback in `materialize` (8 of 9 slots; `tokenizer` stays legitimately optional by design). The hard-coded fallbacks in `materialize` become structurally unreachable for any TOML that passes build-time validation; `debug_assert!` lines in `materialize` catch runtime regressions in debug mode at zero release cost.
+
+Session 3 also retires the coarse `ModelCapabilities::supports_vision: bool` — consumers migrate to `input_modalities.contains(&Modality::Image)`, which was the Session 2b replacement. The pricing catalog is extended with three `Option<f64>` axes (cached input, image, reasoning tokens); the full TOML-driven pricing migration (new `data/model-pricing.toml` + `build/pricing.rs`) is scheduled as Phase E2 of Session 4.
