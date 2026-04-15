@@ -12,6 +12,11 @@
 #   No duplication with root: root hooks fire on monorepo commits;
 #   engine hooks fire on commits made inside nika/engine/.
 
+prepare-commit-msg:
+  commands:
+    inject-coauthor:
+      run: bash scripts/hooks/prepare-commit-msg.sh {1} {2}
+
 commit-msg:
   commands:
     validate-message:
