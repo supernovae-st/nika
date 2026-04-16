@@ -114,3 +114,69 @@ pub use tool_executor::{
 };
 pub use trace::{SpanGuard, TracerProvider};
 pub use types::{TaskId, WorkflowMeta};
+
+/// Convenience re-export hub for L2+ verb crates.
+///
+/// Depending on `nika-kernel` alone gives access to foundation types
+/// (ids, cost, trust, baggage, retry, checkpoint, cancel, memory, role,
+/// token usage, resource, hash, schema, budget, compression) plus the
+/// `NikaError` / `NikaResult` hierarchy — no need to add explicit
+/// `nika-error` or `nika-types` deps.
+///
+/// Kernel traits (`Provider`, `Clock`, `Fs`, etc.) stay at the crate
+/// root; import them alongside the prelude:
+///
+/// ```rust
+/// use nika_kernel::{prelude::*, Provider, InferRequest};
+/// ```
+pub mod prelude {
+    pub use nika_error::prelude::*;
+}
+
+#[cfg(test)]
+mod prelude_tests {
+    //! Pins the prelude contract so the upcoming `nika-error` carve-out
+    //! (Q2 split seam) cannot silently drop a re-exported symbol without
+    //! a verb-crate compile failure.
+
+    #[allow(clippy::wildcard_imports)]
+    use crate::prelude::*;
+
+    #[test]
+    fn value_types_reexported() {
+        let _: Cost = Cost::default();
+        let _: TrustLevel = TrustLevel::TRUSTED;
+        let _: Role = Role::Assistant;
+        let _: Baggage = Baggage::new();
+        let _: RetryConfig = RetryConfig::new(3);
+        let _: TokenUsage = TokenUsage::new(0, 0);
+        let _: Blake3Hash = Blake3Hash::new([0u8; 32]);
+        let _: fn() -> NikaResult<()> = || Ok(());
+    }
+
+    #[test]
+    fn error_hierarchy_reexported() {
+        let _: NikaCode = codes::NIKA_001;
+        let _: Severity = Severity::Error;
+        let _: CoreError = CoreError::Validation {
+            reason: String::new(),
+        };
+    }
+
+    #[test]
+    fn id_and_hash_cluster_reexported() {
+        fn _accepts<T>() {}
+        _accepts::<RunId>();
+        _accepts::<WorkflowId>();
+        _accepts::<EventId>();
+        _accepts::<TraceId>();
+        _accepts::<SpanId>();
+        _accepts::<TaskId>();
+        _accepts::<BlobRef>();
+        _accepts::<ContentDigest>();
+        _accepts::<ErrorCategory>();
+        _accepts::<CompressionPolicy>();
+        _accepts::<CancelCtx>();
+        _accepts::<AgentCheckpoint>();
+    }
+}
