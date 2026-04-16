@@ -25,6 +25,7 @@ serde   = ["dep:serde", "dep:serde_json", "dep:uuid"]
 
 [dev-dependencies]
 serde_json = { workspace = true }
+proptest   = { workspace = true }
 
 [lints]
 workspace = true

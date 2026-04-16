@@ -577,4 +577,69 @@ mod tests {
         _assert_send_sync::<ModelId>();
         _assert_send_sync::<TaskId>();
     }
+
+    // ─── Proptest: serde JSON roundtrip invariants ──────────────────
+
+    proptest::proptest! {
+        /// Every valid UTF-8 non-empty string roundtrips through TenantId
+        /// via serde JSON.
+        #[test]
+        fn tenant_id_serde_json_roundtrip(s in "[a-zA-Z0-9_\\-]{1,64}") {
+            let id = TenantId::new(s.clone());
+            let json = serde_json::to_string(&id).expect("ser");
+            let back: TenantId = serde_json::from_str(&json).expect("de");
+            proptest::prop_assert_eq!(back.as_str(), s.as_str());
+        }
+
+        /// Same roundtrip invariant for ProviderId.
+        #[test]
+        fn provider_id_serde_json_roundtrip(s in "[a-z0-9\\-]{1,32}") {
+            let id = ProviderId::new(s.clone());
+            let json = serde_json::to_string(&id).expect("ser");
+            let back: ProviderId = serde_json::from_str(&json).expect("de");
+            proptest::prop_assert_eq!(back.as_str(), s.as_str());
+        }
+
+        /// Same roundtrip invariant for ModelId.
+        #[test]
+        fn model_id_serde_json_roundtrip(s in "[a-zA-Z0-9._\\-]{1,64}") {
+            let id = ModelId::new(s.clone());
+            let json = serde_json::to_string(&id).expect("ser");
+            let back: ModelId = serde_json::from_str(&json).expect("de");
+            proptest::prop_assert_eq!(back.as_str(), s.as_str());
+        }
+
+        /// TaskId roundtrip for workflow-named task ids.
+        #[test]
+        fn task_id_serde_json_roundtrip(s in "[a-zA-Z_][a-zA-Z0-9_\\-]{0,63}") {
+            let id = TaskId::new(s.clone());
+            let json = serde_json::to_string(&id).expect("ser");
+            let back: TaskId = serde_json::from_str(&json).expect("de");
+            proptest::prop_assert_eq!(back.as_str(), s.as_str());
+        }
+    }
+
+    // Binary-ID proptest: TraceId (W3C 16-byte) + SpanId (W3C 8-byte)
+    // must roundtrip through serde JSON for every random byte array.
+    proptest::proptest! {
+        #[test]
+        fn trace_id_random_bytes_roundtrip(
+            bytes in proptest::array::uniform16(proptest::num::u8::ANY),
+        ) {
+            let id = TraceId::new(bytes);
+            let json = serde_json::to_string(&id).expect("ser");
+            let back: TraceId = serde_json::from_str(&json).expect("de");
+            proptest::prop_assert_eq!(back, id);
+        }
+
+        #[test]
+        fn span_id_random_bytes_roundtrip(
+            bytes in proptest::array::uniform8(proptest::num::u8::ANY),
+        ) {
+            let id = SpanId::new(bytes);
+            let json = serde_json::to_string(&id).expect("ser");
+            let back: SpanId = serde_json::from_str(&json).expect("de");
+            proptest::prop_assert_eq!(back, id);
+        }
+    }
 }

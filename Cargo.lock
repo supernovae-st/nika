@@ -1232,6 +1232,7 @@ dependencies = [
 name = "nika-types"
 version = "0.80.0"
 dependencies = [
+ "proptest",
  "serde",
  "serde_json",
  "uuid",

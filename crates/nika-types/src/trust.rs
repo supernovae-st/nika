@@ -226,4 +226,82 @@ mod tests {
     fn trust_level_is_send_sync() {
         _assert_send_sync::<TrustLevel>();
     }
+
+    // ── Lattice invariants (proptest) ──────────────────────────────
+
+    proptest::proptest! {
+        /// Meet ≤ both operands (greatest lower bound).
+        #[test]
+        fn meet_is_lower_bound(a in 0u8..=255, b in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            let tb = TrustLevel::new(b);
+            let m = ta.meet(tb);
+            proptest::prop_assert!(m <= ta);
+            proptest::prop_assert!(m <= tb);
+        }
+
+        /// Join ≥ both operands (least upper bound).
+        #[test]
+        fn join_is_upper_bound(a in 0u8..=255, b in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            let tb = TrustLevel::new(b);
+            let j = ta.join(tb);
+            proptest::prop_assert!(j >= ta);
+            proptest::prop_assert!(j >= tb);
+        }
+
+        /// Meet + join idempotence: meet(a,a) == a, join(a,a) == a.
+        #[test]
+        fn meet_join_idempotent(a in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            proptest::prop_assert_eq!(ta.meet(ta), ta);
+            proptest::prop_assert_eq!(ta.join(ta), ta);
+        }
+
+        /// Commutativity: meet(a,b) == meet(b,a); join(a,b) == join(b,a).
+        #[test]
+        fn meet_join_commutative(a in 0u8..=255, b in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            let tb = TrustLevel::new(b);
+            proptest::prop_assert_eq!(ta.meet(tb), tb.meet(ta));
+            proptest::prop_assert_eq!(ta.join(tb), tb.join(ta));
+        }
+
+        /// Associativity of meet + join across three values.
+        #[test]
+        fn meet_join_associative(a in 0u8..=255, b in 0u8..=255, c in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            let tb = TrustLevel::new(b);
+            let tc = TrustLevel::new(c);
+            proptest::prop_assert_eq!(ta.meet(tb).meet(tc), ta.meet(tb.meet(tc)));
+            proptest::prop_assert_eq!(ta.join(tb).join(tc), ta.join(tb.join(tc)));
+        }
+
+        /// Absorption: meet(a, join(a,b)) == a  and  join(a, meet(a,b)) == a.
+        #[test]
+        fn meet_join_absorption(a in 0u8..=255, b in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            let tb = TrustLevel::new(b);
+            proptest::prop_assert_eq!(ta.meet(ta.join(tb)), ta);
+            proptest::prop_assert_eq!(ta.join(ta.meet(tb)), ta);
+        }
+
+        /// is_at_least matches numeric comparison.
+        #[test]
+        fn is_at_least_matches_ord(a in 0u8..=255, b in 0u8..=255) {
+            let ta = TrustLevel::new(a);
+            let tb = TrustLevel::new(b);
+            proptest::prop_assert_eq!(ta.is_at_least(tb), a >= b);
+        }
+
+        /// FromStr numeric roundtrip for every u8.
+        #[test]
+        fn from_str_numeric_roundtrip(a in 0u8..=255) {
+            use alloc::string::ToString;
+            let ta = TrustLevel::new(a);
+            // Serialise as decimal number (not named form).
+            let parsed: TrustLevel = a.to_string().parse().unwrap();
+            proptest::prop_assert_eq!(parsed, ta);
+        }
+    }
 }
