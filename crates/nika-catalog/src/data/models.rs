@@ -602,7 +602,7 @@ mod tests {
 #[cfg(all(test, feature = "capabilities"))]
 mod provenance_tests {
     use super::model_capabilities;
-    use crate::types::{Modality, ParamFlag, TokenizerFamily};
+    use crate::types::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
     /// Snapshot of resolved capabilities for representative (provider, model)
     /// pairs. Reviewable `.snap` file catches silent semantic breakage.
@@ -733,7 +733,7 @@ mod provenance_tests {
     ///
     /// After the 28 TOML rules land in the same commit, this test grows
     /// with per-rule provenance asserts (`o3` tokenizer=o200k, claude PDF,
-    /// deepseek NO `StructuredOutputNative`, magistral reasoning, etc.).
+    /// deepseek `json_mode=Object`, magistral reasoning, etc.).
     #[test]
     fn session_2b_default_fields_materialize() {
         // Unknown model → full defaults from [defaults] block.
@@ -757,11 +757,10 @@ mod provenance_tests {
             c.tokenizer.is_none(),
             "default tokenizer must be None (TOML [defaults] omits the field)"
         );
-        // Default supported_parameters = [] (rules add them).
-        // Contain-check on a known flag is false by default.
+        // Default json_mode = None (rules set it for specific models).
         assert!(
-            !c.supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative)
+            c.json_mode.is_none(),
+            "default json_mode must be None (rules set it)"
         );
         // Default context window / max output = None. TOML [defaults]
         // intentionally omits these (values are per-model, not per-family).
@@ -889,10 +888,10 @@ mod provenance_tests {
                 .contains(&ParamFlag::PromptCaching),
             "prompt-caching: from claude-family rule"
         );
-        assert!(
-            claude
-                .supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative)
+        assert_eq!(
+            claude.json_mode,
+            Some(JsonMode::Schema),
+            "claude: json_schema enforcement"
         );
         assert!(
             claude
@@ -908,16 +907,15 @@ mod provenance_tests {
             "claude: PDF supported (all active models)"
         );
 
-        // [11-12] deepseek — no StructuredOutputNative (json_object only).
+        // [11-12] deepseek — json_object only (NOT json_schema).
         let deepseek = model_capabilities("deepseek", "deepseek-chat");
         assert!(
             !deepseek.input_modalities.contains(&Modality::Image),
             "deepseek: no vision API"
         );
-        assert!(
-            !deepseek
-                .supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative),
+        assert_eq!(
+            deepseek.json_mode,
+            Some(JsonMode::Object),
             "deepseek: json_object only (NOT json_schema)"
         );
         assert_eq!(deepseek.tokenizer, Some(TokenizerFamily::DeepSeek));
@@ -927,10 +925,10 @@ mod provenance_tests {
             deepseek_r.reasoning,
             "deepseek-reasoner: reasoning=true (was MISSING pre-2b)"
         );
-        assert!(
-            !deepseek_r
-                .supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative)
+        assert_eq!(
+            deepseek_r.json_mode,
+            Some(JsonMode::Object),
+            "deepseek-reasoner: json_object only"
         );
 
         // [13] xai-grok4 — reasoning, no temperature, no stop, no tokenizer.
@@ -1017,10 +1015,9 @@ mod provenance_tests {
             !codestral.input_modalities.contains(&Modality::Image),
             "codestral: text-only"
         );
-        assert!(
-            codestral
-                .supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative),
+        assert_eq!(
+            codestral.json_mode,
+            Some(JsonMode::Schema),
             "codestral: json_schema on chat completions endpoint"
         );
 
@@ -1060,16 +1057,16 @@ mod provenance_tests {
             "voyage: embedding-only"
         );
         assert!(
-            !voyage
-                .supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative)
+            voyage.json_mode.is_none(),
+            "voyage: no json_mode (embedding-only)"
         );
 
         // [28] mock-full — all flags.
         let mock = model_capabilities("mock", "any-model");
-        assert!(
-            mock.supported_parameters
-                .contains(&ParamFlag::StructuredOutputNative)
+        assert_eq!(
+            mock.json_mode,
+            Some(JsonMode::Schema),
+            "mock: json_schema enforcement"
         );
         assert!(
             mock.supported_parameters

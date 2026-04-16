@@ -5,11 +5,11 @@
 //!
 //! Session 2b introduces [`ParamFlag`] so a [`crate::types::ModelCapabilities`]
 //! can declare which optional knobs a provider/model actually accepts —
-//! e.g. `parallel_tool_calls`, `reasoning_effort`, native `json_schema`
-//! enforcement, `web_search`. The runtime routes requests conditionally:
-//! if [`ParamFlag::StructuredOutputNative`] is present, emit a
-//! `response_format = { type: "json_schema", … }`; otherwise fall back to
-//! prompt-engineering. This is the Gate 2 key flag.
+//! e.g. `parallel_tool_calls`, `reasoning_effort`, `web_search`.
+//!
+//! Note: `StructuredOutputNative` was removed in Session 4a and replaced
+//! by the [`crate::types::JsonMode`] enum on [`crate::types::ModelCapabilities`],
+//! which provides 3-level granularity (unavailable / object / schema).
 
 /// API-level parameter capability flag.
 ///
@@ -39,11 +39,6 @@ pub enum ParamFlag {
     /// `Anthropic` `cache_control` on message parts / system prompts.
     /// Gemini implicit caching exposed via explicit cache API. Grok beta.
     PromptCaching,
-    /// Native JSON-schema enforcement via `response_format = json_schema`.
-    /// The Gate 2 key flag. Providers: anthropic, openai, gemini, mistral,
-    /// xAI, perplexity, cohere. **NOT** `DeepSeek` (`json_object` only),
-    /// **NOT** ai21/jamba (`json_object` only).
-    StructuredOutputNative,
     /// `OpenAI` `file_search` tool — built-in retrieval augmentation.
     FileSearch,
     /// Provider-native web search tool (`web_search_preview`, Grok
@@ -64,7 +59,6 @@ impl ParamFlag {
             Self::ReasoningEffort => "reasoning-effort",
             Self::ThinkingBudget => "thinking-budget",
             Self::PromptCaching => "prompt-caching",
-            Self::StructuredOutputNative => "structured-output-native",
             Self::FileSearch => "file-search",
             Self::WebSearch => "web-search",
             Self::StreamingThinking => "streaming-thinking",
@@ -101,8 +95,7 @@ impl core::fmt::Display for ParseParamFlagError {
             f,
             "unknown param flag {:?} — expected one of: \
              parallel-tool-calls, reasoning-effort, thinking-budget, \
-             prompt-caching, structured-output-native, file-search, \
-             web-search, streaming-thinking",
+             prompt-caching, file-search, web-search, streaming-thinking",
             self.input
         )
     }
@@ -119,7 +112,6 @@ impl core::str::FromStr for ParamFlag {
             "reasoning-effort" => Ok(Self::ReasoningEffort),
             "thinking-budget" => Ok(Self::ThinkingBudget),
             "prompt-caching" => Ok(Self::PromptCaching),
-            "structured-output-native" => Ok(Self::StructuredOutputNative),
             "file-search" => Ok(Self::FileSearch),
             "web-search" => Ok(Self::WebSearch),
             "streaming-thinking" => Ok(Self::StreamingThinking),
@@ -138,7 +130,6 @@ mod tests {
         ParamFlag::ReasoningEffort,
         ParamFlag::ThinkingBudget,
         ParamFlag::PromptCaching,
-        ParamFlag::StructuredOutputNative,
         ParamFlag::FileSearch,
         ParamFlag::WebSearch,
         ParamFlag::StreamingThinking,
@@ -155,11 +146,8 @@ mod tests {
 
     #[test]
     fn display_matches_as_str() {
-        assert_eq!(
-            format!("{}", ParamFlag::StructuredOutputNative),
-            "structured-output-native"
-        );
         assert_eq!(format!("{}", ParamFlag::WebSearch), "web-search");
+        assert_eq!(format!("{}", ParamFlag::FileSearch), "file-search");
     }
 
     #[test]
@@ -168,8 +156,7 @@ mod tests {
         assert!(ParamFlag::ParallelToolCalls < ParamFlag::ReasoningEffort);
         assert!(ParamFlag::ReasoningEffort < ParamFlag::ThinkingBudget);
         assert!(ParamFlag::ThinkingBudget < ParamFlag::PromptCaching);
-        assert!(ParamFlag::PromptCaching < ParamFlag::StructuredOutputNative);
-        assert!(ParamFlag::StructuredOutputNative < ParamFlag::FileSearch);
+        assert!(ParamFlag::PromptCaching < ParamFlag::FileSearch);
         assert!(ParamFlag::FileSearch < ParamFlag::WebSearch);
         assert!(ParamFlag::WebSearch < ParamFlag::StreamingThinking);
     }
@@ -180,11 +167,8 @@ mod tests {
         all.sort();
         // Derived Ord + declaration-order invariant means a pre-sorted
         // slice is searchable.
-        assert!(
-            all.binary_search(&ParamFlag::StructuredOutputNative)
-                .is_ok()
-        );
         assert!(all.binary_search(&ParamFlag::WebSearch).is_ok());
+        assert!(all.binary_search(&ParamFlag::FileSearch).is_ok());
     }
 
     #[test]
@@ -196,7 +180,7 @@ mod tests {
         );
         let msg = format!("{err}");
         assert!(msg.contains("quantum-thinking"));
-        assert!(msg.contains("structured-output-native"));
+        assert!(msg.contains("file-search"));
     }
 
     #[test]

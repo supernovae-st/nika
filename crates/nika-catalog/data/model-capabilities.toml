@@ -17,8 +17,10 @@
 #   * modality strings ∈ { text, image, audio, video, pdf } and
 #     input_modalities must contain "text"
 #   * supported_parameters strings ∈ {parallel-tool-calls, reasoning-effort,
-#     thinking-budget, prompt-caching, structured-output-native, file-search,
-#     web-search, streaming-thinking}
+#     thinking-budget, prompt-caching, file-search, web-search,
+#     streaming-thinking}
+#   * json_mode ∈ {unavailable, object, schema} (Session 4a — replaces
+#     structured-output-native ParamFlag with 3-level enum)
 #
 # Resolution algorithm (see `src/types/capabilities.rs`):
 #   1. start from `[defaults]` (mirrors ModelCapabilities::default())
@@ -82,7 +84,7 @@ supports_system_messages = true
 name  = "openai-o-series-exact"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "exact_any", models = ["o1", "o3", "o4"] }
-caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"], supports_system_messages = false }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], supports_system_messages = false, json_mode = "schema" }
 
 # [2] OpenAI o4 family (o4-mini, future o4-*). Vision YES. stop=false
 #     confirmed per OpenAI SDK completions.py.
@@ -94,7 +96,7 @@ caps  = { token_limit_param = "max-completion-tokens", supports_temperature = fa
 name  = "openai-o4-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["o4"] }
-caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, supports_stop_sequences = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native", "web-search"], supports_system_messages = false }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, supports_stop_sequences = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "web-search"], supports_system_messages = false, json_mode = "schema" }
 
 # [3] OpenAI reasoning series, dash-suffix family (o1-preview, o1-mini,
 #     o3-mini, …). Text-only: o1-mini and o3-mini never got the vision
@@ -104,21 +106,21 @@ caps  = { token_limit_param = "max-completion-tokens", supports_temperature = fa
 name  = "openai-o-series-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["o1-", "o3-", "o4-"] }
-caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"], supports_system_messages = false }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], supports_system_messages = false, json_mode = "schema" }
 
 # [4] OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
 [[rules]]
 name  = "openai-gpt5-exact"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "exact_any", models = ["gpt-5"] }
-caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [5] OpenAI GPT-5 family — dash and dot variants (gpt-5-turbo, gpt-5.1, …).
 [[rules]]
 name  = "openai-gpt5-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-5-", "gpt-5."] }
-caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [6] OpenAI GPT-4o family (gpt-4o, gpt-4o-mini, …). o200k tokenizer.
 #     ⚠ MUST appear BEFORE gpt-4.1 and gpt-4 rules (both have "gpt-4"
@@ -127,7 +129,7 @@ caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokeniz
 name  = "openai-gpt4o-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-4o"] }
-caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [7] OpenAI GPT-4.1 family (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano). o200k
 #     (NOT cl100k — confirmed via tiktoken maintainer + library source).
@@ -137,7 +139,7 @@ caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_moda
 name  = "openai-gpt41-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-4.1"] }
-caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [8] OpenAI GPT-4 legacy (gpt-4, gpt-4-turbo, gpt-4-32k). cl100k tokenizer.
 #     ⚠ MUST appear AFTER gpt-4o and gpt-4.1 rules.
@@ -145,7 +147,7 @@ caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_moda
 name  = "openai-gpt4-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-4"] }
-caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [9] Any model starting with "claude", on ANY provider. Legacy matched
 #     lower.starts_with("claude") independent of provider. PDF confirmed
@@ -159,7 +161,7 @@ caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_mod
 [[rules]]
 name  = "claude-family-any-provider"
 match = { kind = "prefix_any", prefixes = ["claude"] }
-caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "streaming-thinking", "structured-output-native", "thinking-budget"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "streaming-thinking", "thinking-budget"], json_mode = "schema" }
 
 # [10] Anthropic provider default — catches anthropic-hosted models that
 #      don't start with "claude" (future internal codenames).
@@ -183,7 +185,7 @@ routing_complete = true
 name  = "deepseek-reasoner"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-reasoner" }
-caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "object" }
 
 # [12] Any other DeepSeek model — loses vision (API limitation).
 #      ⚠ NO StructuredOutputNative (same json_object-only constraint).
@@ -191,7 +193,7 @@ caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek"
 name  = "deepseek-any-model"
 scope = { providers = ["deepseek"] }
 match = { kind = "any" }
-caps  = { tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
+caps  = { tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "object" }
 
 # [13] xAI grok-4 family (grok-4, grok-4-0709, grok-4.20, grok-4-1-fast,
 #      grok-4-latest). ALL are reasoning models per xAI docs. Temperature
@@ -204,7 +206,7 @@ caps  = { tokenizer = "deepseek", input_modalities = ["text"], output_modalities
 name  = "xai-grok4"
 scope = { providers = ["xai"] }
 match = { kind = "prefix_any", prefixes = ["grok-4"] }
-caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 
 # [14] xAI grok-3-mini — P0 FIX. grok-3-mini IS a reasoning model
 #      (algorithm: grok3Reasoning, reasoning=true in xAI OpenAPI feature
@@ -217,7 +219,7 @@ caps  = { supports_temperature = false, supports_stop_sequences = false, reasoni
 name  = "xai-grok3-mini"
 scope = { providers = ["xai"] }
 match = { kind = "prefix_any", prefixes = ["grok-3-mini"] }
-caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "structured-output-native"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "schema" }
 
 # [15] Any other xAI model (grok-3, grok-3-fast, grok-3-beta). Text-only
 #      (grok-3 inputModalities=[1] per xAI docs). reasoning=false. stop=true
@@ -228,7 +230,7 @@ caps  = { supports_temperature = false, supports_stop_sequences = false, reasoni
 name             = "xai-any-model"
 scope            = { providers = ["xai"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 routing_complete = true
 
 # [16] Gemini 2.5 Pro — full multimodal (audio + image + pdf + text + video).
@@ -237,7 +239,7 @@ routing_complete = true
 name  = "gemini-2-5-pro"
 scope = { providers = ["gemini", "vertex"] }
 match = { kind = "prefix_any", prefixes = ["gemini-2.5-pro"] }
-caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["structured-output-native", "web-search"] }
+caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
 
 # [17] Gemini 2.5 Flash — multimodal (audio + image + text + video).
 #      Video confirmed max 10/prompt via LiteLLM verification.
@@ -246,7 +248,7 @@ caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "te
 name  = "gemini-2-5-flash"
 scope = { providers = ["gemini", "vertex"] }
 match = { kind = "prefix_any", prefixes = ["gemini-2.5-flash"] }
-caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "structured-output-native", "web-search"] }
+caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "web-search"], json_mode = "schema" }
 
 # [18] Any other Gemini model. routing_complete=true.
 [[rules]]
@@ -269,7 +271,7 @@ routing_complete = true
 name  = "mistral-small-3"
 scope = { providers = ["mistral"] }
 match = { kind = "prefix_any", prefixes = ["mistral-small-2503", "mistral-small-2506", "mistral-small-latest", "mistral-small-3", "mistral-small-4"] }
-caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 
 # [20] Mistral vision models (pixtral, large, medium). mistral-large-latest
 #      → mistral-large-2512 (Mistral Large 3) with vision confirmed.
@@ -277,7 +279,7 @@ caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output
 name  = "mistral-vision-models"
 scope = { providers = ["mistral"] }
 match = { kind = "prefix_any", prefixes = ["mistral-large", "mistral-medium", "pixtral"] }
-caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 
 # [21] Magistral family — reasoning + multimodal. Docs.mistral.ai:
 #      "Native — Available on magistral-small-latest and magistral-medium-
@@ -291,7 +293,7 @@ caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output
 name  = "magistral-family"
 scope = { providers = ["mistral"] }
 match = { kind = "prefix_any", prefixes = ["magistral"] }
-caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 
 # [22] Any other Mistral model (codestral, devstral, ministral, …). Text.
 #      ⚠ input_modalities = ["text"] REQUIRED (defaults give ["text", "image"];
@@ -303,7 +305,7 @@ caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image
 name             = "mistral-any-model"
 scope            = { providers = ["mistral"] }
 match            = { kind = "any" }
-caps             = { tokenizer = "mistral-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { tokenizer = "mistral-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 routing_complete = true
 
 # [23] AWS Bedrock — Claude models via Bedrock use "anthropic.claude-<name>
@@ -313,7 +315,7 @@ routing_complete = true
 name  = "bedrock-claude"
 scope = { providers = ["bedrock"] }
 match = { kind = "prefix_any", prefixes = ["anthropic.claude"] }
-caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "structured-output-native", "thinking-budget"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "thinking-budget"], json_mode = "schema" }
 
 # [24] Azure OpenAI — GPT-4o on Azure. Azure uses model names without
 #      "openai" scope; openai-gpt4o-family [rule 6] is scoped to
@@ -322,7 +324,7 @@ caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image"
 name  = "azure-gpt4o"
 scope = { providers = ["azure"] }
 match = { kind = "prefix_any", prefixes = ["gpt-4o"] }
-caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [25] OpenRouter — Claude models via OpenRouter use "anthropic/claude-"
 #      prefix. claude-family-any-provider rule [9] (prefix "claude") does
@@ -333,7 +335,7 @@ caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_moda
 name  = "openrouter-claude"
 scope = { providers = ["openrouter"] }
 match = { kind = "prefix_any", prefixes = ["anthropic/claude"] }
-caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "structured-output-native", "thinking-budget"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "thinking-budget"], json_mode = "schema" }
 
 # [26] Native (local GGUF / mistral.rs) — text-only by default. No
 #      structured output native. No system messages restriction.
@@ -367,7 +369,7 @@ routing_complete = true
 name  = "moonshot-kimi"
 scope = { providers = ["moonshot"] }
 match = { kind = "any" }
-caps  = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps  = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [30] Qwen VL — vision model (qwen-vl-plus, qwen-vl-max). Must be BEFORE
 #      qwen-any-model (Matcher::Any must be last).
@@ -375,7 +377,7 @@ caps  = { input_modalities = ["text"], output_modalities = ["text"], supported_p
 name  = "qwen-vl"
 scope = { providers = ["qwen"] }
 match = { kind = "prefix_any", prefixes = ["qwen-vl"] }
-caps  = { tokenizer = "qwen", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { tokenizer = "qwen", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 
 # [31] Qwen any other — text base models (qwen-max, qwen-turbo, qwen-plus).
 #      OpenAI-compat: json_schema YES, stop YES. Tokenizer: Qwen-family BPE
@@ -384,7 +386,7 @@ caps  = { tokenizer = "qwen", input_modalities = ["image", "text"], output_modal
 name             = "qwen-any-model"
 scope            = { providers = ["qwen"] }
 match            = { kind = "any" }
-caps             = { tokenizer = "qwen", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { tokenizer = "qwen", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true
 
 # [32] MiniMax VL-01 — vision model. Must be BEFORE minimax-any-model.
@@ -392,14 +394,14 @@ routing_complete = true
 name  = "minimax-vl"
 scope = { providers = ["minimax"] }
 match = { kind = "prefix_any", prefixes = ["MiniMax-VL"] }
-caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 
 # [33] MiniMax any other — text (MiniMax-M2.x). OpenAI-compat json_schema YES.
 [[rules]]
 name             = "minimax-any-model"
 scope            = { providers = ["minimax"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 routing_complete = true
 
 # [34] Zhipu GLM — vision YES (GLM-4.5+ and -flash both support vision).
@@ -407,7 +409,7 @@ routing_complete = true
 name             = "zhipu-any-model"
 scope            = { providers = ["zhipu"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["structured-output-native"] }
+caps             = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
 routing_complete = true
 
 # [35] Groq — text-only fallback (Llama 4 Scout 17B has vision via a
@@ -417,7 +419,7 @@ routing_complete = true
 name             = "groq-any-model"
 scope            = { providers = ["groq"] }
 match            = { kind = "any" }
-caps             = { tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true
 
 # [36] Together AI — text-only fallback (specific Llama 4 Maverick /
@@ -426,7 +428,7 @@ routing_complete = true
 name             = "together-any-model"
 scope            = { providers = ["together"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true
 
 # [37] Fireworks — hardware inference. No vision. json_schema YES.
@@ -434,7 +436,7 @@ routing_complete = true
 name             = "fireworks-any-model"
 scope            = { providers = ["fireworks"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true
 
 # [38] Cerebras — hardware inference (WSC). No vision. json_schema YES.
@@ -442,7 +444,7 @@ routing_complete = true
 name             = "cerebras-any-model"
 scope            = { providers = ["cerebras"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true
 
 # [39] SambaNova — hardware inference. No vision. json_schema YES.
@@ -450,7 +452,7 @@ routing_complete = true
 name             = "sambanova-any-model"
 scope            = { providers = ["sambanova"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "structured-output-native"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 routing_complete = true
 
 # [40] Cohere — text-only. structured output via tool-calling (distinct
@@ -479,7 +481,7 @@ routing_complete = true
 name             = "perplexity-any-model"
 scope            = { providers = ["perplexity"] }
 match            = { kind = "any" }
-caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["structured-output-native", "web-search"] }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
 routing_complete = true
 
 # [28] Mock — all flags enabled. Covers every runtime conditional branch
@@ -489,4 +491,4 @@ routing_complete = true
 name  = "mock-full"
 scope = { providers = ["mock"] }
 match = { kind = "any" }
-caps  = { reasoning = true, tokenizer = "cl100k", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["file-search", "parallel-tool-calls", "prompt-caching", "reasoning-effort", "streaming-thinking", "structured-output-native", "thinking-budget", "web-search"], supports_system_messages = true }
+caps  = { reasoning = true, tokenizer = "cl100k", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["file-search", "parallel-tool-calls", "prompt-caching", "reasoning-effort", "streaming-thinking", "thinking-budget", "web-search"], supports_system_messages = true, json_mode = "schema" }

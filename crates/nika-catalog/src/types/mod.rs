@@ -9,6 +9,7 @@ pub mod capabilities;
 pub mod category;
 pub mod distribution;
 pub mod embedding;
+pub mod json_mode;
 pub mod mcp_server;
 #[cfg(feature = "capabilities")]
 pub mod modality;
@@ -27,6 +28,7 @@ pub use distribution::{
     AuthMode, EnvVarSpec, McpPackage, McpRemote, PyRunner, RegistryType, Transport,
 };
 pub use embedding::{Embedding, Similarity};
+pub use json_mode::{JsonMode, ParseJsonModeError};
 pub use mcp_server::{McpPricing, McpServer};
 #[cfg(feature = "capabilities")]
 pub use modality::{Modality, ParseModalityError};

@@ -6,6 +6,7 @@
 //! Capabilities are resolved via pattern-matching function (not phf) because
 //! model names are open-ended. Pricing uses 2-pass matching (exact + contains).
 
+use crate::types::JsonMode;
 #[cfg(feature = "capabilities")]
 use crate::types::{Modality, ParamFlag, TokenizerFamily};
 
@@ -85,9 +86,8 @@ pub struct ModelCapabilities {
     #[cfg(feature = "capabilities")]
     pub tokenizer: Option<TokenizerFamily>,
     /// API-level parameter capability flags (sorted by declaration order).
-    /// The Gate 2 key flag ([`ParamFlag::StructuredOutputNative`]) lives
-    /// here — runtime dispatch uses `contains()` to pick the native
-    /// `json_schema` path vs the prompt-engineering fallback.
+    /// Runtime dispatch checks individual flags (e.g. `ReasoningEffort`,
+    /// `PromptCaching`) to enable optional parameters.
     #[cfg(feature = "capabilities")]
     pub supported_parameters: &'static [ParamFlag],
     /// Whether this model accepts a `system` role message.
@@ -108,6 +108,17 @@ pub struct ModelCapabilities {
     /// Maximum output tokens the model can produce in a single response.
     /// `None` = not specified by the capability rule.
     pub max_output_tokens: Option<u32>,
+    /// Structured JSON output capability level.
+    ///
+    /// `None` = not specified by the capability rule (treat as no JSON
+    /// mode support). `Some(Schema)` = full `json_schema` enforcement.
+    /// `Some(Object)` = `json_object` format only (no schema validation).
+    /// `Some(Unavailable)` = explicitly marked as no JSON support.
+    ///
+    /// Replaces `ParamFlag::StructuredOutputNative` (Session 4a) with
+    /// finer granularity — the runtime dispatches: `Schema` → native
+    /// `json_schema`; `Object` → `json_object`; else → prompt fallback.
+    pub json_mode: Option<JsonMode>,
 }
 
 impl Default for ModelCapabilities {
@@ -128,6 +139,7 @@ impl Default for ModelCapabilities {
             supports_system_messages: true,
             context_window_tokens: None,
             max_output_tokens: None,
+            json_mode: None,
         }
     }
 }
@@ -168,6 +180,7 @@ impl ModelCapabilities {
         supports_system_messages: bool,
         context_window_tokens: Option<u32>,
         max_output_tokens: Option<u32>,
+        json_mode: Option<JsonMode>,
     ) -> Self {
         Self {
             token_limit_param,
@@ -181,6 +194,7 @@ impl ModelCapabilities {
             supports_system_messages,
             context_window_tokens,
             max_output_tokens,
+            json_mode,
         }
     }
 
@@ -204,6 +218,7 @@ impl ModelCapabilities {
             supports_system_messages: true,
             context_window_tokens: None,
             max_output_tokens: None,
+            json_mode: None,
         }
     }
 }
@@ -218,7 +233,7 @@ mod model_capabilities_tests {
         use crate::types::{Modality, ParamFlag, TokenizerFamily};
         const INPUT: &[Modality] = &[Modality::Text, Modality::Image];
         const OUTPUT: &[Modality] = &[Modality::Text];
-        const PARAMS: &[ParamFlag] = &[ParamFlag::StructuredOutputNative];
+        const PARAMS: &[ParamFlag] = &[ParamFlag::PromptCaching];
         let caps = ModelCapabilities::new(
             TokenLimitParam::MaxCompletionTokens,
             false,
@@ -231,6 +246,7 @@ mod model_capabilities_tests {
             false,
             Some(128_000),
             Some(32_768),
+            Some(crate::types::JsonMode::Schema),
         );
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
         assert!(!caps.supports_temperature);
@@ -243,6 +259,7 @@ mod model_capabilities_tests {
         assert!(!caps.supports_system_messages);
         assert_eq!(caps.context_window_tokens, Some(128_000));
         assert_eq!(caps.max_output_tokens, Some(32_768));
+        assert_eq!(caps.json_mode, Some(crate::types::JsonMode::Schema));
     }
 
     #[test]
@@ -272,6 +289,7 @@ mod model_capabilities_tests {
             None,
             &[],
             true,
+            None,
             None,
             None,
         );

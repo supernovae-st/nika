@@ -108,6 +108,15 @@ enum TokenizerFamilyToml {
     Qwen,
 }
 
+/// Typed TOML `json_mode` enum — serde replaces hand-written string validation.
+#[derive(Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "kebab-case")]
+enum JsonModeToml {
+    Unavailable,
+    Object,
+    Schema,
+}
+
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct CapsPatchEntry {
@@ -136,11 +145,14 @@ struct CapsPatchEntry {
     supported_parameters: Option<Vec<String>>,
     #[serde(default)]
     supports_system_messages: Option<bool>,
-    // ── Session 4a additions (2 new slots) ─────────────────────────────
+    // ── Session 4a additions (3 new slots) ─────────────────────────────
     #[serde(default)]
     context_window_tokens: Option<u32>,
     #[serde(default)]
     max_output_tokens: Option<u32>,
+    /// Structured JSON output capability level.
+    #[serde(default)]
+    json_mode: Option<JsonModeToml>,
 }
 
 // ─── Parse + validate ────────────────────────────────────────────────────
@@ -334,6 +346,7 @@ fn validate_caps_patch(
         supports_system_messages,
         context_window_tokens,
         max_output_tokens,
+        json_mode,
     } = patch;
 
     if let Some(t) = token_limit_param.as_deref() {
@@ -405,7 +418,6 @@ fn validate_caps_patch(
                 | "reasoning-effort"
                 | "thinking-budget"
                 | "prompt-caching"
-                | "structured-output-native"
                 | "file-search"
                 | "web-search"
                 | "streaming-thinking" => {}
@@ -413,8 +425,7 @@ fn validate_caps_patch(
                     return Err(format!(
                         "{where_}: unknown param_flag {f:?} — expected one of: \
                          parallel-tool-calls, reasoning-effort, thinking-budget, \
-                         prompt-caching, structured-output-native, file-search, \
-                         web-search, streaming-thinking"
+                         prompt-caching, file-search, web-search, streaming-thinking"
                     ));
                 }
             }
@@ -447,7 +458,8 @@ fn validate_caps_patch(
             && supported_parameters.is_none()
             && supports_system_messages.is_none()
             && context_window_tokens.is_none()
-            && max_output_tokens.is_none();
+            && max_output_tokens.is_none()
+            && json_mode.is_none();
         if all_none {
             return Err(format!(
                 "{where_}: all caps fields are None — an empty-caps rule \
@@ -629,10 +641,9 @@ fn param_flag_sort_order(s: &str) -> u8 {
         "reasoning-effort" => 1,
         "thinking-budget" => 2,
         "prompt-caching" => 3,
-        "structured-output-native" => 4,
-        "file-search" => 5,
-        "web-search" => 6,
-        "streaming-thinking" => 7,
+        "file-search" => 4,
+        "web-search" => 5,
+        "streaming-thinking" => 6,
         _ => 255,
     }
 }
@@ -654,7 +665,6 @@ fn param_flag_variant(s: &str) -> &'static str {
         "reasoning-effort" => "ReasoningEffort",
         "thinking-budget" => "ThinkingBudget",
         "prompt-caching" => "PromptCaching",
-        "structured-output-native" => "StructuredOutputNative",
         "file-search" => "FileSearch",
         "web-search" => "WebSearch",
         "streaming-thinking" => "StreamingThinking",
@@ -696,6 +706,14 @@ fn emit_tokenizer_variant(t: TokenizerFamilyToml) -> &'static str {
         TokenizerFamilyToml::MistralV3 => "crate::types::TokenizerFamily::MistralV3",
         TokenizerFamilyToml::DeepSeek => "crate::types::TokenizerFamily::DeepSeek",
         TokenizerFamilyToml::Qwen => "crate::types::TokenizerFamily::Qwen",
+    }
+}
+
+fn emit_json_mode_variant(j: JsonModeToml) -> &'static str {
+    match j {
+        JsonModeToml::Unavailable => "crate::types::JsonMode::Unavailable",
+        JsonModeToml::Object => "crate::types::JsonMode::Object",
+        JsonModeToml::Schema => "crate::types::JsonMode::Schema",
     }
 }
 
@@ -763,6 +781,12 @@ fn emit_cap_patch(p: &CapsPatchEntry) -> String {
         "max_output_tokens",
         p.max_output_tokens.as_ref(),
         u32::to_string,
+    );
+    emit_opt(
+        &mut out,
+        "json_mode",
+        p.json_mode.as_ref(),
+        |j: &JsonModeToml| emit_json_mode_variant(*j).to_string(),
     );
     out.push('}');
     out

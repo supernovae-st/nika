@@ -22,7 +22,7 @@
 //! `pub mod capabilities;` declaration in `types/mod.rs`.
 
 use super::model::{ModelCapabilities, TokenLimitParam};
-use super::{Modality, ParamFlag, TokenizerFamily};
+use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
 /// Partial capabilities — `Option<T>` per field so several patches can be
 /// layered by `merge_with` before materialising into a concrete
@@ -73,6 +73,8 @@ pub(crate) struct CapPatch {
     pub context_window_tokens: Option<u32>,
     /// Per-field override for [`ModelCapabilities::max_output_tokens`].
     pub max_output_tokens: Option<u32>,
+    /// Per-field override for [`ModelCapabilities::json_mode`].
+    pub json_mode: Option<JsonMode>,
 }
 
 impl CapPatch {
@@ -108,6 +110,7 @@ impl CapPatch {
             supports_system_messages,
             context_window_tokens,
             max_output_tokens,
+            json_mode,
         );
         self
     }
@@ -231,6 +234,7 @@ impl CapPatch {
                 .context_window_tokens
                 .or(defaults.context_window_tokens),
             max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
+            json_mode: self.json_mode.or(defaults.json_mode),
         }
     }
 }
@@ -324,6 +328,7 @@ mod tests {
             supports_system_messages: Some(true),
             context_window_tokens: None,
             max_output_tokens: None,
+            json_mode: None,
         }
     }
 
@@ -367,7 +372,7 @@ mod tests {
         // Regression guard: if a future author forgets to add a field to
         // the merge_field! invocation, this test catches it.
         const IMG: &[Modality] = &[Modality::Text, Modality::Image];
-        const PARAMS: &[ParamFlag] = &[ParamFlag::StructuredOutputNative];
+        const PARAMS: &[ParamFlag] = &[ParamFlag::PromptCaching];
         let base = CapPatch::default();
         let patch = CapPatch {
             input_modalities: Some(IMG),
