@@ -36,7 +36,17 @@
 
 pub mod error;
 pub mod source;
+pub mod types;
 
 // Re-exports for convenience.
 pub use error::SchemaError;
 pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, Spanned};
+
+// Type re-exports (§3.16 of crate spec).
+pub use types::{
+    AgentDef, ArtifactSpec, ArtifactsConfig, Budget, BudgetConfig, CompletionConfig,
+    CompletionMode, ContentPart, ContextConfig, DecomposeSpec, DecomposeStrategy, ExtractMode,
+    IncludeSpec, LimitAction, LimitStatus, LimitType, LimitsConfig, LogConfig, LogFormat, LogLevel,
+    OrchestrateConfig, OutputFormat, OutputPolicy, RecordSpec, ResponseMode, RoutingConfig,
+    ScheduleConfig, SchemaRef, SchemaVersion, StructuredOutputSpec, Templatable,
+};
