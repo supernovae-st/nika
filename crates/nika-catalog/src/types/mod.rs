@@ -6,6 +6,7 @@
 pub mod builtin;
 #[cfg(feature = "capabilities")]
 pub mod capabilities;
+pub mod catalog_source;
 #[cfg(feature = "capabilities")]
 pub use capabilities::{CapPatch, CapPatchBuilder, CapRule, Matcher};
 #[cfg(feature = "capabilities")]
