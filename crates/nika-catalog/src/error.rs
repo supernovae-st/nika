@@ -47,8 +47,8 @@ pub enum CatalogError {
         current: String,
     },
 
-    // ── NIKA-230..235 (Session 4a structural) ──────────────────────────
-    /// NIKA-230: Catalog TOML file failed to parse.
+    // ── NIKA-010..015 (Session 4a structural, renumbered from 230-235) ──
+    /// NIKA-010: Catalog TOML file failed to parse.
     #[error("catalog TOML parse error at {path}:{line}:{col}: {msg}")]
     #[diagnostic(help("check TOML syntax near {path} line {line}"))]
     TomlParse {
@@ -62,7 +62,7 @@ pub enum CatalogError {
         msg: String,
     },
 
-    /// NIKA-231: Schema version in TOML does not match expected version.
+    /// NIKA-011: Schema version in TOML does not match expected version.
     #[error("catalog schema mismatch in {path}: expected `{expected}`, found `{actual}`")]
     #[diagnostic(help("update the `schema` field in {path} to `{expected}`"))]
     SchemaMismatch {
@@ -74,7 +74,7 @@ pub enum CatalogError {
         path: String,
     },
 
-    /// NIKA-232: Two capability rules claim conflicting patches for the same scope.
+    /// NIKA-012: Two capability rules claim conflicting patches for the same scope.
     #[error("capability rule conflict between `{rule_a}` and `{rule_b}` in scope `{scope}`")]
     #[diagnostic(help("reorder or merge the conflicting rules in model-capabilities.toml"))]
     CapabilityRuleConflict {
@@ -86,7 +86,7 @@ pub enum CatalogError {
         scope: String,
     },
 
-    /// NIKA-233: A pricing axis value is out of valid range.
+    /// NIKA-013: A pricing axis value is out of valid range.
     #[error("pricing axis `{field}` has value {value} (bound: {bound})")]
     #[diagnostic(help("pricing values must be non-negative and finite"))]
     PricingAxisOutOfRange {
@@ -98,7 +98,7 @@ pub enum CatalogError {
         bound: &'static str,
     },
 
-    /// NIKA-234: `max_output_tokens` exceeds `context_window_tokens`.
+    /// NIKA-014: `max_output_tokens` exceeds `context_window_tokens`.
     #[error("model `{model}`: max_output_tokens ({max_out}) > context_window_tokens ({ctx})")]
     #[diagnostic(help(
         "a model's max output cannot exceed its context window — fix the capability rule"
@@ -112,7 +112,7 @@ pub enum CatalogError {
         ctx: u32,
     },
 
-    /// NIKA-235: Unrecognised `json_mode` value in capability rule.
+    /// NIKA-015: Unrecognised `json_mode` value in capability rule.
     #[error("model `{model}`: unknown json_mode `{raw_value}`")]
     #[diagnostic(help("valid json_mode values: none, object, schema"))]
     JsonModeUnknown {
@@ -130,13 +130,13 @@ impl NikaErrorCode for CatalogError {
             Self::MissingPricing { .. } | Self::DuplicateEntry { .. } | Self::NotSorted { .. } => {
                 codes::NIKA_001
             }
-            // Session 4a — dedicated catalog codes.
-            Self::TomlParse { .. } => codes::NIKA_230,
-            Self::SchemaMismatch { .. } => codes::NIKA_231,
-            Self::CapabilityRuleConflict { .. } => codes::NIKA_232,
-            Self::PricingAxisOutOfRange { .. } => codes::NIKA_233,
-            Self::ContextWindowInvariant { .. } => codes::NIKA_234,
-            Self::JsonModeUnknown { .. } => codes::NIKA_235,
+            // Session 4a — dedicated catalog codes (Core 010-015).
+            Self::TomlParse { .. } => codes::NIKA_010,
+            Self::SchemaMismatch { .. } => codes::NIKA_011,
+            Self::CapabilityRuleConflict { .. } => codes::NIKA_012,
+            Self::PricingAxisOutOfRange { .. } => codes::NIKA_013,
+            Self::ContextWindowInvariant { .. } => codes::NIKA_014,
+            Self::JsonModeUnknown { .. } => codes::NIKA_015,
         }
     }
 }
@@ -199,41 +199,41 @@ mod tests {
             col: 1,
             msg: "bad".into(),
         };
-        assert_eq!(e.nika_code().num, 230);
+        assert_eq!(e.nika_code().num, 10);
 
         let e = CatalogError::SchemaMismatch {
             expected: "v1",
             actual: "v2".into(),
             path: "x.toml".into(),
         };
-        assert_eq!(e.nika_code().num, 231);
+        assert_eq!(e.nika_code().num, 11);
 
         let e = CatalogError::CapabilityRuleConflict {
             rule_a: "a".into(),
             rule_b: "b".into(),
             scope: "s".into(),
         };
-        assert_eq!(e.nika_code().num, 232);
+        assert_eq!(e.nika_code().num, 12);
 
         let e = CatalogError::PricingAxisOutOfRange {
             field: "input".into(),
             value: -1.0,
             bound: ">= 0.0",
         };
-        assert_eq!(e.nika_code().num, 233);
+        assert_eq!(e.nika_code().num, 13);
 
         let e = CatalogError::ContextWindowInvariant {
             model: "m".into(),
             max_out: 200,
             ctx: 100,
         };
-        assert_eq!(e.nika_code().num, 234);
+        assert_eq!(e.nika_code().num, 14);
 
         let e = CatalogError::JsonModeUnknown {
             model: "m".into(),
             raw_value: "bad".into(),
         };
-        assert_eq!(e.nika_code().num, 235);
+        assert_eq!(e.nika_code().num, 15);
     }
 
     #[test]

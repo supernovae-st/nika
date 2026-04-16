@@ -122,51 +122,56 @@ pub const NIKA_003: NikaCode = NikaCode {
     slug: "unsupported",
 };
 
-// ─── Catalog validation codes (200-299) ──────────────────────────────────
+// ─── Catalog validation codes (010-019) ───────────────────────────────────
+//
+// Originally assigned as NIKA-230..235 (Session 4a A1), but 230-233 collide
+// with the MCP/tool codes in nika-kernel (tool-not-found, tool-timeout,
+// tool-exec-failed, tool-not-available). Renumbered to Core 010-015 to
+// stay within Core 001-049 range and avoid the MCP 230-279 range.
 
-/// NIKA-230: Catalog TOML parse failure.
-pub const NIKA_230: NikaCode = NikaCode {
-    num: 230,
+/// NIKA-010: Catalog TOML parse failure.
+pub const NIKA_010: NikaCode = NikaCode {
+    num: 10,
     category: Category::Core,
     severity: Severity::Error,
     slug: "catalog-toml-parse",
 };
 
-/// NIKA-231: Catalog schema version mismatch.
-pub const NIKA_231: NikaCode = NikaCode {
-    num: 231,
+/// NIKA-011: Catalog schema version mismatch.
+pub const NIKA_011: NikaCode = NikaCode {
+    num: 11,
     category: Category::Core,
     severity: Severity::Error,
     slug: "catalog-schema-mismatch",
 };
 
-/// NIKA-232: Conflicting capability rules.
-pub const NIKA_232: NikaCode = NikaCode {
-    num: 232,
+/// NIKA-012: Conflicting capability rules.
+pub const NIKA_012: NikaCode = NikaCode {
+    num: 12,
     category: Category::Core,
     severity: Severity::Error,
     slug: "capability-rule-conflict",
 };
 
-/// NIKA-233: Pricing axis value out of range.
-pub const NIKA_233: NikaCode = NikaCode {
-    num: 233,
+/// NIKA-013: Pricing axis value out of range.
+pub const NIKA_013: NikaCode = NikaCode {
+    num: 13,
     category: Category::Core,
     severity: Severity::Error,
     slug: "pricing-axis-out-of-range",
 };
 
-/// NIKA-234: Context window invariant violated (`max_output` > `context_window`).
-pub const NIKA_234: NikaCode = NikaCode {
-    num: 234,
+/// NIKA-014: Context window invariant violated (`max_output` > `context_window`).
+pub const NIKA_014: NikaCode = NikaCode {
+    num: 14,
     category: Category::Core,
     severity: Severity::Error,
     slug: "context-window-invariant",
 };
 
-/// NIKA-235: Unrecognised JSON mode value.
-pub const NIKA_235: NikaCode = NikaCode {
-    num: 235,
+/// NIKA-015: Unrecognised JSON mode value.
+pub const NIKA_015: NikaCode = NikaCode {
+    num: 15,
     category: Category::Core,
     severity: Severity::Error,
     slug: "json-mode-unknown",
@@ -216,7 +221,7 @@ pub const NIKA_999: NikaCode = NikaCode {
 
 /// All registered codes. Used for uniqueness validation and iteration.
 pub const ALL: &[NikaCode] = &[
-    NIKA_001, NIKA_002, NIKA_003, NIKA_230, NIKA_231, NIKA_232, NIKA_233, NIKA_234, NIKA_235,
+    NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
     NIKA_600, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
 ];
 
@@ -230,18 +235,18 @@ pub fn code_help(code: NikaCode) -> &'static str {
         1 => "Check your workflow YAML syntax and field values.",
         2 => "Referenced item not found in catalogs or task outputs.",
         3 => "Feature not supported in current configuration.",
-        230 => "Catalog TOML is malformed. Check syntax near the reported line and column.",
-        231 => {
+        10 => "Catalog TOML is malformed. Check syntax near the reported line and column.",
+        11 => {
             "Catalog schema version does not match the expected version. Update the `schema` field."
         }
-        232 => {
+        12 => {
             "Two capability rules conflict for the same scope. Check rule ordering in model-capabilities.toml."
         }
-        233 => {
+        13 => {
             "A pricing axis value is out of valid range. Ensure rates are non-negative and finite."
         }
-        234 => "max_output_tokens exceeds context_window_tokens. Fix the model capability rule.",
-        235 => "Unrecognised json_mode value. Valid values: none, object, schema.",
+        14 => "max_output_tokens exceeds context_window_tokens. Fix the model capability rule.",
+        15 => "Unrecognised json_mode value. Valid values: none, object, schema.",
         600..=649 => {
             "Memory subsystem reported an error. Check store availability, embedding provider, and tenant quotas."
         }
