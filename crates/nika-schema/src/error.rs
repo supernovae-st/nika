@@ -114,6 +114,26 @@ pub enum SchemaError {
     },
 }
 
+impl SchemaError {
+    /// Create a validation error with no span.
+    #[must_use]
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self::Validation {
+            message: message.into(),
+            span: None,
+        }
+    }
+
+    /// Create a validation error with a source span.
+    #[must_use]
+    pub fn validation_at(message: impl Into<String>, span: Span) -> Self {
+        Self::Validation {
+            message: message.into(),
+            span: Some(span),
+        }
+    }
+}
+
 // ─── NIKA-280..290 schema error codes ───────────────────────────────
 
 const SCHEMA_280: NikaCode = NikaCode {

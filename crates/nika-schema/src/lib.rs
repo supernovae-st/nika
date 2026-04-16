@@ -35,7 +35,10 @@
 )]
 
 pub mod error;
+pub mod guardrails;
+pub mod raw;
 pub mod source;
+pub mod trust;
 pub mod types;
 
 // Re-exports for convenience.
