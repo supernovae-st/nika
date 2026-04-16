@@ -398,6 +398,139 @@ pub unsafe fn nika_types::cost::Cost::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::cost::Cost where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::embedding
+#[non_exhaustive] pub enum nika_types::embedding::DistanceMetric
+pub nika_types::embedding::DistanceMetric::Cosine
+pub nika_types::embedding::DistanceMetric::DotProduct
+pub nika_types::embedding::DistanceMetric::Euclidean
+pub nika_types::embedding::DistanceMetric::Hamming
+impl core::clone::Clone for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::clone(&self) -> nika_types::embedding::DistanceMetric
+impl core::cmp::Eq for nika_types::embedding::DistanceMetric
+impl core::cmp::PartialEq for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::eq(&self, other: &nika_types::embedding::DistanceMetric) -> bool
+impl core::fmt::Debug for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::embedding::DistanceMetric
+impl core::marker::StructuralPartialEq for nika_types::embedding::DistanceMetric
+impl serde_core::ser::Serialize for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::DistanceMetric where U: core::convert::From<T>
+pub fn nika_types::embedding::DistanceMetric::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::DistanceMetric where U: core::convert::Into<T>
+pub type nika_types::embedding::DistanceMetric::Error = core::convert::Infallible
+pub fn nika_types::embedding::DistanceMetric::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::DistanceMetric where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::DistanceMetric::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::DistanceMetric::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::DistanceMetric where T: core::clone::Clone
+pub type nika_types::embedding::DistanceMetric::Owned = T
+pub fn nika_types::embedding::DistanceMetric::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::DistanceMetric::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::DistanceMetric where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::DistanceMetric where T: ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::DistanceMetric where T: ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::DistanceMetric where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::DistanceMetric::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::DistanceMetric where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::embedding::EmbeddingDtype
+pub nika_types::embedding::EmbeddingDtype::BF16
+pub nika_types::embedding::EmbeddingDtype::Binary
+pub nika_types::embedding::EmbeddingDtype::F16
+pub nika_types::embedding::EmbeddingDtype::F32
+pub nika_types::embedding::EmbeddingDtype::I8
+impl core::clone::Clone for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::clone(&self) -> nika_types::embedding::EmbeddingDtype
+impl core::cmp::Eq for nika_types::embedding::EmbeddingDtype
+impl core::cmp::PartialEq for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::eq(&self, other: &nika_types::embedding::EmbeddingDtype) -> bool
+impl core::fmt::Debug for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::embedding::EmbeddingDtype
+impl core::marker::StructuralPartialEq for nika_types::embedding::EmbeddingDtype
+impl serde_core::ser::Serialize for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::From<T>
+pub fn nika_types::embedding::EmbeddingDtype::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::Into<T>
+pub type nika_types::embedding::EmbeddingDtype::Error = core::convert::Infallible
+pub fn nika_types::embedding::EmbeddingDtype::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::EmbeddingDtype::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::EmbeddingDtype::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::EmbeddingDtype where T: core::clone::Clone
+pub type nika_types::embedding::EmbeddingDtype::Owned = T
+pub fn nika_types::embedding::EmbeddingDtype::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::EmbeddingDtype::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::EmbeddingDtype where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::EmbeddingDtype where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::EmbeddingDtype where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::EmbeddingDtype where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::EmbeddingDtype::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingDtype where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::embedding::EmbeddingSpec
+pub nika_types::embedding::EmbeddingSpec::dim: u16
+pub nika_types::embedding::EmbeddingSpec::dtype: nika_types::embedding::EmbeddingDtype
+pub nika_types::embedding::EmbeddingSpec::metric: nika_types::embedding::DistanceMetric
+pub nika_types::embedding::EmbeddingSpec::model_id: core::option::Option<alloc::string::String>
+impl nika_types::embedding::EmbeddingSpec
+pub const fn nika_types::embedding::EmbeddingSpec::new(dim: u16, dtype: nika_types::embedding::EmbeddingDtype, metric: nika_types::embedding::DistanceMetric) -> Self
+pub fn nika_types::embedding::EmbeddingSpec::with_model(dim: u16, dtype: nika_types::embedding::EmbeddingDtype, metric: nika_types::embedding::DistanceMetric, model_id: alloc::string::String) -> Self
+impl core::clone::Clone for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::clone(&self) -> nika_types::embedding::EmbeddingSpec
+impl core::cmp::Eq for nika_types::embedding::EmbeddingSpec
+impl core::cmp::PartialEq for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::eq(&self, other: &nika_types::embedding::EmbeddingSpec) -> bool
+impl core::fmt::Debug for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::embedding::EmbeddingSpec
+impl serde_core::ser::Serialize for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::From<T>
+pub fn nika_types::embedding::EmbeddingSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::Into<T>
+pub type nika_types::embedding::EmbeddingSpec::Error = core::convert::Infallible
+pub fn nika_types::embedding::EmbeddingSpec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::EmbeddingSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::EmbeddingSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::EmbeddingSpec where T: core::clone::Clone
+pub type nika_types::embedding::EmbeddingSpec::Owned = T
+pub fn nika_types::embedding::EmbeddingSpec::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::EmbeddingSpec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::EmbeddingSpec where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::EmbeddingSpec where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::EmbeddingSpec where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::EmbeddingSpec where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::EmbeddingSpec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingSpec where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::hash
 #[non_exhaustive] pub struct nika_types::hash::Blake3Hash
 pub nika_types::hash::Blake3Hash::bytes: [u8; 32]
@@ -1226,6 +1359,93 @@ pub unsafe fn nika_types::budget::BudgetDirective::clone_to_uninit(&self, dest: 
 impl<T> core::convert::From<T> for nika_types::budget::BudgetDirective
 pub fn nika_types::budget::BudgetDirective::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::budget::BudgetDirective where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::prelude::DistanceMetric
+pub nika_types::prelude::DistanceMetric::Cosine
+pub nika_types::prelude::DistanceMetric::DotProduct
+pub nika_types::prelude::DistanceMetric::Euclidean
+pub nika_types::prelude::DistanceMetric::Hamming
+impl core::clone::Clone for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::clone(&self) -> nika_types::embedding::DistanceMetric
+impl core::cmp::Eq for nika_types::embedding::DistanceMetric
+impl core::cmp::PartialEq for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::eq(&self, other: &nika_types::embedding::DistanceMetric) -> bool
+impl core::fmt::Debug for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::embedding::DistanceMetric
+impl core::marker::StructuralPartialEq for nika_types::embedding::DistanceMetric
+impl serde_core::ser::Serialize for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::DistanceMetric where U: core::convert::From<T>
+pub fn nika_types::embedding::DistanceMetric::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::DistanceMetric where U: core::convert::Into<T>
+pub type nika_types::embedding::DistanceMetric::Error = core::convert::Infallible
+pub fn nika_types::embedding::DistanceMetric::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::DistanceMetric where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::DistanceMetric::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::DistanceMetric::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::DistanceMetric where T: core::clone::Clone
+pub type nika_types::embedding::DistanceMetric::Owned = T
+pub fn nika_types::embedding::DistanceMetric::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::DistanceMetric::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::DistanceMetric where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::DistanceMetric where T: ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::DistanceMetric where T: ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::DistanceMetric where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::DistanceMetric::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::DistanceMetric where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::prelude::EmbeddingDtype
+pub nika_types::prelude::EmbeddingDtype::BF16
+pub nika_types::prelude::EmbeddingDtype::Binary
+pub nika_types::prelude::EmbeddingDtype::F16
+pub nika_types::prelude::EmbeddingDtype::F32
+pub nika_types::prelude::EmbeddingDtype::I8
+impl core::clone::Clone for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::clone(&self) -> nika_types::embedding::EmbeddingDtype
+impl core::cmp::Eq for nika_types::embedding::EmbeddingDtype
+impl core::cmp::PartialEq for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::eq(&self, other: &nika_types::embedding::EmbeddingDtype) -> bool
+impl core::fmt::Debug for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::embedding::EmbeddingDtype
+impl core::marker::StructuralPartialEq for nika_types::embedding::EmbeddingDtype
+impl serde_core::ser::Serialize for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::From<T>
+pub fn nika_types::embedding::EmbeddingDtype::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::Into<T>
+pub type nika_types::embedding::EmbeddingDtype::Error = core::convert::Infallible
+pub fn nika_types::embedding::EmbeddingDtype::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::EmbeddingDtype::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::EmbeddingDtype::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::EmbeddingDtype where T: core::clone::Clone
+pub type nika_types::embedding::EmbeddingDtype::Owned = T
+pub fn nika_types::embedding::EmbeddingDtype::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::EmbeddingDtype::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::EmbeddingDtype where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::EmbeddingDtype where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::EmbeddingDtype where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::EmbeddingDtype where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::EmbeddingDtype::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingDtype where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::prelude::ErrorCategory
 pub nika_types::prelude::ErrorCategory::Budget
 pub nika_types::prelude::ErrorCategory::Internal
@@ -1893,6 +2113,51 @@ pub unsafe fn nika_types::cost::Cost::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::cost::Cost where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::prelude::EmbeddingSpec
+pub nika_types::prelude::EmbeddingSpec::dim: u16
+pub nika_types::prelude::EmbeddingSpec::dtype: nika_types::embedding::EmbeddingDtype
+pub nika_types::prelude::EmbeddingSpec::metric: nika_types::embedding::DistanceMetric
+pub nika_types::prelude::EmbeddingSpec::model_id: core::option::Option<alloc::string::String>
+impl nika_types::embedding::EmbeddingSpec
+pub const fn nika_types::embedding::EmbeddingSpec::new(dim: u16, dtype: nika_types::embedding::EmbeddingDtype, metric: nika_types::embedding::DistanceMetric) -> Self
+pub fn nika_types::embedding::EmbeddingSpec::with_model(dim: u16, dtype: nika_types::embedding::EmbeddingDtype, metric: nika_types::embedding::DistanceMetric, model_id: alloc::string::String) -> Self
+impl core::clone::Clone for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::clone(&self) -> nika_types::embedding::EmbeddingSpec
+impl core::cmp::Eq for nika_types::embedding::EmbeddingSpec
+impl core::cmp::PartialEq for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::eq(&self, other: &nika_types::embedding::EmbeddingSpec) -> bool
+impl core::fmt::Debug for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::embedding::EmbeddingSpec
+impl serde_core::ser::Serialize for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::From<T>
+pub fn nika_types::embedding::EmbeddingSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::Into<T>
+pub type nika_types::embedding::EmbeddingSpec::Error = core::convert::Infallible
+pub fn nika_types::embedding::EmbeddingSpec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::EmbeddingSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::EmbeddingSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::EmbeddingSpec where T: core::clone::Clone
+pub type nika_types::embedding::EmbeddingSpec::Owned = T
+pub fn nika_types::embedding::EmbeddingSpec::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::EmbeddingSpec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::EmbeddingSpec where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::EmbeddingSpec where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::EmbeddingSpec where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::EmbeddingSpec where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::EmbeddingSpec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingSpec where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::prelude::EventId
 pub nika_types::prelude::EventId::uuid: uuid::Uuid
 impl nika_types::id::EventId
@@ -3352,6 +3617,93 @@ pub unsafe fn nika_types::budget::BudgetDirective::clone_to_uninit(&self, dest: 
 impl<T> core::convert::From<T> for nika_types::budget::BudgetDirective
 pub fn nika_types::budget::BudgetDirective::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::budget::BudgetDirective where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::DistanceMetric
+pub nika_types::DistanceMetric::Cosine
+pub nika_types::DistanceMetric::DotProduct
+pub nika_types::DistanceMetric::Euclidean
+pub nika_types::DistanceMetric::Hamming
+impl core::clone::Clone for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::clone(&self) -> nika_types::embedding::DistanceMetric
+impl core::cmp::Eq for nika_types::embedding::DistanceMetric
+impl core::cmp::PartialEq for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::eq(&self, other: &nika_types::embedding::DistanceMetric) -> bool
+impl core::fmt::Debug for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::embedding::DistanceMetric
+impl core::marker::StructuralPartialEq for nika_types::embedding::DistanceMetric
+impl serde_core::ser::Serialize for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::DistanceMetric where U: core::convert::From<T>
+pub fn nika_types::embedding::DistanceMetric::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::DistanceMetric where U: core::convert::Into<T>
+pub type nika_types::embedding::DistanceMetric::Error = core::convert::Infallible
+pub fn nika_types::embedding::DistanceMetric::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::DistanceMetric where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::DistanceMetric::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::DistanceMetric::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::DistanceMetric where T: core::clone::Clone
+pub type nika_types::embedding::DistanceMetric::Owned = T
+pub fn nika_types::embedding::DistanceMetric::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::DistanceMetric::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::DistanceMetric where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::DistanceMetric where T: ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::DistanceMetric where T: ?core::marker::Sized
+pub fn nika_types::embedding::DistanceMetric::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::DistanceMetric where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::DistanceMetric::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::DistanceMetric
+pub fn nika_types::embedding::DistanceMetric::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::DistanceMetric where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::EmbeddingDtype
+pub nika_types::EmbeddingDtype::BF16
+pub nika_types::EmbeddingDtype::Binary
+pub nika_types::EmbeddingDtype::F16
+pub nika_types::EmbeddingDtype::F32
+pub nika_types::EmbeddingDtype::I8
+impl core::clone::Clone for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::clone(&self) -> nika_types::embedding::EmbeddingDtype
+impl core::cmp::Eq for nika_types::embedding::EmbeddingDtype
+impl core::cmp::PartialEq for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::eq(&self, other: &nika_types::embedding::EmbeddingDtype) -> bool
+impl core::fmt::Debug for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::embedding::EmbeddingDtype
+impl core::marker::StructuralPartialEq for nika_types::embedding::EmbeddingDtype
+impl serde_core::ser::Serialize for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::From<T>
+pub fn nika_types::embedding::EmbeddingDtype::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::Into<T>
+pub type nika_types::embedding::EmbeddingDtype::Error = core::convert::Infallible
+pub fn nika_types::embedding::EmbeddingDtype::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::EmbeddingDtype where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::EmbeddingDtype::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::EmbeddingDtype::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::EmbeddingDtype where T: core::clone::Clone
+pub type nika_types::embedding::EmbeddingDtype::Owned = T
+pub fn nika_types::embedding::EmbeddingDtype::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::EmbeddingDtype::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::EmbeddingDtype where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::EmbeddingDtype where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::EmbeddingDtype where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingDtype::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::EmbeddingDtype where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::EmbeddingDtype::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingDtype
+pub fn nika_types::embedding::EmbeddingDtype::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingDtype where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::ErrorCategory
 pub nika_types::ErrorCategory::Budget
 pub nika_types::ErrorCategory::Internal
@@ -4019,6 +4371,51 @@ pub unsafe fn nika_types::cost::Cost::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::cost::Cost where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::EmbeddingSpec
+pub nika_types::EmbeddingSpec::dim: u16
+pub nika_types::EmbeddingSpec::dtype: nika_types::embedding::EmbeddingDtype
+pub nika_types::EmbeddingSpec::metric: nika_types::embedding::DistanceMetric
+pub nika_types::EmbeddingSpec::model_id: core::option::Option<alloc::string::String>
+impl nika_types::embedding::EmbeddingSpec
+pub const fn nika_types::embedding::EmbeddingSpec::new(dim: u16, dtype: nika_types::embedding::EmbeddingDtype, metric: nika_types::embedding::DistanceMetric) -> Self
+pub fn nika_types::embedding::EmbeddingSpec::with_model(dim: u16, dtype: nika_types::embedding::EmbeddingDtype, metric: nika_types::embedding::DistanceMetric, model_id: alloc::string::String) -> Self
+impl core::clone::Clone for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::clone(&self) -> nika_types::embedding::EmbeddingSpec
+impl core::cmp::Eq for nika_types::embedding::EmbeddingSpec
+impl core::cmp::PartialEq for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::eq(&self, other: &nika_types::embedding::EmbeddingSpec) -> bool
+impl core::fmt::Debug for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::embedding::EmbeddingSpec
+impl serde_core::ser::Serialize for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::From<T>
+pub fn nika_types::embedding::EmbeddingSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::Into<T>
+pub type nika_types::embedding::EmbeddingSpec::Error = core::convert::Infallible
+pub fn nika_types::embedding::EmbeddingSpec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::embedding::EmbeddingSpec where U: core::convert::TryFrom<T>
+pub type nika_types::embedding::EmbeddingSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::embedding::EmbeddingSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::embedding::EmbeddingSpec where T: core::clone::Clone
+pub type nika_types::embedding::EmbeddingSpec::Owned = T
+pub fn nika_types::embedding::EmbeddingSpec::clone_into(&self, target: &mut T)
+pub fn nika_types::embedding::EmbeddingSpec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::embedding::EmbeddingSpec where T: 'static + ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::embedding::EmbeddingSpec where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::embedding::EmbeddingSpec where T: ?core::marker::Sized
+pub fn nika_types::embedding::EmbeddingSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::embedding::EmbeddingSpec where T: core::clone::Clone
+pub unsafe fn nika_types::embedding::EmbeddingSpec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingSpec
+pub fn nika_types::embedding::EmbeddingSpec::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingSpec where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::EventId
 pub nika_types::EventId::uuid: uuid::Uuid
 impl nika_types::id::EventId

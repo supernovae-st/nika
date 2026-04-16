@@ -46,6 +46,7 @@ pub mod trust;
 pub mod cancel;
 pub mod checkpoint;
 pub mod compression;
+pub mod embedding;
 pub mod memory;
 pub mod role;
 pub mod token_usage;
@@ -74,6 +75,7 @@ pub mod prelude {
     pub use crate::cancel::CancelCtx;
     pub use crate::checkpoint::{AgentCheckpoint, CheckpointMessage, ToolCallRecord};
     pub use crate::compression::CompressionPolicy;
+    pub use crate::embedding::{DistanceMetric, EmbeddingDtype, EmbeddingSpec};
     pub use crate::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
     pub use crate::role::Role;
     pub use crate::token_usage::TokenUsage;
