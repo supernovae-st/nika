@@ -21,6 +21,7 @@ pub mod model;
 #[cfg(feature = "capabilities")]
 pub mod param_flag;
 pub mod provider;
+pub mod region;
 pub mod tags;
 #[cfg(feature = "capabilities")]
 pub mod tokenizer;
@@ -40,6 +41,7 @@ pub use model::{CostEstimate, ModelCapabilities, ModelPricing, TokenLimitParam};
 #[cfg(feature = "capabilities")]
 pub use param_flag::{ParamFlag, ParseParamFlagError};
 pub use provider::{Provider, ProviderModel, validate_key_format};
+pub use region::{ParseRegionError, Region};
 pub use tags::{ParseTagError, Tag};
 #[cfg(feature = "capabilities")]
 pub use tokenizer::{ParseTokenizerFamilyError, TokenizerFamily};

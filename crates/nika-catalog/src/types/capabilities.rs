@@ -22,6 +22,7 @@
 //! `pub mod capabilities;` declaration in `types/mod.rs`.
 
 use super::model::{ModelCapabilities, TokenLimitParam};
+use super::region::Region;
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
 /// Partial capabilities — `Option<T>` per field so several patches can be
@@ -494,11 +495,12 @@ const fn is_right_boundary_char(b: u8) -> bool {
 /// let rule = CapRule::new(
 ///     &["openai"],
 ///     None,
+///     None,
 ///     Matcher::Exact("gpt-5"),
 ///     CapPatch::default(),
 /// );
 /// assert!(rule.matcher.matches("gpt-5"));
-/// assert!(!rule.matcher.matches("gpt-4o"));
+/// assert!(rule.region.is_none()); // global rule
 /// ```
 #[derive(Debug)]
 #[non_exhaustive]
@@ -507,6 +509,12 @@ pub struct CapRule {
     pub providers: &'static [&'static str],
     /// Wire-protocol dialect scope. `None` = any dialect.
     pub api_dialect: Option<&'static str>,
+    /// Cloud region scope. `None` = global (all regions).
+    ///
+    /// When set, this rule only applies when the caller-supplied region
+    /// is in the list. Phase E2 pricing migration uses this for
+    /// Azure/Bedrock regional rate differentiation.
+    pub region: Option<&'static [Region]>,
     /// Model-name matcher.
     pub matcher: Matcher,
     /// Partial caps merged into the accumulator on match.
@@ -522,12 +530,14 @@ impl CapRule {
     pub const fn new(
         providers: &'static [&'static str],
         api_dialect: Option<&'static str>,
+        region: Option<&'static [Region]>,
         matcher: Matcher,
         caps: CapPatch,
     ) -> Self {
         Self {
             providers,
             api_dialect,
+            region,
             matcher,
             caps,
         }

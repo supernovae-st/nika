@@ -76,6 +76,10 @@ struct ScopeEntry {
     providers: Vec<String>,
     #[serde(default)]
     api_dialect: Option<String>,
+    /// Cloud region scope. `None` = global (all regions).
+    /// Accepts: "us", "eu", "apac", "china".
+    #[serde(default)]
+    region: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -247,6 +251,11 @@ pub(super) fn parse_capabilities(
                      or add the dialect to a provider",
                     rule.name
                 ));
+            }
+        }
+        if let Some(regions) = &rule.scope.region {
+            for r in regions {
+                validate_region(r, &format!("rule {:?}", rule.name))?;
             }
         }
 
@@ -838,6 +847,12 @@ fn emit_rule(out: &mut String, rule: &RuleEntry) {
         opt_rstr(rule.scope.api_dialect.as_deref())
     )
     .unwrap();
+    writeln!(
+        out,
+        "        region: {},",
+        emit_region_scope(rule.scope.region.as_deref())
+    )
+    .unwrap();
     writeln!(out, "        matcher: {},", emit_matcher(&rule.match_)).unwrap();
     // Indent the nested CapPatch literal by 8 spaces for readability.
     let caps_literal = emit_cap_patch(&rule.caps);
@@ -876,5 +891,40 @@ fn emit_matcher(m: &MatchEntry) -> String {
             "crate::types::capabilities::Matcher::ContainsAny({})",
             str_slice_expr(patterns)
         ),
+    }
+}
+
+/// Validate a region string from TOML.
+fn validate_region(r: &str, context: &str) -> Result<(), String> {
+    match r {
+        "us" | "eu" | "apac" | "china" => Ok(()),
+        _ => Err(format!(
+            "{context}: unknown region {r:?} (expected one of: us, eu, apac, china)"
+        )),
+    }
+}
+
+/// Rust variant name for a validated region string.
+fn region_variant(s: &str) -> &'static str {
+    match s {
+        "us" => "Us",
+        "eu" => "Eu",
+        "apac" => "Apac",
+        "china" => "China",
+        _ => unreachable!("validated earlier: region={s}"),
+    }
+}
+
+/// Emit `Option<&[Region]>` literal for the `region` field of [`CapRule`].
+fn emit_region_scope(regions: Option<&[String]>) -> String {
+    match regions {
+        None | Some(&[]) => "None".to_string(),
+        Some(list) => {
+            let variants: Vec<String> = list
+                .iter()
+                .map(|r| format!("crate::types::Region::{}", region_variant(r)))
+                .collect();
+            format!("Some(&[{}])", variants.join(", "))
+        }
     }
 }
