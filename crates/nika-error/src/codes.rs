@@ -183,45 +183,25 @@ pub const NIKA_015: NikaCode = NikaCode {
 // `lookup("NIKA-050")` works even before individual codes ship.
 // Specific codes within each range are added when owning crates land.
 
-/// NIKA-050: Shell/process error (range placeholder 050-099).
-pub const NIKA_050: NikaCode = NikaCode {
-    num: 50,
-    category: Category::Shell,
-    severity: Severity::Error,
-    slug: "shell",
-};
-
-/// NIKA-100: File I/O / blob error (range placeholder 100-139).
-pub const NIKA_100: NikaCode = NikaCode {
-    num: 100,
-    category: Category::FileIo,
-    severity: Severity::Error,
-    slug: "file-io",
-};
-
-/// NIKA-140: HTTP error (range placeholder 140-189).
-pub const NIKA_140: NikaCode = NikaCode {
-    num: 140,
-    category: Category::Http,
-    severity: Severity::Error,
-    slug: "http",
-};
-
-/// NIKA-230: MCP/tool error (range placeholder 230-279).
-pub const NIKA_230: NikaCode = NikaCode {
-    num: 230,
-    category: Category::Mcp,
-    severity: Severity::Error,
-    slug: "mcp-tool",
-};
-
-/// NIKA-380: Provider/Shield error (range placeholder 380-429).
-pub const NIKA_380: NikaCode = NikaCode {
-    num: 380,
-    category: Category::Provider,
-    severity: Severity::Error,
-    slug: "provider-shield",
-};
+// ─── Range-based help (no concrete placeholders) ────────────────────────
+//
+// Per Audit-1 P0-1 (2026-04-16): the placeholder constants NIKA_050,
+// NIKA_100, NIKA_140, NIKA_230, NIKA_380 used to live here but COLLIDED
+// with concrete code definitions in `nika-kernel/src/errors.rs` (same
+// numbers, different slugs). `lookup()` returned the placeholder and
+// silently mismatched any caller expecting the real slug.
+//
+// The placeholders are removed. Help text for these ranges is still
+// provided by `code_help()` via numeric range matching, so a wire code
+// like "NIKA-053" still resolves to actionable shell-error guidance via
+// `code_help()` even though `lookup("NIKA-053")` returns None (the
+// concrete code lives in nika-kernel and is not visible to nika-error
+// without a workspace-level registry crate).
+//
+// The limitation: cross-crate `lookup()` is not yet implemented. Codes
+// owned by nika-kernel (or other downstream crates) need a workspace-
+// level registry to be resolvable from nika-error. Tracked as future
+// work; not in scope for Wave 1.3.
 
 // ─── Reserved subsystem codes (600+) ─────────────────────────────────────
 
@@ -265,11 +245,19 @@ pub const NIKA_999: NikaCode = NikaCode {
     slug: "internal",
 };
 
-/// All registered codes. Used for uniqueness validation and iteration.
+/// All registered codes within nika-error's own ranges.
+///
+/// **Scope**: this array contains only codes OWNED by nika-error. Codes
+/// owned by downstream crates (nika-kernel, nika-runtime, nika-verb-*,
+/// etc.) are NOT enumerated here. `lookup()` therefore returns None for
+/// codes outside nika-error's range — see Audit-1 P0-1 (2026-04-16).
+///
+/// A workspace-level registry crate would unify all codes, but landing
+/// it requires settling the cross-crate registry pattern (Phase D
+/// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_050, NIKA_100, NIKA_140, NIKA_230, NIKA_380, NIKA_600, NIKA_700, NIKA_750, NIKA_800,
-    NIKA_999,
+    NIKA_600, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
 ];
 
 /// Returns an actionable help message for a given code.
