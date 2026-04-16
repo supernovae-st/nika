@@ -273,8 +273,11 @@ macro_rules! string_id {
         #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[non_exhaustive]
         pub struct $name {
-            /// The identifier value.
-            pub value: String,
+            /// The identifier value (private — use `new()` to construct,
+            /// `as_str()` to read). Privacy enables future validation in
+            /// `new()` without breaking callers (e.g. lowercase kebab-case
+            /// for `ProviderId`). Per Audit-1 P2-10 (2026-04-16).
+            value: String,
         }
 
         impl $name {
@@ -284,6 +287,12 @@ macro_rules! string_id {
                 Self {
                     value: value.into(),
                 }
+            }
+
+            /// Borrow the inner string slice.
+            #[must_use]
+            pub fn as_str(&self) -> &str {
+                &self.value
             }
         }
 
@@ -317,26 +326,16 @@ string_id!(
 
 // ─── TaskId (user-named, not machine-generated) ────────────────────
 
-/// Opaque task identifier (user-named in YAML workflows).
-///
-/// Unlike UUID-based IDs, `TaskId` comes from the workflow definition
-/// (e.g., `research_step`, `summarize`). It is user-chosen, not generated.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TaskId(pub String);
-
-impl TaskId {
-    /// Create a new task identifier.
-    #[must_use]
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-}
-
-impl fmt::Display for TaskId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
+string_id!(
+    /// Opaque task identifier (user-named in YAML workflows).
+    ///
+    /// Unlike UUID-based IDs, `TaskId` comes from the workflow definition
+    /// (e.g., `research_step`, `summarize`). It is user-chosen, not generated.
+    ///
+    /// Inner field is private (Audit-1 P0-2, 2026-04-16) so future
+    /// validation can be added in `new()` without breaking callers.
+    TaskId
+);
 
 #[cfg(test)]
 mod tests {

@@ -13,20 +13,33 @@
 use serde::{Deserialize, Serialize};
 
 /// Opaque tool call identifier.
+///
+/// Inner field is private (Audit-1 P0-2, 2026-04-16) so future validation
+/// (e.g. UUID format check, length cap) can land in `new()` without
+/// breaking callers. Use `new()` to construct, `as_str()` to read.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ToolCallId(pub String);
+#[non_exhaustive]
+pub struct ToolCallId {
+    value: String,
+}
 
 impl ToolCallId {
     /// Create a new tool call identifier.
     #[must_use]
     pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
+        Self { value: id.into() }
+    }
+
+    /// Borrow the inner string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.value
     }
 }
 
 impl std::fmt::Display for ToolCallId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.value)
     }
 }
 
@@ -165,7 +178,7 @@ mod tests {
     #[test]
     fn tool_call_new() {
         let call = ToolCall::new("tc_1", "nika:read", serde_json::json!({"path": "/tmp"}));
-        assert_eq!(call.id.0, "tc_1");
+        assert_eq!(call.id.as_str(), "tc_1");
         assert_eq!(call.name, "nika:read");
     }
 
