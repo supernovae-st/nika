@@ -7,6 +7,7 @@ authors.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
+publish      = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 description  = "Trait contracts for every side effect in the Nika diamond — L0.5"
 
 [package.metadata.cargo-machete]

@@ -8,6 +8,7 @@ authors.workspace      = true
 rust-version.workspace = true
 repository.workspace   = true
 homepage.workspace     = true
+publish                = false  # L4 dev-tool binary — internal verifier, never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 
 [[bin]]
 name = "nika-catalog-verify"
