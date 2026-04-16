@@ -37,7 +37,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 9 | `check-org-readme.sh` | Org profile README mentions all 6 canonical repos |
 | 10 | `check-citation.sh` | CITATION.cff version ↔ workspace consistency |
 | 11 | `check-unwraps.sh` | Zero `.unwrap()` / `.expect(` outside tests |
-| 12 | `check-file-loc.sh` | No src/*.rs file > 1,500 LOC cap |
+| 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023): 800 YELLOW / 1500 RED / 3000 CRITICAL with `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
 | 13 | `check-claude-coauthor.sh` | No `Co-Authored-By: Claude` on diamond branch |
 | 14 | `check-private-leaks.sh` | No `/.claude/projects/…` in tracked code |
 | 15 | `check-cargo-audit.sh` | `cargo audit` shows no RustSec advisories |
