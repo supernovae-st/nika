@@ -21,6 +21,7 @@
 //! - `Provider` (via the blanket super-trait, not the atomic sub-traits)
 //! - `EventSink`
 //! - `BillingSink`
+//! - `AuditSink` (added Q12 Phase B — compliance-grade 5th channel)
 //! - `SecretResolver` (added Wave 3, P1-1 fix)
 //!
 //! ## NOT sealed (intentionally)

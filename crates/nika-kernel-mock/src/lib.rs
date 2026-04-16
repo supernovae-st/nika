@@ -10,6 +10,8 @@
 //!
 //! | Mock | Implements | Behavior |
 //! |---|---|---|
+//! | [`NullAuditSink`] | `AuditSink` | Always-`Ok`, persists nowhere |
+//! | [`FailingAuditSink`] | `AuditSink` | Always `PersistFailed` (error-path tests) |
 //! | [`MockClock`] | `Clock` | Controllable time, instant sleep |
 //! | [`MockFs`] | `Fs` | In-memory `BTreeMap<PathBuf, Vec<u8>>` |
 //! | [`MockHttp`] | `HttpClient` | FIFO response queue + call recording |
@@ -31,6 +33,7 @@
     )
 )]
 
+pub mod audit;
 pub mod billing;
 pub mod blob;
 pub mod clock;
@@ -49,6 +52,7 @@ pub mod shell;
 pub mod tool_executor;
 pub mod trace;
 
+pub use audit::{FailingAuditSink, NullAuditSink};
 pub use billing::NullBillingSink;
 pub use blob::MockBlob;
 pub use clock::MockClock;

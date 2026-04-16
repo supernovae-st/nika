@@ -68,7 +68,7 @@ pub mod types;
 
 // ─── Backward-compat re-exports (preserve crate::module_name paths) ─
 pub use ai::{context, memory, provider};
-pub use infra::{billing, event_sink, id_gen, metrics, secret, trace};
+pub use infra::{audit, billing, event_sink, id_gen, metrics, secret, trace};
 pub use io::{blob, clock, fs, http, process};
 pub use plugin::sandbox;
 pub use runtime::{agent, tool_executor};
@@ -78,6 +78,7 @@ pub use agent::{
     AgentLoopConfig, AgentOutcome, AgentStopReason, CompressionPolicy, PlanningStrategy,
     ReflectionConfig, ToolErrorPolicy,
 };
+pub use audit::{AuditRecord, AuditSink, AuditSinkDyn, AuditSinkError, Severity as AuditSeverity};
 pub use billing::BillingSink;
 pub use blob::{BlobError, BlobMetadata, BlobStore};
 pub use cancel::CancelCtx;

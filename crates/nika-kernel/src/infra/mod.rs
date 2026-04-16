@@ -5,6 +5,7 @@
 //!
 //! Future: stays in kernel (or `nika-kernel-infra` if we split).
 
+pub mod audit;
 pub mod billing;
 pub mod event_sink;
 pub mod id_gen;
