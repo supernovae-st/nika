@@ -1,0 +1,1123 @@
+pub mod nika_error
+pub use nika_error::<<nika_types::prelude::*>>
+pub use nika_error::baggage
+pub use nika_error::budget
+pub use nika_error::cancel
+pub use nika_error::checkpoint
+pub use nika_error::compression
+pub use nika_error::cost
+pub use nika_error::hash
+pub use nika_error::id
+pub use nika_error::memory
+pub use nika_error::resource
+pub use nika_error::retry
+pub use nika_error::role
+pub use nika_error::schema
+pub use nika_error::token_usage
+pub use nika_error::trust
+pub mod nika_error::codes
+pub mod nika_error::codes
+#[non_exhaustive] pub enum nika_error::codes::Category
+#[non_exhaustive] pub enum nika_error::codes::Category
+pub nika_error::codes::Category::Auth
+pub nika_error::codes::Category::Auth
+pub nika_error::codes::Category::Binding
+pub nika_error::codes::Category::Binding
+pub nika_error::codes::Category::Core
+pub nika_error::codes::Category::Core
+pub nika_error::codes::Category::FileIo
+pub nika_error::codes::Category::FileIo
+pub nika_error::codes::Category::Http
+pub nika_error::codes::Category::Http
+pub nika_error::codes::Category::Mcp
+pub nika_error::codes::Category::Mcp
+pub nika_error::codes::Category::Memory
+pub nika_error::codes::Category::Memory
+pub nika_error::codes::Category::Observability
+pub nika_error::codes::Category::Observability
+pub nika_error::codes::Category::Provider
+pub nika_error::codes::Category::Provider
+pub nika_error::codes::Category::Runtime
+pub nika_error::codes::Category::Runtime
+pub nika_error::codes::Category::Sandbox
+pub nika_error::codes::Category::Sandbox
+pub nika_error::codes::Category::Schema
+pub nika_error::codes::Category::Schema
+pub nika_error::codes::Category::Shell
+pub nika_error::codes::Category::Shell
+pub nika_error::codes::Category::Verb
+pub nika_error::codes::Category::Verb
+pub nika_error::codes::Category::WasmPlugin
+pub nika_error::codes::Category::WasmPlugin
+impl core::clone::Clone for nika_error::codes::Category
+impl core::clone::Clone for nika_error::codes::Category
+pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
+pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
+impl core::cmp::Eq for nika_error::codes::Category
+impl core::cmp::Eq for nika_error::codes::Category
+impl core::cmp::PartialEq for nika_error::codes::Category
+impl core::cmp::PartialEq for nika_error::codes::Category
+pub fn nika_error::codes::Category::eq(&self, other: &nika_error::codes::Category) -> bool
+pub fn nika_error::codes::Category::eq(&self, other: &nika_error::codes::Category) -> bool
+impl core::fmt::Debug for nika_error::codes::Category
+impl core::fmt::Debug for nika_error::codes::Category
+pub fn nika_error::codes::Category::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn nika_error::codes::Category::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Category
+impl core::hash::Hash for nika_error::codes::Category
+pub fn nika_error::codes::Category::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+pub fn nika_error::codes::Category::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Category
+impl core::marker::Copy for nika_error::codes::Category
+impl core::marker::StructuralPartialEq for nika_error::codes::Category
+impl core::marker::StructuralPartialEq for nika_error::codes::Category
+impl serde_core::ser::Serialize for nika_error::codes::Category
+impl serde_core::ser::Serialize for nika_error::codes::Category
+pub fn nika_error::codes::Category::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+pub fn nika_error::codes::Category::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Category
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Category
+pub fn nika_error::codes::Category::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+pub fn nika_error::codes::Category::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Category
+impl<D> owo_colors::OwoColorize for nika_error::codes::Category
+impl<T, U> core::convert::Into<U> for nika_error::codes::Category where U: core::convert::From<T>
+impl<T, U> core::convert::Into<U> for nika_error::codes::Category where U: core::convert::From<T>
+pub fn nika_error::codes::Category::into(self) -> U
+pub fn nika_error::codes::Category::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Category where U: core::convert::Into<T>
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Category where U: core::convert::Into<T>
+pub type nika_error::codes::Category::Error = core::convert::Infallible
+pub type nika_error::codes::Category::Error = core::convert::Infallible
+pub fn nika_error::codes::Category::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub fn nika_error::codes::Category::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Category where U: core::convert::TryFrom<T>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Category where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Category::Error = <U as core::convert::TryFrom<T>>::Error
+pub type nika_error::codes::Category::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Category::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+pub fn nika_error::codes::Category::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Category where T: core::clone::Clone
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Category where T: core::clone::Clone
+pub type nika_error::codes::Category::Owned = T
+pub type nika_error::codes::Category::Owned = T
+pub fn nika_error::codes::Category::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Category::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Category::to_owned(&self) -> T
+pub fn nika_error::codes::Category::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Category where T: 'static + ?core::marker::Sized
+impl<T> core::any::Any for nika_error::codes::Category where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Category::type_id(&self) -> core::any::TypeId
+pub fn nika_error::codes::Category::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Category where T: ?core::marker::Sized
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow(&self) -> &T
+pub fn nika_error::codes::Category::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Category where T: ?core::marker::Sized
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow_mut(&mut self) -> &mut T
+pub fn nika_error::codes::Category::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Category where T: core::clone::Clone
+impl<T> core::clone::CloneToUninit for nika_error::codes::Category where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Category::clone_to_uninit(&self, dest: *mut u8)
+pub unsafe fn nika_error::codes::Category::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Category
+impl<T> core::convert::From<T> for nika_error::codes::Category
+pub fn nika_error::codes::Category::from(t: T) -> T
+pub fn nika_error::codes::Category::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Category where T: 'static
+impl<T> nika_error::traits::AsAny for nika_error::codes::Category where T: 'static
+pub fn nika_error::codes::Category::as_any(&self) -> &dyn core::any::Any
+pub fn nika_error::codes::Category::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Category where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Category where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_error::codes::Severity
+#[non_exhaustive] pub enum nika_error::codes::Severity
+pub nika_error::codes::Severity::Error
+pub nika_error::codes::Severity::Error
+pub nika_error::codes::Severity::Warning
+pub nika_error::codes::Severity::Warning
+impl core::clone::Clone for nika_error::codes::Severity
+impl core::clone::Clone for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
+pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
+impl core::cmp::Eq for nika_error::codes::Severity
+impl core::cmp::Eq for nika_error::codes::Severity
+impl core::cmp::PartialEq for nika_error::codes::Severity
+impl core::cmp::PartialEq for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::eq(&self, other: &nika_error::codes::Severity) -> bool
+pub fn nika_error::codes::Severity::eq(&self, other: &nika_error::codes::Severity) -> bool
+impl core::fmt::Debug for nika_error::codes::Severity
+impl core::fmt::Debug for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn nika_error::codes::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Severity
+impl core::hash::Hash for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+pub fn nika_error::codes::Severity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Severity
+impl core::marker::Copy for nika_error::codes::Severity
+impl core::marker::StructuralPartialEq for nika_error::codes::Severity
+impl core::marker::StructuralPartialEq for nika_error::codes::Severity
+impl serde_core::ser::Serialize for nika_error::codes::Severity
+impl serde_core::ser::Serialize for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+pub fn nika_error::codes::Severity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Severity
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+pub fn nika_error::codes::Severity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Severity
+impl<D> owo_colors::OwoColorize for nika_error::codes::Severity
+impl<T, U> core::convert::Into<U> for nika_error::codes::Severity where U: core::convert::From<T>
+impl<T, U> core::convert::Into<U> for nika_error::codes::Severity where U: core::convert::From<T>
+pub fn nika_error::codes::Severity::into(self) -> U
+pub fn nika_error::codes::Severity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Severity where U: core::convert::Into<T>
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Severity where U: core::convert::Into<T>
+pub type nika_error::codes::Severity::Error = core::convert::Infallible
+pub type nika_error::codes::Severity::Error = core::convert::Infallible
+pub fn nika_error::codes::Severity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub fn nika_error::codes::Severity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Severity where U: core::convert::TryFrom<T>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Severity where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Severity::Error = <U as core::convert::TryFrom<T>>::Error
+pub type nika_error::codes::Severity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Severity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+pub fn nika_error::codes::Severity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Severity where T: core::clone::Clone
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Severity where T: core::clone::Clone
+pub type nika_error::codes::Severity::Owned = T
+pub type nika_error::codes::Severity::Owned = T
+pub fn nika_error::codes::Severity::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Severity::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Severity::to_owned(&self) -> T
+pub fn nika_error::codes::Severity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Severity where T: 'static + ?core::marker::Sized
+impl<T> core::any::Any for nika_error::codes::Severity where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Severity::type_id(&self) -> core::any::TypeId
+pub fn nika_error::codes::Severity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow(&self) -> &T
+pub fn nika_error::codes::Severity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow_mut(&mut self) -> &mut T
+pub fn nika_error::codes::Severity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Severity where T: core::clone::Clone
+impl<T> core::clone::CloneToUninit for nika_error::codes::Severity where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Severity::clone_to_uninit(&self, dest: *mut u8)
+pub unsafe fn nika_error::codes::Severity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Severity
+impl<T> core::convert::From<T> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::from(t: T) -> T
+pub fn nika_error::codes::Severity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Severity where T: 'static
+impl<T> nika_error::traits::AsAny for nika_error::codes::Severity where T: 'static
+pub fn nika_error::codes::Severity::as_any(&self) -> &dyn core::any::Any
+pub fn nika_error::codes::Severity::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Severity where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Severity where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_error::codes::NikaCode
+pub struct nika_error::codes::NikaCode
+pub nika_error::codes::NikaCode::category: nika_error::codes::Category
+pub nika_error::codes::NikaCode::category: nika_error::codes::Category
+pub nika_error::codes::NikaCode::num: u16
+pub nika_error::codes::NikaCode::num: u16
+pub nika_error::codes::NikaCode::severity: nika_error::codes::Severity
+pub nika_error::codes::NikaCode::severity: nika_error::codes::Severity
+pub nika_error::codes::NikaCode::slug: &'static str
+pub nika_error::codes::NikaCode::slug: &'static str
+impl core::clone::Clone for nika_error::codes::NikaCode
+impl core::clone::Clone for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::clone(&self) -> nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::clone(&self) -> nika_error::codes::NikaCode
+impl core::cmp::Eq for nika_error::codes::NikaCode
+impl core::cmp::Eq for nika_error::codes::NikaCode
+impl core::cmp::PartialEq for nika_error::codes::NikaCode
+impl core::cmp::PartialEq for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::eq(&self, other: &nika_error::codes::NikaCode) -> bool
+pub fn nika_error::codes::NikaCode::eq(&self, other: &nika_error::codes::NikaCode) -> bool
+impl core::fmt::Debug for nika_error::codes::NikaCode
+impl core::fmt::Debug for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::codes::NikaCode
+impl core::fmt::Display for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::NikaCode
+impl core::hash::Hash for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+pub fn nika_error::codes::NikaCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::NikaCode
+impl core::marker::Copy for nika_error::codes::NikaCode
+impl core::marker::StructuralPartialEq for nika_error::codes::NikaCode
+impl core::marker::StructuralPartialEq for nika_error::codes::NikaCode
+impl serde_core::ser::Serialize for nika_error::codes::NikaCode
+impl serde_core::ser::Serialize for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::serialize<S: serde_core::ser::Serializer>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+pub fn nika_error::codes::NikaCode::serialize<S: serde_core::ser::Serializer>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::NikaCode
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+pub fn nika_error::codes::NikaCode::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<D> owo_colors::OwoColorize for nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_error::codes::NikaCode
+impl<T, U> core::convert::Into<U> for nika_error::codes::NikaCode where U: core::convert::From<T>
+impl<T, U> core::convert::Into<U> for nika_error::codes::NikaCode where U: core::convert::From<T>
+pub fn nika_error::codes::NikaCode::into(self) -> U
+pub fn nika_error::codes::NikaCode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::NikaCode where U: core::convert::Into<T>
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::NikaCode where U: core::convert::Into<T>
+pub type nika_error::codes::NikaCode::Error = core::convert::Infallible
+pub type nika_error::codes::NikaCode::Error = core::convert::Infallible
+pub fn nika_error::codes::NikaCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub fn nika_error::codes::NikaCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::NikaCode where U: core::convert::TryFrom<T>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::NikaCode where U: core::convert::TryFrom<T>
+pub type nika_error::codes::NikaCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub type nika_error::codes::NikaCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::NikaCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+pub fn nika_error::codes::NikaCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::NikaCode where T: core::clone::Clone
+impl<T> alloc::borrow::ToOwned for nika_error::codes::NikaCode where T: core::clone::Clone
+pub type nika_error::codes::NikaCode::Owned = T
+pub type nika_error::codes::NikaCode::Owned = T
+pub fn nika_error::codes::NikaCode::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::NikaCode::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::NikaCode::to_owned(&self) -> T
+pub fn nika_error::codes::NikaCode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_error::codes::NikaCode where T: core::fmt::Display + ?core::marker::Sized
+impl<T> alloc::string::ToString for nika_error::codes::NikaCode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::to_string(&self) -> alloc::string::String
+pub fn nika_error::codes::NikaCode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::codes::NikaCode where T: 'static + ?core::marker::Sized
+impl<T> core::any::Any for nika_error::codes::NikaCode where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::type_id(&self) -> core::any::TypeId
+pub fn nika_error::codes::NikaCode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+impl<T> core::borrow::Borrow<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow(&self) -> &T
+pub fn nika_error::codes::NikaCode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow_mut(&mut self) -> &mut T
+pub fn nika_error::codes::NikaCode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::NikaCode where T: core::clone::Clone
+impl<T> core::clone::CloneToUninit for nika_error::codes::NikaCode where T: core::clone::Clone
+pub unsafe fn nika_error::codes::NikaCode::clone_to_uninit(&self, dest: *mut u8)
+pub unsafe fn nika_error::codes::NikaCode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::NikaCode
+impl<T> core::convert::From<T> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::from(t: T) -> T
+pub fn nika_error::codes::NikaCode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::NikaCode where T: 'static
+impl<T> nika_error::traits::AsAny for nika_error::codes::NikaCode where T: 'static
+pub fn nika_error::codes::NikaCode::as_any(&self) -> &dyn core::any::Any
+pub fn nika_error::codes::NikaCode::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::NikaCode where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::NikaCode where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_error::codes::ALL: &[nika_error::codes::NikaCode]
+pub const nika_error::codes::ALL: &[nika_error::codes::NikaCode]
+pub const nika_error::codes::NIKA_001: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_001: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_002: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_002: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_003: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_003: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_010: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_010: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_011: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_011: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_012: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_012: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_013: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_013: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_014: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_014: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_015: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_015: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_700: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_700: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_750: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_750: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_800: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_800: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_999: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_999: nika_error::codes::NikaCode
+pub fn nika_error::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
+pub fn nika_error::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
+pub fn nika_error::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
+pub fn nika_error::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
+pub mod nika_error::core_error
+#[non_exhaustive] pub enum nika_error::core_error::CoreError
+pub nika_error::core_error::CoreError::Internal
+pub nika_error::core_error::CoreError::Internal::context: alloc::string::String
+pub nika_error::core_error::CoreError::Internal::detail: alloc::string::String
+pub nika_error::core_error::CoreError::NotFound
+pub nika_error::core_error::CoreError::NotFound::what: alloc::string::String
+pub nika_error::core_error::CoreError::Unsupported
+pub nika_error::core_error::CoreError::Unsupported::feature: alloc::string::String
+pub nika_error::core_error::CoreError::Validation
+pub nika_error::core_error::CoreError::Validation::reason: alloc::string::String
+impl core::error::Error for nika_error::core_error::CoreError
+impl core::fmt::Debug for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
+pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
+pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_error::core_error::CoreError
+impl<T, U> core::convert::Into<U> for nika_error::core_error::CoreError where U: core::convert::From<T>
+pub fn nika_error::core_error::CoreError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::core_error::CoreError where U: core::convert::Into<T>
+pub type nika_error::core_error::CoreError::Error = core::convert::Infallible
+pub fn nika_error::core_error::CoreError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::core_error::CoreError where U: core::convert::TryFrom<T>
+pub type nika_error::core_error::CoreError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::core_error::CoreError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_error::core_error::CoreError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::core_error::CoreError where T: 'static + ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::core_error::CoreError where T: ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::core_error::CoreError where T: ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::core_error::CoreError where T: 'static
+pub fn nika_error::core_error::CoreError::as_any(&self) -> &dyn core::any::Any
+pub mod nika_error::nika_error
+pub struct nika_error::nika_error::NikaError(_)
+impl nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::downcast_ref<E: nika_error::traits::NikaErrorCode>(&self) -> core::option::Option<&E>
+pub fn nika_error::nika_error::NikaError::fingerprint(&self) -> u64
+pub fn nika_error::nika_error::NikaError::is_transient(&self) -> bool
+pub fn nika_error::nika_error::NikaError::new<E: nika_error::traits::NikaErrorCode>(e: E) -> Self
+pub fn nika_error::nika_error::NikaError::nika_code(&self) -> nika_error::codes::NikaCode
+impl core::error::Error for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::code<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+pub fn nika_error::nika_error::NikaError::diagnostic_source(&self) -> core::option::Option<&dyn miette::protocol::Diagnostic>
+pub fn nika_error::nika_error::NikaError::help<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+pub fn nika_error::nika_error::NikaError::labels(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = miette::protocol::LabeledSpan> + '_)>>
+pub fn nika_error::nika_error::NikaError::related<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = &'a dyn miette::protocol::Diagnostic> + 'a)>>
+pub fn nika_error::nika_error::NikaError::severity(&self) -> core::option::Option<miette::protocol::Severity>
+pub fn nika_error::nika_error::NikaError::source_code(&self) -> core::option::Option<&dyn miette::protocol::SourceCode>
+pub fn nika_error::nika_error::NikaError::url<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+impl<E: nika_error::traits::NikaErrorCode> core::convert::From<E> for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::from(e: E) -> Self
+impl<D> owo_colors::OwoColorize for nika_error::nika_error::NikaError
+impl<T, U> core::convert::Into<U> for nika_error::nika_error::NikaError where U: core::convert::From<T>
+pub fn nika_error::nika_error::NikaError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::nika_error::NikaError where U: core::convert::Into<T>
+pub type nika_error::nika_error::NikaError::Error = core::convert::Infallible
+pub fn nika_error::nika_error::NikaError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::nika_error::NikaError where U: core::convert::TryFrom<T>
+pub type nika_error::nika_error::NikaError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::nika_error::NikaError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_error::nika_error::NikaError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::nika_error::NikaError where T: 'static + ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::nika_error::NikaError where T: ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::nika_error::NikaError where T: ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::nika_error::NikaError where T: 'static
+pub fn nika_error::nika_error::NikaError::as_any(&self) -> &dyn core::any::Any
+pub type nika_error::nika_error::NikaResult<T> = core::result::Result<T, nika_error::nika_error::NikaError>
+pub mod nika_error::prelude
+pub use nika_error::prelude::<<nika_types::prelude::*>>
+pub mod nika_error::prelude::codes
+#[non_exhaustive] pub enum nika_error::prelude::codes::Category
+pub nika_error::prelude::codes::Category::Auth
+pub nika_error::prelude::codes::Category::Binding
+pub nika_error::prelude::codes::Category::Core
+pub nika_error::prelude::codes::Category::FileIo
+pub nika_error::prelude::codes::Category::Http
+pub nika_error::prelude::codes::Category::Mcp
+pub nika_error::prelude::codes::Category::Memory
+pub nika_error::prelude::codes::Category::Observability
+pub nika_error::prelude::codes::Category::Provider
+pub nika_error::prelude::codes::Category::Runtime
+pub nika_error::prelude::codes::Category::Sandbox
+pub nika_error::prelude::codes::Category::Schema
+pub nika_error::prelude::codes::Category::Shell
+pub nika_error::prelude::codes::Category::Verb
+pub nika_error::prelude::codes::Category::WasmPlugin
+impl core::clone::Clone for nika_error::codes::Category
+pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
+impl core::cmp::Eq for nika_error::codes::Category
+impl core::cmp::PartialEq for nika_error::codes::Category
+pub fn nika_error::codes::Category::eq(&self, other: &nika_error::codes::Category) -> bool
+impl core::fmt::Debug for nika_error::codes::Category
+pub fn nika_error::codes::Category::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Category
+pub fn nika_error::codes::Category::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Category
+impl core::marker::StructuralPartialEq for nika_error::codes::Category
+impl serde_core::ser::Serialize for nika_error::codes::Category
+pub fn nika_error::codes::Category::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Category
+pub fn nika_error::codes::Category::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Category
+impl<T, U> core::convert::Into<U> for nika_error::codes::Category where U: core::convert::From<T>
+pub fn nika_error::codes::Category::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Category where U: core::convert::Into<T>
+pub type nika_error::codes::Category::Error = core::convert::Infallible
+pub fn nika_error::codes::Category::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Category where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Category::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Category::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Category where T: core::clone::Clone
+pub type nika_error::codes::Category::Owned = T
+pub fn nika_error::codes::Category::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Category::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Category where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Category::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Category where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Category::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Category
+pub fn nika_error::codes::Category::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Category where T: 'static
+pub fn nika_error::codes::Category::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Category where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_error::prelude::codes::Severity
+pub nika_error::prelude::codes::Severity::Error
+pub nika_error::prelude::codes::Severity::Warning
+impl core::clone::Clone for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
+impl core::cmp::Eq for nika_error::codes::Severity
+impl core::cmp::PartialEq for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::eq(&self, other: &nika_error::codes::Severity) -> bool
+impl core::fmt::Debug for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Severity
+impl core::marker::StructuralPartialEq for nika_error::codes::Severity
+impl serde_core::ser::Serialize for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Severity
+impl<T, U> core::convert::Into<U> for nika_error::codes::Severity where U: core::convert::From<T>
+pub fn nika_error::codes::Severity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Severity where U: core::convert::Into<T>
+pub type nika_error::codes::Severity::Error = core::convert::Infallible
+pub fn nika_error::codes::Severity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Severity where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Severity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Severity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Severity where T: core::clone::Clone
+pub type nika_error::codes::Severity::Owned = T
+pub fn nika_error::codes::Severity::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Severity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Severity where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Severity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Severity where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Severity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Severity where T: 'static
+pub fn nika_error::codes::Severity::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Severity where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_error::prelude::codes::NikaCode
+pub nika_error::prelude::codes::NikaCode::category: nika_error::codes::Category
+pub nika_error::prelude::codes::NikaCode::num: u16
+pub nika_error::prelude::codes::NikaCode::severity: nika_error::codes::Severity
+pub nika_error::prelude::codes::NikaCode::slug: &'static str
+impl core::clone::Clone for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::clone(&self) -> nika_error::codes::NikaCode
+impl core::cmp::Eq for nika_error::codes::NikaCode
+impl core::cmp::PartialEq for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::eq(&self, other: &nika_error::codes::NikaCode) -> bool
+impl core::fmt::Debug for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::NikaCode
+impl core::marker::StructuralPartialEq for nika_error::codes::NikaCode
+impl serde_core::ser::Serialize for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::serialize<S: serde_core::ser::Serializer>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<D> owo_colors::OwoColorize for nika_error::codes::NikaCode
+impl<T, U> core::convert::Into<U> for nika_error::codes::NikaCode where U: core::convert::From<T>
+pub fn nika_error::codes::NikaCode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::NikaCode where U: core::convert::Into<T>
+pub type nika_error::codes::NikaCode::Error = core::convert::Infallible
+pub fn nika_error::codes::NikaCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::NikaCode where U: core::convert::TryFrom<T>
+pub type nika_error::codes::NikaCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::NikaCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::NikaCode where T: core::clone::Clone
+pub type nika_error::codes::NikaCode::Owned = T
+pub fn nika_error::codes::NikaCode::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::NikaCode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_error::codes::NikaCode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::codes::NikaCode where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::NikaCode where T: core::clone::Clone
+pub unsafe fn nika_error::codes::NikaCode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::NikaCode where T: 'static
+pub fn nika_error::codes::NikaCode::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::NikaCode where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_error::prelude::codes::ALL: &[nika_error::codes::NikaCode]
+pub const nika_error::prelude::codes::NIKA_001: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_002: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_003: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_010: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_011: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_012: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_013: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_014: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_015: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_600: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_700: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_750: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_800: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_999: nika_error::codes::NikaCode
+pub fn nika_error::prelude::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
+pub fn nika_error::prelude::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
+#[non_exhaustive] pub enum nika_error::prelude::Category
+pub nika_error::prelude::Category::Auth
+pub nika_error::prelude::Category::Binding
+pub nika_error::prelude::Category::Core
+pub nika_error::prelude::Category::FileIo
+pub nika_error::prelude::Category::Http
+pub nika_error::prelude::Category::Mcp
+pub nika_error::prelude::Category::Memory
+pub nika_error::prelude::Category::Observability
+pub nika_error::prelude::Category::Provider
+pub nika_error::prelude::Category::Runtime
+pub nika_error::prelude::Category::Sandbox
+pub nika_error::prelude::Category::Schema
+pub nika_error::prelude::Category::Shell
+pub nika_error::prelude::Category::Verb
+pub nika_error::prelude::Category::WasmPlugin
+impl core::clone::Clone for nika_error::codes::Category
+pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
+impl core::cmp::Eq for nika_error::codes::Category
+impl core::cmp::PartialEq for nika_error::codes::Category
+pub fn nika_error::codes::Category::eq(&self, other: &nika_error::codes::Category) -> bool
+impl core::fmt::Debug for nika_error::codes::Category
+pub fn nika_error::codes::Category::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Category
+pub fn nika_error::codes::Category::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Category
+impl core::marker::StructuralPartialEq for nika_error::codes::Category
+impl serde_core::ser::Serialize for nika_error::codes::Category
+pub fn nika_error::codes::Category::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Category
+pub fn nika_error::codes::Category::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Category
+impl<T, U> core::convert::Into<U> for nika_error::codes::Category where U: core::convert::From<T>
+pub fn nika_error::codes::Category::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Category where U: core::convert::Into<T>
+pub type nika_error::codes::Category::Error = core::convert::Infallible
+pub fn nika_error::codes::Category::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Category where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Category::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Category::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Category where T: core::clone::Clone
+pub type nika_error::codes::Category::Owned = T
+pub fn nika_error::codes::Category::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Category::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Category where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Category::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Category where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Category::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Category
+pub fn nika_error::codes::Category::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Category where T: 'static
+pub fn nika_error::codes::Category::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Category where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_error::prelude::CoreError
+pub nika_error::prelude::CoreError::Internal
+pub nika_error::prelude::CoreError::Internal::context: alloc::string::String
+pub nika_error::prelude::CoreError::Internal::detail: alloc::string::String
+pub nika_error::prelude::CoreError::NotFound
+pub nika_error::prelude::CoreError::NotFound::what: alloc::string::String
+pub nika_error::prelude::CoreError::Unsupported
+pub nika_error::prelude::CoreError::Unsupported::feature: alloc::string::String
+pub nika_error::prelude::CoreError::Validation
+pub nika_error::prelude::CoreError::Validation::reason: alloc::string::String
+impl core::error::Error for nika_error::core_error::CoreError
+impl core::fmt::Debug for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
+pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
+pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_error::core_error::CoreError
+impl<T, U> core::convert::Into<U> for nika_error::core_error::CoreError where U: core::convert::From<T>
+pub fn nika_error::core_error::CoreError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::core_error::CoreError where U: core::convert::Into<T>
+pub type nika_error::core_error::CoreError::Error = core::convert::Infallible
+pub fn nika_error::core_error::CoreError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::core_error::CoreError where U: core::convert::TryFrom<T>
+pub type nika_error::core_error::CoreError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::core_error::CoreError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_error::core_error::CoreError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::core_error::CoreError where T: 'static + ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::core_error::CoreError where T: ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::core_error::CoreError where T: ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::core_error::CoreError where T: 'static
+pub fn nika_error::core_error::CoreError::as_any(&self) -> &dyn core::any::Any
+#[non_exhaustive] pub enum nika_error::prelude::Severity
+pub nika_error::prelude::Severity::Error
+pub nika_error::prelude::Severity::Warning
+impl core::clone::Clone for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
+impl core::cmp::Eq for nika_error::codes::Severity
+impl core::cmp::PartialEq for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::eq(&self, other: &nika_error::codes::Severity) -> bool
+impl core::fmt::Debug for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Severity
+impl core::marker::StructuralPartialEq for nika_error::codes::Severity
+impl serde_core::ser::Serialize for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Severity
+impl<T, U> core::convert::Into<U> for nika_error::codes::Severity where U: core::convert::From<T>
+pub fn nika_error::codes::Severity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Severity where U: core::convert::Into<T>
+pub type nika_error::codes::Severity::Error = core::convert::Infallible
+pub fn nika_error::codes::Severity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Severity where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Severity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Severity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Severity where T: core::clone::Clone
+pub type nika_error::codes::Severity::Owned = T
+pub fn nika_error::codes::Severity::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Severity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Severity where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Severity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Severity where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Severity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Severity where T: 'static
+pub fn nika_error::codes::Severity::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Severity where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_error::prelude::NikaCode
+pub nika_error::prelude::NikaCode::category: nika_error::codes::Category
+pub nika_error::prelude::NikaCode::num: u16
+pub nika_error::prelude::NikaCode::severity: nika_error::codes::Severity
+pub nika_error::prelude::NikaCode::slug: &'static str
+impl core::clone::Clone for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::clone(&self) -> nika_error::codes::NikaCode
+impl core::cmp::Eq for nika_error::codes::NikaCode
+impl core::cmp::PartialEq for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::eq(&self, other: &nika_error::codes::NikaCode) -> bool
+impl core::fmt::Debug for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::NikaCode
+impl core::marker::StructuralPartialEq for nika_error::codes::NikaCode
+impl serde_core::ser::Serialize for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::serialize<S: serde_core::ser::Serializer>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<D> owo_colors::OwoColorize for nika_error::codes::NikaCode
+impl<T, U> core::convert::Into<U> for nika_error::codes::NikaCode where U: core::convert::From<T>
+pub fn nika_error::codes::NikaCode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::NikaCode where U: core::convert::Into<T>
+pub type nika_error::codes::NikaCode::Error = core::convert::Infallible
+pub fn nika_error::codes::NikaCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::NikaCode where U: core::convert::TryFrom<T>
+pub type nika_error::codes::NikaCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::NikaCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::NikaCode where T: core::clone::Clone
+pub type nika_error::codes::NikaCode::Owned = T
+pub fn nika_error::codes::NikaCode::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::NikaCode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_error::codes::NikaCode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::codes::NikaCode where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::NikaCode where T: core::clone::Clone
+pub unsafe fn nika_error::codes::NikaCode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::NikaCode where T: 'static
+pub fn nika_error::codes::NikaCode::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::NikaCode where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_error::prelude::NikaError(_)
+impl nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::downcast_ref<E: nika_error::traits::NikaErrorCode>(&self) -> core::option::Option<&E>
+pub fn nika_error::nika_error::NikaError::fingerprint(&self) -> u64
+pub fn nika_error::nika_error::NikaError::is_transient(&self) -> bool
+pub fn nika_error::nika_error::NikaError::new<E: nika_error::traits::NikaErrorCode>(e: E) -> Self
+pub fn nika_error::nika_error::NikaError::nika_code(&self) -> nika_error::codes::NikaCode
+impl core::error::Error for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::code<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+pub fn nika_error::nika_error::NikaError::diagnostic_source(&self) -> core::option::Option<&dyn miette::protocol::Diagnostic>
+pub fn nika_error::nika_error::NikaError::help<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+pub fn nika_error::nika_error::NikaError::labels(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = miette::protocol::LabeledSpan> + '_)>>
+pub fn nika_error::nika_error::NikaError::related<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = &'a dyn miette::protocol::Diagnostic> + 'a)>>
+pub fn nika_error::nika_error::NikaError::severity(&self) -> core::option::Option<miette::protocol::Severity>
+pub fn nika_error::nika_error::NikaError::source_code(&self) -> core::option::Option<&dyn miette::protocol::SourceCode>
+pub fn nika_error::nika_error::NikaError::url<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+impl<E: nika_error::traits::NikaErrorCode> core::convert::From<E> for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::from(e: E) -> Self
+impl<D> owo_colors::OwoColorize for nika_error::nika_error::NikaError
+impl<T, U> core::convert::Into<U> for nika_error::nika_error::NikaError where U: core::convert::From<T>
+pub fn nika_error::nika_error::NikaError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::nika_error::NikaError where U: core::convert::Into<T>
+pub type nika_error::nika_error::NikaError::Error = core::convert::Infallible
+pub fn nika_error::nika_error::NikaError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::nika_error::NikaError where U: core::convert::TryFrom<T>
+pub type nika_error::nika_error::NikaError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::nika_error::NikaError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_error::nika_error::NikaError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::nika_error::NikaError where T: 'static + ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::nika_error::NikaError where T: ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::nika_error::NikaError where T: ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::nika_error::NikaError where T: 'static
+pub fn nika_error::nika_error::NikaError::as_any(&self) -> &dyn core::any::Any
+pub trait nika_error::prelude::NikaErrorCode: core::error::Error + miette::protocol::Diagnostic + nika_error::traits::AsAny + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_error::prelude::NikaErrorCode::fingerprint(&self) -> u64
+pub fn nika_error::prelude::NikaErrorCode::is_transient(&self) -> bool
+pub fn nika_error::prelude::NikaErrorCode::nika_code(&self) -> nika_error::codes::NikaCode
+impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
+pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
+pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub type nika_error::prelude::NikaResult<T> = core::result::Result<T, nika_error::nika_error::NikaError>
+pub mod nika_error::traits
+pub trait nika_error::traits::AsAny: 'static
+pub fn nika_error::traits::AsAny::as_any(&self) -> &dyn core::any::Any
+impl<T: 'static> nika_error::traits::AsAny for T
+pub fn T::as_any(&self) -> &dyn core::any::Any
+pub trait nika_error::traits::NikaErrorCode: core::error::Error + miette::protocol::Diagnostic + nika_error::traits::AsAny + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_error::traits::NikaErrorCode::fingerprint(&self) -> u64
+pub fn nika_error::traits::NikaErrorCode::is_transient(&self) -> bool
+pub fn nika_error::traits::NikaErrorCode::nika_code(&self) -> nika_error::codes::NikaCode
+impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
+pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
+pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+#[non_exhaustive] pub enum nika_error::Category
+pub nika_error::Category::Auth
+pub nika_error::Category::Binding
+pub nika_error::Category::Core
+pub nika_error::Category::FileIo
+pub nika_error::Category::Http
+pub nika_error::Category::Mcp
+pub nika_error::Category::Memory
+pub nika_error::Category::Observability
+pub nika_error::Category::Provider
+pub nika_error::Category::Runtime
+pub nika_error::Category::Sandbox
+pub nika_error::Category::Schema
+pub nika_error::Category::Shell
+pub nika_error::Category::Verb
+pub nika_error::Category::WasmPlugin
+impl core::clone::Clone for nika_error::codes::Category
+pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
+impl core::cmp::Eq for nika_error::codes::Category
+impl core::cmp::PartialEq for nika_error::codes::Category
+pub fn nika_error::codes::Category::eq(&self, other: &nika_error::codes::Category) -> bool
+impl core::fmt::Debug for nika_error::codes::Category
+pub fn nika_error::codes::Category::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Category
+pub fn nika_error::codes::Category::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Category
+impl core::marker::StructuralPartialEq for nika_error::codes::Category
+impl serde_core::ser::Serialize for nika_error::codes::Category
+pub fn nika_error::codes::Category::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Category
+pub fn nika_error::codes::Category::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Category
+impl<T, U> core::convert::Into<U> for nika_error::codes::Category where U: core::convert::From<T>
+pub fn nika_error::codes::Category::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Category where U: core::convert::Into<T>
+pub type nika_error::codes::Category::Error = core::convert::Infallible
+pub fn nika_error::codes::Category::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Category where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Category::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Category::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Category where T: core::clone::Clone
+pub type nika_error::codes::Category::Owned = T
+pub fn nika_error::codes::Category::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Category::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Category where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Category::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Category where T: ?core::marker::Sized
+pub fn nika_error::codes::Category::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Category where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Category::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Category
+pub fn nika_error::codes::Category::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Category where T: 'static
+pub fn nika_error::codes::Category::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Category where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_error::CoreError
+pub nika_error::CoreError::Internal
+pub nika_error::CoreError::Internal::context: alloc::string::String
+pub nika_error::CoreError::Internal::detail: alloc::string::String
+pub nika_error::CoreError::NotFound
+pub nika_error::CoreError::NotFound::what: alloc::string::String
+pub nika_error::CoreError::Unsupported
+pub nika_error::CoreError::Unsupported::feature: alloc::string::String
+pub nika_error::CoreError::Validation
+pub nika_error::CoreError::Validation::reason: alloc::string::String
+impl core::error::Error for nika_error::core_error::CoreError
+impl core::fmt::Debug for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
+pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
+pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_error::core_error::CoreError
+impl<T, U> core::convert::Into<U> for nika_error::core_error::CoreError where U: core::convert::From<T>
+pub fn nika_error::core_error::CoreError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::core_error::CoreError where U: core::convert::Into<T>
+pub type nika_error::core_error::CoreError::Error = core::convert::Infallible
+pub fn nika_error::core_error::CoreError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::core_error::CoreError where U: core::convert::TryFrom<T>
+pub type nika_error::core_error::CoreError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::core_error::CoreError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_error::core_error::CoreError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::core_error::CoreError where T: 'static + ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::core_error::CoreError where T: ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::core_error::CoreError where T: ?core::marker::Sized
+pub fn nika_error::core_error::CoreError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::core_error::CoreError where T: 'static
+pub fn nika_error::core_error::CoreError::as_any(&self) -> &dyn core::any::Any
+#[non_exhaustive] pub enum nika_error::Severity
+pub nika_error::Severity::Error
+pub nika_error::Severity::Warning
+impl core::clone::Clone for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
+impl core::cmp::Eq for nika_error::codes::Severity
+impl core::cmp::PartialEq for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::eq(&self, other: &nika_error::codes::Severity) -> bool
+impl core::fmt::Debug for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::Severity
+impl core::marker::StructuralPartialEq for nika_error::codes::Severity
+impl serde_core::ser::Serialize for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_error::codes::Severity
+impl<T, U> core::convert::Into<U> for nika_error::codes::Severity where U: core::convert::From<T>
+pub fn nika_error::codes::Severity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::Severity where U: core::convert::Into<T>
+pub type nika_error::codes::Severity::Error = core::convert::Infallible
+pub fn nika_error::codes::Severity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::Severity where U: core::convert::TryFrom<T>
+pub type nika_error::codes::Severity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::Severity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::Severity where T: core::clone::Clone
+pub type nika_error::codes::Severity::Owned = T
+pub fn nika_error::codes::Severity::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::Severity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_error::codes::Severity where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::Severity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::Severity where T: ?core::marker::Sized
+pub fn nika_error::codes::Severity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::Severity where T: core::clone::Clone
+pub unsafe fn nika_error::codes::Severity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::Severity
+pub fn nika_error::codes::Severity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::Severity where T: 'static
+pub fn nika_error::codes::Severity::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Severity where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_error::NikaCode
+pub nika_error::NikaCode::category: nika_error::codes::Category
+pub nika_error::NikaCode::num: u16
+pub nika_error::NikaCode::severity: nika_error::codes::Severity
+pub nika_error::NikaCode::slug: &'static str
+impl core::clone::Clone for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::clone(&self) -> nika_error::codes::NikaCode
+impl core::cmp::Eq for nika_error::codes::NikaCode
+impl core::cmp::PartialEq for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::eq(&self, other: &nika_error::codes::NikaCode) -> bool
+impl core::fmt::Debug for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_error::codes::NikaCode
+impl core::marker::StructuralPartialEq for nika_error::codes::NikaCode
+impl serde_core::ser::Serialize for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::serialize<S: serde_core::ser::Serializer>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<'de> serde_core::de::Deserialize<'de> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<D> owo_colors::OwoColorize for nika_error::codes::NikaCode
+impl<T, U> core::convert::Into<U> for nika_error::codes::NikaCode where U: core::convert::From<T>
+pub fn nika_error::codes::NikaCode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::codes::NikaCode where U: core::convert::Into<T>
+pub type nika_error::codes::NikaCode::Error = core::convert::Infallible
+pub fn nika_error::codes::NikaCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::codes::NikaCode where U: core::convert::TryFrom<T>
+pub type nika_error::codes::NikaCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::codes::NikaCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_error::codes::NikaCode where T: core::clone::Clone
+pub type nika_error::codes::NikaCode::Owned = T
+pub fn nika_error::codes::NikaCode::clone_into(&self, target: &mut T)
+pub fn nika_error::codes::NikaCode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_error::codes::NikaCode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::codes::NikaCode where T: 'static + ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::codes::NikaCode where T: ?core::marker::Sized
+pub fn nika_error::codes::NikaCode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_error::codes::NikaCode where T: core::clone::Clone
+pub unsafe fn nika_error::codes::NikaCode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_error::codes::NikaCode
+pub fn nika_error::codes::NikaCode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::codes::NikaCode where T: 'static
+pub fn nika_error::codes::NikaCode::as_any(&self) -> &dyn core::any::Any
+impl<T> serde_core::de::DeserializeOwned for nika_error::codes::NikaCode where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_error::NikaError(_)
+impl nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::downcast_ref<E: nika_error::traits::NikaErrorCode>(&self) -> core::option::Option<&E>
+pub fn nika_error::nika_error::NikaError::fingerprint(&self) -> u64
+pub fn nika_error::nika_error::NikaError::is_transient(&self) -> bool
+pub fn nika_error::nika_error::NikaError::new<E: nika_error::traits::NikaErrorCode>(e: E) -> Self
+pub fn nika_error::nika_error::NikaError::nika_code(&self) -> nika_error::codes::NikaCode
+impl core::error::Error for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::code<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+pub fn nika_error::nika_error::NikaError::diagnostic_source(&self) -> core::option::Option<&dyn miette::protocol::Diagnostic>
+pub fn nika_error::nika_error::NikaError::help<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+pub fn nika_error::nika_error::NikaError::labels(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = miette::protocol::LabeledSpan> + '_)>>
+pub fn nika_error::nika_error::NikaError::related<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = &'a dyn miette::protocol::Diagnostic> + 'a)>>
+pub fn nika_error::nika_error::NikaError::severity(&self) -> core::option::Option<miette::protocol::Severity>
+pub fn nika_error::nika_error::NikaError::source_code(&self) -> core::option::Option<&dyn miette::protocol::SourceCode>
+pub fn nika_error::nika_error::NikaError::url<'a>(&'a self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + 'a)>>
+impl<E: nika_error::traits::NikaErrorCode> core::convert::From<E> for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::from(e: E) -> Self
+impl<D> owo_colors::OwoColorize for nika_error::nika_error::NikaError
+impl<T, U> core::convert::Into<U> for nika_error::nika_error::NikaError where U: core::convert::From<T>
+pub fn nika_error::nika_error::NikaError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_error::nika_error::NikaError where U: core::convert::Into<T>
+pub type nika_error::nika_error::NikaError::Error = core::convert::Infallible
+pub fn nika_error::nika_error::NikaError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_error::nika_error::NikaError where U: core::convert::TryFrom<T>
+pub type nika_error::nika_error::NikaError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_error::nika_error::NikaError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_error::nika_error::NikaError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_error::nika_error::NikaError where T: 'static + ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_error::nika_error::NikaError where T: ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_error::nika_error::NikaError where T: ?core::marker::Sized
+pub fn nika_error::nika_error::NikaError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_error::nika_error::NikaError
+pub fn nika_error::nika_error::NikaError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_error::nika_error::NikaError where T: 'static
+pub fn nika_error::nika_error::NikaError::as_any(&self) -> &dyn core::any::Any
+pub trait nika_error::NikaErrorCode: core::error::Error + miette::protocol::Diagnostic + nika_error::traits::AsAny + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_error::NikaErrorCode::fingerprint(&self) -> u64
+pub fn nika_error::NikaErrorCode::is_transient(&self) -> bool
+pub fn nika_error::NikaErrorCode::nika_code(&self) -> nika_error::codes::NikaCode
+impl nika_error::traits::NikaErrorCode for nika_error::core_error::CoreError
+pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
+pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
+pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
+pub type nika_error::NikaResult<T> = core::result::Result<T, nika_error::nika_error::NikaError>

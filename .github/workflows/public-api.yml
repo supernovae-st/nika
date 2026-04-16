@@ -1,0 +1,39 @@
+name: public-api
+
+on:
+  pull_request:
+    paths:
+      - 'crates/**/src/**'
+      - 'crates/**/Cargo.toml'
+      - 'Cargo.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install cargo-public-api
+        run: cargo install --locked cargo-public-api
+      - name: diff each admitted lib crate
+        # nika-catalog-verify is binary-only (no lib target) — skip.
+        # Foundation crates are publish=false (ADR-022); snapshots live
+        # in-repo to enforce Gate 12 (FCI) locally and in CI.
+        run: |
+          set -euo pipefail
+          fail=0
+          for crate in nika-types nika-error nika-catalog nika-kernel nika-kernel-mock; do
+            actual=$(cargo public-api -p "$crate" --all-features --omit auto-trait-impls)
+            expected=$(cat "crates/$crate/public-api.txt")
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::public API drift in $crate — regenerate snapshot or revert"
+              diff <(echo "$expected") <(echo "$actual") || true
+              fail=1
+            fi
+          done
+          exit $fail
