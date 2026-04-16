@@ -46,6 +46,8 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 18 | `check-adr-dangling.sh` | Reference to non-existent ADR ID in frontmatter |
 | 19 | `check-adr-orphan-proposed.sh` | ADR stuck in proposed/draft >30 days |
 | 20 | `check-adr-evidence.sh` | File path in Evidence section no longer exists |
+| 21 | `check-layering.sh` | Diamond layer discipline — wrapper around `scripts/ci/check-layering.sh` (cross-layer upward deps) |
+| 22 | `check-no-async-in-l0.sh` | L0 crates with `async fn`, `.await`, tokio/futures/async-trait imports (Q1 lock 2026-04-16) |
 
 ## Adding a new vector
 
