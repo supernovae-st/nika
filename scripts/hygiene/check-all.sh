@@ -76,7 +76,10 @@ run_check "3  loc-totals            " "check-loc.sh"
 run_check "4  changelog-dates       " "check-changelog-dates.sh"
 run_check "5  roadmap-crate-status  " "check-roadmap-status.sh"
 run_check "6  crate-spec-metrics    " "check-crate-specs.sh"
-run_check "7  linear-issue-states   " "check-linear.sh"
+# Vector 7 (linear-issue-states) removed 2026-04-17 — was a no-op stub
+# without LINEAR_API_KEY in the dev environment. Misleading GREEN/YELLOW
+# depending on env state; no value. Linear integration, when it lands,
+# will surface in the dashboard via its own MCP, not via hygiene.
 run_check "8  gh-milestones         " "check-milestones.sh"
 run_check "9  org-profile-repos     " "check-org-readme.sh"
 run_check "10 license-agpl          " "check-license.sh"
@@ -87,7 +90,10 @@ run_check "14 private-path-leak     " "check-private-leaks.sh"
 run_check "15 cargo-audit-rustsec   " "check-cargo-audit.sh"
 run_check "16 adr-schema-valid     " "check-adr-schema.sh"
 run_check "17 adr-supersede-cycles " "check-adr-cycles.sh"
-run_check "18 adr-dangling-refs    " "check-adr-dangling.sh"
+# Vector 18 (adr-dangling-refs) removed 2026-04-17 — duplicated by
+# vector 16 check-adr-schema.sh which invokes scripts/adr/validate.sh
+# (Pass 2 already runs dangling-ref check per validate.sh:186).
+# Kept the file's semantics; dropped the redundant invocation.
 run_check "19 adr-orphan-proposed  " "check-adr-orphan-proposed.sh"
 run_check "20 adr-evidence-paths   " "check-adr-evidence.sh"
 run_check "21 layer-discipline     " "check-layering.sh"

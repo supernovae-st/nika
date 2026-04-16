@@ -32,7 +32,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
 | 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
 | 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` |
-| 7 | `check-linear.sh` | Linear issue states match `git log` admissions (needs `LINEAR_API_KEY`) |
+| 7 | *(killed 2026-04-17)* | was `check-linear.sh` — no-op stub without `LINEAR_API_KEY`, misleading green. Linear integration lives in its own MCP, not hygiene |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
 | 9 | `check-org-readme.sh` | Org profile README mentions all 6 canonical repos |
 | 10 | `check-license.sh` | LICENSE file present + AGPL-3.0-or-later (renamed from `check-citation.sh` 2026-04-16; name was misleading — never checked CITATION.cff which doesn't exist) |
@@ -43,7 +43,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 15 | `check-cargo-audit.sh` | `cargo audit` shows no RustSec advisories |
 | 16 | `check-adr-schema.sh` | ADR frontmatter missing required fields or invalid format |
 | 17 | `check-adr-cycles.sh` | Supersession cycle in ADR graph (A supersedes B supersedes A) |
-| 18 | `check-adr-dangling.sh` | Reference to non-existent ADR ID in frontmatter |
+| 18 | *(killed 2026-04-17)* | was `check-adr-dangling.sh` — duplicated by vector 16 `check-adr-schema.sh` → `validate.sh` Pass 2 which already runs dangling-ref check. Kept gap in numbering (renumbering 33 vectors is churn for no value) |
 | 19 | `check-adr-orphan-proposed.sh` | ADR stuck in proposed/draft >30 days |
 | 20 | `check-adr-evidence.sh` | File path in Evidence section no longer exists |
 | 21 | `check-layering.sh` | Diamond layer discipline — wrapper around `scripts/ci/check-layering.sh` (cross-layer upward deps) |
