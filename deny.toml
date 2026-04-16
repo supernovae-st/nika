@@ -48,6 +48,7 @@ wildcards         = "deny"
 name     = "tokio"
 wrappers = [
   "nika-catalog-verify",   # L4 binary: async HTTP for online catalog verification
+  "nika-kernel",           # L0.5 trait crate: tokio dev-dep for #[tokio::test] in async trait tests
   "nika-kernel-mock",      # L0.5 test mock: tokio channels for trait harness
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
