@@ -1,0 +1,32 @@
+name: semver-checks
+
+on:
+  pull_request:
+    paths:
+      - 'crates/**/src/**'
+      - 'crates/**/Cargo.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install cargo-semver-checks
+        run: cargo install --locked cargo-semver-checks
+      - name: check every admitted lib crate
+        # Foundation crates are publish=false (ADR-022), so this step
+        # degrades breaking-change hits to warnings (informational
+        # visibility, not blocking). Pairs with public-api.yml: that one
+        # surfaces drift; this one classifies it as breaking vs additive.
+        run: |
+          set -euo pipefail
+          for crate in nika-types nika-error nika-catalog nika-kernel nika-kernel-mock; do
+            cargo semver-checks check-release -p "$crate" || \
+              echo "::warning::$crate has breaking changes (publish=false, informational)"
+          done
