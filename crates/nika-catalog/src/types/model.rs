@@ -98,6 +98,16 @@ pub struct ModelCapabilities {
     ///   `developer` as canonical to avoid undefined behaviour.
     /// - Voyage (embedding-only, no chat API at all).
     pub supports_system_messages: bool,
+    /// Maximum context window size in tokens. `None` = not specified by the
+    /// capability rule (caller should look up the provider's model entry).
+    ///
+    /// When both `context_window_tokens` and `max_output_tokens` are `Some`,
+    /// the invariant `max_output_tokens <= context_window_tokens` is enforced
+    /// at build time by `validate_caps_patch`.
+    pub context_window_tokens: Option<u32>,
+    /// Maximum output tokens the model can produce in a single response.
+    /// `None` = not specified by the capability rule.
+    pub max_output_tokens: Option<u32>,
 }
 
 impl Default for ModelCapabilities {
@@ -116,6 +126,8 @@ impl Default for ModelCapabilities {
             #[cfg(feature = "capabilities")]
             supported_parameters: &[],
             supports_system_messages: true,
+            context_window_tokens: None,
+            max_output_tokens: None,
         }
     }
 }
@@ -154,6 +166,8 @@ impl ModelCapabilities {
         tokenizer: Option<TokenizerFamily>,
         supported_parameters: &'static [ParamFlag],
         supports_system_messages: bool,
+        context_window_tokens: Option<u32>,
+        max_output_tokens: Option<u32>,
     ) -> Self {
         Self {
             token_limit_param,
@@ -165,6 +179,8 @@ impl ModelCapabilities {
             tokenizer,
             supported_parameters,
             supports_system_messages,
+            context_window_tokens,
+            max_output_tokens,
         }
     }
 
@@ -186,6 +202,8 @@ impl ModelCapabilities {
             supports_stop_sequences,
             reasoning,
             supports_system_messages: true,
+            context_window_tokens: None,
+            max_output_tokens: None,
         }
     }
 }
@@ -211,6 +229,8 @@ mod model_capabilities_tests {
             Some(TokenizerFamily::O200k),
             PARAMS,
             false,
+            Some(128_000),
+            Some(32_768),
         );
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
         assert!(!caps.supports_temperature);
@@ -221,6 +241,8 @@ mod model_capabilities_tests {
         assert_eq!(caps.tokenizer, Some(TokenizerFamily::O200k));
         assert_eq!(caps.supported_parameters, PARAMS);
         assert!(!caps.supports_system_messages);
+        assert_eq!(caps.context_window_tokens, Some(128_000));
+        assert_eq!(caps.max_output_tokens, Some(32_768));
     }
 
     #[test]
@@ -250,6 +272,8 @@ mod model_capabilities_tests {
             None,
             &[],
             true,
+            None,
+            None,
         );
         assert_eq!(via_new, ModelCapabilities::default());
     }

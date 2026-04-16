@@ -68,6 +68,11 @@ pub(crate) struct CapPatch {
     pub supported_parameters: Option<&'static [ParamFlag]>,
     /// Per-field override for [`ModelCapabilities::supports_system_messages`].
     pub supports_system_messages: Option<bool>,
+    // ── Session 4a additions (2 new slots) ─────────────────────────────
+    /// Per-field override for [`ModelCapabilities::context_window_tokens`].
+    pub context_window_tokens: Option<u32>,
+    /// Per-field override for [`ModelCapabilities::max_output_tokens`].
+    pub max_output_tokens: Option<u32>,
 }
 
 impl CapPatch {
@@ -101,6 +106,8 @@ impl CapPatch {
             tokenizer,
             supported_parameters,
             supports_system_messages,
+            context_window_tokens,
+            max_output_tokens,
         );
         self
     }
@@ -216,6 +223,14 @@ impl CapPatch {
                 .supports_system_messages
                 .or(defaults.supports_system_messages)
                 .unwrap_or(true),
+            // context_window_tokens / max_output_tokens: like tokenizer,
+            // these use `.or()` with NO `unwrap_or` fallback. None means
+            // "not specified by the capability rule" — the caller should
+            // look up the provider's model entry for per-model values.
+            context_window_tokens: self
+                .context_window_tokens
+                .or(defaults.context_window_tokens),
+            max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
         }
     }
 }
@@ -307,6 +322,8 @@ mod tests {
             tokenizer: None,
             supported_parameters: Some(&[]),
             supports_system_messages: Some(true),
+            context_window_tokens: None,
+            max_output_tokens: None,
         }
     }
 
@@ -435,6 +452,40 @@ mod tests {
             "prefix requires the dash — bare base name must not match"
         );
         assert!(!m.matches("x-o1-"));
+    }
+
+    #[test]
+    fn merge_with_covers_context_window_fields() {
+        let base = CapPatch::default();
+        let patch = CapPatch {
+            context_window_tokens: Some(128_000),
+            max_output_tokens: Some(32_768),
+            ..CapPatch::default()
+        };
+        let merged = base.merge_with(patch);
+        assert_eq!(merged.context_window_tokens, Some(128_000));
+        assert_eq!(merged.max_output_tokens, Some(32_768));
+    }
+
+    #[test]
+    fn materialize_context_window_none_by_default() {
+        let defaults = toml_like_defaults();
+        let caps = CapPatch::default().materialize(&defaults);
+        assert_eq!(caps.context_window_tokens, None);
+        assert_eq!(caps.max_output_tokens, None);
+    }
+
+    #[test]
+    fn materialize_context_window_from_rule() {
+        let defaults = toml_like_defaults();
+        let caps = CapPatch {
+            context_window_tokens: Some(200_000),
+            max_output_tokens: Some(65_536),
+            ..CapPatch::default()
+        }
+        .materialize(&defaults);
+        assert_eq!(caps.context_window_tokens, Some(200_000));
+        assert_eq!(caps.max_output_tokens, Some(65_536));
     }
 
     #[test]

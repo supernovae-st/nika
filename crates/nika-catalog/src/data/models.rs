@@ -244,18 +244,17 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
-    let prov_lower = provider.to_ascii_lowercase();
     // Pass 1: exact model match within provider scope.
     if let Some(p) = ALL_PRICING
         .iter()
-        .find(|p| p.provider.eq_ignore_ascii_case(&prov_lower) && model == p.model_pattern)
+        .find(|p| p.provider.eq_ignore_ascii_case(provider) && model == p.model_pattern)
     {
         return Some(p);
     }
     // Pass 2: contains() fallback within provider scope.
     ALL_PRICING
         .iter()
-        .find(|p| p.provider.eq_ignore_ascii_case(&prov_lower) && model.contains(p.model_pattern))
+        .find(|p| p.provider.eq_ignore_ascii_case(provider) && model.contains(p.model_pattern))
 }
 
 /// Estimate cost for a model invocation.
@@ -763,6 +762,16 @@ mod provenance_tests {
         assert!(
             !c.supported_parameters
                 .contains(&ParamFlag::StructuredOutputNative)
+        );
+        // Default context window / max output = None. TOML [defaults]
+        // intentionally omits these (values are per-model, not per-family).
+        assert!(
+            c.context_window_tokens.is_none(),
+            "default context_window_tokens must be None"
+        );
+        assert!(
+            c.max_output_tokens.is_none(),
+            "default max_output_tokens must be None"
         );
     }
 

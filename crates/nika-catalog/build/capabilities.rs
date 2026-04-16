@@ -136,6 +136,11 @@ struct CapsPatchEntry {
     supported_parameters: Option<Vec<String>>,
     #[serde(default)]
     supports_system_messages: Option<bool>,
+    // ── Session 4a additions (2 new slots) ─────────────────────────────
+    #[serde(default)]
+    context_window_tokens: Option<u32>,
+    #[serde(default)]
+    max_output_tokens: Option<u32>,
 }
 
 // ─── Parse + validate ────────────────────────────────────────────────────
@@ -327,6 +332,8 @@ fn validate_caps_patch(
         output_modalities,
         supported_parameters,
         supports_system_messages,
+        context_window_tokens,
+        max_output_tokens,
     } = patch;
 
     if let Some(t) = token_limit_param.as_deref() {
@@ -419,6 +426,16 @@ fn validate_caps_patch(
     // rule for the same (provider, model) pair. `[defaults]` never lands
     // here — it goes through the require_all branch below, which is
     // strictly stronger.
+    // Context window invariant: max_output must not exceed context_window.
+    if let (Some(ctx), Some(max_out)) = (context_window_tokens, max_output_tokens)
+        && max_out > ctx
+    {
+        return Err(format!(
+            "{where_}: max_output_tokens ({max_out}) > context_window_tokens ({ctx}) — \
+             a model's max output cannot exceed its context window"
+        ));
+    }
+
     if where_.starts_with("rule ") {
         let all_none = token_limit_param.is_none()
             && supports_temperature.is_none()
@@ -428,7 +445,9 @@ fn validate_caps_patch(
             && input_modalities.is_none()
             && output_modalities.is_none()
             && supported_parameters.is_none()
-            && supports_system_messages.is_none();
+            && supports_system_messages.is_none()
+            && context_window_tokens.is_none()
+            && max_output_tokens.is_none();
         if all_none {
             return Err(format!(
                 "{where_}: all caps fields are None — an empty-caps rule \
@@ -732,6 +751,18 @@ fn emit_cap_patch(p: &CapsPatchEntry) -> String {
         "supports_system_messages",
         p.supports_system_messages.as_ref(),
         bool::to_string,
+    );
+    emit_opt(
+        &mut out,
+        "context_window_tokens",
+        p.context_window_tokens.as_ref(),
+        u32::to_string,
+    );
+    emit_opt(
+        &mut out,
+        "max_output_tokens",
+        p.max_output_tokens.as_ref(),
+        u32::to_string,
     );
     out.push('}');
     out
