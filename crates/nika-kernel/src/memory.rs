@@ -383,6 +383,28 @@ mod tests {
     }
 
     #[test]
+    fn memory_id_deserialize_missing_prefix() {
+        let json = "\"00000000-0000-0000-0000-000000000042\"";
+        let err = serde_json::from_str::<MemoryId>(json).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("mem-"),
+            "error should mention expected 'mem-' prefix, got: {msg}",
+        );
+    }
+
+    #[test]
+    fn memory_id_deserialize_invalid_uuid_after_prefix() {
+        let json = "\"mem-not-a-valid-uuid\"";
+        let err = serde_json::from_str::<MemoryId>(json).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid uuid") || msg.contains("invalid character"),
+            "error should mention invalid uuid, got: {msg}",
+        );
+    }
+
+    #[test]
     fn memory_level_serde_roundtrip() {
         let level = MemoryLevel::Episodic;
         let json = serde_json::to_string(&level).expect("serialize");
