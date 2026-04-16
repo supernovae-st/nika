@@ -5,7 +5,7 @@
 //!
 //! Split out of `build.rs` during the Session 2a hardening pass to keep
 //! build.rs under the 1500-LOC-per-file budget. This module owns the
-//! capabilities TOML schema, its validation, and the `CapPatch` / `Rule`
+//! capabilities TOML schema, its validation, and the `CapPatch` / `CapRule`
 //! Rust emission — everything scoped to the `capabilities` feature.
 //!
 //! Loaded from the parent build script via
@@ -58,7 +58,7 @@ struct RuleEntry {
     /// plans to wire it to the routing-critical-field warning; until
     /// then, the flag serves as inline author intent.
     ///
-    /// Not emitted into the runtime `Rule` struct (would be dead data
+    /// Not emitted into the runtime `CapRule` struct (would be dead data
     /// there — routing happens at TOML-authoring time, not at
     /// materialise time).
     #[serde(default)]
@@ -611,7 +611,7 @@ pub(super) fn generate_capabilities_rs(caps: &ParsedCapabilities) -> String {
 
     writeln!(
         out,
-        "pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::Rule] = &["
+        "pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &["
     )
     .unwrap();
     for rule in &caps.rules {
@@ -825,7 +825,7 @@ fn emit_rule(out: &mut String, rule: &RuleEntry) {
     // The TOML `name` is only retained at build time (uniqueness check);
     // not emitted into the runtime struct to avoid a dead field.
     writeln!(out, "    // rule {:?}", rule.name).unwrap();
-    writeln!(out, "    crate::types::capabilities::Rule {{").unwrap();
+    writeln!(out, "    crate::types::capabilities::CapRule {{").unwrap();
     writeln!(
         out,
         "        providers: {},",

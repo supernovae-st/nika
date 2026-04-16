@@ -3,14 +3,14 @@
 
 //! Runtime types backing the TOML-driven `model_capabilities` resolver.
 //!
-//! These types are **crate-internal**. Workflow callers see only the final
-//! [`ModelCapabilities`] struct returned by
-//! [`crate::data::models::model_capabilities`].
+//! The three core types — [`CapPatch`], [`Matcher`], and [`CapRule`] — are
+//! public and `#[non_exhaustive]` so that overlay crates (pck, Cortex) can
+//! build alternative capability sources without coupling to crate internals.
 //!
-//! The tables themselves are emitted by `build.rs` into
+//! The TOML-generated tables are emitted by `build.rs` into
 //! `$OUT_DIR/model_capabilities.rs` as two `pub(crate) static` items:
 //!   * `CAPABILITY_DEFAULTS: CapPatch` — baseline from `[defaults]`
-//!   * `CAPABILITY_RULES: &[Rule]` — ordered rule list, first-match-wins
+//!   * `CAPABILITY_RULES: &[CapRule]` — ordered rule list, first-match-wins
 //!
 //! Zero runtime allocation: every matcher is a slice of `&'static str`,
 //! every comparison uses `eq_ignore_ascii_case` on the input slice.
@@ -25,13 +25,13 @@ use super::model::{ModelCapabilities, TokenLimitParam};
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
 /// Partial capabilities — `Option<T>` per field so several patches can be
-/// layered by `merge_with` before materialising into a concrete
-/// [`ModelCapabilities`]. Emitted by `build.rs` for `[defaults]` and for
-/// each rule's `caps`.
+/// layered by [`merge_with`](Self::merge_with) before materialising into a
+/// concrete [`ModelCapabilities`]. Emitted by `build.rs` for `[defaults]`
+/// and for each rule's `caps`.
 ///
-/// The field set mirrors [`ModelCapabilities`] 1:1 (10 fields after
-/// Session 2b: original 5 + modalities + tokenizer + supported parameters +
-/// system-message flag).
+/// The field set mirrors [`ModelCapabilities`] 1:1 (12 fields). External
+/// consumers should use [`CapPatchBuilder`] rather than struct-literal
+/// syntax (blocked by `#[non_exhaustive]`).
 ///
 /// # `Copy` is MANDATORY
 ///
@@ -40,8 +40,23 @@ use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 /// `CAPABILITY_DEFAULTS.merge_with(patch)` in a `const fn` context fails
 /// with `error[E0507]: cannot move out of static item`. Confirmed by
 /// rustc 1.91.
+///
+/// # Example
+///
+/// ```
+/// use nika_catalog::types::capabilities::{CapPatch, CapPatchBuilder};
+///
+/// let patch = CapPatchBuilder::default()
+///     .reasoning(true)
+///     .supports_temperature(false)
+///     .build();
+/// assert_eq!(patch.reasoning, Some(true));
+/// assert_eq!(patch.supports_temperature, Some(false));
+/// assert_eq!(patch.tokenizer, None);
+/// ```
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct CapPatch {
+#[non_exhaustive]
+pub struct CapPatch {
     // ── existing 5 slots (Session 2a) ──────────────────────────────────
     /// Per-field override for [`ModelCapabilities::token_limit_param`].
     pub token_limit_param: Option<TokenLimitParam>,
@@ -85,10 +100,19 @@ impl CapPatch {
     /// deliberately boring so the `const` version LLVM sees is the same
     /// as the runtime one.
     ///
-    /// Expressed via a `macro_rules!` to keep the 10-field body readable.
+    /// # Example
+    ///
+    /// ```
+    /// use nika_catalog::types::capabilities::CapPatchBuilder;
+    ///
+    /// let base = CapPatchBuilder::default().reasoning(false).build();
+    /// let overlay = CapPatchBuilder::default().reasoning(true).build();
+    /// let merged = base.merge_with(overlay);
+    /// assert_eq!(merged.reasoning, Some(true));
+    /// ```
     #[must_use]
     #[inline]
-    pub(crate) const fn merge_with(mut self, other: Self) -> Self {
+    pub const fn merge_with(mut self, other: Self) -> Self {
         macro_rules! merge_field {
             ($($field:ident),+ $(,)?) => {
                 $(
@@ -116,24 +140,10 @@ impl CapPatch {
     }
 
     /// Fill any still-unset field from the supplied TOML-emitted `defaults`
-    /// `CapPatch` (and, for truly-absent defaults, from a safe hard-coded
-    /// fallback) and return the concrete struct.
+    /// and return the concrete [`ModelCapabilities`].
     ///
-    /// # P0-1 fix — single source of truth
-    ///
-    /// Before Session 2b, `materialize()` fell back to
-    /// [`ModelCapabilities::default`]. Two independent sources of truth
-    /// (Rust `Default` impl + TOML `[defaults]`) were asserted to agree
-    /// only at test time — a silent divergence would have corrupted every
-    /// unresolved model.
-    ///
-    /// After Session 2b, `materialize(&CAPABILITY_DEFAULTS)` draws every
-    /// unset field from the TOML baseline. The hard-coded fallbacks below
-    /// (`unwrap_or(…)`) only activate when a field is missing from BOTH
-    /// the rule and `[defaults]` — a mis-authored TOML that would fail
-    /// `validate_caps_patch` at build time.
-    ///
-    /// Called exactly once at the tail of `model_capabilities`.
+    /// Not public: callers outside the crate use
+    /// [`crate::model_capabilities`] which calls this internally.
     ///
     /// # Debug-mode invariants (Phase G teeth)
     ///
@@ -239,20 +249,135 @@ impl CapPatch {
     }
 }
 
-/// Matcher — which `model` strings a rule applies to.
+/// Builder for [`CapPatch`].
 ///
-/// Five shapes:
-///   * [`Matcher::Any`] — match any model (used for provider-wide fallback
-///     rules like `anthropic-any-model`)
-///   * [`Matcher::Exact`] — single-name exact match (case-insensitive ASCII)
-///   * [`Matcher::ExactAny`] — exact match against any entry in the list
+/// All fields default to `None` (no override). Set only the fields you want
+/// to patch; unset fields fall through to the layer below during
+/// [`CapPatch::merge_with`].
+///
+/// # Example
+///
+/// ```
+/// use nika_catalog::types::capabilities::CapPatchBuilder;
+/// use nika_catalog::types::TokenizerFamily;
+///
+/// let patch = CapPatchBuilder::default()
+///     .reasoning(true)
+///     .tokenizer(TokenizerFamily::O200k)
+///     .build();
+/// assert_eq!(patch.reasoning, Some(true));
+/// assert_eq!(patch.tokenizer, Some(TokenizerFamily::O200k));
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct CapPatchBuilder {
+    inner: CapPatch,
+}
+
+impl CapPatchBuilder {
+    /// Set [`CapPatch::token_limit_param`].
+    #[must_use]
+    pub fn token_limit_param(mut self, v: TokenLimitParam) -> Self {
+        self.inner.token_limit_param = Some(v);
+        self
+    }
+    /// Set [`CapPatch::supports_temperature`].
+    #[must_use]
+    pub fn supports_temperature(mut self, v: bool) -> Self {
+        self.inner.supports_temperature = Some(v);
+        self
+    }
+    /// Set [`CapPatch::supports_stop_sequences`].
+    #[must_use]
+    pub fn supports_stop_sequences(mut self, v: bool) -> Self {
+        self.inner.supports_stop_sequences = Some(v);
+        self
+    }
+    /// Set [`CapPatch::reasoning`].
+    #[must_use]
+    pub fn reasoning(mut self, v: bool) -> Self {
+        self.inner.reasoning = Some(v);
+        self
+    }
+    /// Set [`CapPatch::input_modalities`].
+    #[must_use]
+    pub fn input_modalities(mut self, v: &'static [Modality]) -> Self {
+        self.inner.input_modalities = Some(v);
+        self
+    }
+    /// Set [`CapPatch::output_modalities`].
+    #[must_use]
+    pub fn output_modalities(mut self, v: &'static [Modality]) -> Self {
+        self.inner.output_modalities = Some(v);
+        self
+    }
+    /// Set [`CapPatch::tokenizer`].
+    #[must_use]
+    pub fn tokenizer(mut self, v: TokenizerFamily) -> Self {
+        self.inner.tokenizer = Some(v);
+        self
+    }
+    /// Set [`CapPatch::supported_parameters`].
+    #[must_use]
+    pub fn supported_parameters(mut self, v: &'static [ParamFlag]) -> Self {
+        self.inner.supported_parameters = Some(v);
+        self
+    }
+    /// Set [`CapPatch::supports_system_messages`].
+    #[must_use]
+    pub fn supports_system_messages(mut self, v: bool) -> Self {
+        self.inner.supports_system_messages = Some(v);
+        self
+    }
+    /// Set [`CapPatch::context_window_tokens`].
+    #[must_use]
+    pub fn context_window_tokens(mut self, v: u32) -> Self {
+        self.inner.context_window_tokens = Some(v);
+        self
+    }
+    /// Set [`CapPatch::max_output_tokens`].
+    #[must_use]
+    pub fn max_output_tokens(mut self, v: u32) -> Self {
+        self.inner.max_output_tokens = Some(v);
+        self
+    }
+    /// Set [`CapPatch::json_mode`].
+    #[must_use]
+    pub fn json_mode(mut self, v: JsonMode) -> Self {
+        self.inner.json_mode = Some(v);
+        self
+    }
+    /// Consume the builder, returning the assembled [`CapPatch`].
+    #[must_use]
+    pub fn build(self) -> CapPatch {
+        self.inner
+    }
+}
+
+/// Matcher — which `model` strings a [`CapRule`] applies to.
+///
+/// Five shapes, from broadest to most specific:
+///   * [`Matcher::Any`] — match any model (provider-wide fallback)
 ///   * [`Matcher::PrefixAny`] — model starts with any entry in the list
 ///   * [`Matcher::ContainsAny`] — word-boundary-anchored substring match
+///   * [`Matcher::ExactAny`] — exact match against any entry in the list
+///   * [`Matcher::Exact`] — single-name exact match (case-insensitive)
 ///
 /// No regex variant in `@1.0` — keeps L0 zero-runtime-dep. If a future
 /// provider ever needs regex, add a new variant and bump the schema.
+///
+/// # Example
+///
+/// ```
+/// use nika_catalog::types::capabilities::Matcher;
+///
+/// let m = Matcher::PrefixAny(&["gpt-5", "gpt-5."]);
+/// assert!(m.matches("gpt-5-turbo"));
+/// assert!(m.matches("gpt-5.4-nano"));
+/// assert!(!m.matches("gpt-4o"));
+/// ```
 #[derive(Debug)]
-pub(crate) enum Matcher {
+#[non_exhaustive]
+pub enum Matcher {
     /// Always matches.
     Any,
     /// Case-insensitive ASCII equality with `model`.
@@ -268,19 +393,14 @@ pub(crate) enum Matcher {
     /// char (`-`, `_`, `/`, `.`, `@`). This prevents "sonnet-4" from
     /// matching "sonnet-4-60-preview" — the `6` after "sonnet-4" is NOT
     /// a boundary character, so the match fails.
-    ///
-    /// Used for pricing pattern matching where model families share a
-    /// name prefix but dated variants must not cross-match. No TOML rule
-    /// uses this variant yet (lands with Phase E2 TOML pricing migration).
-    #[cfg_attr(not(test), allow(dead_code))]
     ContainsAny(&'static [&'static str]),
 }
 
 impl Matcher {
-    /// Test whether `model` matches. Zero alloc.
+    /// Test whether `model` matches this pattern. Zero alloc.
     #[must_use]
     #[inline]
-    pub(crate) fn matches(&self, model: &str) -> bool {
+    pub fn matches(&self, model: &str) -> bool {
         match self {
             Self::Any => true,
             Self::Exact(m) => model.eq_ignore_ascii_case(m),
@@ -363,12 +483,26 @@ const fn is_right_boundary_char(b: u8) -> bool {
 /// Rules are scanned in file order; the first match wins and its `caps`
 /// are merged into the accumulator via [`CapPatch::merge_with`].
 ///
-/// The TOML `name` field is used at build time for uniqueness checks only
-/// and is NOT carried into the runtime struct — it would be dead code per
-/// the zero-`#[allow(dead_code)]` policy. Consult `model-capabilities.toml`
-/// when debugging rule ordering; generated rule slices appear in file order.
+/// Named `CapRule` (not `Rule`) to avoid collision with the future
+/// `nika-binding` workflow `Rule` type.
+///
+/// # Example
+///
+/// ```
+/// use nika_catalog::types::capabilities::{CapRule, CapPatch, Matcher};
+///
+/// let rule = CapRule::new(
+///     &["openai"],
+///     None,
+///     Matcher::Exact("gpt-5"),
+///     CapPatch::default(),
+/// );
+/// assert!(rule.matcher.matches("gpt-5"));
+/// assert!(!rule.matcher.matches("gpt-4o"));
+/// ```
 #[derive(Debug)]
-pub(crate) struct Rule {
+#[non_exhaustive]
+pub struct CapRule {
     /// Canonical provider ids this rule applies to. Empty slice = any provider.
     pub providers: &'static [&'static str],
     /// Wire-protocol dialect scope. `None` = any dialect.
@@ -377,6 +511,27 @@ pub(crate) struct Rule {
     pub matcher: Matcher,
     /// Partial caps merged into the accumulator on match.
     pub caps: CapPatch,
+}
+
+impl CapRule {
+    /// Construct a capability rule.
+    ///
+    /// Prefer this over struct-literal syntax from external crates —
+    /// `#[non_exhaustive]` blocks direct construction.
+    #[must_use]
+    pub const fn new(
+        providers: &'static [&'static str],
+        api_dialect: Option<&'static str>,
+        matcher: Matcher,
+        caps: CapPatch,
+    ) -> Self {
+        Self {
+            providers,
+            api_dialect,
+            matcher,
+            caps,
+        }
+    }
 }
 
 #[cfg(test)]

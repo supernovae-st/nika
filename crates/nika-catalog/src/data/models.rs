@@ -24,7 +24,7 @@ use crate::types::model::{CostEstimate, ModelPricing};
 /// # How it works
 ///
 /// Rules live in `data/model-capabilities.toml` and are materialised by
-/// `build.rs` into a `&'static [Rule]` slice. The resolver:
+/// `build.rs` into a `&'static [CapRule]` slice. The resolver:
 ///
 ///   1. canonicalises the provider via [`crate::data::find_provider`]
 ///      (so `"claude"` → `"anthropic"`, `"grok"` → `"xai"`, etc.);
