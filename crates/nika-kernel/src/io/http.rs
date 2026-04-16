@@ -227,6 +227,11 @@ pub enum HttpError {
 #[trait_variant::make(HttpGetDyn: Send)]
 pub trait HttpGet: Send + Sync {
     /// Send a GET request.
+    ///
+    /// CANCEL SAFETY: cancel-safe. Dropping the future aborts the socket
+    /// read via `reqwest` / `hyper` drop logic. Response bytes not yet
+    /// read are discarded by the transport; the server-side effect of
+    /// GET is (by HTTP spec) idempotent and retryable.
     async fn get(&self, request: HttpRequest) -> Result<HttpResponse, HttpError>;
 }
 
@@ -234,9 +239,19 @@ pub trait HttpGet: Send + Sync {
 #[trait_variant::make(HttpPostDyn: Send)]
 pub trait HttpPost: Send + Sync {
     /// Send a POST request.
+    ///
+    /// CANCEL SAFETY: NOT cancel-safe at the application layer. A dropped
+    /// future may have already delivered the request body to the remote
+    /// (causing a mutation) while the response read was cancelled. Callers
+    /// on non-idempotent paths MUST pair POST with an idempotency key or
+    /// accept that retry-on-cancel may double-commit.
     async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError>;
 
     /// Send a request and receive a streaming response.
+    ///
+    /// CANCEL SAFETY: cancel-safe from the reader side (drop the stream
+    /// and the connection is released). Request-side safety follows
+    /// `post` rules above.
     async fn send_streaming(&self, request: HttpRequest) -> Result<HttpStreamResponse, HttpError>;
 }
 

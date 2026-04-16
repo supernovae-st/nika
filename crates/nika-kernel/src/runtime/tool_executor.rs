@@ -142,6 +142,11 @@ pub enum ToolExecError {
 #[trait_variant::make(ToolExecuteDyn: Send)]
 pub trait ToolExecute: Send + Sync {
     /// Execute a tool call and return its result.
+    ///
+    /// CANCEL SAFETY: depends on the tool. Impls MUST document per-tool
+    /// whether cancellation can leave side effects (shell commands with
+    /// `kill_on_drop` = cancel-safe; HTTP POST = idempotency-keyed;
+    /// filesystem writes = atomic-rename recommended).
     async fn execute(&self, call: ToolCall) -> Result<ToolResult, ToolExecError>;
 }
 
@@ -151,6 +156,10 @@ pub trait ToolBatch: Send + Sync {
     /// Execute multiple tool calls.
     ///
     /// Default: sequential. Agent-v2 overrides for parallel execution.
+    ///
+    /// CANCEL SAFETY: cancel-safe at batch boundary. Dropping mid-batch
+    /// leaves any already-executed calls complete and the remaining ones
+    /// unstarted. Per-call safety delegates to `ToolExecute::execute`.
     async fn execute_batch(&self, calls: Vec<ToolCall>) -> Vec<Result<ToolResult, ToolExecError>>;
 }
 

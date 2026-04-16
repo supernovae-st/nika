@@ -17,6 +17,12 @@ pub trait WasmPluginHost: Send + Sync {
     /// Execute a WASM plugin by name with the given input.
     ///
     /// Returns serialized output. Shape TBD when `nika-wasm-host` ships.
+    ///
+    /// CANCEL SAFETY: cancel-safe via fuel metering. The v0.100 host MUST
+    /// terminate the guest Store when the future is dropped (wasmtime's
+    /// Store drop tears down all WASM memory + instance state). Partial
+    /// host-side effects (file writes via capabilities) follow the
+    /// per-capability rules documented by `PluginEnv`/`PluginFs`.
     async fn call_plugin(
         &self,
         plugin_name: &str,
@@ -31,12 +37,20 @@ pub trait WasmPluginHost: Send + Sync {
 #[trait_variant::make(WasmPluginLifecycleDyn: Send)]
 pub trait WasmPluginLifecycle: Send + Sync {
     /// Load a plugin from bytes. Returns an error until v0.100 ships.
+    ///
+    /// CANCEL SAFETY: cancel-safe. Drop during compilation discards the
+    /// half-built Module; name registration happens atomically at the
+    /// end of compilation, never mid-way.
     async fn load_plugin(&self, name: &str, bytes: &[u8]) -> Result<(), WasmPluginError>;
 
     /// Unload a previously loaded plugin. Returns an error until v0.100 ships.
+    ///
+    /// CANCEL SAFETY: cancel-safe — idempotent name-keyed removal.
     async fn unload_plugin(&self, name: &str) -> Result<(), WasmPluginError>;
 
     /// List loaded plugins. Returns empty until v0.100 ships.
+    ///
+    /// CANCEL SAFETY: cancel-safe — read-only registry enumeration.
     async fn list_plugins(&self) -> Result<Vec<String>, WasmPluginError>;
 }
 
@@ -47,6 +61,8 @@ pub trait WasmPluginLifecycle: Send + Sync {
 #[trait_variant::make(PluginEnvDyn: Send)]
 pub trait PluginEnv: Send + Sync {
     /// Read an environment variable scoped to sandbox capabilities.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn env_get(&self, key: &str) -> Result<Option<String>, WasmPluginError>;
 }
 

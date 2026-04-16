@@ -148,6 +148,11 @@ pub enum ShellError {
 #[trait_variant::make(ShellRunDyn: Send)]
 pub trait ShellRun: Send + Sync {
     /// Execute a shell command and return the result.
+    ///
+    /// CANCEL SAFETY: cancel-safe IF the impl sets `kill_on_drop(true)`
+    /// on its `tokio::process::Command` (INV-011). Dropping the future
+    /// then sends SIGKILL to the child on drop — no orphan processes,
+    /// no resource leak. Impls that do NOT set `kill_on_drop` are UNSAFE.
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError>;
 }
 
@@ -155,6 +160,10 @@ pub trait ShellRun: Send + Sync {
 #[trait_variant::make(ShellCancelDyn: Send)]
 pub trait ShellCancel: Send + Sync {
     /// Cancel a running command by its identifier.
+    ///
+    /// CANCEL SAFETY: cancel-safe and idempotent — signalling an already
+    /// dead pid is a harmless no-op. Callers may race cancel against
+    /// natural exit without corruption.
     async fn cancel(&self, id: &str) -> Result<(), ShellError>;
 }
 

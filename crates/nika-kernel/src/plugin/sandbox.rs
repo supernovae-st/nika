@@ -19,9 +19,16 @@ use std::fmt;
 #[trait_variant::make(SandboxDyn: Send)]
 pub trait Sandbox: Send + Sync {
     /// Check whether a capability is granted.
+    ///
+    /// CANCEL SAFETY: cancel-safe — pure policy lookup, read-only.
     async fn check_capability(&self, cap: &Capability) -> Result<bool, SandboxError>;
 
     /// Enter the sandbox (apply restrictions).
+    ///
+    /// CANCEL SAFETY: NOT cancel-safe. Partial application of seccomp
+    /// filters, chroot, or namespace setup may leave the process in an
+    /// inconsistent sandbox state. Impls MUST apply restrictions in a
+    /// single atomic transition or tear down on error.
     async fn enter(&self) -> Result<(), SandboxError>;
 }
 

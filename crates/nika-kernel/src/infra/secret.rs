@@ -78,6 +78,10 @@ impl Clone for Secret {
 #[trait_variant::make(SecretResolverDyn: Send)]
 pub trait SecretResolver: Send + Sync + crate::sealed::Sealed {
     /// Resolve a secret reference to its value.
+    ///
+    /// CANCEL SAFETY: cancel-safe — resolution is idempotent and read-only.
+    /// A dropped future never cached nor exposed the plaintext value, and
+    /// the underlying secret store is unaffected. Retry is always safe.
     async fn resolve(&self, secret: &SecretRef) -> Result<Secret, NikaError>;
 }
 

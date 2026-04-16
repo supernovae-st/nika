@@ -63,21 +63,38 @@ pub enum BlobError {
 ///
 /// Production: `DiskBlobStore`.
 /// Tests: `MockBlob` (in-memory `BTreeMap`).
+///
+/// CANCEL SAFETY: every method must be implemented as cancel-safe.
+/// CAS semantics save us: partial writes are addressed by a different
+/// hash than the complete write, so a dropped `put` cannot corrupt an
+/// existing blob. Readers (`get`/`stat`/`exists`) are idempotent.
 #[trait_variant::make(BlobStoreDyn: Send)]
 pub trait BlobStore: Send + Sync {
     /// Store bytes and return metadata with content hash.
+    ///
+    /// CANCEL SAFETY: cancel-safe via CAS. If cancelled mid-write, any
+    /// temporary file is cleaned up or stays at a hash nobody addresses.
     async fn put(&self, data: Bytes, mime_type: &str) -> Result<BlobMetadata, BlobError>;
 
     /// Retrieve bytes by content hash.
+    ///
+    /// CANCEL SAFETY: cancel-safe — read-only.
     async fn get(&self, hash: &str) -> Result<Bytes, BlobError>;
 
     /// Check if a blob exists by hash.
+    ///
+    /// CANCEL SAFETY: cancel-safe — read-only.
     async fn exists(&self, hash: &str) -> bool;
 
     /// Get metadata for a blob by hash.
+    ///
+    /// CANCEL SAFETY: cancel-safe — read-only.
     async fn stat(&self, hash: &str) -> Result<BlobMetadata, BlobError>;
 
     /// Delete a blob by hash.
+    ///
+    /// CANCEL SAFETY: cancel-safe. Delete is idempotent and either the
+    /// unlink system call completes or it does not — no intermediate state.
     async fn delete(&self, hash: &str) -> Result<(), BlobError>;
 }
 

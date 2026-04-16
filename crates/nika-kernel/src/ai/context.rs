@@ -50,6 +50,11 @@ pub trait ContextCompressor: Send + Sync {
     /// Compress messages according to the given policy.
     ///
     /// Returns `None` if compression is not needed or not possible.
+    ///
+    /// CANCEL SAFETY: cancel-safe. Compression is a pure transformation
+    /// over the input messages (LLM summarization call + optional cache
+    /// write). A dropped future produces no compressed output; the next
+    /// call recomputes from scratch without inconsistency.
     async fn compress(
         &self,
         messages: &[CheckpointMessage],

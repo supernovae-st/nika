@@ -51,6 +51,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 23 | `check-status-claims-sync.sh` | Whitelisted status docs (ROADMAP, CLAUDE) embed canonical `refresh-status.sh` block verbatim (structural fields) |
 | 24 | `check-crate-size.sh` | Per-crate LOC ratchet — every workspace member ≤ 15,000 LOC (Diamond invariant; was CI-only, now in hygiene dashboard) |
 | 25 | `check-l0-dep-fanout.sh` | Each L0 crate ≤ 3 sibling `nika-*` deps (ADR-027 §"Hard rule"); per-crate exempt via `# L0-DEP-FANOUT-EXEMPT: <reason>` marker |
+| 30 | `check-cancel-safety.sh` | Every `async fn` in `crates/nika-kernel/src/**` has `// CANCEL SAFETY:` or `/// CANCEL SAFETY:` marker in preceding doc block (Batch I.b — kernel effect surface must document drop-safety per method) |
 
 ## Adding a new vector
 

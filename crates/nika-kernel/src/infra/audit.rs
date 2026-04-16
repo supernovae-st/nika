@@ -199,6 +199,12 @@ pub enum AuditSinkError {
 #[trait_variant::make(AuditSinkDyn: Send)]
 pub trait AuditSink: Send + Sync + sealed::Sealed {
     /// Append a record to the audit log.
+    ///
+    /// CANCEL SAFETY: cancel-safe by contract. Impls MUST complete the
+    /// durable write before the first `.await` return point (fsync on
+    /// a local log, synchronous HTTP POST to an append-only sink). If
+    /// the caller drops the future, the record either landed fully or
+    /// never started — never partial. Compliance audits require this.
     async fn audit(&self, record: AuditRecord) -> Result<(), AuditSinkError>;
 }
 

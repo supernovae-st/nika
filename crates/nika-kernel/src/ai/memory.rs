@@ -185,6 +185,11 @@ pub enum MemoryError {
 #[trait_variant::make(MemoryRememberDyn: Send)]
 pub trait MemoryRemember: Send + Sync {
     /// Store a memory frame and return its identifier.
+    ///
+    /// CANCEL SAFETY: cancel-safe if impl uses atomic insert (single DB
+    /// transaction, single fs rename). A dropped future never leaves a
+    /// half-committed frame that can be recalled. Impls using multi-step
+    /// transactions MUST wrap them in rollback-on-drop guards.
     async fn remember(&self, frame: MemoryFrame) -> Result<MemoryId, MemoryError>;
 }
 
@@ -192,6 +197,8 @@ pub trait MemoryRemember: Send + Sync {
 #[trait_variant::make(MemoryRecallDyn: Send)]
 pub trait MemoryRecall: Send + Sync {
     /// Search memories and return ranked results.
+    ///
+    /// CANCEL SAFETY: cancel-safe — read-only similarity search.
     async fn recall(&self, query: RecallQuery) -> Result<Vec<MemoryHit>, MemoryError>;
 }
 
@@ -199,6 +206,9 @@ pub trait MemoryRecall: Send + Sync {
 #[trait_variant::make(MemoryForgetDyn: Send)]
 pub trait MemoryForget: Send + Sync {
     /// Remove a memory from the store.
+    ///
+    /// CANCEL SAFETY: cancel-safe — idempotent delete. Retrying on a
+    /// missing id is a no-op.
     async fn forget(&self, id: MemoryId) -> Result<(), MemoryError>;
 }
 
@@ -210,6 +220,10 @@ impl<T: MemoryRemember + MemoryRecall + MemoryForget> MemoryStore for T {}
 #[trait_variant::make(EmbeddingProviderDyn: Send)]
 pub trait EmbeddingProvider: Send + Sync {
     /// Generate an embedding vector for the given text.
+    ///
+    /// CANCEL SAFETY: cancel-safe — embeddings are deterministic over
+    /// (model, text) and produce no side effects. Drops abort the inference
+    /// call without leaking state.
     async fn embed(&self, text: &str) -> Result<Vec<f32>, MemoryError>;
 
     /// Dimensionality of the embedding vectors.
@@ -225,6 +239,10 @@ pub trait EmbeddingProvider: Send + Sync {
 /// # Errors
 ///
 /// Returns [`MemoryError`] if any individual embed call fails.
+///
+/// CANCEL SAFETY: cancel-safe. Cancelling mid-batch abandons the remaining
+/// per-element embeddings; already-completed results are dropped with the
+/// future. Retrying from scratch is always safe (embeddings are pure).
 pub async fn embed_batch_sequential(
     provider: &(impl EmbeddingProvider + ?Sized),
     texts: &[&str],

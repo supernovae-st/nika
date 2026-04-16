@@ -25,6 +25,12 @@ use nika_error::token_usage::TokenUsage;
 pub trait BillingSink: Send + Sync + crate::sealed::Sealed {
     /// Record a billing event. Must never fail silently — errors
     /// should be surfaced to the caller for retry.
+    ///
+    /// CANCEL SAFETY: cancel-safe. The sink should write the record
+    /// atomically (single DB insert or single analytics event). If the
+    /// caller drops the future mid-await, the pending write either lands
+    /// or is rolled back by the underlying transaction — no partial state.
+    /// Impls MUST NOT split a single record into multiple awaits.
     async fn record(
         &self,
         cost: Cost,

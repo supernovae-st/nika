@@ -456,6 +456,12 @@ impl ProviderError {
 #[trait_variant::make(ProviderInferDyn: Send)]
 pub trait ProviderInfer: Send + Sync {
     /// Run inference and return the complete response.
+    ///
+    /// CANCEL SAFETY: cancel-safe at the transport boundary — dropping
+    /// closes the HTTP connection to the provider. Note that the provider
+    /// MAY still bill for tokens generated before the socket drop (per
+    /// provider policy). Clients wanting guaranteed no-bill-on-cancel
+    /// must use the `cancel` field on `InferRequest` instead of Drop.
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError>;
 }
 
@@ -463,6 +469,11 @@ pub trait ProviderInfer: Send + Sync {
 #[trait_variant::make(ProviderStreamDyn: Send)]
 pub trait ProviderStream: Send + Sync {
     /// Run inference and return a stream of events.
+    ///
+    /// CANCEL SAFETY: cancel-safe. Dropping the returned `InferEventStream`
+    /// closes the SSE connection and stops bill accumulation at the
+    /// provider-reported boundary. The stream itself is cancel-safe
+    /// per `tokio_stream::StreamExt::next` semantics.
     async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError>;
 }
 
@@ -491,6 +502,10 @@ impl<T: ProviderInfer + ProviderStream + ProviderMeta + crate::sealed::Sealed> P
 #[trait_variant::make(ProviderEmbedDyn: Send)]
 pub trait ProviderEmbed: Send + Sync {
     /// Generate embeddings for the given texts.
+    ///
+    /// CANCEL SAFETY: cancel-safe — embedding requests are idempotent and
+    /// the provider bills only on successful completion (per common provider
+    /// policy). Retry on cancel-then-timeout is safe.
     async fn embed(&self, input: &[String]) -> Result<Vec<Vec<f32>>, ProviderError>;
 }
 

@@ -35,6 +35,9 @@ pub trait Clock: Send + Sync {
     ///
     /// Production: delegates to `tokio::time::sleep`.
     /// Tests: returns immediately (mock clock advances manually).
+    ///
+    /// CANCEL SAFETY: cancel-safe. Dropping the future wakes the caller
+    /// immediately and releases the timer. No side effects to roll back.
     async fn sleep(&self, duration: Duration);
 
     /// Elapsed since the given instant.

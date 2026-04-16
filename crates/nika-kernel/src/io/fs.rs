@@ -35,48 +35,83 @@ impl FileMetadata {
 }
 
 /// Read-only filesystem operations.
+///
+/// CANCEL SAFETY: every read method is cancel-safe. Read ops have no
+/// side effects, so dropping the future simply abandons the syscall.
 #[trait_variant::make(FsReadDyn: Send)]
 pub trait FsRead: Send + Sync {
     /// Read a file's entire contents as bytes.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn read(&self, path: &Path) -> std::io::Result<Bytes>;
 
     /// Read a file's entire contents as a UTF-8 string.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn read_to_string(&self, path: &Path) -> std::io::Result<String>;
 
     /// Check whether a path exists.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn exists(&self, path: &Path) -> bool;
 
     /// Canonicalize a path (resolve symlinks and relative components).
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf>;
 }
 
 /// Write filesystem operations.
+///
+/// CANCEL SAFETY: NOT cancel-safe at the raw-syscall level. Impls
+/// targeting atomic semantics MUST use temp-file + rename (POSIX
+/// guarantees rename atomicity within the same filesystem). A
+/// dropped future may leave partial writes OR a stale temp file.
+/// Callers on non-atomic impls MUST retry cautiously.
 #[trait_variant::make(FsWriteDyn: Send)]
 pub trait FsWrite: Send + Sync {
     /// Write contents to a file (creates or overwrites).
+    ///
+    /// CANCEL SAFETY: NOT cancel-safe unless impl uses atomic
+    /// temp-file + rename. Partial writes possible.
     async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()>;
 
     /// Create a directory and all parent directories.
+    ///
+    /// CANCEL SAFETY: partial cancel-safe — each mkdir is atomic, but
+    /// a drop mid-chain may leave a partial prefix. Idempotent retry OK.
     async fn create_dir_all(&self, path: &Path) -> std::io::Result<()>;
 
     /// Remove a file.
+    ///
+    /// CANCEL SAFETY: cancel-safe — single unlink syscall.
     async fn remove_file(&self, path: &Path) -> std::io::Result<()>;
 }
 
 /// Filesystem metadata operations.
+///
+/// CANCEL SAFETY: cancel-safe (read-only stat syscall).
 #[trait_variant::make(FsMetaDyn: Send)]
 pub trait FsMeta: Send + Sync {
     /// Get metadata for a path.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn metadata(&self, path: &Path) -> std::io::Result<FileMetadata>;
 }
 
 /// Filesystem listing operations.
+///
+/// CANCEL SAFETY: cancel-safe (read-only — opendir/readdir/closedir).
 #[trait_variant::make(FsListDyn: Send)]
 pub trait FsList: Send + Sync {
     /// List entries in a directory.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
     async fn list_dir(&self, path: &Path) -> std::io::Result<Vec<PathBuf>>;
 
     /// Find files matching a glob pattern relative to a root directory.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only directory walk).
     async fn glob(&self, root: &Path, pattern: &str) -> std::io::Result<Vec<PathBuf>>;
 }
 

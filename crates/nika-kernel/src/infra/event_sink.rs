@@ -58,6 +58,11 @@ impl Event {
 #[trait_variant::make(EventSinkDyn: Send)]
 pub trait EventSink: Send + Sync + crate::sealed::Sealed {
     /// Emit an event.
+    ///
+    /// CANCEL SAFETY: cancel-safe. Events are inherently sampleable, so a
+    /// dropped emission is semantically identical to a sampled-away event.
+    /// Impls MUST NOT maintain cross-emission state (no partial batch
+    /// writes). Batched sinks flush on a separate task owning the batch.
     async fn emit(&self, event: Event) -> Result<(), NikaError>;
 }
 
