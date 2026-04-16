@@ -25,6 +25,10 @@
           {
             "type": "command",
             "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '(git commit|git push).*--no-verify'; then echo '❌ FORBIDDEN: --no-verify bypasses hooks. Fix the underlying issue.' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'cargo[[:space:]]+(yank|publish)\\b' && ! echo \"$INPUT\" | grep -qE '(--dry-run|--undo)\\b'; then echo '🛑 IRREVERSIBLE: cargo yank/publish writes to crates.io permanently.' >&2; echo '   Yanked versions stay grey forever; published ones cant be deleted.' >&2; echo '   Test with --dry-run, or get explicit user GO.' >&2; exit 2; fi"
           }
         ]
       },
