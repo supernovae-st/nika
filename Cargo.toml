@@ -41,6 +41,19 @@ layers.nika-kernel = "L0.5"
 layers.nika-kernel-mock = "L0.5"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Per-layer banned external deps (runtime-binding crates forbidden at layers
+# that must stay runtime-agnostic). Enforced by
+# scripts/hygiene/check-layer-deps.sh (vector 33).
+#
+# L0 = pure data + logic, no async runtime, no I/O binding.
+# L0.5 = trait-only surface, uses `trait_variant` for async-fn desugaring
+#        (no direct tokio/futures dep in the trait crate itself).
+# L1+ = effect impls may bind to tokio and its ecosystem.
+# ─────────────────────────────────────────────────────────────────────────────
+layer-bans.L0 = ["tokio", "tokio-util", "tokio-stream", "tokio-macros", "rayon", "async-std", "smol", "futures", "futures-util", "futures-core", "futures-channel", "async-channel", "reqwest", "hyper", "h2", "axum", "actix-web"]
+layer-bans."L0.5" = ["tokio", "tokio-util", "tokio-stream", "rayon", "async-std", "smol", "reqwest", "hyper", "h2", "axum", "actix-web"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Workspace-wide lint policy. Every member crate MUST opt in via:
 #     [lints]
 #     workspace = true

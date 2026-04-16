@@ -54,6 +54,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 30 | `check-cancel-safety.sh` | Every `async fn` in `crates/nika-kernel/src/**` has `// CANCEL SAFETY:` or `/// CANCEL SAFETY:` marker in preceding doc block (Batch I.b — kernel effect surface must document drop-safety per method) |
 | 31 | `check-owned-strings.sh` | nika-catalog public API uses `&'static str` (ADR-008 codegen pragma) or owned `String` — bans non-static `&str`/`&'a str` in `pub` fields and `pub fn` return types. Allow `&str` in parameters. Per-item exempt via `// OWNED-STRINGS-EXEMPT: <reason>` |
 | 32 | `check-unsafe-count.sh` | `unsafe` token count in `crates/*/src/**/*.rs` ≤ baseline (see `baselines/unsafe-count.txt`). Substitutes cargo-geiger-workspace which is hostile to virtual manifests; dep-tree security still covered by `cargo audit` + `cargo deny`. Baseline currently 0 |
+| 33 | `check-layer-deps.sh` | Per-layer banned third-party deps — L0 rejects tokio/futures/reqwest/hyper/rayon/async-std/smol/axum/actix-web (17 deps); L0.5 rejects the same minus `futures*` (traits use `trait_variant` + `std::future`, 11 deps). Bans table lives in `[workspace.metadata.diamond] layer-bans.<layer>` in Cargo.toml. Per-line exempt via `# LAYER-BAN-EXEMPT: <reason>` |
 
 ## Adding a new vector
 
