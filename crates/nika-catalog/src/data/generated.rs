@@ -82,10 +82,10 @@ mod tests {
 
     #[test]
     fn providers_count_pinned() {
-        // Pinned to detect silent additions/removals. Session 2b follow-up
-        // added 4 Chinese frontier providers (moonshot/qwen/minimax/zhipu)
-        // driving the count from 21 to 25.
-        assert_eq!(ALL_PROVIDERS.len(), 25);
+        // Pinned to detect silent additions/removals. Session 4b added 7
+        // new providers (nvidia-nim/deepinfra/replicate/hyperbolic/writer/
+        // databricks/cloudflare), driving the count from 25 to 32.
+        assert_eq!(ALL_PROVIDERS.len(), 32);
     }
 
     #[test]
@@ -236,7 +236,7 @@ mod tests {
         // perplexity = sonar LLM + search tool) are legitimate. This test
         // only flags UNEXPECTED overlaps — extend the allow-list when a
         // new dual-role service is added deliberately.
-        const KNOWN_OVERLAP: &[&str] = &["perplexity"];
+        const KNOWN_OVERLAP: &[&str] = &["cloudflare", "perplexity", "replicate"];
         let mut mcp_keys: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for s in ALL_MCP_SERVERS {
             mcp_keys.insert(s.id.to_ascii_lowercase());

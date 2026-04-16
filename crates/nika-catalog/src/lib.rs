@@ -117,9 +117,9 @@ mod tests {
 
     #[test]
     fn all_providers_non_empty() {
-        // Session 2b follow-up added 4 Chinese frontier providers:
-        // moonshot, qwen, minimax, zhipu (21 → 25).
-        assert_eq!(all_providers().len(), 25);
+        // Session 4b added 7 providers (nvidia-nim, deepinfra, replicate,
+        // hyperbolic, writer, databricks, cloudflare): 25 → 32.
+        assert_eq!(all_providers().len(), 32);
     }
 
     #[test]

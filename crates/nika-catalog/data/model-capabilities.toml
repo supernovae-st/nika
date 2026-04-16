@@ -485,6 +485,65 @@ match            = { kind = "any" }
 caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
 routing_complete = true
 
+# ─── Session 4b additions (7 new provider rules) ────────────────────────────
+
+# [43] NVIDIA NIM — text-only fallback. OpenAI-compat: json_schema YES.
+[[rules]]
+name             = "nvidia-nim-any-model"
+scope            = { providers = ["nvidia-nim"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [44] DeepInfra — text-only fallback. OpenAI-compat: json_schema YES.
+#      Llama tokenizer for most hosted models.
+[[rules]]
+name             = "deepinfra-any-model"
+scope            = { providers = ["deepinfra"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [45] Replicate — text-only fallback. OpenAI-compat shim.
+[[rules]]
+name             = "replicate-any-model"
+scope            = { providers = ["replicate"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+routing_complete = true
+
+# [46] Hyperbolic — text-only fallback. Llama + Qwen inference.
+[[rules]]
+name             = "hyperbolic-any-model"
+scope            = { providers = ["hyperbolic"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [47] Writer — text-only. Palmyra family.
+[[rules]]
+name             = "writer-any-model"
+scope            = { providers = ["writer"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [48] Databricks — text-only fallback. Model serving on workspace.
+[[rules]]
+name             = "databricks-any-model"
+scope            = { providers = ["databricks"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [49] Cloudflare Workers AI — text-only fallback. Edge inference.
+[[rules]]
+name             = "cloudflare-any-model"
+scope            = { providers = ["cloudflare"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
 # [28] Mock — all flags enabled. Covers every runtime conditional branch
 #      without real API calls. Tokenizer cl100k (arbitrary). All
 #      supported_parameters set — tests can cover every path.

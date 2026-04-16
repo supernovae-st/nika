@@ -585,6 +585,158 @@ model = "glm-4-flash"
 context_window_tokens = 128000
 max_output_tokens = 4096
 
+# ─── Session 4b additions (8 new providers) ────────────────────────────
+
+[[providers]]
+id = "nvidia-nim"
+name = "NVIDIA NIM"
+aliases = ["nim"]
+env_var = "NVIDIA_API_KEY"
+default_model = "meta/llama-3.1-70b-instruct"
+cheap_model = "meta/llama-3.1-8b-instruct"
+requires_key = true
+description = "NVIDIA NIM inference microservices. Nemotron, Llama, Mistral on NVIDIA GPUs."
+api_dialect = "openai-chat"
+tags = ["function-calling", "local", "streaming"]
+
+[[providers.models]]
+id = "llama-70b"
+model = "meta/llama-3.1-70b-instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "llama-8b"
+model = "meta/llama-3.1-8b-instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "deepinfra"
+name = "DeepInfra"
+aliases = []
+env_var = "DEEPINFRA_API_KEY"
+default_model = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+cheap_model = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+requires_key = true
+description = "Cost-efficient inference hosting for open-weight models."
+api_dialect = "openai-chat"
+tags = ["function-calling", "open-source", "streaming"]
+
+[[providers.models]]
+id = "maverick"
+model = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+context_window_tokens = 1048576
+max_output_tokens = 16384
+
+[[providers.models]]
+id = "llama-8b"
+model = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "replicate"
+name = "Replicate"
+aliases = []
+env_var = "REPLICATE_API_TOKEN"
+default_model = "meta/meta-llama-3-70b-instruct"
+cheap_model = "meta/meta-llama-3-8b-instruct"
+requires_key = true
+description = "Run ML models in the cloud. OpenAI-compatible shim."
+api_dialect = "openai-chat"
+tags = ["function-calling", "open-source", "streaming"]
+
+[[providers.models]]
+id = "llama-70b"
+model = "meta/meta-llama-3-70b-instruct"
+context_window_tokens = 8192
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "llama-8b"
+model = "meta/meta-llama-3-8b-instruct"
+context_window_tokens = 8192
+max_output_tokens = 4096
+
+[[providers]]
+id = "hyperbolic"
+name = "Hyperbolic"
+aliases = []
+env_var = "HYPERBOLIC_API_KEY"
+default_model = "meta-llama/Llama-3.3-70B-Instruct"
+cheap_model = "meta-llama/Llama-3.3-70B-Instruct"
+requires_key = true
+description = "Open-access AI cloud. Competitive Llama/Qwen inference."
+api_dialect = "openai-chat"
+tags = ["function-calling", "open-source", "streaming"]
+
+[[providers.models]]
+id = "llama-70b"
+model = "meta-llama/Llama-3.3-70B-Instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "writer"
+name = "Writer"
+aliases = []
+env_var = "WRITER_API_KEY"
+default_model = "palmyra-x-004"
+cheap_model = "palmyra-x-004"
+requires_key = true
+description = "Enterprise AI platform. Palmyra LLM family."
+api_dialect = "openai-chat"
+tags = ["function-calling", "streaming"]
+
+[[providers.models]]
+id = "palmyra"
+model = "palmyra-x-004"
+context_window_tokens = 128000
+max_output_tokens = 8192
+
+[[providers]]
+id = "databricks"
+name = "Databricks"
+aliases = []
+env_var = "DATABRICKS_TOKEN"
+default_model = "databricks-meta-llama-3-1-70b-instruct"
+cheap_model = "databricks-meta-llama-3-1-70b-instruct"
+requires_key = true
+description = "Lakehouse AI. Model serving on Databricks workspace."
+api_dialect = "openai-chat"
+tags = ["function-calling", "streaming"]
+
+[[providers.models]]
+id = "llama-70b"
+model = "databricks-meta-llama-3-1-70b-instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers]]
+id = "cloudflare"
+name = "Cloudflare Workers AI"
+aliases = ["workers-ai"]
+env_var = "CLOUDFLARE_API_TOKEN"
+default_model = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+cheap_model = "@cf/meta/llama-3.1-8b-instruct"
+requires_key = true
+description = "AI inference on Cloudflare edge network."
+api_dialect = "openai-chat"
+tags = ["function-calling", "open-source", "streaming"]
+
+[[providers.models]]
+id = "llama-70b"
+model = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
+[[providers.models]]
+id = "llama-8b"
+model = "@cf/meta/llama-3.1-8b-instruct"
+context_window_tokens = 128000
+max_output_tokens = 4096
+
 [[providers]]
 id = "native"
 name = "Native Inference"
