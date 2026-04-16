@@ -20,9 +20,10 @@ shadow_zones: []
 nika_codes: ["NIKA-380", "NIKA-381", "NIKA-389"]
 timeline: "v0.81.0-alpha.1, Phase C / Session S1-C"
 follow_ups:
-  - "Migrate MemoryId from u128 to UUIDv7-backed newtype (S1-C)"
-  - "Migrate TaskId from String to UUIDv7-backed newtype (S1-C)"
-  - "Replace InferResponse.cost_usd: Option<f64> with Cost(i128) (S1-C)"
+  - "Migrate MemoryId from u128 to UUIDv7-backed newtype (DONE Wave 3)"
+  - "Migrate TaskId from String to UUIDv7-backed newtype (DEFERRED to v0.82+ — user-named YAML workflow IDs need a design pass on parse validation vs. human readability)"
+  - "Replace InferResponse.cost_usd: Option<f64> with Cost(i128) (DONE Wave 3 — cost: Option<Cost> added, #[deprecated] on cost_usd, removal in v0.85)"
+  - "Extend cost deprecation to AgentOutcome + AgentCheckpoint (DONE Wave 3)"
   - "Wire TrustLevel into Shield (NIKA-380..389) when verb-* crates ship"
 ---
 

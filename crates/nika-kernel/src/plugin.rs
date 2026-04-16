@@ -108,11 +108,11 @@ mod tests {
     #[test]
     fn wasm_plugin_error_sandbox_violation_display() {
         let err = WasmPluginError::SandboxViolation {
-            kind: DenialKind::FsNotGranted,
+            kind: DenialKind::FsReadNotGranted,
         };
         let s = err.to_string();
         assert!(s.contains("sandbox violation"));
-        assert!(s.contains("filesystem path not granted"));
+        assert!(s.contains("filesystem read not granted"));
     }
 
     #[test]

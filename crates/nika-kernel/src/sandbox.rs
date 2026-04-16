@@ -94,8 +94,10 @@ impl Capability {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DenialKind {
-    /// Filesystem path not in the granted capability set.
-    FsNotGranted,
+    /// Filesystem read path not in the granted capability set.
+    FsReadNotGranted,
+    /// Filesystem write path not in the granted capability set.
+    FsWriteNotGranted,
     /// Network host not on the allowlist.
     NetworkHostNotAllowlisted,
     /// Process spawning disabled in this sandbox.
@@ -110,7 +112,8 @@ pub enum DenialKind {
 impl fmt::Display for DenialKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Self::FsNotGranted => "filesystem path not granted",
+            Self::FsReadNotGranted => "filesystem read not granted",
+            Self::FsWriteNotGranted => "filesystem write not granted",
             Self::NetworkHostNotAllowlisted => "network host not allowlisted",
             Self::ProcessSpawnDisabled => "process spawn disabled",
             Self::EnvKeyNotAllowlisted => "environment variable not allowlisted",
@@ -203,8 +206,12 @@ mod tests {
     #[test]
     fn denial_kind_display_is_stable() {
         assert_eq!(
-            DenialKind::FsNotGranted.to_string(),
-            "filesystem path not granted"
+            DenialKind::FsReadNotGranted.to_string(),
+            "filesystem read not granted"
+        );
+        assert_eq!(
+            DenialKind::FsWriteNotGranted.to_string(),
+            "filesystem write not granted"
         );
         assert_eq!(
             DenialKind::NetworkHostNotAllowlisted.to_string(),

@@ -203,28 +203,28 @@ pub const NIKA_389: NikaCode = NikaCode {
 /// Memory unavailable.
 pub const NIKA_600: NikaCode = NikaCode {
     num: 600,
-    category: Category::Runtime,
+    category: Category::Memory,
     severity: Severity::Error,
     slug: "memory-unavailable",
 };
 /// Memory not found.
 pub const NIKA_601: NikaCode = NikaCode {
     num: 601,
-    category: Category::Runtime,
+    category: Category::Memory,
     severity: Severity::Error,
     slug: "memory-not-found",
 };
 /// Embedding failed.
 pub const NIKA_602: NikaCode = NikaCode {
     num: 602,
-    category: Category::Runtime,
+    category: Category::Memory,
     severity: Severity::Error,
     slug: "memory-embedding-failed",
 };
 /// Memory storage error.
 pub const NIKA_603: NikaCode = NikaCode {
     num: 603,
-    category: Category::Runtime,
+    category: Category::Memory,
     severity: Severity::Error,
     slug: "memory-storage",
 };
@@ -388,6 +388,7 @@ mod tests {
             "memory code {}",
             code.num
         );
+        assert_eq!(code.category, Category::Memory);
     }
 
     #[test]

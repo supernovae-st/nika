@@ -76,6 +76,8 @@ pub enum Category {
     Provider,
     Verb,
     Runtime,
+    /// Memory subsystem (600-649).
+    Memory,
     /// WASM plugin host execution (700-749).
     WasmPlugin,
     /// Capability-based sandbox (750-799).

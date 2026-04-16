@@ -32,6 +32,11 @@
 //!   etc.).
 //! - `WasmPluginHost`, `Sandbox` — open per ADR-020 (community WASM/sandbox
 //!   backends).
+//! - `MemoryRemember`, `MemoryRecall`, `MemoryForget`, `EmbeddingProvider` —
+//!   Cortex sub-system (v0.95), open for community memory stores
+//!   (HNSW/BM25/RRF backends ship separately per ADR-033).
+//! - `ToolExecute`, `ToolBatch`, `ContextCompressor` — open for the
+//!   third-party MCP ecosystem.
 
 /// Sealed supertrait — opt-in participation gate (soft seal).
 ///
