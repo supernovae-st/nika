@@ -504,6 +504,78 @@ impl<T> core::convert::From<T> for nika_kernel::ai::memory::MemoryError
 pub fn nika_kernel::ai::memory::MemoryError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::MemoryError where T: 'static
 pub fn nika_kernel::ai::memory::MemoryError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::ai::memory::ConsolidationReport
+pub nika_kernel::ai::memory::ConsolidationReport::completed: bool
+pub nika_kernel::ai::memory::ConsolidationReport::frames_processed: u64
+pub nika_kernel::ai::memory::ConsolidationReport::summaries_emitted: u64
+impl nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::empty() -> Self
+impl core::clone::Clone for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::clone(&self) -> nika_kernel::ai::memory::ConsolidationReport
+impl core::default::Default for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::default() -> nika_kernel::ai::memory::ConsolidationReport
+impl core::fmt::Debug for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::ConsolidationReport
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::ConsolidationReport where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::ConsolidationReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::ConsolidationReport where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::ConsolidationReport::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::ConsolidationReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::ConsolidationReport where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::ConsolidationReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::ConsolidationReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::ConsolidationReport where T: core::clone::Clone
+pub type nika_kernel::ai::memory::ConsolidationReport::Owned = T
+pub fn nika_kernel::ai::memory::ConsolidationReport::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::ConsolidationReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::ConsolidationReport where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::ConsolidationReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::ConsolidationReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::ConsolidationReport where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::ConsolidationReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::ConsolidationReport where T: 'static
+pub fn nika_kernel::ai::memory::ConsolidationReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::ai::memory::ConsolidationScope
+pub nika_kernel::ai::memory::ConsolidationScope::level: core::option::Option<nika_types::memory::MemoryLevel>
+pub nika_kernel::ai::memory::ConsolidationScope::run: core::option::Option<nika_types::id::RunId>
+pub nika_kernel::ai::memory::ConsolidationScope::tenant: core::option::Option<nika_types::id::TenantId>
+impl core::clone::Clone for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::clone(&self) -> nika_kernel::ai::memory::ConsolidationScope
+impl core::default::Default for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::default() -> nika_kernel::ai::memory::ConsolidationScope
+impl core::fmt::Debug for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::ConsolidationScope
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::ConsolidationScope where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::ConsolidationScope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::ConsolidationScope where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::ConsolidationScope::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::ConsolidationScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::ConsolidationScope where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::ConsolidationScope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::ConsolidationScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::ConsolidationScope where T: core::clone::Clone
+pub type nika_kernel::ai::memory::ConsolidationScope::Owned = T
+pub fn nika_kernel::ai::memory::ConsolidationScope::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::ConsolidationScope::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::ConsolidationScope where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationScope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::ConsolidationScope where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationScope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::ConsolidationScope where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationScope::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::ConsolidationScope where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::ConsolidationScope::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::ConsolidationScope where T: 'static
+pub fn nika_kernel::ai::memory::ConsolidationScope::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel::ai::memory::MemoryFrame
 pub nika_kernel::ai::memory::MemoryFrame::cipher: core::option::Option<alloc::string::String>
 pub nika_kernel::ai::memory::MemoryFrame::content: alloc::string::String
@@ -586,6 +658,79 @@ impl<T> core::convert::From<T> for nika_kernel::ai::memory::MemoryHit
 pub fn nika_kernel::ai::memory::MemoryHit::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::MemoryHit where T: 'static
 pub fn nika_kernel::ai::memory::MemoryHit::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::ai::memory::PrunePolicy
+pub nika_kernel::ai::memory::PrunePolicy::dry_run: bool
+pub nika_kernel::ai::memory::PrunePolicy::max_age_secs: core::option::Option<u64>
+pub nika_kernel::ai::memory::PrunePolicy::min_retention: core::option::Option<f32>
+pub nika_kernel::ai::memory::PrunePolicy::tenant: core::option::Option<nika_types::id::TenantId>
+impl core::clone::Clone for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::clone(&self) -> nika_kernel::ai::memory::PrunePolicy
+impl core::default::Default for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::default() -> nika_kernel::ai::memory::PrunePolicy
+impl core::fmt::Debug for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::PrunePolicy
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::PrunePolicy where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::PrunePolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::PrunePolicy where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::PrunePolicy::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::PrunePolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::PrunePolicy where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::PrunePolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::PrunePolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::PrunePolicy where T: core::clone::Clone
+pub type nika_kernel::ai::memory::PrunePolicy::Owned = T
+pub fn nika_kernel::ai::memory::PrunePolicy::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::PrunePolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::PrunePolicy where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PrunePolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::PrunePolicy where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PrunePolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::PrunePolicy where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PrunePolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::PrunePolicy where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::PrunePolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::PrunePolicy where T: 'static
+pub fn nika_kernel::ai::memory::PrunePolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::ai::memory::PruneReport
+pub nika_kernel::ai::memory::PruneReport::completed: bool
+pub nika_kernel::ai::memory::PruneReport::frames_matched: u64
+pub nika_kernel::ai::memory::PruneReport::frames_pruned: u64
+impl nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::empty() -> Self
+impl core::clone::Clone for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::clone(&self) -> nika_kernel::ai::memory::PruneReport
+impl core::default::Default for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::default() -> nika_kernel::ai::memory::PruneReport
+impl core::fmt::Debug for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::PruneReport
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::PruneReport where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::PruneReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::PruneReport where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::PruneReport::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::PruneReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::PruneReport where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::PruneReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::PruneReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::PruneReport where T: core::clone::Clone
+pub type nika_kernel::ai::memory::PruneReport::Owned = T
+pub fn nika_kernel::ai::memory::PruneReport::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::PruneReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::PruneReport where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PruneReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::PruneReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PruneReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::PruneReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PruneReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::PruneReport where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::PruneReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::PruneReport where T: 'static
+pub fn nika_kernel::ai::memory::PruneReport::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel::ai::memory::RecallQuery
 pub nika_kernel::ai::memory::RecallQuery::levels: core::option::Option<alloc::vec::Vec<nika_types::memory::MemoryLevel>>
 pub nika_kernel::ai::memory::RecallQuery::limit: core::option::Option<usize>
@@ -642,6 +787,9 @@ impl<TraitVariantBlanketType: nika_kernel::ai::memory::MemoryForgetDyn> nika_ker
 pub async fn TraitVariantBlanketType::forget(&self, id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel::ai::memory::MemoryError>
 pub trait nika_kernel::ai::memory::MemoryForgetDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel::ai::memory::MemoryForgetDyn::forget(&self, id: nika_types::memory::MemoryId) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel::ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel::ai::memory::MemoryLifecycle: core::marker::Send + core::marker::Sync
+pub fn nika_kernel::ai::memory::MemoryLifecycle::consolidate(&self, _scope: nika_kernel::ai::memory::ConsolidationScope) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel::ai::memory::ConsolidationReport, nika_kernel::ai::memory::MemoryError>> + core::marker::Send
+pub fn nika_kernel::ai::memory::MemoryLifecycle::prune(&self, _policy: nika_kernel::ai::memory::PrunePolicy) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel::ai::memory::PruneReport, nika_kernel::ai::memory::MemoryError>> + core::marker::Send
 pub trait nika_kernel::ai::memory::MemoryRecall: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel::ai::memory::MemoryRecall::recall(&self, query: nika_kernel::ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel::ai::memory::MemoryHit>, nika_kernel::ai::memory::MemoryError>
 impl<TraitVariantBlanketType: nika_kernel::ai::memory::MemoryRecallDyn> nika_kernel::ai::memory::MemoryRecall for TraitVariantBlanketType
@@ -2962,6 +3110,78 @@ impl<T> core::convert::From<T> for nika_kernel::ai::memory::MemoryError
 pub fn nika_kernel::ai::memory::MemoryError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::MemoryError where T: 'static
 pub fn nika_kernel::ai::memory::MemoryError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::memory::ConsolidationReport
+pub nika_kernel::memory::ConsolidationReport::completed: bool
+pub nika_kernel::memory::ConsolidationReport::frames_processed: u64
+pub nika_kernel::memory::ConsolidationReport::summaries_emitted: u64
+impl nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::empty() -> Self
+impl core::clone::Clone for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::clone(&self) -> nika_kernel::ai::memory::ConsolidationReport
+impl core::default::Default for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::default() -> nika_kernel::ai::memory::ConsolidationReport
+impl core::fmt::Debug for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::ConsolidationReport
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::ConsolidationReport where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::ConsolidationReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::ConsolidationReport where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::ConsolidationReport::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::ConsolidationReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::ConsolidationReport where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::ConsolidationReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::ConsolidationReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::ConsolidationReport where T: core::clone::Clone
+pub type nika_kernel::ai::memory::ConsolidationReport::Owned = T
+pub fn nika_kernel::ai::memory::ConsolidationReport::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::ConsolidationReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::ConsolidationReport where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::ConsolidationReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::ConsolidationReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::ConsolidationReport where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::ConsolidationReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::ConsolidationReport
+pub fn nika_kernel::ai::memory::ConsolidationReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::ConsolidationReport where T: 'static
+pub fn nika_kernel::ai::memory::ConsolidationReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::memory::ConsolidationScope
+pub nika_kernel::memory::ConsolidationScope::level: core::option::Option<nika_types::memory::MemoryLevel>
+pub nika_kernel::memory::ConsolidationScope::run: core::option::Option<nika_types::id::RunId>
+pub nika_kernel::memory::ConsolidationScope::tenant: core::option::Option<nika_types::id::TenantId>
+impl core::clone::Clone for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::clone(&self) -> nika_kernel::ai::memory::ConsolidationScope
+impl core::default::Default for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::default() -> nika_kernel::ai::memory::ConsolidationScope
+impl core::fmt::Debug for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::ConsolidationScope
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::ConsolidationScope where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::ConsolidationScope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::ConsolidationScope where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::ConsolidationScope::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::ConsolidationScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::ConsolidationScope where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::ConsolidationScope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::ConsolidationScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::ConsolidationScope where T: core::clone::Clone
+pub type nika_kernel::ai::memory::ConsolidationScope::Owned = T
+pub fn nika_kernel::ai::memory::ConsolidationScope::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::ConsolidationScope::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::ConsolidationScope where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationScope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::ConsolidationScope where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationScope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::ConsolidationScope where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::ConsolidationScope::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::ConsolidationScope where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::ConsolidationScope::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::ConsolidationScope
+pub fn nika_kernel::ai::memory::ConsolidationScope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::ConsolidationScope where T: 'static
+pub fn nika_kernel::ai::memory::ConsolidationScope::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel::memory::MemoryFrame
 pub nika_kernel::memory::MemoryFrame::cipher: core::option::Option<alloc::string::String>
 pub nika_kernel::memory::MemoryFrame::content: alloc::string::String
@@ -3044,6 +3264,79 @@ impl<T> core::convert::From<T> for nika_kernel::ai::memory::MemoryHit
 pub fn nika_kernel::ai::memory::MemoryHit::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::MemoryHit where T: 'static
 pub fn nika_kernel::ai::memory::MemoryHit::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::memory::PrunePolicy
+pub nika_kernel::memory::PrunePolicy::dry_run: bool
+pub nika_kernel::memory::PrunePolicy::max_age_secs: core::option::Option<u64>
+pub nika_kernel::memory::PrunePolicy::min_retention: core::option::Option<f32>
+pub nika_kernel::memory::PrunePolicy::tenant: core::option::Option<nika_types::id::TenantId>
+impl core::clone::Clone for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::clone(&self) -> nika_kernel::ai::memory::PrunePolicy
+impl core::default::Default for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::default() -> nika_kernel::ai::memory::PrunePolicy
+impl core::fmt::Debug for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::PrunePolicy
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::PrunePolicy where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::PrunePolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::PrunePolicy where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::PrunePolicy::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::PrunePolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::PrunePolicy where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::PrunePolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::PrunePolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::PrunePolicy where T: core::clone::Clone
+pub type nika_kernel::ai::memory::PrunePolicy::Owned = T
+pub fn nika_kernel::ai::memory::PrunePolicy::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::PrunePolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::PrunePolicy where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PrunePolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::PrunePolicy where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PrunePolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::PrunePolicy where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PrunePolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::PrunePolicy where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::PrunePolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::PrunePolicy
+pub fn nika_kernel::ai::memory::PrunePolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::PrunePolicy where T: 'static
+pub fn nika_kernel::ai::memory::PrunePolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::memory::PruneReport
+pub nika_kernel::memory::PruneReport::completed: bool
+pub nika_kernel::memory::PruneReport::frames_matched: u64
+pub nika_kernel::memory::PruneReport::frames_pruned: u64
+impl nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::empty() -> Self
+impl core::clone::Clone for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::clone(&self) -> nika_kernel::ai::memory::PruneReport
+impl core::default::Default for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::default() -> nika_kernel::ai::memory::PruneReport
+impl core::fmt::Debug for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel::ai::memory::PruneReport
+impl<T, U> core::convert::Into<U> for nika_kernel::ai::memory::PruneReport where U: core::convert::From<T>
+pub fn nika_kernel::ai::memory::PruneReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::ai::memory::PruneReport where U: core::convert::Into<T>
+pub type nika_kernel::ai::memory::PruneReport::Error = core::convert::Infallible
+pub fn nika_kernel::ai::memory::PruneReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::ai::memory::PruneReport where U: core::convert::TryFrom<T>
+pub type nika_kernel::ai::memory::PruneReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::ai::memory::PruneReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::ai::memory::PruneReport where T: core::clone::Clone
+pub type nika_kernel::ai::memory::PruneReport::Owned = T
+pub fn nika_kernel::ai::memory::PruneReport::clone_into(&self, target: &mut T)
+pub fn nika_kernel::ai::memory::PruneReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::ai::memory::PruneReport where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PruneReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::ai::memory::PruneReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PruneReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::ai::memory::PruneReport where T: ?core::marker::Sized
+pub fn nika_kernel::ai::memory::PruneReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::ai::memory::PruneReport where T: core::clone::Clone
+pub unsafe fn nika_kernel::ai::memory::PruneReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::ai::memory::PruneReport
+pub fn nika_kernel::ai::memory::PruneReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::ai::memory::PruneReport where T: 'static
+pub fn nika_kernel::ai::memory::PruneReport::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel::memory::RecallQuery
 pub nika_kernel::memory::RecallQuery::levels: core::option::Option<alloc::vec::Vec<nika_types::memory::MemoryLevel>>
 pub nika_kernel::memory::RecallQuery::limit: core::option::Option<usize>
@@ -3100,6 +3393,9 @@ impl<TraitVariantBlanketType: nika_kernel::ai::memory::MemoryForgetDyn> nika_ker
 pub async fn TraitVariantBlanketType::forget(&self, id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel::ai::memory::MemoryError>
 pub trait nika_kernel::memory::MemoryForgetDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel::memory::MemoryForgetDyn::forget(&self, id: nika_types::memory::MemoryId) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel::ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel::memory::MemoryLifecycle: core::marker::Send + core::marker::Sync
+pub fn nika_kernel::memory::MemoryLifecycle::consolidate(&self, _scope: nika_kernel::ai::memory::ConsolidationScope) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel::ai::memory::ConsolidationReport, nika_kernel::ai::memory::MemoryError>> + core::marker::Send
+pub fn nika_kernel::memory::MemoryLifecycle::prune(&self, _policy: nika_kernel::ai::memory::PrunePolicy) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel::ai::memory::PruneReport, nika_kernel::ai::memory::MemoryError>> + core::marker::Send
 pub trait nika_kernel::memory::MemoryRecall: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel::memory::MemoryRecall::recall(&self, query: nika_kernel::ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel::ai::memory::MemoryHit>, nika_kernel::ai::memory::MemoryError>
 impl<TraitVariantBlanketType: nika_kernel::ai::memory::MemoryRecallDyn> nika_kernel::ai::memory::MemoryRecall for TraitVariantBlanketType

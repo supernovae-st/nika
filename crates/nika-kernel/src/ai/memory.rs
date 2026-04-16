@@ -233,7 +233,150 @@ pub trait MemoryForget: Send + Sync {
     async fn forget(&self, id: MemoryId) -> Result<(), MemoryError>;
 }
 
-/// Full memory store — blanket super-trait.
+// ─── Cortex lifecycle reservation (Wave 4A R5, ADR-033 amendment) ────
+//
+// Cognitive consolidation + retention pruning are the two background
+// duties the v0.95 nika-memory orchestrator drives. Reserving them on
+// the MemoryStore surface at v0.81 (with default no-op impls) avoids
+// a breaking change every external Store impl would have to absorb
+// when Cortex lands.
+
+/// Scope selector for a consolidation pass.
+///
+/// Consolidation collapses short-term frames into long-term summaries
+/// (episodic → semantic, procedural → reflective). The v0.95 orchestrator
+/// passes a `ConsolidationScope` to tell the store which slice of the
+/// keyspace to process (single tenant, single run, single level, or all).
+///
+/// Defaults to the full-sweep scope.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct ConsolidationScope {
+    /// Optional tenant filter. `None` = every tenant.
+    pub tenant: Option<nika_error::id::TenantId>,
+    /// Optional run/workflow filter. `None` = every run.
+    pub run: Option<nika_error::id::RunId>,
+    /// Optional level filter. `None` = every level.
+    pub level: Option<MemoryLevel>,
+}
+
+/// Result of a consolidation pass.
+///
+/// The v0.95 impl returns how many frames were processed + how many new
+/// summaries emerged. The v0.81 default impl returns an empty report so
+/// existing `MemoryStore` impls keep passing without migration.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct ConsolidationReport {
+    /// Frames visited by this pass.
+    pub frames_processed: u64,
+    /// New consolidated summaries emitted.
+    pub summaries_emitted: u64,
+    /// Whether the pass completed fully (vs was truncated by budget).
+    pub completed: bool,
+}
+
+impl ConsolidationReport {
+    /// An empty, fully-completed report — used as the v0.81 default.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            frames_processed: 0,
+            summaries_emitted: 0,
+            completed: true,
+        }
+    }
+}
+
+/// Retention pruning policy.
+///
+/// Cortex pruning removes frames that fall below a retention threshold
+/// (e.g., FSRS stability below X, age above Y, unaccessed for Z).
+/// Defaults to "no-op" — impls override with their retention model.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct PrunePolicy {
+    /// Tenant scope — None = every tenant.
+    pub tenant: Option<nika_error::id::TenantId>,
+    /// Maximum age in seconds before a frame becomes prune-eligible.
+    /// None = no age threshold.
+    pub max_age_secs: Option<u64>,
+    /// Minimum retention score (0.0-1.0) to KEEP. None = no threshold.
+    pub min_retention: Option<f32>,
+    /// Dry-run flag — compute what would be pruned without deleting.
+    pub dry_run: bool,
+}
+
+/// Result of a prune pass.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct PruneReport {
+    /// Frames actually removed (0 in dry-run).
+    pub frames_pruned: u64,
+    /// Frames that matched the policy (equal to `frames_pruned` except in dry-run).
+    pub frames_matched: u64,
+    /// Whether the pass completed fully.
+    pub completed: bool,
+}
+
+impl PruneReport {
+    /// An empty, fully-completed report — used as the v0.81 default.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            frames_pruned: 0,
+            frames_matched: 0,
+            completed: true,
+        }
+    }
+}
+
+/// Cortex lifecycle operations — consolidation + prune.
+///
+/// Reserved at v0.81 as a STANDALONE trait (not a super-trait of
+/// `MemoryStore`) with default no-op implementations. Impls opt in
+/// per-Store when they're ready; v0.95 nika-memory overrides both
+/// methods with FSRS + retention-threshold logic per ADR-004. ADR-033
+/// amendment captures the full semantics.
+///
+/// Why standalone (not `MemoryStore` super-trait): keeping this trait
+/// separate means external `MemoryStore` impls aren't forced to add an
+/// `impl MemoryLifecycle` until they actually want the behaviour — no
+/// migration burden for crates that only care about remember/recall/
+/// forget. v0.95 Cortex will use `T: MemoryStore + MemoryLifecycle` as
+/// its bound, making the opt-in explicit at the consumer boundary.
+pub trait MemoryLifecycle: Send + Sync {
+    /// Run a consolidation pass on the given scope.
+    ///
+    /// Default: no-op (returns an empty report). v0.95 overrides with
+    /// FSRS consolidation against the frame graph.
+    ///
+    /// CANCEL SAFETY: cancel-safe — consolidation impls MUST checkpoint
+    /// per-frame progress so a dropped future loses at most one frame's
+    /// worth of work.
+    fn consolidate(
+        &self,
+        _scope: ConsolidationScope,
+    ) -> impl core::future::Future<Output = Result<ConsolidationReport, MemoryError>> + Send {
+        async { Ok(ConsolidationReport::empty()) }
+    }
+
+    /// Run a prune pass under the given policy.
+    ///
+    /// Default: no-op (returns an empty report). v0.95 overrides with
+    /// retention-threshold pruning + tombstoning.
+    ///
+    /// CANCEL SAFETY: cancel-safe — prune impls MUST use tombstone-then-
+    /// garbage-collect so a dropped future leaves live frames untouched.
+    fn prune(
+        &self,
+        _policy: PrunePolicy,
+    ) -> impl core::future::Future<Output = Result<PruneReport, MemoryError>> + Send {
+        async { Ok(PruneReport::empty()) }
+    }
+}
+
+/// Full memory store — blanket super-trait (unchanged from v0.81.0).
 pub trait MemoryStore: MemoryRemember + MemoryRecall + MemoryForget {}
 impl<T: MemoryRemember + MemoryRecall + MemoryForget> MemoryStore for T {}
 
@@ -390,5 +533,75 @@ mod tests {
         _assert_send_sync::<MemoryFrame>();
         _assert_send_sync::<RecallQuery>();
         _assert_send_sync::<MemoryHit>();
+    }
+
+    // ── R5 lifecycle reservation ─────────────────────────────────────
+
+    #[test]
+    fn consolidation_report_empty_is_completed() {
+        let r = ConsolidationReport::empty();
+        assert_eq!(r.frames_processed, 0);
+        assert_eq!(r.summaries_emitted, 0);
+        assert!(r.completed);
+    }
+
+    #[test]
+    fn prune_report_empty_is_completed() {
+        let r = PruneReport::empty();
+        assert_eq!(r.frames_pruned, 0);
+        assert_eq!(r.frames_matched, 0);
+        assert!(r.completed);
+    }
+
+    #[test]
+    fn consolidation_scope_default_has_full_sweep() {
+        let s = ConsolidationScope::default();
+        assert!(s.tenant.is_none());
+        assert!(s.run.is_none());
+        assert!(s.level.is_none());
+    }
+
+    #[test]
+    fn prune_policy_default_is_no_op() {
+        let p = PrunePolicy::default();
+        assert!(p.tenant.is_none());
+        assert!(p.max_age_secs.is_none());
+        assert!(p.min_retention.is_none());
+        assert!(!p.dry_run);
+    }
+
+    /// A minimal implementor that relies on the default consolidate/prune
+    /// methods — proves the defaults compile + return empty reports.
+    struct NullLifecycleStore;
+    impl MemoryLifecycle for NullLifecycleStore {}
+
+    #[tokio::test]
+    async fn memory_lifecycle_default_consolidate_is_noop() {
+        let s = NullLifecycleStore;
+        let r = s
+            .consolidate(ConsolidationScope::default())
+            .await
+            .expect("default consolidate should Ok");
+        assert_eq!(r.frames_processed, 0);
+        assert!(r.completed);
+    }
+
+    #[tokio::test]
+    async fn memory_lifecycle_default_prune_is_noop() {
+        let s = NullLifecycleStore;
+        let r = s
+            .prune(PrunePolicy::default())
+            .await
+            .expect("default prune should Ok");
+        assert_eq!(r.frames_pruned, 0);
+        assert!(r.completed);
+    }
+
+    #[test]
+    fn lifecycle_types_send_sync() {
+        _assert_send_sync::<ConsolidationScope>();
+        _assert_send_sync::<ConsolidationReport>();
+        _assert_send_sync::<PrunePolicy>();
+        _assert_send_sync::<PruneReport>();
     }
 }
