@@ -14,8 +14,19 @@
 //! the kernel free of tokio dependency. L0.5 must remain runtime-agnostic.
 //! See ADR-016.
 
+// Loom shadow: when `cfg(loom)` is active (test-only), we use loom's
+// instrumented atomics + Arc so the same `CancelCtx` can run under
+// `loom::model(...)` for interleaving-exhaustive concurrent testing.
+// Production + non-loom tests use the stdlib primitives.
+#[cfg(not(loom))]
 use alloc::sync::Arc;
+#[cfg(not(loom))]
 use core::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(loom)]
+use loom::sync::Arc;
+#[cfg(loom)]
+use loom::sync::atomic::{AtomicBool, Ordering};
 
 /// Opaque cancellation context.
 ///

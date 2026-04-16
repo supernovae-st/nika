@@ -66,6 +66,11 @@ elided_lifetimes_in_paths      = "warn"
 unreachable_pub                = "warn"
 explicit_outlives_requirements = "warn"
 unused_extern_crates           = "warn"
+# Declare `cfg(loom)` as a known config flag so `#[cfg(loom)]` in
+# nika-types::cancel (and any future concurrent primitive) doesn't
+# emit `unexpected_cfgs` warnings on normal `cargo build`. Loom tests
+# run explicitly via `RUSTFLAGS="--cfg loom"`.
+unexpected_cfgs                = { level = "warn", check-cfg = ['cfg(loom)'] }
 
 [workspace.lints.clippy]
 # Group levels (priority = -1 so individual lints below win)
