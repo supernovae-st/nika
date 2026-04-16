@@ -87,9 +87,34 @@ vectors deployed (vector 22 no-async-in-L0 PLANNED Phase B; vectors
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
 Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅,
        Round 2c ✅, Round 2d ✅, Round 2e-part-1 ✅ (parser scaffolding through verb dispatch).
-Phase A (this session): baseline status reset ✅. Phase B: hygiene v22+v26 (NEXT).
-Phase C (next): ADR-016 "YAML envelope convention" + nika-schema spec rewrite.
-Phase D (then): nuke + redo nika-schema parser with envelope.
+Phase A (this session): baseline status reset ✅. Foundation v0.81 plan
+LOCKED 2026-04-16 via 8 ADRs (006-amend + 021-027) + 14-crate constellation.
+
+**See `docs/adr/adr-021..027.md` for the locked decisions and
+`~/.claude/.../memory/project_foundation_v081_constellation.md` for the
+14-crate constellation.**
+
+Next phases (~35 commits across B-H):
+- Phase B: hygiene foundation (vectors 22 + 26-33) + crates.io legacy yank
+  + add `publish = false` to all foundation Cargo.toml + P0 Rust fixes
+  (#[non_exhaustive] on Span/Spanned/LineCol/Templatable, private fields on
+  TaskId/ToolCallId, Spanned PartialEq fix) + .config/nextest.toml +
+  rust-toolchain.toml
+- Phase B': nika-catalog internal cleanup (split data/models.rs + build/) +
+  rename kernel/io/process.rs → shell.rs
+- Phase C: flesh out 8 ADR stubs into full prose + nuke/redo
+  docs/crate-specs/nika-schema.md + write 6 new specs (envelope, event,
+  binding-transform, binding, catalog-codegen, schema-ast, macros)
+- Phase D: foundation refactor — rename nika-types → nika-core, drop
+  nika-error facade, create nika-macros stub, extract nika-envelope, split
+  nika-schema → nika-schema-ast + nika-schema, refactor parser to envelope
+  (apiVersion/kind/metadata/spec, drop goal, single-string model), relabel
+  nika-catalog-verify L0 → L4
+- Phase E: envelope hygiene + JSON Schema publication
+- Phase F: extract nika-catalog-codegen
+- Phase G: build nika-event + nika-binding-transform + nika-binding
+- Phase H: SOTA patterns adoption (bon, Arc<str>, camino, public-api,
+  release-plz, doc examples ratchet)
 
 **Next steps (priority order):**
 1. **Session 4C** — public launch tooling: `nika-catalog-tools` consolidation (dump+sync+verify+sign), Sigstore keyless signing, wire-format `$schema` envelope, catalog.nika.sh Scaleway publish, LiteLLM/models.dev freshness sync, `nika catalog doctor` CLI

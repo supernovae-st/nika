@@ -102,3 +102,31 @@ Rejected: 20 atomic trait bounds is unergonomic for consumers that genuinely nee
 ## Notes
 
 Rust 1.91 `trait_variant` is still v0.1.x. Keep version-pinned. Re-evaluate when the crate reaches v1.0 or if stdlib absorbs the pattern.
+
+## Amendment 2026-04-16 — Kernel stays monolithic forever
+
+The original ADR-006 reserved a future split into 4 sibling crates
+(`nika-kernel-{core,ai,runtime,plugin}`) when LOC > 10k OR pub trait count
+> 50. After multi-agent architectural review (rust-architect + rust-pro +
+web-researcher SOTA + Explore file audit, 2026-04-16), this split-trigger is
+**rescinded**.
+
+`nika-kernel` stays as ONE crate forever, with 5 internal group modules
+(`io/`, `ai/`, `runtime/`, `plugin/`, `infra/`) that already provide the
+logical separation. Real Rust workspaces (rust-analyzer, helix, oxc, biome,
+ruff, uv, bevy, tokio) keep their kernel-equivalents monolithic; only
+polkadot-sdk splits and that's blockchain-feature-gated. Splitting would force
+`use nika_kernel_ai::Provider; use nika_kernel_core::Clock;` everywhere — worse
+DX. The Q7 prelude hub (added 2026-04-16) depends on kernel being whole.
+
+**Trigger to revisit (both must hold):**
+- kernel exceeds 15k LOC, AND
+- 2+ active sub-domains being modified independently in same session for 3+
+  consecutive sessions
+
+Reserved crate names (nika-kernel-core/ai/runtime/plugin) freed.
+
+See `~/.claude/.../memory/feedback_kernel_monolithic_forever.md` for the full
+rationale + agent evidence.
+
+Status of original split-trigger: **superseded by this amendment.**
