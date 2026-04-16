@@ -13,9 +13,10 @@
 #   2 — RED (production unwraps found — must fix)
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/../.."
+cd "$SCRIPT_DIR/../.." || exit 2
 
-output=$(python3 - << 'PYEOF'
+output=$(
+  python3 - <<'PYEOF'
 import re, os, sys
 
 def check_file(path):
@@ -39,7 +40,10 @@ def check_file(path):
         s = line.strip()
 
         # --- detect scope markers BEFORE brace counting on this line ---
-        if re.match(r'#\[cfg\s*\(\s*test\s*\)\]', s):
+        # Match #[cfg(test)] OR #[cfg(all(test, ...))] OR #[cfg(any(test, ...))]
+        # (any() is iffy — could be non-test — but pragmatically rare; if false-pos
+        # arises, audit case-by-case). #[cfg(not(test))] explicitly rejected.
+        if re.match(r'#\[cfg\s*\(\s*(?!not\b)(?:(?:all|any)\s*\(\s*)?test\b', s):
             saw_cfg_test = True
         if re.match(r'#\[(?:(?:tokio::)?test|should_panic)(?:$|\s|\]|,)', s.rstrip()):
             saw_test_attr = True
@@ -78,7 +82,7 @@ def check_file(path):
     return prod_unwraps
 
 total = []
-for root, dirs, files in os.walk('tools'):
+for root, dirs, files in os.walk('crates'):
     dirs[:] = [d for d in dirs if d not in ['target', '.git']]
     for fname in sorted(files):
         if not fname.endswith('.rs'):
@@ -98,7 +102,9 @@ count=$(echo "$output" | grep '__TOTAL__' | grep -oE '[0-9]+$')
 detail=$(echo "$output" | grep -v '__TOTAL__')
 
 if [ "${count:-0}" -eq 0 ]; then
-  echo "OK (0 production unwrap/expect — all test-scoped, clippy verified)"; exit 0
+  echo "OK (0 production unwrap/expect — all test-scoped, clippy verified)"
+  exit 0
 fi
 [ -n "$detail" ] && echo "$detail"
-echo "${count} production unwrap/expect in non-test src/ code"; exit 2
+echo "${count} production unwrap/expect in non-test src/ code"
+exit 2

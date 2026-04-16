@@ -27,7 +27,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | # | Script | Detects |
 |---|---|---|
 | 1 | `check-memory-head.sh` | MEMORY.md HEAD SHA ≠ actual `git rev-parse HEAD` |
-| 2 | `check-crate-count.sh` | `ls crates/*/Cargo.toml` ≠ MEMORY's recorded count |
+| 2 | `check-crate-count.sh` | Workspace `members = [...]` count = `[workspace.metadata.diamond.layers.*]` count (every crate must be layer-classified) |
 | 3 | `check-loc.sh` | src LOC drift (> 2% = yellow, > 5% = red) |
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
 | 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
@@ -35,7 +35,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 7 | `check-linear.sh` | Linear issue states match `git log` admissions (needs `LINEAR_API_KEY`) |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
 | 9 | `check-org-readme.sh` | Org profile README mentions all 6 canonical repos |
-| 10 | `check-citation.sh` | CITATION.cff version ↔ workspace consistency |
+| 10 | `check-license.sh` | LICENSE file present + AGPL-3.0-or-later (renamed from `check-citation.sh` 2026-04-16; name was misleading — never checked CITATION.cff which doesn't exist) |
 | 11 | `check-unwraps.sh` | Zero `.unwrap()` / `.expect(` outside tests |
 | 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023): 800 YELLOW / 1500 RED / 3000 CRITICAL with `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
 | 13 | `check-claude-coauthor.sh` | No `Co-Authored-By: Claude` on diamond branch |
