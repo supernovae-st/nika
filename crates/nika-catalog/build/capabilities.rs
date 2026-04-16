@@ -257,6 +257,17 @@ pub(super) fn parse_capabilities(
             for r in regions {
                 validate_region(r, &format!("rule {:?}", rule.name))?;
             }
+            // Guard: region-scoped rules are structurally valid but the
+            // resolver does not evaluate them yet. Reject until Phase E2
+            // wires model_capabilities(provider, model, region).
+            if !regions.is_empty() {
+                return Err(format!(
+                    "rule {:?}: scope.region is set but the resolver does not \
+                     evaluate region yet — remove scope.region or wire the \
+                     resolver (Phase E2)",
+                    rule.name,
+                ));
+            }
         }
 
         validate_match(&rule.match_, &rule.name)?;

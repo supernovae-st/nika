@@ -151,13 +151,13 @@ pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Opti
     let usd = (input_tokens as f64 * pricing.input_per_million
         + output_tokens as f64 * pricing.output_per_million)
         / 1_000_000.0;
-    Some(CostEstimate {
+    Some(CostEstimate::new(
         usd,
-        input_rate_per_million: pricing.input_per_million,
-        output_rate_per_million: pricing.output_per_million,
-        model: model.to_string(),
-        provider: pricing.provider.to_string(),
-    })
+        pricing.input_per_million,
+        pricing.output_per_million,
+        model.to_string(),
+        pricing.provider.to_string(),
+    ))
 }
 
 #[cfg(test)]

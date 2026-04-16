@@ -55,6 +55,13 @@ impl fmt::Display for OverlayOrigin {
 /// The built-in implementation ([`StaticCatalogDataSource`]) delegates to
 /// the crate's generated statics. Overlay sources (pck, user config)
 /// implement this trait to layer on top.
+///
+/// # Feature-gated methods
+///
+/// Methods behind `#[cfg(feature = "...")]` are only present in the vtable
+/// when the corresponding feature is enabled. Implementations MUST use
+/// matching `#[cfg]` guards. Under the default `full` feature set, all
+/// methods are present and the trait is object-safe.
 pub trait CatalogDataSource: Send + Sync {
     /// Resolve model capabilities for a (provider, model) pair.
     #[cfg(feature = "capabilities")]
@@ -185,8 +192,12 @@ mod tests {
         assert_eq!(est.provider, "OpenAI");
     }
 
+    /// Object-safety requires the full feature set (all cfg-gated methods
+    /// present). Under `extension-author` (no capabilities/pricing), the
+    /// vtable has fewer methods but is still object-safe — just untested.
     #[test]
-    fn trait_is_object_safe() {
+    #[cfg(all(feature = "capabilities", feature = "pricing"))]
+    fn trait_is_object_safe_full_features() {
         fn accepts_dyn(ds: &dyn CatalogDataSource) -> OverlayOrigin {
             ds.origin()
         }
