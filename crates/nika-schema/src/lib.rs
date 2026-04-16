@@ -36,6 +36,7 @@
 
 pub mod error;
 pub mod guardrails;
+pub mod parser;
 pub mod raw;
 pub mod source;
 pub mod trust;
@@ -43,6 +44,7 @@ pub mod types;
 
 // Re-exports for convenience.
 pub use error::SchemaError;
+pub use parser::parse;
 pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, Spanned};
 
 // Type re-exports (§3.16 of crate spec).

@@ -27,7 +27,7 @@ rstest     = { workspace = true }
 serde_json = { workspace = true }
 
 [package.metadata.cargo-machete]
-ignored = ["insta", "proptest", "rstest", "nika-catalog", "marked-yaml", "serde-saphyr", "serde_json"]  # dev-deps + Round 2+ deps (parser, analyzer, json_schema)
+ignored = ["insta", "proptest", "rstest", "nika-catalog", "serde-saphyr", "serde_json"]  # dev-deps + Round 3+ deps (analyzer, json_schema)
 
 [lints]
 workspace = true

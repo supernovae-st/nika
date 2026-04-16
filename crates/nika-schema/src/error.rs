@@ -102,6 +102,8 @@ pub enum SchemaError {
     UnsupportedVersion {
         /// The version string.
         version: String,
+        /// Source span of the `schema:` scalar when known.
+        span: Option<Span>,
     },
 
     /// Generic validation error (catch-all for rare cases).
@@ -296,6 +298,7 @@ mod tests {
             },
             SchemaError::UnsupportedVersion {
                 version: String::new(),
+                span: None,
             },
             SchemaError::Validation {
                 message: String::new(),
@@ -354,6 +357,7 @@ mod tests {
             },
             SchemaError::UnsupportedVersion {
                 version: String::new(),
+                span: None,
             },
             SchemaError::Validation {
                 message: String::new(),
