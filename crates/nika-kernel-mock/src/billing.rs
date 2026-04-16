@@ -11,6 +11,7 @@ use nika_kernel::provider::TokenUsage;
 
 /// No-op billing sink.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullBillingSink;
 
 impl NullBillingSink {

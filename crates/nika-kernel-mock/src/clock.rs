@@ -15,6 +15,7 @@ use nika_kernel::Clock;
 /// `advance()` manually moves time forward. `sleep()` returns immediately.
 /// Clones share state via `Arc`.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct MockClock {
     inner: Arc<Mutex<Inner>>,
 }

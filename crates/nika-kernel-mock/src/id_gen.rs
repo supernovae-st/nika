@@ -13,6 +13,7 @@ use uuid::Uuid;
 ///
 /// Generates IDs based on an incrementing counter for reproducibility.
 #[derive(Debug, Default)]
+#[non_exhaustive]
 pub struct SequentialIdGenerator {
     counter: AtomicU64,
 }

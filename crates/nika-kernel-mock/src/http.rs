@@ -18,6 +18,7 @@ use nika_kernel::http::{
 /// Enqueue responses with `enqueue_ok` / `enqueue_err`.
 /// Inspect recorded requests with `sent_requests`.
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct MockHttp {
     responses: Arc<Mutex<VecDeque<Result<HttpResponse, HttpError>>>>,
     requests: Arc<Mutex<Vec<HttpRequest>>>,

@@ -11,6 +11,7 @@ use nika_kernel::context::{CompressedContext, ContextCompressor};
 ///
 /// Used when tests don't exercise compression but need a value.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullContextCompressor;
 
 impl NullContextCompressor {

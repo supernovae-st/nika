@@ -7,6 +7,7 @@ use nika_kernel::metrics::{MetricTag, MetricsExporter};
 
 /// No-op metrics exporter.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullMetricsExporter;
 
 impl NullMetricsExporter {

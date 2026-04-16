@@ -15,6 +15,7 @@ use nika_kernel::blob::{BlobError, BlobMetadata, BlobStore};
 ///
 /// Uses a simple incrementing counter for hash generation.
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct MockBlob {
     store: Arc<RwLock<BTreeMap<String, (Bytes, String)>>>,
     counter: Arc<parking_lot::Mutex<u64>>,

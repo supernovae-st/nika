@@ -14,6 +14,7 @@ use nika_kernel::tool_executor::{ToolBatch, ToolCall, ToolExecError, ToolExecute
 ///
 /// Used when tests don't exercise tools but need a value.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullToolExecutor;
 
 impl NullToolExecutor {
@@ -47,6 +48,7 @@ impl ToolBatch for NullToolExecutor {
 /// Enqueue results with `enqueue_ok` / `enqueue_err`.
 /// Inspect recorded calls with `captured_calls`.
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct MockToolExecutor {
     results: Arc<Mutex<VecDeque<Result<ToolResult, ToolExecError>>>>,
     calls: Arc<Mutex<Vec<ToolCall>>>,

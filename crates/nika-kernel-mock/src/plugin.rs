@@ -10,6 +10,7 @@ use nika_kernel::plugin::{WasmPluginError, WasmPluginHost};
 /// Used when tests don't exercise WASM plugins but need a value for type
 /// requirements. Every `call_plugin` returns `WasmPluginError::NotFound`.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullWasmPluginHost;
 
 impl NullWasmPluginHost {

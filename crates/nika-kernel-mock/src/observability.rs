@@ -10,6 +10,7 @@ use nika_kernel::observability::{MetricEvent, ObservabilityError, ObservabilityS
 /// Used when tests don't exercise observability but need a value for type
 /// requirements.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullObservabilitySink;
 
 impl NullObservabilitySink {

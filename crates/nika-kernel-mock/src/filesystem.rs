@@ -18,6 +18,7 @@ use nika_kernel::fs::{FileMetadata, FsList, FsMeta, FsRead, FsWrite};
 /// Directories are implicit (any prefix of a stored path).
 /// Clones share state via `Arc`.
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct MockFs {
     files: Arc<RwLock<BTreeMap<PathBuf, Vec<u8>>>>,
 }

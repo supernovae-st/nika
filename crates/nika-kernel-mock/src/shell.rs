@@ -16,6 +16,7 @@ use nika_kernel::process::{ShellCancel, ShellCommand, ShellError, ShellResult, S
 /// Enqueue results with `enqueue_ok` / `enqueue_fail` / `enqueue_err`.
 /// Inspect recorded commands with `executed_commands`.
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct MockShell {
     results: Arc<Mutex<VecDeque<Result<ShellResult, ShellError>>>>,
     commands: Arc<Mutex<Vec<ShellCommand>>>,

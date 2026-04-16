@@ -140,6 +140,28 @@ pub struct HttpStreamResponse {
     pub body: Pin<Box<dyn Stream<Item = Result<Bytes, HttpError>> + Send>>,
 }
 
+impl HttpStreamResponse {
+    /// Create a new streaming HTTP response.
+    ///
+    /// Required by invariant #19 (`#[non_exhaustive]` + `pub fn new()`).
+    #[must_use]
+    pub fn new(
+        status: u16,
+        headers: BTreeMap<String, String>,
+        final_url: impl Into<String>,
+        content_length: Option<u64>,
+        body: Pin<Box<dyn Stream<Item = Result<Bytes, HttpError>> + Send>>,
+    ) -> Self {
+        Self {
+            status,
+            headers,
+            final_url: final_url.into(),
+            content_length,
+            body,
+        }
+    }
+}
+
 impl std::fmt::Debug for HttpStreamResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpStreamResponse")
@@ -286,6 +308,33 @@ mod tests {
     }
 
     #[test]
+    fn http_stream_response_new_constructor() {
+        use std::task::{Context, Poll};
+
+        struct EmptyStream;
+        impl futures_core::Stream for EmptyStream {
+            type Item = Result<Bytes, HttpError>;
+            fn poll_next(
+                self: std::pin::Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+            ) -> Poll<Option<Self::Item>> {
+                Poll::Ready(None)
+            }
+        }
+
+        let resp = HttpStreamResponse::new(
+            200,
+            BTreeMap::new(),
+            "https://example.com",
+            Some(100),
+            Box::pin(EmptyStream),
+        );
+        assert_eq!(resp.status, 200);
+        assert_eq!(resp.final_url, "https://example.com");
+        assert_eq!(resp.content_length, Some(100));
+    }
+
+    #[test]
     fn http_stream_response_debug_format() {
         use std::task::{Context, Poll};
 
@@ -300,13 +349,13 @@ mod tests {
             }
         }
 
-        let resp = HttpStreamResponse {
-            status: 200,
-            headers: BTreeMap::new(),
-            final_url: "https://example.com".into(),
-            content_length: Some(100),
-            body: Box::pin(EmptyStream),
-        };
+        let resp = HttpStreamResponse::new(
+            200,
+            BTreeMap::new(),
+            "https://example.com",
+            Some(100),
+            Box::pin(EmptyStream),
+        );
         let debug = format!("{resp:?}");
         assert!(debug.contains("HttpStreamResponse"));
         assert!(debug.contains("200"));

@@ -12,6 +12,7 @@ use nika_kernel::memory::{
 ///
 /// Used when tests don't exercise memory but need a value for type requirements.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullMemoryStore;
 
 impl NullMemoryStore {
@@ -44,6 +45,7 @@ impl MemoryForget for NullMemoryStore {
 ///
 /// Used when tests don't exercise embeddings but need a value.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct NullEmbeddingProvider {
     dim: usize,
 }

@@ -20,6 +20,7 @@ use nika_kernel::provider::{
 /// Enqueue responses with `enqueue_text` / `enqueue_response` / `enqueue_error`.
 /// Inspect recorded requests with `captured_requests`.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct MockProvider {
     name: Arc<str>,
     responses: Arc<Mutex<VecDeque<Result<InferResponse, ProviderError>>>>,

@@ -8,6 +8,7 @@ use nika_kernel::event_sink::{Event, EventSink};
 
 /// No-op event sink that discards all events.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullEventSink;
 
 impl NullEventSink {

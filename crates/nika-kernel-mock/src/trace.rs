@@ -10,6 +10,7 @@ use nika_kernel::trace::{SpanGuard, TracerProvider};
 
 /// No-op tracer provider.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullTracerProvider;
 
 impl NullTracerProvider {

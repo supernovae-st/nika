@@ -10,6 +10,7 @@ use nika_kernel::sandbox::{Capability, Sandbox, SandboxError};
 /// Used when tests don't exercise sandboxing but need a value for type
 /// requirements. Always grants every capability and enters without error.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullSandbox;
 
 impl NullSandbox {

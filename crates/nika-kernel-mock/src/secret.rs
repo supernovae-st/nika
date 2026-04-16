@@ -8,6 +8,7 @@ use nika_kernel::secret::{Secret, SecretRef, SecretResolver};
 
 /// No-op secret resolver that returns the reference string as the value.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct NullSecretResolver;
 
 impl NullSecretResolver {
