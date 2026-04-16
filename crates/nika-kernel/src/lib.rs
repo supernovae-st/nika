@@ -94,10 +94,13 @@ pub use id_gen::IdGenerator;
 pub use memory::{
     EmbeddingProvider, MemoryDirective, MemoryError, MemoryForget, MemoryFrame, MemoryFrameRef,
     MemoryHit, MemoryId, MemoryLevel, MemoryRecall, MemoryRemember, MemoryStore, RecallQuery,
+    embed_batch_sequential,
 };
 pub use metrics::{MetricTag, MetricsExporter};
 pub use observability::{MetricEvent, ObservabilityError, ObservabilitySink, SpanEvent};
-pub use plugin::{PluginFs, PluginHttp, WasmPluginError, WasmPluginHost};
+pub use plugin::{
+    PluginEnv, PluginFs, PluginHttp, WasmPluginError, WasmPluginHost, WasmPluginLifecycle,
+};
 pub use process::{ShellCancel, ShellCommand, ShellError, ShellExecutor, ShellResult, ShellRun};
 pub use provider::{
     ContentBlock, InferEvent, InferEventStream, InferRequest, InferResponse, Message, Provider,

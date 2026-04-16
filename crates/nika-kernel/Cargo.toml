@@ -31,3 +31,4 @@ uuid          = { workspace = true }
 insta    = { workspace = true }
 proptest = { workspace = true }
 rstest   = { workspace = true }
+tokio    = { workspace = true }

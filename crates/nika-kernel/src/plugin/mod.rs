@@ -11,4 +11,6 @@ mod wasm;
 
 // Re-export wasm items at plugin level for backward compat.
 // `nika_kernel::plugin::WasmPluginHost` etc.
-pub use wasm::*;
+pub use wasm::{
+    PluginEnv, PluginFs, PluginHttp, WasmPluginError, WasmPluginHost, WasmPluginLifecycle,
+};

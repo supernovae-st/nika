@@ -61,7 +61,7 @@ pub use id_gen::{MockIdGenerator, SequentialIdGenerator};
 pub use memory::{NullEmbeddingProvider, NullMemoryStore};
 pub use metrics::NullMetricsExporter;
 pub use observability::NullObservabilitySink;
-pub use plugin::NullWasmPluginHost;
+pub use plugin::{NullPluginEnv, NullWasmPluginHost, NullWasmPluginLifecycle};
 pub use provider::MockProvider;
 pub use sandbox::NullSandbox;
 pub use secret::NullSecretResolver;

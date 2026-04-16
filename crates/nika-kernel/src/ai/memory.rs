@@ -79,6 +79,12 @@ pub struct RecallQuery {
     pub limit: Option<usize>,
     /// Minimum similarity score (0.0–1.0).
     pub min_score: Option<f32>,
+    /// Filter: only return memories observed after this timestamp (Unix ms).
+    /// Reserved for nika-memory-temporal (v0.95).
+    pub observed_after: Option<u64>,
+    /// Filter: only return memories observed before this timestamp (Unix ms).
+    /// Reserved for nika-memory-temporal (v0.95).
+    pub observed_before: Option<u64>,
 }
 
 impl RecallQuery {
@@ -91,6 +97,8 @@ impl RecallQuery {
             tags: None,
             limit: None,
             min_score: None,
+            observed_after: None,
+            observed_before: None,
         }
     }
 }
@@ -111,6 +119,12 @@ pub struct MemoryHit {
     pub tags: Vec<String>,
     /// Metadata.
     pub metadata: BTreeMap<String, String>,
+    /// When this memory was observed (parity with `MemoryFrame`).
+    /// Reserved for nika-memory-temporal ranking (v0.95).
+    pub observed_at: Option<u64>,
+    /// Source of this memory (parity with `MemoryFrame`).
+    /// Reserved for v0.95 Cortex provenance tracking.
+    pub source: Option<String>,
 }
 
 impl MemoryHit {
@@ -124,6 +138,8 @@ impl MemoryHit {
             score,
             tags: Vec::new(),
             metadata: BTreeMap::new(),
+            observed_at: None,
+            source: None,
         }
     }
 }
@@ -200,6 +216,26 @@ pub trait EmbeddingProvider: Send + Sync {
     fn dimension(&self) -> usize;
 }
 
+/// Batch embed texts by calling [`EmbeddingProvider::embed`] sequentially.
+///
+/// Sequential fallback for providers that lack native batch embedding.
+/// Override-capable providers (v0.95 hnsw, autodesc) should call their
+/// backend's batch API directly instead.
+///
+/// # Errors
+///
+/// Returns [`MemoryError`] if any individual embed call fails.
+pub async fn embed_batch_sequential(
+    provider: &(impl EmbeddingProvider + ?Sized),
+    texts: &[&str],
+) -> Result<Vec<Vec<f32>>, MemoryError> {
+    let mut results = Vec::with_capacity(texts.len());
+    for text in texts {
+        results.push(provider.embed(text).await?);
+    }
+    Ok(results)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,6 +281,8 @@ mod tests {
         assert!(query.tags.is_none());
         assert!(query.limit.is_none());
         assert!(query.min_score.is_none());
+        assert!(query.observed_after.is_none());
+        assert!(query.observed_before.is_none());
     }
 
     #[test]
@@ -257,6 +295,8 @@ mod tests {
         );
         assert_eq!(hit.score, 0.95);
         assert_eq!(hit.level, MemoryLevel::Semantic);
+        assert!(hit.observed_at.is_none());
+        assert!(hit.source.is_none());
     }
 
     #[test]
@@ -270,6 +310,37 @@ mod tests {
             id: MemoryId::new(Uuid::from_u128(5)),
         };
         assert!(err.to_string().contains("not found"));
+    }
+
+    /// Test-only embedding provider returning zero vectors.
+    struct ZeroEmbedder;
+    impl EmbeddingProvider for ZeroEmbedder {
+        async fn embed(&self, _text: &str) -> Result<Vec<f32>, MemoryError> {
+            Ok(vec![0.0; 3])
+        }
+        fn dimension(&self) -> usize {
+            3
+        }
+    }
+
+    #[tokio::test]
+    async fn embed_batch_sequential_calls_embed_per_text() {
+        let embedder = ZeroEmbedder;
+        let results = embed_batch_sequential(&embedder, &["hello", "world"])
+            .await
+            .expect("embed_batch should succeed");
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].len(), 3);
+        assert_eq!(results[1].len(), 3);
+    }
+
+    #[tokio::test]
+    async fn embed_batch_sequential_empty_returns_empty() {
+        let embedder = ZeroEmbedder;
+        let results = embed_batch_sequential(&embedder, &[])
+            .await
+            .expect("empty batch should succeed");
+        assert!(results.is_empty());
     }
 
     fn _assert_send_sync<T: Send + Sync>() {}

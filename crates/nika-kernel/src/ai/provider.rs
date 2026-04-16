@@ -216,6 +216,10 @@ pub struct InferRequest {
     pub baggage: Option<nika_error::baggage::Baggage>,
     /// Tenant identifier for multi-tenant deployments.
     pub tenant: Option<nika_error::id::TenantId>,
+    /// Seed for deterministic replay. When set, the provider should
+    /// use this seed for any randomized behavior (temperature sampling).
+    /// Reserved for content-addressed replay (v0.90 `EventLog`).
+    pub replay_seed: Option<u64>,
 }
 
 impl InferRequest {
@@ -238,6 +242,7 @@ impl InferRequest {
             budget: None,
             baggage: None,
             tenant: None,
+            replay_seed: None,
         }
     }
 }
@@ -539,6 +544,7 @@ mod tests {
         assert!(req.thinking_budget.is_none());
         assert!(req.memory.is_none());
         assert!(req.cancel.is_none());
+        assert!(req.replay_seed.is_none());
     }
 
     #[test]

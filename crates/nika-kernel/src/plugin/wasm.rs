@@ -24,6 +24,32 @@ pub trait WasmPluginHost: Send + Sync {
     ) -> Result<Vec<u8>, WasmPluginError>;
 }
 
+/// Plugin lifecycle management.
+///
+/// Reserved for v0.100. Real implementations will manage WASM modules
+/// loaded into the host. Current stubs signal "unsupported" by default.
+#[trait_variant::make(WasmPluginLifecycleDyn: Send)]
+pub trait WasmPluginLifecycle: Send + Sync {
+    /// Load a plugin from bytes. Returns an error until v0.100 ships.
+    async fn load_plugin(&self, name: &str, bytes: &[u8]) -> Result<(), WasmPluginError>;
+
+    /// Unload a previously loaded plugin. Returns an error until v0.100 ships.
+    async fn unload_plugin(&self, name: &str) -> Result<(), WasmPluginError>;
+
+    /// List loaded plugins. Returns empty until v0.100 ships.
+    async fn list_plugins(&self) -> Result<Vec<String>, WasmPluginError>;
+}
+
+/// Capability-scoped environment access for WASM guests.
+///
+/// Reserved for v0.100. Implementations will scope env access per plugin
+/// capabilities (similar to [`crate::sandbox::Capability`]).
+#[trait_variant::make(PluginEnvDyn: Send)]
+pub trait PluginEnv: Send + Sync {
+    /// Read an environment variable scoped to sandbox capabilities.
+    async fn env_get(&self, key: &str) -> Result<Option<String>, WasmPluginError>;
+}
+
 /// Filesystem access for WASM plugins (sandboxed).
 ///
 /// Reserved for v0.100. Grants limited fs to WASM guests.
@@ -129,5 +155,18 @@ mod tests {
             reason: "oom".into(),
         };
         assert!(err.to_string().contains("oom"));
+    }
+
+    // ── Seam 4-5 trait shape tests ──────────────────────────────────
+    // Verify trait shapes compile + are object-safe.
+
+    fn _assert_lifecycle_trait<T: WasmPluginLifecycle>() {}
+    fn _assert_plugin_env_trait<T: PluginEnv>() {}
+
+    #[test]
+    fn lifecycle_and_env_traits_are_send_sync() {
+        // Compile-time check: the trait bounds include Send + Sync.
+        fn _check<T: WasmPluginLifecycle + Send + Sync>() {}
+        fn _check_env<T: PluginEnv + Send + Sync>() {}
     }
 }

@@ -7,6 +7,7 @@
 //! and `TracerProvider` as separate traits (ADR-034 plans this).
 //! See `docs/architecture/forward-compat-invariants.md` Pattern 1.
 
+use nika_error::id::{SpanId, TraceId};
 use serde::{Deserialize, Serialize};
 
 /// Unified observability sink.
@@ -35,6 +36,12 @@ pub struct SpanEvent {
     pub duration_us: u64,
     /// Key-value attributes.
     pub attributes: Vec<(String, String)>,
+    /// W3C trace ID for `OTel` correlation.
+    /// Reserved for v0.100 observability export.
+    pub trace_id: Option<TraceId>,
+    /// Span ID within the trace.
+    /// Reserved for v0.100 observability export.
+    pub span_id: Option<SpanId>,
 }
 
 impl SpanEvent {
@@ -45,6 +52,8 @@ impl SpanEvent {
             name: name.into(),
             duration_us,
             attributes: Vec::new(),
+            trace_id: None,
+            span_id: None,
         }
     }
 }
@@ -111,6 +120,19 @@ mod tests {
         assert_eq!(span.name, "infer");
         assert_eq!(span.duration_us, 1234);
         assert!(span.attributes.is_empty());
+        assert!(span.trace_id.is_none());
+        assert!(span.span_id.is_none());
+    }
+
+    #[test]
+    fn span_event_serde_roundtrip_with_trace_ids() {
+        let mut span = SpanEvent::new("test", 500);
+        span.trace_id = Some(TraceId::new([1; 16]));
+        span.span_id = Some(SpanId::new([2; 8]));
+        let json = serde_json::to_string(&span).expect("serialize");
+        let back: SpanEvent = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.trace_id.unwrap(), TraceId::new([1; 16]));
+        assert_eq!(back.span_id.unwrap(), SpanId::new([2; 8]));
     }
 
     #[test]
