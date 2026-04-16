@@ -403,11 +403,12 @@ fn validate_caps_patch(
         }
         for m in list {
             match m.as_str() {
-                "text" | "image" | "audio" | "video" | "pdf" => {}
+                "text" | "image" | "audio" | "video" | "pdf" | "embedding" | "speech"
+                | "image-gen" => {}
                 _ => {
                     return Err(format!(
                         "{where_}: unknown input modality {m:?} — expected \
-                         one of: text, image, audio, video, pdf"
+                         one of: text, image, audio, video, pdf, embedding, speech, image-gen"
                     ));
                 }
             }
@@ -429,11 +430,12 @@ fn validate_caps_patch(
         }
         for m in list {
             match m.as_str() {
-                "text" | "image" | "audio" | "video" | "pdf" => {}
+                "text" | "image" | "audio" | "video" | "pdf" | "embedding" | "speech"
+                | "image-gen" => {}
                 _ => {
                     return Err(format!(
                         "{where_}: unknown output modality {m:?} — expected \
-                         one of: text, image, audio, video, pdf"
+                         one of: text, image, audio, video, pdf, embedding, speech, image-gen"
                     ));
                 }
             }
@@ -684,6 +686,9 @@ fn modality_sort_order(s: &str) -> u8 {
         "audio" => 2,
         "video" => 3,
         "pdf" => 4,
+        "embedding" => 5,
+        "speech" => 6,
+        "image-gen" => 7,
         _ => 255, // validate_caps_patch rejects unknown strings earlier
     }
 }
@@ -716,6 +721,9 @@ fn modality_variant(s: &str) -> &'static str {
         "audio" => "Audio",
         "video" => "Video",
         "pdf" => "Pdf",
+        "embedding" => "Embedding",
+        "speech" => "Speech",
+        "image-gen" => "ImageGen",
         _ => unreachable!("validated earlier: modality={s}"),
     }
 }

@@ -36,6 +36,15 @@ pub enum Modality {
     /// by the caller. Confirmed on Anthropic Claude (all active models) and
     /// Google Gemini 2.5 Pro.
     Pdf,
+    /// Embedding vector output — the model returns a dense vector, not text.
+    /// Used by `Voyage`, `OpenAI` embeddings, `Cohere` embed, `Jina`.
+    Embedding,
+    /// Speech synthesis (TTS) or speech recognition (ASR/STT) endpoint.
+    /// `ElevenLabs`, `Deepgram`, `AssemblyAI`, `OpenAI` TTS/Whisper.
+    Speech,
+    /// Image generation endpoint — the model produces images from text
+    /// prompts. `Stability`, `DALL-E`, `Flux` via `Black Forest Labs`.
+    ImageGen,
 }
 
 impl Modality {
@@ -52,6 +61,9 @@ impl Modality {
             Self::Audio => "audio",
             Self::Video => "video",
             Self::Pdf => "pdf",
+            Self::Embedding => "embedding",
+            Self::Speech => "speech",
+            Self::ImageGen => "image-gen",
         }
     }
 }
@@ -83,7 +95,8 @@ impl core::fmt::Display for ParseModalityError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "unknown modality {:?} — expected one of: text, image, audio, video, pdf",
+            "unknown modality {:?} — expected one of: text, image, audio, video, \
+             pdf, embedding, speech, image-gen",
             self.input
         )
     }
@@ -101,6 +114,9 @@ impl core::str::FromStr for Modality {
             "audio" => Ok(Self::Audio),
             "video" => Ok(Self::Video),
             "pdf" => Ok(Self::Pdf),
+            "embedding" => Ok(Self::Embedding),
+            "speech" => Ok(Self::Speech),
+            "image-gen" => Ok(Self::ImageGen),
             _ => Err(ParseModalityError::new(s.to_string())),
         }
     }
@@ -119,6 +135,9 @@ mod tests {
             Modality::Audio,
             Modality::Video,
             Modality::Pdf,
+            Modality::Embedding,
+            Modality::Speech,
+            Modality::ImageGen,
         ] {
             let s = m.as_str();
             let parsed = Modality::from_str(s).expect("round-trip must succeed");
@@ -139,6 +158,9 @@ mod tests {
         assert!(Modality::Image < Modality::Audio);
         assert!(Modality::Audio < Modality::Video);
         assert!(Modality::Video < Modality::Pdf);
+        assert!(Modality::Pdf < Modality::Embedding);
+        assert!(Modality::Embedding < Modality::Speech);
+        assert!(Modality::Speech < Modality::ImageGen);
     }
 
     #[test]

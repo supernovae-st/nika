@@ -14,8 +14,8 @@
 #   * every rule `name` is unique
 #   * `caps.token_limit_param`, when present, is one of:
 #     max-tokens | max-completion-tokens | max-output-tokens
-#   * modality strings ∈ { text, image, audio, video, pdf } and
-#     input_modalities must contain "text"
+#   * modality strings ∈ { text, image, audio, video, pdf, embedding,
+#     speech, image-gen } and input_modalities must contain "text"
 #   * supported_parameters strings ∈ {parallel-tool-calls, reasoning-effort,
 #     thinking-budget, prompt-caching, file-search, web-search,
 #     streaming-thinking, batch-api, context-caching, predicted-outputs,
