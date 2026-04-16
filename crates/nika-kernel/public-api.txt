@@ -2495,10 +2495,14 @@ pub trait nika_kernel::infra::secret::SecretResolverDyn: core::marker::Send + co
 pub fn nika_kernel::infra::secret::SecretResolverDyn::resolve(&self, secret: &nika_kernel::infra::secret::SecretRef) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel::infra::secret::Secret, nika_error::nika_error::NikaError>> + core::marker::Send
 pub mod nika_kernel::infra::trace
 #[non_exhaustive] pub struct nika_kernel::infra::trace::SpanGuard
+pub nika_kernel::infra::trace::SpanGuard::links: alloc::vec::Vec<nika_kernel::infra::trace::SpanRef>
+pub nika_kernel::infra::trace::SpanGuard::parent_span_id: core::option::Option<nika_types::id::SpanId>
 pub nika_kernel::infra::trace::SpanGuard::span_id: nika_types::id::SpanId
 pub nika_kernel::infra::trace::SpanGuard::trace_id: nika_types::id::TraceId
 impl nika_kernel::infra::trace::SpanGuard
+pub fn nika_kernel::infra::trace::SpanGuard::child_of(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: nika_types::id::SpanId) -> Self
 pub fn nika_kernel::infra::trace::SpanGuard::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+pub fn nika_kernel::infra::trace::SpanGuard::with_links(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: core::option::Option<nika_types::id::SpanId>, links: alloc::vec::Vec<nika_kernel::infra::trace::SpanRef>) -> Self
 impl core::fmt::Debug for nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::infra::trace::SpanGuard::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_kernel::infra::trace::SpanGuard
@@ -2520,9 +2524,51 @@ impl<T> core::convert::From<T> for nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::infra::trace::SpanGuard::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::infra::trace::SpanGuard where T: 'static
 pub fn nika_kernel::infra::trace::SpanGuard::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::infra::trace::SpanRef
+pub nika_kernel::infra::trace::SpanRef::span_id: nika_types::id::SpanId
+pub nika_kernel::infra::trace::SpanRef::trace_id: nika_types::id::TraceId
+impl nika_kernel::infra::trace::SpanRef
+pub const fn nika_kernel::infra::trace::SpanRef::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+impl core::clone::Clone for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::clone(&self) -> nika_kernel::infra::trace::SpanRef
+impl core::cmp::Eq for nika_kernel::infra::trace::SpanRef
+impl core::cmp::PartialEq for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::eq(&self, other: &nika_kernel::infra::trace::SpanRef) -> bool
+impl core::fmt::Debug for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel::infra::trace::SpanRef
+impl core::marker::StructuralPartialEq for nika_kernel::infra::trace::SpanRef
+impl<D> owo_colors::OwoColorize for nika_kernel::infra::trace::SpanRef
+impl<T, U> core::convert::Into<U> for nika_kernel::infra::trace::SpanRef where U: core::convert::From<T>
+pub fn nika_kernel::infra::trace::SpanRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::infra::trace::SpanRef where U: core::convert::Into<T>
+pub type nika_kernel::infra::trace::SpanRef::Error = core::convert::Infallible
+pub fn nika_kernel::infra::trace::SpanRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::infra::trace::SpanRef where U: core::convert::TryFrom<T>
+pub type nika_kernel::infra::trace::SpanRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::infra::trace::SpanRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::infra::trace::SpanRef where T: core::clone::Clone
+pub type nika_kernel::infra::trace::SpanRef::Owned = T
+pub fn nika_kernel::infra::trace::SpanRef::clone_into(&self, target: &mut T)
+pub fn nika_kernel::infra::trace::SpanRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::infra::trace::SpanRef where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::infra::trace::SpanRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::infra::trace::SpanRef where T: ?core::marker::Sized
+pub fn nika_kernel::infra::trace::SpanRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::infra::trace::SpanRef where T: ?core::marker::Sized
+pub fn nika_kernel::infra::trace::SpanRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::infra::trace::SpanRef where T: core::clone::Clone
+pub unsafe fn nika_kernel::infra::trace::SpanRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::infra::trace::SpanRef where T: 'static
+pub fn nika_kernel::infra::trace::SpanRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub trait nika_kernel::infra::trace::TracerProvider: core::marker::Send + core::marker::Sync
 pub fn nika_kernel::infra::trace::TracerProvider::extract(&self, headers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<nika_types::id::TraceId>
 pub fn nika_kernel::infra::trace::TracerProvider::inject(&self, headers: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub fn nika_kernel::infra::trace::TracerProvider::start_child_span(&self, trace_id: nika_types::id::TraceId, parent_span_id: core::option::Option<nika_types::id::SpanId>, name: &str) -> nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::infra::trace::TracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, name: &str) -> nika_kernel::infra::trace::SpanGuard
 pub mod nika_kernel::io
 pub mod nika_kernel::io::blob
@@ -5197,10 +5243,14 @@ pub trait nika_kernel::tool_executor::ToolExecutor: nika_kernel::runtime::tool_e
 impl<T: nika_kernel::runtime::tool_executor::ToolExecute + nika_kernel::runtime::tool_executor::ToolBatch> nika_kernel::runtime::tool_executor::ToolExecutor for T
 pub mod nika_kernel::trace
 #[non_exhaustive] pub struct nika_kernel::trace::SpanGuard
+pub nika_kernel::trace::SpanGuard::links: alloc::vec::Vec<nika_kernel::infra::trace::SpanRef>
+pub nika_kernel::trace::SpanGuard::parent_span_id: core::option::Option<nika_types::id::SpanId>
 pub nika_kernel::trace::SpanGuard::span_id: nika_types::id::SpanId
 pub nika_kernel::trace::SpanGuard::trace_id: nika_types::id::TraceId
 impl nika_kernel::infra::trace::SpanGuard
+pub fn nika_kernel::infra::trace::SpanGuard::child_of(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: nika_types::id::SpanId) -> Self
 pub fn nika_kernel::infra::trace::SpanGuard::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+pub fn nika_kernel::infra::trace::SpanGuard::with_links(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: core::option::Option<nika_types::id::SpanId>, links: alloc::vec::Vec<nika_kernel::infra::trace::SpanRef>) -> Self
 impl core::fmt::Debug for nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::infra::trace::SpanGuard::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_kernel::infra::trace::SpanGuard
@@ -5222,9 +5272,51 @@ impl<T> core::convert::From<T> for nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::infra::trace::SpanGuard::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::infra::trace::SpanGuard where T: 'static
 pub fn nika_kernel::infra::trace::SpanGuard::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel::trace::SpanRef
+pub nika_kernel::trace::SpanRef::span_id: nika_types::id::SpanId
+pub nika_kernel::trace::SpanRef::trace_id: nika_types::id::TraceId
+impl nika_kernel::infra::trace::SpanRef
+pub const fn nika_kernel::infra::trace::SpanRef::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+impl core::clone::Clone for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::clone(&self) -> nika_kernel::infra::trace::SpanRef
+impl core::cmp::Eq for nika_kernel::infra::trace::SpanRef
+impl core::cmp::PartialEq for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::eq(&self, other: &nika_kernel::infra::trace::SpanRef) -> bool
+impl core::fmt::Debug for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel::infra::trace::SpanRef
+impl core::marker::StructuralPartialEq for nika_kernel::infra::trace::SpanRef
+impl<D> owo_colors::OwoColorize for nika_kernel::infra::trace::SpanRef
+impl<T, U> core::convert::Into<U> for nika_kernel::infra::trace::SpanRef where U: core::convert::From<T>
+pub fn nika_kernel::infra::trace::SpanRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel::infra::trace::SpanRef where U: core::convert::Into<T>
+pub type nika_kernel::infra::trace::SpanRef::Error = core::convert::Infallible
+pub fn nika_kernel::infra::trace::SpanRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel::infra::trace::SpanRef where U: core::convert::TryFrom<T>
+pub type nika_kernel::infra::trace::SpanRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel::infra::trace::SpanRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel::infra::trace::SpanRef where T: core::clone::Clone
+pub type nika_kernel::infra::trace::SpanRef::Owned = T
+pub fn nika_kernel::infra::trace::SpanRef::clone_into(&self, target: &mut T)
+pub fn nika_kernel::infra::trace::SpanRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel::infra::trace::SpanRef where T: 'static + ?core::marker::Sized
+pub fn nika_kernel::infra::trace::SpanRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel::infra::trace::SpanRef where T: ?core::marker::Sized
+pub fn nika_kernel::infra::trace::SpanRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel::infra::trace::SpanRef where T: ?core::marker::Sized
+pub fn nika_kernel::infra::trace::SpanRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel::infra::trace::SpanRef where T: core::clone::Clone
+pub unsafe fn nika_kernel::infra::trace::SpanRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel::infra::trace::SpanRef
+pub fn nika_kernel::infra::trace::SpanRef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel::infra::trace::SpanRef where T: 'static
+pub fn nika_kernel::infra::trace::SpanRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub trait nika_kernel::trace::TracerProvider: core::marker::Send + core::marker::Sync
 pub fn nika_kernel::trace::TracerProvider::extract(&self, headers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<nika_types::id::TraceId>
 pub fn nika_kernel::trace::TracerProvider::inject(&self, headers: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub fn nika_kernel::trace::TracerProvider::start_child_span(&self, trace_id: nika_types::id::TraceId, parent_span_id: core::option::Option<nika_types::id::SpanId>, name: &str) -> nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::trace::TracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, name: &str) -> nika_kernel::infra::trace::SpanGuard
 pub mod nika_kernel::types
 pub use nika_kernel::types::TaskId
@@ -7188,10 +7280,14 @@ pub fn nika_kernel::io::process::ShellResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel::io::process::ShellResult where T: 'static
 pub fn nika_kernel::io::process::ShellResult::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel::SpanGuard
+pub nika_kernel::SpanGuard::links: alloc::vec::Vec<nika_kernel::infra::trace::SpanRef>
+pub nika_kernel::SpanGuard::parent_span_id: core::option::Option<nika_types::id::SpanId>
 pub nika_kernel::SpanGuard::span_id: nika_types::id::SpanId
 pub nika_kernel::SpanGuard::trace_id: nika_types::id::TraceId
 impl nika_kernel::infra::trace::SpanGuard
+pub fn nika_kernel::infra::trace::SpanGuard::child_of(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: nika_types::id::SpanId) -> Self
 pub fn nika_kernel::infra::trace::SpanGuard::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+pub fn nika_kernel::infra::trace::SpanGuard::with_links(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: core::option::Option<nika_types::id::SpanId>, links: alloc::vec::Vec<nika_kernel::infra::trace::SpanRef>) -> Self
 impl core::fmt::Debug for nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::infra::trace::SpanGuard::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_kernel::infra::trace::SpanGuard
@@ -7582,6 +7678,7 @@ impl<T: nika_kernel::runtime::tool_executor::ToolExecute + nika_kernel::runtime:
 pub trait nika_kernel::TracerProvider: core::marker::Send + core::marker::Sync
 pub fn nika_kernel::TracerProvider::extract(&self, headers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<nika_types::id::TraceId>
 pub fn nika_kernel::TracerProvider::inject(&self, headers: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub fn nika_kernel::TracerProvider::start_child_span(&self, trace_id: nika_types::id::TraceId, parent_span_id: core::option::Option<nika_types::id::SpanId>, name: &str) -> nika_kernel::infra::trace::SpanGuard
 pub fn nika_kernel::TracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, name: &str) -> nika_kernel::infra::trace::SpanGuard
 pub trait nika_kernel::WasmPluginHost: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel::WasmPluginHost::call_plugin(&self, plugin_name: &str, input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel::WasmPluginError>
