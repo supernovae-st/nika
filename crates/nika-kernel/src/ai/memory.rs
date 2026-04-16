@@ -71,7 +71,7 @@ impl MemoryFrame {
 ///
 /// `tenant` is the mandatory keyspace scope — every query returns only
 /// frames stored under the same tenant. The default constructor uses
-/// [`TenantId::DEFAULT`] for single-tenant deployments; multi-tenant
+/// [`TenantId::default_tenant`] for single-tenant deployments; multi-tenant
 /// hosts MUST call [`RecallQuery::scoped`] or mutate the field before
 /// executing the query.
 #[derive(Debug, Clone)]
