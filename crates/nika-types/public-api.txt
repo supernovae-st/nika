@@ -1000,6 +1000,9 @@ pub fn nika_types::id::TaskId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::TaskId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::id::TenantId
 impl nika_types::id::TenantId
+pub const nika_types::id::TenantId::DEFAULT_VALUE: &'static str
+pub fn nika_types::id::TenantId::default_tenant() -> Self
+impl nika_types::id::TenantId
 pub fn nika_types::id::TenantId::as_str(&self) -> &str
 pub fn nika_types::id::TenantId::new(value: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_types::id::TenantId
@@ -1007,6 +1010,8 @@ pub fn nika_types::id::TenantId::clone(&self) -> nika_types::id::TenantId
 impl core::cmp::Eq for nika_types::id::TenantId
 impl core::cmp::PartialEq for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::eq(&self, other: &nika_types::id::TenantId) -> bool
+impl core::default::Default for nika_types::id::TenantId
+pub fn nika_types::id::TenantId::default() -> Self
 impl core::fmt::Debug for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_types::id::TenantId
@@ -1227,8 +1232,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::memory::MemoryLevel whe
 pub nika_types::memory::MemoryFrameRef::id: nika_types::memory::MemoryId
 pub nika_types::memory::MemoryFrameRef::level: nika_types::memory::MemoryLevel
 pub nika_types::memory::MemoryFrameRef::summary: alloc::string::String
+pub nika_types::memory::MemoryFrameRef::trust: nika_types::trust::TrustLevel
 impl nika_types::memory::MemoryFrameRef
 pub fn nika_types::memory::MemoryFrameRef::new(id: nika_types::memory::MemoryId, level: nika_types::memory::MemoryLevel, summary: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_types::memory::MemoryFrameRef::with_trust(id: nika_types::memory::MemoryId, level: nika_types::memory::MemoryLevel, summary: impl core::convert::Into<alloc::string::String>, trust: nika_types::trust::TrustLevel) -> Self
 impl core::clone::Clone for nika_types::memory::MemoryFrameRef
 pub fn nika_types::memory::MemoryFrameRef::clone(&self) -> nika_types::memory::MemoryFrameRef
 impl core::fmt::Debug for nika_types::memory::MemoryFrameRef
@@ -2300,8 +2307,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::resource::KeyValue wher
 pub nika_types::prelude::MemoryFrameRef::id: nika_types::memory::MemoryId
 pub nika_types::prelude::MemoryFrameRef::level: nika_types::memory::MemoryLevel
 pub nika_types::prelude::MemoryFrameRef::summary: alloc::string::String
+pub nika_types::prelude::MemoryFrameRef::trust: nika_types::trust::TrustLevel
 impl nika_types::memory::MemoryFrameRef
 pub fn nika_types::memory::MemoryFrameRef::new(id: nika_types::memory::MemoryId, level: nika_types::memory::MemoryLevel, summary: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_types::memory::MemoryFrameRef::with_trust(id: nika_types::memory::MemoryId, level: nika_types::memory::MemoryLevel, summary: impl core::convert::Into<alloc::string::String>, trust: nika_types::trust::TrustLevel) -> Self
 impl core::clone::Clone for nika_types::memory::MemoryFrameRef
 pub fn nika_types::memory::MemoryFrameRef::clone(&self) -> nika_types::memory::MemoryFrameRef
 impl core::fmt::Debug for nika_types::memory::MemoryFrameRef
@@ -2699,6 +2708,9 @@ pub fn nika_types::id::TaskId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::TaskId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::prelude::TenantId
 impl nika_types::id::TenantId
+pub const nika_types::id::TenantId::DEFAULT_VALUE: &'static str
+pub fn nika_types::id::TenantId::default_tenant() -> Self
+impl nika_types::id::TenantId
 pub fn nika_types::id::TenantId::as_str(&self) -> &str
 pub fn nika_types::id::TenantId::new(value: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_types::id::TenantId
@@ -2706,6 +2718,8 @@ pub fn nika_types::id::TenantId::clone(&self) -> nika_types::id::TenantId
 impl core::cmp::Eq for nika_types::id::TenantId
 impl core::cmp::PartialEq for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::eq(&self, other: &nika_types::id::TenantId) -> bool
+impl core::default::Default for nika_types::id::TenantId
+pub fn nika_types::id::TenantId::default() -> Self
 impl core::fmt::Debug for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_types::id::TenantId
@@ -4558,8 +4572,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::resource::KeyValue wher
 pub nika_types::MemoryFrameRef::id: nika_types::memory::MemoryId
 pub nika_types::MemoryFrameRef::level: nika_types::memory::MemoryLevel
 pub nika_types::MemoryFrameRef::summary: alloc::string::String
+pub nika_types::MemoryFrameRef::trust: nika_types::trust::TrustLevel
 impl nika_types::memory::MemoryFrameRef
 pub fn nika_types::memory::MemoryFrameRef::new(id: nika_types::memory::MemoryId, level: nika_types::memory::MemoryLevel, summary: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_types::memory::MemoryFrameRef::with_trust(id: nika_types::memory::MemoryId, level: nika_types::memory::MemoryLevel, summary: impl core::convert::Into<alloc::string::String>, trust: nika_types::trust::TrustLevel) -> Self
 impl core::clone::Clone for nika_types::memory::MemoryFrameRef
 pub fn nika_types::memory::MemoryFrameRef::clone(&self) -> nika_types::memory::MemoryFrameRef
 impl core::fmt::Debug for nika_types::memory::MemoryFrameRef
@@ -4957,6 +4973,9 @@ pub fn nika_types::id::TaskId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::TaskId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::TenantId
 impl nika_types::id::TenantId
+pub const nika_types::id::TenantId::DEFAULT_VALUE: &'static str
+pub fn nika_types::id::TenantId::default_tenant() -> Self
+impl nika_types::id::TenantId
 pub fn nika_types::id::TenantId::as_str(&self) -> &str
 pub fn nika_types::id::TenantId::new(value: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_types::id::TenantId
@@ -4964,6 +4983,8 @@ pub fn nika_types::id::TenantId::clone(&self) -> nika_types::id::TenantId
 impl core::cmp::Eq for nika_types::id::TenantId
 impl core::cmp::PartialEq for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::eq(&self, other: &nika_types::id::TenantId) -> bool
+impl core::default::Default for nika_types::id::TenantId
+pub fn nika_types::id::TenantId::default() -> Self
 impl core::fmt::Debug for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_types::id::TenantId

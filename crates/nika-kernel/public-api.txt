@@ -593,9 +593,11 @@ pub nika_kernel::ai::memory::RecallQuery::min_score: core::option::Option<f32>
 pub nika_kernel::ai::memory::RecallQuery::observed_after: core::option::Option<u64>
 pub nika_kernel::ai::memory::RecallQuery::observed_before: core::option::Option<u64>
 pub nika_kernel::ai::memory::RecallQuery::tags: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_kernel::ai::memory::RecallQuery::tenant: nika_types::id::TenantId
 pub nika_kernel::ai::memory::RecallQuery::text: alloc::string::String
 impl nika_kernel::ai::memory::RecallQuery
 pub fn nika_kernel::ai::memory::RecallQuery::new(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel::ai::memory::RecallQuery::scoped(tenant: nika_types::id::TenantId, text: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel::ai::memory::RecallQuery
 pub fn nika_kernel::ai::memory::RecallQuery::clone(&self) -> nika_kernel::ai::memory::RecallQuery
 impl core::fmt::Debug for nika_kernel::ai::memory::RecallQuery
@@ -3049,9 +3051,11 @@ pub nika_kernel::memory::RecallQuery::min_score: core::option::Option<f32>
 pub nika_kernel::memory::RecallQuery::observed_after: core::option::Option<u64>
 pub nika_kernel::memory::RecallQuery::observed_before: core::option::Option<u64>
 pub nika_kernel::memory::RecallQuery::tags: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_kernel::memory::RecallQuery::tenant: nika_types::id::TenantId
 pub nika_kernel::memory::RecallQuery::text: alloc::string::String
 impl nika_kernel::ai::memory::RecallQuery
 pub fn nika_kernel::ai::memory::RecallQuery::new(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel::ai::memory::RecallQuery::scoped(tenant: nika_types::id::TenantId, text: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel::ai::memory::RecallQuery
 pub fn nika_kernel::ai::memory::RecallQuery::clone(&self) -> nika_kernel::ai::memory::RecallQuery
 impl core::fmt::Debug for nika_kernel::ai::memory::RecallQuery
@@ -6561,9 +6565,11 @@ pub nika_kernel::RecallQuery::min_score: core::option::Option<f32>
 pub nika_kernel::RecallQuery::observed_after: core::option::Option<u64>
 pub nika_kernel::RecallQuery::observed_before: core::option::Option<u64>
 pub nika_kernel::RecallQuery::tags: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_kernel::RecallQuery::tenant: nika_types::id::TenantId
 pub nika_kernel::RecallQuery::text: alloc::string::String
 impl nika_kernel::ai::memory::RecallQuery
 pub fn nika_kernel::ai::memory::RecallQuery::new(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel::ai::memory::RecallQuery::scoped(tenant: nika_types::id::TenantId, text: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel::ai::memory::RecallQuery
 pub fn nika_kernel::ai::memory::RecallQuery::clone(&self) -> nika_kernel::ai::memory::RecallQuery
 impl core::fmt::Debug for nika_kernel::ai::memory::RecallQuery

@@ -316,6 +316,27 @@ string_id!(
     TenantId
 );
 
+impl TenantId {
+    /// The conventional default tenant identifier — `"default"`.
+    ///
+    /// Single-tenant deployments and pre-v0.95 code paths use this
+    /// value as the canonical keyspace. Multi-tenant hosts MUST override
+    /// this explicitly per request. Reserved for ADR-031.
+    pub const DEFAULT_VALUE: &'static str = "default";
+
+    /// Construct the conventional default tenant.
+    #[must_use]
+    pub fn default_tenant() -> Self {
+        Self::new(Self::DEFAULT_VALUE)
+    }
+}
+
+impl Default for TenantId {
+    fn default() -> Self {
+        Self::default_tenant()
+    }
+}
+
 string_id!(
     /// Provider identifier (e.g., `"anthropic"`, `"openai"`).
     ProviderId

@@ -16,6 +16,8 @@ use std::collections::BTreeMap;
 // ─── Types descended to nika-error (Phase 0) ────────────────────────
 pub use nika_error::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
 
+use nika_error::id::TenantId;
+
 /// A memory frame to store.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -66,9 +68,18 @@ impl MemoryFrame {
 }
 
 /// A query to recall memories.
+///
+/// `tenant` is the mandatory keyspace scope — every query returns only
+/// frames stored under the same tenant. The default constructor uses
+/// [`TenantId::DEFAULT`] for single-tenant deployments; multi-tenant
+/// hosts MUST call [`RecallQuery::scoped`] or mutate the field before
+/// executing the query.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RecallQuery {
+    /// Tenant keyspace — reserved at v0.81 for v0.95 multi-tenant
+    /// Cortex (ADR-031). Every recall MUST scope by tenant.
+    pub tenant: TenantId,
     /// Text to search for (semantic similarity).
     pub text: String,
     /// Filter by memory levels.
@@ -88,10 +99,20 @@ pub struct RecallQuery {
 }
 
 impl RecallQuery {
-    /// Create a new recall query with search text.
+    /// Create a new recall query scoped to the default tenant.
+    ///
+    /// Single-tenant deployments can use this and ignore the field;
+    /// multi-tenant deployments should prefer [`Self::scoped`].
     #[must_use]
     pub fn new(text: impl Into<String>) -> Self {
+        Self::scoped(TenantId::default_tenant(), text)
+    }
+
+    /// Create a new recall query with an explicit tenant scope.
+    #[must_use]
+    pub fn scoped(tenant: TenantId, text: impl Into<String>) -> Self {
         Self {
+            tenant,
             text: text.into(),
             levels: None,
             tags: None,
