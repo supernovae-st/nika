@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-mock"]
+members  = ["crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-mock", "crates/nika-schema"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -35,6 +35,7 @@ homepage     = "https://supernovae.studio"
 layers.nika-error = "L0"
 layers.nika-catalog = "L0"
 layers.nika-catalog-verify = "L4"
+layers.nika-schema = "L0"
 layers.nika-kernel = "L0.5"
 layers.nika-kernel-mock = "L0.5"
 
@@ -80,6 +81,7 @@ thiserror  = "2.0"
 miette     = "7.6"
 serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
 phf        = { version = "0.13", features = ["macros", "unicase"] }
 unicase    = "2.9"
 

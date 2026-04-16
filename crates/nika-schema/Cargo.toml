@@ -1,0 +1,32 @@
+[package]
+name          = "nika-schema"
+description   = "Workflow AST, parser, analyzer, and DAG validation for the Nika diamond. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+
+[dependencies]
+nika-error   = { path = "../nika-error", version = "0.80.0" }
+nika-catalog = { path = "../nika-catalog", version = "0.80.0" }
+
+thiserror  = { workspace = true }
+serde      = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true }
+miette     = { workspace = true }
+
+[dev-dependencies]
+insta      = { workspace = true }
+proptest   = { workspace = true }
+rstest     = { workspace = true }
+serde_json = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["insta", "proptest", "rstest", "nika-catalog", "serde_yaml", "serde_json"]  # dev-deps + Round 2+ deps (parser, analyzer, json_schema)
+
+[lints]
+workspace = true
