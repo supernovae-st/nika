@@ -3,25 +3,8 @@
 
 //! Shared cross-boundary types used across kernel subsystems.
 
-use serde::{Deserialize, Serialize};
-
-/// Opaque task identifier.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TaskId(pub String);
-
-impl TaskId {
-    /// Create a new task identifier.
-    #[must_use]
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-}
-
-impl std::fmt::Display for TaskId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
+// TaskId descended to nika-error/id.rs (Phase 0).
+pub use nika_error::id::TaskId;
 
 /// Metadata about a workflow (name, version, description).
 #[derive(Debug, Clone, PartialEq, Eq)]

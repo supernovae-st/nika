@@ -315,6 +315,29 @@ string_id!(
     ModelId
 );
 
+// ─── TaskId (user-named, not machine-generated) ────────────────────
+
+/// Opaque task identifier (user-named in YAML workflows).
+///
+/// Unlike UUID-based IDs, `TaskId` comes from the workflow definition
+/// (e.g., `research_step`, `summarize`). It is user-chosen, not generated.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TaskId(pub String);
+
+impl TaskId {
+    /// Create a new task identifier.
+    #[must_use]
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+impl fmt::Display for TaskId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -492,6 +515,29 @@ mod tests {
         assert_eq!(id.to_string(), "claude-sonnet-4-20250514");
     }
 
+    // ─── TaskId ──────────────────────────────────────────────────────
+
+    #[test]
+    fn task_id_display() {
+        let id = TaskId::new("research_step");
+        assert_eq!(id.to_string(), "research_step");
+    }
+
+    #[test]
+    fn task_id_equality() {
+        let a = TaskId::new("t1");
+        let b = TaskId::new("t1");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn task_id_serde_roundtrip() {
+        let id = TaskId::new("abc-123");
+        let json = serde_json::to_string(&id).expect("serialize");
+        let back: TaskId = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(id, back);
+    }
+
     // ─── Send + Sync ────────────────────────────────────────────────
 
     fn _assert_send_sync<T: Send + Sync>() {}
@@ -507,5 +553,6 @@ mod tests {
         _assert_send_sync::<TenantId>();
         _assert_send_sync::<ProviderId>();
         _assert_send_sync::<ModelId>();
+        _assert_send_sync::<TaskId>();
     }
 }

@@ -38,6 +38,14 @@ pub mod retry;
 pub mod schema;
 pub mod trust;
 
+// ─── L0 shared types (descended from kernel, Phase 0) ──────────────
+pub mod cancel;
+pub mod checkpoint;
+pub mod compression;
+pub mod memory;
+pub mod role;
+pub mod token_usage;
+
 /// Convenience re-exports for common usage.
 ///
 /// ```rust
@@ -55,12 +63,21 @@ pub mod prelude {
     pub use crate::cost::Cost;
     pub use crate::hash::{Blake3Hash, BlobRef, ContentDigest};
     pub use crate::id::{
-        CorrelationId, EventId, ModelId, ProviderId, RunId, SpanId, TenantId, TraceId, WorkflowId,
+        CorrelationId, EventId, ModelId, ProviderId, RunId, SpanId, TaskId, TenantId, TraceId,
+        WorkflowId,
     };
     pub use crate::resource::{KeyValue, Resource, Value};
     pub use crate::retry::{ErrorCategory, RetryConfig};
     pub use crate::schema::{EventSchemaVersion, TraceFormatVersion};
     pub use crate::trust::TrustLevel;
+
+    // Phase 0 descended types
+    pub use crate::cancel::CancelCtx;
+    pub use crate::checkpoint::{AgentCheckpoint, CheckpointMessage, ToolCallRecord};
+    pub use crate::compression::CompressionPolicy;
+    pub use crate::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
+    pub use crate::role::Role;
+    pub use crate::token_usage::TokenUsage;
 }
 
 pub use prelude::*;

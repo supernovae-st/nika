@@ -7,10 +7,12 @@
 //! strategy, limits, error policy, and result reporting.
 //! Business logic lives in `nika-verb-agent` (Phase 3).
 
+use nika_error::checkpoint::{AgentCheckpoint, ToolCallRecord};
 use nika_error::cost::Cost;
 use serde::{Deserialize, Serialize};
 
-use crate::checkpoint::{AgentCheckpoint, ToolCallRecord};
+// CompressionPolicy descended to nika-error/compression.rs (Phase 0).
+pub use nika_error::compression::CompressionPolicy;
 
 /// Configuration for an agent loop.
 #[derive(Debug, Clone)]
@@ -175,36 +177,6 @@ impl ReflectionConfig {
     }
 }
 
-/// Context compression policy.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct CompressionPolicy {
-    /// Token count threshold to trigger compression.
-    pub token_threshold: u64,
-    /// Number of recent messages to preserve uncompressed.
-    pub preserve_recent: u32,
-    /// Whether to compress tool results.
-    pub compress_tool_results: bool,
-}
-
-impl CompressionPolicy {
-    /// Create a new compression policy with defaults.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            token_threshold: 80_000,
-            preserve_recent: 4,
-            compress_tool_results: true,
-        }
-    }
-}
-
-impl Default for CompressionPolicy {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -261,14 +233,6 @@ mod tests {
         assert_eq!(config.max_retries, 3);
     }
 
-    #[test]
-    fn compression_policy_defaults() {
-        let policy = CompressionPolicy::new();
-        assert_eq!(policy.token_threshold, 80_000);
-        assert_eq!(policy.preserve_recent, 4);
-        assert!(policy.compress_tool_results);
-    }
-
     fn _assert_send_sync<T: Send + Sync>() {}
 
     #[test]
@@ -276,6 +240,5 @@ mod tests {
         _assert_send_sync::<AgentLoopConfig>();
         _assert_send_sync::<AgentOutcome>();
         _assert_send_sync::<ReflectionConfig>();
-        _assert_send_sync::<CompressionPolicy>();
     }
 }

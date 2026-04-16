@@ -6,8 +6,8 @@
 //! Enables context window management for long agent conversations.
 //! Implementations compress older messages while preserving recent turns.
 
-use crate::agent::CompressionPolicy;
-use crate::checkpoint::CheckpointMessage;
+use nika_error::checkpoint::CheckpointMessage;
+use nika_error::compression::CompressionPolicy;
 
 /// Result of context compression.
 #[derive(Debug, Clone)]

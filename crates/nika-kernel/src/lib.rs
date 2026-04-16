@@ -12,9 +12,16 @@
 //!
 //! # Architecture
 //!
-//! ~20 atomic traits grouped into ~6 super-traits via blanket implementations.
-//! All async traits use [`trait_variant`] for zero-overhead object-safe companions
-//! (`XxxDyn: Send`).
+//! Modules are organized into 5 groups matching the planned kernel split:
+//!
+//! - **io** — filesystem, HTTP, shell process, blob storage, clock
+//! - **ai** — provider inference, memory, context compression
+//! - **runtime** — agent loop, tool execution
+//! - **plugin** — WASM host, sandboxing, observability
+//! - **infra** — billing, events, metrics, tracing, IDs, secrets
+//!
+//! All group modules are re-exported at the crate root for backward
+//! compatibility — `nika_kernel::provider::*` continues to work.
 //!
 //! # Trait Hierarchy
 //!
@@ -45,32 +52,28 @@
     )
 )]
 
-pub mod agent;
-pub mod billing;
-pub mod blob;
+// ─── Group modules (organized by future sub-crate boundary) ─────────
+pub mod ai;
+pub mod infra;
+pub mod io;
+pub mod plugin;
+pub mod runtime;
+
+// ─── Shared root modules ────────────────────────────────────────────
 pub mod cancel;
 pub mod checkpoint;
-pub mod clock;
-pub mod context;
 pub mod errors;
-pub mod event_sink;
-pub mod fs;
-pub mod http;
-pub mod id_gen;
-pub mod memory;
-pub mod metrics;
-pub mod observability;
-pub mod plugin;
-pub mod process;
-pub mod provider;
-pub mod sandbox;
 pub mod sealed;
-pub mod secret;
-pub mod tool_executor;
-pub mod trace;
 pub mod types;
 
-// Re-export the most commonly used items for convenience.
+// ─── Backward-compat re-exports (preserve crate::module_name paths) ─
+pub use ai::{context, memory, provider};
+pub use infra::{billing, event_sink, id_gen, metrics, secret, trace};
+pub use io::{blob, clock, fs, http, process};
+pub use plugin::{observability, sandbox};
+pub use runtime::{agent, tool_executor};
+
+// ─── Flat re-exports (existing public API, unchanged) ───────────────
 pub use agent::{
     AgentLoopConfig, AgentOutcome, AgentStopReason, CompressionPolicy, PlanningStrategy,
     ReflectionConfig, ToolErrorPolicy,

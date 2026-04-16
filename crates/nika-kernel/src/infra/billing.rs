@@ -13,7 +13,7 @@ use nika_error::NikaError;
 use nika_error::cost::Cost;
 use nika_error::id::{ModelId, ProviderId};
 
-use crate::provider::TokenUsage;
+use nika_error::token_usage::TokenUsage;
 
 /// Sink for billing records. Never dropped by sampling.
 ///
