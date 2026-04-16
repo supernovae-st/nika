@@ -55,6 +55,7 @@ impl fmt::Display for Region {
 
 /// Error returned when parsing an unknown region string.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ParseRegionError(pub String);
 
 impl fmt::Display for ParseRegionError {
