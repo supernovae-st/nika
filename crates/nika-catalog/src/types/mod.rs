@@ -6,6 +6,8 @@
 pub mod builtin;
 #[cfg(feature = "capabilities")]
 pub mod capabilities;
+#[cfg(feature = "capabilities")]
+pub mod capabilities_view;
 pub mod category;
 pub mod distribution;
 pub mod embedding;
