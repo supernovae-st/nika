@@ -120,6 +120,11 @@ enum TokenizerFamilyToml {
     #[serde(rename = "deepseek")]
     DeepSeek,
     Qwen,
+    LlamaV4,
+    Granite,
+    Glm,
+    #[serde(rename = "grok")]
+    Grok,
 }
 
 /// Typed TOML `json_mode` enum — serde replaces hand-written string validation.
@@ -781,6 +786,10 @@ fn emit_tokenizer_variant(t: TokenizerFamilyToml) -> &'static str {
         TokenizerFamilyToml::MistralV3 => "crate::types::TokenizerFamily::MistralV3",
         TokenizerFamilyToml::DeepSeek => "crate::types::TokenizerFamily::DeepSeek",
         TokenizerFamilyToml::Qwen => "crate::types::TokenizerFamily::Qwen",
+        TokenizerFamilyToml::LlamaV4 => "crate::types::TokenizerFamily::LlamaV4",
+        TokenizerFamilyToml::Granite => "crate::types::TokenizerFamily::Granite",
+        TokenizerFamilyToml::Glm => "crate::types::TokenizerFamily::Glm",
+        TokenizerFamilyToml::Grok => "crate::types::TokenizerFamily::Grok",
     }
 }
 

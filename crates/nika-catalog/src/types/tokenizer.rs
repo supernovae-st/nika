@@ -52,6 +52,21 @@ pub enum TokenizerFamily {
     /// from `Cl100k`/`O200k` because vocab and special-token handling
     /// differ materially. Session 3 addition.
     Qwen,
+    /// Meta `LLaMA` 4 tokenizer — `TikToken`-based, ~200k vocab, distinct
+    /// from `LlamaV3` (~128k). Verified via HF `tokenizer.json` diff ≥5%
+    /// vocabulary divergence. Session 4b addition.
+    LlamaV4,
+    /// IBM Granite tokenizer — distinct `StarCoder` BPE variant shared
+    /// across Granite 3.x, Granite Code, and `InstructLab` models.
+    Granite,
+    /// Zhipu GLM tokenizer — custom `SentencePiece` variant used on
+    /// GLM-4.5+ and GLM-5 series. Session 4b addition.
+    Glm,
+    /// xAI Grok tokenizer — custom tokenizer used on Grok-3 / Grok-4
+    /// family. Previously `None` on xAI rules; now explicit for accurate
+    /// per-provider token accounting. Session 4b addition.
+    #[cfg_attr(feature = "serde", serde(rename = "grok"))]
+    Grok,
 }
 
 impl TokenizerFamily {
@@ -68,6 +83,10 @@ impl TokenizerFamily {
             Self::MistralV3 => "mistral-v3",
             Self::DeepSeek => "deepseek",
             Self::Qwen => "qwen",
+            Self::LlamaV4 => "llama-v4",
+            Self::Granite => "granite",
+            Self::Glm => "glm",
+            Self::Grok => "grok",
         }
     }
 }
@@ -100,7 +119,8 @@ impl core::fmt::Display for ParseTokenizerFamilyError {
         write!(
             f,
             "unknown tokenizer family {:?} — expected one of: \
-             cl100k, o200k, claude-v3, gemini, llama-v3, mistral-v3, deepseek, qwen",
+             cl100k, o200k, claude-v3, gemini, llama-v3, mistral-v3, deepseek, \
+             qwen, llama-v4, granite, glm, grok",
             self.input
         )
     }
@@ -121,6 +141,10 @@ impl core::str::FromStr for TokenizerFamily {
             "mistral-v3" => Ok(Self::MistralV3),
             "deepseek" => Ok(Self::DeepSeek),
             "qwen" => Ok(Self::Qwen),
+            "llama-v4" => Ok(Self::LlamaV4),
+            "granite" => Ok(Self::Granite),
+            "glm" => Ok(Self::Glm),
+            "grok" => Ok(Self::Grok),
             _ => Err(ParseTokenizerFamilyError::new(s.to_string())),
         }
     }
@@ -142,6 +166,10 @@ mod tests {
             TokenizerFamily::MistralV3,
             TokenizerFamily::DeepSeek,
             TokenizerFamily::Qwen,
+            TokenizerFamily::LlamaV4,
+            TokenizerFamily::Granite,
+            TokenizerFamily::Glm,
+            TokenizerFamily::Grok,
         ] {
             let s = t.as_str();
             let parsed = TokenizerFamily::from_str(s).expect("round-trip must succeed");
@@ -233,6 +261,10 @@ mod tests {
             TokenizerFamily::MistralV3,
             TokenizerFamily::DeepSeek,
             TokenizerFamily::Qwen,
+            TokenizerFamily::LlamaV4,
+            TokenizerFamily::Granite,
+            TokenizerFamily::Glm,
+            TokenizerFamily::Grok,
         ] {
             let actual = serde_json::to_string(&t).unwrap();
             let expected = format!("\"{}\"", t.as_str());
