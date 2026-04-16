@@ -70,7 +70,7 @@ pub mod types;
 pub use ai::{context, memory, provider};
 pub use infra::{billing, event_sink, id_gen, metrics, secret, trace};
 pub use io::{blob, clock, fs, http, process};
-pub use plugin::{observability, sandbox};
+pub use plugin::sandbox;
 pub use runtime::{agent, tool_executor};
 
 // ─── Flat re-exports (existing public API, unchanged) ───────────────
@@ -97,7 +97,6 @@ pub use memory::{
     embed_batch_sequential,
 };
 pub use metrics::{MetricTag, MetricsExporter};
-pub use observability::{MetricEvent, ObservabilityError, ObservabilitySink, SpanEvent};
 pub use plugin::{
     PluginEnv, PluginFs, PluginHttp, WasmPluginError, WasmPluginHost, WasmPluginLifecycle,
 };

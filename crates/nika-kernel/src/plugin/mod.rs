@@ -5,7 +5,6 @@
 //!
 //! Future sub-crate: `nika-kernel-plugin` (when kernel exceeds 10k LOC or 50 traits).
 
-pub mod observability;
 pub mod sandbox;
 mod wasm;
 

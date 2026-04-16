@@ -12,14 +12,14 @@
 //! - 600–649: Memory (`MemoryError`)
 //! - 700–749: WASM plugin (`WasmPluginError`)
 //! - 750–799: Sandbox (`SandboxError`)
-//! - 800–819: Observability (`ObservabilityError`)
+//! - 800–819: Observability range (reserved for v0.100 `OTel` adapter; no
+//!   kernel type maps to it today — `ObservabilitySink` was dropped per Q12)
 
 use nika_error::prelude::*;
 
 use crate::blob::BlobError;
 use crate::http::HttpError;
 use crate::memory::MemoryError;
-use crate::observability::ObservabilityError;
 use crate::plugin::WasmPluginError;
 use crate::process::ShellError;
 use crate::provider::ProviderError;
@@ -323,12 +323,6 @@ impl NikaErrorCode for SandboxError {
     }
 }
 
-impl NikaErrorCode for ObservabilityError {
-    fn nika_code(&self) -> NikaCode {
-        codes::NIKA_800
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,17 +466,5 @@ mod tests {
             code.num
         );
         assert_eq!(code.category, Category::Sandbox);
-    }
-
-    #[test]
-    fn observability_error_code_in_range() {
-        let err = ObservabilityError::NotConfigured { reason: "x".into() };
-        let code = err.nika_code();
-        assert!(
-            code.num >= 800 && code.num <= 819,
-            "observability code {}",
-            code.num
-        );
-        assert_eq!(code.category, Category::Observability);
     }
 }
