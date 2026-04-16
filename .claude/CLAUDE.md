@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase D (catalog scope expansion, Session 2a+2b+3 DONE). 5 crates admitted, 416 tests, 25 providers, 42 capability rules.
+Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `eac346c71` — 7 crates in workspace (6 admitted + 1 WIP), **846 lib tests**, 25 providers, 42 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -102,14 +102,29 @@ cargo-mutants       — mutation testing
 dylint + nika-lints — custom architectural lints (Phase 4+)
 ```
 
-## 🎯 Current state (2026-04-15)
+## 🎯 Current state (2026-04-16)
 
-- 5 crates admitted : error + catalog + catalog-verify + kernel + kernel-mock
-- 416 tests, 0 clippy, 0 unwrap in src/, Gate 8 GREEN, Invariant #19 FULL
-- 15 ADRs Accepted (ADR-001..015) + Session 3 addendum on ADR-008
-- 2026 SOTA toolchain green : machete clean, semver-checks live, typos live, miri+hack+deny in CI matrix (9 jobs)
-- Phase D Session 2a DONE ; Session 2b DONE ; Session 3 DONE
-- Session 3 deliverables : 25 providers, 42 capability rules, TokenizerFamily::Qwen, `ModelPricing` 7-axis (cached_input / image / reasoning_tokens), `supports_vision` retired → `input_modalities.contains(Modality::Image)`, `validate_caps_patch(require_all)` on `[defaults]`, scope.providers canonicalisation, ADR-008 addendum
-- Next : Session 4 — HTTP API + DataSource + MCP lifecycle (new feature territory). Phase E2 companion — full TOML-driven pricing migration — lands alongside.
+> Single source of truth: `bash scripts/refresh-status.sh`. The block below
+> is hand-quoted; vector 26 (`check-status-claims-sync.sh`, Phase B) will
+> enforce parity against the script's output.
+
+- HEAD: `eac346c71` on `nika-diamond` (4 commits this session: kernel
+  prelude Q7, schema parser Round 2c+2d+2e-part-1).
+- 7 crates in workspace, 6 admitted via 12 gates + 1 WIP (`nika-schema`
+  parser scaffolding):
+  - L0 (4): nika-types, nika-error, nika-catalog, nika-schema (WIP)
+  - L0.5 (2): nika-kernel (now with prelude hub, Q7), nika-kernel-mock
+  - L4 (1): nika-catalog-verify
+- **846 lib tests**, 0 failed, **0 clippy warnings**, 0 unwrap in `src/`,
+  Gate 8 GREEN, Invariant #19 FULL.
+- 15 ADRs Accepted (ADR-001..015) + Session 3 addendum on ADR-008.
+  ADR-016 (YAML envelope convention) lands in Phase C.
+- 25 providers, 42 capability rules, ModelPricing 7-axis, scope.providers
+  canonical (Session 3 deliverables, all green).
+- Q1-Q8 L0/L0.5 architecture decisions LOCKED 2026-04-16
+  (`docs/architecture/l0-l05-architecture-decisions.md`).
+- Next: Phase A baseline reset DONE → Phase B (hygiene vectors 22 + 26)
+  → Phase C (ADR-016 + nika-schema spec rewrite) → Phase D (envelope
+  refactor: nuke + redo nika-schema parser).
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

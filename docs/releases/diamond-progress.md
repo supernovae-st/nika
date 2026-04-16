@@ -157,15 +157,19 @@ Not yet started.
 
 ## Cumulative Stats
 
-| Metric              | Value                |
-| ------------------- | -------------------- |
-| Crates admitted     | 5 / 40-42 (v0.90)    |
-| Total LOC in src/   | ~13,000              |
-| Tests               | 416                  |
-| Unwraps in src/     | 0                    |
-| Panics in src/      | 0                    |
-| Clippy warnings     | 0                    |
-| Gate 8 (rustdoc)    | GREEN                |
-| Invariant #19       | FULL                 |
-| Branch HEAD         | `68240f922` (post-hygiene-sprint) |
-| Last updated        | 2026-04-15           |
+> Regenerate: `bash scripts/refresh-status.sh` from engine root.
+
+| Metric              | Value                                          |
+| ------------------- | ---------------------------------------------- |
+| Crates admitted     | 6 / 40-42 (v0.90)                              |
+| Crates WIP          | 1 (nika-schema, parser through Round 2e-part-1)|
+| L0 / L0.5 / L4      | 4 / 2 / 1                                      |
+| Total LOC in src/   | ~30,000                                        |
+| Tests               | 846 lib                                        |
+| Unwraps in src/     | 0                                              |
+| Panics in src/      | 0                                              |
+| Clippy warnings     | 0                                              |
+| Gate 8 (rustdoc)    | GREEN                                          |
+| Invariant #19       | FULL                                           |
+| Branch HEAD         | `eac346c71` (Round 2e-part-1)                  |
+| Last updated        | 2026-04-16                                     |

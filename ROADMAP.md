@@ -37,8 +37,16 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 ## Current state — v0.80.x (April 2026)
 
-Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
+> Single source of truth: `bash scripts/refresh-status.sh`. The narrative
+> below quotes that script as of HEAD `eac346c71` (2026-04-16). Vector
+> 26 (Phase B) will block any drift between this section and the script.
 
+Diamond foundation, **6 crates admitted** + **1 WIP** in workspace
+(7 total), orphan branch from scratch.
+
+- **nika-types** — L0 foundation value types (split from nika-error 2026-04-16, `5baeee044`)
+  - 23 types (cost, trust, budget, retry, baggage, schema, hash, resource, role, token_usage, etc.)
+  - Re-exported by `nika-error::prelude::*` (and now `nika-kernel::prelude::*` via Q7)
 - **nika-error** — error infrastructure (144 tests, 88.5% mutation, `42909b1c7`)
   - 23 L0 foundational types (cost, trust, budget, retry, baggage, schema, hash, resource)
   - Cost stdlib arithmetic (`Add`/`Sub` with `checked_add`/`checked_sub`)
@@ -63,12 +71,25 @@ Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
   - `MemoryId` UUIDv7 migration, `#[deprecated] cost_usd` bridge
   - `HttpStreamResponse::new()` (4A-stabilize, inv #19)
   - `#[non_exhaustive]` on all 20 mock structs (4A-stabilize)
+  - **Q7 prelude hub** (2026-04-16, `d967f4a7a`): `nika_kernel::prelude::*` re-exports `nika_error::prelude::*` so L2+ verb crates depend on `nika-kernel` only (3 lines of impl + 3 regression tests pinning 23 symbols)
+- **nika-schema (WIP)** — workflow AST + parser (admission Round 4)
+  - **Round 2c** (`b85b612ca`, 2026-04-16): parser scaffold, top-level scalars (`name`, `description`, `goal`, `provider`, `model`, `schema`)
+  - **Round 2d** (`2480822df`): `tasks:` sequence + 5-verb action discriminator (`enum Verb` exhaustive match) + minimum required field per verb
+  - **Round 2e-part-1** (`eac346c71`): optional task-level `depends_on`, `condition`, `for_each`
+  - 38 parser tests + 100+ across raw/types/guardrails/source/trust/error
+  - **PENDING REWRITE** — Phase D nuke + redo with `apiVersion: nika.sh/v1` + `kind: Workflow` + `metadata` + `spec` envelope (ADR-016 lands Phase C)
 
-Total: **630 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
-~21.9k LOC, 32 providers, 49 capability rules, 22 ADRs, 21/21 hygiene GREEN.
+Total: **846 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
+~30k LOC, 32 providers, 49 capability rules, 22 ADRs, 21 hygiene
+vectors deployed (vector 22 no-async-in-L0 PLANNED Phase B; vectors
+23-26 envelope land Phase E + Phase B).
 
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
-Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅.
+Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅,
+       Round 2c ✅, Round 2d ✅, Round 2e-part-1 ✅ (parser scaffolding through verb dispatch).
+Phase A (this session): baseline status reset ✅. Phase B: hygiene v22+v26 (NEXT).
+Phase C (next): ADR-016 "YAML envelope convention" + nika-schema spec rewrite.
+Phase D (then): nuke + redo nika-schema parser with envelope.
 
 **Next steps (priority order):**
 1. **Session 4C** — public launch tooling: `nika-catalog-tools` consolidation (dump+sync+verify+sign), Sigstore keyless signing, wire-format `$schema` envelope, catalog.nika.sh Scaleway publish, LiteLLM/models.dev freshness sync, `nika catalog doctor` CLI
