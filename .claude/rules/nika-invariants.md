@@ -26,7 +26,7 @@
 - `nika-tui` — already W1, rebuild Act 3 or never
 
 **Inlined into other crates** :
-- `nika-macros` → inlined into `nika-event`
+- `nika-macros` → REMOVED from plan (Q1 decision 2026-04-16: no proc macros in L0, manual impl + macro_rules!)
 - `nika-lsp-core` → merged into `nika-lsp`
 
 **Modules, not crates** (single consumer) :

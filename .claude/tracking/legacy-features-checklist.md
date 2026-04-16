@@ -33,7 +33,7 @@
 | `nika-http` | `nika-http` | ~3k |
 | `nika-blob` | `nika-blob` | ~1k |
 | `nika-exec-runner` | **`nika-process`** (renamed) | ~2k |
-| `nika-event` + `nika-macros` inlined | `nika-event` | ~5k |
+| `nika-event` (no macros — Q1 decision) | `nika-event` (L0 types ~4-5k) + `nika-event-store` (L1 ~3k) + `nika-event-export` (L2 ~2k) | ~9k total |
 | `nika-core/extract/*` + new extract logic | `nika-extract` | ~2k |
 | `nika-security/*` | `nika-security` | ~3k |
 | `nika-engine/runtime/{shield,canary,spotlight,output_scanner}` | **`nika-shield`** (new) | ~5k |
@@ -170,7 +170,7 @@ OR explicitly dropped with reason.
 | `nika-tui` (terminal UI) | W1 removed, rebuild Act 3 or never |
 | `ProviderCategory` enum | 11 ex-MCP entries migrated to `McpAlias` catalog |
 | `unwrap-baseline.txt` | Implicitly dropped — new policy is zero unwrap in src/ |
-| legacy `nika-macros` crate | Inlined into `nika-event` per invariants L47 |
+| legacy `nika-macros` crate | REMOVED — no proc macros in Diamond (Q1 decision 2026-04-16, manual impl + macro_rules!) |
 | legacy `nika-lsp-core` crate | Merged into `nika-lsp` per invariants L49 |
 | legacy `nika-policy` crate | Module in `nika-runtime` per invariants L52 |
 | legacy `nika-cache` crate | Module in `nika-runtime` per invariants L54 |

@@ -4,6 +4,14 @@
 here is the ground truth that `[workspace.metadata.diamond.layers]` and
 `scripts/ci/check-layering.sh` are built to enforce.
 
+**Authority**: This document shows the layer model with illustrative
+examples. For the authoritative crate manifest, see POST_AUDIT_REVISIONS.md
+(supreme authority) and `l0-l05-architecture-decisions.md` (Q1-Q5 layer
+decisions, 2026-04-16). CONSTELLATION.md (forthcoming) reconciles all.
+
+**Last updated**: 2026-04-16 (Q1-Q5 brainstorm: removed nika-stdx,
+nika-macros, nika-macros-core, L0-proc layer).
+
 ## Why this document exists
 
 40-42 crates without a layer contract converge on a kitchen-sink dependency
@@ -35,26 +43,31 @@ Given a crate `nika-<role>`, ask these questions in order:
 ╚════════════════════════════════════════════════════════════════════════════╝
 
 ╭─ L0  (pure, sync, zero I/O) ──────────────────────────────────────────────╮
-│ nika-error                [axes: none]      Arc<str>, zero-heap           │
+│ nika-types                [axes: none]      Foundation value types (leaf) │
+│ nika-error                [axes: none]      Error infra (depends types)  │
 │ nika-catalog              [axes: none]      Cow<'static, str>, phf lookup │
-│ nika-catalog-codegen      [build-dep]       Extracted build.rs logic      │
-│ nika-pck-manifest         [axes: none]      TOML types only               │
-│ nika-event                [axes: none]      Event envelope types          │
-│ nika-stdx                 [axes: none]      Cross-cutting helpers         │
+│ nika-catalog-codegen      [build-dep+lib]   TOML schema types + codegen  │
+│ nika-schema               [axes: none]      Workflow AST + parser + DAG  │
+│ nika-event                [axes: none]      647 EventKind sub-enums      │
+│ nika-binding              [axes: none]      Template engine + transforms │
+│ nika-pck-manifest         [axes: none]      Package manifest TOML types  │
+│                                                                          │
+│ REMOVED (2026-04-16 brainstorm):                                         │
+│   nika-stdx         → nika-error is the foundation; purpose-named if need│
+│   nika-macros       → manual impl + macro_rules!; reopen at L2 builtins │
+│   nika-macros-core  → same as above                                      │
+│ See: docs/architecture/l0-l05-architecture-decisions.md                  │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲ (every upper-layer depends down only)
-╭─ L0-proc  (proc-macro split) ─────────────────────────────────────────────╮
-│ nika-macros-core          [logic]           Syn minimal features          │
-│ nika-macros               [thin shim]       proc-macro = true             │
-╰──────────────────────────────────────────────────────────────────────────╯
-              ▲
 ╭─ L0.5  (trait defs + companions, async OK) ──────────────────────────────╮
-│ nika-kernel-core          Clock + Fs + Http + Process + Blob + Shell      │
-│ nika-kernel-ai            Provider* + Memory* + Embedding + Compressor    │
-│ nika-kernel-runtime       ToolExecutor + Agent + Checkpoint + Context     │
-│ nika-kernel-plugin        WasmPluginHost + Sandbox + ObservabilitySink    │
-│                           (split when kernel > 10k LOC OR traits > 50)    │
-│ nika-kernel-mock          [axes: none]         1:1 mirror, auto_impl      │
+│ nika-kernel               40 ISP traits, sealed supertrait               │
+│ nika-kernel-mock          [axes: none]  1:1 mirror, pure-memory mocks    │
+│                                                                          │
+│ Split into 4 sibling crates when kernel > 10k LOC OR traits > 50:        │
+│   nika-kernel-core        Clock + Fs + Http + Process + Blob + Shell     │
+│   nika-kernel-ai          Provider* + Memory* + Embedding + Compressor   │
+│   nika-kernel-runtime     ToolExecutor + Agent + Checkpoint + Context    │
+│   nika-kernel-plugin      WasmPluginHost + Sandbox + ObservabilitySink   │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L1  (effect impls, async) ───────────────────────────────────────────────╮
@@ -108,8 +121,7 @@ flags. They obey the same 12-gate admission as any other crate.
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs | none | (leaf) | `nika-error`, `nika-catalog`, `nika-pck-manifest`, `nika-stdx`, `nika-event` |
-| L0-proc | Proc-macro crates (kept separate for compile-time cost) | none (build-host only) | L0 | `nika-macros`, `nika-macros-core` |
+| L0 | Pure types, lookup tables, sync-only APIs | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event`, `nika-binding`, `nika-pck-manifest` |
 | L0.5 | Kernel trait definitions + companions (mock) — async OK | none (traits only) | L0 | `nika-kernel`, `nika-kernel-mock` |
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-catalog-sync` |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-mcp`, `nika-verb-*`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
@@ -172,7 +184,7 @@ source trees, fails on any match.
 
 ## Anti-patterns
 
-1. **Kitchen-sink crate.** "I'll just add this utility to `nika-stdx`"
+1. **Kitchen-sink crate.** "I'll just add this utility to `nika-error`"
    leads to a 10k-LOC bag-of-tricks that every crate transitively pulls
    in. If a helper has one caller, it stays in that caller.
 2. **Facade mega-crate.** "Let's re-export everything from `nika` for
@@ -194,27 +206,15 @@ source trees, fails on any match.
 7. **Runtime imports in L0.** `tokio::spawn` in `nika-error` is a layer
    violation even if it compiles. The `no-async-in-L0` checker catches it.
 
-## Reserved v0.81 kernel split
+## Reserved kernel split (threshold-gated)
 
-`nika-kernel` currently ships as one L0.5 crate. Per ADR-006 (layered
-kernel + ISP traits), it splits when either:
+`nika-kernel` currently ships as one L0.5 crate (4,868 LOC, 40 traits).
+Per ADR-006, it splits when either total LOC exceeds 10k OR pub trait
+count exceeds 50. Currently well below both thresholds.
 
-- total LOC exceeds 10k, **or**
-- pub trait count exceeds 50.
-
-Planned split into four sibling crates:
-
-| Crate | Surface |
-|---|---|
-| `nika-kernel-core` | `Clock`, `Fs`, `Http`, `Process`, `Blob`, `Shell` |
-| `nika-kernel-ai` | `Provider`, `ProviderStream`, `MemoryStore`, `EmbeddingProvider`, `ContextCompressor` |
-| `nika-kernel-runtime` | `ToolExecutor`, `Agent`, `Checkpoint`, `Context` |
-| `nika-kernel-plugin` | `WasmPluginHost`, `Sandbox`, `ObservabilitySink` |
-
-Until the split trips one of the thresholds above, all traits live in the
-single `nika-kernel` crate. The split is additive — downstream imports
-change from `nika_kernel::X` to `nika_kernel_ai::X` behind a facade
-re-export kept in `nika-kernel` for the v0.8x tail.
+The split is documented in the L0 architecture map above. The split is
+additive — downstream imports change from `nika_kernel::X` to
+`nika_kernel_core::X` behind a facade re-export in `nika-kernel`.
 
 ## See also
 

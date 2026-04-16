@@ -39,7 +39,7 @@ Hard caps enforced by CI (see ADR-009):
 - **Per-function line cap:** 100 lines
 - **Total crate count cap:** 100 (hard limit; admissions past this require gate-review)
 
-Crates with fewer than 2 distinct consumers are merged (examples: `nika-macros` inlined into `nika-event`; `nika-lsp-core` merged into `nika-lsp`; `nika-policy` is a module of `nika-runtime`, not a crate).
+Crates with fewer than 2 distinct consumers are merged (examples: `nika-lsp-core` merged into `nika-lsp`; `nika-policy` is a module of `nika-runtime`, not a crate). `nika-macros` was removed entirely (Q1 decision 2026-04-16: manual impl + `macro_rules!`, no proc macros in L0).
 
 Heavy-dep isolation justifies aggressive splits: `nika-provider` becomes 3 crates (`nika-provider-rig`, `nika-provider-native`, `nika-provider-mock`) because `mistral.rs` CUDA/Metal features are incompatible with `rig-core`'s cloud dep graph. `nika-media` becomes 5 crates (pdfium, c2pa, resvg, image, CAS) to isolate C-FFI and large binary deps.
 
