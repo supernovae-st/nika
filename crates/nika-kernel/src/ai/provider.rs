@@ -220,6 +220,9 @@ pub struct InferRequest {
     /// use this seed for any randomized behavior (temperature sampling).
     /// Reserved for content-addressed replay (v0.90 `EventLog`).
     pub replay_seed: Option<u64>,
+    /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl;
+    /// default is `GenAiSystem::Unknown` + `GenAiOperation::Chat`.
+    pub gen_ai: crate::ai::genai::GenAiAttrs,
 }
 
 impl InferRequest {
@@ -243,6 +246,7 @@ impl InferRequest {
             baggage: None,
             tenant: None,
             replay_seed: None,
+            gen_ai: crate::ai::genai::GenAiAttrs::new(),
         }
     }
 }
@@ -309,6 +313,8 @@ pub struct InferResponse {
     pub span_id: Option<nika_error::id::SpanId>,
     /// Trust level of this response (T3:A — trust is a property of the data).
     pub trust_level: Option<nika_error::trust::TrustLevel>,
+    /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl.
+    pub gen_ai: crate::ai::genai::GenAiAttrs,
 }
 
 impl InferResponse {
@@ -330,6 +336,7 @@ impl InferResponse {
             trace_id: None,
             span_id: None,
             trust_level: None,
+            gen_ai: crate::ai::genai::GenAiAttrs::new(),
         }
     }
 }

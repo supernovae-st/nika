@@ -6,5 +6,6 @@
 //! Future sub-crate: `nika-kernel-ai` (when kernel exceeds 10k LOC or 50 traits).
 
 pub mod context;
+pub mod genai;
 pub mod memory;
 pub mod provider;

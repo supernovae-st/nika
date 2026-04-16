@@ -10,6 +10,7 @@ use std::task::{Context, Poll};
 
 use parking_lot::Mutex;
 
+use nika_kernel::genai::{GenAiOperation, GenAiSystem};
 use nika_kernel::provider::{
     ContentBlock, InferEvent, InferEventStream, InferRequest, InferResponse, ProviderError,
     ProviderInfer, ProviderMeta, ProviderStream, StopReason, TokenUsage,
@@ -84,11 +85,23 @@ impl MockProvider {
     }
 
     fn pop_response(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let request_model = request.model.clone();
         self.requests.lock().push(request);
-        self.responses.lock().pop_front().unwrap_or_else(|| {
+        let result = self.responses.lock().pop_front().unwrap_or_else(|| {
             Err(ProviderError::Other {
                 reason: "MockProvider: response queue exhausted".into(),
             })
+        });
+        // Populate OTel GenAI semconv attrs on the response (Q13). Mock
+        // reports system = Custom (mock identifier); response_model
+        // echoes the request model for determinism.
+        result.map(|mut resp| {
+            resp.gen_ai.system = GenAiSystem::Custom;
+            resp.gen_ai.operation = GenAiOperation::Chat;
+            if resp.gen_ai.response_model.is_none() {
+                resp.gen_ai.response_model = Some(request_model);
+            }
+            resp
         })
     }
 }

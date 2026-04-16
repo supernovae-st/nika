@@ -67,7 +67,7 @@ pub mod sealed;
 pub mod types;
 
 // ─── Backward-compat re-exports (preserve crate::module_name paths) ─
-pub use ai::{context, memory, provider};
+pub use ai::{context, genai, memory, provider};
 pub use infra::{audit, billing, event_sink, id_gen, metrics, secret, trace};
 pub use io::{blob, clock, fs, http, process};
 pub use plugin::sandbox;
@@ -87,6 +87,7 @@ pub use clock::Clock;
 pub use context::{CompressedContext, ContextCompressor};
 pub use event_sink::{Event, EventSink};
 pub use fs::{FileMetadata, Fs, FsList, FsMeta, FsRead, FsWrite};
+pub use genai::{GenAiAttrs, GenAiOperation, GenAiSystem};
 pub use http::{
     HttpClient, HttpError, HttpGet, HttpMethod, HttpPost, HttpRequest, HttpResponse,
     HttpStreamResponse,

@@ -33,7 +33,7 @@ designed to avoid breaking changes as the workspace scales to 40-42 crates.
 | Q10 | Canonical-JSON (RFC 8785) = module in `nika-types`        | LOCKED rev.2 |
 | Q11 | Token-streaming cardinality policy (delta-batching, not 1-event-per-token) | LOCKED rev.3 |
 | Q12 | Drop `ObservabilitySink` + add `AuditSink` (5 channels: Event/Metrics/Trace/Billing/Audit) | LOCKED rev.3 · executed |
-| Q13 | Bridge OTel GenAI semconv via typed `GenAiAttrs` on Infer{Request,Response} | LOCKED rev.3 |
+| Q13 | Bridge OTel GenAI semconv via typed `GenAiAttrs` on Infer{Request,Response} | LOCKED rev.3 · executed |
 
 ---
 
