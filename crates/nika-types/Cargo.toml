@@ -1,0 +1,25 @@
+[package]
+name          = "nika-types"
+description   = "Foundation value types for the Nika diamond. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+
+[dependencies]
+serde      = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+uuid       = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+serde   = ["dep:serde", "dep:serde_json", "dep:uuid"]
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

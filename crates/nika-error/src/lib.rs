@@ -10,6 +10,9 @@
 //! - [`CoreError`] enum — cross-cutting errors (`Validation`, `NotFound`, `Internal`)
 //! - [`NikaCode`] struct — dual wire ("NIKA-140") + typed (num, category, slug)
 //!
+//! Foundation value types (IDs, Cost, `TrustLevel`, etc.) live in `nika-types`
+//! and are re-exported here for backward compatibility.
+//!
 //! See `BRAINSTORM_PHASE1_DECISIONS.md` §D2 for rationale.
 
 #![cfg_attr(
@@ -27,24 +30,25 @@ pub mod core_error;
 pub mod nika_error;
 pub mod traits;
 
-// ─── L0 foundational value types (ADR-033) ──────────────────────────
-pub mod baggage;
-pub mod budget;
-pub mod cost;
-pub mod hash;
-pub mod id;
-pub mod resource;
-pub mod retry;
-pub mod schema;
-pub mod trust;
-
-// ─── L0 shared types (descended from kernel, Phase 0) ──────────────
-pub mod cancel;
-pub mod checkpoint;
-pub mod compression;
-pub mod memory;
-pub mod role;
-pub mod token_usage;
+// ─── Backward-compatible re-exports from nika-types ─────────────────
+// All value types that were originally in this crate now live in
+// nika-types. Re-exporting both modules and prelude items ensures
+// zero breaking change for existing consumers.
+pub use nika_types::baggage;
+pub use nika_types::budget;
+pub use nika_types::cancel;
+pub use nika_types::checkpoint;
+pub use nika_types::compression;
+pub use nika_types::cost;
+pub use nika_types::hash;
+pub use nika_types::id;
+pub use nika_types::memory;
+pub use nika_types::resource;
+pub use nika_types::retry;
+pub use nika_types::role;
+pub use nika_types::schema;
+pub use nika_types::token_usage;
+pub use nika_types::trust;
 
 /// Convenience re-exports for common usage.
 ///
@@ -57,27 +61,8 @@ pub mod prelude {
     pub use crate::nika_error::{NikaError, NikaResult};
     pub use crate::traits::NikaErrorCode;
 
-    // ADR-033 L0 foundational value types
-    pub use crate::baggage::Baggage;
-    pub use crate::budget::BudgetDirective;
-    pub use crate::cost::Cost;
-    pub use crate::hash::{Blake3Hash, BlobRef, ContentDigest};
-    pub use crate::id::{
-        CorrelationId, EventId, ModelId, ProviderId, RunId, SpanId, TaskId, TenantId, TraceId,
-        WorkflowId,
-    };
-    pub use crate::resource::{KeyValue, Resource, Value};
-    pub use crate::retry::{ErrorCategory, RetryConfig};
-    pub use crate::schema::{EventSchemaVersion, TraceFormatVersion};
-    pub use crate::trust::TrustLevel;
-
-    // Phase 0 descended types
-    pub use crate::cancel::CancelCtx;
-    pub use crate::checkpoint::{AgentCheckpoint, CheckpointMessage, ToolCallRecord};
-    pub use crate::compression::CompressionPolicy;
-    pub use crate::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
-    pub use crate::role::Role;
-    pub use crate::token_usage::TokenUsage;
+    // Re-export all nika-types prelude items
+    pub use nika_types::prelude::*;
 }
 
 pub use prelude::*;

@@ -1037,6 +1037,7 @@ dependencies = [
  "expect-test",
  "insta",
  "miette",
+ "nika-types",
  "proptest",
  "rstest",
  "serde",
@@ -1095,6 +1096,15 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror",
+]
+
+[[package]]
+name = "nika-types"
+version = "0.80.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]

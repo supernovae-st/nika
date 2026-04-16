@@ -10,6 +10,7 @@ repository.workspace   = true
 homepage.workspace     = true
 
 [dependencies]
+nika-types = { path = "../nika-types" }
 thiserror  = { workspace = true }
 miette     = { workspace = true, features = ["fancy-no-backtrace"] }
 serde      = { workspace = true, optional = true }
@@ -18,7 +19,7 @@ uuid       = { workspace = true, optional = true }
 
 [features]
 default = ["serde"]
-serde   = ["dep:serde", "dep:serde_json", "dep:uuid", "miette/serde"]
+serde   = ["dep:serde", "dep:serde_json", "dep:uuid", "miette/serde", "nika-types/serde"]
 
 [dev-dependencies]
 insta       = { workspace = true }
