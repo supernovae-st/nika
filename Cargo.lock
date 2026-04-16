@@ -910,6 +910,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "trait-variant",
+ "uuid",
  "zeroize",
 ]
 
