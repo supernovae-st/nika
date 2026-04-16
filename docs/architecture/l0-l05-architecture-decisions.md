@@ -1,53 +1,66 @@
 # L0 + L0.5 Architecture Decisions
 
-**Date:** 2026-04-16
-**Branch:** `nika-diamond` @ `820bd1949`
-**Status:** LOCKED (brainstorm complete, 5 questions resolved)
-**Research:** 3 Rust council agents per question + existing Phase C research (17 agents, TOPIC_1-5)
+**Date:** 2026-04-16 (rev. 2 — Q8 reverted + Q9-Q10 added by swarm audit)
+**Branch:** `nika-diamond` @ `edda1b0e9`
+**Status:** LOCKED (10 questions resolved)
+**Research:** 3-4 Rust council agents per question + Phase C research (17 agents, TOPIC_1-5) + post-decision swarm audit (architect + rust-pro + explorer)
 **Authority:** POST_AUDIT_REVISIONS.md > this document > crate-layer-registry.md
 
 ---
 
 ## Context
 
-With 5 crates admitted (error, catalog, catalog-verify, kernel, kernel-mock) and 35-37
-remaining, this document locks the L0 + L0.5 layer architecture. All decisions account
-for v0.100 forward-compatibility and are designed to avoid breaking changes as the
-workspace scales to 40-42 crates.
+With **6 crates admitted** (types, error, catalog, catalog-verify, kernel, kernel-mock)
++ **1 WIP** (nika-schema parser) and 33-35 remaining, this document locks the L0 + L0.5
+layer architecture. All decisions account for v0.100 forward-compatibility and are
+designed to avoid breaking changes as the workspace scales to 40-42 crates.
 
 ---
 
-## Layer map — L0 + L0.5 (revised)
+## Decision index
+
+| Q   | Decision                                                  | Status   |
+|-----|-----------------------------------------------------------|----------|
+| Q1  | No proc macros in L0 (manual impl + `macro_rules!`)       | LOCKED   |
+| Q2  | No `nika-stdx`; split `nika-error` → `nika-types` + `nika-error` | LOCKED · executed |
+| Q3  | Extract `nika-catalog-codegen` NOW (testable + reusable)  | LOCKED   |
+| Q4  | `nika-event`: 3-layer split (L0 types + L1 store + L2 export) | LOCKED |
+| Q5  | Admission order: schema → codegen → event → binding → pck-manifest | LOCKED |
+| Q6  | EventKind = scoped sub-enums (Pattern B, ~22 categories)  | LOCKED   |
+| Q7  | `nika-kernel` prelude re-export hub (4 lines, 0 new deps) | LOCKED   |
+| Q8  | ~~nika-transform = module in binding~~ → **REVERTED to L0 crate** (2nd consumer found in `nika-builtin`) | LOCKED rev.2 |
+| Q9  | `Timestamp` + `WallDuration` = module in `nika-types`     | LOCKED rev.2 |
+| Q10 | Canonical-JSON (RFC 8785) = module in `nika-types`        | LOCKED rev.2 |
+
+---
+
+## Layer map — L0 + L0.5 (rev. 2)
 
 ```
-╭─ L0  (pure, sync, zero I/O) ──────────────────────────────────────────────╮
-│ nika-error              [ADMITTED]  Foundation types + error hierarchy     │
-│ nika-catalog            [ADMITTED]  Provider/model data, phf lookup       │
-│ nika-catalog-codegen    [PLANNED]   TOML schema types + build codegen     │
-│ nika-schema             [SPEC READY] Workflow AST + parser + analyzer     │
-│ nika-event              [TO SPEC]   647 EventKind sub-enums + envelope    │
-│ nika-binding            [TO SPEC]   Template engine + 65 transforms       │
-│ nika-pck-manifest       [TO SPEC]   Package manifest TOML types          │
+╭─ L0  (pure, sync, zero I/O) — 9 crates ──────────────────────────────────╮
+│ nika-types              [ADMITTED]  Foundation value types               │
+│                                     + timestamp module (Q9)              │
+│                                     + hash::canonical module (Q10)       │
+│ nika-error              [ADMITTED]  Error infra, re-exports nika-types  │
+│ nika-catalog            [ADMITTED]  Provider/model data, phf lookup     │
+│ nika-catalog-codegen    [PLANNED]   TOML schema types + build codegen   │
+│ nika-schema             [WIP S4A]   Workflow AST + parser + DAG          │
+│ nika-event              [TO SPEC]   ~22 scoped sub-enums + envelope     │
+│ nika-binding            [TO SPEC]   Template engine (depends transform) │
+│ nika-transform          [TO SPEC]   65 transforms (Q8 rev.2 — 2 consumers)│
+│ nika-pck-manifest       [TO SPEC]   Package manifest TOML types         │
 ╰────────────────────────────────────────────────────────────────────────────╯
              ▲ (every upper-layer depends down only)
-╭─ L0.5  (trait defs + companions, async OK) ────────────────────────────────╮
-│ nika-kernel             [ADMITTED]  40 ISP traits, sealed                  │
+╭─ L0.5  (trait defs + companions, async OK) — 2 crates ─────────────────────╮
+│ nika-kernel             [ADMITTED]  40 ISP traits, sealed supertrait      │
+│                                     pub mod prelude re-exports types+err  │
 │ nika-kernel-mock        [ADMITTED]  40 pure-memory mocks                  │
-│ (split into kernel-core/ai/runtime/plugin when >10k LOC OR >50 traits)    │
+│ (reserved split: kernel-core/ai/runtime/plugin when >10k LOC OR >50 traits)│
 ╰────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### REMOVED from L0 plan
-
-| Crate | Decision | Reason | Trigger for reopening |
-|---|---|---|---|
-| `nika-macros` | Q1: REMOVED | Manual impl + `macro_rules!` covers all cases. Exhaustive match > derive for internal code. | L2 builtins: if boilerplate >300 lines for 63 builtins, create proc-macro crate at L2 (not L0). |
-| `nika-macros-core` | Q1: REMOVED | Same as above. | Same as above. |
-| `nika-stdx` | Q2: REMOVED | Zero cross-crate duplication. `nika-error` is the de facto foundation (22 non-error types). Kitchen-sink anti-pattern risk. | If >=3 helpers duplicated across >=3 crates at 15+ admitted crates, create PURPOSE-NAMED crate (never "stdx/utils/common"). |
-
-### REMOVED from L0-proc section
-
-The entire L0-proc layer is removed. No proc-macro crates in Diamond L0.
+> **Killed crates** (per Q1, Q2): `nika-macros`, `nika-macros-core`, `nika-stdx`.
+> Triggers de réouverture consolidés en fin de doc (§ Reopen triggers).
 
 ---
 
@@ -165,17 +178,23 @@ event system. All 647 event types are enumerated there.
 
 **Architecture (3-crate split respecting layer model):**
 
-### nika-event (L0, ~4-5k LOC)
+### nika-event (L0, ~2.5k LOC)
 
-Pure types, zero I/O, zero async. Contains:
+Pure types, zero I/O, zero async. Internal architecture uses **scoped sub-enums**
+(Pattern B per Q6 below) — not a mega-enum. Contains:
 
-- **EventKind** — 647 variants organized as ~20 category sub-enums, all
-  `#[non_exhaustive]`. Categories include: Workflow, Task, Infer, Exec, Fetch,
+- **EventKind** — ~239 variants initially (growing to ~647 at v0.100), organized
+  as ~22 category sub-enums, all `#[non_exhaustive]`. Generated by
+  `macro_rules! event_categories!` (enum + From impls + `category()` match).
+  Categories include: Workflow (~15 variants), Infer (~20), Exec, Fetch,
   Invoke, Agent, Streaming, ToolUse, StructuredOutput, MultiModal, HITL,
-  Composition, Cost, Eval, Shield, Performance, Scheduling, MCP, Cache, Retry,
-  Determinism, Privacy, Config, Observability, Reasoning, Pathology, Forensics.
-  Plus reserved: Memory (v0.95 Cortex), Plugin (v0.100 WASM).
+  Composition, Cost (~6), Eval, Shield, Performance, Scheduling, MCP, Cache,
+  Retry, Determinism, Privacy, Config, Observability, Reasoning, Pathology,
+  Forensics. Plus reserved: Memory (v0.95 Cortex), Plugin + Wasm (v0.100) —
+  empty `#[non_exhaustive]` enums with `Reserved { version }` placeholder.
   Plus escape hatch: `Extension { ns, name, payload }` for community/future.
+  Wire format: `{"kind": "infer.chunk_received", "data": {...}}` via custom
+  serde bridge (`serde_wire.rs`).
 
 - **Event envelope types** — schema_version, baggage, blob_refs (matching TOPIC_5
   canonical envelope with ~30 fields).
@@ -247,8 +266,8 @@ error ← catalog ← schema ← binding
 |---|---|---|---|---|---|---|
 | 6 | nika-schema | ~13k | error + catalog | binding, all L2 verbs | ~2 | READY |
 | 7 | nika-catalog-codegen | ~2.5k | error + serde + toml | catalog-sync, catalog-tools | ~0.5 | TO WRITE |
-| 8 | nika-event | ~4-5k | error | event-store, event-export, all L2 verbs | ~1 | TO WRITE |
-| 9 | nika-binding | ~13k | error + catalog + schema | all L2 verbs | ~2 | TO WRITE |
+| 8 | nika-event | ~2.5k | error | event-store, event-export, all L2 verbs | ~1 | TO WRITE |
+| 9 | nika-binding | ~13k* | error + catalog + schema | all L2 verbs | ~2 | TO WRITE |
 | 10 | nika-pck-manifest | ~1.5k | error | pck-registry, pck-store, pck | ~0.5 | TO WRITE |
 
 **Rationale:**
@@ -260,11 +279,14 @@ error ← catalog ← schema ← binding
    Provides testable TOML schema types for future consumers. Can slip into any
    gap between larger admissions.
 
-3. **event third** — 647 EventKind types needed by every verb crate. Independent
-   of schema (depends only on error). TOPIC_5 provides exhaustive type list.
+3. **event third** — ~239 EventKind variants initially (647 at v0.100), scoped
+   sub-enums per Q6. Independent of schema (depends only on error). TOPIC_5
+   provides exhaustive type list. LOC revised down from ~4-5k to ~2.5k (scoped
+   sub-enums are more compact than mega-enum).
 
 4. **binding fourth** — depends on schema. Template engine + 65 transforms.
    Second largest L0 crate after schema. Legacy reference: 7,400+ LOC.
+   *Includes transforms module (~2k LOC) per Q8 — ~13k total with transforms.
 
 5. **pck-manifest last** — small, independent, only blocks pck subsystem.
    The pck subsystem is v0.90+ priority, not urgent for verb crate admission.
@@ -282,24 +304,198 @@ spec needed (extract + reorganize, no new design).
 
 ---
 
-## Forward-compatibility summary
+## Decision Q6 — EventKind: scoped sub-enums (not mega-enum)
 
-| Decision | v0.95 Cortex impact | v0.100 WASM impact | Breaking change risk |
-|---|---|---|---|
-| No proc macros | None | None | Zero — derives are additive |
-| No stdx | None | If WASM ABI types needed → `nika-wasm-abi` (purpose-named) | Zero — new crate is additive |
-| Extract catalog-codegen | catalog-sync uses schema types | None | Zero — build-dep is invisible |
-| Event L0/L1/L2 split | Memory sub-enums reserved | Plugin sub-enums + Extension escape hatch | Zero — `#[non_exhaustive]` |
-| nika-error split seam | Split if >5k LOC | Same | Zero — re-exports |
+**Research:** 4-agent Rust council (unanimous: Pattern B — scoped sub-enums with thin
+aggregation).
+
+**Problem:** nika-event needs ~239 event variants initially, growing to ~647 at v0.100.
+Three candidate patterns: (A) mega-enum, (B) scoped sub-enums, (C) trait-based (Bevy).
+
+**Why Pattern B wins:**
+
+1. **~22 category sub-enums** — WorkflowEvent (~15 variants), InferenceEvent (~20),
+   CostEvent (~6), etc. Each sub-enum is `#[non_exhaustive]`, lives in its own file.
+2. **`macro_rules! event_categories!`** generates the top-level `EventKind` enum +
+   `From` impls + `category()` match arm. Zero manual wiring.
+3. **Wire format** — `{"kind": "infer.chunk_received", "data": {...}}` via custom
+   serde bridge (`serde_wire.rs`). Dot-separated category.variant is stable + human-readable.
+4. **Reserved categories** — Memory (v0.95 Cortex), Plugin + Wasm (v0.100) ship as
+   empty `#[non_exhaustive]` enums with `Reserved { version }` placeholder variant.
+   When the feature lands, variants are added (never breaking — non-exhaustive).
+5. **EventLog** — `VecDeque<Event>` ring buffer with size cap. Pure L0, zero I/O.
+
+**Why not mega-enum:** catastrophic match arms at 647 variants, merge conflicts on
+every PR touching events, 2,500+ LOC single file, no per-domain file navigation.
+
+**Why not trait-based (Bevy):** no exhaustive matching (dynamic dispatch), needs
+`erased_serde` or `reflect` (~15k LOC infra), runtime-only completeness guarantees.
+
+**File layout:** 1 file per category + `lib.rs` + `kind.rs` + `log.rs` + `serde_wire.rs`.
+
+**LOC estimate:** ~2.5k (down from ~4-5k — scoped sub-enums are more compact than
+a mega-enum with inline data).
 
 ---
 
-## Audit trail
+## Decision Q7 — nika-kernel prelude re-export hub
 
-| Date | Decision | Author |
+**Research:** rust-architect (pattern validation: rust-analyzer `base-db`, Bevy
+`bevy_app`, Axum re-exports `axum-core`).
+
+**Problem:** L2+ verb crates each depend on nika-error + nika-types + nika-kernel
+(+ potentially nika-event). That is 3-5 explicit dep lines per crate, with version
+churn on each. Axum solved this by re-exporting `axum-core` types from the main crate.
+
+**Solution:** Add `pub mod prelude` to `nika-kernel/src/lib.rs`:
+
+```rust
+pub mod prelude {
+    pub use nika_error::prelude::*;  // includes nika-types re-exports
+    // kernel traits + request/response types already in nika-kernel root
+}
+```
+
+L2+ verb crates depend on `nika-kernel` only (2-3 deps instead of 5).
+
+**NOT a separate `nika-prelude` crate** — same anti-pattern as the killed `nika-stdx`
+(Q2). Preludes belong in the crate they serve, not in a standalone wrapper.
+
+**NOT re-exporting nika-catalog** — kernel does not depend on catalog and should not.
+Verb crates that need catalog data add it as an explicit dep.
+
+**Impact:** Zero new dep edges, zero compile-time impact. Implementation is 4 lines
+in `nika-kernel/src/lib.rs`.
+
+---
+
+## Decision Q8 — nika-transform = standalone L0 crate (REVERTED rev.2 2026-04-16)
+
+**Initial decision** (rev.1, brainstorm session): module in `nika-binding` under the
+single-consumer rule (Q2). **REVERTED** by post-decision swarm audit (spn-rust:rust-pro).
+
+**Reason for revert.** Grep of legacy `main` (HEAD `830aa6154`) found a **second
+production consumer**: `tools/nika-builtin/src/data/transform.rs` imports
+`nika_core::binding::transform::{TransformExpr, navigate_dot_path}` and calls
+`.parse()` (l.111, 161) + `.apply()` (l.123, 241). This powers the `nika:map` and
+`nika:pluck` builtin tools — a shipped public feature, not speculation. The Q2
+threshold (≥2 distinct crate-level consumers in code) is **already met today**.
+
+**Decision.** `nika-transform` extracted as standalone **L0 crate** (~2k LOC, 65 ops,
+7 sub-modules: string, collection, encoding, format, datetime, path, parse).
+
+**Dependency graph:**
+
+```
+nika-binding   (L0) ──→ nika-transform (L0)   [template engine: ${{ x | upper }}]
+nika-builtin-* (L2) ──→ nika-transform (L0)   [MapTool / PluckTool / structured-output coercion]
+                          │
+                          └──→ nika-error / nika-types (L0)
+```
+
+**7 sub-modules** (in `crates/nika-transform/src/`):
+
+| Module | Purpose |
+|---|---|
+| `string` | case conversion, truncate, pad, regex |
+| `collection` | sort, unique, flatten, group_by |
+| `encoding` | base64, url_encode, html_escape |
+| `format` | json, yaml, toml, csv formatting |
+| `datetime` | parse, format, relative, timezone (uses nika-types::timestamp Q9) |
+| `path` | join, basename, dirname, extension |
+| `parse` | number, bool, split, regex capture |
+
+**L0 crate count impact:** 9 L0 crates (was 8). The layer map at the top of this
+document reflects this.
+
+**Forward-compat:**
+- v0.95 Cortex memory summaries get `| truncate | to_json` without pulling
+  `nika-binding`'s template engine.
+- v0.100 WASM plugins can import transforms directly without binding's resolver.
+- Mutation testing isolated: `cargo mutants -p nika-transform` skips 11k LOC of
+  binding recompilation.
+
+**Trigger for re-merge into binding:** none — extraction is irreversible once
+`nika-builtin-*` ships against the standalone crate.
+
+---
+
+## Decision Q9 — Timestamp + WallDuration = module in nika-types (rev.2)
+
+**Research:** spn-rust:rust-architect post-decision audit.
+
+**Gap identified.** `nika-kernel::Clock` returns `std::time::{Instant, SystemTime,
+Duration}`. None of these are stable serde types. `nika-event` envelope (Q4) requires
+`created_at`. Checkpoint, baggage, retry, billing — all need a serializable wall-clock
+timestamp. Today: gap. No `chrono`, `time`, or `jiff` anywhere in the workspace.
+
+**Decision.** Add **module** `nika-types::timestamp` exposing:
+- `Timestamp(i64)` — Unix nanoseconds, `#[non_exhaustive]` newtype, `Serialize + Deserialize`
+- `WallDuration(i64)` — signed nanoseconds, newtype around `i64`
+- Conversions: `From<SystemTime>`, `try_into Instant` (relative to a reference)
+
+**Why module, not crate** (Q2 single-consumer rule): kernel + event + checkpoint will
+all consume, but they all already depend on `nika-types`. Adding a 1-dep wrapper crate
+(`nika-time`) duplicates what `nika-types` is for.
+
+**Trigger to extract as crate:** v0.95 scheduling verb requires IANA timezone data
+(`tz-data` is heavyweight). At that point extract `nika-time` with feature-gated
+`tz-data`, keep raw `Timestamp` newtype in `nika-types`.
+
+**Forward-compat:** `#[non_exhaustive]` on the newtype permits adding `nanos` or
+`millis` accessors later. Adding a TZ field is breaking — defer to crate extraction.
+
+---
+
+## Decision Q10 — Canonical-JSON (RFC 8785) = module in nika-types (rev.2)
+
+**Research:** spn-rust:rust-architect post-decision audit.
+
+**Gap identified.** `nika-types::hash::{Blake3Hash, BlobRef, ContentDigest}` exists,
+but there is no canonicalizer. pck-manifest integrity, event content-hashing
+(TOPIC_5), memory-frame dedup (Cortex v0.95), and checkpoint signing all require
+deterministic byte-level encoding. Today: hashing arbitrary `serde_json::Value` is
+silently non-deterministic (key order, whitespace, number representation).
+
+**Decision.** Add **module** `nika-types::hash::canonical` exposing:
+- `to_canonical_bytes(&T) -> Result<Vec<u8>, NikaError>` — RFC 8785 (JCS) wrapper
+- `digest_canonical(&T) -> Result<Blake3Hash, NikaError>` — convenience hash
+
+Implementation = thin wrap of `serde_jcs` (well-maintained crate, MIT/Apache).
+
+**Why module, not crate.** Same rationale as Q9 — `nika-types` is the foundation,
+adding `serde_jcs` as one dep there is cheaper than birthing a 200-LOC wrapper crate.
+
+**Trigger to extract as crate:** if a non-`nika-types` consumer needs canonical-JSON
+**without** the rest of `nika-types`. Unlikely (anyone canonicalizing also handles
+IDs/hashes). Module is final form for the foreseeable future.
+
+**Forward-compat:** RFC 8785 is finalized (Sept 2020). No spec churn risk. The
+function signature is additive — new `digest_canonical_with(hasher)` would be a
+later non-breaking addition.
+
+---
+
+## Reopen triggers (consolidated)
+
+Decisions are LOCKED, but each has a **named, observable** trigger that re-opens it.
+Triggers must appear in **CODE**, never in speculation (Q2 rule).
+
+| Decision | Trigger condition | Reopens to |
 |---|---|---|
-| 2026-04-16 | Q1: nika-macros REMOVED from L0 | Brainstorm session |
-| 2026-04-16 | Q2: nika-stdx REMOVED from L0 | Brainstorm session |
-| 2026-04-16 | Q3: nika-catalog-codegen EXTRACT NOW | Brainstorm session (revised from DEFER) |
-| 2026-04-16 | Q4: nika-event L0/L1/L2 split (647 types from TOPIC_5) | Brainstorm session |
-| 2026-04-16 | Q5: Admission order locked (schema → codegen → event → binding → pck-manifest) | Brainstorm session |
+| Q1 (no proc macros) | nika-builtin-* manual `BuiltinTool` impls > 300 LOC across 63 builtins | Create `nika-macros` at **L2** (not L0) |
+| Q2 (no stdx) | ≥3 admitted crates duplicate the same helper | Create **purpose-named** crate (`nika-text`, `nika-collections`…) |
+| Q2 seam | nika-error grows past 5k LOC again | Re-split (already executed once) |
+| Q3 (codegen extracted) | catalog-sync or catalog-tools admitted | Just consume with `default-features = false` |
+| Q4 (event 3-layer) | EventLog needs persistence | Admit `nika-event-store` (L1, ~3k LOC) |
+| Q5 (admission order) | nika-schema admission blocked | Re-prioritize verb-* admissions |
+| Q6 (scoped sub-enums) | New event category needed (Cortex Memory, WASM Plugin) | Add sub-enum file + `event_categories!` entry |
+| Q7 (prelude hub) | Verb crate needs catalog data directly | Add explicit `nika-catalog` dep (do **not** re-export from kernel) |
+| Q8 (nika-transform crate) | n/a — extraction irreversible once builtin-* ships | — |
+| Q9 (timestamp module) | v0.95 scheduling verb requires IANA tz-data | Extract `nika-time` crate, keep `Timestamp` newtype in nika-types |
+| Q10 (canonical-JSON) | Non-`nika-types` consumer needs canonical-JSON without nika-types | Extract `nika-canonical` crate (unlikely) |
+| Kernel split | nika-kernel > 10k LOC OR > 50 traits | Split into kernel-{core,ai,runtime,plugin} |
+
+---
+
+LOCKED 2026-04-16 — Q1-Q8 resolved in brainstorm session, Q8 reverted + Q9-Q10 added by post-decision swarm audit (architect + rust-pro + explorer). See `git log docs/architecture/l0-l05-architecture-decisions.md` for per-Q rationale.

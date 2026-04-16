@@ -6,11 +6,11 @@ here is the ground truth that `[workspace.metadata.diamond.layers]` and
 
 **Authority**: This document shows the layer model with illustrative
 examples. For the authoritative crate manifest, see POST_AUDIT_REVISIONS.md
-(supreme authority) and `l0-l05-architecture-decisions.md` (Q1-Q5 layer
+(supreme authority) and `l0-l05-architecture-decisions.md` (Q1-Q8 layer
 decisions, 2026-04-16). CONSTELLATION.md (forthcoming) reconciles all.
 
-**Last updated**: 2026-04-16 (Q1-Q5 brainstorm: removed nika-stdx,
-nika-macros, nika-macros-core, L0-proc layer).
+**Last updated**: 2026-04-16 (Q6-Q8 brainstorm: nika-transform inlined
+into nika-binding, nika-event scoped sub-enums, nika-kernel prelude hub).
 
 ## Why this document exists
 
@@ -42,25 +42,35 @@ Given a crate `nika-<role>`, ask these questions in order:
 ║                              crates/                                       ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-╭─ L0  (pure, sync, zero I/O) ──────────────────────────────────────────────╮
+╭─ L0  (pure, sync, zero I/O) — 9 crates ──────────────────────────────────╮
 │ nika-types                [axes: none]      Foundation value types (leaf) │
+│                                             + timestamp module (Q9)       │
+│                                             + hash::canonical (Q10, JCS)  │
 │ nika-error                [axes: none]      Error infra (depends types)  │
 │ nika-catalog              [axes: none]      Cow<'static, str>, phf lookup │
 │ nika-catalog-codegen      [build-dep+lib]   TOML schema types + codegen  │
 │ nika-schema               [axes: none]      Workflow AST + parser + DAG  │
-│ nika-event                [axes: none]      647 EventKind sub-enums      │
-│ nika-binding              [axes: none]      Template engine + transforms │
+│ nika-event                [axes: none]      ~22 scoped sub-enums +        │
+│                                             event_categories! macro      │
+│ nika-binding              [axes: none]      Template resolution engine   │
+│                                             (depends on nika-transform)  │
+│ nika-transform            [axes: none]      65 transforms, 7 sub-modules │
+│                                             (Q8 rev.2 — 2 consumers:    │
+│                                              binding + builtin-*)        │
 │ nika-pck-manifest         [axes: none]      Package manifest TOML types  │
 │                                                                          │
-│ REMOVED (2026-04-16 brainstorm):                                         │
-│   nika-stdx         → nika-error is the foundation; purpose-named if need│
+│ REMOVED (per Q1, Q2 — see l0-l05-architecture-decisions.md):             │
+│   nika-stdx         → nika-types IS the foundation; purpose-named if need│
 │   nika-macros       → manual impl + macro_rules!; reopen at L2 builtins │
 │   nika-macros-core  → same as above                                      │
-│ See: docs/architecture/l0-l05-architecture-decisions.md                  │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲ (every upper-layer depends down only)
 ╭─ L0.5  (trait defs + companions, async OK) ──────────────────────────────╮
 │ nika-kernel               40 ISP traits, sealed supertrait               │
+│                           pub mod prelude re-exporting                   │
+│                           nika-error::prelude::* — L2+ verb crates       │
+│                           depend on nika-kernel only for all foundation  │
+│                           types + trait contracts                         │
 │ nika-kernel-mock          [axes: none]  1:1 mirror, pure-memory mocks    │
 │                                                                          │
 │ Split into 4 sibling crates when kernel > 10k LOC OR traits > 50:        │
@@ -86,19 +96,20 @@ Given a crate `nika-<role>`, ask these questions in order:
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L2  (verbs + domain services) ──────────────────────────────────────────╮
-│ nika-pck              nika-mcp             nika-builtin-github            │
-│ nika-verb-*           nika-policy          nika-builtin-cloud             │
-│ nika-observability    nika-memory          nika-builtin-workspace         │
+│ nika-pck              nika-policy          nika-builtin-github            │
+│ nika-verb-*           nika-memory          nika-builtin-cloud             │
+│ nika-observability                         nika-builtin-workspace         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L3  (runtime + policy + sandbox) ────────────────────────────────────────╮
 │ nika-runtime          nika-shield          nika-wasm-host (v0.100)        │
-│                       nika-observability   nika-sandbox   (v0.100)        │
+│                                            nika-sandbox   (v0.100)        │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L4  (interfaces — libraries) ───────────────────────────────────────────╮
 │ nika-cli (lib)        nika-daemon (lib)    nika-http (lib)                │
-│ nika-mcp (lib)        nika-lsp (lib)       nika-sdk                      │
+│ nika-mcp (lib)        nika-lsp (lib)       nika-sdk                       │
+│ nika-catalog-verify   (build-only TOML catalog validation tool)           │
 │                                             └─ xtask (build-only)         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
@@ -121,12 +132,12 @@ flags. They obey the same 12-gate admission as any other crate.
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event`, `nika-binding`, `nika-pck-manifest` |
-| L0.5 | Kernel trait definitions + companions (mock) — async OK | none (traits only) | L0 | `nika-kernel`, `nika-kernel-mock` |
+| L0 | Pure types, lookup tables, sync-only APIs (9 crates) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event`, `nika-binding`, `nika-transform`, `nika-pck-manifest` |
+| L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel`, `nika-kernel-mock` |
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-catalog-sync` |
-| L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-mcp`, `nika-verb-*`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
+| L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-verb-*`, `nika-policy`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
-| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-daemon`, `nika-http`, `nika-mcp`, `nika-lsp`, `nika-sdk` |
+| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-daemon`, `nika-http`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify` |
 | L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
 
 ### Forward compatibility
