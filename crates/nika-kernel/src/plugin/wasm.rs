@@ -7,7 +7,11 @@
 //! No implementations exist until `nika-wasm-host` ships.
 //! See `docs/architecture/forward-compat-invariants.md` Pattern 1.
 
+use std::sync::Arc;
+
+use crate::cancel::CancelCtx;
 use crate::sandbox::DenialKind;
+use nika_error::trust::TrustLevel;
 
 /// Host-side WASM plugin execution.
 ///
@@ -131,6 +135,133 @@ pub enum WasmPluginError {
         /// Timeout in milliseconds.
         timeout_ms: u64,
     },
+
+    /// Plugin exhausted its fuel budget before returning.
+    ///
+    /// Reserved at v0.81 for v0.100 wasmtime fuel metering. Fuel is a
+    /// host-controlled compute budget that prevents infinite loops and
+    /// cpu-DoS: the guest consumes fuel units per wasm op, the host
+    /// traps when `consumed >= budget`. See ADR-032 seed.
+    #[error("wasm plugin out of fuel: consumed {consumed} of {budget}")]
+    OutOfFuel {
+        /// Fuel units actually consumed by the guest.
+        consumed: u64,
+        /// Fuel budget the guest was granted.
+        budget: u64,
+    },
+
+    /// Plugin hit a WASM-level trap.
+    ///
+    /// Reserved at v0.81 for v0.100 wasmtime integration. A trap is a
+    /// guest-level abort (unreachable, integer-divide-zero, stack
+    /// overflow, etc.). `kind` captures the structured trap class so
+    /// hosts can distinguish guest bugs from host errors.
+    #[error("wasm plugin trap: {kind}")]
+    Trap {
+        /// Structured trap classification.
+        kind: TrapKind,
+    },
+}
+
+/// Classification of a WASM-level trap.
+///
+/// Reserved at v0.81 for v0.100 wasmtime integration. Mirrors wasmtime's
+/// `TrapCode` taxonomy at the nika layer so we can evolve the shape
+/// without a direct wasmtime dep in L0.5.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum TrapKind {
+    /// Guest hit an `unreachable` instruction.
+    Unreachable,
+    /// Guest attempted integer divide-by-zero.
+    IntegerDivisionByZero,
+    /// Guest attempted an invalid integer-to-float conversion.
+    InvalidConversionToInteger,
+    /// Guest attempted out-of-bounds memory access.
+    MemoryOutOfBounds,
+    /// Guest attempted out-of-bounds table access (indirect call).
+    TableOutOfBounds,
+    /// Guest exceeded the configured stack depth.
+    StackOverflow,
+    /// Guest called an indirect function with mismatched signature.
+    IndirectCallTypeMismatch,
+    /// Host-side interruption (not guest-originated).
+    Interrupted,
+}
+
+impl core::fmt::Display for TrapKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let s = match self {
+            Self::Unreachable => "unreachable instruction",
+            Self::IntegerDivisionByZero => "integer divide by zero",
+            Self::InvalidConversionToInteger => "invalid conversion to integer",
+            Self::MemoryOutOfBounds => "memory access out of bounds",
+            Self::TableOutOfBounds => "table access out of bounds",
+            Self::StackOverflow => "stack overflow",
+            Self::IndirectCallTypeMismatch => "indirect call type mismatch",
+            Self::Interrupted => "host-side interruption",
+        };
+        f.write_str(s)
+    }
+}
+
+/// Per-call context passed into `WasmPluginHost::call_plugin` at v0.100.
+///
+/// Reserved at v0.81 as an additive forward-compat seam: the call signature
+/// stays stable (plugin name + input bytes) until v0.100, then this context
+/// is threaded through the dyn trait via the `trait_variant` companion. ADR-032
+/// captures the full lifecycle (fuel decrement, trust demotion, cancel token
+/// wiring, timeout enforcement).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct PluginCallContext {
+    /// Trust level granted to the plugin's OUTPUT. Lower than
+    /// `input_trust` by host policy — plugin output is always
+    /// "untrusted data" regardless of what it was given.
+    pub trust: TrustLevel,
+    /// Trust level of the INPUT bytes (propagated from the verb that
+    /// constructed the call).
+    pub input_trust: TrustLevel,
+    /// Cancellation token — hosts MUST check before each wasm-side
+    /// resource allocation and on fuel-budget exhaustion.
+    pub cancel: Arc<CancelCtx>,
+    /// Fuel budget in wasmtime fuel units. None = no metering.
+    pub fuel_budget: Option<u64>,
+    /// Wall-clock timeout in milliseconds. None = no wall timeout.
+    pub wall_timeout_ms: Option<u64>,
+}
+
+impl PluginCallContext {
+    /// New context with the untrusted-output / untrusted-input default.
+    ///
+    /// Hosts that have more information should call
+    /// [`Self::with_trust`] or mutate the fields directly.
+    #[must_use]
+    pub fn new(cancel: Arc<CancelCtx>) -> Self {
+        Self {
+            trust: TrustLevel::UNTRUSTED,
+            input_trust: TrustLevel::UNTRUSTED,
+            cancel,
+            fuel_budget: None,
+            wall_timeout_ms: None,
+        }
+    }
+
+    /// New context with explicit trust taint on both input and output.
+    #[must_use]
+    pub fn with_trust(
+        cancel: Arc<CancelCtx>,
+        input_trust: TrustLevel,
+        output_trust: TrustLevel,
+    ) -> Self {
+        Self {
+            trust: output_trust,
+            input_trust,
+            cancel,
+            fuel_budget: None,
+            wall_timeout_ms: None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -171,6 +302,55 @@ mod tests {
             reason: "oom".into(),
         };
         assert!(err.to_string().contains("oom"));
+    }
+
+    #[test]
+    fn wasm_plugin_error_out_of_fuel_display() {
+        let err = WasmPluginError::OutOfFuel {
+            consumed: 1_000_000,
+            budget: 500_000,
+        };
+        let s = err.to_string();
+        assert!(s.contains("out of fuel"), "got: {s}");
+        assert!(s.contains("1000000") && s.contains("500000"), "got: {s}");
+    }
+
+    #[test]
+    fn wasm_plugin_error_trap_display_names_kind() {
+        for (kind, needle) in [
+            (TrapKind::Unreachable, "unreachable"),
+            (TrapKind::IntegerDivisionByZero, "divide by zero"),
+            (TrapKind::MemoryOutOfBounds, "memory access"),
+            (TrapKind::TableOutOfBounds, "table access"),
+            (TrapKind::StackOverflow, "stack overflow"),
+            (TrapKind::IndirectCallTypeMismatch, "indirect call"),
+            (TrapKind::Interrupted, "host-side"),
+            (
+                TrapKind::InvalidConversionToInteger,
+                "conversion to integer",
+            ),
+        ] {
+            let s = WasmPluginError::Trap { kind }.to_string();
+            assert!(s.contains(needle), "{kind:?} missing `{needle}` in {s}");
+        }
+    }
+
+    #[test]
+    fn plugin_call_context_new_defaults_untrusted() {
+        let cancel = Arc::new(CancelCtx::new());
+        let ctx = PluginCallContext::new(cancel);
+        assert_eq!(ctx.trust, TrustLevel::UNTRUSTED);
+        assert_eq!(ctx.input_trust, TrustLevel::UNTRUSTED);
+        assert!(ctx.fuel_budget.is_none());
+        assert!(ctx.wall_timeout_ms.is_none());
+    }
+
+    #[test]
+    fn plugin_call_context_with_trust_splits_axes() {
+        let cancel = Arc::new(CancelCtx::new());
+        let ctx = PluginCallContext::with_trust(cancel, TrustLevel::TRUSTED, TrustLevel::UNTRUSTED);
+        assert_eq!(ctx.input_trust, TrustLevel::TRUSTED);
+        assert_eq!(ctx.trust, TrustLevel::UNTRUSTED);
     }
 
     // ── Seam 4-5 trait shape tests ──────────────────────────────────
