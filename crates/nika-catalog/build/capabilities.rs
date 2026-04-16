@@ -82,9 +82,19 @@ struct ScopeEntry {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum MatchEntry {
     Any,
-    Exact { model: String },
-    ExactAny { models: Vec<String> },
-    PrefixAny { prefixes: Vec<String> },
+    Exact {
+        model: String,
+    },
+    ExactAny {
+        models: Vec<String>,
+    },
+    PrefixAny {
+        prefixes: Vec<String>,
+    },
+    /// Word-boundary-anchored substring match (Session 4a A6).
+    ContainsAny {
+        patterns: Vec<String>,
+    },
 }
 
 /// Typed TOML tokenizer enum — serde replaces hand-written string validation.
@@ -549,6 +559,23 @@ fn validate_match(m: &MatchEntry, rule_name: &str) -> Result<(), String> {
             }
             Ok(())
         }
+        MatchEntry::ContainsAny { patterns } => {
+            if patterns.is_empty() {
+                return Err(format!(
+                    "rule {rule_name:?}: match.patterns must not be empty — use \
+                     kind = \"any\" for match-all rules"
+                ));
+            }
+            for p in patterns {
+                if p.is_empty() {
+                    return Err(format!(
+                        "rule {rule_name:?}: match.patterns contains an empty \
+                         pattern — every model would match (did you mean kind = \"any\"?)"
+                    ));
+                }
+            }
+            Ok(())
+        }
     }
 }
 
@@ -844,6 +871,10 @@ fn emit_matcher(m: &MatchEntry) -> String {
         MatchEntry::PrefixAny { prefixes } => format!(
             "crate::types::capabilities::Matcher::PrefixAny({})",
             str_slice_expr(prefixes)
+        ),
+        MatchEntry::ContainsAny { patterns } => format!(
+            "crate::types::capabilities::Matcher::ContainsAny({})",
+            str_slice_expr(patterns)
         ),
     }
 }

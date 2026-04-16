@@ -241,12 +241,13 @@ impl CapPatch {
 
 /// Matcher — which `model` strings a rule applies to.
 ///
-/// Four shapes:
+/// Five shapes:
 ///   * [`Matcher::Any`] — match any model (used for provider-wide fallback
 ///     rules like `anthropic-any-model`)
 ///   * [`Matcher::Exact`] — single-name exact match (case-insensitive ASCII)
 ///   * [`Matcher::ExactAny`] — exact match against any entry in the list
 ///   * [`Matcher::PrefixAny`] — model starts with any entry in the list
+///   * [`Matcher::ContainsAny`] — word-boundary-anchored substring match
 ///
 /// No regex variant in `@1.0` — keeps L0 zero-runtime-dep. If a future
 /// provider ever needs regex, add a new variant and bump the schema.
@@ -260,6 +261,19 @@ pub(crate) enum Matcher {
     ExactAny(&'static [&'static str]),
     /// Model starts (case-insensitively, ASCII) with any entry.
     PrefixAny(&'static [&'static str]),
+    /// Word-boundary-anchored substring match (case-insensitive ASCII).
+    ///
+    /// The pattern must be preceded by start-of-string or a boundary char
+    /// (`-`, `_`, `/`, `.`) AND followed by end-of-string or a boundary
+    /// char (`-`, `_`, `/`, `.`, `@`). This prevents "sonnet-4" from
+    /// matching "sonnet-4-60-preview" — the `6` after "sonnet-4" is NOT
+    /// a boundary character, so the match fails.
+    ///
+    /// Used for pricing pattern matching where model families share a
+    /// name prefix but dated variants must not cross-match. No TOML rule
+    /// uses this variant yet (lands with Phase E2 TOML pricing migration).
+    #[cfg_attr(not(test), allow(dead_code))]
+    ContainsAny(&'static [&'static str]),
 }
 
 impl Matcher {
@@ -272,6 +286,9 @@ impl Matcher {
             Self::Exact(m) => model.eq_ignore_ascii_case(m),
             Self::ExactAny(list) => list.iter().any(|m| model.eq_ignore_ascii_case(m)),
             Self::PrefixAny(list) => list.iter().any(|p| starts_with_ci_ascii(model, p)),
+            Self::ContainsAny(list) => list
+                .iter()
+                .any(|p| contains_word_boundary_ci_ascii(model, p)),
         }
     }
 }
@@ -285,6 +302,60 @@ fn starts_with_ci_ascii(model: &str, prefix: &str) -> bool {
     let pb = prefix.as_bytes();
     let mb = model.as_bytes();
     mb.len() >= pb.len() && mb[..pb.len()].eq_ignore_ascii_case(pb)
+}
+
+/// Word-boundary-anchored case-insensitive ASCII substring match.
+///
+/// Returns `true` iff `model` contains `pattern` at a word boundary:
+///   * The character before the match (or start-of-string) must be a
+///     boundary char: `-`, `_`, `/`, `.`
+///   * The character after the match (or end-of-string) must be a
+///     boundary char: `-`, `_`, `/`, `.`, `@`
+///
+/// This prevents "sonnet-4" from matching "sonnet-4-60" (the `6` after
+/// the match is not a boundary), while still matching "claude-sonnet-4-
+/// 20250514" (the `-` after "sonnet-4" IS a boundary).
+#[inline]
+fn contains_word_boundary_ci_ascii(model: &str, pattern: &str) -> bool {
+    let mb = model.as_bytes();
+    let pb = pattern.as_bytes();
+    if pb.is_empty() {
+        return true;
+    }
+    if mb.len() < pb.len() {
+        return false;
+    }
+    // Slide a window of pattern-length across model.
+    let limit = mb.len() - pb.len();
+    for i in 0..=limit {
+        if !mb[i..i + pb.len()].eq_ignore_ascii_case(pb) {
+            continue;
+        }
+        // Check left boundary: start-of-string or boundary char.
+        let left_ok = i == 0 || is_boundary_char(mb[i - 1]);
+        if !left_ok {
+            continue;
+        }
+        // Check right boundary: end-of-string or boundary char.
+        let right_pos = i + pb.len();
+        let right_ok = right_pos == mb.len() || is_right_boundary_char(mb[right_pos]);
+        if right_ok {
+            return true;
+        }
+    }
+    false
+}
+
+/// Left boundary: model-name segment separators.
+#[inline]
+const fn is_boundary_char(b: u8) -> bool {
+    matches!(b, b'-' | b'_' | b'/' | b'.')
+}
+
+/// Right boundary: left boundaries + `@` (for `model@version` patterns).
+#[inline]
+const fn is_right_boundary_char(b: u8) -> bool {
+    is_boundary_char(b) || b == b'@'
 }
 
 /// One ordered rule from `data/model-capabilities.toml`.
@@ -491,6 +562,71 @@ mod tests {
         .materialize(&defaults);
         assert_eq!(caps.context_window_tokens, Some(200_000));
         assert_eq!(caps.max_output_tokens, Some(65_536));
+    }
+
+    // ── ContainsAny / word-boundary tests (Session 4a A6) ──────────
+
+    #[test]
+    fn matcher_contains_any_word_boundary() {
+        let m = Matcher::ContainsAny(&["sonnet-4"]);
+        // Exact match at end
+        assert!(m.matches("claude-sonnet-4"));
+        // Boundary dash after pattern — matches (dash is boundary)
+        assert!(m.matches("claude-sonnet-4-20250514"));
+        // Boundary slash before pattern
+        assert!(m.matches("anthropic/sonnet-4"));
+        // Boundary dot after pattern
+        assert!(m.matches("sonnet-4.1"));
+        // Boundary at sign after pattern
+        assert!(m.matches("sonnet-4@latest"));
+        // Boundary dash after — this DOES match (dash is boundary)
+        assert!(m.matches("claude-sonnet-4-60-preview"));
+        // Leading non-boundary: must NOT match
+        assert!(!m.matches("xsonnet-4"), "'x' is not a boundary char");
+        // Pattern at start with no left boundary needed
+        assert!(m.matches("sonnet-4-latest"));
+        // Case insensitive
+        assert!(m.matches("claude-SONNET-4-20250514"));
+
+        // The REAL bug scenario: "sonnet-4-6" vs "sonnet-4-60"
+        let m2 = Matcher::ContainsAny(&["sonnet-4-6"]);
+        assert!(m2.matches("claude-sonnet-4-6"));
+        assert!(m2.matches("claude-sonnet-4-6-20250514"));
+        assert!(
+            !m2.matches("claude-sonnet-4-60-preview"),
+            "HARD BUG: sonnet-4-6 must NOT match sonnet-4-60 (0 is not boundary)"
+        );
+        assert!(
+            !m2.matches("claude-sonnet-4-65"),
+            "sonnet-4-6 must NOT match sonnet-4-65"
+        );
+    }
+
+    #[test]
+    fn matcher_contains_any_multiple_patterns() {
+        let m = Matcher::ContainsAny(&["gpt-4o", "gpt-4.1"]);
+        assert!(m.matches("gpt-4o-mini"));
+        assert!(m.matches("gpt-4.1-nano"));
+        assert!(
+            !m.matches("gpt-4"),
+            "gpt-4 does not contain gpt-4o or gpt-4.1"
+        );
+    }
+
+    #[test]
+    fn contains_word_boundary_empty_pattern_matches_everything() {
+        assert!(contains_word_boundary_ci_ascii("anything", ""));
+        assert!(contains_word_boundary_ci_ascii("", ""));
+    }
+
+    #[test]
+    fn contains_word_boundary_pattern_longer_than_model() {
+        assert!(!contains_word_boundary_ci_ascii("ab", "abcdef"));
+    }
+
+    #[test]
+    fn contains_word_boundary_exact_match_whole_string() {
+        assert!(contains_word_boundary_ci_ascii("sonnet-4", "sonnet-4"));
     }
 
     #[test]
