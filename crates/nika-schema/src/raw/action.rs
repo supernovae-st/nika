@@ -179,6 +179,21 @@ impl RawInvokeAction {
             timeout_ms: None,
         }
     }
+
+    /// Create an invoke action with the target (tool or resource)
+    /// already populated. At least one of `tool` / `resource` must
+    /// be `Some` for the action to be semantically valid, but this
+    /// constructor does not enforce that — the parser does.
+    #[must_use]
+    pub fn with_target(tool: Option<Spanned<String>>, resource: Option<Spanned<String>>) -> Self {
+        Self {
+            tool,
+            resource,
+            params: None,
+            mcp: None,
+            timeout_ms: None,
+        }
+    }
 }
 
 impl Default for RawInvokeAction {

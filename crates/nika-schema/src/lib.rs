@@ -31,6 +31,8 @@
         clippy::used_underscore_items,
         clippy::float_cmp,
         clippy::manual_string_new,
+        clippy::panic,
+        clippy::unreachable,
     )
 )]
 

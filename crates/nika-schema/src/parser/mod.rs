@@ -3,17 +3,29 @@
 
 //! YAML → [`RawWorkflow`] parser.
 //!
-//! Round 2c scope — top-level workflow scalars only:
-//! `schema`, `name`, `description`, `goal`, `provider`, `model`.
-//! Task-list, `mcp`, `include`, `context`, `inputs`, `logging`,
-//! `orchestrate`, `routing`, `schedule`, and `max_duration_secs`
-//! lands in Round 2d / Round 3 (see `docs/crate-specs/nika-schema.md`).
+//! Round 2d scope:
+//!
+//! - Top-level workflow scalars (`schema`, `name`, `description`,
+//!   `goal`, `provider`, `model`).
+//! - `tasks:` sequence — each task parsed for `name` + the action
+//!   discriminator + the verb's minimum required field (`prompt` /
+//!   `command` / `url` / `tool|resource` / `prompt`). Optional
+//!   task-level fields (`depends_on`, `condition`, `for_each`,
+//!   `record`, `decompose`, `budget`, `limits`, `completion`,
+//!   `guardrails`, `max_retries`) and optional verb-specific
+//!   fields land in Round 2e.
+//!
+//! Still deferred: `mcp`, `include`, `context`, `inputs`, `logging`,
+//! `orchestrate`, `routing`, `schedule`, `max_duration_secs`.
 //!
 //! Fields that are known but not yet parsed are ignored silently so
 //! that workflows under incremental development still load. Truly
 //! structural failures (bad YAML, wrong root shape, type mismatches
-//! on handled scalars, unsupported `schema:` version) produce a
-//! [`SchemaError`] carrying a [`Span`] when one is available.
+//! on handled scalars, unsupported `schema:` version, missing task
+//! `name`, missing/ambiguous action verb) produce a [`SchemaError`]
+//! carrying a [`Span`] when one is available.
+
+mod tasks;
 
 use marked_yaml::types::MarkedScalarNode;
 use marked_yaml::{Span as YamlSpan, parse_yaml};
@@ -72,12 +84,13 @@ pub fn parse(yaml: &str, file_id: FileId) -> Result<RawWorkflow, SchemaError> {
         workflow.model = Some(s);
     }
 
-    // TODO(round-2d): record which known-but-unhandled keys
-    // (`tasks`, `mcp`, `context`, `include`, `inputs`, `logging`,
-    // `orchestrate`, `routing`, `schedule`, `max_duration_secs`)
-    // were present so the Round 3 analyzer can surface a precise
-    // "deferred field" diagnostic instead of blindly treating
-    // `tasks: []` as "no tasks were declared".
+    workflow.tasks = tasks::parse_tasks(mapping, file_id, &char_to_byte)?;
+
+    // TODO(round-2e): record which known-but-unhandled keys (`mcp`,
+    // `context`, `include`, `inputs`, `logging`, `orchestrate`,
+    // `routing`, `schedule`, `max_duration_secs`) were present so
+    // the Round 3 analyzer can surface a precise "deferred field"
+    // diagnostic instead of treating them as absent.
 
     Ok(workflow)
 }
@@ -89,7 +102,7 @@ pub fn parse(yaml: &str, file_id: FileId) -> Result<RawWorkflow, SchemaError> {
 /// `marked-yaml` 0.8 reports positions as character indices; our
 /// [`ByteOffset`] and miette's `SourceSpan` want byte offsets. ASCII
 /// inputs are the hot path, so the constructor short-circuits.
-struct CharToByte {
+pub(super) struct CharToByte {
     /// `byte_at[char_idx]` is the UTF-8 byte offset. Contains
     /// `source.len()` as its final sentinel so end-of-file positions
     /// resolve without panicking.
@@ -97,7 +110,7 @@ struct CharToByte {
 }
 
 impl CharToByte {
-    fn new(source: &str) -> Result<Self, SchemaError> {
+    pub(super) fn new(source: &str) -> Result<Self, SchemaError> {
         // Guard against pathological inputs that would overflow u32.
         // 4 GB of YAML is not a workflow, it's a denial-of-service
         // attempt — fail loud rather than silently clamp.
@@ -127,7 +140,7 @@ impl CharToByte {
     /// Translate a character index into a byte offset, clamping to
     /// end-of-file when the char index is out of range (which
     /// marked-yaml may report for synthetic end markers).
-    fn byte(&self, char_idx: usize) -> u32 {
+    pub(super) fn byte(&self, char_idx: usize) -> u32 {
         if self.byte_at.is_empty() {
             // ASCII fast path — char index IS the byte offset.
             return u32::try_from(char_idx).unwrap_or(u32::MAX);
@@ -142,7 +155,7 @@ impl CharToByte {
 /// Returns `Ok(None)` if the key is absent. Returns a
 /// [`SchemaError::Validation`] if the key exists but the value is a
 /// mapping or a sequence.
-fn extract_scalar(
+pub(super) fn extract_scalar(
     mapping: &marked_yaml::types::MarkedMappingNode,
     key: &str,
     file_id: FileId,
@@ -190,7 +203,11 @@ fn parse_schema_version(
 /// only `start` is available the span is zero-length (point). An
 /// entirely blank yaml span yields `None`. Character indices from
 /// marked-yaml are translated to byte offsets via `char_to_byte`.
-fn yaml_span_to_span(file_id: FileId, span: &YamlSpan, char_to_byte: &CharToByte) -> Option<Span> {
+pub(super) fn yaml_span_to_span(
+    file_id: FileId,
+    span: &YamlSpan,
+    char_to_byte: &CharToByte,
+) -> Option<Span> {
     let start = span.start()?;
     let start_off = char_to_byte.byte(start.character());
     let end_off = span
@@ -361,21 +378,25 @@ schema: v1
 
     #[test]
     fn parse_ignores_unhandled_fields_for_now() {
-        // Round 2c only handles six top-level scalars. Future-round
-        // fields (tasks, mcp, context, include, inputs, logging,
-        // orchestrate, routing, schedule, max_duration_secs) must
-        // not error yet — incremental scaffolding.
+        // Round 2c handled the six top-level scalars; Round 2d
+        // wires `tasks:`. Remaining future-round fields (`mcp`,
+        // `context`, `include`, `inputs`, `logging`, `orchestrate`,
+        // `routing`, `schedule`, `max_duration_secs`) must still not
+        // error — lenient-by-default incremental scaffolding.
         let yaml = "\
 name: partial
-tasks:
-  - name: t1
-    action: infer
 context:
   window: 2048
+logging:
+  level: info
+include:
+  - shared.yaml
 ";
         let wf = parse(yaml, fid()).expect("parse");
         assert_eq!(wf.name.unwrap().value, "partial");
-        assert!(wf.tasks.is_empty()); // parser skeleton hasn't wired tasks yet
+        assert!(wf.context.is_none());
+        assert!(wf.logging.is_none());
+        assert!(wf.include.is_empty());
     }
 
     #[test]
