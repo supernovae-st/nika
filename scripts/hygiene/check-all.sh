@@ -95,6 +95,10 @@ run_check "22 no-async-in-l0      " "check-no-async-in-l0.sh"
 run_check "23 status-claims-sync   " "check-status-claims-sync.sh"
 run_check "24 crate-size-15k       " "check-crate-size.sh"
 run_check "25 l0-dep-fanout        " "check-l0-dep-fanout.sh"
+run_check "26 kernel-no-spawn     " "check-kernel-no-spawn.sh"
+run_check "27 box-dyn-error-ban   " "check-box-dyn-error.sh"
+run_check "28 doc-private-items   " "check-doc-private-items.sh"
+run_check "29 case-collisions     " "check-case-collisions.sh"
 
 # --- Output ---
 g=0
