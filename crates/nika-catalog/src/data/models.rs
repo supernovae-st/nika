@@ -973,14 +973,15 @@ mod provenance_tests {
             "deepseek-reasoner: json_object only"
         );
 
-        // [13] xai-grok4 — reasoning, no temperature, no stop, no tokenizer.
+        // [13] xai-grok4 — reasoning, no temperature, no stop, grok tokenizer.
         let grok4 = model_capabilities("xai", "grok-4");
         assert!(grok4.reasoning, "grok-4: reasoning=true");
         assert!(!grok4.supports_temperature, "grok-4: no temperature");
         assert!(!grok4.supports_stop_sequences, "grok-4: no stop");
         assert_eq!(
-            grok4.tokenizer, None,
-            "grok-4: no enum variant (custom SentencePiece)"
+            grok4.tokenizer,
+            Some(TokenizerFamily::Grok),
+            "grok-4: Grok tokenizer (Session 4b — was None)"
         );
 
         // [14] xai-grok3-mini — P0 FIX (reasoning model).
