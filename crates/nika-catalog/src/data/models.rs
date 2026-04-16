@@ -365,6 +365,26 @@ mod tests {
     }
 
     #[test]
+    fn estimate_cost_zero_tokens_returns_zero_usd() {
+        let est = estimate_cost("gpt-4o", 0, 0).expect("known model should return Some");
+        assert!(
+            est.usd.abs() < f64::EPSILON,
+            "zero tokens must produce zero cost, got {}",
+            est.usd,
+        );
+        assert_eq!(est.provider, "OpenAI");
+        assert_eq!(est.model, "gpt-4o");
+    }
+
+    #[test]
+    fn estimate_cost_nonexistent_model_returns_none() {
+        assert!(
+            estimate_cost("nonexistent-model-xyz", 100, 50).is_none(),
+            "unknown model must return None",
+        );
+    }
+
+    #[test]
     fn gpt4p1_variants_differentiated() {
         let nano = find_pricing("gpt-4.1-nano").unwrap();
         let mini = find_pricing("gpt-4.1-mini").unwrap();

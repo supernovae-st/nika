@@ -604,25 +604,52 @@ mod tests {
     }
 
     #[test]
-    fn merge_with_covers_new_session_2b_fields() {
+    fn merge_with_covers_all_patch_fields() {
         // Regression guard: if a future author forgets to add a field to
         // the merge_field! invocation, this test catches it.
+        // Extended from session-2b to cover all 12 CapPatch fields.
         const IMG: &[Modality] = &[Modality::Text, Modality::Image];
         const PARAMS: &[ParamFlag] = &[ParamFlag::PromptCaching];
         let base = CapPatch::default();
         let patch = CapPatch {
+            // Session 2a fields
+            token_limit_param: Some(TokenLimitParam::MaxCompletionTokens),
+            supports_temperature: Some(false),
+            supports_stop_sequences: Some(false),
+            reasoning: Some(true),
+            // Session 2b fields
             input_modalities: Some(IMG),
             output_modalities: Some(&[Modality::Text]),
             tokenizer: Some(TokenizerFamily::O200k),
             supported_parameters: Some(PARAMS),
             supports_system_messages: Some(false),
-            ..CapPatch::default()
+            // Session 4a fields
+            context_window_tokens: Some(128_000),
+            max_output_tokens: Some(32_768),
+            json_mode: Some(JsonMode::Schema),
         };
         let merged = base.merge_with(patch);
+        // Session 2a
+        assert_eq!(
+            merged.token_limit_param,
+            Some(TokenLimitParam::MaxCompletionTokens),
+        );
+        assert_eq!(merged.supports_temperature, Some(false));
+        assert_eq!(merged.supports_stop_sequences, Some(false));
+        assert_eq!(merged.reasoning, Some(true));
+        // Session 2b
         assert_eq!(merged.input_modalities, Some(IMG));
+        assert_eq!(
+            merged.output_modalities,
+            Some(&[Modality::Text] as &[Modality]),
+        );
         assert_eq!(merged.tokenizer, Some(TokenizerFamily::O200k));
         assert_eq!(merged.supported_parameters, Some(PARAMS));
         assert_eq!(merged.supports_system_messages, Some(false));
+        // Session 4a
+        assert_eq!(merged.context_window_tokens, Some(128_000));
+        assert_eq!(merged.max_output_tokens, Some(32_768));
+        assert_eq!(merged.json_mode, Some(JsonMode::Schema));
     }
 
     #[test]
