@@ -69,7 +69,7 @@ run_check() {
   fi
 }
 
-# --- All 22 vectors ---
+# --- All 23 vectors ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"
@@ -92,6 +92,7 @@ run_check "19 adr-orphan-proposed  " "check-adr-orphan-proposed.sh"
 run_check "20 adr-evidence-paths   " "check-adr-evidence.sh"
 run_check "21 layer-discipline     " "check-layering.sh"
 run_check "22 no-async-in-l0      " "check-no-async-in-l0.sh"
+run_check "23 status-claims-sync   " "check-status-claims-sync.sh"
 
 # --- Output ---
 g=0

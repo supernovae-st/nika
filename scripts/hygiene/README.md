@@ -48,6 +48,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 20 | `check-adr-evidence.sh` | File path in Evidence section no longer exists |
 | 21 | `check-layering.sh` | Diamond layer discipline — wrapper around `scripts/ci/check-layering.sh` (cross-layer upward deps) |
 | 22 | `check-no-async-in-l0.sh` | L0 crates with `async fn`, `.await`, tokio/futures/async-trait imports (Q1 lock 2026-04-16) |
+| 23 | `check-status-claims-sync.sh` | Whitelisted status docs (ROADMAP, CLAUDE) embed canonical `refresh-status.sh` block verbatim (structural fields) |
 
 ## Adding a new vector
 
