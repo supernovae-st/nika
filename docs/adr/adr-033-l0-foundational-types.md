@@ -25,6 +25,7 @@ follow_ups:
   - "Replace InferResponse.cost_usd: Option<f64> with Cost(i128) (DONE Wave 3 — cost: Option<Cost> added, #[deprecated] on cost_usd, removal in v0.85)"
   - "Extend cost deprecation to AgentOutcome + AgentCheckpoint (DONE Wave 3)"
   - "Wire TrustLevel into Shield (NIKA-380..389) when verb-* crates ship"
+  - "UUIDv7 MemoryId embeds a millisecond creation timestamp: accepted disclosure at the kernel layer (sort-order for pagination wins over opacity). Shield + Cortex wrappers MUST blind the ID on any cross-trust-boundary surface where memory creation time could correlate with external events — ADR follow-up when nika-memory ships."
 ---
 
 # ADR-033: L0 foundational types: Cost, UUIDv7, TrustLevel, TokenUsage evolution

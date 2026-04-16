@@ -62,9 +62,17 @@ pub enum WasmPluginError {
     },
 
     /// Plugin execution failed.
+    ///
+    /// **SECURITY**: `reason` is a host-internal diagnostic. Hosts MUST
+    /// NOT propagate this string to the WASM guest (trap message, return
+    /// value, or any guest-visible surface) — it can carry allowlist
+    /// paths, backend names, or other host internals. Guest-visible
+    /// failure signalling should be structured (see `DenialKind` for the
+    /// sandbox-side pattern). Future work: split into
+    /// `Trap`/`OutOfMemory`/`HostError` variants per ADR-020 addendum.
     #[error("wasm plugin execution failed: {reason}")]
     ExecutionFailed {
-        /// What went wrong.
+        /// Host-internal failure description. Never forward to guest.
         reason: String,
     },
 

@@ -122,6 +122,14 @@ pub const NIKA_003: NikaCode = NikaCode {
     slug: "unsupported",
 };
 
+/// NIKA-600: Memory subsystem error (range placeholder 600-649).
+pub const NIKA_600: NikaCode = NikaCode {
+    num: 600,
+    category: Category::Memory,
+    severity: Severity::Error,
+    slug: "memory",
+};
+
 /// NIKA-700: WASM plugin error (range placeholder 700-749).
 pub const NIKA_700: NikaCode = NikaCode {
     num: 700,
@@ -156,7 +164,7 @@ pub const NIKA_999: NikaCode = NikaCode {
 
 /// All registered codes. Used for uniqueness validation and iteration.
 pub const ALL: &[NikaCode] = &[
-    NIKA_001, NIKA_002, NIKA_003, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
+    NIKA_001, NIKA_002, NIKA_003, NIKA_600, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -169,9 +177,14 @@ pub fn code_help(code: NikaCode) -> &'static str {
         1 => "Check your workflow YAML syntax and field values.",
         2 => "Referenced item not found in catalogs or task outputs.",
         3 => "Feature not supported in current configuration.",
-        700 => "WASM plugin host reported an error. Check plugin manifest and capability grants.",
-        750 => "Sandbox denied or failed. Verify capability allowlist and platform support.",
-        800 => "Observability sink rejected the event. Check exporter configuration.",
+        600..=649 => {
+            "Memory subsystem reported an error. Check store availability, embedding provider, and tenant quotas."
+        }
+        700..=749 => {
+            "WASM plugin host reported an error. Check plugin manifest and capability grants."
+        }
+        750..=799 => "Sandbox denied or failed. Verify capability allowlist and platform support.",
+        800..=819 => "Observability sink rejected the event. Check exporter configuration.",
         999 => "Internal error. Please report at github.com/supernovae-st/nika/issues",
         _ => "Unknown error code. Check documentation for details.",
     }

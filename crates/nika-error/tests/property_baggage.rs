@@ -41,9 +41,10 @@ proptest! {
     ) {
         let mut b = Baggage::new();
         if b.insert(key.clone(), value.clone()) {
-            let entry = b.get(&key);
-            prop_assert!(entry.is_some());
-            prop_assert_eq!(&entry.unwrap().value, &value);
+            // prop_assert_eq! on Option<&String> avoids .unwrap() inside
+            // proptest! — a raw unwrap panics on None, causing a DidNotShrink
+            // failure instead of a proper property diagnostic.
+            prop_assert_eq!(b.get(&key).map(|e| e.value.clone()), Some(value));
         }
     }
 }

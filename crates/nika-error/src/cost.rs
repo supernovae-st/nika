@@ -103,6 +103,20 @@ impl Cost {
             .checked_sub(rhs.nano_usd)
             .map(|nano_usd| Self { nano_usd })
     }
+
+    /// Lossy conversion to `f64` USD for bridging the `cost_usd` deprecation
+    /// window (v0.81 → v0.85). Producers that set [`Self`] should also call
+    /// this to populate the legacy `cost_usd` field so mixed-reader
+    /// deployments don't silently record zero-cost inferences.
+    ///
+    /// Precision: f64 rounds at ~15 significant decimal digits, so the
+    /// round-trip `Cost → f64 → Cost` is lossy below ~15 USD for deeply
+    /// sub-cent values. Always prefer reading `Cost` directly for billing.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn to_usd_f64(self) -> f64 {
+        (self.nano_usd as f64) / 1e9
+    }
 }
 
 /// `+` follows stdlib `i128` semantics (panic in debug, wrap in release).
@@ -243,6 +257,24 @@ mod tests {
         let a = Cost::from_micro_usd(300);
         let b = Cost::from_micro_usd(100);
         assert_eq!(a.checked_sub(b), Some(Cost::from_micro_usd(200)));
+    }
+
+    #[test]
+    fn to_usd_f64_roundtrips_near_cent_scale() {
+        let c = Cost::from_micro_usd(1_500_000); // $1.50
+        let f = c.to_usd_f64();
+        assert!((f - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn to_usd_f64_handles_negative() {
+        let c = Cost::new(-500_000_000); // -$0.50
+        assert!((c.to_usd_f64() + 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn to_usd_f64_zero() {
+        assert!(Cost::zero().to_usd_f64().abs() < f64::EPSILON);
     }
 
     #[test]
