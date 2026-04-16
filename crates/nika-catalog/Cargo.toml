@@ -56,10 +56,15 @@ serde       = { workspace = true, features = ["derive"] }
 unicase     = { workspace = true }
 
 [dev-dependencies]
+criterion  = { workspace = true }
 insta      = { workspace = true }
 proptest   = { workspace = true }
 rstest     = { workspace = true }
 serde_json = { workspace = true }
+
+[[bench]]
+name = "catalog"
+harness = false
 
 [lints]
 workspace = true
@@ -68,4 +73,4 @@ workspace = true
 # `phf::Map<...>`). cargo-machete cannot trace through build-codegen, so
 # explicit ignore prevents a false positive.
 [package.metadata.cargo-machete]
-ignored = ["phf", "phf_codegen", "phf_shared", "toml", "proptest", "rstest"]
+ignored = ["phf", "phf_codegen", "phf_shared", "toml", "proptest", "rstest", "criterion"]

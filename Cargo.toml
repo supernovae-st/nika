@@ -99,6 +99,7 @@ uuid     = { version = "1", features = ["v7", "serde"] }   # ADR-033 UUIDv7 IDs 
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
 # Dev / test deps
+criterion   = { version = "0.5", features = ["html_reports"] }
 proptest    = "1.6"
 insta       = { version = "1.42", features = ["yaml"] }
 rstest      = "0.22"
