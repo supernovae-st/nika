@@ -15,7 +15,8 @@ nika-catalog = { path = "../nika-catalog", version = "0.80.0" }
 
 thiserror  = { workspace = true }
 serde      = { workspace = true }
-serde_yaml = { workspace = true }
+marked-yaml  = { workspace = true }
+serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 miette     = { workspace = true }
 
@@ -26,7 +27,7 @@ rstest     = { workspace = true }
 serde_json = { workspace = true }
 
 [package.metadata.cargo-machete]
-ignored = ["insta", "proptest", "rstest", "nika-catalog", "serde_yaml", "serde_json"]  # dev-deps + Round 2+ deps (parser, analyzer, json_schema)
+ignored = ["insta", "proptest", "rstest", "nika-catalog", "marked-yaml", "serde-saphyr", "serde_json"]  # dev-deps + Round 2+ deps (parser, analyzer, json_schema)
 
 [lints]
 workspace = true

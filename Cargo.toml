@@ -82,7 +82,8 @@ thiserror  = "2.0"
 miette     = "7.6"
 serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.9"
+marked-yaml  = "0.8"
+serde-saphyr = { version = "0.0.23", features = ["miette"] }
 phf        = { version = "0.13", features = ["macros", "unicase"] }
 unicase    = "2.9"
 
