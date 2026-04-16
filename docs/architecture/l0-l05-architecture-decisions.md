@@ -31,6 +31,9 @@ designed to avoid breaking changes as the workspace scales to 40-42 crates.
 | Q8  | ~~nika-transform = module in binding~~ → **REVERTED to L0 crate** (2nd consumer found in `nika-builtin`) | LOCKED rev.2 |
 | Q9  | `Timestamp` + `WallDuration` = module in `nika-types`     | LOCKED rev.2 |
 | Q10 | Canonical-JSON (RFC 8785) = module in `nika-types`        | LOCKED rev.2 |
+| Q11 | Token-streaming cardinality policy (delta-batching, not 1-event-per-token) | LOCKED rev.3 |
+| Q12 | Drop `ObservabilitySink` (5 → 4 channels) + add `AuditSink` (compliance) | LOCKED rev.3 |
+| Q13 | Bridge OTel GenAI semconv via typed `GenAiAttrs` on Infer{Request,Response} | LOCKED rev.3 |
 
 ---
 
@@ -476,6 +479,164 @@ later non-breaking addition.
 
 ---
 
+## Decision Q11 — Token-streaming cardinality policy (rev.3)
+
+**Research:** spn-rust:rust-pro telemetry SOTA audit.
+
+**Problem.** TOPIC_5 enumerates `StreamContentBlockDelta` as one of the 647
+event types. Naively emitting **one event per streamed token** generates 50k–200k
+events for a single long completion (Anthropic extended-thinking, OpenAI o3
+reasoning streams already exceed 100k tokens in production). At ingest cost
+~1 µs/event + storage ~200 B/event, that is ~50 ms ingest overhead and ~20 MB
+of event payload **per request** — a cardinality blow-up that no telemetry
+backend (Honeycomb, Datadog, Langfuse, OTLP) accepts unsampled.
+
+**Decision.** Token-streaming events are **delta-batched** before reaching
+`EventSink`. The batching contract:
+
+| Trigger | Threshold | Behaviour |
+|---|---|---|
+| Time | `≥ 100 ms` since last flush | Emit accumulated batch as one `StreamBatchFlushed` event |
+| Size | `≥ 32 KiB` accumulated | Flush early to bound memory |
+| Boundary | `tool_call_start`, `content_block_end`, `usage_reported`, `finish_reason` | Flush before emitting the boundary event |
+| Cancellation | `Cancel` signal received | Flush + emit `StreamCancelled` |
+
+**Wire format** (Q6 dot-notation):
+
+```text
+"kind": "infer.stream.batch_flushed"
+"data": {
+  "delta_count": 47,
+  "byte_count": 8192,
+  "first_seq": 1023,
+  "last_seq": 1069,
+  "flush_reason": "time_window"   // | "size_cap" | "boundary" | "cancellation"
+}
+```
+
+The individual deltas remain available via the kernel `InferEventStream`
+(ADR-017 transport) for consumers needing per-token UX (live typing); they are
+just **not enumerated as separate `EventKind` variants** in the audit log.
+
+**Why not 1-event-per-token.** Honeycomb's high-cardinality columnar store can
+ingest it; SQLite WAL Tier 1 (Q4 store) cannot. Langfuse + Logfire would charge
+per event. OTel GenAI semconv (Apr 2026 development draft) explicitly recommends
+batching streaming deltas at the SDK level.
+
+**Forward-compat.** `flush_reason` is `#[non_exhaustive]`; new triggers (e.g.
+`backpressure`, `quota_exhausted`) are additive.
+
+**Trigger to revisit.** If a user requires per-token forensics (ex.
+prompt-injection replay), expose a `forensics_mode: bool` on `InferRequest` that
+disables batching for that single call only.
+
+---
+
+## Decision Q12 — Drop `ObservabilitySink`, add `AuditSink` (rev.3)
+
+**Research:** spn-rust:rust-pro telemetry SOTA audit.
+
+**Problem A — over-engineering.** The kernel currently exposes 5 observability
+channels: `EventSink`, `BillingSink`, `MetricsExporter`, `TracerProvider`,
+`ObservabilitySink`. The fifth (`ObservabilitySink`) is documented as a v0.95
+merge-then-v0.100-resplit of Metrics+Trace — three overlapping traits.
+OpenTelemetry uses 3 signals (logs/metrics/traces). Nika should not exceed 4.
+
+**Problem B — compliance gap.** Shield (capability override, taint violation,
+canary leak) and budget-exhaustion events have **never-sample + tamper-evident
+append-only** semantics. Neither `EventSink` (may sample) nor `BillingSink`
+(cost-typed) fits. This is a Nika-unique surface vs OTel and is currently
+missing.
+
+**Decision.**
+
+1. **Drop `ObservabilitySink`** before any L1+ admission consumes it. Its
+   intended Metrics+Trace merge use-case is already covered by adapters at the
+   exporter layer (e.g. an OTLP exporter consumes both `MetricsExporter` and
+   `TracerProvider` and merges client-side).
+
+2. **Add `AuditSink`** L0.5 sealed trait:
+
+   ```rust
+   #[trait_variant::make(AuditSinkDyn: Send)]
+   pub trait AuditSink: Send + Sync + sealed::Sealed {
+       /// Append-only, never-sampled, must succeed or kill the run.
+       /// Implementers MUST persist before returning Ok.
+       async fn audit(&self, record: AuditRecord) -> Result<(), AuditSinkError>;
+   }
+   ```
+
+   `AuditRecord` carries `#[non_exhaustive]` typed variants:
+   `CapabilityOverride`, `TaintViolation`, `CanaryLeak`, `BudgetExhausted`,
+   `PolicyDenied`, `KeyUsed`, `SecretRedacted`, `Extension { ns, name, payload }`.
+
+3. **Channel count: 4 + 1 = 5 logical**, but the topology is clean:
+
+   | Channel | Sampling | Loss tolerance | Wire |
+   |---|---|---|---|
+   | EventSink | sampled OK | best-effort | OTel logs |
+   | MetricsExporter | aggregated | best-effort | OTel metrics |
+   | TracerProvider | tail-sampled | best-effort | OTel traces |
+   | BillingSink | never sample | persist-or-fail | TOML/Parquet |
+   | **AuditSink** | **never sample** | **persist-or-fail** | **append-only log + Merkle anchor** |
+
+**Forward-compat.** `AuditRecord` is `#[non_exhaustive]`. New audit variants
+(GDPR right-to-erasure, EU AI Act incident report) land additively.
+
+**Why this is unique.** OpenTelemetry has no first-class compliance signal.
+Honeycomb stores audit as regular events (sampled). Langfuse has scores but
+not append-only audit. Datadog APM has a separate audit-trails product.
+Nika is the first AI engine to bake compliance into the kernel trait surface.
+
+---
+
+## Decision Q13 — OTel GenAI semconv bridge (`GenAiAttrs` on Infer{Request,Response}, rev.3)
+
+**Research:** spn-rust:rust-pro telemetry SOTA audit.
+
+**Problem.** OTel GenAI semconv defines ~30 `gen_ai.*` attributes
+(`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`,
+`gen_ai.response.finish_reasons`, etc.). Today, kernel `InferRequest` and
+`InferResponse` carry the underlying values but in **untyped form** — no
+exporter can map them without re-inventing the bridge.
+
+**Decision.** Add a typed module `nika-kernel::genai::GenAiAttrs` with the
+~20 stable semconv fields, and embed it as `pub gen_ai: GenAiAttrs` on both
+`InferRequest` and `InferResponse` (`#[non_exhaustive]`, `Default` impl,
+populated by the kernel's `Provider` trait impl).
+
+**Mapping table (semconv → Nika field):**
+
+| OTel attribute | Nika field |
+|---|---|
+| `gen_ai.system` | `GenAiAttrs::system: GenAiSystem` enum (Anthropic/OpenAI/etc.) |
+| `gen_ai.request.model` | `GenAiAttrs::request_model: ModelId` |
+| `gen_ai.request.max_tokens` | `InferRequest::max_tokens` (already present) |
+| `gen_ai.request.temperature` | `InferRequest::temperature` (already present) |
+| `gen_ai.response.id` | `GenAiAttrs::response_id: Option<String>` |
+| `gen_ai.response.model` | `GenAiAttrs::response_model: Option<ModelId>` |
+| `gen_ai.response.finish_reasons` | `InferResponse::finish_reason` (already present, vec at semconv) |
+| `gen_ai.usage.input_tokens` | `TokenUsage::input` |
+| `gen_ai.usage.output_tokens` | `TokenUsage::output` |
+| `gen_ai.usage.cached_input_tokens` | `TokenUsage::cached_input` (added rev.3) |
+| `gen_ai.usage.reasoning_tokens` | `TokenUsage::reasoning` (added rev.3) |
+| `gen_ai.tool.name` | per `ToolCall::name` |
+
+**Why typed, not free-form attributes.** Honeycomb-style freeform tags work
+but break the cross-provider parity gate (Pre-launch Gate 2). A typed bridge
+enforces every provider populates the same fields, no silent drops.
+
+**Forward-compat.** `GenAiAttrs` is `#[non_exhaustive]`. The OTel GenAI
+semconv is still in **Development** status (Apr 2026); fields can change.
+`Default` + `pub fn new()` constructors absorb additions without breaking
+struct-literal callers.
+
+**Trigger to revisit.** When OTel GenAI semconv reaches Stable (~2026-Q4
+expected), re-validate Nika's mapping and pin the fields that semconv has
+frozen.
+
+---
+
 ## Reopen triggers (consolidated)
 
 Decisions are LOCKED, but each has a **named, observable** trigger that re-opens it.
@@ -494,8 +655,11 @@ Triggers must appear in **CODE**, never in speculation (Q2 rule).
 | Q8 (nika-transform crate) | n/a — extraction irreversible once builtin-* ships | — |
 | Q9 (timestamp module) | v0.95 scheduling verb requires IANA tz-data | Extract `nika-time` crate, keep `Timestamp` newtype in nika-types |
 | Q10 (canonical-JSON) | Non-`nika-types` consumer needs canonical-JSON without nika-types | Extract `nika-canonical` crate (unlikely) |
+| Q11 (token-batching) | User needs per-token forensics (prompt-injection replay) | Add `forensics_mode: bool` on InferRequest (per-call opt-out of batching) |
+| Q12 (drop ObservabilitySink + add AuditSink) | Real Metrics+Trace merge consumer appears (unlikely) | Add adapter at exporter layer, not in kernel |
+| Q13 (GenAiAttrs) | OTel GenAI semconv reaches Stable (~2026-Q4) | Pin frozen fields, mark non-stable as `unstable_` prefix |
 | Kernel split | nika-kernel > 10k LOC OR > 50 traits | Split into kernel-{core,ai,runtime,plugin} |
 
 ---
 
-LOCKED 2026-04-16 — Q1-Q8 resolved in brainstorm session, Q8 reverted + Q9-Q10 added by post-decision swarm audit (architect + rust-pro + explorer). See `git log docs/architecture/l0-l05-architecture-decisions.md` for per-Q rationale.
+LOCKED 2026-04-16 — Q1-Q8 resolved in brainstorm session, Q8 reverted + Q9-Q10 added by swarm-2 audit (architect + rust-pro + explorer), Q11-Q13 added by swarm-3 SOTA telemetry audit (architect + rust-pro + web-researcher). See `git log docs/architecture/l0-l05-architecture-decisions.md` for per-Q rationale and ADR-028 for the seams-now-crates-later policy.

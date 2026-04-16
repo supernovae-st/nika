@@ -148,15 +148,16 @@ flags. They obey the same 12-gate admission as any other crate.
 - **v0.100 WASM** plugin host + sandbox: L3 crates alongside `nika-runtime`.
   No renumber needed — L3 is "runtime + policy + sandbox" by design.
 
-### Axis vocabulary
+### Axis vocabulary (12 axes — extended swarm-3 audit 2026-04-16)
 
 Every L1 crate declares the capabilities it exercises in
-`docs/architecture/security-axes.toml` (landing v0.81). The vocabulary:
+`docs/architecture/security-axes.toml` (landing v0.81). Reserving an axis
+costs nothing today and forbids its silent later use. Vocabulary:
 
 | Axis | Meaning |
 |---|---|
 | `reads-env` | Reads process environment variables |
-| `reads-fs` | Reads filesystem |
+| `reads-fs` | Reads filesystem (read-only) |
 | `rw-fs` | Reads and writes filesystem |
 | `exec-shell` | Spawns subprocesses |
 | `net-egress` | Initiates outbound network connections |
@@ -164,9 +165,14 @@ Every L1 crate declares the capabilities it exercises in
 | `spawns-thread` | Uses `std::thread::spawn` or `tokio::task::spawn_blocking` outside the runtime pool |
 | `mutates-global` | Mutates process-global state (env, CWD, signals) |
 | `panics-allowed` | Explicit opt-out from zero-panic discipline (rare — test helpers only) |
+| `reads-secrets` | Reads `Secret<T>` / `SecretRef` material (KeyProvider, Keychain, env-token) |
+| `time-mutation` | Manipulates wall-clock or monotonic clock for tests (`MockClock`, `tokio::time::pause`) |
+| `allocator-sensitive` | Imposes allocator constraints (`bumpalo`, custom `GlobalAlloc`, `no_std` arenas) — pre-flight for v0.100 WASM |
+| `thread-local-state` | Uses `thread_local!` or static `RefCell` (incompatible with thread-pool migration / WASM) |
 
 A crate's declared axes are its capability budget. CI fails if a crate
-exercises an axis it did not declare.
+exercises an axis it did not declare. Adding an axis to the vocabulary is
+a non-breaking change; reclassifying an existing crate to a new axis is.
 
 ## Enforcement
 
