@@ -151,11 +151,32 @@ for filepath in "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md; do
     [ $valid -eq 0 ] && error "$fname: invalid layer '${layer}' (allowed: ${VALID_LAYERS})"
   done <<<"$(fm_array "affects_layers" "$fm")"
 
-  # Check crate name pattern
+  # Check crate name pattern. Three sentinel forms accepted in addition to nika-<name>:
+  #   - "all"        → workspace-wide ADR (e.g. ADR-023 file-modularity-discipline)
+  #   - "all-<L>"    → layer-scoped ADR for any L in VALID_LAYERS (e.g. "all-L0", "all-L0.5")
+  #   - "nika"       → the binary crate itself (e.g. ADR-025 release-plz semver)
+  # Sentinels preserve semantic intent without enumerating every workspace member
+  # (which would rot on every crate add).
   while IFS= read -r crate; do
     [ -z "$crate" ] && continue
+    [ "$crate" = "all" ] && continue
+    [ "$crate" = "nika" ] && continue
+    # all-<layer> sentinel: match against VALID_LAYERS
+    if printf '%s' "$crate" | grep -qE '^all-'; then
+      layer_part="${crate#all-}"
+      sentinel_valid=0
+      for l in $VALID_LAYERS; do
+        [ "$layer_part" = "$l" ] && sentinel_valid=1
+      done
+      if [ "$sentinel_valid" -eq 1 ]; then
+        continue
+      else
+        error "$fname: invalid layer sentinel '${crate}' (must be all-<L> with L in: ${VALID_LAYERS})"
+        continue
+      fi
+    fi
     if ! printf '%s' "$crate" | grep -qE '^nika-[a-z0-9-]+$'; then
-      error "$fname: invalid crate name '${crate}' (must match nika-<name>)"
+      error "$fname: invalid crate name '${crate}' (must match nika-<name>, or 'all'/'all-<L>'/'nika' sentinel)"
     fi
   done <<<"$(fm_array "affects_crates" "$fm")"
 
