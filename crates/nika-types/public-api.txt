@@ -2756,6 +2756,60 @@ pub unsafe fn nika_types::id::TenantId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::TenantId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::prelude::Timestamp
+pub nika_types::prelude::Timestamp::unix_ns: i64
+impl nika_types::timestamp::Timestamp
+pub const nika_types::timestamp::Timestamp::EPOCH: Self
+pub const fn nika_types::timestamp::Timestamp::from_unix_ms(unix_ms: u64) -> Self
+pub const fn nika_types::timestamp::Timestamp::from_unix_ns(unix_ns: i64) -> Self
+pub const fn nika_types::timestamp::Timestamp::unix_ms(self) -> i64
+pub const fn nika_types::timestamp::Timestamp::unix_us(self) -> i64
+impl core::clone::Clone for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::clone(&self) -> nika_types::timestamp::Timestamp
+impl core::cmp::Eq for nika_types::timestamp::Timestamp
+impl core::cmp::Ord for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::cmp(&self, other: &nika_types::timestamp::Timestamp) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::eq(&self, other: &nika_types::timestamp::Timestamp) -> bool
+impl core::cmp::PartialOrd for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::partial_cmp(&self, other: &nika_types::timestamp::Timestamp) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::timestamp::Timestamp
+impl core::marker::StructuralPartialEq for nika_types::timestamp::Timestamp
+impl serde_core::ser::Serialize for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::timestamp::Timestamp where U: core::convert::From<T>
+pub fn nika_types::timestamp::Timestamp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::timestamp::Timestamp where U: core::convert::Into<T>
+pub type nika_types::timestamp::Timestamp::Error = core::convert::Infallible
+pub fn nika_types::timestamp::Timestamp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::timestamp::Timestamp where U: core::convert::TryFrom<T>
+pub type nika_types::timestamp::Timestamp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::timestamp::Timestamp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::timestamp::Timestamp where T: core::clone::Clone
+pub type nika_types::timestamp::Timestamp::Owned = T
+pub fn nika_types::timestamp::Timestamp::clone_into(&self, target: &mut T)
+pub fn nika_types::timestamp::Timestamp::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::timestamp::Timestamp where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::timestamp::Timestamp where T: 'static + ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::timestamp::Timestamp where T: ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::timestamp::Timestamp where T: ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::timestamp::Timestamp where T: core::clone::Clone
+pub unsafe fn nika_types::timestamp::Timestamp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::timestamp::Timestamp where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::prelude::TokenUsage
 pub nika_types::prelude::TokenUsage::accepted_prediction_tokens: core::option::Option<u64>
 pub nika_types::prelude::TokenUsage::audio_input_tokens: core::option::Option<u64>
@@ -3013,6 +3067,64 @@ pub unsafe fn nika_types::trust::TrustLevel::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::trust::TrustLevel where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::prelude::WallDuration
+pub nika_types::prelude::WallDuration::nanos: i64
+impl nika_types::timestamp::WallDuration
+pub const nika_types::timestamp::WallDuration::ZERO: Self
+pub const fn nika_types::timestamp::WallDuration::as_micros(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_millis(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_nanos(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_secs(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::from_micros(micros: u64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_millis(millis: u64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_nanos(nanos: i64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_secs(secs: u64) -> Self
+impl core::clone::Clone for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::clone(&self) -> nika_types::timestamp::WallDuration
+impl core::cmp::Eq for nika_types::timestamp::WallDuration
+impl core::cmp::Ord for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::cmp(&self, other: &nika_types::timestamp::WallDuration) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::eq(&self, other: &nika_types::timestamp::WallDuration) -> bool
+impl core::cmp::PartialOrd for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::partial_cmp(&self, other: &nika_types::timestamp::WallDuration) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::timestamp::WallDuration
+impl core::marker::StructuralPartialEq for nika_types::timestamp::WallDuration
+impl serde_core::ser::Serialize for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::timestamp::WallDuration where U: core::convert::From<T>
+pub fn nika_types::timestamp::WallDuration::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::timestamp::WallDuration where U: core::convert::Into<T>
+pub type nika_types::timestamp::WallDuration::Error = core::convert::Infallible
+pub fn nika_types::timestamp::WallDuration::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::timestamp::WallDuration where U: core::convert::TryFrom<T>
+pub type nika_types::timestamp::WallDuration::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::timestamp::WallDuration::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::timestamp::WallDuration where T: core::clone::Clone
+pub type nika_types::timestamp::WallDuration::Owned = T
+pub fn nika_types::timestamp::WallDuration::clone_into(&self, target: &mut T)
+pub fn nika_types::timestamp::WallDuration::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::timestamp::WallDuration where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::timestamp::WallDuration where T: 'static + ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::timestamp::WallDuration where T: ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::timestamp::WallDuration where T: ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::timestamp::WallDuration where T: core::clone::Clone
+pub unsafe fn nika_types::timestamp::WallDuration::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::timestamp::WallDuration where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::prelude::WorkflowId
 impl nika_types::id::WorkflowId
 pub fn nika_types::id::WorkflowId::as_str(&self) -> &str
@@ -3423,6 +3535,122 @@ pub unsafe fn nika_types::schema::TraceFormatVersion::clone_to_uninit(&self, des
 impl<T> core::convert::From<T> for nika_types::schema::TraceFormatVersion
 pub fn nika_types::schema::TraceFormatVersion::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::schema::TraceFormatVersion where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::timestamp
+#[non_exhaustive] pub struct nika_types::timestamp::Timestamp
+pub nika_types::timestamp::Timestamp::unix_ns: i64
+impl nika_types::timestamp::Timestamp
+pub const nika_types::timestamp::Timestamp::EPOCH: Self
+pub const fn nika_types::timestamp::Timestamp::from_unix_ms(unix_ms: u64) -> Self
+pub const fn nika_types::timestamp::Timestamp::from_unix_ns(unix_ns: i64) -> Self
+pub const fn nika_types::timestamp::Timestamp::unix_ms(self) -> i64
+pub const fn nika_types::timestamp::Timestamp::unix_us(self) -> i64
+impl core::clone::Clone for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::clone(&self) -> nika_types::timestamp::Timestamp
+impl core::cmp::Eq for nika_types::timestamp::Timestamp
+impl core::cmp::Ord for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::cmp(&self, other: &nika_types::timestamp::Timestamp) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::eq(&self, other: &nika_types::timestamp::Timestamp) -> bool
+impl core::cmp::PartialOrd for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::partial_cmp(&self, other: &nika_types::timestamp::Timestamp) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::timestamp::Timestamp
+impl core::marker::StructuralPartialEq for nika_types::timestamp::Timestamp
+impl serde_core::ser::Serialize for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::timestamp::Timestamp where U: core::convert::From<T>
+pub fn nika_types::timestamp::Timestamp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::timestamp::Timestamp where U: core::convert::Into<T>
+pub type nika_types::timestamp::Timestamp::Error = core::convert::Infallible
+pub fn nika_types::timestamp::Timestamp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::timestamp::Timestamp where U: core::convert::TryFrom<T>
+pub type nika_types::timestamp::Timestamp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::timestamp::Timestamp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::timestamp::Timestamp where T: core::clone::Clone
+pub type nika_types::timestamp::Timestamp::Owned = T
+pub fn nika_types::timestamp::Timestamp::clone_into(&self, target: &mut T)
+pub fn nika_types::timestamp::Timestamp::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::timestamp::Timestamp where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::timestamp::Timestamp where T: 'static + ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::timestamp::Timestamp where T: ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::timestamp::Timestamp where T: ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::timestamp::Timestamp where T: core::clone::Clone
+pub unsafe fn nika_types::timestamp::Timestamp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::timestamp::Timestamp where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::timestamp::WallDuration
+pub nika_types::timestamp::WallDuration::nanos: i64
+impl nika_types::timestamp::WallDuration
+pub const nika_types::timestamp::WallDuration::ZERO: Self
+pub const fn nika_types::timestamp::WallDuration::as_micros(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_millis(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_nanos(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_secs(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::from_micros(micros: u64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_millis(millis: u64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_nanos(nanos: i64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_secs(secs: u64) -> Self
+impl core::clone::Clone for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::clone(&self) -> nika_types::timestamp::WallDuration
+impl core::cmp::Eq for nika_types::timestamp::WallDuration
+impl core::cmp::Ord for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::cmp(&self, other: &nika_types::timestamp::WallDuration) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::eq(&self, other: &nika_types::timestamp::WallDuration) -> bool
+impl core::cmp::PartialOrd for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::partial_cmp(&self, other: &nika_types::timestamp::WallDuration) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::timestamp::WallDuration
+impl core::marker::StructuralPartialEq for nika_types::timestamp::WallDuration
+impl serde_core::ser::Serialize for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::timestamp::WallDuration where U: core::convert::From<T>
+pub fn nika_types::timestamp::WallDuration::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::timestamp::WallDuration where U: core::convert::Into<T>
+pub type nika_types::timestamp::WallDuration::Error = core::convert::Infallible
+pub fn nika_types::timestamp::WallDuration::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::timestamp::WallDuration where U: core::convert::TryFrom<T>
+pub type nika_types::timestamp::WallDuration::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::timestamp::WallDuration::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::timestamp::WallDuration where T: core::clone::Clone
+pub type nika_types::timestamp::WallDuration::Owned = T
+pub fn nika_types::timestamp::WallDuration::clone_into(&self, target: &mut T)
+pub fn nika_types::timestamp::WallDuration::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::timestamp::WallDuration where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::timestamp::WallDuration where T: 'static + ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::timestamp::WallDuration where T: ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::timestamp::WallDuration where T: ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::timestamp::WallDuration where T: core::clone::Clone
+pub unsafe fn nika_types::timestamp::WallDuration::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::timestamp::WallDuration where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_types::timestamp::NS_PER_MS: i64
+pub const nika_types::timestamp::NS_PER_SEC: i64
+pub const nika_types::timestamp::NS_PER_US: i64
 pub mod nika_types::token_usage
 #[non_exhaustive] pub struct nika_types::token_usage::TokenUsage
 pub nika_types::token_usage::TokenUsage::accepted_prediction_tokens: core::option::Option<u64>
@@ -5021,6 +5249,60 @@ pub unsafe fn nika_types::id::TenantId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::id::TenantId
 pub fn nika_types::id::TenantId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::TenantId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::Timestamp
+pub nika_types::Timestamp::unix_ns: i64
+impl nika_types::timestamp::Timestamp
+pub const nika_types::timestamp::Timestamp::EPOCH: Self
+pub const fn nika_types::timestamp::Timestamp::from_unix_ms(unix_ms: u64) -> Self
+pub const fn nika_types::timestamp::Timestamp::from_unix_ns(unix_ns: i64) -> Self
+pub const fn nika_types::timestamp::Timestamp::unix_ms(self) -> i64
+pub const fn nika_types::timestamp::Timestamp::unix_us(self) -> i64
+impl core::clone::Clone for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::clone(&self) -> nika_types::timestamp::Timestamp
+impl core::cmp::Eq for nika_types::timestamp::Timestamp
+impl core::cmp::Ord for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::cmp(&self, other: &nika_types::timestamp::Timestamp) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::eq(&self, other: &nika_types::timestamp::Timestamp) -> bool
+impl core::cmp::PartialOrd for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::partial_cmp(&self, other: &nika_types::timestamp::Timestamp) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::timestamp::Timestamp
+impl core::marker::StructuralPartialEq for nika_types::timestamp::Timestamp
+impl serde_core::ser::Serialize for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::timestamp::Timestamp where U: core::convert::From<T>
+pub fn nika_types::timestamp::Timestamp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::timestamp::Timestamp where U: core::convert::Into<T>
+pub type nika_types::timestamp::Timestamp::Error = core::convert::Infallible
+pub fn nika_types::timestamp::Timestamp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::timestamp::Timestamp where U: core::convert::TryFrom<T>
+pub type nika_types::timestamp::Timestamp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::timestamp::Timestamp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::timestamp::Timestamp where T: core::clone::Clone
+pub type nika_types::timestamp::Timestamp::Owned = T
+pub fn nika_types::timestamp::Timestamp::clone_into(&self, target: &mut T)
+pub fn nika_types::timestamp::Timestamp::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::timestamp::Timestamp where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::timestamp::Timestamp where T: 'static + ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::timestamp::Timestamp where T: ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::timestamp::Timestamp where T: ?core::marker::Sized
+pub fn nika_types::timestamp::Timestamp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::timestamp::Timestamp where T: core::clone::Clone
+pub unsafe fn nika_types::timestamp::Timestamp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::timestamp::Timestamp
+pub fn nika_types::timestamp::Timestamp::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::timestamp::Timestamp where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::TokenUsage
 pub nika_types::TokenUsage::accepted_prediction_tokens: core::option::Option<u64>
 pub nika_types::TokenUsage::audio_input_tokens: core::option::Option<u64>
@@ -5278,6 +5560,64 @@ pub unsafe fn nika_types::trust::TrustLevel::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::trust::TrustLevel where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::WallDuration
+pub nika_types::WallDuration::nanos: i64
+impl nika_types::timestamp::WallDuration
+pub const nika_types::timestamp::WallDuration::ZERO: Self
+pub const fn nika_types::timestamp::WallDuration::as_micros(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_millis(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_nanos(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::as_secs(self) -> i64
+pub const fn nika_types::timestamp::WallDuration::from_micros(micros: u64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_millis(millis: u64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_nanos(nanos: i64) -> Self
+pub const fn nika_types::timestamp::WallDuration::from_secs(secs: u64) -> Self
+impl core::clone::Clone for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::clone(&self) -> nika_types::timestamp::WallDuration
+impl core::cmp::Eq for nika_types::timestamp::WallDuration
+impl core::cmp::Ord for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::cmp(&self, other: &nika_types::timestamp::WallDuration) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::eq(&self, other: &nika_types::timestamp::WallDuration) -> bool
+impl core::cmp::PartialOrd for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::partial_cmp(&self, other: &nika_types::timestamp::WallDuration) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::timestamp::WallDuration
+impl core::marker::StructuralPartialEq for nika_types::timestamp::WallDuration
+impl serde_core::ser::Serialize for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::timestamp::WallDuration where U: core::convert::From<T>
+pub fn nika_types::timestamp::WallDuration::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::timestamp::WallDuration where U: core::convert::Into<T>
+pub type nika_types::timestamp::WallDuration::Error = core::convert::Infallible
+pub fn nika_types::timestamp::WallDuration::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::timestamp::WallDuration where U: core::convert::TryFrom<T>
+pub type nika_types::timestamp::WallDuration::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::timestamp::WallDuration::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::timestamp::WallDuration where T: core::clone::Clone
+pub type nika_types::timestamp::WallDuration::Owned = T
+pub fn nika_types::timestamp::WallDuration::clone_into(&self, target: &mut T)
+pub fn nika_types::timestamp::WallDuration::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::timestamp::WallDuration where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::timestamp::WallDuration where T: 'static + ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::timestamp::WallDuration where T: ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::timestamp::WallDuration where T: ?core::marker::Sized
+pub fn nika_types::timestamp::WallDuration::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::timestamp::WallDuration where T: core::clone::Clone
+pub unsafe fn nika_types::timestamp::WallDuration::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::timestamp::WallDuration
+pub fn nika_types::timestamp::WallDuration::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::timestamp::WallDuration where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::WorkflowId
 impl nika_types::id::WorkflowId
 pub fn nika_types::id::WorkflowId::as_str(&self) -> &str

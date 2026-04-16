@@ -49,6 +49,7 @@ pub mod compression;
 pub mod embedding;
 pub mod memory;
 pub mod role;
+pub mod timestamp;
 pub mod token_usage;
 
 /// Convenience re-exports for common usage.
@@ -78,6 +79,7 @@ pub mod prelude {
     pub use crate::embedding::{DistanceMetric, EmbeddingDtype, EmbeddingSpec};
     pub use crate::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
     pub use crate::role::Role;
+    pub use crate::timestamp::{Timestamp, WallDuration};
     pub use crate::token_usage::TokenUsage;
 }
 
