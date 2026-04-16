@@ -51,9 +51,19 @@ if [ -z "$CANONICAL" ]; then
   exit 2
 fi
 
-# Strip dynamic fields for comparison (lib tests + clippy depend on cargo).
+# Strip dynamic fields for comparison. Three categories of "dynamic":
+#   - lib tests, clippy : depend on cargo run, slow (skipped in --quick mode)
+#   - HEAD              : changes every commit. Each engine commit would
+#                         otherwise invalidate the embedded block, requiring
+#                         a sync commit, which itself advances HEAD into a new
+#                         drift. HEAD parity for tracked docs is intentionally
+#                         left unenforced; vector 1 (memory-head-sha) handles
+#                         the out-of-tree MEMORY.md pointer separately.
+# What remains: branch, workspace version, crate counts, per-layer
+# distribution. These are the SLOWLY-changing fields where drift is
+# pathological (a wrong layer count = misleading architecture claim).
 strip_dynamic() {
-  grep -vE '^\| (lib tests|clippy) '
+  grep -vE '^\| (lib tests|clippy|HEAD) '
 }
 
 CANONICAL_STATIC=$(echo "$CANONICAL" | strip_dynamic)
