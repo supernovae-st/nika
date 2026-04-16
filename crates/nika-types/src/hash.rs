@@ -3,7 +3,9 @@
 
 //! Content-addressable storage hash types.
 
-use std::fmt;
+use alloc::format;
+use alloc::string::{String, ToString};
+use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
@@ -56,7 +58,7 @@ impl<'de> Deserialize<'de> for Blake3Hash {
         }
         let mut bytes = [0u8; 32];
         for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
-            let h = std::str::from_utf8(chunk)
+            let h = core::str::from_utf8(chunk)
                 .map_err(|e| serde::de::Error::custom(format!("invalid utf8: {e}")))?;
             bytes[i] = u8::from_str_radix(h, 16)
                 .map_err(|e| serde::de::Error::custom(format!("invalid hex: {e}")))?;

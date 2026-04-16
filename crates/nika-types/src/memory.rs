@@ -60,8 +60,12 @@ impl MemoryId {
     }
 }
 
-impl std::fmt::Display for MemoryId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+
+impl core::fmt::Display for MemoryId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "mem-{}", self.uuid)
     }
 }

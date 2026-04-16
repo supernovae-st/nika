@@ -16,7 +16,11 @@ serde_json = { workspace = true, optional = true }
 uuid       = { workspace = true, optional = true }
 
 [features]
-default = ["serde"]
+default = ["std", "serde"]
+# `std` gates `std::`-only code (today: nothing beyond core + alloc). Kept
+# as a feature-flag seam for WASM v0.100 (see ADR-028 + Phase F of the
+# 2026-04-16 swarm-3 audit plan).
+std     = []
 serde   = ["dep:serde", "dep:serde_json", "dep:uuid"]
 
 [dev-dependencies]

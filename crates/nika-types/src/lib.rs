@@ -9,7 +9,16 @@
 //! IDs, Cost, `TrustLevel`, Checkpoint, Memory directives, Hash, Baggage,
 //! Resource, Retry, Cancel, `TokenUsage`, Budget, Schema versions,
 //! `CompressionPolicy`, and Role.
+//!
+//! # `no_std` support
+//!
+//! `nika-types` builds against `core + alloc` when the default `std` feature
+//! is disabled (`--no-default-features`). The `std` feature is additive and
+//! only reserves the seam for WASM guests and embedded targets — today no
+//! code path is gated behind `cfg(feature = "std")`. See ADR-028 + Phase F
+//! of the 2026-04-16 swarm-3 audit plan.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(
     test,
     allow(
@@ -19,6 +28,8 @@
         clippy::float_cmp,
     )
 )]
+
+extern crate alloc;
 
 // ─── L0 foundational value types (ADR-033) ──────────────────────────
 pub mod baggage;

@@ -14,7 +14,9 @@
 //! ## Newtype discipline
 //! Every ID is a newtype. Never raw `String` or `Uuid` in APIs.
 
-use std::fmt;
+use alloc::format;
+use alloc::string::{String, ToString};
+use core::fmt;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -196,7 +198,7 @@ impl<'de> Deserialize<'de> for TraceId {
         }
         let mut bytes = [0u8; 16];
         for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
-            let hex = std::str::from_utf8(chunk)
+            let hex = core::str::from_utf8(chunk)
                 .map_err(|e| serde::de::Error::custom(format!("invalid utf8: {e}")))?;
             bytes[i] = u8::from_str_radix(hex, 16)
                 .map_err(|e| serde::de::Error::custom(format!("invalid hex: {e}")))?;
@@ -256,7 +258,7 @@ impl<'de> Deserialize<'de> for SpanId {
         }
         let mut bytes = [0u8; 8];
         for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
-            let hex = std::str::from_utf8(chunk)
+            let hex = core::str::from_utf8(chunk)
                 .map_err(|e| serde::de::Error::custom(format!("invalid utf8: {e}")))?;
             bytes[i] = u8::from_str_radix(hex, 16)
                 .map_err(|e| serde::de::Error::custom(format!("invalid hex: {e}")))?;

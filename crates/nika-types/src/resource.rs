@@ -6,6 +6,9 @@
 //! `Resource` describes the entity producing telemetry data (service name,
 //! version, environment, etc.).
 
+use alloc::string::String;
+use alloc::vec::Vec;
+
 use serde::{Deserialize, Serialize};
 
 /// A resource describing the telemetry-producing entity.
@@ -132,7 +135,7 @@ mod tests {
         assert!(matches!(Value::string("x"), Value::String(_)));
         assert!(matches!(Value::int(42), Value::Int(42)));
         assert!(matches!(
-            Value::float(std::f64::consts::PI),
+            Value::float(core::f64::consts::PI),
             Value::Float(_)
         ));
         assert!(matches!(Value::bool(true), Value::Bool(true)));

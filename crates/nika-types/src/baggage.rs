@@ -6,6 +6,9 @@
 //! Baggage carries cross-cutting metadata through the execution pipeline.
 //! Bounded: max 64 entries, 8KB total.
 
+use alloc::string::String;
+use alloc::vec::Vec;
+
 use serde::{Deserialize, Serialize};
 
 /// Maximum number of baggage entries.

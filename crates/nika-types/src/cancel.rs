@@ -14,8 +14,8 @@
 //! the kernel free of tokio dependency. L0.5 must remain runtime-agnostic.
 //! See ADR-016.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use alloc::sync::Arc;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 /// Opaque cancellation context.
 ///

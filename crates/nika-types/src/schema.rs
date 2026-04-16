@@ -3,7 +3,7 @@
 
 //! Schema version types for event and trace format versioning.
 
-use std::fmt;
+use core::fmt;
 
 use serde::{Deserialize, Serialize};
 

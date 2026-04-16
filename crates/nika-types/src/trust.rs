@@ -10,8 +10,9 @@
 //! Allows adding intermediate trust levels (e.g., 75, 125) without
 //! breaking existing comparisons or match arms.
 
-use std::fmt;
-use std::str::FromStr;
+use alloc::string::String;
+use core::fmt;
+use core::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -105,7 +106,7 @@ impl fmt::Display for ParseTrustError {
     }
 }
 
-impl std::error::Error for ParseTrustError {}
+impl core::error::Error for ParseTrustError {}
 
 impl FromStr for TrustLevel {
     type Err = ParseTrustError;
