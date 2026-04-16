@@ -55,7 +55,7 @@ Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
   - Community extension pattern: `nika-catalog-cn`, `nika-catalog-eu`
 - **nika-catalog-verify** — online registry verifier binary (`a977e35b1`)
 - **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (141 + 116 tests, `ef8804371`)
-  - 6 L0.5 traits (`IdGenerator`, `SecretResolver`, `MetricsSink`, `TracerProvider`, `EventSink`, `BillingSink`)
+  - 6 L0.5 traits (`IdGenerator`, `SecretResolver`, `MetricsExporter`, `TracerProvider`, `EventSink`, `BillingSink`)
   - Sealing pattern on `Provider`, `EventSink`, `BillingSink`, `SecretResolver`
   - Forward-compat seams: `cancel.rs`, `plugin.rs`, `sandbox.rs`, `observability.rs`
   - `InferResponse.cost: Option<Cost>` + structured `DenialKind`
@@ -104,7 +104,7 @@ See `docs/architecture/forward-compat-invariants.md` §9.
 | `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | Cortex providers (v0.95) |
 | `IdGenerator` | `src/id_gen.rs` | ✅ shipped (W2) | in-tree |
 | `SecretResolver` | `src/secret.rs` | ✅ shipped (W2, sealed) | in-tree |
-| `MetricsSink` | `src/metrics.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
+| `MetricsExporter` | `src/metrics.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
 | `TracerProvider` | `src/trace.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
 | `EventSink` | `src/event_sink.rs` | ✅ shipped (W2, sealed) | in-tree |
 | `BillingSink` | `src/billing.rs` | ✅ shipped (W2, sealed) | in-tree |

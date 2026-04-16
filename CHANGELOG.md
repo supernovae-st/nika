@@ -52,9 +52,10 @@ forward-compat seams for v0.95 Cortex and v0.100 WASM.
   trust, retry, schema versioning, baggage, resource URI, content hash,
   memory frame, deny kind, cancel context, plugin DTOs, sandbox policy,
   observability event.
-- **6 L0.5 kernel traits** — `IdGenerator`, `SecretResolver`, `MetricsSink`,
-  `TracerProvider`, `EventSink`, `BillingSink`. All sealed (private
-  supertrait) with mock implementations in nika-kernel-mock.
+- **6 L0.5 kernel traits** — `IdGenerator`, `SecretResolver`, `MetricsExporter`,
+  `TracerProvider`, `EventSink`, `BillingSink`. Sealed: `SecretResolver`,
+  `EventSink`, `BillingSink`. Open: `IdGenerator`, `MetricsExporter`,
+  `TracerProvider`. All have mock implementations in nika-kernel-mock.
 - **Sealing pattern** — `Provider`, `EventSink`, `BillingSink`,
   `SecretResolver` now sealed via `mod sealed { pub trait Sealed {} }`.
   Open traits (`MemoryStore`, `EmbeddingProvider`, `ToolExecutor`) remain
@@ -170,7 +171,7 @@ package registries (npm, PyPI, Docker) and remote MCP endpoints in parallel,
 producing a JSON drift report. Binary, not library — runs nightly from CI or
 on-demand via `cargo run -p nika-catalog-verify`.
 
-This is the second catalog crate and the first L2 binary admitted. It exists
+This is the second catalog crate and the first L4 binary admitted. It exists
 because static catalogs decay: a package gets deprecated, an API endpoint goes
 away, a provider renames a model. Without verify, the catalog silently rots.
 
