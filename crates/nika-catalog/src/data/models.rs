@@ -462,6 +462,145 @@ mod tests {
     fn scoped_pricing_unknown_model_returns_none() {
         assert!(find_pricing_scoped("openai", "gpt-999-imaginary").is_none());
     }
+
+    // ── Pricing data invariants (all 62 entries) ────────────────
+
+    #[test]
+    fn all_pricing_rates_finite_non_negative() {
+        for p in ALL_PRICING {
+            assert!(
+                p.input_per_million.is_finite() && p.input_per_million >= 0.0,
+                "{}/{}: input_per_million = {} is invalid",
+                p.provider,
+                p.model_pattern,
+                p.input_per_million,
+            );
+            assert!(
+                p.output_per_million.is_finite() && p.output_per_million >= 0.0,
+                "{}/{}: output_per_million = {} is invalid",
+                p.provider,
+                p.model_pattern,
+                p.output_per_million,
+            );
+            if let Some(v) = p.cache_write_per_million {
+                assert!(
+                    v.is_finite() && v >= 0.0,
+                    "{}/{}: cache_write invalid",
+                    p.provider,
+                    p.model_pattern
+                );
+            }
+            if let Some(v) = p.cache_read_per_million {
+                assert!(
+                    v.is_finite() && v >= 0.0,
+                    "{}/{}: cache_read invalid",
+                    p.provider,
+                    p.model_pattern
+                );
+            }
+            if let Some(v) = p.image_per_million {
+                assert!(
+                    v.is_finite() && v >= 0.0,
+                    "{}/{}: image invalid",
+                    p.provider,
+                    p.model_pattern
+                );
+            }
+            if let Some(v) = p.reasoning_tokens_per_million {
+                assert!(
+                    v.is_finite() && v >= 0.0,
+                    "{}/{}: reasoning invalid",
+                    p.provider,
+                    p.model_pattern
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn all_pricing_optional_axes_none_for_now() {
+        // Phase E2 structural migration — real per-provider rates land in 4b.
+        // Until then, all 4 optional axes must be None. This test prevents
+        // accidental population without updating the corresponding docs.
+        for p in ALL_PRICING {
+            assert_eq!(
+                p.cache_write_per_million, None,
+                "{}/{}",
+                p.provider, p.model_pattern
+            );
+            assert_eq!(
+                p.cache_read_per_million, None,
+                "{}/{}",
+                p.provider, p.model_pattern
+            );
+            assert_eq!(
+                p.image_per_million, None,
+                "{}/{}",
+                p.provider, p.model_pattern
+            );
+            assert_eq!(
+                p.reasoning_tokens_per_million, None,
+                "{}/{}",
+                p.provider, p.model_pattern
+            );
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Proptest pricing invariants
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[cfg(all(test, feature = "pricing"))]
+mod pricing_proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// Arbitrary model-name strings for fuzzing pricing lookup.
+    fn model_name() -> impl Strategy<Value = String> {
+        prop::string::string_regex("[a-z0-9._/-]{0,50}").expect("valid regex")
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(1000))]
+
+        /// find_pricing is deterministic: same input → same output.
+        #[test]
+        fn idempotent(model in model_name()) {
+            let a = find_pricing(&model);
+            let b = find_pricing(&model);
+            prop_assert_eq!(a.map(|p| p.model_pattern), b.map(|p| p.model_pattern));
+        }
+
+        /// If exact match exists, find_pricing returns it (not a contains hit).
+        #[test]
+        fn exact_before_contains(model in model_name()) {
+            if let Some(p) = find_pricing(&model) {
+                // If the model string equals the pattern, it was an exact match.
+                if model == p.model_pattern {
+                    // Verify it's the FIRST exact match in the table.
+                    let first_exact = crate::data::ALL_PRICING.iter()
+                        .find(|e| model == e.model_pattern);
+                    prop_assert_eq!(first_exact.map(|e| e.model_pattern), Some(p.model_pattern));
+                }
+            }
+        }
+
+        /// Scoped lookup never returns a different provider.
+        #[test]
+        fn scoped_never_cross_provider(
+            provider in "[A-Za-z]{1,20}",
+            model in model_name(),
+        ) {
+            if let Some(p) = find_pricing_scoped(&provider, &model) {
+                prop_assert!(
+                    p.provider.eq_ignore_ascii_case(&provider),
+                    "scoped lookup returned wrong provider: {} for query {}",
+                    p.provider, provider,
+                );
+            }
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
