@@ -18,7 +18,8 @@
 #     input_modalities must contain "text"
 #   * supported_parameters strings ∈ {parallel-tool-calls, reasoning-effort,
 #     thinking-budget, prompt-caching, file-search, web-search,
-#     streaming-thinking}
+#     streaming-thinking, batch-api, context-caching, predicted-outputs,
+#     computer-use, citations, include-reasoning}
 #   * json_mode ∈ {unavailable, object, schema} (Session 4a — replaces
 #     structured-output-native ParamFlag with 3-level enum)
 #
@@ -491,4 +492,4 @@ routing_complete = true
 name  = "mock-full"
 scope = { providers = ["mock"] }
 match = { kind = "any" }
-caps  = { reasoning = true, tokenizer = "cl100k", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["file-search", "parallel-tool-calls", "prompt-caching", "reasoning-effort", "streaming-thinking", "thinking-budget", "web-search"], supports_system_messages = true, json_mode = "schema" }
+caps  = { reasoning = true, tokenizer = "cl100k", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["batch-api", "citations", "computer-use", "context-caching", "file-search", "include-reasoning", "parallel-tool-calls", "predicted-outputs", "prompt-caching", "reasoning-effort", "streaming-thinking", "thinking-budget", "web-search"], supports_system_messages = true, json_mode = "schema" }

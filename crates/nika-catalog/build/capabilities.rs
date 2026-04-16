@@ -450,12 +450,20 @@ fn validate_caps_patch(
                 | "prompt-caching"
                 | "file-search"
                 | "web-search"
-                | "streaming-thinking" => {}
+                | "streaming-thinking"
+                | "batch-api"
+                | "context-caching"
+                | "predicted-outputs"
+                | "computer-use"
+                | "citations"
+                | "include-reasoning" => {}
                 _ => {
                     return Err(format!(
                         "{where_}: unknown param_flag {f:?} — expected one of: \
                          parallel-tool-calls, reasoning-effort, thinking-budget, \
-                         prompt-caching, file-search, web-search, streaming-thinking"
+                         prompt-caching, file-search, web-search, streaming-thinking, \
+                         batch-api, context-caching, predicted-outputs, computer-use, \
+                         citations, include-reasoning"
                     ));
                 }
             }
@@ -691,6 +699,12 @@ fn param_flag_sort_order(s: &str) -> u8 {
         "file-search" => 4,
         "web-search" => 5,
         "streaming-thinking" => 6,
+        "batch-api" => 7,
+        "context-caching" => 8,
+        "predicted-outputs" => 9,
+        "computer-use" => 10,
+        "citations" => 11,
+        "include-reasoning" => 12,
         _ => 255,
     }
 }
@@ -715,6 +729,12 @@ fn param_flag_variant(s: &str) -> &'static str {
         "file-search" => "FileSearch",
         "web-search" => "WebSearch",
         "streaming-thinking" => "StreamingThinking",
+        "batch-api" => "BatchApi",
+        "context-caching" => "ContextCaching",
+        "predicted-outputs" => "PredictedOutputs",
+        "computer-use" => "ComputerUse",
+        "citations" => "Citations",
+        "include-reasoning" => "IncludeReasoning",
         _ => unreachable!("validated earlier: param_flag={s}"),
     }
 }

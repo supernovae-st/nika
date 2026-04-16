@@ -47,6 +47,27 @@ pub enum ParamFlag {
     /// Streaming of the `thinking` channel in real time (Anthropic stream
     /// `thinking_delta`, `OpenAI` Responses API `reasoning.delta`).
     StreamingThinking,
+    /// `OpenAI` Batch API — asynchronous job-based invocation at 50% cost.
+    /// Available on GPT-4o, GPT-4.1, o-series. Not real-time.
+    BatchApi,
+    /// Explicit context caching API (Gemini cached content, `OpenAI`
+    /// `cached_tokens`). Distinct from `PromptCaching` (`Anthropic`
+    /// `cache_control` header) — this flag gates the explicit cache
+    /// management endpoint.
+    ContextCaching,
+    /// `OpenAI` predicted outputs — `prediction` field on completions for
+    /// low-latency edits. GPT-4o, GPT-4.1 families.
+    PredictedOutputs,
+    /// `Anthropic` computer-use tool (`computer_20241022` beta).
+    /// Claude Sonnet 3.5+, Claude 4+.
+    ComputerUse,
+    /// Source citations in response (`Anthropic` `citations` beta,
+    /// `Perplexity` inline citations, Gemini grounding metadata).
+    Citations,
+    /// Explicit include-reasoning flag (distinct from `ReasoningEffort`
+    /// which controls *how much* reasoning). 166/344 `OpenRouter` models
+    /// accept this parameter to surface chain-of-thought.
+    IncludeReasoning,
 }
 
 impl ParamFlag {
@@ -62,6 +83,12 @@ impl ParamFlag {
             Self::FileSearch => "file-search",
             Self::WebSearch => "web-search",
             Self::StreamingThinking => "streaming-thinking",
+            Self::BatchApi => "batch-api",
+            Self::ContextCaching => "context-caching",
+            Self::PredictedOutputs => "predicted-outputs",
+            Self::ComputerUse => "computer-use",
+            Self::Citations => "citations",
+            Self::IncludeReasoning => "include-reasoning",
         }
     }
 }
@@ -95,7 +122,9 @@ impl core::fmt::Display for ParseParamFlagError {
             f,
             "unknown param flag {:?} — expected one of: \
              parallel-tool-calls, reasoning-effort, thinking-budget, \
-             prompt-caching, file-search, web-search, streaming-thinking",
+             prompt-caching, file-search, web-search, streaming-thinking, \
+             batch-api, context-caching, predicted-outputs, computer-use, \
+             citations, include-reasoning",
             self.input
         )
     }
@@ -115,6 +144,12 @@ impl core::str::FromStr for ParamFlag {
             "file-search" => Ok(Self::FileSearch),
             "web-search" => Ok(Self::WebSearch),
             "streaming-thinking" => Ok(Self::StreamingThinking),
+            "batch-api" => Ok(Self::BatchApi),
+            "context-caching" => Ok(Self::ContextCaching),
+            "predicted-outputs" => Ok(Self::PredictedOutputs),
+            "computer-use" => Ok(Self::ComputerUse),
+            "citations" => Ok(Self::Citations),
+            "include-reasoning" => Ok(Self::IncludeReasoning),
             _ => Err(ParseParamFlagError::new(s.to_string())),
         }
     }
@@ -133,6 +168,12 @@ mod tests {
         ParamFlag::FileSearch,
         ParamFlag::WebSearch,
         ParamFlag::StreamingThinking,
+        ParamFlag::BatchApi,
+        ParamFlag::ContextCaching,
+        ParamFlag::PredictedOutputs,
+        ParamFlag::ComputerUse,
+        ParamFlag::Citations,
+        ParamFlag::IncludeReasoning,
     ];
 
     #[test]
@@ -159,6 +200,12 @@ mod tests {
         assert!(ParamFlag::PromptCaching < ParamFlag::FileSearch);
         assert!(ParamFlag::FileSearch < ParamFlag::WebSearch);
         assert!(ParamFlag::WebSearch < ParamFlag::StreamingThinking);
+        assert!(ParamFlag::StreamingThinking < ParamFlag::BatchApi);
+        assert!(ParamFlag::BatchApi < ParamFlag::ContextCaching);
+        assert!(ParamFlag::ContextCaching < ParamFlag::PredictedOutputs);
+        assert!(ParamFlag::PredictedOutputs < ParamFlag::ComputerUse);
+        assert!(ParamFlag::ComputerUse < ParamFlag::Citations);
+        assert!(ParamFlag::Citations < ParamFlag::IncludeReasoning);
     }
 
     #[test]
