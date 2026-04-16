@@ -12,6 +12,29 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### ⚡ Phase D Session 4B — Data enrichment (2026-04-16)
+
+Pure data expansion on the structural foundation laid by Session 4A.
+Zero trait/struct changes — only enum variants, TOML data, and tests.
+
+- **6 new `ParamFlag` variants** — `BatchApi`, `ContextCaching`,
+  `PredictedOutputs`, `ComputerUse`, `Citations`, `IncludeReasoning`.
+  Aligned with `OpenRouter` 25-value `supported_parameters` vocabulary.
+  Enum: 7→13 variants.
+- **3 new `Modality` variants** — `Embedding` (vector output), `Speech`
+  (TTS/ASR), `ImageGen` (text-to-image). Covers non-LLM provider
+  capabilities. Enum: 5→8 variants.
+- **4 new `TokenizerFamily` variants** — `LlamaV4` (~200k vocab, distinct
+  from LlamaV3), `Granite` (IBM `StarCoder` BPE), `Glm` (Zhipu
+  `SentencePiece`), `Grok` (xAI custom). Enum: 8→12 variants.
+- **7 new providers** — nvidia-nim (FIX: inventory discrepancy),
+  deepinfra, replicate, hyperbolic, writer, databricks, cloudflare.
+  All `openai-chat` dialect. Count: 25→32.
+- **7 new capability rules** — one `Matcher::Any` fallback per new
+  provider (text-only, `json_schema` where applicable). Count: 42→49.
+- `mock-full` rule updated with all 13 `ParamFlag` variants.
+- Cross-catalog overlap allowlist: replicate + cloudflare (dual-role).
+
 ### ⚡ Phase D Session 4A — Catalog structural enrichment (2026-04-16)
 
 Context-window + output-limit + JSON mode enrichment. First structural

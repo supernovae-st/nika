@@ -44,29 +44,37 @@ Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
   - Cost stdlib arithmetic (`Add`/`Sub` with `checked_add`/`checked_sub`)
   - `TrustLevel::Default` removed (safe-by-default inversion)
   - 20 proptest lattice/identity laws (cost, trust, baggage)
-- **nika-catalog** — static catalogs with phf+unicase lookup (184 tests after S3)
+- **nika-catalog** — static catalogs with phf+unicase lookup (226 tests after 4B)
   - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
-  - 105 MCP servers, 25 LLM providers, 13 embeddings, 63 builtins, 65 transforms
-  - **TOML-driven capability resolver** — 42 rules, zero-alloc, proptest 10k parity
-  - `api_dialect` on all 25 providers (closed set, FK-validated at build time)
-  - 9-field `ModelCapabilities`: token_limit_param + temperature + stop + reasoning + input/output modalities + tokenizer (8 variants incl. Qwen) + supported_parameters + system_messages (`supports_vision` retired in Session 3 — migrate to `input_modalities.contains(Modality::Image)`)
+  - 105 MCP servers, **32 LLM providers**, 13 embeddings, 63 builtins, 65 transforms
+  - **TOML-driven capability resolver** — **49 rules**, zero-alloc, proptest 10k parity
+  - `api_dialect` on all 32 providers (closed set, FK-validated at build time)
+  - **12-field `ModelCapabilities`**: token_limit_param + temperature + stop + reasoning + input/output modalities + tokenizer (**12 families**: Cl100k/O200k/ClaudeV3/Gemini/LlamaV3/LlamaV4/MistralV3/DeepSeek/Qwen/Granite/Glm/Grok) + supported_parameters (**13 flags**: incl. BatchApi/ContextCaching/PredictedOutputs/ComputerUse/Citations/IncludeReasoning) + system_messages + context_window_tokens + max_output_tokens + json_mode
+  - **8 Modalities**: Text/Image/Audio/Video/Pdf + Embedding/Speech/ImageGen (4B)
   - 7-axis `ModelPricing`: input + output + cached_input + image + reasoning_tokens + provider + pattern
   - Invariant #19 FULL, Gate 8 GREEN
   - Community extension pattern: `nika-catalog-cn`, `nika-catalog-eu`
 - **nika-catalog-verify** — online registry verifier binary (`a977e35b1`)
-- **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (141 + 116 tests, `ef8804371`)
+- **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (144 + 116 tests)
   - 6 L0.5 traits (`IdGenerator`, `SecretResolver`, `MetricsExporter`, `TracerProvider`, `EventSink`, `BillingSink`)
   - Sealing pattern on `Provider`, `EventSink`, `BillingSink`, `SecretResolver`
   - Forward-compat seams: `cancel.rs`, `plugin.rs`, `sandbox.rs`, `observability.rs`
   - `InferResponse.cost: Option<Cost>` + structured `DenialKind`
   - `MemoryId` UUIDv7 migration, `#[deprecated] cost_usd` bridge
+  - `HttpStreamResponse::new()` (4A-stabilize, inv #19)
+  - `#[non_exhaustive]` on all 20 mock structs (4A-stabilize)
 
 Total: **630 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
-~21.8k LOC, 22 ADRs, 21/21 hygiene GREEN, Gate 8 GREEN.
+~21.9k LOC, 32 providers, 49 capability rules, 22 ADRs, 21/21 hygiene GREEN.
 
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
-Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅.
-Next: Session 4A-stabilize → Session 4B data enrichment.
+Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅.
+
+**Next steps (priority order):**
+1. **Session 4C** — public launch tooling: `nika-catalog-tools` consolidation (dump+sync+verify+sign), Sigstore keyless signing, wire-format `$schema` envelope, catalog.nika.sh Scaleway publish, LiteLLM/models.dev freshness sync, `nika catalog doctor` CLI
+2. **Crate 6: nika-schema** — workflow YAML parser + analyzer (L0, ~13k LOC). The first non-catalog crate. Blocks all 5 verb crates.
+3. **Crate 7: nika-binding** — template resolver + 65 pipe transforms (L0, ~13k LOC). Blocks runtime + CLI.
+4. **Phase E2** — full TOML-driven pricing migration (cached_input/image/reasoning rates populated per-provider from live research)
 
 ## v0.81 — Forward-compat seams + hygiene hardening (ships when ready)
 
@@ -181,9 +189,12 @@ Grok 4 variants (grok-4/grok-4-fast).
   MCP permissioning. Build-time enforced sort/dedup + MCP read-only XOR destructive.
 - Cargo features for subset compilation (full/minimal/per-content + extension-author)
 - Community extension pattern (`nika-catalog-cn`, `-eu`, `-enterprise`)
-- Phase D remaining: capability migration to TOML, modality/tokenizer/supported_parameters,
-  5-axis pricing, provider trust/residency, model families, HTTP API catalog, MCP lifecycle,
-  CatalogOverlay trait (nika-kernel), perf polish, Gate 5 mutation ≥90%
+- ~~Capability migration to TOML~~ — ✅ DONE (Session 2a: 42→49 rules, `CapPatch` + `Matcher`)
+- ~~Modality/tokenizer/supported_parameters~~ — ✅ DONE (Session 2b + 4B: 8 modalities, 12 tokenizers, 13 param flags)
+- ~~32 LLM providers with capability rules~~ — ✅ DONE (Session 3 + 4B)
+- Phase D remaining: 5-axis pricing population (Phase E2), provider trust/residency,
+  HTTP API catalog, MCP lifecycle, CatalogOverlay trait (nika-kernel), perf polish,
+  Gate 5 mutation ≥90%
 
 **Security (7 shadow zones GREEN, non-negotiable)**:
 - Gate 1: `nika serve` input trust (P0)
