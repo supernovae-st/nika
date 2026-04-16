@@ -14,36 +14,56 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-/// Opaque memory identifier. Displayed as `"mem-{hex}"`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MemoryId(u128);
+/// Opaque memory identifier. `UUIDv7`-backed (time-sortable, RFC 9562).
+///
+/// Displayed as `"mem-{uuid}"` for wire stability. Wave 3 migrated the
+/// underlying representation from `u128` to `uuid::Uuid` per ADR-033
+/// follow-up #1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct MemoryId {
+    /// Underlying UUID (`UUIDv7` in production, nil / arbitrary in tests).
+    pub uuid: Uuid,
+}
 
 impl MemoryId {
-    /// Create a new memory identifier.
+    /// Create a new memory identifier wrapping an explicit UUID.
+    ///
+    /// Prefer [`Self::generate`] in production (`UUIDv7`, time-sortable);
+    /// pass a specific UUID here when test determinism is needed.
     #[must_use]
-    pub fn new(id: u128) -> Self {
-        Self(id)
+    pub fn new(uuid: Uuid) -> Self {
+        Self { uuid }
     }
 
-    /// Create a nil (zero) memory identifier.
+    /// Generate a fresh `UUIDv7`-backed memory identifier.
+    ///
+    /// `UUIDv7` embeds a millisecond timestamp so IDs generated in order
+    /// sort chronologically — useful for memory recall / pagination.
+    #[must_use]
+    pub fn generate() -> Self {
+        Self {
+            uuid: Uuid::now_v7(),
+        }
+    }
+
+    /// Create a nil (all-zero) memory identifier.
+    ///
+    /// Used as the default in tests / mocks where the specific ID is
+    /// not under test.
     #[must_use]
     pub fn nil() -> Self {
-        Self(0)
-    }
-
-    /// Get the raw u128 value.
-    #[must_use]
-    pub fn as_u128(&self) -> u128 {
-        self.0
+        Self { uuid: Uuid::nil() }
     }
 }
 
 impl std::fmt::Display for MemoryId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mem-{:032x}", self.0)
+        write!(f, "mem-{}", self.uuid)
     }
 }
 
@@ -59,9 +79,9 @@ impl<'de> Deserialize<'de> for MemoryId {
         let hex = s
             .strip_prefix("mem-")
             .ok_or_else(|| serde::de::Error::custom("expected 'mem-' prefix"))?;
-        let id = u128::from_str_radix(hex, 16)
-            .map_err(|e| serde::de::Error::custom(format!("invalid hex: {e}")))?;
-        Ok(Self(id))
+        let uuid = Uuid::parse_str(hex)
+            .map_err(|e| serde::de::Error::custom(format!("invalid uuid: {e}")))?;
+        Ok(Self { uuid })
     }
 }
 
@@ -320,27 +340,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn memory_id_display() {
-        let id = MemoryId::new(255);
-        assert_eq!(id.to_string(), "mem-000000000000000000000000000000ff");
+    fn memory_id_display_uses_uuid_hyphenated() {
+        let id = MemoryId::new(Uuid::from_u128(0xFF));
+        assert_eq!(id.to_string(), "mem-00000000-0000-0000-0000-0000000000ff");
     }
 
     #[test]
     fn memory_id_nil() {
         let id = MemoryId::nil();
-        assert_eq!(id.as_u128(), 0);
-        assert_eq!(id.to_string(), "mem-00000000000000000000000000000000");
+        assert_eq!(id.uuid, Uuid::nil());
+        assert_eq!(id.to_string(), "mem-00000000-0000-0000-0000-000000000000");
     }
 
     #[test]
-    fn memory_id_as_u128_nonzero() {
-        let id = MemoryId::new(42);
-        assert_eq!(id.as_u128(), 42);
+    fn memory_id_generate_is_v7_and_non_nil() {
+        let id = MemoryId::generate();
+        assert_ne!(id.uuid, Uuid::nil());
+        assert_eq!(id.uuid.get_version_num(), 7);
+    }
+
+    #[test]
+    fn memory_id_generate_is_unique() {
+        let a = MemoryId::generate();
+        let b = MemoryId::generate();
+        assert_ne!(a, b);
     }
 
     #[test]
     fn memory_id_serde_roundtrip() {
-        let id = MemoryId::new(42);
+        let id = MemoryId::new(Uuid::from_u128(42));
+        let json = serde_json::to_string(&id).expect("serialize");
+        let back: MemoryId = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(id, back);
+    }
+
+    #[test]
+    fn memory_id_serde_roundtrip_v7() {
+        let id = MemoryId::generate();
         let json = serde_json::to_string(&id).expect("serialize");
         let back: MemoryId = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(id, back);
@@ -396,7 +432,12 @@ mod tests {
 
     #[test]
     fn memory_hit_new() {
-        let hit = MemoryHit::new(MemoryId::new(1), "content", MemoryLevel::Semantic, 0.95);
+        let hit = MemoryHit::new(
+            MemoryId::new(Uuid::from_u128(1)),
+            "content",
+            MemoryLevel::Semantic,
+            0.95,
+        );
         assert_eq!(hit.score, 0.95);
         assert_eq!(hit.level, MemoryLevel::Semantic);
     }
@@ -409,7 +450,11 @@ mod tests {
 
     #[test]
     fn memory_frame_ref_new() {
-        let r = MemoryFrameRef::new(MemoryId::new(1), MemoryLevel::Working, "summary");
+        let r = MemoryFrameRef::new(
+            MemoryId::new(Uuid::from_u128(1)),
+            MemoryLevel::Working,
+            "summary",
+        );
         assert_eq!(r.summary, "summary");
     }
 
@@ -421,7 +466,7 @@ mod tests {
         assert!(err.to_string().contains("unavailable"));
 
         let err = MemoryError::NotFound {
-            id: MemoryId::new(5),
+            id: MemoryId::new(Uuid::from_u128(5)),
         };
         assert!(err.to_string().contains("not found"));
     }

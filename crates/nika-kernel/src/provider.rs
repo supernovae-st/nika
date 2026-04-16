@@ -370,9 +370,12 @@ pub struct InferResponse {
     pub request_id: Option<String>,
     /// Estimated cost in USD (f64).
     ///
-    /// Prefer [`Self::cost`] (exact nano-USD) for billing; `cost_usd` is kept
-    /// for one cycle for backward compatibility and will be marked
-    /// `#[deprecated]` in the next release and removed in v0.85.
+    /// Prefer [`Self::cost`] (exact nano-USD) for billing; this field is
+    /// scheduled for removal in v0.85.
+    #[deprecated(
+        since = "0.81.0",
+        note = "use `cost: Option<Cost>` instead; `cost_usd` will be removed in v0.85"
+    )]
     pub cost_usd: Option<f64>,
     /// Exact cost as nano-USD `Cost`. Preferred over [`Self::cost_usd`] for
     /// billing aggregation and ledger reconciliation (no f64 drift).
@@ -392,6 +395,7 @@ pub struct InferResponse {
 impl InferResponse {
     /// Create a new inference response.
     #[must_use]
+    #[allow(deprecated)] // cost_usd initialized for bw-compat; removal in v0.85
     pub fn new(content: Vec<ContentBlock>, usage: TokenUsage, stop_reason: StopReason) -> Self {
         Self {
             content,
@@ -641,6 +645,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)] // reads cost_usd to assert None before v0.85 removal
     fn infer_response_new_defaults() {
         let resp = InferResponse::new(vec![], TokenUsage::new(10, 20), StopReason::EndTurn);
         assert!(resp.ttft_ms.is_none());

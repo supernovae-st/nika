@@ -25,6 +25,7 @@ serde_json    = { workspace = true }
 bytes         = { workspace = true }
 futures-core  = { workspace = true }
 zeroize       = { workspace = true }
+uuid          = { workspace = true }
 
 [dev-dependencies]
 insta    = { workspace = true }
