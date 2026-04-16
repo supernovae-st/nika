@@ -37,6 +37,9 @@ include!(concat!(env!("OUT_DIR"), "/embeddings.rs"));
 #[cfg(feature = "capabilities")]
 include!(concat!(env!("OUT_DIR"), "/model_capabilities.rs"));
 
+#[cfg(feature = "pricing")]
+include!(concat!(env!("OUT_DIR"), "/model_pricing.rs"));
+
 /// Case-insensitive MCP server lookup by id or alias. Returns `None` when unknown.
 #[cfg(feature = "mcp")]
 #[must_use]

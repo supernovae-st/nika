@@ -101,7 +101,7 @@ pub fn all_transforms() -> &'static [types::TransformDef] {
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn all_pricing() -> &'static [types::ModelPricing] {
-    data::models::ALL_PRICING
+    data::ALL_PRICING
 }
 
 #[cfg(all(

@@ -81,133 +81,12 @@ pub fn model_capabilities(provider: &str, model: &str) -> ModelCapabilities {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Pricing catalog (62 entries, sorted by provider → specificity)
+// Pricing catalog — generated from data/model-pricing.toml by build.rs
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Static pricing table — model patterns matched by exact name or `contains()`.
-///
-/// **Ordering matters for `contains()` fallback**: more specific patterns MUST
-/// appear before less specific ones within each provider.
-///
-/// Entries use the [`ModelPricing::new`] constructor (not struct-literal syntax).
-/// The struct is `#[non_exhaustive]` (invariant #19): using `new()` here — even
-/// though we are in the same crate — means that when Session 3 Phase E extends
-/// [`ModelPricing`] with new `Option<f64>` pricing axes, every unupdated call
-/// site becomes a hard compile error instead of silently taking a default
-/// value. That is the entire point of invariant #19 at this site.
-#[cfg(feature = "pricing")]
-pub static ALL_PRICING: &[ModelPricing] = &[
-    // ── Anthropic ───────────────────────────────────────────────
-    ModelPricing::new("Anthropic", "claude-3-haiku", 0.25, 1.25, None, None, None),
-    ModelPricing::new("Anthropic", "opus-4", 15.0, 75.0, None, None, None),
-    ModelPricing::new("Anthropic", "sonnet-4", 3.0, 15.0, None, None, None),
-    ModelPricing::new("Anthropic", "haiku-4", 0.8, 4.0, None, None, None),
-    ModelPricing::new(
-        "Anthropic",
-        "claude-3-5-sonnet",
-        3.0,
-        15.0,
-        None,
-        None,
-        None,
-    ),
-    ModelPricing::new("Anthropic", "claude-3-5-haiku", 0.8, 4.0, None, None, None),
-    ModelPricing::new("Anthropic", "claude-3-opus", 15.0, 75.0, None, None, None),
-    ModelPricing::new("Anthropic", "claude-3-sonnet", 3.0, 15.0, None, None, None),
-    // ── OpenAI (ordering critical for contains fallback) ────────
-    ModelPricing::new("OpenAI", "gpt-4o-mini", 0.15, 0.6, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-4o", 2.5, 10.0, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-4.1-nano", 0.1, 0.4, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-4.1-mini", 0.4, 1.6, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-4.1", 2.0, 8.0, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-3.5-turbo", 0.5, 1.5, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-4-turbo", 10.0, 30.0, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-4", 30.0, 60.0, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-5.4-nano", 0.10, 0.40, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-5.4-mini", 0.40, 1.60, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-5.4", 2.00, 8.00, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-5.2-pro", 21.0, 168.0, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-5.2", 1.75, 14.0, None, None, None),
-    ModelPricing::new("OpenAI", "gpt-5", 1.75, 14.0, None, None, None),
-    ModelPricing::new("OpenAI", "o1-mini", 3.0, 12.0, None, None, None),
-    ModelPricing::new("OpenAI", "o1", 15.0, 60.0, None, None, None),
-    ModelPricing::new("OpenAI", "o3-mini", 1.1, 4.4, None, None, None),
-    ModelPricing::new("OpenAI", "o4-mini", 1.1, 4.4, None, None, None),
-    ModelPricing::new("OpenAI", "o3", 2.0, 8.0, None, None, None),
-    // o4-mini BEFORE o4 (contains "o4" substring)
-    ModelPricing::new("OpenAI", "o4", 2.0, 8.0, None, None, None),
-    // ── Mistral ─────────────────────────────────────────────────
-    ModelPricing::new("Mistral", "mistral-large", 2.0, 6.0, None, None, None),
-    ModelPricing::new("Mistral", "mistral-medium", 2.7, 8.1, None, None, None),
-    ModelPricing::new("Mistral", "mistral-small", 0.2, 0.6, None, None, None),
-    ModelPricing::new("Mistral", "codestral", 0.3, 0.9, None, None, None),
-    ModelPricing::new("Mistral", "ministral-8b", 0.1, 0.1, None, None, None),
-    ModelPricing::new("Mistral", "ministral-3b", 0.04, 0.04, None, None, None),
-    ModelPricing::new("Mistral", "pixtral-large", 2.0, 6.0, None, None, None),
-    ModelPricing::new("Mistral", "pixtral-12b", 0.15, 0.15, None, None, None),
-    // ── Groq ────────────────────────────────────────────────────
-    ModelPricing::new(
-        "Groq",
-        "llama-3.3-70b-specdec",
-        0.59,
-        0.99,
-        None,
-        None,
-        None,
-    ),
-    ModelPricing::new("Groq", "llama-3.3-70b", 0.59, 0.79, None, None, None),
-    ModelPricing::new("Groq", "llama-3.1-70b", 0.59, 0.79, None, None, None),
-    ModelPricing::new("Groq", "llama-3.1-8b", 0.05, 0.08, None, None, None),
-    ModelPricing::new("Groq", "llama3-70b", 0.59, 0.79, None, None, None),
-    ModelPricing::new("Groq", "llama3-8b", 0.05, 0.08, None, None, None),
-    ModelPricing::new("Groq", "mixtral-8x7b", 0.24, 0.24, None, None, None),
-    ModelPricing::new("Groq", "gemma2-9b", 0.20, 0.20, None, None, None),
-    // ── DeepSeek ────────────────────────────────────────────────
-    ModelPricing::new("DeepSeek", "deepseek-chat", 0.14, 0.28, None, None, None),
-    ModelPricing::new(
-        "DeepSeek",
-        "deepseek-reasoner",
-        0.55,
-        2.19,
-        None,
-        None,
-        None,
-    ),
-    ModelPricing::new("DeepSeek", "deepseek-coder", 0.14, 0.28, None, None, None),
-    // ── Gemini ──────────────────────────────────────────────────
-    ModelPricing::new("Gemini", "gemini-2.5-flash", 0.15, 0.6, None, None, None),
-    ModelPricing::new("Gemini", "gemini-2.5-pro", 1.25, 10.0, None, None, None),
-    ModelPricing::new("Gemini", "gemini-2.0-flash-exp", 0.0, 0.0, None, None, None),
-    ModelPricing::new(
-        "Gemini",
-        "gemini-2.0-flash-thinking",
-        0.0,
-        0.0,
-        None,
-        None,
-        None,
-    ),
-    ModelPricing::new("Gemini", "gemini-2.0-flash", 0.1, 0.4, None, None, None),
-    ModelPricing::new(
-        "Gemini",
-        "gemini-1.5-flash-8b",
-        0.0375,
-        0.15,
-        None,
-        None,
-        None,
-    ),
-    ModelPricing::new("Gemini", "gemini-1.5-flash", 0.075, 0.3, None, None, None),
-    ModelPricing::new("Gemini", "gemini-1.5-pro", 1.25, 5.0, None, None, None),
-    ModelPricing::new("Gemini", "gemini-pro", 0.5, 1.5, None, None, None),
-    // ── xAI ─────────────────────────────────────────────────────
-    ModelPricing::new("xAI", "grok-4", 3.0, 15.0, None, None, None),
-    ModelPricing::new("xAI", "grok-3-mini-fast", 0.1, 0.4, None, None, None),
-    ModelPricing::new("xAI", "grok-3-mini", 0.3, 0.5, None, None, None),
-    ModelPricing::new("xAI", "grok-3-fast", 0.6, 4.0, None, None, None),
-    ModelPricing::new("xAI", "grok-3", 3.0, 15.0, None, None, None),
-    ModelPricing::new("xAI", "grok-2", 2.0, 10.0, None, None, None),
-];
+//
+// `ALL_PRICING` lives in `data::generated` (via include! of $OUT_DIR/
+// model_pricing.rs). Re-exported here as `crate::data::ALL_PRICING`
+// by `data/mod.rs`.
 
 /// Find pricing for a model.
 ///
@@ -221,6 +100,7 @@ pub static ALL_PRICING: &[ModelPricing] = &[
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
+    use crate::data::ALL_PRICING;
     // Pass 1: exact match
     if let Some(p) = ALL_PRICING.iter().find(|p| model == p.model_pattern) {
         return Some(p);
@@ -244,6 +124,7 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
+    use crate::data::ALL_PRICING;
     // Pass 1: exact model match within provider scope.
     if let Some(p) = ALL_PRICING
         .iter()
@@ -282,6 +163,8 @@ pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "pricing")]
+    use crate::data::ALL_PRICING;
     #[cfg(feature = "capabilities")]
     use crate::types::Modality;
     #[cfg(feature = "capabilities")]

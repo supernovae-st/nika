@@ -1,0 +1,381 @@
+schema = "nika/model-pricing@1.0"
+
+# ── Anthropic ───────────────────────────────────────────────
+[[rules]]
+provider = "Anthropic"
+model_pattern = "claude-3-haiku"
+input_per_million = 0.25
+output_per_million = 1.25
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "opus-4"
+input_per_million = 15.0
+output_per_million = 75.0
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "sonnet-4"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "haiku-4"
+input_per_million = 0.8
+output_per_million = 4.0
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "claude-3-5-sonnet"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "claude-3-5-haiku"
+input_per_million = 0.8
+output_per_million = 4.0
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "claude-3-opus"
+input_per_million = 15.0
+output_per_million = 75.0
+
+[[rules]]
+provider = "Anthropic"
+model_pattern = "claude-3-sonnet"
+input_per_million = 3.0
+output_per_million = 15.0
+
+# ── OpenAI (ordering critical for contains fallback) ────────
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4o-mini"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4o"
+input_per_million = 2.5
+output_per_million = 10.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4.1-nano"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4.1-mini"
+input_per_million = 0.4
+output_per_million = 1.6
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4.1"
+input_per_million = 2.0
+output_per_million = 8.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-3.5-turbo"
+input_per_million = 0.5
+output_per_million = 1.5
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4-turbo"
+input_per_million = 10.0
+output_per_million = 30.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-4"
+input_per_million = 30.0
+output_per_million = 60.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-5.4-nano"
+input_per_million = 0.10
+output_per_million = 0.40
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-5.4-mini"
+input_per_million = 0.40
+output_per_million = 1.60
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-5.4"
+input_per_million = 2.00
+output_per_million = 8.00
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-5.2-pro"
+input_per_million = 21.0
+output_per_million = 168.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-5.2"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "gpt-5"
+input_per_million = 1.75
+output_per_million = 14.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "o1-mini"
+input_per_million = 3.0
+output_per_million = 12.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "o1"
+input_per_million = 15.0
+output_per_million = 60.0
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "o3-mini"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "o4-mini"
+input_per_million = 1.1
+output_per_million = 4.4
+
+[[rules]]
+provider = "OpenAI"
+model_pattern = "o3"
+input_per_million = 2.0
+output_per_million = 8.0
+
+# o4-mini BEFORE o4 (contains "o4" substring)
+[[rules]]
+provider = "OpenAI"
+model_pattern = "o4"
+input_per_million = 2.0
+output_per_million = 8.0
+
+# ── Mistral ─────────────────────────────────────────────────
+[[rules]]
+provider = "Mistral"
+model_pattern = "mistral-large"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "mistral-medium"
+input_per_million = 2.7
+output_per_million = 8.1
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "mistral-small"
+input_per_million = 0.2
+output_per_million = 0.6
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "codestral"
+input_per_million = 0.3
+output_per_million = 0.9
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "ministral-8b"
+input_per_million = 0.1
+output_per_million = 0.1
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "ministral-3b"
+input_per_million = 0.04
+output_per_million = 0.04
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "pixtral-large"
+input_per_million = 2.0
+output_per_million = 6.0
+
+[[rules]]
+provider = "Mistral"
+model_pattern = "pixtral-12b"
+input_per_million = 0.15
+output_per_million = 0.15
+
+# ── Groq ────────────────────────────────────────────────────
+[[rules]]
+provider = "Groq"
+model_pattern = "llama-3.3-70b-specdec"
+input_per_million = 0.59
+output_per_million = 0.99
+
+[[rules]]
+provider = "Groq"
+model_pattern = "llama-3.3-70b"
+input_per_million = 0.59
+output_per_million = 0.79
+
+[[rules]]
+provider = "Groq"
+model_pattern = "llama-3.1-70b"
+input_per_million = 0.59
+output_per_million = 0.79
+
+[[rules]]
+provider = "Groq"
+model_pattern = "llama-3.1-8b"
+input_per_million = 0.05
+output_per_million = 0.08
+
+[[rules]]
+provider = "Groq"
+model_pattern = "llama3-70b"
+input_per_million = 0.59
+output_per_million = 0.79
+
+[[rules]]
+provider = "Groq"
+model_pattern = "llama3-8b"
+input_per_million = 0.05
+output_per_million = 0.08
+
+[[rules]]
+provider = "Groq"
+model_pattern = "mixtral-8x7b"
+input_per_million = 0.24
+output_per_million = 0.24
+
+[[rules]]
+provider = "Groq"
+model_pattern = "gemma2-9b"
+input_per_million = 0.20
+output_per_million = 0.20
+
+# ── DeepSeek ────────────────────────────────────────────────
+[[rules]]
+provider = "DeepSeek"
+model_pattern = "deepseek-chat"
+input_per_million = 0.14
+output_per_million = 0.28
+
+[[rules]]
+provider = "DeepSeek"
+model_pattern = "deepseek-reasoner"
+input_per_million = 0.55
+output_per_million = 2.19
+
+[[rules]]
+provider = "DeepSeek"
+model_pattern = "deepseek-coder"
+input_per_million = 0.14
+output_per_million = 0.28
+
+# ── Gemini ──────────────────────────────────────────────────
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-2.5-flash"
+input_per_million = 0.15
+output_per_million = 0.6
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-2.5-pro"
+input_per_million = 1.25
+output_per_million = 10.0
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-2.0-flash-exp"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-2.0-flash-thinking"
+input_per_million = 0.0
+output_per_million = 0.0
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-2.0-flash"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-1.5-flash-8b"
+input_per_million = 0.0375
+output_per_million = 0.15
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-1.5-flash"
+input_per_million = 0.075
+output_per_million = 0.3
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-1.5-pro"
+input_per_million = 1.25
+output_per_million = 5.0
+
+[[rules]]
+provider = "Gemini"
+model_pattern = "gemini-pro"
+input_per_million = 0.5
+output_per_million = 1.5
+
+# ── xAI ─────────────────────────────────────────────────────
+[[rules]]
+provider = "xAI"
+model_pattern = "grok-4"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "xAI"
+model_pattern = "grok-3-mini-fast"
+input_per_million = 0.1
+output_per_million = 0.4
+
+[[rules]]
+provider = "xAI"
+model_pattern = "grok-3-mini"
+input_per_million = 0.3
+output_per_million = 0.5
+
+[[rules]]
+provider = "xAI"
+model_pattern = "grok-3-fast"
+input_per_million = 0.6
+output_per_million = 4.0
+
+[[rules]]
+provider = "xAI"
+model_pattern = "grok-3"
+input_per_million = 3.0
+output_per_million = 15.0
+
+[[rules]]
+provider = "xAI"
+model_pattern = "grok-2"
+input_per_million = 2.0
+output_per_million = 10.0

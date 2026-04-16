@@ -34,6 +34,8 @@ pub mod transforms;
 pub(crate) use generated::ALL_EMBEDDINGS;
 #[cfg(feature = "mcp")]
 pub(crate) use generated::ALL_MCP_SERVERS;
+#[cfg(feature = "pricing")]
+pub(crate) use generated::ALL_PRICING;
 #[cfg(feature = "providers")]
 pub(crate) use generated::ALL_PROVIDERS;
 #[cfg(feature = "capabilities")]

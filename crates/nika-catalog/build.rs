@@ -52,6 +52,10 @@ use serde::Deserialize;
 #[path = "build/capabilities.rs"]
 mod capabilities;
 
+// Pricing codegen — TOML-driven replacement for hand-coded ALL_PRICING.
+#[path = "build/pricing.rs"]
+mod pricing;
+
 // ─── Schema versioning ──────────────────────────────────────────────────
 //
 // Every data file carries a top-level `schema = "nika/<name>@<version>"`
@@ -64,6 +68,7 @@ const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.0";
 const EMBEDDINGS_SCHEMA: &str = "nika/embeddings@1.0";
 // Visible to `mod capabilities` (child of this build script).
 pub(crate) const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
+pub(crate) const PRICING_SCHEMA: &str = "nika/model-pricing@1.0";
 
 // ─── TOML schema (build-time only) ───────────────────────────────────────
 
@@ -252,6 +257,7 @@ fn run() -> Result<(), String> {
     let has_providers = env::var("CARGO_FEATURE_PROVIDERS").is_ok();
     let has_embeddings = env::var("CARGO_FEATURE_EMBEDDINGS").is_ok();
     let has_capabilities = env::var("CARGO_FEATURE_CAPABILITIES").is_ok();
+    let has_pricing = env::var("CARGO_FEATURE_PRICING").is_ok();
 
     // Providers are parsed unconditionally when either `providers` OR
     // `embeddings` is on — embeddings' FK check needs the provider list even
@@ -289,6 +295,14 @@ fn run() -> Result<(), String> {
         let generated = capabilities::generate_capabilities_rs(&caps);
         fs::write(out_dir.join("model_capabilities.rs"), generated)
             .map_err(|e| format!("writing model_capabilities.rs: {e}"))?;
+    }
+
+    if has_pricing {
+        let pricing_path = data_dir.join("model-pricing.toml");
+        let entries = pricing::parse_pricing(&pricing_path)?;
+        let generated = pricing::generate_pricing_rs(&entries);
+        fs::write(out_dir.join("model_pricing.rs"), generated)
+            .map_err(|e| format!("writing model_pricing.rs: {e}"))?;
     }
 
     Ok(())
