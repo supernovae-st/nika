@@ -53,6 +53,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 25 | `check-l0-dep-fanout.sh` | Each L0 crate ≤ 3 sibling `nika-*` deps (ADR-027 §"Hard rule"); per-crate exempt via `# L0-DEP-FANOUT-EXEMPT: <reason>` marker |
 | 30 | `check-cancel-safety.sh` | Every `async fn` in `crates/nika-kernel/src/**` has `// CANCEL SAFETY:` or `/// CANCEL SAFETY:` marker in preceding doc block (Batch I.b — kernel effect surface must document drop-safety per method) |
 | 31 | `check-owned-strings.sh` | nika-catalog public API uses `&'static str` (ADR-008 codegen pragma) or owned `String` — bans non-static `&str`/`&'a str` in `pub` fields and `pub fn` return types. Allow `&str` in parameters. Per-item exempt via `// OWNED-STRINGS-EXEMPT: <reason>` |
+| 32 | `check-unsafe-count.sh` | `unsafe` token count in `crates/*/src/**/*.rs` ≤ baseline (see `baselines/unsafe-count.txt`). Substitutes cargo-geiger-workspace which is hostile to virtual manifests; dep-tree security still covered by `cargo audit` + `cargo deny`. Baseline currently 0 |
 
 ## Adding a new vector
 

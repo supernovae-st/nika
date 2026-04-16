@@ -101,6 +101,7 @@ run_check "28 doc-private-items   " "check-doc-private-items.sh"
 run_check "29 case-collisions     " "check-case-collisions.sh"
 run_check "30 cancel-safety-docs  " "check-cancel-safety.sh"
 run_check "31 owned-strings-cat   " "check-owned-strings.sh"
+run_check "32 unsafe-count-ratchet" "check-unsafe-count.sh"
 
 # --- Output ---
 g=0
