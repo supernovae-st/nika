@@ -12,6 +12,60 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### 🛡️ Phase C Wave 3 — Stabilization + review-swarm defense (2026-04-16)
+
+Hardening pass after the foundational-types expansion. Mutation testing,
+proptest campaigns, and a 3-agent review swarm closed all P0/P1 findings.
+
+- **Seal `SecretResolver`** — `cargo-expand` verified private supertrait;
+  community can't implement, allowing future method additions (P1-1).
+- **`CancelCtx` Acquire/Release** — correctness fix for v0.95 DAG cancel
+  semantics (P1-6). Drop guard prevents leaked tokens.
+- **Reserve NIKA-700..819** + `Category::Memory` / `WasmPlugin` / `Sandbox`
+  / `Observability` — error-code real estate for v0.95+ subsystems.
+- **Cost stdlib arithmetic** — `Add`/`Sub`/`AddAssign`/`SubAssign` with
+  panic-in-debug, wrap-in-release semantics. `checked_add` / `checked_sub`
+  for fallible callers.
+- **Remove `TrustLevel::Default`** — safe-by-default inversion (P1-2).
+  All trust must be explicitly stated.
+- **`InferResponse.cost: Option<Cost>`** — structured cost replaces the
+  deprecated `cost_usd` float. Provider-side cost tracking now type-safe.
+- **Structured `DenialKind`** — replaces `CapabilityDenied { reason: String }`
+  with enum variants (`FsReadNotGranted`, `FsWriteNotGranted`, `NetEgressBlocked`,
+  `ExecBlocked`, `EnvReadBlocked`, `Custom`).
+- **20 proptest lattice/identity laws** — cost commutativity, associativity,
+  identity; trust lattice meet/join; baggage merge idempotence (integration tests).
+- **MemoryId UUIDv7** — `MemoryId(u128)` → `MemoryId { uuid: Uuid }`.
+  Time-sortable, standard format, `Display`/`FromStr` roundtrip.
+- **`#[deprecated]` cost_usd** on `InferResponse`, `AgentOutcome`,
+  `AgentCheckpoint` + `Cost::to_usd_f64()` bridge for deprecation window.
+- **Pin zeroize=1.8** — workspace-wide version lock for `SecretString`.
+- **cargo-mutants 88.5% kill rate** on nika-error L0 (cost/trust/baggage).
+- Token count: 572 → **585 lib / 621 total** (+13 lib, +49 total).
+
+### ⚡ Phase C Wave 2 — L0 foundational types + L0.5 traits (2026-04-16)
+
+23 pure-data types landed in L0 crates, 6 kernel traits in L0.5, plus
+forward-compat seams for v0.95 Cortex and v0.100 WASM.
+
+- **23 L0 value types** across nika-error and nika-kernel — cost, budget,
+  trust, retry, schema versioning, baggage, resource URI, content hash,
+  memory frame, deny kind, cancel context, plugin DTOs, sandbox policy,
+  observability event.
+- **6 L0.5 kernel traits** — `IdGenerator`, `SecretResolver`, `MetricsSink`,
+  `TracerProvider`, `EventSink`, `BillingSink`. All sealed (private
+  supertrait) with mock implementations in nika-kernel-mock.
+- **Sealing pattern** — `Provider`, `EventSink`, `BillingSink`,
+  `SecretResolver` now sealed via `mod sealed { pub trait Sealed {} }`.
+  Open traits (`MemoryStore`, `EmbeddingProvider`, `ToolExecutor`) remain
+  community-implementable.
+- **Forward-compat seams** — `cancel.rs`, `plugin.rs`, `sandbox.rs`,
+  `observability.rs` in nika-kernel. `MemoryFrame` gains reserved
+  `Option<_>` fields (`cipher`, `provenance`, `retention`, `redactions`).
+- **ADRs 016-020** — cancellation, streaming, runtime, retry, WASM
+  (Batch F part 1). **ADRs 033-034** — L0/L0.5 expansion plans.
+- Token count: 416 → **572** (+156 tests).
+
 ### ⚡ Phase D Session 2a — TOML-driven model capabilities (2026-04-14)
 
 Zero-allocation capability resolver migrated from hardcoded Rust to a

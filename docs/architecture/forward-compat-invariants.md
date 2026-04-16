@@ -124,12 +124,15 @@ reserved even if unused, preventing collision when future subsystems ship.
 | NIKA-000..099 | Core engine | active |
 | NIKA-100..199 | MCP / catalog | active (100, 101, 107) |
 | NIKA-200..299 | pck / validation | reserved v0.80, active v0.90 |
-| NIKA-300..399 | Providers | active (DNS shown, codes TBD) |
-| NIKA-400..499 | Cortex / memory | reserved v0.80, active v0.95 |
+| NIKA-300..399 | Providers + Shield | active (380-389 shield) |
+| NIKA-400..499 | Cortex / memory queries | reserved v0.80, active v0.95 |
 | NIKA-500..599 | agent-v2 | reserved v0.80, active v0.95 |
-| NIKA-600..699 | Shield / sandbox | active (380-389) |
-| NIKA-700..799 | Replay / observability | reserved v0.80, active v0.100 |
-| NIKA-800..899 | WASM plugins | reserved v0.80, active v0.100+ |
+| NIKA-600..649 | Memory subsystem | reserved v0.80 (Category::Memory) |
+| NIKA-650..699 | (unallocated) | reserved |
+| NIKA-700..749 | WASM plugin host | reserved v0.80 (Category::WasmPlugin) |
+| NIKA-750..799 | Sandbox / capabilities | reserved v0.80 (Category::Sandbox) |
+| NIKA-800..819 | Observability / telemetry | reserved v0.80 (Category::Observability) |
+| NIKA-820..899 | (unallocated) | reserved |
 | NIKA-900..999 | Community / x-* extensions | reserved v0.80 |
 
 ### 6. Sealed traits for core, open traits for extension <!-- FCI-006 -->
@@ -155,7 +158,8 @@ pub trait MemoryStore: Send + Sync { ... }
 ```
 
 **Locked sealing policy**:
-- **Sealed**: `Verb`, `Provider`, `Runtime`, `EventSink` — core engine only
+- **Sealed**: `Verb`, `Provider`, `Runtime`, `EventSink`, `BillingSink`,
+  `SecretResolver` — core engine only
 - **Open**: `MemoryStore`, `EmbeddingProvider`, `ToolExecutor`, `Sandbox`,
   `ObservabilitySink`, `WasmPluginHost` — community may implement
 
@@ -415,11 +419,11 @@ Violating any invariant blocks admission. No exceptions.
 - `docs/adr/adr-006-layered-kernel-isp-traits.md` — Accepted
 - `docs/adr/adr-007-forward-compat-invariants.md` — Accepted
 - `docs/adr/adr-014-sealed-kernel-traits.md` — Accepted
-- ADR-016 (planned) — Cancellation model: future-drop + `CancelCtx` module
-- ADR-017 (planned) — Streaming policy: bounded `mpsc` + `futures_core::Stream`
-- ADR-018 (planned) — Runtime + sync primitives
-- ADR-019 (planned) — Retry + timeout ownership by layer
-- ADR-020 (planned) — WASM plugin boundary + Sandbox capability model
+- ADR-016 — Cancellation model: future-drop + `CancelCtx` module (Accepted)
+- ADR-017 — Streaming policy: bounded `mpsc` + `futures_core::Stream` (Accepted)
+- ADR-018 — Runtime + sync primitives (Accepted)
+- ADR-019 — Retry + timeout ownership by layer (Accepted)
+- ADR-020 — WASM plugin boundary + Sandbox capability model (Accepted)
 - ADR-021 (planned) — Latency budgets as code
 - ADR-022 (planned) — Catalog allocation shape (`Arc<str>` / `Cow<'static, str>`)
 

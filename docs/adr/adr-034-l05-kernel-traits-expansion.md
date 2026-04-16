@@ -20,7 +20,7 @@ shadow_zones: []
 nika_codes: []
 timeline: "v0.81.0-alpha.1, Phase D / Session S1-C"
 follow_ups:
-  - "Land Sealed supertrait + apply to Provider, EventSink, BillingSink (S1-C)"
+  - "Land Sealed supertrait + apply to Provider, EventSink, BillingSink, SecretResolver (DONE Wave 3 — cargo-expand verified)"
   - "Add MemoryUpdate sub-trait + augment MemoryStore blanket (deferred to v0.95 Cortex)"
   - "Implement nika-secret-vault (L1) when production secrets land"
   - "Implement nika-observability-otel (L1) when OTel export is wired"

@@ -39,8 +39,12 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
 
-- **nika-error** — error infrastructure (45 tests, 100% mutation, `42909b1c7`)
-- **nika-catalog** — static catalogs with phf+unicase lookup (182 tests after S3)
+- **nika-error** — error infrastructure (144 tests, 88.5% mutation, `42909b1c7`)
+  - 23 L0 foundational types (cost, trust, budget, retry, baggage, schema, hash, resource)
+  - Cost stdlib arithmetic (`Add`/`Sub` with `checked_add`/`checked_sub`)
+  - `TrustLevel::Default` removed (safe-by-default inversion)
+  - 20 proptest lattice/identity laws (cost, trust, baggage)
+- **nika-catalog** — static catalogs with phf+unicase lookup (184 tests after S3)
   - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
   - 105 MCP servers, 25 LLM providers, 13 embeddings, 63 builtins, 65 transforms
   - **TOML-driven capability resolver** — 42 rules, zero-alloc, proptest 10k parity
@@ -49,13 +53,20 @@ Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
   - 7-axis `ModelPricing`: input + output + cached_input + image + reasoning_tokens + provider + pattern
   - Invariant #19 FULL, Gate 8 GREEN
   - Community extension pattern: `nika-catalog-cn`, `nika-catalog-eu`
-- **nika-catalog-verify** — online registry verifier binary (9 tests, `a977e35b1`)
-- **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (99 + 88 tests, `ef8804371`)
+- **nika-catalog-verify** — online registry verifier binary (`a977e35b1`)
+- **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (141 + 116 tests, `ef8804371`)
+  - 6 L0.5 traits (`IdGenerator`, `SecretResolver`, `MetricsSink`, `TracerProvider`, `EventSink`, `BillingSink`)
+  - Sealing pattern on `Provider`, `EventSink`, `BillingSink`, `SecretResolver`
+  - Forward-compat seams: `cancel.rs`, `plugin.rs`, `sandbox.rs`, `observability.rs`
+  - `InferResponse.cost: Option<Cost>` + structured `DenialKind`
+  - `MemoryId` UUIDv7 migration, `#[deprecated] cost_usd` bridge
 
-Total: 416 tests, 0 clippy warnings, 0 unwrap in `src/`, Gate 8 GREEN.
+Total: **585 lib / 621 total tests**, 0 clippy warnings, 0 unwrap in `src/`,
+~19.8k LOC, 22 ADRs, 21/21 hygiene GREEN, Gate 8 GREEN.
 
-Phase D progress: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅.
-Next: Session 4 — HTTP API + DataSource + MCP lifecycle. Phase E2 (pricing TOML migration) is the Session 4 prep companion — deferred from Session 3 to land with its own proptest + TDD discipline.
+Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
+Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅.
+Next: Session 4A — catalog structural (first feature session after stabilization).
 
 ## v0.81 — Forward-compat seams + hygiene hardening (ships when ready)
 
@@ -63,44 +74,48 @@ Next: Session 4 — HTTP API + DataSource + MCP lifecycle. Phase E2 (pricing TOM
 non-breaking extension (not a rewrite), before admission velocity picks up.
 Pure additions — no behaviour change for v0.80 consumers.
 
-### Kernel forward-compat seams
+### Kernel forward-compat seams — ✅ SHIPPED (Wave 2, 2026-04-16)
 
-- New `crates/nika-kernel/src/cancel.rs` — `CancelCtx` module (re-export
-  of `tokio_util::sync::CancellationToken` under Nika idiom)
-- New `crates/nika-kernel/src/plugin.rs` — `WasmPluginHost` trait stub +
+- ~~New `crates/nika-kernel/src/cancel.rs`~~ — ✅ `CancelCtx` module with
+  Acquire/Release semantics + `CancelDropGuard`
+- ~~New `crates/nika-kernel/src/plugin.rs`~~ — ✅ `WasmPluginHost` trait stub +
   `PluginCall` / `PluginResult` / `PluginError` DTOs, all
   `#[non_exhaustive]`, zero impls
-- New `crates/nika-kernel/src/sandbox.rs` — `Sandbox` trait stub +
-  `SandboxPolicy` + `PluginCapabilities` enums, all `#[non_exhaustive]`
-- New `crates/nika-kernel/src/observability.rs` — `ObservabilitySink`
+- ~~New `crates/nika-kernel/src/sandbox.rs`~~ — ✅ `Sandbox` trait stub +
+  `SandboxPolicy` + `PluginCapabilities` enums + structured `DenialKind`
+- ~~New `crates/nika-kernel/src/observability.rs`~~ — ✅ `ObservabilitySink`
   trait stub + `Event` DTO
-- `MemoryFrame` gains reserved `Option<_>` fields (`cipher`, `provenance`,
-  `retention`, `redactions`) — all default `None` in v0.80, future impls
-  populate without breaking callers
-- `ProviderStream::infer_stream` and `ContextCompressor::compress` gain
-  an explicit `cancel: CancelCtx` parameter (future-drop insufficient for
-  outlived streams)
+- ~~`MemoryFrame` reserved fields~~ — ✅ `cipher`, `provenance`,
+  `retention`, `redactions` (all `Option<_>`, default `None`)
+- ~~`ProviderStream::infer_stream` + `ContextCompressor::compress` cancel param~~ — ✅
 
-Reserving these v0.81 keeps v0.95 Cortex + v0.100 WASM plugins strictly
-additive. See `docs/architecture/forward-compat-invariants.md` §9.
+All v0.81 kernel seams shipped on HEAD (`244dcc807`). v0.95 Cortex +
+v0.100 WASM plugins are now strictly additive.
+See `docs/architecture/forward-compat-invariants.md` §9.
 
-### Reserved traits (visible v0.81, impl v0.95+)
+### Reserved traits — ✅ SHIPPED (visible on HEAD, impl v0.95+)
 
-| Trait | Kernel file (v0.81) | First impl |
-|---|---|---|
-| `WasmPluginHost` | `src/plugin.rs` | `nika-wasm-host` (v0.100) |
-| `Sandbox` | `src/sandbox.rs` | `nika-sandbox-{linux,macos,windows}` (v0.100) |
-| `ObservabilitySink` | `src/observability.rs` | `nika-observability-otel` (v0.100) |
-| `MemoryStore` | `src/memory.rs` (locked v0.80) | `nika-memory-oxigraph` (v0.95) |
-| `EmbeddingProvider` | `src/memory.rs` (locked v0.80) | Cortex providers (v0.95) |
+| Trait | Kernel file | Status | First impl |
+|---|---|---|---|
+| `WasmPluginHost` | `src/plugin.rs` | ✅ shipped | `nika-wasm-host` (v0.100) |
+| `Sandbox` | `src/sandbox.rs` | ✅ shipped | `nika-sandbox-{linux,macos,windows}` (v0.100) |
+| `ObservabilitySink` | `src/observability.rs` | ✅ shipped | `nika-observability-otel` (v0.100) |
+| `MemoryStore` | `src/memory.rs` | ✅ shipped | `nika-memory-oxigraph` (v0.95) |
+| `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | Cortex providers (v0.95) |
+| `IdGenerator` | `src/id_gen.rs` | ✅ shipped (W2) | in-tree |
+| `SecretResolver` | `src/secret.rs` | ✅ shipped (W2, sealed) | in-tree |
+| `MetricsSink` | `src/metrics.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
+| `TracerProvider` | `src/trace.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
+| `EventSink` | `src/event_sink.rs` | ✅ shipped (W2, sealed) | in-tree |
+| `BillingSink` | `src/billing.rs` | ✅ shipped (W2, sealed) | in-tree |
 
-### Hygiene vectors expansion (10 → 21)
+### Hygiene vectors expansion (10 → 21) — ✅ SHIPPED (Wave 1, 2026-04-16)
 
-Adds 11 new checkers (layering, security-axes, cargo-geiger unsafe-deps,
+21/21 vectors GREEN. P0/P1 in pre-commit fast path; P2/P3 in pre-push
+full path. Includes layering, security-axes, cargo-geiger unsafe-deps,
 env-example parity, license consistency, no-async-in-L0, catalog owned
 strings, kernel-no-spawn, no-`Box<dyn Error>`, cancel-safety docs,
-case-insensitive collisions). Routed P0/P1 into the pre-commit fast path;
-P2/P3 into the pre-push full path.
+case-insensitive collisions.
 
 ## v0.81–v0.82 — Workspace rename + release automation (ships when ready)
 

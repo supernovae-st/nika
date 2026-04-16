@@ -48,12 +48,13 @@ Given a crate `nika-<role>`, ask these questions in order:
 │ nika-macros               [thin shim]       proc-macro = true             │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
-╭─ L0.5  (trait defs only, async OK, zero impl) ───────────────────────────╮
+╭─ L0.5  (trait defs + companions, async OK) ──────────────────────────────╮
 │ nika-kernel-core          Clock + Fs + Http + Process + Blob + Shell      │
 │ nika-kernel-ai            Provider* + Memory* + Embedding + Compressor    │
 │ nika-kernel-runtime       ToolExecutor + Agent + Checkpoint + Context     │
 │ nika-kernel-plugin        WasmPluginHost + Sandbox + ObservabilitySink    │
 │                           (split when kernel > 10k LOC OR traits > 50)    │
+│ nika-kernel-mock          [axes: none]         1:1 mirror, auto_impl      │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L1  (effect impls, async) ───────────────────────────────────────────────╮
@@ -68,7 +69,6 @@ Given a crate `nika-<role>`, ask these questions in order:
 │ nika-pck-registry         [axes: net-egress]                              │
 │ nika-pck-store            [axes: rw-fs]                                   │
 │ nika-<provider>-*         [axes: net-egress]   1 crate per frontier prov. │
-│ nika-kernel-mock          [axes: none]         1:1 mirror, auto_impl      │
 │ nika-catalog-sync         [axes: net-egress]   freshness pipeline         │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
@@ -110,8 +110,8 @@ flags. They obey the same 12-gate admission as any other crate.
 |---|---|---|---|---|
 | L0 | Pure types, lookup tables, sync-only APIs | none | (leaf) | `nika-error`, `nika-catalog`, `nika-pck-manifest`, `nika-stdx`, `nika-event` |
 | L0-proc | Proc-macro crates (kept separate for compile-time cost) | none (build-host only) | L0 | `nika-macros`, `nika-macros-core` |
-| L0.5 | Kernel trait definitions — async signatures, zero impl | none (traits only) | L0 | `nika-kernel-*` |
-| L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-kernel-mock`, `nika-catalog-sync` |
+| L0.5 | Kernel trait definitions + companions (mock) — async OK | none (traits only) | L0 | `nika-kernel`, `nika-kernel-mock` |
+| L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-catalog-sync` |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-mcp`, `nika-verb-*`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
 | L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-daemon`, `nika-http`, `nika-mcp`, `nika-lsp`, `nika-sdk` |
@@ -224,8 +224,8 @@ re-export kept in `nika-kernel` for the v0.8x tail.
 - `docs/adr/adr-004-context-window-sized-crates.md` — Accepted
 - `docs/adr/adr-006-layered-kernel-isp-traits.md` — Accepted
 - `docs/adr/adr-014-sealed-kernel-traits.md` — Accepted
-- ADR-016 (planned) — Six-layer crate topology (locks L5 = sole-binary)
-- ADR-018 (planned) — Runtime + sync primitives
-- ADR-020 (planned) — WASM plugin boundary + Sandbox
+- ADR-016 — Cancellation model (Accepted)
+- ADR-018 — Runtime + sync primitives (Accepted)
+- ADR-020 — WASM plugin boundary + Sandbox (Accepted)
 
 🦋
