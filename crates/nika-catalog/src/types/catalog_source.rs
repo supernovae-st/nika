@@ -8,8 +8,7 @@
 //! rather than nika-kernel (L0.5) to avoid an L0 → L0.5 dependency cycle
 //! — nika-catalog owns the concrete types these traits return.
 //!
-//! The runtime (L3) composes sources via [`OverlayCatalogDataSource`]:
-//! `User > Pck > Core` precedence.
+//! The runtime (L3) composes sources with `User > Pck > Core` precedence.
 
 use core::fmt;
 
