@@ -3,8 +3,18 @@
 
 //! Task-list parsing — YAML `tasks:` sequence → `Vec<Spanned<RawTask>>`.
 //!
-//! Round 2d scope — task name + action discriminator + minimum
-//! verb-specific required fields only:
+//! Round 2e scope extends Round 2d with three optional task-level
+//! fields expressed as plain strings or string lists:
+//!
+//! - `depends_on:` — list of task names this task waits on.
+//! - `condition:` — template expression; the parser stores the raw
+//!   string, the analyzer evaluates it at runtime.
+//! - `for_each:` — iteration source (template expression; same
+//!   deal — stored raw).
+//!
+//! Each task still MUST carry `name` + exactly one verb key (`infer`,
+//! `exec`, `fetch`, `invoke`, `agent`) with its minimum required
+//! field:
 //!
 //! | Verb    | Required field |
 //! |---------|----------------|
@@ -14,10 +24,10 @@
 //! | invoke  | `tool` **or** `resource` |
 //! | agent   | `prompt`       |
 //!
-//! Optional task-level fields (`depends_on`, `condition`, `for_each`,
-//! `record`, `decompose`, `budget`, `limits`, `completion`,
-//! `guardrails`, `max_retries`) and optional verb-specific fields
-//! (system prompt, temperature, headers, tools, …) land in Round 2e.
+//! Still deferred to later rounds: `max_retries` (u32, Round 2f),
+//! verb-specific optional fields (system prompt, temperature,
+//! headers, tools, …), and the complex sub-configs (`record`,
+//! `decompose`, `budget`, `limits`, `completion`, `guardrails`).
 
 use marked_yaml::types::MarkedMappingNode;
 
@@ -118,7 +128,46 @@ fn parse_task(
     })?;
 
     let action = parse_action(mapping, file_id, char_to_byte)?;
-    Ok(RawTask::new(name, action))
+    let mut task = RawTask::new(name, action);
+    task.depends_on = parse_string_list(mapping, "depends_on", file_id, char_to_byte)?;
+    task.condition = extract_scalar(mapping, "condition", file_id, char_to_byte)?;
+    task.for_each = extract_scalar(mapping, "for_each", file_id, char_to_byte)?;
+    Ok(task)
+}
+
+/// Extract an optional list of string scalars under `key`.
+///
+/// Returns `Ok(vec![])` when the key is absent. Returns
+/// [`SchemaError::Validation`] if the key is present but is not a
+/// sequence, or if any element is not a scalar string.
+fn parse_string_list(
+    mapping: &MarkedMappingNode,
+    key: &str,
+    file_id: FileId,
+    char_to_byte: &CharToByte,
+) -> Result<Vec<Spanned<String>>, SchemaError> {
+    let Some(node) = mapping.get_node(key) else {
+        return Ok(Vec::new());
+    };
+    let Some(seq) = node.as_sequence() else {
+        return Err(SchemaError::Validation {
+            message: format!("`{key}` must be a YAML sequence of strings"),
+            span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+        });
+    };
+    let mut out = Vec::with_capacity(seq.len());
+    for item in seq.iter() {
+        let Some(scalar) = item.as_scalar() else {
+            return Err(SchemaError::Validation {
+                message: format!("each entry in `{key}` must be a string"),
+                span: yaml_span_to_span(file_id, item.span(), char_to_byte),
+            });
+        };
+        let span = yaml_span_to_span(file_id, scalar.span(), char_to_byte)
+            .unwrap_or_else(|| Span::point(file_id, ByteOffset::new(0)));
+        out.push(Spanned::new(scalar.as_str().to_owned(), span));
+    }
+    Ok(out)
 }
 
 /// Detect which of the five verb keys is present and parse it.
@@ -472,5 +521,123 @@ tasks:
 ";
         let wf = parse(yaml, FileId::new(9)).expect("parse");
         assert_eq!(wf.tasks[0].span.file, FileId::new(9));
+    }
+
+    // ─── Round 2e: optional task-level fields ──────────────────
+
+    #[test]
+    fn parse_depends_on_multiple_tasks() {
+        let yaml = "\
+tasks:
+  - name: a
+    exec:
+      command: echo a
+  - name: b
+    exec:
+      command: echo b
+  - name: c
+    depends_on:
+      - a
+      - b
+    exec:
+      command: echo c
+";
+        let wf = parse(yaml, fid()).expect("parse");
+        let c = &wf.tasks[2].value;
+        assert_eq!(c.depends_on.len(), 2);
+        assert_eq!(c.depends_on[0].value, "a");
+        assert_eq!(c.depends_on[1].value, "b");
+    }
+
+    #[test]
+    fn parse_depends_on_absent_defaults_to_empty() {
+        let yaml = "\
+tasks:
+  - name: lonely
+    exec:
+      command: ls
+";
+        let wf = parse(yaml, fid()).expect("parse");
+        assert!(wf.tasks[0].value.depends_on.is_empty());
+    }
+
+    #[test]
+    fn parse_depends_on_preserves_file_id_on_each_entry() {
+        let yaml = "\
+tasks:
+  - name: first
+    exec:
+      command: echo
+  - name: second
+    depends_on:
+      - first
+    exec:
+      command: echo
+";
+        let wf = parse(yaml, FileId::new(3)).expect("parse");
+        let second = &wf.tasks[1].value;
+        assert_eq!(second.depends_on[0].span.file, FileId::new(3));
+    }
+
+    #[test]
+    fn parse_depends_on_as_scalar_errors() {
+        let yaml = "\
+tasks:
+  - name: bad
+    depends_on: some_task
+    exec:
+      command: ls
+";
+        let err = parse(yaml, fid()).expect_err("depends_on must be a sequence");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("sequence")),
+            "got {err:?}",
+        );
+    }
+
+    #[test]
+    fn parse_depends_on_with_non_scalar_element_errors() {
+        let yaml = "\
+tasks:
+  - name: bad
+    depends_on:
+      - name: oops
+    exec:
+      command: ls
+";
+        let err = parse(yaml, fid()).expect_err("element must be a string");
+        assert!(matches!(err, SchemaError::Validation { .. }));
+    }
+
+    #[test]
+    fn parse_condition_and_for_each() {
+        let yaml = "\
+tasks:
+  - name: guarded
+    condition: \"{{ ready }}\"
+    for_each: \"{{ items }}\"
+    exec:
+      command: echo
+";
+        let wf = parse(yaml, fid()).expect("parse");
+        let t = &wf.tasks[0].value;
+        assert_eq!(t.condition.as_ref().unwrap().value, "{{ ready }}");
+        assert_eq!(t.for_each.as_ref().unwrap().value, "{{ items }}");
+    }
+
+    #[test]
+    fn parse_condition_as_mapping_errors() {
+        // Templates are strings — a mapping here is a malformed YAML
+        // expression. Must fail loud so the author sees the typo.
+        let yaml = "\
+tasks:
+  - name: bad
+    condition:
+      key: value
+    exec:
+      command: ls
+";
+        let err = parse(yaml, fid()).expect_err("condition must be a scalar");
+        assert!(matches!(err, SchemaError::Validation { .. }));
     }
 }
