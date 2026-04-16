@@ -68,6 +68,21 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 - Any red → open (or update) 1 idempotent issue with label `hygiene-drift`
   containing the full output
 
+## Olympus dashboard auto-refresh (post-commit)
+
+After every engine commit, lefthook fires
+`scripts/hooks/post-commit-olympus-xtask.sh` in the background (nohup +
+`pnpm tsx olympus/scripts/xtask.ts`). This regenerates
+`olympus/data/workspace.json` + `data/snapshots/<timestamp>.json`
++ `data/hygiene-status.json`, which the Olympus file-watcher picks up
+via `WorkspacePatchKind` so `/timeline`, `/graph/diff`, `/graph/fitness`,
+and `/hygiene` all refresh live without manual reload.
+
+The hook is non-blocking: commits always succeed. Missing pnpm or a
+missing olympus sibling directory causes a silent skip logged to
+`.nika/post-commit-xtask.log`. The log is gitignored via the root
+`/.nika/` entry.
+
 ## Integration with Claude Code hooks
 
 `.claude/settings.json` PostToolUse hook auto-runs this dashboard after any
