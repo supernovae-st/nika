@@ -61,12 +61,12 @@ Diamond foundation, 5 crates admitted to workspace, orphan branch from scratch.
   - `InferResponse.cost: Option<Cost>` + structured `DenialKind`
   - `MemoryId` UUIDv7 migration, `#[deprecated] cost_usd` bridge
 
-Total: **585 lib / 621 total tests**, 0 clippy warnings, 0 unwrap in `src/`,
-~19.8k LOC, 22 ADRs, 21/21 hygiene GREEN, Gate 8 GREEN.
+Total: **630 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
+~21.8k LOC, 22 ADRs, 21/21 hygiene GREEN, Gate 8 GREEN.
 
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
-Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅.
-Next: Session 4A — catalog structural (first feature session after stabilization).
+Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅.
+Next: Session 4A-stabilize → Session 4B data enrichment.
 
 ## v0.81 — Forward-compat seams + hygiene hardening (ships when ready)
 

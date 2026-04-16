@@ -12,6 +12,32 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### ⚡ Phase D Session 4A — Catalog structural enrichment (2026-04-16)
+
+Context-window + output-limit + JSON mode enrichment. First structural
+expansion of capabilities beyond the Session 2a/2b foundation.
+
+- **3 new CapPatch fields** — `context_window_tokens: Option<u32>`,
+  `max_output_tokens: Option<u32>`, `json_mode: Option<JsonMode>`.
+  Per-model context windows and output limits are now expressible in the
+  TOML-driven capability resolver.
+- **`JsonMode` enum** — `Schema` (tool_use enforcement) / `Object`
+  (unstructured json_object mode). Per-provider granularity.
+- **`ContainsAny` matcher** — word-boundary-anchored substring matching
+  with left/right boundary chars (`-`, `_`, `/`, `.`, `@`). Prevents
+  "sonnet-4" from matching "sonnet-4-60" (the `6` after "sonnet-4" is
+  not a boundary character).
+- **`#[non_exhaustive]` on 20 mock structs** — all `nika-kernel-mock`
+  types now enforce invariant #19 (attribute + `pub fn new()`).
+- **`HttpStreamResponse::new()`** — invariant #19 compliance for the
+  only `#[non_exhaustive]` struct that was missing a constructor.
+- **12-field merge_with regression guard** — all CapPatch fields covered
+  by a single test with confirmed RED on removal.
+- **estimate_cost edge cases** — zero tokens → $0.00, nonexistent model → None.
+- **MemoryId deserialize error paths** — missing `mem-` prefix and invalid
+  UUID now have dedicated tests.
+- Token count: 625 → **630 lib tests** (+5).
+
 ### 🛡️ Phase C Wave 3 — Stabilization + review-swarm defense (2026-04-16)
 
 Hardening pass after the foundational-types expansion. Mutation testing,
