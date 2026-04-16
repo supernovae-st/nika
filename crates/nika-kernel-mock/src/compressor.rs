@@ -3,8 +3,8 @@
 
 //! `NullContextCompressor` — no-op context compressor.
 
-use nika_kernel::agent::CompressionPolicy;
-use nika_kernel::checkpoint::CheckpointMessage;
+use nika_error::checkpoint::CheckpointMessage;
+use nika_error::compression::CompressionPolicy;
 use nika_kernel::context::{CompressedContext, ContextCompressor};
 
 /// No-op context compressor that never compresses.

@@ -6,8 +6,8 @@
 use nika_error::NikaError;
 use nika_error::cost::Cost;
 use nika_error::id::{ModelId, ProviderId};
+use nika_error::token_usage::TokenUsage;
 use nika_kernel::billing::BillingSink;
-use nika_kernel::provider::TokenUsage;
 
 /// No-op billing sink.
 #[derive(Clone, Debug, Default)]

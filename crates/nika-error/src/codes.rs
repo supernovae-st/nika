@@ -177,6 +177,52 @@ pub const NIKA_015: NikaCode = NikaCode {
     slug: "json-mode-unknown",
 };
 
+// ─── Kernel subsystem codes (050+) ──────────────────────────────────────
+//
+// These range placeholders register kernel error categories so that
+// `lookup("NIKA-050")` works even before individual codes ship.
+// Specific codes within each range are added when owning crates land.
+
+/// NIKA-050: Shell/process error (range placeholder 050-099).
+pub const NIKA_050: NikaCode = NikaCode {
+    num: 50,
+    category: Category::Shell,
+    severity: Severity::Error,
+    slug: "shell",
+};
+
+/// NIKA-100: File I/O / blob error (range placeholder 100-139).
+pub const NIKA_100: NikaCode = NikaCode {
+    num: 100,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "file-io",
+};
+
+/// NIKA-140: HTTP error (range placeholder 140-189).
+pub const NIKA_140: NikaCode = NikaCode {
+    num: 140,
+    category: Category::Http,
+    severity: Severity::Error,
+    slug: "http",
+};
+
+/// NIKA-230: MCP/tool error (range placeholder 230-279).
+pub const NIKA_230: NikaCode = NikaCode {
+    num: 230,
+    category: Category::Mcp,
+    severity: Severity::Error,
+    slug: "mcp-tool",
+};
+
+/// NIKA-380: Provider/Shield error (range placeholder 380-429).
+pub const NIKA_380: NikaCode = NikaCode {
+    num: 380,
+    category: Category::Provider,
+    severity: Severity::Error,
+    slug: "provider-shield",
+};
+
 // ─── Reserved subsystem codes (600+) ─────────────────────────────────────
 
 /// NIKA-600: Memory subsystem error (range placeholder 600-649).
@@ -222,7 +268,8 @@ pub const NIKA_999: NikaCode = NikaCode {
 /// All registered codes. Used for uniqueness validation and iteration.
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_600, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
+    NIKA_050, NIKA_100, NIKA_140, NIKA_230, NIKA_380, NIKA_600, NIKA_700, NIKA_750, NIKA_800,
+    NIKA_999,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -247,6 +294,21 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         14 => "max_output_tokens exceeds context_window_tokens. Fix the model capability rule.",
         15 => "Unrecognised json_mode value. Valid values: none, object, schema.",
+        50..=99 => {
+            "Shell/process execution failed. Check command path, permissions, and timeout settings."
+        }
+        100..=139 => {
+            "File I/O or blob operation failed. Check file paths, permissions, and storage availability."
+        }
+        140..=189 => {
+            "HTTP request failed. Check endpoint URL, network connectivity, and SSRF allowlist."
+        }
+        230..=279 => {
+            "MCP tool call failed. Check tool name, parameters, and MCP server availability."
+        }
+        380..=429 => {
+            "Provider or Shield security error. Check API credentials, trust levels, and capability grants."
+        }
         600..=649 => {
             "Memory subsystem reported an error. Check store availability, embedding provider, and tenant quotas."
         }

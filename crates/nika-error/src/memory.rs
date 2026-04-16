@@ -20,7 +20,7 @@ use uuid::Uuid;
 #[non_exhaustive]
 pub struct MemoryId {
     /// Underlying UUID (`UUIDv7` in production, nil / arbitrary in tests).
-    pub uuid: Uuid,
+    uuid: Uuid,
 }
 
 impl MemoryId {
@@ -42,6 +42,12 @@ impl MemoryId {
         Self {
             uuid: Uuid::now_v7(),
         }
+    }
+
+    /// Returns the underlying UUID.
+    #[must_use]
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
     }
 
     /// Create a nil (all-zero) memory identifier.

@@ -71,7 +71,7 @@ impl EmbeddingProvider for NullEmbeddingProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_kernel::memory::MemoryLevel;
+    use nika_error::memory::MemoryLevel;
 
     #[tokio::test]
     async fn null_remember_returns_nil() {
