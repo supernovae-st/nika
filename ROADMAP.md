@@ -1,20 +1,20 @@
 # Nika Roadmap
 
-> **🦋 PHILOSOPHY SHIFT 2026-04-17 — see ADR-037**
+> **🦋 ADR-037 — Bottom-up diamond progression (Accepted 2026-04-17, SUPREME)**
 >
-> Section headers `v0.81 Foundation / v0.90 Ship / v0.95 Cortex / v0.100 WASM`
-> are being replaced with layer-progression sections. Bottom-up diamond build:
-> L0 → L0.5 → L1 → L2 → L3 → L4 → L5. No feature defer. No marketing
-> milestones. Forever-v0.x unchanged. Full restructure pending — meanwhile
-> the sections below use the OLD model and should be read as reference-only.
+> Nika is built bottom-up, one layer at a time: **L0 → L0.5 → L1 → L2 → L3 → L4 → L5**.
+> Every feature is crafted as its layer is reached. No feature defer. No
+> version-milestone ceremony. No v1.0 target. Forever-v0.x.
 >
-> Tag scheme (Q-plan 3b): `v0.8X.Y` where X climbs per layer-phase completion,
-> Y increments per admission. See ADR-037 for the full `v0.80 → v0.92`
-> progression map.
+> Tag scheme (Q-plan 3b): `v0.8X.Y` where `X` climbs per layer-phase completion
+> and `Y` increments per crate admission. See §Tag scheme below.
 >
-> Target crate count: 40-42 → **50-90 crates** (cap 100 unchanged). Driven by
-> 14-crate memory subsystem (8 core + 6 reserved), 4 storage backends,
-> ~30 provider crates, own `nika-embed`, WASM + sandbox.
+> Schema envelope (Q-R5): `apiVersion: nika.sh/v1` **forever**. K8s-style
+> `x-nika-alpha/beta` annotations gate sub-field maturity within v1. See ADR-044.
+>
+> Target crate count: **50-90** (cap 100). Driven by 14-crate memory subsystem
+> (8 core + 6 reserved), 4 storage backends, ~30 provider crates, own
+> `nika-embed`, WASM + sandbox. See §Crate sequence.
 
 **Philosophy: Forever v0.x.** Nika increments quality in v0.x releases
 indefinitely. There is no v1.0 target. Each release is diamond-grade for its
@@ -36,7 +36,7 @@ pattern-match hallucinated.
 
 Diamond is a rewrite under one constraint: **every crate fits in an AI context
 window**. 15k LOC cap per crate. 1,500 LOC cap per file. 100 lines cap per
-function. 40-42 crates instead of 31, because smaller, sharper crates compose
+function. 50-90 crates instead of 31, because smaller, sharper crates compose
 better than fewer, bloated ones.
 
 The math: legacy 138k-LOC monolith = ~750k tokens = 75% of a 1M-token context
@@ -159,11 +159,176 @@ Next phases (~35 commits across B-H):
 3. **Crate 7: nika-binding** — template resolver + 65 pipe transforms (L0, ~13k LOC). Blocks runtime + CLI.
 4. **Phase E2** — full TOML-driven pricing migration (cached_input/image/reasoning rates populated per-provider from live research)
 
-## v0.81 — Forward-compat seams + hygiene hardening (ships when ready)
+## Tag scheme (Q-plan 3b)
 
-**Theme**: lock the structural seams that turn 5 → 42 crates into a
+`v0.8X.Y` where:
+
+- `X` climbs **once per layer-phase completion** — not per marketing milestone.
+- `Y` increments **per crate admission** within the active phase.
+
+| Tag       | Meaning                                                         |
+|-----------|-----------------------------------------------------------------|
+| `v0.80.N` | L0 + L0.5 in progress (current — we are here, `Y=11` 2026-04-17) |
+| `v0.81.*` | L0 foundation **complete** (all 9-10 L0 crates admitted)        |
+| `v0.82.*` | L1 phase 1a **complete** — primitives (fs/process/http-client/keys-env) |
+| `v0.83.*` | L1 phase 1b — deps-étage-1 (git/keys-keychain/catalog-sync)     |
+| `v0.84.*` | L1 phase 1c — providers (rig + openai-compat + mock)            |
+| `v0.85.*` | L1 phase 1d — pck backend (registry + store)                    |
+| `v0.86.*` | L1 phase 1e — memory foundation (embed/store/autodesc/hnsw/bm25/rrf) |
+| `v0.87.*` | L1 phase 1f — memory advanced (temporal/fsrs/rdfs/graph-algos)  |
+| `v0.88.*` | L1 phase 1g — reserved satellites graduated (if pulled forward) |
+| `v0.89.*` | L2 **complete** — verbs, orchestrators, builtins                |
+| `v0.90.*` | L3 **complete** — runtime, shield, wasm-host, sandbox ×3        |
+| `v0.91.*` | L4 **complete** — cli, daemon, serve, mcp, lsp, sdk             |
+| `v0.92.*` | L5 **complete** — `nika` binary (<500 LOC composition root)     |
+| `v0.93+`  | Polish forever — new providers, new memory backends, new shields |
+
+No tag = "Ship". No marketing milestone. `v0.92.0` is merely "the last
+structural climb"; `v0.93+` keeps shipping diamond-grade increments forever.
+
+## Schema envelope — forever v1 (Q-R5, ADR-044)
+
+Every `.nika.yaml` workflow carries `apiVersion: nika.sh/v1` **forever**.
+This is a K8s-style stability guarantee: the envelope never bumps to v2.
+
+Sub-field maturity is annotated inline via `x-nika-alpha` / `x-nika-beta` /
+`x-nika-deprecated` hints that parsers surface as warnings, never errors.
+The kernel schema registry gains promotion paths for these annotations
+(alpha → beta → stable → deprecated) without breaking any workflow.
+
+A workflow that validates on `v0.81.0` must still validate on `v0.99.17`.
+Removed fields become `x-nika-deprecated` with a 12-month sunset window; they
+continue to parse — they just warn.
+
+## Crate sequence (ADR-037, dep-ordered)
+
+Bottom-up build order. Every crate is crafted when its layer is reached.
+No defer, no feature-milestone ceremony. Strictly downward dependencies.
+
+### L0 — foundation (~9 crates, pure types, sync)
+
+Admitted: `nika-types`, `nika-error`, `nika-catalog`.
+WIP: `nika-schema` (parser scaffolding, Phase D rewrite pending).
+Pending: `nika-cap` (capability tokens, proposal A from swarm-1),
+`nika-pck-contracts` (manifest DTO scaffold, proposal B),
+`nika-event-types`, `nika-binding-types`, `nika-catalog-codegen`.
+
+### L0.5 — kernel traits (2 crates, sealed, ISP)
+
+Admitted: `nika-kernel`, `nika-kernel-mock`.
+
+### L1 — effects (~50+ crates, tokio-async OK)
+
+Sub-phased per Q2 (topological × user-value):
+
+- **1a primitives**: `nika-fs`, `nika-process`, `nika-http-client`, `nika-keys-env`
+- **1b deps-étage-1**: `nika-git` (gix), `nika-keys-keychain`, `nika-catalog-sync`
+- **1c providers**: `nika-provider-rig` (7 cloud + 7 OpenAI-compat),
+  `nika-provider-native` (mistral.rs GGUF, feature-gated), `nika-provider-mock`
+- **1d pck backend**: `nika-pck-registry`, `nika-pck-store`
+- **1e memory foundation**: `nika-embed` (own quantized local model, B2 locked),
+  `nika-memory-store-fjall` (default backend, B3 locked), `nika-autodesc`,
+  `nika-memory-hnsw`, `nika-memory-bm25`, `nika-memory-rrf`
+- **1f memory advanced**: `nika-memory-temporal`, `nika-memory-fsrs`,
+  `nika-memory-rdfs-reasoner`, `nika-memory-graph-algos`
+- **1g reserved satellites** (graduated as pulled forward):
+  `nika-memory-causal-graph`, `nika-memory-episodic-narrative`,
+  `nika-memory-working`, `nika-memory-meta`, `nika-memory-procedural`,
+  `nika-memory-spatial`
+
+### L2 — domain (~15 crates)
+
+`nika-verb-{exec,fetch,invoke,infer,agent}`, `nika-pck` orchestrator,
+`nika-memory` orchestrator, `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
+`nika-mcp`, `nika-display`.
+
+### L3 — orchestration (~6 crates)
+
+`nika-runtime`, `nika-shield`, `nika-wasm-host`,
+`nika-sandbox-{linux,macos,windows}`.
+
+### L4 — interfaces (~7 crates)
+
+`nika-cli`, `nika-daemon`, `nika-serve`, `nika-mcp-server`, `nika-lsp`,
+`nika-sdk`, `nika-init`.
+
+### L5 — binary (1 crate)
+
+`nika` (composition root, <500 LOC, zero logic).
+
+### Memory subsystem detail — 14 satellites (ADR-004 locked)
+
+Per session decision (handoff B1-B5 locked 2026-04-17 night):
+
+**8 core** (admitted during L1 phase 1e-1f, exposed through `nika-memory` L2):
+
+- `nika-memory-hnsw` — ANN vector search (M=32 default, efConstruction=400)
+- `nika-memory-bm25` — sparse lexical retrieval (tantivy or sled-fts)
+- `nika-memory-rrf` — Reciprocal Rank Fusion hybrid ranking
+- `nika-memory-rdfs-reasoner` — RDF/OWL triple store + SPARQL (dropped
+  upstream "oxigraph" branding per Q-R — we own the abstraction)
+- `nika-memory-graph-algos` — petgraph algorithms surface (BFS/DFS/SCC/
+  PageRank/community detection) for ontology-graph queries
+- `nika-memory-temporal` — bi-temporal model (valid-time + transaction-time,
+  Graphiti-class)
+- `nika-memory-fsrs` — FSRS-6 spaced repetition (self-supervised forgetting)
+- `nika-autodesc` — self-describing memory (frame → auto-generated
+  structural summary + ontology fingerprint; prerequisite for pluggable
+  retrieval across semantic / episodic / procedural)
+
+**6 reserved** (L1 phase 1g, graduated as pulled forward):
+
+- `nika-memory-causal-graph` — cause/effect directed edges
+- `nika-memory-episodic-narrative` — temporally-ordered episode chains
+- `nika-memory-working` — short-window attention window (LRU + decay)
+- `nika-memory-meta` — memory-about-memory (trust decay, confidence graph)
+- `nika-memory-procedural` — skill/tool invocation traces → policy extraction
+- `nika-memory-spatial` — R-tree / KD-tree geographic / embedding-space locality
+
+**Storage backends** (B3 locked, 4 shipped + plugin trait):
+
+| Backend            | Default? | Rationale                                    |
+|--------------------|----------|----------------------------------------------|
+| `fjall`            | ✅ yes    | Rust-native LSM, zero C dep, embedded-first  |
+| `sled`             | no       | Pure-Rust alternative, different tradeoffs   |
+| `redb`             | no       | Single-file ACID, good for `~/.nika/`        |
+| `postgres+pgvector`| no       | Cloud / multi-node deployments                |
+
+Plugin trait: `MemoryBackend` (L0.5 in `nika-kernel`). Community backends
+ship via `nika pck install` with Sigstore signature required.
+
+**Trust model** (B4 locked, hybrid defense-in-depth):
+
+- Per-frame Ed25519 signature — provenance, NOT optional
+- Query-rank trust-weighted — low-trust frames demote before fusion
+- Decay over time — age-weighted trust half-life (configurable)
+- Human-in-loop verdict — manual promote/demote logged to `EventLog`
+- Audit trail — every trust change is an immutable event
+
+**Tenant isolation** (B5 locked, compile-time enforced):
+
+```rust
+// nika-kernel/src/memory.rs
+pub trait Memory {
+    type Tenant: TenantId;  // associated type = keyspace partition
+    // ...
+}
+```
+
+Every satellite partitions by `Tenant`. Cross-tenant access = compile error.
+
+## Layer-phase deliverables (reference, by phase not by version)
+
+The sections below inventory what gets built **within each layer phase**.
+Originally written as "v0.81 / v0.90 / v0.95 / v0.100" marketing milestones,
+now reframed per ADR-037 as layer-phase deliverables. Content preserved;
+only the framing changed.
+
+## L0 + L0.5 — Forward-compat seams + hygiene hardening (Phase B complete)
+
+**Theme**: lock the structural seams that turn 7 → 50-90 crates into a
 non-breaking extension (not a rewrite), before admission velocity picks up.
-Pure additions — no behaviour change for v0.80 consumers.
+Pure additions — no behaviour change for existing consumers.
 
 ### Kernel forward-compat seams — ✅ SHIPPED (Wave 2, 2026-04-16)
 
@@ -178,22 +343,22 @@ Pure additions — no behaviour change for v0.80 consumers.
   `retention`, `redactions` (all `Option<_>`, default `None`)
 - ~~`ProviderStream::infer_stream` + `ContextCompressor::compress` cancel param~~ — ✅
 
-All v0.81 kernel seams shipped on HEAD (`244dcc807`). v0.95 Cortex +
-v0.100 WASM plugins are now strictly additive.
+All L0.5 kernel seams shipped on HEAD (`244dcc807`). Memory subsystem (L1
+phases 1e-1f) + WASM host (L3) are now strictly additive.
 See `docs/architecture/forward-compat-invariants.md` §9.
 
-### Reserved traits — ✅ SHIPPED (visible on HEAD, impl v0.95+)
+### Reserved traits — ✅ SHIPPED (visible on HEAD, impl per layer-phase)
 
-| Trait | Kernel file | Status | First impl |
+| Trait | Kernel file | Status | First impl (layer) |
 |---|---|---|---|
-| `WasmPluginHost` | `src/plugin.rs` | ✅ shipped | `nika-wasm-host` (v0.100) |
-| `Sandbox` | `src/sandbox.rs` | ✅ shipped | `nika-sandbox-{linux,macos,windows}` (v0.100) |
-| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | `nika-memory-oxigraph` (v0.95) |
-| `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | Cortex providers (v0.95) |
+| `WasmPluginHost` | `src/plugin.rs` | ✅ shipped | `nika-wasm-host` (L3) |
+| `Sandbox` | `src/sandbox.rs` | ✅ shipped | `nika-sandbox-{linux,macos,windows}` (L3) |
+| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | `nika-memory-rdfs-reasoner` + satellites (L1 phase 1e-1f) |
+| `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | `nika-embed` (L1 phase 1e) |
 | `IdGenerator` | `src/id_gen.rs` | ✅ shipped (W2) | in-tree |
 | `SecretResolver` | `src/secret.rs` | ✅ shipped (W2, sealed) | in-tree |
-| `MetricsExporter` | `src/metrics.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
-| `TracerProvider` | `src/trace.rs` | ✅ shipped (W2) | `nika-observability-otel` (v0.100) |
+| `MetricsExporter` | `src/metrics.rs` | ✅ shipped (W2) | `nika-observability-otel` (L3/L4) |
+| `TracerProvider` | `src/trace.rs` | ✅ shipped (W2) | `nika-observability-otel` (L3/L4) |
 | `EventSink` | `src/event_sink.rs` | ✅ shipped (W2, sealed) | in-tree |
 | `BillingSink` | `src/billing.rs` | ✅ shipped (W2, sealed) | in-tree |
 
@@ -205,9 +370,9 @@ env-example parity, license consistency, no-async-in-L0, catalog owned
 strings, kernel-no-spawn, no-`Box<dyn Error>`, cancel-safety docs,
 case-insensitive collisions.
 
-## v0.81–v0.82 — Workspace rename + release automation (ships when ready)
+## L0 tooling + release automation (Phase B/B')
 
-- **`tools/` -> `crates/` rename** -- DONE (converged on Cargo community
+- **`tools/` → `crates/` rename** — DONE (converged on Cargo community
   convention; verified by `cargo test --workspace --lib` staying
   green and grep returning zero `tools/nika-` outside historical ADR
   references and legacy-lookup commands).
@@ -215,15 +380,14 @@ case-insensitive collisions.
   `justfile` at engine root, and `crates/xtask/` port of the release +
   hygiene runners into typed Rust.
 
-## v0.90 — "Diamond Foundation" (ships when ready)
+## L1 + L2 — Runtime-complete foundation (Phases 1a → 2)
 
-> **No deadline.** Quality > speed. This roadmap is a vision, not a production
-> schedule. v0.90 ships when all 40-42 crates pass 12 gates and the 7 shadow
-> zones are green. Could be 6 months. Could be 18 months. Whatever it takes.
+> **No deadline.** Quality > speed. All inventory below is built incrementally
+> as its crate's layer-phase is reached. Tag scheme climbs `v0.82 → v0.89` as
+> phases complete. No "ship event" — diamond is incremental.
 
-**Theme**: complete, runtime-grade workflow engine + package manager MVP +
-native API adapters + forward-compatible architecture for everything planned
-afterward.
+**Scope**: complete workflow engine + package manager + native API adapters +
+hybrid memory subsystem + forward-compatible architecture.
 
 ### Runtime-complete
 
@@ -330,7 +494,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 **Shield engine (`nika-shield` L1 ~5k LOC)**:
 - Spotlight wrapping on untrusted data (NIKA-384)
 - Canary token emission + outbound scanner (NIKA-382, NIKA-388 also in thinking trace)
-- ML injection detector (NIKA-383, BERT-based — lands v0.95+, heuristic v0.90)
+- ML injection detector (NIKA-383, BERT-based — lands during L1 memory phase, heuristic ships L3 shield)
 - Capability-denied on dangerous tool + untrusted data combo (NIKA-380)
 - Trust violation strict mode (NIKA-381)
 - Run depth / cycle detection for workflow recursion (NIKA-386/387)
@@ -347,7 +511,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 - Live DAG render + per-task status
 - Benchmark display (TTFT, tok/s, per-provider comparison)
 - CLI format (tables, progress bars)
-- Feeds the TUI (when rebuilt, post-v0.90)
+- Feeds the TUI (when rebuilt, during L4 phase or later)
 
 **`nika serve` (HTTP API, `nika-serve` L4)**:
 - Routes: `POST /jobs`, `GET /jobs/:id`, `GET /jobs/:id/stream` (SSE), `DELETE /jobs/:id`
@@ -409,7 +573,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 **Distribution channels**:
 - **Homebrew** — `brew tap supernovae-st/nika && brew install nika` (formula at `supernovae-st/homebrew-nika`)
 - **`curl | sh`** — `curl -LsSf https://nika.sh/install.sh | sh` (platform detection, fallback to GH release tarball)
-- **crates.io** — `cargo install nika` once v0.90 tagged
+- **crates.io** — `cargo install nika` once L5 binary ships (tag `v0.92.0`)
 - **GitHub Releases** — pre-built binaries via cargo-dist (macOS arm64/x86_64, Linux x86_64)
 
 ### Site + docs + design
@@ -504,26 +668,28 @@ nika init --from github.com/user/awesome-workflow
 
 Covers 80% of the "share my setup" use case. Pre-pck. Zero infrastructure.
 
-### Forward-compatible kernel hooks (Cortex + agent-v2 ready without v0.90 refactor)
+### Forward-compatible kernel hooks (additive across all layer-phases)
 
-**Kernel traits defined, mock impls only** — real implementations arrive in
-v0.95+ without touching v0.90 code:
+**Kernel traits defined, mock impls only** — real implementations arrive per
+layer-phase without touching already-admitted crates:
 
-- `MemoryStore` trait — Oxigraph impl in v0.95
-- `EmbeddingProvider` trait — provider impls in v0.95
-- `ToolExecutor` trait — **real impl v0.90** (native builtins)
-- `WasmPluginHost` trait — impl in v0.100+
-- `MetricsExporter` + `TracerProvider` — impl in v0.100+ (`nika-observability-otel`; unified `ObservabilitySink` dropped per Q12 rev.3)
+- `MemoryStore` trait — satellites land L1 phase 1e-1f
+- `EmbeddingProvider` trait — `nika-embed` lands L1 phase 1e
+- `ToolExecutor` trait — real impl lands L2 (native builtins via `nika-builtin`)
+- `WasmPluginHost` trait — `nika-wasm-host` lands L3
+- `MetricsExporter` + `TracerProvider` — `nika-observability-otel` lands L3/L4
+  (unified `ObservabilitySink` dropped per Q12 rev.3)
 
-`InferRequest` reserves `memory: Option<MemoryDirective>` (v0.95),
-`budget: Option<BudgetDirective>` (v0.100), `replay_seed: Option<u64>` (v0.100).
-All structs `#[non_exhaustive]` — future additions are NOT breaking changes.
+`InferRequest` reserves `memory: Option<MemoryDirective>` (surfaced L1 memory),
+`budget: Option<BudgetDirective>` (surfaced L2 runtime), `replay_seed: Option<u64>`
+(surfaced L3 shield). All structs `#[non_exhaustive]` — future additions are
+NOT breaking changes.
 
 ### Layer discipline (L0 → L4)
 
-The 40-42 crates slot into a strict downward-only dependency stack.
+The 50-90 crates slot into a strict downward-only dependency stack.
 Enforced by `[workspace.metadata.diamond.layers]` in `Cargo.toml` and
-`scripts/ci/check-layering.sh` (landing v0.81, hygiene vector 11).
+`scripts/ci/check-layering.sh` (shipped, hygiene vector 11).
 
 | Layer | Role | Allowed I/O | Depends on |
 |---|---|---|---|
@@ -541,27 +707,17 @@ that L1 effect crates can be swapped without touching the lower tiers.
 See `docs/architecture/crate-layer-registry.md` for the full ASCII map,
 the allowed I/O axes per layer, and the enforcement anti-patterns.
 
-## v0.95 — "Memory Complete" (ships after v0.90, no date)
+## L1 memory phase (1e + 1f) — Hybrid ontology + auto-descriptive memory
 
-**Theme**: Cortex + agent-v2 ship complete, on foundations proven in v0.90.
+**Theme**: build the memory subsystem as 14 dedicated L1 satellites, exposed
+through `nika-memory` L2. Each satellite is admitted through the 12 gates and
+composable through a pluggable trait set in `nika-kernel`.
 
-### Cortex (9-10 new crates, ~30-40k LOC)
+See the §Memory subsystem detail table above for the full 8-core + 6-reserved
+list, the 4 shipped storage backends, the hybrid trust model, and the
+compile-time tenant isolation contract.
 
-- `nika-memory-core` — memory types, episodic/semantic/procedural taxonomy
-- `nika-memory-oxigraph` — RDF triple store + SPARQL endpoint
-- `nika-memory-fsrs` — FSRS-6 spaced repetition for agent learning
-- `nika-memory-owl2` — OWL2 ontology reasoning
-- `nika-memory-embed` — embedding provider abstraction
-- `nika-memory-retrieval` — semantic + hybrid retrieval
-- `nika-memory-reasoning` — captured reasoning traces (sanitized)
-
-**Shareable via pck** (reference external, do NOT redistribute — W3C/Anki/HF
-own those ecosystems):
-- `recipe` manifests can reference external ontologies (Schema.org, BFO)
-- Anki deck import/export compatibility
-- HuggingFace embedding collection references
-
-### Agent-v2 (~8-10k LOC)
+### Agent-v2 (builds during L2, blocked on memory L1)
 
 - Parallel tool calls
 - ReWOO planning
@@ -570,7 +726,7 @@ own those ecosystems):
 - Context compression
 - 4-type guardrails (length + schema + regex + LLM judge)
 
-### pck full
+### pck full (builds during L2, blocked on L1 pck backend)
 
 - sigstore keyless signing (mandatory for community publish)
 - PubGrub semver resolver
@@ -578,12 +734,12 @@ own those ecosystems):
 - 3 beta types (eval/recipe/shield) graduate to gold
 - Community registry seeded with 20-30 `supernovae/*` recipes
 
-### Additional native adapters (8 more)
+### Additional native adapters (builds during L2, 8 more)
 
 `nika:linear`, `nika:huggingface`, `nika:ollama`, `nika:supabase`,
 `nika:discord`, `nika:resend`, `nika:elevenlabs`, `nika:replicate`.
 
-### Media subsystem (5-crate split)
+### Media subsystem (L1 side-branch, 5-crate split)
 
 - `nika-media-cas` — content-addressed storage
 - `nika-media-image` — thumbnail/convert/strip/optimize/phash
@@ -591,21 +747,22 @@ own those ecosystems):
 - `nika-media-document` — html_to_md, readability
 - `nika-media-provenance` — C2PA
 
-## v0.100 — "Ecosystem" (ships after v0.95, no date)
+## L3 + L4 — Ecosystem (Phases 3 + 4)
 
-- **WASM community plugins** (wasmtime + extism sandbox) — third-party native
-  builtins via `nika pck install builtin:...` with signed WASM blobs
-- **Full observability**: OpenTelemetry, `tracing` spans, trace replay, budget
-  enforcement, metrics (tokio-metrics integration)
-- **LSP full**: autocomplete, hover docs, go-to-definition, inline diagnostics
+- **WASM community plugins** (wasmtime + extism sandbox, L3) — third-party
+  native builtins via `nika pck install builtin:...` with signed WASM blobs
+- **Full observability** (L3/L4): OpenTelemetry, `tracing` spans, trace
+  replay, budget enforcement, metrics (tokio-metrics integration)
+- **LSP full** (L4): autocomplete, hover docs, go-to-definition, inline
+  diagnostics
 - **Scheduled triggers**: cron-like workflow scheduling
 - **Keys subsystem**: macOS Keychain + Linux keyring + OAuth device flow
 - **Public launch**: `nika.sh`, community registry promotion, blog launch
 
-## v0.110+ — Ongoing
+## Polish forever — v0.93+ (no layer climbs, no marketing events)
 
-Incremental quality additions. Order determined by community feedback + Nika
-team priorities. Possible directions include (no commitment):
+Incremental quality additions forever. Order determined by community pull +
+Nika team priorities. Possible directions include (no commitment):
 
 - **Hosted cloud runner** (`nika.sh` as optional SaaS) — self-host remains primary
 - **Commercial relicense** (AGPL → commercial for enterprise customers)
@@ -615,22 +772,27 @@ team priorities. Possible directions include (no commitment):
 - **Performance**: hot-path optimization, zero-copy, SIMD for media
 - **Security audits**: external review, fuzzing campaigns, supply chain
 - **Additional native adapters**: ranked by usage telemetry
+- **Graduate reserved memory satellites** (causal/episodic/working/meta/
+  procedural/spatial) as usage patterns justify
 
 ## What we deliberately dropped (from legacy or never built)
+
+Per ADR-037 there is **no defer**. Everything listed here is either deleted
+outright or reclassified as a future layer-phase deliverable (no version tag).
 
 | Item | Decision | Why |
 |---|---|---|
 | `nika-sdk` (remote client SDK) | DELETED | 0 consumers, speculative abstraction |
 | `nika-napi` (Node.js bindings) | DELETED | W1 removed, rebuild as `@nika/client` TypeScript if needed |
 | `nika-py` (Python bindings) | DELETED | W1 removed, no clear user pull |
-| `nika-tui` (terminal UI) | DELETED → rebuilt Act 3 or never | W1 removed; deferred until after v0.90 |
+| `nika-tui` (terminal UI) | DELETED → rebuilt later if pull justifies | W1 removed |
 | `ProviderCategory` enum | DELETED | 11 ex-MCP providers migrated to `McpAlias` catalog |
-| Agent-v2 (multi-turn, 4 guardrails) | DEFERRED v0.95 | Architecture gate-review: need Cortex memory first |
-| Cortex (memory satellites × 9-10) | DEFERRED v0.95 | 20-24 crate deficit, need runtime-complete first |
-| WASM host (wasmtime + extism) | DEFERRED v0.100 | Security unsolved, 10x perf loss, 200k LOC dep |
-| Keys subsystem (Keychain/OAuth) | DEFERRED v0.100 | Not on critical path for v0.90 self-host use |
-| Hosted cloud runner | DEFERRED v0.110+ | Self-host is primary; SaaS optional optional later |
-| Commercial relicense (AGPL → commercial) | DEFERRED v0.110+ | Only when enterprise pull warrants legal setup |
+| Agent-v2 (multi-turn, 4 guardrails) | **Built during L2** | blocked on memory L1 phase 1e-1f |
+| Cortex / memory subsystem (14 satellites) | **Built during L1 phases 1e-1f-1g** | ontology-graph + auto-descriptive, see §Memory subsystem detail |
+| WASM host (wasmtime + extism) | **Built during L3** | Sandbox-3 triplet ships alongside |
+| Keys subsystem (Keychain/OAuth) | **Built during L1 phases 1a-1b** | `nika-keys-env` + `nika-keys-keychain` |
+| Hosted cloud runner | Polish forever (v0.93+) | Self-host is primary; SaaS optional |
+| Commercial relicense (AGPL → commercial) | Polish forever (v0.93+) | Only when enterprise pull warrants legal setup |
 
 ## What this roadmap deliberately excludes (never)
 
@@ -651,16 +813,19 @@ Trusted reviewers may be delegated as the community grows. No DAO, no voting.
 
 ## Release cadence
 
-- **Major increment** (v0.90 → v0.95 → v0.100): 6-12 months. Aligns with a
-  theme (foundation, memory, ecosystem, etc.).
-- **Minor increment** (v0.90.1, v0.90.2): 2-4 weeks. Bug fixes, incremental
-  additions within the declared theme scope.
-- **Point release** (v0.90.0-alpha.N): 1-2 weeks. Pre-theme-complete iterations.
+Per ADR-037 the cadence is **admission-driven**, not calendar-driven.
+
+- **Tag `v0.8X.0`** — when a layer-phase completes. No fixed interval; phases
+  take what they take. Quality > speed.
+- **Tag `v0.8X.Y`** — per crate admission within the active phase. Incremental,
+  landed the same day as the admission commit.
+- **No pre-release labels** (no `-alpha.N`, no `-rc.N`). Every tag is diamond.
+  If it isn't diamond, it doesn't get tagged.
 
 ## Architectural forward-compatibility guarantees
 
 See `docs/architecture/forward-compat-invariants.md` for the full list of
-patterns, decisions, and rules that ensure v0.90 architecture accommodates
-v0.95, v0.100, and beyond **without breaking changes**.
+patterns, decisions, and rules that ensure every admitted crate accommodates
+L1 → L5 layers and `v0.93+` polish **without breaking changes**.
 
 🦋
