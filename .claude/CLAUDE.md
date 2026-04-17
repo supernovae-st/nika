@@ -115,7 +115,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `nika-diamond`                                      |
-| HEAD             | `6d9c92f85` (`6d9c92f856ab1db12365b857618c4c840b081da8`)             |
+| HEAD             | `9ebaf05ca` (`9ebaf05ca48221aea5de7f0ed674e9ca2c8855b1`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 7                                              |
 | crates (admitted)| 6 / 40-42                                   |
