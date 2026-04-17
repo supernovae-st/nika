@@ -10,7 +10,7 @@ scripts/
 ├── adr/          ADR DX scripts — schema validation, index generation, scaffolding
 ├── ci/           CI ratchets — LOC caps, unwrap scan, clippy, tests, etc.
 ├── hooks/        Git hook scripts (lefthook integration)
-└── hygiene/      20 drift vectors dashboard — keeps ecosystem in sync
+└── hygiene/      31 drift vectors dashboard — keeps ecosystem in sync
 ```
 
 ## ci/ — CI enforcement
@@ -42,7 +42,7 @@ bash scripts/adr/new.sh "Title"      # scaffold next ADR from template
 
 ## hygiene/ — drift detection dashboard
 
-The autonomous ecosystem hygiene system. 20 drift vectors. Runs locally + in
+The autonomous ecosystem hygiene system. 31 drift vectors. Runs locally + in
 CI nightly. Opens an idempotent issue on the repo if anything is RED.
 
 ```bash

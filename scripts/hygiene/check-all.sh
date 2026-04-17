@@ -69,7 +69,7 @@ run_check() {
   fi
 }
 
-# --- All 25 vectors ---
+# --- All 31 vectors (vectors 7 + 18 removed 2026-04-17; counts 33 deployed minus 2 = 31 live) ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"

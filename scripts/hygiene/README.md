@@ -1,6 +1,6 @@
 # scripts/hygiene/ — drift detection dashboard
 
-20 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
+31 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
 building in public. Zero maintenance required. Runs locally on every
 commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
@@ -19,7 +19,7 @@ commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
 Exit codes: `0` = all green, `1` = at least one yellow, `2` = at least one red.
 
-## The 20 vectors
+## The 31 vectors
 
 Each vector is a single `check-*.sh` script. Single responsibility.
 Exits `0`/`1`/`2` to signal green/yellow/red.

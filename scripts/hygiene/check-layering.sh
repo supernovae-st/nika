@@ -7,7 +7,7 @@
 #
 # The real enforcement logic lives in scripts/ci/check-layering.sh; this wrapper
 # exists so the hygiene dashboard (check-all.sh) can run it alongside the other
-# 20 vectors with a consistent summary line.
+# 31 vectors with a consistent summary line.
 
 set -uo pipefail
 

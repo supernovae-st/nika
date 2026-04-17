@@ -97,7 +97,7 @@ Every crate passes **12 gates** before joining the workspace :
 
 ## CI ratchets
 
-`scripts/ci/` + `.github/workflows/` + `scripts/hygiene/check-all.sh` (15 vectors)
+`scripts/ci/` + `.github/workflows/` + `scripts/hygiene/check-all.sh` (31 vectors)
 enforce diamond rules on every push :
 
 | Check | Rule |
@@ -111,7 +111,7 @@ enforce diamond rules on every push :
 | `check-clippy.sh` | clippy -D warnings |
 | `check-tests.sh` | cargo test --lib |
 | `check-no-default-features.sh` | no-default-features compiles |
-| `hygiene/check-all.sh` | 15 drift vectors (MEMORY / ROADMAP / Linear / GitHub sync) |
+| `hygiene/check-all.sh` | 31 drift vectors (MEMORY / ROADMAP / ADR / layer / crate / hygiene sync) |
 | `forward-compat.yml` | cargo-public-api + cargo-semver-checks on PR |
 | `hygiene-nightly.yml` | nightly drift issue on RED |
 
