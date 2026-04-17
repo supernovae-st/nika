@@ -108,11 +108,12 @@ Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review
 Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅,
        Round 2c ✅, Round 2d ✅, Round 2e-part-1 ✅ (parser scaffolding through verb dispatch).
 Phase A (this session): baseline status reset ✅. Foundation v0.81 plan
-LOCKED 2026-04-16 via 8 ADRs (006-amend + 021-027) + 14-crate constellation.
+LOCKED 2026-04-16 via 8 ADRs (006-amend + 021-028) + 14-crate constellation.
 
-**See `docs/adr/adr-021..027.md` for the locked decisions and
+**See `docs/adr/adr-021..028.md` for the locked decisions and
 `~/.claude/.../memory/project_foundation_v081_constellation.md` for the
-14-crate constellation.**
+14-crate constellation.** Wave 4A/4B reservations (FCI-035) add stub
+ADR-029/030/031/032/035 — prose pending Phase C.
 
 Next phases (~35 commits across B-H):
 - Phase B: hygiene foundation (vectors 22 + 26-33) + crates.io legacy yank
