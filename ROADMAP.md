@@ -48,7 +48,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `nika-diamond`                                      |
-| HEAD             | `edda1b0e9` (`edda1b0e920af42f02ec7b39ae775316385ca967`)             |
+| HEAD             | `6d9c92f85` (`6d9c92f856ab1db12365b857618c4c840b081da8`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 7                                              |
 | crates (admitted)| 6 / 40-42                                   |
@@ -59,7 +59,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 846 passed, 0 failed                              |
+| lib tests        | 905 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation, **6 crates admitted** + **1 WIP** in workspace
@@ -100,10 +100,9 @@ Diamond foundation, **6 crates admitted** + **1 WIP** in workspace
   - 38 parser tests + 100+ across raw/types/guardrails/source/trust/error
   - **PENDING REWRITE** — Phase D nuke + redo with `apiVersion: nika.sh/v1` + `kind: Workflow` + `metadata` + `spec` envelope (ADR-016 lands Phase C)
 
-Total: **846 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
-~30k LOC, 32 providers, 49 capability rules, 22 ADRs, 21 hygiene
-vectors deployed (vector 22 no-async-in-L0 PLANNED Phase B; vectors
-23-26 envelope land Phase E + Phase B).
+Total: **905 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
+~30k LOC, 32 providers, 49 capability rules, 30 ADRs, 31 hygiene
+vectors deployed (27 green / 4 yellow / 0 red).
 
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
 Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅,
