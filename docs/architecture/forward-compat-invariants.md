@@ -455,7 +455,13 @@ Violating any invariant blocks admission. No exceptions.
 - ADR-018 — Runtime + sync primitives (Accepted)
 - ADR-019 — Retry + timeout ownership by layer (Accepted)
 - ADR-020 — WASM plugin boundary + Sandbox capability model (Accepted)
-- ADR-021 (planned) — Latency budgets as code
-- ADR-022 (planned) — Catalog allocation shape (`Arc<str>` / `Cow<'static, str>`)
+- ADR-021 — YAML envelope convention: apiVersion + kind + metadata + spec (Accepted)
+- ADR-022 — Foundation crate layout v0.81: 14 crates, publish = false (Accepted)
+- ADR-023 — File modularity discipline: 800 warn / 1500 fail / 3000 allowlist (Accepted)
+- ADR-024 — Adopt SOTA Rust patterns: bon Builder, Arc<str>, camino, sealed, strum (Accepted)
+- ADR-025 — Per-crate semver via release-plz (Accepted)
+- ADR-026 — workspace.toml single source of truth + auto-generated crate.md (Accepted)
+- ADR-027 — Strict L0 sublayer tiers + max 3 sibling deps + cargo timings (Accepted)
+- ADR-028 — Forward-compat reservation policy: seams now, crates later (Accepted)
 
 🦋
