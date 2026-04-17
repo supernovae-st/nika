@@ -451,6 +451,70 @@
     }
     ,
     {
+      "id": "ADR-029",
+      "title": "EmbeddingSpec value-type reservation (Cortex seed)",
+      "status": "proposed",
+      "date": "2026-04-17",
+      "filename": "adr-029-embedding-spec-reservation.md",
+      "tags": ["l0","cortex","embedding","reservation","forward-compat"],
+      "affects_crates": ["nika-types","nika-kernel"],
+      "affects_layers": ["L0","L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-028","ADR-033","ADR-034"],
+      "requires": ["ADR-028"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-030",
+      "title": "MemoryFrameRef.trust reservation (Shield gate seed)",
+      "status": "proposed",
+      "date": "2026-04-17",
+      "filename": "adr-030-memory-frame-trust.md",
+      "tags": ["l0","cortex","shield","trust-level","reservation","forward-compat"],
+      "affects_crates": ["nika-types","nika-kernel"],
+      "affects_layers": ["L0","L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-028","ADR-033","ADR-034"],
+      "requires": ["ADR-028","ADR-033"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-031",
+      "title": "RecallQuery.tenant reservation (multi-tenant keyspace seed)",
+      "status": "proposed",
+      "date": "2026-04-17",
+      "filename": "adr-031-recall-query-tenant-keyspace.md",
+      "tags": ["l0","cortex","multi-tenant","tenant-id","reservation","forward-compat"],
+      "affects_crates": ["nika-types","nika-kernel"],
+      "affects_layers": ["L0","L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-028","ADR-033","ADR-034"],
+      "requires": ["ADR-028","ADR-033"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-032",
+      "title": "WasmPluginError OutOfFuel + Trap + PluginCallContext reservation",
+      "status": "proposed",
+      "date": "2026-04-17",
+      "filename": "adr-032-wasm-plugin-context.md",
+      "tags": ["l0.5","wasm","plugin","fuel","trap","trust-propagation","reservation","forward-compat"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-020","ADR-028","ADR-033"],
+      "requires": ["ADR-020","ADR-028"],
+      "enables": []
+    }
+    ,
+    {
       "id": "ADR-033",
       "title": "L0 foundational types: Cost, UUIDv7, TrustLevel, TokenUsage evolution",
       "status": "accepted",
@@ -479,6 +543,22 @@
       "superseded_by": [],
       "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-020","ADR-033"],
       "requires": ["ADR-006","ADR-014","ADR-033"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-035",
+      "title": "Telemetry seams: SpanGuard parent_span_id + SpanRef (OTel-ready)",
+      "status": "proposed",
+      "date": "2026-04-17",
+      "filename": "adr-035-telemetry-seams.md",
+      "tags": ["l0.5","telemetry","observability","otel","span","reservation","forward-compat"],
+      "affects_crates": ["nika-kernel","nika-kernel-mock"],
+      "affects_layers": ["L0.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-020","ADR-028","ADR-034"],
+      "requires": ["ADR-028","ADR-034"],
       "enables": []
     }
   ]
