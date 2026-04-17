@@ -1,140 +1,179 @@
 ---
 title: "Providers"
-description: "9 inference providers. One unified InferRequest. Switch provider = one line."
+description: "32 LLM providers, one unified InferRequest, capability-aware routing. Switch provider = change one field."
 sidebarTitle: "Providers"
-icon: "cloud"
+icon: "server"
 ---
 
-Nika ships with 9 inference providers out of the box. All behind the same
-`infer:` verb. Swapping provider = change one field.
+import { STATUS } from "/snippets/_status-snapshot.mdx";
 
-## Cloud providers
+Nika ships with **{STATUS.providers} LLM providers** in its catalog,
+orchestrated behind one unified `InferRequest`. The `infer:` verb takes
+a `provider` + `model` pair, looks up capability rules
+([{STATUS.capabilityRules} rules](/reference/capabilities)), and dispatches
+through the right API dialect.
 
-| Provider | Key env | Structured output | Streaming | Tools |
-|---|---|---|---|---|
-| **Anthropic** | `ANTHROPIC_API_KEY` | ✅ native | ✅ | ✅ tool use |
-| **OpenAI** | `OPENAI_API_KEY` | ✅ JSON mode | ✅ | ✅ function calling |
-| **Google** (Gemini) | `GOOGLE_API_KEY` | ✅ | ✅ | ✅ |
-| **Mistral** | `MISTRAL_API_KEY` | ✅ | ✅ | ✅ |
-| **Cohere** | `COHERE_API_KEY` | ✅ | ✅ | ✅ |
-| **Groq** | `GROQ_API_KEY` | ✅ | ✅ | ✅ |
-| **DeepSeek** | `DEEPSEEK_API_KEY` | ✅ | ✅ | ⚠️ partial |
+<Tip>
+  **Full inventory with env vars and default models:** [Providers catalog](/reference/providers-catalog).
+  This page explains the design — why a single `InferRequest` works across
+  {STATUS.providers} providers.
+</Tip>
 
-## Local providers
-
-| Provider | Runtime | Notes |
-|---|---|---|
-| **Ollama** | HTTP to local daemon | `OLLAMA_HOST` defaults to `http://localhost:11434` |
-| **GGUF (native)** | In-process via `mistral.rs` | No external process. `model: file:///path/to/model.gguf` |
-
-## Usage
-
-```yaml
-# Anthropic
-- id: greet
-  infer:
-    provider: anthropic
-    model: claude-opus-4-6
-    prompt: "Hi"
-
-# Switch to OpenAI — change two fields
-- id: greet
-  infer:
-    provider: openai
-    model: gpt-5
-    prompt: "Hi"
-
-# Switch to local Ollama — same thing
-- id: greet
-  infer:
-    provider: ollama
-    model: llama3.2
-    prompt: "Hi"
-```
-
-## Model discovery
-
-```bash
-nika models list                          # all known models across providers
-nika models list --provider anthropic     # just one provider
-nika models info claude-opus-4-6          # spec sheet for a specific model
-```
-
-Model metadata (context window, pricing, structured output support, tools
-support) is shipped with the binary — no network call needed.
-
-## Key management
-
-<Tabs>
-  <Tab title="Env variables">
-    ```bash
-    export ANTHROPIC_API_KEY=sk-ant-...
-    nika run workflow.nika.yaml
-    ```
-    Works but keys live in shell history / process environment.
-  </Tab>
-  <Tab title="System keychain">
-    ```bash
-    nika keys add anthropic
-    # prompts for the key, stores in macOS Keychain / Linux Secret Service
-    nika run workflow.nika.yaml
-    ```
-    Persistent, not exposed to other processes.
-  </Tab>
-  <Tab title="1Password / bitwarden / vault">
-    ```bash
-    export ANTHROPIC_API_KEY=$(op read op://work/anthropic/key)
-    nika run workflow.nika.yaml
-    ```
-  </Tab>
-</Tabs>
-
-## Provider parity
-
-<Note>
-  **Shadow zone**: cross-provider structured output parity is actively
-  being hardened before v0.90. See [pre-launch gates](https://nika.sh/method)
-  for the current state.
-</Note>
-
-Nika runs the same test suite against every provider. Parity report at
-`nika doctor --parity`.
-
-Where providers differ:
-- Some return structured output as raw JSON, others as tool-call schema
-- Some stream token-by-token, others in batches
-- Tool use semantics vary (tool_choice, parallel tools, etc.)
-
-Nika normalizes all of this behind the `InferRequest` / `InferResponse`
-types. You write the workflow, Nika picks the right path per provider.
-
-## Unified request shape
+## One `InferRequest` for all providers
 
 ```rust
 #[non_exhaustive]
 pub struct InferRequest {
-    pub provider: ProviderId,
-    pub model: String,
-    pub prompt: PromptBody,
-    pub structured: Option<JsonSchema>,
-    pub tools: Vec<Tool>,
-    pub max_tokens: Option<u32>,
+    pub provider: ProviderId,          // e.g., "anthropic", "openai", "moonshot"
+    pub model: ModelId,                // e.g., "claude-sonnet-4-20250514"
+    pub messages: Vec<Message>,
+    pub response_format: Option<ResponseFormat>,
+    pub tools: Vec<ToolSpec>,
     pub temperature: Option<f32>,
-    pub memory: Option<MemoryDirective>,
-    // ...
+    pub top_p: Option<f32>,
+    pub max_tokens: Option<u32>,
+    pub stream: bool,
+    // reserved for v0.95+ Cortex: memory, budget, baggage, trust_level, trace_id
 }
 ```
 
-This is the kernel's single LLM call shape. Providers implement it.
-Adding a 10th provider = implementing one trait against this struct.
+Every L1 provider crate (`nika-provider-anthropic`, `nika-provider-openai`,
+`nika-provider-gemini`, …) implements the single `Provider` trait from
+`nika-kernel`:
 
-## Read next
+```rust
+#[trait_variant::make(ProviderDyn: Send)]
+pub trait Provider: sealed::Sealed + Send + Sync + 'static {
+    async fn infer(&self, req: &InferRequest) -> Result<InferResponse>;
+    async fn stream(&self, req: &InferRequest) -> Result<InferStream>;
+    fn capabilities(&self, model: &str) -> ModelCapabilities;
+    fn provider_id(&self) -> &'static ProviderId;
+}
+```
+
+Switching provider is **one line** in YAML:
+
+```yaml
+tasks:
+  - id: first
+    infer:
+      provider: anthropic                    # ← change to openai, gemini, groq, ...
+      model: claude-sonnet-4-20250514        # ← change to matching model
+      messages: [{ role: user, content: "Hello." }]
+```
+
+## API dialects (7)
+
+Providers speak 7 distinct dialects. One provider crate per dialect + an
+OpenAI-compatible family that covers ~22 providers.
+
+| Dialect | Providers | Notes |
+|---|---|---|
+| `openai-chat` | openai, mistral, groq, deepseek, xai, openrouter, together, fireworks, cerebras, sambanova, perplexity, moonshot, qwen, minimax, zhipu, nvidia-nim, deepinfra, replicate, hyperbolic, writer, databricks, azure, cloudflare | 23 providers share OpenAI's `/v1/chat/completions` shape with per-provider base URL + auth header |
+| `anthropic` | anthropic | Native Messages API, tool use as schema, extended thinking |
+| `gemini` | gemini, vertex | Native `generateContent` API, safety settings, structured output via `response_schema` |
+| `cohere` | cohere | Native Command API |
+| `ai21` | ai21 | Native Jamba API |
+| `bedrock` | bedrock | AWS SigV4, model-prefix routing (`anthropic.claude-...`) |
+| `voyage` | voyage | Embeddings-only |
+
+<Note>
+  **Local runner:** the `native` provider uses `mistral.rs` to load GGUF
+  models on CPU / Metal / CUDA without any HTTP round-trip. Feature-gated
+  in `nika-provider-native`, off by default.
+</Note>
+
+## Capability-aware routing
+
+Every `InferRequest` is routed through **capability rules** before
+dispatch. The rules decide:
+
+- What **modalities** the model accepts (text / image / audio / pdf / …).
+- Whether **tool calling** + **parallel tool calls** are supported.
+- Whether **JSON mode** is `unavailable` / `object` / `schema`.
+- Whether **streaming** is native or emulated.
+- Whether **prompt caching** / **context caching** reduces cost.
+- Which **supported parameters** are legal (reasoning-effort, thinking-
+  budget, computer-use, citations, …).
+
+<Check>
+  If you send `tools: [...]` to a model whose capability rule says
+  `tool_calling = false`, Nika fails fast with `NIKA-13x` before hitting
+  the network — no silent provider-side error.
+</Check>
+
+See [Capability rules](/reference/capabilities) for the full resolution
+algorithm (defaults → scan rules in file order → apply matches).
+
+## Fallback chains (target design)
+
+When a provider fails, Nika can route to a fallback:
+
+```yaml target design — v0.85+
+tasks:
+  - id: primary
+    infer:
+      provider: anthropic
+      model: claude-sonnet-4-20250514
+      messages: [...]
+    fallback:
+      - { provider: openai, model: gpt-4o }
+      - { provider: groq,   model: llama-3.3-70b-versatile }
+```
+
+<Warning>
+  `fallback:` is reserved in the kernel DTO but not yet parsed at v{STATUS.version}.
+  Lands with `nika-verb-infer` admission (Round 8).
+</Warning>
+
+## Why {STATUS.providers} and not 9
+
+<Info>
+  Earlier drafts of this page listed 9 providers. That was a snapshot from
+  mid-2025 — today's catalog is {STATUS.providers}-deep, covering frontier
+  cloud labs, fast-inference shops (Groq, Cerebras, SambaNova), Chinese
+  labs (Moonshot, Qwen, MiniMax, Zhipu), enterprise platforms (Bedrock,
+  Azure, Vertex), and niche (Voyage embeddings, Writer enterprise).
+  Source of truth lives in the TOML and is build-time validated.
+</Info>
+
+## Adding a new provider
+
+<Steps>
+  <Step title="Add a `[[providers]]` block to `llm-providers.toml`">
+    Declare `id`, `name`, `aliases`, `env_var`, `key_prefixes`,
+    `default_model`, `cheap_model`, `api_dialect`, `tags`, and at least
+    one `[[providers.models]]` sub-block.
+  </Step>
+  <Step title="Add capability rules if the provider has unique features">
+    Put rules in `model-capabilities.toml` scoped via `scope.providers`.
+    Inherit defaults if the provider is standard (most openai-chat
+    providers need no rules).
+  </Step>
+  <Step title="Implement the L1 provider crate">
+    If the `api_dialect` already exists, wire a new provider instance
+    with the correct base URL + auth. If new dialect, new L1 crate
+    `nika-provider-<name>`.
+  </Step>
+  <Step title="Run the 12 gates">
+    Property test against the provider's API contract. Criterion bench for
+    token throughput. Capability parity test. [Admission →](/architecture/admission).
+  </Step>
+</Steps>
+
+## See also
 
 <CardGroup cols={2}>
-  <Card title="Local models guide" icon="microchip" href="/guides/local-models">
-    Ollama + native GGUF deep dive.
+  <Card title="Providers catalog" icon="list" href="/reference/providers-catalog">
+    All {STATUS.providers} providers with env vars, default / cheap models, dialects.
   </Card>
-  <Card title="Structured output guide" icon="brackets-curly" href="/guides/structured-output">
-    Cross-provider JSON Schema enforcement.
+  <Card title="Capability rules" icon="grid" href="/reference/capabilities">
+    Resolution algorithm and {STATUS.capabilityRules}-rule contract.
+  </Card>
+  <Card title="Concepts · Verbs" icon="play" href="/concepts/verbs">
+    The `infer:` verb and its four siblings (exec / fetch / invoke / agent).
+  </Card>
+  <Card title="L0 decisions" icon="list-check" href="/architecture/l0-decisions">
+    Why capability rules use prefix matching, not regex (Q1).
   </Card>
 </CardGroup>
