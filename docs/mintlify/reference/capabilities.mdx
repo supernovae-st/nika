@@ -1,0 +1,256 @@
+---
+title: "Capability rules"
+description: "49 capability rules that map provider/model pairs to their feature set — modalities, tools, JSON mode, streaming, token limits."
+sidebarTitle: "Capability rules"
+icon: "grid"
+---
+
+import { STATUS } from "/snippets/_status-snapshot.mdx";
+
+Nika's capability system answers one question: **given a `provider + model`,
+what features does it support?** Tool calling? Vision input? Audio output?
+JSON schema mode? Thinking budgets? Prompt caching?
+
+The answer is a `ModelCapabilities` struct, computed at runtime by applying
+**{STATUS.capabilityRules} rules** (in file order) on top of a defaults block.
+Zero regex, zero allocation, zero runtime deps.
+
+<Info>
+  **Canonical source:** [`crates/nika-catalog/data/model-capabilities.toml`](https://github.com/supernovae-st/nika/blob/nika-diamond/crates/nika-catalog/data/model-capabilities.toml).
+  Schema: `nika/model-capabilities@1.0`. Build-time FK checks against
+  `llm-providers.toml` (unknown provider = build failure, catches typos).
+</Info>
+
+## Resolution algorithm
+
+<Steps>
+  <Step title="Start from `[defaults]`">
+    Mirrors `ModelCapabilities::default()`. Current defaults:
+    ```toml
+    token_limit_param    = "max-tokens"
+    input_modalities     = ["text", "image"]
+    output_modalities    = ["text"]
+    supported_parameters = []
+    ```
+  </Step>
+
+  <Step title="Scan `[[rules]]` in file order">
+    Every rule has a `match` clause and a `caps` clause. If the rule's
+    `scope.providers` list is non-empty and the canonical provider id
+    isn't in it → skip. Same for `scope.api_dialect`.
+  </Step>
+
+  <Step title="Apply the rule's `caps` fields">
+    Fields set by a rule **overwrite** earlier values. Fields absent from
+    the rule **preserve** the accumulated state. No merging of lists —
+    assignment is wholesale.
+  </Step>
+
+  <Step title="Return the accumulated `ModelCapabilities`">
+    Zero allocation (every string is `&'static str` or `Cow<'static, str>`).
+    Resolved at runtime in O(N) rules for a single lookup.
+  </Step>
+</Steps>
+
+## The 4 match kinds
+
+<AccordionGroup>
+  <Accordion title="`any` — matches every model" icon="asterisk">
+    ```toml
+    [[rules]]
+    match = { kind = "any" }
+    caps.streaming = true
+    ```
+    Used for provider-wide defaults (e.g., "every xAI model supports streaming").
+  </Accordion>
+
+  <Accordion title="`exact` — matches one model id" icon="equals">
+    ```toml
+    [[rules]]
+    match = { kind = "exact", model = "deepseek-reasoner" }
+    caps.supported_parameters = ["include-reasoning"]
+    ```
+    Used for per-model overrides that deviate from a sibling family.
+  </Accordion>
+
+  <Accordion title="`exact_any` — matches a set of model ids" icon="list">
+    ```toml
+    [[rules]]
+    match = { kind = "exact_any", models = ["o1", "o3", "o4"] }
+    caps.supported_parameters = ["reasoning-effort"]
+    ```
+    Used for explicit model enumeration when ids don't share a prefix.
+  </Accordion>
+
+  <Accordion title="`prefix_any` — matches models whose id starts with any prefix" icon="arrow-right">
+    ```toml
+    [[rules]]
+    match = { kind = "prefix_any", prefixes = ["gpt-4o", "gpt-4.1"] }
+    caps.input_modalities = ["text", "image"]
+    caps.json_mode = "schema"
+    ```
+    Most common. Covers entire model families in one rule. **No regex** —
+    prefix match only (keeps zero runtime deps in L0).
+  </Accordion>
+</AccordionGroup>
+
+## Capability fields
+
+What a rule can set:
+
+| Field | Type | Example |
+|---|---|---|
+| `token_limit_param` | enum | `max-tokens` · `max-completion-tokens` · `max-output-tokens` |
+| `input_modalities` | string[] | `["text", "image", "audio", "pdf"]` |
+| `output_modalities` | string[] | `["text"]` · `["speech"]` · `["image-gen"]` |
+| `tool_calling` | bool | `true` for function/tool use |
+| `parallel_tool_calls` | bool | parallel tool invocation |
+| `streaming` | bool | Server-Sent Events streaming |
+| `json_mode` | enum | `unavailable` · `object` · `schema` |
+| `caching` | enum | `none` · `prompt-caching` · `context-caching` |
+| `supported_parameters` | string[] | see below |
+
+### Supported parameter vocabulary (13)
+
+<Check>
+  The vocabulary is **closed** — adding a new parameter is a `nika-catalog` schema change.
+</Check>
+
+| Parameter | Meaning |
+|---|---|
+| `parallel-tool-calls` | Multiple tools invoked in one step |
+| `reasoning-effort` | OpenAI o-series effort level (low/med/high) |
+| `thinking-budget` | Claude extended thinking budget tokens |
+| `prompt-caching` | Anthropic prompt caching (cache_control blocks) |
+| `file-search` | OpenAI file search tool |
+| `web-search` | Perplexity / Grok web search tool |
+| `streaming-thinking` | Stream reasoning tokens separately |
+| `batch-api` | OpenAI / Anthropic batch mode |
+| `context-caching` | Gemini context caching |
+| `predicted-outputs` | OpenAI predicted outputs |
+| `computer-use` | Anthropic computer use tool |
+| `citations` | Perplexity / Claude citations |
+| `include-reasoning` | DeepSeek `include-reasoning` flag |
+
+### Modality vocabulary (8)
+
+`text` · `image` · `audio` · `video` · `pdf` · `embedding` · `speech` · `image-gen`
+
+<Warning>
+  `input_modalities` **must** contain `text` (build invariant). A pure-image
+  input model can't be wired as an `infer:` target without text support.
+</Warning>
+
+## Example resolution trace
+
+<CodeGroup>
+```toml defaults + 2 rules
+[defaults]
+input_modalities     = ["text", "image"]
+output_modalities    = ["text"]
+supported_parameters = []
+
+# Rule 1 — all Claude models get prompt caching + 200k context
+[[rules]]
+scope.providers = ["anthropic", "bedrock"]
+match = { kind = "prefix_any", prefixes = ["claude", "anthropic.claude"] }
+caps.streaming            = true
+caps.tool_calling         = true
+caps.parallel_tool_calls  = true
+caps.json_mode            = "schema"
+caps.caching              = "prompt-caching"
+caps.token_limit_param    = "max-tokens"
+caps.supported_parameters = ["prompt-caching", "thinking-budget"]
+
+# Rule 2 — claude-opus-4 adds computer-use on top
+[[rules]]
+scope.providers = ["anthropic"]
+match = { kind = "prefix_any", prefixes = ["claude-opus-4"] }
+caps.supported_parameters = ["prompt-caching", "thinking-budget", "computer-use", "citations"]
+```
+
+```rust Resolved (anthropic, claude-opus-4-5-20260201)
+ModelCapabilities {
+    input_modalities:     ["text", "image"],         // from defaults
+    output_modalities:    ["text"],                  // from defaults
+    streaming:            true,                      // from rule 1
+    tool_calling:         true,                      // from rule 1
+    parallel_tool_calls:  true,                      // from rule 1
+    json_mode:            JsonMode::Schema,          // from rule 1
+    caching:              Caching::PromptCaching,    // from rule 1
+    token_limit_param:    "max-tokens",              // from rule 1
+    supported_parameters: ["prompt-caching",         // from rule 2 (overwrites rule 1)
+                           "thinking-budget",
+                           "computer-use",
+                           "citations"],
+}
+```
+</CodeGroup>
+
+## Why not regex
+
+<Info>
+  L0 crates ship zero runtime dependencies beyond `std` + `alloc`. Regex
+  would pull in `regex-automata` (~50k LOC) and force a runtime
+  initialization cost. `prefix_any` covers 95% of actual model-family
+  matching needs; the remaining 5% is handled by `exact_any`.
+</Info>
+
+This is Q1 (no proc macros) applied at the data-layer. See
+[L0 foundation decisions](/architecture/l0-decisions).
+
+## How to query capabilities
+
+Once `nika-cli` admits (Round 16), users can query from the command line:
+
+<CodeGroup>
+```bash nika catalog models (planned)
+$ nika catalog models --provider anthropic
+claude-opus-4-5-20260201    streaming · tools · json=schema · cache · thinking · computer-use
+claude-sonnet-4-20250514    streaming · tools · json=schema · cache · thinking
+claude-haiku-4-5-20251001   streaming · tools · json=schema · cache
+
+$ nika catalog models --capability computer-use
+anthropic/claude-opus-4-5-20260201
+```
+
+```rust Rust API (shipped — nika-catalog)
+use nika_catalog::model_capabilities;
+
+let caps = model_capabilities("anthropic", "claude-opus-4-5-20260201");
+assert!(caps.streaming);
+assert!(caps.tool_calling);
+assert_eq!(caps.json_mode, JsonMode::Schema);
+assert!(caps.supported_parameters.contains(&"computer-use"));
+```
+</CodeGroup>
+
+## Drift protection
+
+<Check>
+  **Build-time FK check:** every `scope.providers[i]` must be a canonical
+  provider id in `llm-providers.toml`. Typos fail the build.
+
+  **Build-time enum check:** every `supported_parameters` entry must be in
+  the 13-value vocabulary. New additions require a schema bump.
+
+  **Build-time ordering check:** `tags` arrays in `llm-providers.toml` must
+  be sorted + deduplicated. Same applies to `caps.*` arrays by convention.
+</Check>
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Providers catalog" icon="server" href="/reference/providers-catalog">
+    The 32 providers these rules target.
+  </Card>
+  <Card title="Concepts · Providers" icon="plug" href="/concepts/providers">
+    Runtime routing — how infer verb picks a provider.
+  </Card>
+  <Card title="Schema" icon="file-code" href="/reference/schema">
+    `.nika.yaml` envelope + workflow schema reference.
+  </Card>
+  <Card title="L0 decisions" icon="list-check" href="/architecture/l0-decisions">
+    Q1-Q13 — why no regex, why manual impl, why prefix-only matching.
+  </Card>
+</CardGroup>

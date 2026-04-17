@@ -147,7 +147,8 @@
           {
             "group": "Data catalogs",
             "pages": [
-              "reference/providers-catalog"
+              "reference/providers-catalog",
+              "reference/capabilities"
             ]
           },
           {
