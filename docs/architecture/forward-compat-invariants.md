@@ -396,6 +396,33 @@ trait or DTO that is not strictly additive fails the gate.
 shipping the trait surface is a mechanical crate addition rather than a
 breaking-change negotiation across every consumer of v0.8x.
 
+### Wave 4A / 4B reservations (Batch I.b, 2026-04-17) <!-- FCI-035 -->
+
+Seven additive reservations shipped during Batch I.b lock v0.95 Cortex and
+v0.100 observability shapes without breaking v0.8x consumers. Each landed as
+a single atomic commit and is covered by `cargo public-api` +
+`cargo semver-checks` at Gate 12.
+
+| # | Surface | Crate / path | Target release | Commit |
+|---|---|---|---|---|
+| R1 | `EmbeddingSpec` value type (dim + provider + model + dtype + schema) | `nika-types/src/embedding.rs` | v0.95 Cortex | `001ae0b6f` |
+| R2 | `MemoryFrameRef.trust: TrustLevel` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 Cortex | `41e8a1467` |
+| R3 | `RecallQuery.tenant: Option<TenantId>` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 multi-tenant | `41e8a1467` |
+| R4 | `WasmPluginError::{OutOfFuel, Trap{kind}}` variants + `PluginCallContext{cancel, caller_trust, plugin_trust}` | `nika-kernel/src/plugin/wasm.rs` | v0.100 WASM plugins | `368820e42` |
+| R5 | `MemoryLifecycle` trait (`consolidate`, `prune` with `Unsupported` defaults) | `nika-kernel/src/ai/memory.rs` | v0.95 Cortex | `ac46b9ca5` |
+| T1 | `SpanGuard.parent_span_id: Option<SpanId>` + `SpanRef{trace_id, span_id}` | `nika-kernel/src/infra/trace.rs` | v0.100 observability | `861f09bc9` |
+| T2 | `Timestamp` + `WallDuration` value types (`_ms: u64` replacement) | `nika-types/src/timestamp.rs` | v0.95+ retrofit across 6 sites | `c5d292b6e` |
+
+**Contract**:
+- All 7 surfaces are `#[non_exhaustive]` or behind sealed defaults, so
+  additional variants/fields remain non-breaking in later minor releases.
+- T2 ships as *seed* (types exist); field retrofit across `budget.rs`,
+  `checkpoint.rs`, `retry.rs`, `event_sink.rs`, `http.rs`, `process.rs` runs
+  with `#[deprecated]` accessors for one minor before `_ms: u64` is removed.
+- ADR stubs 029 (EmbeddingSpec), 030 (memory-frame-trust), 031 (tenant-
+  keyspace), 032 (wasm-plugin-context), 035 (telemetry-seams) remain pending
+  prose; the reservations are load-bearing ahead of the ADRs landing.
+
 ## Enforcement
 
 Every crate admitted to nika-diamond workspace passes Gate 12 verification:
