@@ -12,6 +12,25 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### 📚 Wave 4E — Mintlify rebuild + docs repo split (2026-04-17)
+
+End-user documentation split out to a dedicated public repository and
+rebuilt from the current workspace state.
+
+- **`supernovae-st/nika-docs`** — new public repo, serves
+  [`docs.nika.sh`](https://docs.nika.sh) via Mintlify. Replaces the
+  in-engine `docs/mintlify/` directory, which is removed from this
+  repo. Engine-internal docs (`docs/adr/`, `docs/architecture/`,
+  `docs/crate-specs/`) stay here.
+- **Mintlify content refreshed** — 2-tab navigation (Guide / Reference),
+  honest v0.80 pre-release framing, live snapshot of 32 providers, 49
+  capability rules, 35 ADRs (11 thematic groups), L0 architecture
+  decisions, admission 12-gate walkthrough.
+- **Dead pages purged** — 8 Mintlify pages that no longer mapped to the
+  Diamond workspace state removed pre-split.
+- Cross-links from this repo's README + ROADMAP point to
+  `docs.nika.sh` for end-user content.
+
 ### ⚡ Swarm-3 Batches I.b + II ε.2/ε.3 + Wave 3A + Wave 4A + 4B seeds + Wave 4C (2026-04-17)
 
 **Hygiene — Batch I.b vectors 30-33 (+4 new):**
