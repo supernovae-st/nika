@@ -21,7 +21,7 @@
 //! [`COMMUNITY_EXTENSIONS.md`][1] for the full extension-author pattern,
 //! cargo-feature reference table, and reserved field names.
 //!
-//! [1]: https://github.com/supernovae-st/nika/blob/main/tools/nika-catalog/COMMUNITY_EXTENSIONS.md
+//! [1]: https://github.com/supernovae-st/nika/blob/nika-diamond/crates/nika-catalog/COMMUNITY_EXTENSIONS.md
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
