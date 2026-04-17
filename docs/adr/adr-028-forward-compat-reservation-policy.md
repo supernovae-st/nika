@@ -1,19 +1,20 @@
 ---
 id: ADR-028
-title: "Forward-compat reservation policy: seams now, crates later"
-status: accepted
-date: "2026-04-16"
-phase: "Phase D — swarm-3 SOTA audit close-out"
+title: "Forward-compat API-type reservation (amended — feature scheduling dropped)"
+status: amended
+date: "2026-04-16 (amended 2026-04-17 by ADR-037)"
+phase: "Phase D — swarm-3 SOTA audit close-out; amended post bottom-up progression lock"
 deciders: ["@ThibautMelen", "swarm-3 (rust-architect + rust-pro + web-researcher)"]
-tags: ["forward-compat", "reservation", "seams", "yagni", "scalability"]
+tags: ["forward-compat", "reservation", "seams", "yagni", "scalability", "amended"]
 affects_crates: ["nika-kernel", "nika-types", "nika-error", "nika-event"]
 affects_layers: ["L0", "L0.5"]
 supersedes: []
 superseded_by: []
-related: ["ADR-002", "ADR-006", "ADR-007", "ADR-014", "ADR-020", "ADR-024"]
+related: ["ADR-002", "ADR-006", "ADR-007", "ADR-014", "ADR-020", "ADR-024", "ADR-037"]
 requires: ["ADR-007"]
 enables: []
 amends: []
+amended_by: ["ADR-037"]
 fci: ["FCI-002", "FCI-003", "FCI-009"]
 inv: ["INV-019"]
 shadow_zones: []
