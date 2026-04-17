@@ -148,8 +148,7 @@
             "group": "Workspace",
             "pages": [
               "reference/status",
-              "reference/constellation",
-              "reference/crates"
+              "reference/constellation"
             ]
           }
         ]
