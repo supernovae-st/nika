@@ -1,0 +1,163 @@
+---
+title: "12-gate admission"
+description: "Twelve gates every crate must pass before joining the Nika workspace. No exceptions, no late fixes."
+sidebarTitle: "12-gate admission"
+icon: "check-double"
+---
+
+import { STATUS } from "/snippets/_status-snapshot.mdx";
+
+A crate does not join the Nika workspace by being merged. It joins by
+**passing all twelve gates in the same commit**. No "we'll fix Gate 5
+later." No "the spec is obvious." A crate admission is one atomic commit.
+
+<Info>
+  **Canonical source:** [`RUST_ENFORCEMENT.md`](https://github.com/supernovae-st/nika/blob/nika-diamond/RUST_ENFORCEMENT.md) §12 Gates · checker `scripts/ci/check-crate-gates.sh` (JSON output matches olympus `CrateGates` TypeScript schema).
+
+  **Live progress:** {STATUS.cratesAdmitted} / {STATUS.cratesTarget} crates admitted · {STATUS.wipCrates.length} WIP ({STATUS.wipCrates.join(", ")}).
+</Info>
+
+## The 12 gates
+
+<Steps>
+  <Step title="Gate 1 — SPEC">
+    A crate spec exists at `docs/crate-specs/<crate>.md`. It declares:
+    purpose, layer (L0/L0.5/L1/L2/L3/L4), LOC budget, public API surface,
+    security axes, tracked ADRs. No code before spec.
+  </Step>
+
+  <Step title="Gate 2 — TDD">
+    Tests written before implementation. The commit history shows
+    **RED before GREEN**: failing tests on one commit, minimal
+    implementation on the next. Reviewed in gate 11.
+  </Step>
+
+  <Step title="Gate 3 — IMPL">
+    Minimal implementation. Compiles with `cargo build --workspace`.
+    Every test green with `cargo test --workspace --lib`. No `# TEMP`
+    without a removal plan. No `#[allow(dead_code)]`. No files &gt;1500 LOC.
+  </Step>
+
+  <Step title="Gate 4 — CLIPPY 0">
+    `cargo clippy --workspace --all-targets -- -D warnings` — zero warnings.
+    `unwrap_used = "deny"` enforced workspace-wide. Zero `.unwrap()` /
+    `.expect(` in `src/` outside `#[cfg(test)]`.
+  </Step>
+
+  <Step title="Gate 5 — MUTATION ≥ 90%">
+    `cargo mutants -p <crate>` — at least 90% of mutants killed. Catches
+    untested branches, "happy path only" tests, dead clauses. Data-heavy
+    crates (e.g., `nika-catalog`) may use 85% with justification in spec.
+  </Step>
+
+  <Step title="Gate 6 — PROPERTY">
+    Property tests via `proptest` for any crate touching: security,
+    parsers, encoding, taint propagation, capability resolution. Regression
+    seeds checked into `proptest-regressions/`.
+  </Step>
+
+  <Step title="Gate 7 — BENCHMARKS">
+    `benches/` directory with `criterion` if the crate is on a hot path
+    (parsers, catalog lookup, template resolution). Waivable for pure-types
+    crates with justification in spec.
+  </Step>
+
+  <Step title="Gate 8 — DOCS">
+    `cargo doc --no-deps --document-private-items` — zero warnings. All
+    public items documented. `#[doc(hidden)]` used sparingly and with reason.
+  </Step>
+
+  <Step title="Gate 9 — CANARY E2E">
+    A `.nika.yaml` canary workflow under `tests/canary-<crate>.nika.yaml`
+    exercises the crate end-to-end against the rest of the workspace.
+    Waivable for L0 foundation crates with no runtime surface.
+  </Step>
+
+  <Step title="Gate 10 — PARITY LEGACY">
+    Golden test comparing output against the legacy v0.79 implementation
+    (read via `git show main:path/to/file.rs`). Flags behavior drift from
+    v0.79 for conscious review. Landing from Phase 5+.
+  </Step>
+
+  <Step title="Gate 11 — REVIEW SWARM">
+    Three parallel agents review the PR: `spn-nika:code-reviewer` +
+    `spn-rust:rust-pro` + `feature-dev:code-reviewer`. Every P0 and P1
+    finding must be fixed in the same session before merge.
+  </Step>
+
+  <Step title="Gate 12 — ATOMIC COMMIT">
+    Single commit. Message:
+
+    ```
+    feat(<crate>): admit to workspace — all 12 gates passed
+
+    Gate 1  SPEC     ✅  docs/crate-specs/<crate>.md
+    Gate 2  TDD      ✅  RED before GREEN confirmed
+    Gate 3  IMPL     ✅  <N> LOC, compiles, tests pass
+    ...
+    Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
+    ```
+  </Step>
+</Steps>
+
+## Why twelve
+
+<Check>
+  Each gate catches a failure mode seen in production Rust codebases at
+  scale. Dropping any one means accepting a known regression vector.
+</Check>
+
+| Gate | Failure mode caught |
+|---|---|
+| SPEC | Scope creep, missing layer contract, undeclared axes |
+| TDD | Tests that retrofit the implementation (always green from commit 1) |
+| IMPL | Oversized files, dead code, TEMP debt |
+| CLIPPY | Panic-prone patterns, hidden bugs flagged by lints |
+| MUTATION | "100% test coverage" with zero real assertions |
+| PROPERTY | Edge cases in parsers / taint / crypto that example-based tests miss |
+| BENCHMARKS | Silent perf regression on hot paths |
+| DOCS | Undocumented public API, broken intra-doc links |
+| CANARY | Integration breaks hidden by unit-test success |
+| PARITY | Silent behavior drift from the v0.79 baseline |
+| REVIEW | Single-reviewer blind spots |
+| ATOMIC | Merge-commit noise, non-bisectable history |
+
+## Exemptions
+
+A gate is **genuinely not applicable** for some crate types:
+
+- `benches/` for a pure-types crate with no hot path.
+- Canary E2E for L0 foundation (nothing to execute end-to-end).
+- PARITY for crates with no v0.79 counterpart (Diamond-original code).
+
+**Exemptions are documented in `docs/crate-specs/<crate>.md` with a
+1-paragraph justification.** They are not defaults — they are deliberate.
+
+## Admission cadence
+
+<Warning>
+  One crate at a time. No parallel admission. No "let's admit these 3
+  together." Each crate commit is atomic, bisectable, and reviewable in
+  isolation.
+</Warning>
+
+The rhythm: **1 crate admission = 1 commit = 1 tag increment**
+`v0.90.0-alpha.N`. Every 4 weeks, a blog post or dev log entry. Public
+accountability.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Layer registry" icon="layer-group" href="/architecture/layers">
+    Six layers. Mechanical sort test to pick the right layer for a new crate.
+  </Card>
+  <Card title="Forward-compat invariants" icon="shield-halved" href="/architecture/forward-compat-invariants">
+    Eight patterns. The public-API contract every admitted crate honors.
+  </Card>
+  <Card title="L0 foundation decisions" icon="list-check" href="/architecture/l0-decisions">
+    Q1-Q13 locked — the per-crate decisions that shaped today's L0.
+  </Card>
+  <Card title="Constellation" icon="diagram-project" href="/reference/constellation">
+    Live progress: admitted, WIP, planned.
+  </Card>
+</CardGroup>

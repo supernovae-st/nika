@@ -114,6 +114,20 @@
         ]
       },
       {
+        "tab": "Architecture",
+        "groups": [
+          {
+            "group": "Foundations",
+            "pages": [
+              "architecture/layers",
+              "architecture/forward-compat-invariants",
+              "architecture/l0-decisions",
+              "architecture/admission"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Reference",
         "groups": [
           {
