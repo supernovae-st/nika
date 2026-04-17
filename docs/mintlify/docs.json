@@ -124,6 +124,12 @@
               "architecture/l0-decisions",
               "architecture/admission"
             ]
+          },
+          {
+            "group": "Decisions",
+            "pages": [
+              "architecture/adrs"
+            ]
           }
         ]
       },
