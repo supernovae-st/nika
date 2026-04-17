@@ -1,0 +1,129 @@
+---
+title: "Releases"
+description: "Every crate admission + every significant engine update. One source of truth — `CHANGELOG.md` on the nika-diamond branch."
+sidebarTitle: "Releases"
+icon: "clock-rotate-left"
+---
+
+import { STATUS } from "/snippets/_status-snapshot.mdx";
+
+Nika follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Diamond started at **v0.80.0** (2026-04-13). Legacy main sits at v0.79.3,
+abandoned.
+
+<Info>
+  **Canonical source:** [`CHANGELOG.md`](https://github.com/supernovae-st/nika/blob/nika-diamond/CHANGELOG.md)
+  on the `nika-diamond` branch. This page curates milestones; the full
+  history lives in the repo. Current HEAD `{STATUS.head}`.
+</Info>
+
+## Cadence
+
+<Check>
+  **One crate admission = one commit = one `v0.90.0-alpha.N` tag.**
+  Every 4 weeks, a blog post or dev log entry. Public accountability,
+  no hidden work.
+</Check>
+
+Until `nika` binary admission (Round 17), the engine ships no release
+artifact. Instead, progress is tracked via:
+
+1. **Crate admission commits** on `nika-diamond` (e.g., `feat(nika-X): admit to workspace — all 12 gates passed`).
+2. **Hygiene vector deployments** (currently {STATUS.hygieneVectors} active, {STATUS.hygieneGreen} green / {STATUS.hygieneYellow} yellow / {STATUS.hygieneRed} red).
+3. **ADR promotions** ({STATUS.adrs} total — {STATUS.adrsAccepted} Accepted, {STATUS.adrsProposed} Proposed).
+
+## Recent milestones
+
+<Update label="Unreleased" description="2026-04-17 · Wave 3A + 4A + 4B + Swarm-3 Batch I.b/II">
+  ### Added
+
+  - **4 new hygiene vectors** (30-33): `check-cancel-safety.sh`,
+    `check-owned-strings.sh`, `check-unsafe-count.sh`, `check-layer-deps.sh`.
+    Brings the suite to {STATUS.hygieneVectors} active vectors.
+  - **Wave 3A post-commit hook** — engine commits now trigger Olympus
+    `xtask.ts` in background, live-refreshing `/timeline`, `/graph/diff`,
+    `/graph/fitness`, `/hygiene`.
+  - **Wave 4A reservations** — 5 forward-compat seams for v0.95 Cortex
+    + v0.100 WASM: `EmbeddingSpec`, `MemoryFrameRef.trust`,
+    `RecallQuery.tenant`, `WasmPluginError::OutOfFuel` +
+    `PluginCallContext`, `MemoryLifecycle` trait.
+  - **Wave 4B telemetry seeds** — `SpanGuard.parent_span_id` + W3C
+    Trace Context linkage; `Timestamp(i64 unix_ns)` + `WallDuration`
+    in `nika-types::timestamp` with RFC 3339 Display (inlined
+    Hinnant civil-from-days).
+  - **Batch II test depth** — 14 new proptest properties (TrustLevel
+    lattice invariants, ID serde roundtrip); Loom `#[cfg(loom)]`
+    interleaving tests for `CancelCtx` (INV-029); mutation baseline
+    for `nika-error` (60 mutants, 31 caught, 13 missed).
+  - **5 new ADRs** — ADR-029 EmbeddingSpec, ADR-030 MemoryFrameRef
+    trust, ADR-031 RecallQuery tenant, ADR-032 WasmPluginContext,
+    ADR-035 Telemetry seams (all Proposed, arming vector 19).
+
+  ### Changed
+
+  - Killed vectors 7 (linear-issue-states) and 18 (adr-dangling
+    duplicate of vector 16).
+  - `ObservabilitySink` dropped → 5 sibling channels (Event · Metrics ·
+    Trace · Audit · Billing) per Q12 rev.3.
+  - Engine hygiene now enforces RED as fail / YELLOW as suggestion for
+    routine pushes (was YELLOW-as-fail — too strict).
+
+  ### Fixed
+
+  - 34 ADR evidence-path updates (vector 20 GREEN / 127 paths verified).
+  - ADR index regenerated 22→30→{STATUS.adrs}.
+  - FCI §See-also titles corrected + ADR-023..028 added.
+  - nika-catalog-verify spec corrected L2 → L4.
+</Update>
+
+<Update label="v0.80.0-alpha.4" description="2026-04-14 · nika-catalog-verify admitted">
+  **Crate admitted:** `nika-catalog-verify` (L4, 600 LOC, 9 tests, all 12
+  gates green). The first L4 interface crate — validates all catalog
+  TOMLs at build time via `cargo run -p nika-catalog-verify`.
+</Update>
+
+<Update label="v0.80.0-alpha.3" description="2026-04-13 · nika-kernel + nika-kernel-mock admitted">
+  **Crates admitted:** `nika-kernel` (L0.5) + `nika-kernel-mock` (L0.5).
+  40 ISP traits with sealed supertrait discipline. `trait_variant::make`
+  for async dynamic dispatch. Pure-memory mocks for hermetic test
+  environments. Preludes re-export `nika-types` + `nika-error` types
+  for ergonomic downstream imports.
+</Update>
+
+<Update label="v0.80.0-alpha.2" description="2026-04-13 · nika-catalog admitted">
+  **Crate admitted:** `nika-catalog` (L0). TOML-driven provider + model +
+  capability catalog with build-time codegen, perfect-hash lookup, Cow-
+  heavy zero-copy types. {STATUS.providers} providers + {STATUS.capabilityRules}
+  capability rules. Schema FK-check enforced in `build.rs`.
+</Update>
+
+<Update label="v0.80.0-alpha.1" description="2026-04-13 · nika-error admitted">
+  **Crate admitted:** `nika-error` (L0). Typed NIKA-XXX error hierarchy,
+  miette integration for L4 diagnostics, per-crate error range
+  allocation, proptest-backed roundtrip invariants.
+</Update>
+
+<Update label="v0.80.0-alpha.0" description="2026-04-13 · Diamond begins">
+  **The beginning.** Orphan branch `nika-diamond` created from scratch.
+  Legacy `main` (v0.79.3) abandoned. Forever-v0.x — no v1.0 target.
+  First admitted crate: `nika-types` (L0 foundation).
+</Update>
+
+## Full history
+
+<CardGroup cols={2}>
+  <Card title="CHANGELOG.md" icon="github" href="https://github.com/supernovae-st/nika/blob/nika-diamond/CHANGELOG.md">
+    Every crate admission, every hygiene vector deploy, every ADR
+    promotion. Source of truth on the `nika-diamond` branch.
+  </Card>
+  <Card title="Commit history" icon="code-commit" href="https://github.com/supernovae-st/nika/commits/nika-diamond">
+    Every commit on the `nika-diamond` branch — atomic, bisectable,
+    Co-Authored-By Nika 🦋.
+  </Card>
+  <Card title="Live state" icon="gauge" href="/reference/status">
+    Current test counts, clippy, hygiene, admitted crate inventory.
+  </Card>
+  <Card title="Roadmap" icon="map" href="/changelog/roadmap">
+    What's next — v0.81 seams, v0.90 foundation, v0.95 Cortex, v0.100 WASM.
+  </Card>
+</CardGroup>

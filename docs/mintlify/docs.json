@@ -165,6 +165,18 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Changelog",
+        "groups": [
+          {
+            "group": "Cadence",
+            "pages": [
+              "changelog/releases",
+              "changelog/roadmap"
+            ]
+          }
+        ]
       }
     ]
   }

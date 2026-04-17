@@ -1,0 +1,191 @@
+---
+title: "Roadmap"
+description: "Forever-v0.x. No v1.0 target. Quality over speed. v0.81 seams → v0.90 foundation → v0.95 Cortex → v0.100 ecosystem."
+sidebarTitle: "Roadmap"
+icon: "map"
+---
+
+import { STATUS } from "/snippets/_status-snapshot.mdx";
+
+Nika is **forever-v0.x**. There is no v1.0 target, no marketing tick-tock,
+no ship-by date. Each version is a quality milestone earned by crate
+admissions + hygiene vector deploys + ADR promotions. When a milestone is
+truly green, it tags.
+
+<Info>
+  **Canonical source:** [`ROADMAP.md`](https://github.com/supernovae-st/nika/blob/nika-diamond/ROADMAP.md)
+  on the `nika-diamond` branch. This page summarises the milestones;
+  the full roadmap lives in the repo alongside ADRs.
+</Info>
+
+## Why forever-v0.x
+
+<CardGroup cols={2}>
+  <Card title="No v1.0 pressure" icon="infinity">
+    Shipping v1.0 locks API surface prematurely. Nika is new code paths
+    every quarter — stabilising a v1 now freezes decisions we'd regret
+    in 18 months.
+  </Card>
+  <Card title="Quality bar stays high" icon="medal">
+    Every crate admits with 12 gates. {STATUS.cratesAdmitted} of
+    {STATUS.cratesTarget} crates meet that bar today. Admission cadence
+    is set by the quality bar, not a calendar.
+  </Card>
+  <Card title="Forward-compat = additive" icon="shield-halved">
+    `#[non_exhaustive]` on every public type + pre-planted reservations
+    means new features are additive. No breaking change without an
+    Accepted ADR. See [forward-compat invariants](/architecture/forward-compat-invariants).
+  </Card>
+  <Card title="Public accountability" icon="eye">
+    All work happens on the `nika-diamond` branch. Every commit is
+    Co-Authored-By Nika 🦋, atomic, bisectable. The engine is the
+    changelog.
+  </Card>
+</CardGroup>
+
+## Current state — v{STATUS.version}.x
+
+**{STATUS.cratesAdmitted} / {STATUS.cratesTarget} crates admitted** · **{STATUS.libTests} lib tests** · **{STATUS.hygieneVectors}** hygiene vectors ({STATUS.hygieneGreen} green) · **{STATUS.adrs}** ADRs.
+
+See [live state](/reference/status) for the authoritative snapshot.
+
+## Milestones
+
+<AccordionGroup>
+  <Accordion title="v0.81 — Forward-compat seams + hygiene hardening" icon="shield">
+    **Target state when shipped:**
+
+    - 14-crate foundation admitted (types, error, catalog, kernel,
+      kernel-mock, catalog-verify, schema, codegen, event, binding,
+      transform, pck-manifest + 2 more).
+    - All reserved kernel traits stubbed (`MemoryStore`,
+      `EmbeddingProvider`, `ToolExecutor`, `WasmPluginHost`,
+      `MetricsExporter` + 4 sibling sinks, `Sandbox`).
+    - 31 hygiene vectors deployed (currently {STATUS.hygieneVectors}).
+    - `#[non_exhaustive]` ratchet on every public type.
+    - Workspace rename: `tools/` → `crates/` (Cargo convention).
+    - `release-plz` wired for per-crate semver on publishable crates.
+    - Public-API + semver-checks CI live.
+
+    **No date.** Ships when ready.
+  </Accordion>
+
+  <Accordion title="v0.90 — Diamond Foundation" icon="diamond">
+    **Target state when shipped:**
+
+    - **All {STATUS.cratesTarget} crates admitted** past 12 gates.
+    - `nika` binary admitted (L5, &lt;500 LOC composition root).
+    - 5 verbs live: `exec`, `fetch`, `invoke`, `infer`, `agent`.
+    - {STATUS.providers} providers routed through 1 unified InferRequest,
+      {STATUS.capabilityRules} capability rules enforced.
+    - 7 shadow zones closed (nika serve input trust · cross-provider
+      structured output parity · binding taint runtime · for_each
+      per-element spotlight · L1 taint runtime · NikaError Display
+      parity · provider parity matrix).
+    - `nika-catalog-sync` shipping catalog freshness (triple-source
+      cross-check: LiteLLM + models.dev + OpenRouter corroboration).
+    - `nika-lsp` L4 admitted — full cross-task binding analysis + taint
+      propagation warnings + DAG preview.
+    - Sigstore keyless signing on release artifacts.
+
+    **No date.** This is the v0.x "stable foundation" tag.
+  </Accordion>
+
+  <Accordion title="v0.95 — Memory Complete (Cortex)" icon="brain">
+    **Target state when shipped:**
+
+    - `nika-memory` L2 orchestrator admitted.
+    - **8 L1 memory satellites** admitted: `nika-hnsw`, `nika-bm25`,
+      `nika-rrf`, `nika-fsrs`, `nika-rdfs-reasoner`, `nika-temporal`,
+      `nika-graph-algos`, `nika-autodesc`.
+    - `MemoryStore` + `EmbeddingProvider` trait impls live (reservations
+      from v0.80 → real implementations).
+    - `nika-memory-oxigraph` as default backend (ADR-004 Option B).
+    - Agent-v2 with memory-backed recall (FSRS spaced repetition,
+      multi-vector HNSW, RRF hybrid search).
+
+    **Separate count** from the {STATUS.cratesTarget} Diamond target —
+    memory crates add on top. No date.
+  </Accordion>
+
+  <Accordion title="v0.100 — Ecosystem" icon="box">
+    **Target state when shipped:**
+
+    - `nika-wasm-host` (L3) + `nika-sandbox` (L3) admitted.
+    - WASM plugin boundary live — community plugins run with fuel
+      metering, Trap taxonomy, capability-scoped syscalls.
+    - `nika-observability` suite: OTel GenAI semconv bridge (ADR-035),
+      Prometheus / StatsD exporters, audit log with tamper-evidence.
+    - `nika-policy` L2 shipping Shield policy engine (prompt injection
+      classification, taint enforcement).
+    - `pck` registry fully live — community workflow packages,
+      signature verification, overlay precedence (User > Pck > Core).
+
+    **No date.** The ecosystem tier.
+  </Accordion>
+
+  <Accordion title="v0.110+ — Ongoing" icon="infinity">
+    Beyond v0.100, Nika continues incrementally:
+
+    - Language bindings (`nika-napi`, `nika-py`) — rebuild if demand
+      materializes (currently deferred per POST_AUDIT).
+    - TUI (`nika-tui`) — rebuild in the "Act 3" timeframe if needed.
+    - Cross-provider parity expansion as models evolve (GPT-5 family,
+      Claude 5, Gemini 3, etc.).
+    - Community catalogs (`nika-catalog-cn`, `nika-catalog-eu`) via
+      pck admission gates.
+
+    **Forever-v0.x.** No v1.0.
+  </Accordion>
+</AccordionGroup>
+
+## Deliberately excluded
+
+<Warning>
+  These are not "someday maybe" — they are architectural non-goals.
+  Re-opening requires a new ADR that supersedes POST_AUDIT.
+</Warning>
+
+- **`nika-sdk`** — 0 consumers, speculative (POST_AUDIT 2026-04-14).
+- **`nika-tui`** — W1 speculative. Maybe Act 3, never before.
+- **Proc macros in L0** — Q1 LOCKED. Manual impl + `macro_rules!` forever.
+- **`Box<dyn Error>` in public API** — hygiene vector 19 bans.
+- **`anyhow::Error` in library code** — ADR-005. Binary only.
+- **Plugins as proc macros** — WASM boundary (v0.100) is the plugin story.
+
+## Governance
+
+<Steps>
+  <Step title="Every change has an ADR">
+    Significant engineering decisions start as Proposed ADRs, discussed
+    in PRs, Accepted or Rejected. See [ADR index](/architecture/adrs).
+  </Step>
+  <Step title="Every commit is atomic + Co-Authored">
+    1 logical change = 1 commit. Co-Authored-By Nika 🦋 always
+    (never Claude). Bisectable history is non-negotiable.
+  </Step>
+  <Step title="Every crate passes 12 gates">
+    No late fixes. No partial admissions. See [admission](/architecture/admission).
+  </Step>
+  <Step title="Forward-compat = additive">
+    No breaking change without Accepted ADR. `cargo public-api` +
+    `cargo semver-checks` on every PR. See [FCI](/architecture/forward-compat-invariants).
+  </Step>
+</Steps>
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Releases" icon="clock-rotate-left" href="/changelog/releases">
+    Crate-by-crate admission log + Unreleased changes.
+  </Card>
+  <Card title="Live state" icon="gauge" href="/reference/status">
+    Where the engine is today.
+  </Card>
+  <Card title="Constellation" icon="diagram-project" href="/reference/constellation">
+    Admission queue through Rounds 3-17+.
+  </Card>
+  <Card title="ADR index" icon="scroll" href="/architecture/adrs">
+    Every decision that shapes the roadmap.
+  </Card>
+</CardGroup>
