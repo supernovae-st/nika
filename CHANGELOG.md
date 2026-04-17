@@ -12,6 +12,117 @@ Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
 
 ## [Unreleased]
 
+### ⚡ Swarm-3 Batches I.b + II ε.2/ε.3 + Wave 3A + Wave 4A + 4B seeds + Wave 4C (2026-04-17)
+
+**Hygiene — Batch I.b vectors 30-33 (+4 new):**
+
+- **Vector 30 `check-cancel-safety.sh`** — every `async fn` in
+  `crates/nika-kernel/src/**` now carries a `// CANCEL SAFETY:` or
+  `/// CANCEL SAFETY:` marker. 43 kernel methods annotated
+  (cancel-safe contract: drop semantics, atomic vs non-atomic writes,
+  `kill_on_drop` requirement, billing/telemetry exposure).
+- **Vector 31 `check-owned-strings.sh`** — preventive ratchet: bans
+  non-static `&str` in nika-catalog `pub` fields / `pub fn` return
+  types. Catalog stays 100% `&'static str` per ADR-008 codegen pragma.
+- **Vector 32 `check-unsafe-count.sh`** — `unsafe` token counter
+  vs `scripts/hygiene/baselines/unsafe-count.txt` (currently 0).
+  Substitutes cargo-geiger which is hostile to virtual manifests.
+- **Vector 33 `check-layer-deps.sh`** — per-layer banned third-party
+  deps (`[workspace.metadata.diamond] layer-bans`). L0 rejects 17
+  deps (tokio family, rayon, async-std, smol, futures family,
+  reqwest, hyper, axum, actix-web); L0.5 rejects 11.
+- **Killed vector 7** (linear-issue-states stub) **and vector 18**
+  (adr-dangling duplicate of vector 16).
+
+**Wave 3A — engine post-commit hook for Olympus snapshots:**
+
+- `scripts/hooks/post-commit-olympus-xtask.sh` wired via lefthook.
+  Background `pnpm tsx olympus/scripts/xtask.ts` regenerates
+  workspace.json + snapshots + hygiene-status.json on every engine
+  commit; Olympus live-refreshes `/timeline`, `/graph/diff`,
+  `/graph/fitness`, `/hygiene`.
+
+**Wave 4A — v0.95 Cortex + v0.100 WASM reservations (R1-R5):**
+
+- **R1 `EmbeddingSpec`** (`nika-types::embedding`) — Dtype,
+  DistanceMetric, EmbeddingSpec; `#[non_exhaustive]` + snake_case wire.
+- **R2 `MemoryFrameRef.trust: TrustLevel`** — sticky ingest taint;
+  `#[serde(default)]` → UNTRUSTED fail-safe.
+- **R3 `RecallQuery.tenant: TenantId`** — mandatory multi-tenant
+  keyspace scope. `TenantId::default_tenant()` → `"default"`.
+- **R4 `WasmPluginError::OutOfFuel` + `Trap { kind: TrapKind }` +
+  `PluginCallContext`** — fuel metering, W3C-style trap taxonomy,
+  per-call context with trust + cancel + budget.
+- **R5 `MemoryLifecycle` trait** with default-impl consolidate/prune
+  returning empty reports. Standalone; Cortex opts in at v0.95.
+
+**Wave 4B seeds (telemetry foundations):**
+
+- **#1 `SpanGuard.parent_span_id` + `links: Vec<SpanRef>`** — W3C
+  Trace Context parent linkage unblocks Olympus `/trace`. Default
+  `TracerProvider::start_child_span` backfills parent.
+- **#3 `Timestamp(i64 unix_ns)` + `WallDuration(i64 nanos)`** in
+  `nika-types::timestamp`. RFC 3339 Display via inlined Hinnant
+  civil-from-days algorithm. Serde-transparent wire. Field retrofit
+  (`_ms: u64` → `timestamp`) deferred.
+
+**Batch II — test depth:**
+
+- **ε.2 Loom** — `#[cfg(loom)]` interleaving tests for `CancelCtx`
+  (INV-029). Conditional `[target.'cfg(loom)'.dependencies]`.
+  Run explicitly via `RUSTFLAGS="--cfg loom" cargo test`.
+- **ε.3 proptest audit** — 14 new properties: TrustLevel lattice
+  invariants (meet/join bounds, idempotence, commutativity,
+  associativity, absorption); ID serde roundtrip (TenantId,
+  ProviderId, ModelId, TaskId, TraceId full 2^128 surface, SpanId
+  full 2^64 surface).
+- **ε.1 mutation baseline** — `cargo mutants -p nika-error` run:
+  60 mutants, 31 caught, 13 missed (mostly miette::Diagnostic
+  accessor returns — no observable behaviour), 16 unviable.
+  Viable kill rate 70.5%. Pushing to ≥90% requires dedicated
+  miette diagnostic-method assertion tests; deferred to a focused
+  follow-up session.
+
+**Batch V.2** — `docs/architecture/axes.md`: 12-axis × crate ISP
+matrix with shipped/reserved/not-yet markers. Source of truth for
+Olympus `/graph/architecture` edge rendering + Gate 12 audits.
+
+**Observability locks (parallel work already landed):**
+
+- Q12 — `ObservabilitySink` dropped (5→4 effect channels);
+  `AuditSink` added as compliance-grade 5th channel.
+- Q13 — `GenAiAttrs` OTel semconv bridge on Infer{Request,Response}.
+
+**CI ratchets:**
+
+- `cargo-public-api` snapshot workflow (Gate 12 mechanical).
+- `cargo-semver-checks` workflow.
+- Public-api baseline files regenerated on every reservation commit
+  (`--all-features --omit auto-trait-impls` to match CI invocation).
+
+**Forward-compat seams:**
+
+- nika-types `no_std`/`alloc` seam at module level (F1 complete;
+  shipped 2026-04-17 morning).
+- F2 (full per-module cfg-gating) deferred — requires uuid dep
+  re-architecture (currently in `serde` feature but used in
+  non-serde struct fields in RunId/EventId/CorrelationId/MemoryId).
+  Re-open trigger: uuid becomes unconditional OR UUID-backed IDs
+  move to a dedicated feature separate from serde.
+
+**Numbers at close:**
+
+| field              | value                                      |
+|--------------------|--------------------------------------------|
+| HEAD               | (updated at commit time)                   |
+| lib tests          | 905 (+58 this session)                     |
+| integration tests  | 10                                         |
+| loom tests         | 2 (cfg-gated)                              |
+| clippy             | 0 warnings                                 |
+| hygiene vectors    | 31 deployed (27 green / 4 yellow)          |
+| crates admitted    | 6 + 1 WIP (unchanged)                      |
+| ADRs               | 25+ (seeds ADR-029-032 + 035 authored)     |
+
 ### ⚡ Phase D Session 4B — Data enrichment (2026-04-16)
 
 Pure data expansion on the structural foundation laid by Session 4A.
