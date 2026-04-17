@@ -7,7 +7,7 @@
 # Reads the engine state from the canonical sources (git, Cargo.toml,
 # cargo test, cargo clippy) and prints a markdown block that every
 # status doc (MEMORY.md, STATE.md, CLAUDE.md, ROADMAP.md current-state
-# section, diamond-progress.md, etc.) MUST quote verbatim.
+# section, etc.) MUST quote verbatim.
 #
 # Usage:
 #   ./scripts/refresh-status.sh           # print canonical block

@@ -79,7 +79,7 @@ top, and exit codes `0` (success) / `1` (warn/yellow) / `2` (fail/red).
 ## See also
 
 - [`.github/workflows/`](../.github/workflows/) — CI pipelines that invoke these scripts
-- [`docs/ECOSYSTEM.md`](../docs/ECOSYSTEM.md) — how scripts fit in the bigger picture
+- [`../ROADMAP.md`](../ROADMAP.md) — forever-v0.x plan these scripts guard
 - [`cliff.toml`](../cliff.toml) — git-cliff config for auto-CHANGELOG
 
 🦋
