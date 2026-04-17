@@ -32,21 +32,21 @@ follow_ups:
 The kernel today has exactly one cancellation mechanism — `ShellCancel` — and it
 is intentionally narrow.
 
-Design decision #9 in `crates/nika-kernel/src/process.rs:9-11` states:
+Design decision #9 in `crates/nika-kernel/src/io/process.rs:9-11` states:
 "cancel is a `fn cancel(&self, id)` method, not a `CancellationToken` field on
 `ShellCommand`. This keeps `tokio-util` out of `nika-kernel`." The trait method
 itself is `ShellCancel::cancel(&self, id: &str)` at
-`crates/nika-kernel/src/process.rs:156-159` and exists for subprocess
+`crates/nika-kernel/src/io/process.rs:156-159` and exists for subprocess
 management (kill the child by id), not for cooperative task cancellation.
 
 No other cancellation mechanism existed before Wave 2:
 
-- `InferRequest` (`crates/nika-kernel/src/provider.rs:197-220`, 11 fields
+- `InferRequest` (`crates/nika-kernel/src/ai/provider.rs:197-220`, 11 fields
   pre-S1-B) had no cancel field.
 - `ContextCompressor::compress`
-  (`crates/nika-kernel/src/context.rs:48-58`) takes `messages` and
+  (`crates/nika-kernel/src/ai/context.rs:48-58`) takes `messages` and
   `policy` only — no cancel parameter.
-- `MemoryStore::recall` (`crates/nika-kernel/src/memory.rs:275-279`) is
+- `MemoryStore::recall` (`crates/nika-kernel/src/ai/memory.rs:275-279`) is
   purely query in / hits out.
 
 For v0.95 (DAG executor, multi-step agent loops, streaming inference) we need
@@ -78,7 +78,7 @@ solving a different problem:
    future activation is purely additive (`#[non_exhaustive]` ratchet).
 
 3. **Process management: `ShellCancel`** (existing,
-   `crates/nika-kernel/src/process.rs:156-159`). Kill-by-id for
+   `crates/nika-kernel/src/io/process.rs:156-159`). Kill-by-id for
    subprocesses. Stays as-is — different problem class.
 
 `CancelCtx` deliberately uses `std::sync::atomic::AtomicBool` (no `tokio`,
@@ -125,12 +125,12 @@ benchmarked.
   (Wave 2 / S1-B).
 - `crates/nika-kernel/src/cancel.rs:78-128` — 6 unit tests, including
   clone-state propagation, idempotent cancel, Send+Sync.
-- `crates/nika-kernel/src/provider.rs:21` — `use crate::cancel::CancelCtx;`
-- `crates/nika-kernel/src/provider.rs` — `InferRequest.cancel:
+- `crates/nika-kernel/src/ai/provider.rs:21` — `use crate::cancel::CancelCtx;`
+- `crates/nika-kernel/src/ai/provider.rs` — `InferRequest.cancel:
   Option<CancelCtx>` reserved field (S1-B).
-- `crates/nika-kernel/src/process.rs:9-11` — design decision #9 rationale
+- `crates/nika-kernel/src/io/process.rs:9-11` — design decision #9 rationale
   (no `tokio-util` in kernel).
-- `crates/nika-kernel/src/process.rs:156-159` —
+- `crates/nika-kernel/src/io/process.rs:156-159` —
   `ShellCancel::cancel(&self, id: &str)` method.
 - `crates/nika-kernel/Cargo.toml:18-26` — kernel deps (no tokio, no
   tokio-util).

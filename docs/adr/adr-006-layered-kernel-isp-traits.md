@@ -74,8 +74,8 @@ Layer-level ordering is enforced by `scripts/ci/check_layers.rs` pattern (see AD
 ## Evidence
 
 - `crates/nika-kernel/src/lib.rs` lines 19–34 — trait hierarchy docstring + re-export list
-- `crates/nika-kernel/src/memory.rs` lines 272–305 — `MemoryRemember`, `MemoryRecall`, `MemoryForget` + blanket `MemoryStore` + `EmbeddingProvider` with `#[trait_variant::make(Send)]`
-- `crates/nika-kernel/src/provider.rs` — `InferRequest`/`InferResponse` with reserved `Option<MemoryDirective>` field (see ADR-007)
+- `crates/nika-kernel/src/ai/memory.rs` lines 272–305 — `MemoryRemember`, `MemoryRecall`, `MemoryForget` + blanket `MemoryStore` + `EmbeddingProvider` with `#[trait_variant::make(Send)]`
+- `crates/nika-kernel/src/ai/provider.rs` — `InferRequest`/`InferResponse` with reserved `Option<MemoryDirective>` field (see ADR-007)
 - `CHANGELOG.md` lines 169–215 — `nika-kernel` admission, key decisions listed, commit `ef8804371`
 - Related crates: **`nika-kernel`** (L0.5 traits), **`nika-kernel-mock`** (L0.5 test mock)
 

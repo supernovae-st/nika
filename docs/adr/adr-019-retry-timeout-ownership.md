@@ -32,7 +32,7 @@ follow_ups:
 The kernel already exposes building blocks for retry decisions but does not
 own a retry policy.
 
-`ProviderError` (`crates/nika-kernel/src/provider.rs:386-424`) carries the
+`ProviderError` (`crates/nika-kernel/src/ai/provider.rs:386-424`) carries the
 information needed to decide retryability:
 
 - `RateLimited { retry_after_ms: Option<u64> }`
@@ -42,15 +42,15 @@ information needed to decide retryability:
 - `is_transient(&self) -> bool` (`provider.rs:428-439`) — returns `true` for
   `RateLimited` and `Api { status: 500..=599, .. }`.
 
-`ShellCommand` (`crates/nika-kernel/src/process.rs`) already has a `timeout:
+`ShellCommand` (`crates/nika-kernel/src/io/process.rs`) already has a `timeout:
 Option<Duration>` field; `ShellError::Timeout { duration_ms: u64 }` is the
 matching error variant.
 
-`ToolExecError` (`crates/nika-kernel/src/tool_executor.rs`) has `NotAvailable`,
+`ToolExecError` (`crates/nika-kernel/src/runtime/tool_executor.rs`) has `NotAvailable`,
 `NotFound`, `Timeout`, but no `is_transient()` — tool failures are
 predominantly semantic (wrong args, tool missing). Retrying them masks bugs.
 
-`AgentLoopConfig` (`crates/nika-kernel/src/agent.rs`) controls iterations and
+`AgentLoopConfig` (`crates/nika-kernel/src/runtime/agent.rs`) controls iterations and
 budgets, but has no `retry:` block — agent loop control and provider retry
 are different concerns.
 
@@ -156,13 +156,13 @@ The implementation chooses *when* to apply a `RetryConfig` based on
 
 ## Evidence / Affected code
 
-- `crates/nika-kernel/src/provider.rs:407-410` — `RateLimited { retry_after_ms }`.
-- `crates/nika-kernel/src/provider.rs:428-439` — `is_transient()` impl.
-- `crates/nika-kernel/src/process.rs` — `ShellCommand.timeout`,
+- `crates/nika-kernel/src/ai/provider.rs:407-410` — `RateLimited { retry_after_ms }`.
+- `crates/nika-kernel/src/ai/provider.rs:428-439` — `is_transient()` impl.
+- `crates/nika-kernel/src/io/process.rs` — `ShellCommand.timeout`,
   `ShellError::Timeout`.
-- `crates/nika-kernel/src/tool_executor.rs` — `ToolExecError` (no
+- `crates/nika-kernel/src/runtime/tool_executor.rs` — `ToolExecError` (no
   Timeout-as-retry signal — intentional).
-- `crates/nika-kernel/src/agent.rs` — `AgentLoopConfig` (no retry block —
+- `crates/nika-kernel/src/runtime/agent.rs` — `AgentLoopConfig` (no retry block —
   retry is per-task, not per-loop).
 - Workflow YAML schema (legacy) — `retry: { max_attempts, delay_ms, backoff }`.
 - ADR-033 (S1-C) — adds `RetryConfig` + `ErrorCategory` to `nika-error` (L0).

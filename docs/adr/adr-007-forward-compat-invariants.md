@@ -84,10 +84,10 @@ At v0.95, a new crate `nika-memory-oxigraph` implements `MemoryStore`. Zero modi
 
 ## Evidence
 
-- `crates/nika-kernel/src/provider.rs` lines 196–239 — `InferRequest` with `memory: Option<MemoryDirective>`, `new()` constructor, full field list
-- `crates/nika-kernel/src/provider.rs` lines 291–312 — `InferResponse` with `memory_frames: Vec<MemoryFrameRef>`
-- `crates/nika-kernel/src/memory.rs` lines 272–305 — `MemoryStore` + `EmbeddingProvider` trait declarations (Cortex hooks)
-- `crates/nika-kernel/src/tool_executor.rs` — `ToolExecutor` trait (agent-v2 hook)
+- `crates/nika-kernel/src/ai/provider.rs` lines 196–239 — `InferRequest` with `memory: Option<MemoryDirective>`, `new()` constructor, full field list
+- `crates/nika-kernel/src/ai/provider.rs` lines 291–312 — `InferResponse` with `memory_frames: Vec<MemoryFrameRef>`
+- `crates/nika-kernel/src/ai/memory.rs` lines 272–305 — `MemoryStore` + `EmbeddingProvider` trait declarations (Cortex hooks)
+- `crates/nika-kernel/src/runtime/tool_executor.rs` — `ToolExecutor` trait (agent-v2 hook)
 - `docs/architecture/forward-compat-invariants.md` lines 1–100 — the 8 patterns, 5 locked decisions, 10 API design rules, 10 anti-patterns
 - memory: `POST_AUDIT_REVISIONS.md` DÉCISION 3 — kernel hooks Phase 0 mandatory
 - Invariant #19 FULL status in `memory: STATE.md` (15 constructors, all tested)

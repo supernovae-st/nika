@@ -35,13 +35,13 @@ The workspace has an opinionated lint policy
 group, which contains `await_holding_lock`, is currently set to `warn` not
 `deny`.
 
-The kernel's `Clock` trait (`crates/nika-kernel/src/clock.rs`) demonstrates the
+The kernel's `Clock` trait (`crates/nika-kernel/src/io/clock.rs`) demonstrates the
 hybrid sync/async rule: `Clock::now()` is sync, `Clock::sleep(Duration)` is
 async. Async appears only where it is mandatory (timer wakeups). Everything
 else is sync.
 
 The kernel's process module
-(`crates/nika-kernel/src/process.rs:9-11`) explicitly states design decision
+(`crates/nika-kernel/src/io/process.rs:9-11`) explicitly states design decision
 #9: cancel is `fn cancel(&self, id)`, not a `CancellationToken` field. The
 intent is "tokio-util out of nika-kernel".
 
@@ -119,8 +119,8 @@ for any crate with concurrent primitives.
 - `Cargo.toml [workspace.lints.clippy]` — current lint policy
   (`unwrap_used = "deny"`, `panic = "deny"`, `correctness = { level = "deny" }`).
 - `Cargo.toml [workspace.dependencies] parking_lot` — already pinned.
-- `crates/nika-kernel/src/clock.rs` — sync/async hybrid pattern.
-- `crates/nika-kernel/src/process.rs:9-11` — design decision #9 (no
+- `crates/nika-kernel/src/io/clock.rs` — sync/async hybrid pattern.
+- `crates/nika-kernel/src/io/process.rs:9-11` — design decision #9 (no
   tokio-util in kernel).
 - `crates/nika-kernel-mock/Cargo.toml:21` — `parking_lot = { workspace = true }`
   in mocks (validates the rule).

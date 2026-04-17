@@ -30,14 +30,14 @@ follow_ups:
 
 The kernel exposes one streaming type alias and one streaming trait method.
 
-Type alias (`crates/nika-kernel/src/provider.rs:380`):
+Type alias (`crates/nika-kernel/src/ai/provider.rs:380`):
 
 ```rust
 pub type InferEventStream =
     Pin<Box<dyn Stream<Item = Result<InferEvent, ProviderError>> + Send>>;
 ```
 
-Trait method (`crates/nika-kernel/src/provider.rs:451-455`):
+Trait method (`crates/nika-kernel/src/ai/provider.rs:451-455`):
 
 ```rust
 #[trait_variant::make(ProviderStreamDyn: Send)]
@@ -48,7 +48,7 @@ pub trait ProviderStream: Send + Sync {
 ```
 
 `InferEventStream` is a boxed `dyn Stream` from `futures_core::Stream`
-(`crates/nika-kernel/src/provider.rs:18` import). The kernel deliberately
+(`crates/nika-kernel/src/ai/provider.rs:18` import). The kernel deliberately
 depends on `futures-core` (`crates/nika-kernel/Cargo.toml:25`) but not on
 `tokio` — channel implementation lives in L1/L2.
 
@@ -123,9 +123,9 @@ type.**
 
 ## Evidence / Affected code
 
-- `crates/nika-kernel/src/provider.rs:380` — `InferEventStream` type alias.
-- `crates/nika-kernel/src/provider.rs:18` — `use futures_core::Stream`.
-- `crates/nika-kernel/src/provider.rs:451-455` — `ProviderStream` trait.
+- `crates/nika-kernel/src/ai/provider.rs:380` — `InferEventStream` type alias.
+- `crates/nika-kernel/src/ai/provider.rs:18` — `use futures_core::Stream`.
+- `crates/nika-kernel/src/ai/provider.rs:451-455` — `ProviderStream` trait.
 - `crates/nika-kernel/Cargo.toml:25` — `futures-core = { workspace = true }`.
 - `crates/nika-kernel-mock/src/provider.rs` — hand-rolled `EmptyStream`
   (no channel) in the mock.

@@ -44,9 +44,9 @@ S1-B (Wave 2 commit `b68e58d4b`) added 4 new modules:
 
 - `crates/nika-kernel/src/cancel.rs` — `CancelCtx` (real impl).
 - `crates/nika-kernel/src/observability.rs` — `ObservabilitySink` (stub).
-- `crates/nika-kernel/src/plugin.rs` — `WasmPluginHost`, `PluginFs`,
+- `crates/nika-kernel/src/plugin/wasm.rs` — `WasmPluginHost`, `PluginFs`,
   `PluginHttp`, `WasmPluginError` (stubs).
-- `crates/nika-kernel/src/sandbox.rs` — `Sandbox`, `Capability`,
+- `crates/nika-kernel/src/plugin/sandbox.rs` — `Sandbox`, `Capability`,
   `SandboxError` (stubs).
 
 ADR-014 sealing policy distinguishes "sealed" traits (community cannot
@@ -143,12 +143,12 @@ implementation. Pick implementation details when v0.100 is in scope.**
 
 ## Evidence / Affected code
 
-- `crates/nika-kernel/src/plugin.rs:11-22` — `WasmPluginHost` trait.
-- `crates/nika-kernel/src/plugin.rs:24-39` — `PluginFs`, `PluginHttp`.
-- `crates/nika-kernel/src/plugin.rs:50-83` — `WasmPluginError` enum.
-- `crates/nika-kernel/src/sandbox.rs:18-26` — `Sandbox` trait.
-- `crates/nika-kernel/src/sandbox.rs:28-54` — `Capability` enum.
-- `crates/nika-kernel/src/sandbox.rs:78-99` — `SandboxError`.
+- `crates/nika-kernel/src/plugin/wasm.rs:11-22` — `WasmPluginHost` trait.
+- `crates/nika-kernel/src/plugin/wasm.rs:24-39` — `PluginFs`, `PluginHttp`.
+- `crates/nika-kernel/src/plugin/wasm.rs:50-83` — `WasmPluginError` enum.
+- `crates/nika-kernel/src/plugin/sandbox.rs:18-26` — `Sandbox` trait.
+- `crates/nika-kernel/src/plugin/sandbox.rs:28-54` — `Capability` enum.
+- `crates/nika-kernel/src/plugin/sandbox.rs:78-99` — `SandboxError`.
 - `crates/nika-kernel-mock/src/plugin.rs` — `NullWasmPluginHost`.
 - `crates/nika-kernel-mock/src/sandbox.rs` — `NullSandbox`.
 - `crates/nika-kernel/src/lib.rs:50,58,64-65` — module + re-exports.

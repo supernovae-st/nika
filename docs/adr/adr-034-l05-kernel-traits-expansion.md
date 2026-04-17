@@ -59,10 +59,10 @@ Existing patterns to mirror (verified):
 
 - All async kernel traits use `#[trait_variant::make(XxxDyn: Send)]`
   for object-safe `Dyn` companions (e.g.,
-  `crates/nika-kernel/src/clock.rs:27`,
-  `crates/nika-kernel/src/context.rs:48`,
-  `crates/nika-kernel/src/provider.rs:444`,
-  `crates/nika-kernel/src/memory.rs:268`).
+  `crates/nika-kernel/src/io/clock.rs:27`,
+  `crates/nika-kernel/src/ai/context.rs:48`,
+  `crates/nika-kernel/src/ai/provider.rs:444`,
+  `crates/nika-kernel/src/ai/memory.rs:268`).
 - All public types are `#[non_exhaustive]` per ADR-007.
 - All public structs have a `pub fn new()` constructor per INV-019.
 - All async traits require `Send + Sync`.
@@ -229,7 +229,7 @@ Mock: `NullBillingSink` (no-op for tests that don't care),
 ### 7. `MemoryUpdate` sub-trait + `MemoryStore` evolution (deferred)
 
 The existing `MemoryStore` blanket
-(`crates/nika-kernel/src/memory.rs:289-290`) is
+(`crates/nika-kernel/src/ai/memory.rs:289-290`) is
 `MemoryRemember + MemoryRecall + MemoryForget`. Cortex (v0.95) needs
 an `update()` operation (patch a memory frame in place). Plan:
 
@@ -313,12 +313,12 @@ traits stay open.
 
 - `crates/nika-kernel/src/lib.rs:48-66` — current module list (S1-B
   state: 17 modules).
-- `crates/nika-kernel/src/clock.rs:27` — `trait_variant::make` pattern.
-- `crates/nika-kernel/src/context.rs:48` — `trait_variant::make`
+- `crates/nika-kernel/src/io/clock.rs:27` — `trait_variant::make` pattern.
+- `crates/nika-kernel/src/ai/context.rs:48` — `trait_variant::make`
   pattern.
-- `crates/nika-kernel/src/provider.rs:444-454` — `Provider` trait
+- `crates/nika-kernel/src/ai/provider.rs:444-454` — `Provider` trait
   family (will gain `: sealed::Sealed` in S1-C).
-- `crates/nika-kernel/src/memory.rs:289-290` — current `MemoryStore`
+- `crates/nika-kernel/src/ai/memory.rs:289-290` — current `MemoryStore`
   blanket (will gain `MemoryUpdate` at v0.95).
 - `crates/nika-kernel/src/observability.rs` — unified
   `ObservabilitySink` (S1-B). v0.100 split target.
