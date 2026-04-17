@@ -6,7 +6,7 @@ date: "2026-04-17"
 phase: "Phase D — philosophy lock"
 deciders: ["@ThibautMelen"]
 tags: ["philosophy", "roadmap", "admission", "forever-v0x", "diamond"]
-affects_crates: ["*"]
+affects_crates: ["all"]
 affects_layers: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
 supersedes: []
 superseded_by: []

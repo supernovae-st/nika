@@ -1,12 +1,12 @@
 ---
-id: FCI-036
+id: ADR-036
 title: "MSRV policy: rust-toolchain.toml SSOT + N-2 stable cadence (stub)"
 status: proposed
 date: "2026-04-17"
 phase: "Phase D — Wave 4E #2"
 deciders: ["@ThibautMelen"]
 tags: ["msrv", "toolchain", "forward-compat", "ci", "hygiene", "reservation"]
-affects_crates: ["*"]
+affects_crates: ["all"]
 affects_layers: ["L0", "L0.5", "L1", "L2", "L3", "L4", "L5"]
 supersedes: []
 superseded_by: []
@@ -26,7 +26,7 @@ follow_ups:
   - "Codify interaction with publish = false foundation crates (ADR-022)"
 ---
 
-# FCI-036: MSRV policy: rust-toolchain.toml SSOT + N-2 stable cadence (stub)
+# ADR-036: MSRV policy: rust-toolchain.toml SSOT + N-2 stable cadence (stub)
 
 > **STUB — prose pending Phase C.** Decision is load-bearing in code
 > (`rust-toolchain.toml` already pins the toolchain; CI bacon rebases depend on
