@@ -145,6 +145,12 @@
             ]
           },
           {
+            "group": "Data catalogs",
+            "pages": [
+              "reference/providers-catalog"
+            ]
+          },
+          {
             "group": "Workspace",
             "pages": [
               "reference/status",

@@ -1,0 +1,226 @@
+---
+title: "Providers catalog"
+description: "Every LLM provider Nika knows about. 32 providers, 7 API dialects, 32 environment variables."
+sidebarTitle: "Providers catalog"
+icon: "server"
+---
+
+import { STATUS } from "/snippets/_status-snapshot.mdx";
+
+Nika ships with **{STATUS.providers} LLM providers** in its catalog — frontier
+labs, fast inference services, Chinese labs, enterprise platforms, and local
+runners. Each provider is a TOML record describing its API dialect, authentication,
+default and cheap models, capability tags, and per-model token limits.
+
+<Info>
+  **Canonical source:** [`crates/nika-catalog/data/llm-providers.toml`](https://github.com/supernovae-st/nika/blob/nika-diamond/crates/nika-catalog/data/llm-providers.toml).
+  Schema: [`nika/llm-providers@1.0`](/reference/schema). Build-time validated via
+  `nika-catalog-codegen` invariants (unique IDs, alias deduplication, model
+  references resolvable, tags sorted + deduplicated).
+</Info>
+
+## Overview
+
+<CardGroup cols={3}>
+  <Card title="Providers" icon="server">
+    **{STATUS.providers}** total
+  </Card>
+  <Card title="API dialects" icon="plug">
+    **7** — anthropic · openai-chat · gemini · cohere · ai21 · bedrock · voyage
+  </Card>
+  <Card title="Capability rules" icon="grid">
+    **{STATUS.capabilityRules}** in `model-capabilities.toml`
+  </Card>
+</CardGroup>
+
+## How to pick a provider
+
+<Steps>
+  <Step title="Pick your trust model">
+    Cloud frontier (Anthropic / OpenAI / Google), open-weight hosted (Groq / Together / Fireworks / Cerebras), Chinese (Moonshot / Qwen / MiniMax / Zhipu), enterprise (Bedrock / Azure / Vertex), or local (native GGUF). Each has different residency and compliance trade-offs.
+  </Step>
+  <Step title="Check the `api_dialect`">
+    `anthropic` and `gemini` have native dialects. `openai-chat` covers ~22 providers — same request shape, differing model names. `cohere`, `ai21`, `bedrock`, `voyage` are niche.
+  </Step>
+  <Step title="Verify env var is set">
+    Each provider declares its `env_var` (e.g., `ANTHROPIC_API_KEY`). See the table below. `nika doctor` will check presence before run (once admitted).
+  </Step>
+  <Step title="Pick default vs cheap model">
+    Every provider declares both. `default_model` is the capable tier; `cheap_model` is the cost-optimized tier. Capability rules in `model-capabilities.toml` determine which models support vision / tools / streaming / structured output.
+  </Step>
+</Steps>
+
+## By category
+
+<Tabs>
+  <Tab title="Frontier labs (7)">
+    | ID | Name | Dialect | Env var | Default model |
+    |---|---|---|---|---|
+    | `anthropic` | Anthropic Claude | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` |
+    | `openai` | OpenAI | `openai-chat` | `OPENAI_API_KEY` | `gpt-4o` |
+    | `gemini` | Google Gemini | `gemini` | `GEMINI_API_KEY` | `gemini-2.5-flash` |
+    | `mistral` | Mistral AI | `openai-chat` | `MISTRAL_API_KEY` | `mistral-large-latest` |
+    | `xai` | xAI Grok | `openai-chat` | `XAI_API_KEY` | `grok-3` |
+    | `cohere` | Cohere | `cohere` | `COHERE_API_KEY` | `command-r-plus` |
+    | `ai21` | AI21 Labs | `ai21` | `AI21_API_KEY` | `jamba-1.5-large` |
+
+    <Tip>
+      Frontier labs typically ship the highest capability models + native
+      streaming + structured-output support. Use for high-value tasks
+      where quality beats cost.
+    </Tip>
+  </Tab>
+
+  <Tab title="Fast inference (8)">
+    | ID | Name | Dialect | Env var | Default model |
+    |---|---|---|---|---|
+    | `groq` | Groq | `openai-chat` | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
+    | `cerebras` | Cerebras | `openai-chat` | `CEREBRAS_API_KEY` | `llama-3.3-70b` |
+    | `sambanova` | SambaNova | `openai-chat` | `SAMBANOVA_API_KEY` | `Meta-Llama-3.3-70B-Instruct` |
+    | `together` | Together AI | `openai-chat` | `TOGETHER_API_KEY` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+    | `fireworks` | Fireworks AI | `openai-chat` | `FIREWORKS_API_KEY` | `.../llama-v3p3-70b-instruct` |
+    | `hyperbolic` | Hyperbolic | `openai-chat` | `HYPERBOLIC_API_KEY` | (declared in TOML) |
+    | `deepinfra` | DeepInfra | `openai-chat` | `DEEPINFRA_API_KEY` | (declared in TOML) |
+    | `deepseek` | DeepSeek | `openai-chat` | `DEEPSEEK_API_KEY` | `deepseek-chat` |
+
+    <Tip>
+      Fast-inference providers serve open-weight models at very high token/s
+      (Groq ~500 t/s, Cerebras ~2000 t/s). Use for latency-critical flows
+      or when throughput matters more than frontier quality.
+    </Tip>
+  </Tab>
+
+  <Tab title="Chinese labs (4)">
+    | ID | Name | Dialect | Env var | Default model |
+    |---|---|---|---|---|
+    | `moonshot` | Moonshot (Kimi) | `openai-chat` | `MOONSHOT_API_KEY` | `kimi-k2` |
+    | `qwen` | Qwen (Alibaba DashScope) | `openai-chat` | `DASHSCOPE_API_KEY` | `qwen-max` |
+    | `minimax` | MiniMax | `openai-chat` | `MINIMAX_API_KEY` | `MiniMax-M2` |
+    | `zhipu` | Zhipu (BigModel) | `openai-chat` | `ZHIPU_API_KEY` | `glm-4.5` |
+
+    <Warning>
+      Chinese labs may have regional constraints or data-residency
+      requirements. Check your organisation's policy before routing
+      production workloads.
+    </Warning>
+  </Tab>
+
+  <Tab title="Routers + aggregators (5)">
+    | ID | Name | Dialect | Env var | Default model |
+    |---|---|---|---|---|
+    | `openrouter` | OpenRouter | `openai-chat` | `OPENROUTER_API_KEY` | `anthropic/claude-sonnet-4-20250514` |
+    | `perplexity` | Perplexity | `openai-chat` | `PERPLEXITY_API_KEY` | `sonar-pro` |
+    | `nvidia-nim` | NVIDIA NIM | `openai-chat` | `NVIDIA_API_KEY` | (declared in TOML) |
+    | `replicate` | Replicate | `openai-chat` | `REPLICATE_API_TOKEN` | (declared in TOML) |
+    | `databricks` | Databricks | `openai-chat` | `DATABRICKS_TOKEN` | (declared in TOML) |
+
+    <Tip>
+      OpenRouter aggregates ~200 models under one API key with a single
+      pricing endpoint. Use when you want to experiment across providers
+      without acquiring per-vendor keys.
+    </Tip>
+  </Tab>
+
+  <Tab title="Enterprise + cloud (4)">
+    | ID | Name | Dialect | Env var | Default model |
+    |---|---|---|---|---|
+    | `bedrock` | AWS Bedrock | `bedrock` | `AWS_ACCESS_KEY_ID` | `anthropic.claude-sonnet-4-...` |
+    | `azure` | Azure OpenAI | `openai-chat` | `AZURE_OPENAI_API_KEY` | `gpt-4o` |
+    | `vertex` | Google Vertex AI | `gemini` | `GOOGLE_APPLICATION_CREDENTIALS` | `gemini-2.5-flash` |
+    | `cloudflare` | Cloudflare Workers AI | `openai-chat` | `CLOUDFLARE_API_TOKEN` | (declared in TOML) |
+
+    <Tip>
+      Enterprise providers offer data-residency guarantees, private VPC
+      endpoints, audit trails, and BYOK key management. Preferred for
+      regulated workloads.
+    </Tip>
+  </Tab>
+
+  <Tab title="Specialists + local (4)">
+    | ID | Name | Dialect | Env var | Default model |
+    |---|---|---|---|---|
+    | `voyage` | Voyage AI | `voyage` | `VOYAGE_API_KEY` | `voyage-3-large` |
+    | `writer` | Writer | `openai-chat` | `WRITER_API_KEY` | (declared in TOML) |
+    | `native` | Native Inference (GGUF) | custom | `(none)` | (local GGUF path) |
+    | `mock` | Mock provider | custom | `(none)` | deterministic test data |
+
+    <Note>
+      **Voyage** is embeddings-only (paired with a primary LLM provider).
+      **Writer** is enterprise writing-focused. **Native** runs local
+      GGUF models via `mistral.rs` (feature-gated). **Mock** ships with
+      every install for deterministic tests.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Full alphabetical list
+
+<AccordionGroup>
+  <Accordion title="All 32 provider IDs (sorted)" icon="list">
+    `ai21` · `anthropic` · `azure` · `bedrock` · `cerebras` · `cloudflare` ·
+    `cohere` · `databricks` · `deepinfra` · `deepseek` · `fireworks` ·
+    `gemini` · `groq` · `hyperbolic` · `minimax` · `mistral` · `mock` ·
+    `moonshot` · `native` · `nvidia-nim` · `openai` · `openrouter` ·
+    `perplexity` · `qwen` · `replicate` · `sambanova` · `together` ·
+    `vertex` · `voyage` · `writer` · `xai` · `zhipu`
+
+    {STATUS.providers} total — matches `grep -c '^\[\[providers\]\]'` on
+    `llm-providers.toml`.
+  </Accordion>
+</AccordionGroup>
+
+## Example: invoke a provider
+
+<CodeGroup>
+```yaml workflow.nika.yaml (target design)
+schema: nika/workflow@1
+workflow: multi-provider
+
+tasks:
+  - id: primary
+    infer:
+      provider: anthropic
+      model: claude-sonnet-4-20250514
+      messages:
+        - role: user
+          content: "Explain linear algebra in one sentence."
+
+  - id: fallback
+    when: "{{ tasks.primary.failed }}"
+    infer:
+      provider: openai
+      model: gpt-4o
+      messages:
+        - role: user
+          content: "Explain linear algebra in one sentence."
+```
+
+```bash Required env
+export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
+nika run workflow.nika.yaml
+```
+</CodeGroup>
+
+<Warning>
+  At v{STATUS.version} the `infer:` verb crate is not yet admitted — the
+  YAML above is the target design. Follow [constellation](/reference/constellation)
+  for verb-infer admission progress (Round 8).
+</Warning>
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Capability rules" icon="grid" href="/reference/capabilities">
+    The {STATUS.capabilityRules} rules that govern which models support which features.
+  </Card>
+  <Card title="Concepts · Providers" icon="server" href="/concepts/providers">
+    How provider routing works at runtime.
+  </Card>
+  <Card title="Error codes" icon="triangle-exclamation" href="/reference/error-codes">
+    `NIKA-1xx` provider errors.
+  </Card>
+  <Card title="Schema" icon="file-code" href="/reference/schema">
+    Workflow envelope, `.nika.yaml` top-level keys.
+  </Card>
+</CardGroup>
