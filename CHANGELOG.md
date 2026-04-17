@@ -478,7 +478,7 @@ The lookup strategy is hybrid by design:
   transforms) — because `nika:read` and `nika:Read` are different things
   (actually `nika:Read` doesn't exist, and the catalog should say so clearly).
 
-At admission: 16 providers, 113 MCP aliases, 63 builtins, 65 transforms,
+At admission: 16 providers, 105 MCP aliases, 63 builtins, 65 transforms,
 61 model pricing entries. All from a single `cargo build`.
 
 | Metric | Value |
