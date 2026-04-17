@@ -37,15 +37,19 @@
     "og:type": "website",
     "twitter:card": "summary_large_image"
   },
+  "banner": {
+    "content": "🦋 Nika v0.80 · Diamond rewrite in progress. Forever-v0.x. See [live state →](/reference/status)",
+    "dismissible": true
+  },
   "navbar": {
     "links": [
-      { "label": "GitHub", "href": "https://github.com/supernovae-st/nika" },
-      { "label": "Changelog", "href": "https://nika.sh/changelog" }
+      { "label": "Live state", "href": "/reference/status" },
+      { "label": "GitHub", "href": "https://github.com/supernovae-st/nika" }
     ],
     "primary": {
       "type": "button",
       "label": "Install",
-      "href": "https://nika.sh/install"
+      "href": "/getting-started/installation"
     }
   },
   "footer": {
@@ -58,9 +62,8 @@
         "header": "Nika",
         "items": [
           { "label": "Site", "href": "https://nika.sh" },
-          { "label": "Method", "href": "https://nika.sh/method" },
-          { "label": "Changelog", "href": "https://nika.sh/changelog" },
-          { "label": "Errors", "href": "https://nika.sh/errors" }
+          { "label": "Live state", "href": "/reference/status" },
+          { "label": "Constellation", "href": "/reference/constellation" }
         ]
       },
       {
@@ -68,8 +71,8 @@
         "items": [
           { "label": "Source (AGPL)", "href": "https://github.com/supernovae-st/nika" },
           { "label": "TypeScript SDK", "href": "https://github.com/supernovae-st/nika-client" },
-          { "label": "Workflow registry", "href": "https://github.com/supernovae-st/nika-registry" },
-          { "label": "Design skill", "href": "https://github.com/supernovae-st/nika-design-skill" }
+          { "label": "Design skill", "href": "https://github.com/supernovae-st/nika-design-skill" },
+          { "label": "Homebrew tap", "href": "https://github.com/supernovae-st/homebrew-tap" }
         ]
       },
       {
@@ -83,12 +86,15 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Docs",
+        "tab": "Guide",
         "groups": [
+          {
+            "group": "Overview",
+            "pages": ["introduction"]
+          },
           {
             "group": "Getting started",
             "pages": [
-              "introduction",
               "getting-started/installation",
               "getting-started/first-workflow",
               "getting-started/editors"
@@ -98,39 +104,39 @@
             "group": "Concepts",
             "pages": [
               "concepts/architecture",
-              "concepts/verbs",
               "concepts/workflows",
+              "concepts/verbs",
               "concepts/bindings",
               "concepts/events",
               "concepts/providers"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
           {
-            "group": "Guides",
+            "group": "YAML",
             "pages": [
-              "guides/agent-loop",
-              "guides/structured-output",
-              "guides/mcp-client",
-              "guides/decompose",
-              "guides/local-models"
+              "reference/yaml-syntax",
+              "reference/schema"
             ]
           },
           {
-            "group": "Reference",
+            "group": "CLI & errors",
+            "pages": [
+              "reference/cli",
+              "reference/error-codes"
+            ]
+          },
+          {
+            "group": "Workspace",
             "pages": [
               "reference/status",
               "reference/constellation",
-              "reference/crates",
-              "reference/cli",
-              "reference/yaml-syntax",
-              "reference/error-codes",
-              "reference/schema",
-              "reference/ndjson"
+              "reference/crates"
             ]
-          },
-          {
-            "group": "Examples",
-            "pages": ["examples/index"]
           }
         ]
       }
