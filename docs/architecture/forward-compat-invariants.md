@@ -48,17 +48,20 @@ implements `MemoryStore`. Zero v0.90 code modification.
 - `EmbeddingProvider` — Cortex impl v0.95
 - `ToolExecutor` — real impl v0.90 (used by natives)
 - `WasmPluginHost` — impl v0.100+
-- `ObservabilitySink` — impl v0.100+
+- `MetricsExporter` + `TracerProvider` — impl v0.100+ (`nika-observability-otel`)
 - `Sandbox` — impl v0.100+ (Landlock/seccomp)
 
-**Stub traits land in kernel v0.81.** `WasmPluginHost`, `Sandbox`, and
-`ObservabilitySink` are defined as kernel traits — with their DTOs marked
-`#[non_exhaustive]` — in the v0.81 kernel files `src/plugin.rs`,
-`src/sandbox.rs`, and `src/observability.rs`. Real implementations land in
-v0.95+ / v0.100+ crates (`nika-wasm-host`, `nika-sandbox-*`,
-`nika-observability-otel`). Reserving the trait shape and field layout **now**
-keeps v0.95/v0.100 strictly additive — no consumer of v0.8x breaks when the
-impls arrive. See §9 below.
+**Stub traits land in kernel v0.81.** `WasmPluginHost` and `Sandbox` are
+defined as kernel traits — with their DTOs marked `#[non_exhaustive]` — in
+the v0.81 kernel files `src/plugin/wasm.rs` and `src/plugin/sandbox.rs`.
+Telemetry is split into the sibling traits `MetricsExporter` + `TracerProvider`
++ `AuditSink` + `EventSink` + `BillingSink` (the unified `ObservabilitySink`
+stub was dropped per Q12 rev.3 2026-04-16; the 4-channel split is already
+in-tree at `src/infra/{audit,metrics,trace,event_sink,billing}.rs`). Real
+implementations land in v0.95+ / v0.100+ crates (`nika-wasm-host`,
+`nika-sandbox-*`, `nika-observability-otel`). Reserving the trait shape and
+field layout **now** keeps v0.95/v0.100 strictly additive — no consumer of
+v0.8x breaks when the impls arrive. See §9 below.
 
 ### 2. `#[non_exhaustive]` on every public struct, enum, error variant <!-- FCI-002 -->
 
@@ -161,7 +164,7 @@ pub trait MemoryStore: Send + Sync { ... }
 - **Sealed**: `Verb`, `Provider`, `Runtime`, `EventSink`, `BillingSink`,
   `SecretResolver` — core engine only
 - **Open**: `MemoryStore`, `EmbeddingProvider`, `ToolExecutor`, `Sandbox`,
-  `ObservabilitySink`, `WasmPluginHost` — community may implement
+  `MetricsExporter`, `TracerProvider`, `WasmPluginHost` — community may implement
 
 ### 7. Feature flags with stable defaults <!-- FCI-007 -->
 
@@ -376,9 +379,10 @@ is the explicit mechanism that makes v0.95 and v0.100 additive-only releases.
 | File | Purpose | Impl crate (v0.95+ / v0.100+) |
 |---|---|---|
 | `src/cancel.rs` | `CancelCtx` re-export + `CancelDropGuard` | in-tree, zero-impl |
-| `src/plugin.rs` | `WasmPluginHost` + `PluginCall` / `PluginResult` / `PluginError` + capability-scoped subsets | `nika-wasm-host` (v0.100) |
-| `src/sandbox.rs` | `Sandbox` trait + `SandboxPolicy` + `PluginCapabilities` | `nika-sandbox-linux`/`-macos`/`-windows` (v0.100) |
-| `src/observability.rs` | `ObservabilitySink` + `Event` | `nika-observability-otel` (v0.100) |
+| `src/plugin/wasm.rs` | `WasmPluginHost` + `PluginCallContext` + `WasmPluginError` + capability-scoped subsets | `nika-wasm-host` (v0.100) |
+| `src/plugin/sandbox.rs` | `Sandbox` trait + `SandboxPolicy` + `PluginCapabilities` | `nika-sandbox-linux`/`-macos`/`-windows` (v0.100) |
+| `src/infra/{metrics,trace}.rs` | `MetricsExporter` + `TracerProvider` (the unified `ObservabilitySink` stub was dropped per Q12 rev.3) | `nika-observability-otel` (v0.100) |
+| `src/infra/{audit,event_sink,billing}.rs` | `AuditSink` + `EventSink` + `BillingSink` | in-tree (v0.81+, sealed where contract-bearing) |
 
 **Modifications to existing kernel files (v0.81)**:
 - `provider.rs` — `ProviderStream::infer_stream` gains `cancel: CancelCtx`

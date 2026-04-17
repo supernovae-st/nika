@@ -320,8 +320,14 @@ traits stay open.
   family (will gain `: sealed::Sealed` in S1-C).
 - `crates/nika-kernel/src/ai/memory.rs:289-290` — current `MemoryStore`
   blanket (will gain `MemoryUpdate` at v0.95).
-- `crates/nika-kernel/src/observability.rs` — unified
-  `ObservabilitySink` (S1-B). v0.100 split target.
+- Telemetry traits: unified ObservabilitySink stub (S1-B, kernel src file
+  later deleted) was dropped per Q12 rev.3 (2026-04-16) before any v0.100
+  split; replacement lives in-tree at
+  `crates/nika-kernel/src/infra/metrics.rs` (`MetricsExporter`),
+  `crates/nika-kernel/src/infra/trace.rs` (`TracerProvider`),
+  `crates/nika-kernel/src/infra/audit.rs` (`AuditSink`),
+  `crates/nika-kernel/src/infra/event_sink.rs` (`EventSink`), and
+  `crates/nika-kernel/src/infra/billing.rs` (`BillingSink`).
 - `crates/nika-kernel-mock/src/lib.rs` — mock module list (mirrors
   every kernel trait).
 - ADR-006 — v0.80 trait set, **not superseded**.

@@ -77,7 +77,7 @@ Given a crate `nika-<role>`, ask these questions in order:
 │   nika-kernel-core        Clock + Fs + Http + Process + Blob + Shell     │
 │   nika-kernel-ai          Provider* + Memory* + Embedding + Compressor   │
 │   nika-kernel-runtime     ToolExecutor + Agent + Checkpoint + Context    │
-│   nika-kernel-plugin      WasmPluginHost + Sandbox + ObservabilitySink   │
+│   nika-kernel-plugin      WasmPluginHost + Sandbox (telemetry dropped)   │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L1  (effect impls, async) ───────────────────────────────────────────────╮

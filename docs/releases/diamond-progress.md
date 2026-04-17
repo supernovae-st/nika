@@ -68,7 +68,7 @@ nika-error, nika-catalog, nika-kernel + mock, nika-schema, nika-binding.
 - Layer: L0.5 (trait definitions + mock implementations only)
 - Design: ISP-layered (~20 atomic traits + ~6 super-traits). `trait_variant`
   for async support. Cortex and agent-v2 hooks (`MemoryStore`, `EmbeddingProvider`,
-  `ToolExecutor`, `WasmPluginHost` reserved, `ObservabilitySink` reserved)
+  `ToolExecutor`, `WasmPluginHost` reserved; unified `ObservabilitySink` stub was subsequently dropped per Q12 rev.3, replaced by split `MetricsExporter` + `TracerProvider` + `AuditSink` + `EventSink` + `BillingSink`)
   baked in from day one per forward-compat invariants.
 - Stats nika-kernel: ~3,375 LOC | 99 tests | 0 unwrap in src/
 - Stats nika-kernel-mock: ~1,705 LOC | 88 tests | 0 unwrap in src/

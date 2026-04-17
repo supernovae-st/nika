@@ -87,7 +87,7 @@ Diamond foundation, **6 crates admitted** + **1 WIP** in workspace
 - **nika-kernel + nika-kernel-mock** — kernel traits + mock impls (144 + 116 tests)
   - 6 L0.5 traits (`IdGenerator`, `SecretResolver`, `MetricsExporter`, `TracerProvider`, `EventSink`, `BillingSink`)
   - Sealing pattern on `Provider`, `EventSink`, `BillingSink`, `SecretResolver`
-  - Forward-compat seams: `cancel.rs`, `plugin.rs`, `sandbox.rs`, `observability.rs`
+  - Forward-compat seams: `cancel.rs`, `plugin/wasm.rs`, `plugin/sandbox.rs` (observability unified trait dropped per Q12 rev.3 — replaced by `infra/{audit,metrics,trace,event_sink,billing}.rs`)
   - `InferResponse.cost: Option<Cost>` + structured `DenialKind`
   - `MemoryId` UUIDv7 migration, `#[deprecated] cost_usd` bridge
   - `HttpStreamResponse::new()` (4A-stabilize, inv #19)
@@ -157,8 +157,6 @@ Pure additions — no behaviour change for v0.80 consumers.
   `#[non_exhaustive]`, zero impls
 - ~~New `crates/nika-kernel/src/sandbox.rs`~~ — ✅ `Sandbox` trait stub +
   `SandboxPolicy` + `PluginCapabilities` enums + structured `DenialKind`
-- ~~New `crates/nika-kernel/src/observability.rs`~~ — ✅ `ObservabilitySink`
-  trait stub + `Event` DTO
 - ~~`MemoryFrame` reserved fields~~ — ✅ `cipher`, `provenance`,
   `retention`, `redactions` (all `Option<_>`, default `None`)
 - ~~`ProviderStream::infer_stream` + `ContextCompressor::compress` cancel param~~ — ✅
@@ -173,8 +171,7 @@ See `docs/architecture/forward-compat-invariants.md` §9.
 |---|---|---|---|
 | `WasmPluginHost` | `src/plugin.rs` | ✅ shipped | `nika-wasm-host` (v0.100) |
 | `Sandbox` | `src/sandbox.rs` | ✅ shipped | `nika-sandbox-{linux,macos,windows}` (v0.100) |
-| `ObservabilitySink` | `src/observability.rs` | ✅ shipped | `nika-observability-otel` (v0.100) |
-| `MemoryStore` | `src/memory.rs` | ✅ shipped | `nika-memory-oxigraph` (v0.95) |
+| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | `nika-memory-oxigraph` (v0.95) |
 | `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | Cortex providers (v0.95) |
 | `IdGenerator` | `src/id_gen.rs` | ✅ shipped (W2) | in-tree |
 | `SecretResolver` | `src/secret.rs` | ✅ shipped (W2, sealed) | in-tree |
@@ -497,7 +494,7 @@ v0.95+ without touching v0.90 code:
 - `EmbeddingProvider` trait — provider impls in v0.95
 - `ToolExecutor` trait — **real impl v0.90** (native builtins)
 - `WasmPluginHost` trait — impl in v0.100+
-- `ObservabilitySink` trait — impl in v0.100+
+- `MetricsExporter` + `TracerProvider` — impl in v0.100+ (`nika-observability-otel`; unified `ObservabilitySink` dropped per Q12 rev.3)
 
 `InferRequest` reserves `memory: Option<MemoryDirective>` (v0.95),
 `budget: Option<BudgetDirective>` (v0.100), `replay_seed: Option<u64>` (v0.100).
