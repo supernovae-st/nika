@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | Phase 1 — catalog tooling (admitted 2026-04-14 by parallel session) |
-| Layer | L2 — binary with I/O (network probes) |
+| Layer | L4 — interface binary (user-facing CLI with network probes) |
 | Design | CLI tool: probes npm/pypi/oci registries + remote MCP endpoints, reports drift |
 | LOC budget | ≤1,500 src (actual ~600) |
 | File cap | ≤1,500 LOC each |
