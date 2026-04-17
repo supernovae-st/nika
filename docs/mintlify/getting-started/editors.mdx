@@ -1,47 +1,70 @@
 ---
 title: "Editor setup"
-description: "LSP, syntax highlighting, schema validation. Make .nika.yaml feel native."
+description: "What IDE integration ships today and what's planned for v0.90+. Schema validation via yaml-language-server works now; full LSP lands with nika-lsp admission."
 sidebarTitle: "Editor setup"
 icon: "code"
 ---
 
-Nika ships an LSP server and a JSON Schema. Together they give you autocomplete,
-inline error squiggles, hover docs, and "go to definition" across tasks.
+import { STATUS } from "/snippets/_status-snapshot.mdx";
 
-## Quick setup
+Nika's editor story has two tiers: **(1)** generic JSON-Schema validation
+that works today with any yaml-language-server-compatible editor, and
+**(2)** a custom `nika-lsp` server (post-v0.90) with cross-task binding
+analysis, taint propagation warnings, and DAG preview.
+
+<Info>
+  **v{STATUS.version} state:** `nika-schema` is WIP (parser + DAG through
+  Round 4). The canonical JSON Schema artifact ships with the
+  `nika-schema` admission commit. Until then, wire any editor against
+  the in-repo schema source (`crates/nika-schema/schemas/`).
+</Info>
+
+## Tier 1 — JSON schema validation (today / v0.90)
+
+Any editor with `yaml-language-server` can validate `.nika.yaml` against
+the workflow schema.
 
 <Tabs>
   <Tab title="VS Code">
-    Install the YAML extension (Red Hat). It will pick up the schema automatically
-    via the `# yaml-language-server` directive at the top of `.nika.yaml` files,
-    or you can add to `settings.json`:
+    Install the [YAML extension (Red Hat)](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml).
+    It picks up the schema via the `# yaml-language-server` directive at
+    the top of `.nika.yaml`, or via `settings.json`:
 
-    ```json
+    ```json settings.json — target v0.90
     {
       "yaml.schemas": {
-        "https://nika.sh/schema/workflow.json": "*.nika.yaml"
+        "https://docs.nika.sh/schema/workflow.json": "*.nika.yaml"
       }
     }
     ```
 
-    For full LSP (semantic completion, taint analysis), install the Nika LSP
-    extension *(planned post-v0.90)*.
-  </Tab>
-  <Tab title="Neovim">
-    Add a YAML schema mapping to your `nvim-lspconfig`:
+    At v{STATUS.version} pin the schema via the local file until the public URL publishes:
 
-    ```lua
+    ```json settings.json — today
+    {
+      "yaml.schemas": {
+        "file:///path/to/nika/crates/nika-schema/schemas/workflow.json": "*.nika.yaml"
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Neovim">
+    Wire via `nvim-lspconfig`:
+
+    ```lua target v0.90
     require('lspconfig').yamlls.setup {
       settings = {
         yaml = {
           schemas = {
-            ["https://nika.sh/schema/workflow.json"] = "*.nika.yaml",
+            ["https://docs.nika.sh/schema/workflow.json"] = "*.nika.yaml",
           },
         },
       },
     }
     ```
   </Tab>
+
   <Tab title="Helix">
     Add to `~/.config/helix/languages.toml`:
 
@@ -52,50 +75,110 @@ inline error squiggles, hover docs, and "go to definition" across tasks.
     language-servers = ["yaml-language-server"]
     ```
   </Tab>
-  <Tab title="Cursor / Zed / others">
-    Any editor supporting `yaml-language-server` can validate `.nika.yaml`
-    against `https://nika.sh/schema/workflow.json`.
+
+  <Tab title="Zed / Cursor / JetBrains">
+    Any editor supporting `yaml-language-server` will validate
+    `.nika.yaml` against `https://docs.nika.sh/schema/workflow.json`
+    once it publishes. Zed has native LSP; JetBrains supports via the
+    YAML plugin.
   </Tab>
 </Tabs>
 
 ## In-file schema hint
 
-Add this comment at the top of any `.nika.yaml` so the schema works with
+Add one comment at the top of any `.nika.yaml` so the schema works with
 zero editor configuration:
 
 ```yaml
-# yaml-language-server: $schema=https://nika.sh/schema/workflow.json
-schema: nika/workflow@0.12
+# yaml-language-server: $schema=https://docs.nika.sh/schema/workflow.json
+schema: nika/workflow@1
 workflow: hello
 
 tasks:
   - id: greet
     infer:
       provider: anthropic
-      prompt: "..."
+      model: claude-sonnet-4-20250514
+      messages:
+        - { role: user, content: "..." }
 ```
 
-## What you get
+## What tier 1 gets you
 
-- ✅ Autocomplete on verb keys, provider names, model identifiers
-- ✅ Hover docs on every field
-- ✅ Inline errors on missing required fields, schema mismatches
-- ✅ Format-on-save (with `prettier-plugin-yaml` or LSP-driven)
+<CardGroup cols={2}>
+  <Card title="Field autocomplete" icon="wand-magic-sparkles">
+    Verb keys, provider names, model identifiers, capability parameters.
+  </Card>
+  <Card title="Inline errors" icon="triangle-exclamation">
+    Missing required fields, schema mismatches, wrong types.
+  </Card>
+  <Card title="Hover docs" icon="circle-info">
+    Every field documented inline — descriptions come from the JSON Schema.
+  </Card>
+  <Card title="Format on save" icon="align-left">
+    Via `prettier-plugin-yaml` or LSP-driven formatting.
+  </Card>
+</CardGroup>
 
-## Coming post-v0.90
+## Tier 2 — `nika-lsp` custom server (post-v0.90)
 
-- 🔜 Custom LSP with cross-task binding analysis (`{{ tasks.X.output }}` resolution)
-- 🔜 Taint propagation warnings (untrusted input → unsafe verb)
-- 🔜 "Go to definition" between tasks
-- 🔜 Workflow visualizer (DAG preview in editor)
+The generic `yaml-language-server` covers structural validation. A
+custom `nika-lsp` crate (planned L4 admission) adds Nika-specific semantics:
+
+<AccordionGroup>
+  <Accordion title="Cross-task binding analysis" icon="link">
+    Resolves `{{ tasks.X.output }}` across task boundaries. "Go to
+    definition" jumps from a binding reference to the source task. Unused
+    outputs flagged. Circular dependencies detected before run.
+  </Accordion>
+
+  <Accordion title="Taint propagation warnings" icon="shield">
+    Tracks untrusted inputs (fetched URLs, user-provided strings) flowing
+    into sensitive sinks (shell commands, MCP invocations). Surfaces
+    violations in the editor before CI catches them.
+  </Accordion>
+
+  <Accordion title="Workflow visualizer" icon="diagram-project">
+    Inline DAG preview — a small panel showing the task graph as you
+    type. Click a node to jump to its definition.
+  </Accordion>
+
+  <Accordion title="Provider / model completion" icon="server">
+    Types `provider: ` → autocompletes from the 32-provider catalog.
+    Types `model: ` after a provider → autocompletes from that
+    provider's models. Invalid pairs flagged inline.
+  </Accordion>
+
+  <Accordion title="Capability-aware warnings" icon="grid">
+    `tools: [...]` on a model without tool_calling → warning. JSON
+    schema on a model without `json_mode: schema` → warning with
+    fallback suggestion.
+  </Accordion>
+</AccordionGroup>
+
+## Roadmap
+
+| Capability | Status | Admission |
+|---|---|---|
+| JSON Schema (yaml-language-server) | 🟡 WIP with nika-schema | Round 4 |
+| Published schema at `docs.nika.sh/schema/workflow.json` | 🧭 planned | Post-schema admission |
+| `nika-lsp` L4 crate | 🧭 planned | Round 16+ |
+| VS Code extension | 🧭 planned | Post-lsp admission |
+| Zed / Neovim native integrations | 🧭 planned | Community + v1.0 |
 
 ## Next
 
 <CardGroup cols={2}>
-  <Card title="The five verbs" icon="dna" href="/concepts/verbs">
-    What `exec`, `fetch`, `invoke`, `infer`, `agent` do.
+  <Card title="Schema reference" icon="file-code" href="/reference/schema">
+    `.nika.yaml` top-level keys + workflow envelope.
   </Card>
-  <Card title="Examples" icon="folder-open" href="/examples">
-    Real workflows you can copy.
+  <Card title="YAML syntax" icon="align-left" href="/reference/yaml-syntax">
+    Full grammar for every verb step.
+  </Card>
+  <Card title="First workflow" icon="play" href="/getting-started/first-workflow">
+    Preview of the target first-run experience.
+  </Card>
+  <Card title="Constellation" icon="diagram-project" href="/reference/constellation">
+    When each crate admits.
   </Card>
 </CardGroup>

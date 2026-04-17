@@ -1,155 +1,193 @@
 ---
 title: "Your first workflow"
-description: "Five minutes from install to a workflow that talks to Claude."
+description: "Preview of the target first-workflow experience. Five minutes from install to a workflow that talks to Claude (planned v0.90)."
 sidebarTitle: "First workflow"
 icon: "play"
 ---
 
-## Goal
+import { STATUS } from "/snippets/_status-snapshot.mdx";
 
-Write a `.nika.yaml` file, run it, get structured output. No setup beyond
-`nika` installed and one provider key.
+<Warning>
+  **Target design — not yet runnable at v{STATUS.version}.** The YAML shown
+  below is the workflow shape being built toward. Admitted today are the
+  foundation crates ({STATUS.cratesAdmitted} of {STATUS.cratesTarget}) —
+  the verb runtime lands progressively through Rounds 7-10. Read on for
+  the shape of things; follow [/reference/status](/reference/status) for
+  live admission progress.
+</Warning>
 
-## 1. Make sure Nika sees a provider
+## Goal (v0.90 target)
 
-```bash
+Write a `.nika.yaml` file, run it, get structured output. No setup
+beyond `nika` installed and one provider key.
+
+## 1 — Make sure Nika sees a provider
+
+```bash target — v0.90
 nika doctor
 ```
 
-If you see a warning like `no providers configured`, set one:
+If you see `no providers configured`, set a key:
 
 ```bash
-export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY, etc.
+export ANTHROPIC_API_KEY=sk-ant-...
+# or any of the 32 providers in the catalog
 ```
 
-## 2. Write the workflow
+All provider env vars listed in [Providers catalog](/reference/providers-catalog).
+
+## 2 — Write the workflow
 
 Create `hello.nika.yaml`:
 
-```yaml
-schema: nika/workflow@0.12
+```yaml hello.nika.yaml
+schema: nika/workflow@1
 workflow: hello
 
 tasks:
   - id: greet
     infer:
       provider: anthropic
-      model: claude-opus-4-6
-      prompt: "Say hi to the chrysalis. Be brief."
+      model: claude-sonnet-4-20250514
+      messages:
+        - role: user
+          content: "Say hi to the chrysalis. Be brief."
 ```
 
 Three things to notice:
 
-- **`schema:`** — the version of the workflow language. Locked.
-- **`workflow:`** — a human-readable name for this workflow.
-- **`tasks:`** — a list. Each task has an `id` and one verb (here, `infer`).
+- **`schema:`** declares the workflow-language version. `nika/workflow@1` is the locked v0.90 shape.
+- **`workflow:`** is a human-readable name.
+- **`tasks:`** is a list; each task has an `id` and one verb (here, `infer`).
 
-## 3. Run it
+## 3 — Run it
 
-```bash
+```bash target — v0.90
 nika run hello.nika.yaml
 ```
 
-You'll see:
+Target output:
 
 ```
-▶ greet  infer  → claude-opus-4-6
+▶ greet  infer  → anthropic/claude-sonnet-4-20250514
   ┌─ output ──────────────────
   │ Welcome inside the chrysalis. 🦋
   └───────────────────────────
 ✓ greet  T+00:00:01.42  OK
 ```
 
-## 4. Add a second task that depends on the first
+## 4 — Add a second task that depends on the first
 
-```yaml
-schema: nika/workflow@0.12
+```yaml hello.nika.yaml
+schema: nika/workflow@1
 workflow: hello
 
 tasks:
   - id: greet
     infer:
       provider: anthropic
-      model: claude-opus-4-6
-      prompt: "Say hi to the chrysalis. Be brief."
+      model: claude-sonnet-4-20250514
+      messages:
+        - role: user
+          content: "Say hi to the chrysalis. Be brief."
 
   - id: critique
     depends_on: [greet]
     infer:
       provider: anthropic
-      model: claude-opus-4-6
-      prompt: |
-        The greeting was: {{ tasks.greet.output }}
+      model: claude-sonnet-4-20250514
+      messages:
+        - role: user
+          content: |
+            The greeting was: {{ tasks.greet.output }}
 
-        Rewrite it shorter and more enigmatic.
+            Rewrite it shorter and more enigmatic.
 ```
 
 Notice `{{ tasks.greet.output }}` — that's a [binding](/concepts/bindings).
-Nika injects the previous task's output into the prompt at runtime.
+The engine injects the previous task's output into the prompt at runtime,
+with explicit taint tracking and pipe filters.
 
-```bash
-nika run hello.nika.yaml
-```
+## 5 — Get structured output
 
-You should see both tasks execute in order, with `critique` consuming `greet`'s output.
-
-## 5. Get structured output instead of free text
-
-```yaml
-schema: nika/workflow@0.12
+```yaml hello.nika.yaml
+schema: nika/workflow@1
 workflow: hello-structured
 
 tasks:
-  - id: greet
+  - id: names
     infer:
       provider: anthropic
-      model: claude-opus-4-6
-      prompt: "Generate three names for a butterfly."
-      structured:
-        type: object
-        properties:
-          names:
-            type: array
-            items:
-              type: string
-              minLength: 3
-              maxLength: 20
-            minItems: 3
-            maxItems: 3
-        required: [names]
+      model: claude-sonnet-4-20250514
+      messages:
+        - role: user
+          content: "Generate three names for a butterfly."
+      response_format:
+        type: json_schema
+        json_schema:
+          type: object
+          properties:
+            names:
+              type: array
+              items:
+                type: string
+                minLength: 3
+                maxLength: 20
+              minItems: 3
+              maxItems: 3
+          required: [names]
 ```
 
-Nika takes the JSON Schema you provide, asks the provider for output that
-conforms (using each provider's native structured-output API where available),
-and validates the result against your schema before passing it on.
+Nika takes the JSON Schema, asks the provider for output that conforms
+(using each provider's native structured-output API where the [capability
+rules](/reference/capabilities) allow it — schema mode, object mode, or
+JSON-mode emulation), and validates the result against your schema before
+passing it on.
 
-```bash
+```bash target — v0.90
 nika run hello.nika.yaml
 # Output is guaranteed to be { "names": ["...", "...", "..."] }
 ```
 
-## What you just learned
+## What you just previewed
 
-- Workflows are YAML files
-- Tasks are units of work, identified by `id`
-- Verbs (`infer`, `exec`, `fetch`, `invoke`, `agent`) define what each task does
-- `depends_on` builds a DAG
-- `{{ tasks.X.output }}` bindings flow data between tasks
-- `structured:` enforces schemas on AI output
+- Workflows are YAML files — `.nika.yaml`.
+- Tasks are units of work, identified by `id`.
+- Five verbs — `exec`, `fetch`, `invoke`, `infer`, `agent` — define what each task does.
+- `depends_on:` builds a DAG.
+- `{{ tasks.X.output }}` bindings flow data between tasks, with taint tracking.
+- `response_format:` enforces JSON schemas on AI output.
+
+## What you can do today
+
+<Steps>
+  <Step title="Read the kernel traits">
+    `cargo doc -p nika-kernel --open` — see the 40 ISP traits that define
+    provider / fs / process / memory contracts.
+  </Step>
+  <Step title="Browse the catalog">
+    `cargo run -p nika-catalog-verify` — validates the 32 providers + 49
+    capability rules TOML at build time.
+  </Step>
+  <Step title="Track admission">
+    [Live state](/reference/status) and [Constellation](/reference/constellation)
+    show what's admitted / WIP / planned for each round.
+  </Step>
+</Steps>
 
 ## Read next
 
 <CardGroup cols={2}>
-  <Card title="The five verbs" icon="dna" href="/concepts/verbs">
+  <Card title="The five verbs" icon="play" href="/concepts/verbs">
     Deep dive on `exec`, `fetch`, `invoke`, `infer`, `agent`.
   </Card>
   <Card title="Bindings" icon="link" href="/concepts/bindings">
-    How data flows between tasks.
+    How data flows between tasks with taint tracking.
   </Card>
-  <Card title="Editor setup" icon="code" href="/getting-started/editors">
-    LSP, schema validation, autocomplete.
+  <Card title="Providers" icon="server" href="/concepts/providers">
+    Why one `InferRequest` works across 32 providers.
   </Card>
-  <Card title="More examples" icon="folder-open" href="/examples">
-    Real workflows from the registry.
+  <Card title="Live state" icon="gauge" href="/reference/status">
+    Which verbs are admitted today.
   </Card>
 </CardGroup>
