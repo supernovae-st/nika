@@ -79,7 +79,6 @@ CLAUDE.local.md
 .gitnexus/
 .gitnexus.db
 node_modules/
-AGENTS.md
 
 # GitNexus helper skills (installed by analyze, regeneratable)
 .claude/skills/gitnexus/
