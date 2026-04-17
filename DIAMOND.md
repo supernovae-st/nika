@@ -1,16 +1,40 @@
 # 💎 Nika Diamond
 
-The architectural refactor of Nika into a clean, AI-refactorable diamond.
+The ground-up rewrite of Nika into a clean, AI-refactorable workspace
+of 40-42 small crates. This document is the strategy overview. For
+the authoritative architectural decision, see
+[ADR-001 — Diamond orphan branch](docs/adr/adr-001-diamond-orphan-branch.md).
 
-**Branch** : `nika-diamond` (this one). Orphan branch, fresh tree.
-**Main** : reference only, read-only, where legacy Nika lives.
+- **Branch** — `nika-diamond` (default). Orphan branch, no shared
+  history with `main`.
+- **Main** — reference only, read-only, where legacy Nika v0.79.3
+  lives. Accessed via `git show main:path/to/file.rs` when guidance
+  is needed. Never copy-pasted — every crate is rewritten clean.
 
----
+For the project's landing page, see [`README.md`](README.md). For
+the forever-v0.x plan across v0.81 → v0.90 → v0.95 → v0.100 → v0.110+,
+see [`ROADMAP.md`](ROADMAP.md).
 
-## What is Nika ?
+## Why rewrite into a Diamond
 
-Nika = **"Inference as Code"** — a single Rust binary that reads a YAML file
-and executes AI workflows. No Python, no Docker, no vendor lock-in. AGPL + CLA.
+The legacy `nika-engine` reached 138,724 LOC in a single crate. Claude
+Opus 1M holds ~75k LOC in context. A hypothetical AI assistant working
+on the engine sees roughly 54% of it and has to guess the rest —
+which produces hallucinated refactors. Over two weeks of real work,
+this yielded only 156 lines of genuine change.
+
+The Diamond solution: split the codebase into small crates, each
+**≤ 15,000 LOC**, each fitting entirely in the AI context window with
+its tests and kernel traits visible. Context headroom flips from ~25%
+to ~93%. Hallucinated refactors stop.
+
+The full argument is in
+[`docs/architecture/ai-velocity.md`](docs/architecture/ai-velocity.md).
+
+## What Nika is
+
+Nika is a workflow engine for AI — a single Rust binary that reads a
+YAML file and executes a DAG of verbs:
 
 ```yaml
 # workflow.nika.yaml
@@ -23,282 +47,110 @@ tasks:
     infer: "Summarize in 3 bullets: {{with.text}}"
 ```
 
-Run :
-```bash
-brew install nika
-nika run workflow.nika.yaml
-```
+Five verbs: `infer`, `exec`, `fetch`, `invoke`, `agent`. A typed
+schema, a taint-tracking template engine, and a layered kernel of
+side effects wired through `rig` (LLM providers) + `rmcp` (MCP
+servers).
 
-5 verbs : `infer` · `exec` · `fetch` · `invoke` · `agent`
-63 builtin tools · 9 LLM providers · 11 MCP servers · media pipeline ·
-structured output 4-layer · Shield 5-layer · vault secrets · LSP for VS Code.
+## Crate architecture
 
----
-
-## Why rewrite into a diamond ?
-
-The monolithic `nika-engine` reached 138,654 LOC. Claude Opus 1M can hold
-~75k LOC in context. When I (an AI) work on the engine, I see ~54% of it
-and guess the rest → **I hallucinate**. Over 2 weeks of work, we produced
-only 156 lines of real engine change because I kept inventing broken code.
-
-The diamond solution : split everything into small crates, each
-**≤15k LOC**. Every crate fits entirely in my context window with its
-tests and kernel traits. I stop hallucinating. You get a reliable partner.
-
-Crate count targets (per ROADMAP.md): 40-42 at v0.90, ~63-65 at v0.95,
-~72-75 at v0.100, hard cap 100 ever.
-
-Full rationale : `~/.claude/projects/.../memory/project_ai_velocity_north_star.md`.
-
----
-
-## Current state (2026-04-13)
-
-- Phase 0 ✓ DONE : scaffold (workspace + CI + `.claude/` rules)
-- Phase 1 ⏳ IN PROGRESS : split `nika-core` into 5 sub-crates
-- Phases 2-6 : see `docs/ROADMAP.md`
-- Timeline : **11-12 months** honest (not 14 weeks, not 9 months)
-- Method : orphan branch, REWRITE propre (not copy-paste from main),
-  every crate passes 12 gates before admission
-
----
-
-## Architecture (final target)
+40-42 crates at v0.90 target, expanding to ~75 at v0.100, hard cap
+100 ever. Strict downward-only layering (L0 → L5):
 
 ```
-                        ┌─────────────┐
-   L5  BINARY           │   nika      │   composition root, <500 LOC
-                        └──────┬──────┘
-                               │
-   L4  INTERFACES              │
-     ┌────────┬────────┬───────┴──────┬────────┬─────────┐
-     │        │        │              │        │         │
-  nika-cli nika-lsp nika-serve    nika-sdk nika-init  nika-lints
-                                                      (custom dylint)
-                               │
-   L3  ORCHESTRATION           │
-     ┌──────────────┬──────────┴──────┐
-     │              │                 │
-  nika-runtime  nika-daemon      (nika-cache = module)
-  (includes     (includes
-   policy+      storage
-   cache        module)
-   modules)
-                               │
-   L2  DOMAIN                  │
-     ┌─ Verb crates (5) ──────────────┬─ Service crates (9) ─────────┐
-     │  nika-verb-exec                 │  nika-provider-rig           │
-     │  nika-verb-fetch                │  nika-provider-native        │
-     │  nika-verb-invoke               │  nika-provider-mock          │
-     │  nika-verb-infer                │  nika-builtin                │
-     │  nika-verb-agent                │  nika-mcp                    │
-     │  (+ hooks agent-v2 reserved)    │  nika-vault                  │
-     │                                  │  nika-display                │
-     └─ Media (5 split, heavy deps) ───┘                              │
-       nika-media-cas                                                  │
-       nika-media-image                                                │
-       nika-media-pdf                                                  │
-       nika-media-document                                             │
-       nika-media-provenance
-                               │
-   L2    MEMORY (future v0.95) │  (stubs reserved Phase 0 for
-     nika-memory (orchestrator) │   Cortex integration non-breaking)
-     + 8 L1 satellites          │   hnsw · bm25 · rrf · fsrs · rdfs-reasoner
-                                │   temporal · graph-algos · autodesc
-                                │   (locked by ADR-004, separate count)
-                               │
-   L1  SUPPORT + EFFECTS       │
-     ┌─────────────┬───────────┴─────────┬─────────┐
-     │             │                     │         │
-  nika-shield  nika-event  nika-lsp-core │         │
-  (5-layer    (EventLog   (pure LSP     │  Effect impls :
-   defense)    Traces)     intelligence) │   nika-clock
-                                         │   nika-fs
-                                         │   nika-http
-                                         │   nika-blob
-                                         │   nika-process
-                                         │   nika-policy (→ module)
-                                         │   nika-extract
-                                         │   nika-security
-                               │
-   L0.5  KERNEL                │
-     ┌─────────────────┬───────┴──────────────┐
-     │ nika-kernel     │ nika-kernel-mock     │
-     │ (traits only)   │ (pure-memory mocks   │
-     │                 │  for AI-simulable    │
-     │                 │  tests)              │
-     │ + hooks Phase 0 │                      │
-     │ memory + tool   │                      │
-     │ executor        │                      │
-                               │
-   L0  PURE (zero I/O, zero async)
-     ┌───────────────────────┐
-     │   nika-core           │  AST + catalogs + types + errors + trust
-     │   (monolithe          │  Split en 5 sous-crates DURING PHASE 1 :
-     │    original 45k →     │    ├─ nika-error       (NIKA-XXX + NikaError)
-     │    split en 5)        │    ├─ nika-catalog     (providers/models/tools)
-     │                        │    ├─ nika-schema      (AST Raw → Analyzed → Lower)
-     │                        │    ├─ nika-binding     (Template + 65 transforms)
-     │                        │    └─ (dag merged into schema)
-     └───────────────────────┘
-
-TARGETS (per ROADMAP.md, forever v0.x model):
-  v0.90  40-42 crates  (core + pck MVP + 7 natives + 5 gold pck types)
-  v0.95  ~63-65 crates (+ Cortex + media + 8 natives + agent-v2)
-  v0.100 ~72-75 crates (+ WASM host + observability + LSP)
-  Cap    100 ever
-
-Each ≤15k LOC · file ≤1500 · fn ≤100 · 0 unwrap src/
-Every I/O behind kernel trait · Tests with kernel-mock (pure memory)
+L5   nika                         binary, <500 LOC composition root
+L4   cli · lsp · serve · init · lints · pck · catalog-verify
+L3   runtime · daemon
+L2   verb-{exec,fetch,invoke,infer,agent} ·
+     provider-{rig,native,mock} ·
+     builtin · builtin-{github,cloud,workspace} · mcp · display ·
+     media-{cas,image,pdf,document,provenance} ·
+     pck-{manifest,registry,store}
+L1   shield · event · clock · fs · http · blob · process ·
+     extract · security · git · vault
+L0.5 kernel · kernel-mock
+L0   types · error · catalog · catalog-verify · schema · binding · pck-manifest
 ```
 
----
+Invariants enforced by CI:
+- Every crate ≤ 15,000 LOC.
+- Every file ≤ 1,500 LOC.
+- Every function ≤ 100 lines.
+- Zero `.unwrap()` / `.expect(` in `src/` (CI-enforced).
+- L0 has no async, no I/O, no heavy deps (tokio, reqwest, rayon rejected).
+- Every side effect behind a kernel trait (testable with `nika-kernel-mock`).
 
-## Complete crate list (alphabetical)
-
-| # | Crate | Layer | LOC budget | Purpose | Status |
-|---|-------|-------|-----------|---------|--------|
-|  1 | nika                    | L5   | <500  | Binary entry point, composition root | PLANNED |
-|  2 | nika-binding            | L0   | ≤15k  | Template engine + 65 transforms + resolve (split from nika-core) | PHASE 1 |
-|  3 | nika-blob               | L1   | ~1k   | DiskBlobStore (blake3 CAS) | PHASE 2 |
-|  4 | nika-builtin            | L2   | ~11k  | 63 builtin tools (core+file+data+introspection) | PHASE 3 |
-|  5 | nika-catalog            | L0   | ~5k   | Static catalogs (providers/models/transforms/builtins) | PHASE 1 |
-|  6 | nika-cli                | L4   | ~20k  | CLI subcommands (run/check/test/...) | PHASE 4 |
-|  7 | nika-clock              | L1   | <1k   | SystemClock (tokio::time, ZST) | PHASE 2 |
-|  8 | nika-daemon             | L3   | ~8k   | Background scheduler + IPC + cron (includes storage module) | PHASE 4 |
-|  9 | nika-display            | L2   | ~13k  | CLI renderers (Renderer trait) | PHASE 3 |
-| 10 | nika-error              | L0   | ~3k   | NikaError enum + NIKA-XXX codes (split from nika-core) | PHASE 1 |
-| 11 | nika-event              | L1   | ~5k   | EventLog + TraceWriter + NDJSON (includes macros inlined) | PHASE 2 |
-| 12 | nika-extract            | L1   | ~1k   | 9-mode fetch extraction (pure) | PHASE 2 |
-| 13 | nika-fs                 | L1   | ~1k   | TokioFs (FsRead + FsWrite splinters) | PHASE 2 |
-| 14 | nika-http               | L1   | ~2k   | ReqwestClient + SSRF defense | PHASE 2 |
-| 15 | nika-init               | L4   | ~5k   | `nika init` project wizard | PHASE 4 |
-| 16 | nika-kernel             | L0.5 | ~3k   | Kernel traits (Provider, ToolExecutor, MemoryStore, ...) | PHASE 1 |
-| 17 | nika-kernel-mock        | L0.5 | ~2k   | Pure-memory mocks for all kernel traits | PHASE 1 |
-| 18 | nika-lints              | L4   | ~1k   | Custom dylint lints for invariants #11/#16/#23/#24 | PHASE 4 |
-| 19 | nika-lsp                | L4   | ~15k  | LSP server (includes lsp-core merged) | PHASE 4 |
-| 20 | nika-mcp                | L2   | ~9k   | rmcp client pool + retry + 50MB cap | PHASE 3 |
-| 21 | nika-media-cas          | L2   | ~2k   | CAS store (MediaRef, MediaBudget) — no heavy deps | PHASE 3 |
-| 22 | nika-media-document     | L2   | ~3k   | svg/chart/readability/html_to_md | PHASE 3 |
-| 23 | nika-media-image        | L2   | ~4k   | thumbnail/convert/strip/optimize/phash | PHASE 3 |
-| 24 | nika-media-pdf          | L2   | ~1.5k | pdf_extract | PHASE 3 |
-| 25 | nika-media-provenance   | L2   | ~2k   | c2pa/verify/qr | PHASE 3 |
-| 26 | nika-memory             | L2.5 | ~3k   | Cortex façade stub (NullMemoryStore in Phase 0) | PHASE 1 |
-| 27 | nika-process            | L1   | ~2k   | TokioShell (kill_on_drop, cancel) | PHASE 2 |
-| 28 | nika-provider-mock      | L2   | ~1k   | Deterministic test provider | PHASE 3 |
-| 29 | nika-provider-native    | L2   | ~3k   | mistral.rs GGUF local, feature-gated | PHASE 3 |
-| 30 | nika-provider-rig       | L2   | ~4k   | 7 cloud + 7 OpenAI-compat via rig-core | PHASE 3 |
-| 31 | nika-runtime            | L3   | ~12k  | Runner + dispatch + binding (includes policy/cache) | PHASE 4 |
-| 32 | nika-schema             | L0   | ~15k  | AST Raw→Analyzed→Lower + DAG (split from nika-core) | PHASE 1 |
-| 33 | nika-security           | L1   | ~3k   | Blocklist + injection guards + redact | PHASE 2 |
-| 34 | nika-sdk                | L4   | —     | ❌ DELETED (0 consumers, speculative) | N/A |
-| 35 | nika-serve              | L4   | ~4k   | HTTP API server | PHASE 4 |
-| 36 | nika-shield             | L1   | ~5k   | 5-layer defense (trust/spotlight/canary/caps/validation) | PHASE 4 |
-| 37 | nika-vault              | L2   | ~1.5k | XChaCha20Poly1305 + Argon2i secrets | PHASE 3 |
-| 38 | nika-verb-agent         | L2   | ~12k  | Agent multi-turn loop + hooks v2 | PHASE 3 |
-| 39 | nika-verb-exec          | L2   | <1k   | `exec:` verb via ShellExecutor | PHASE 3 |
-| 40 | nika-verb-fetch         | L2   | ~2k   | `fetch:` verb via HttpClient | PHASE 3 |
-| 41 | nika-verb-infer         | L2   | ~5k   | `infer:` verb + streaming + structured | PHASE 3 |
-| 42 | nika-verb-invoke        | L2   | ~1k   | `invoke:` verb via BuiltinRouter + McpPool | PHASE 3 |
-
-**Currently admitted: 4 crates** (nika-error, nika-catalog, nika-kernel,
-nika-kernel-mock). Table above = ~34 core crates PLANNED for v0.90 core
-engine. Target v0.90 total = **40-42** (adds 3 builtin bundles + 4-5 pck
-crates per ROADMAP.md).
-
-**Future (v0.95)**: Cortex = 9-10 new crates (Oxigraph + FSRS-6 + OWL2 +
-agent-v2 + memory satellites). **v0.100**: WASM host + observability + LSP
-full (+4-6 crates). **Hard cap: 100 crates ever.** See ROADMAP.md for
-phase-by-phase breakdown.
-
----
+Full layer map + allowed I/O axes:
+[`docs/architecture/crate-layer-registry.md`](docs/architecture/crate-layer-registry.md).
 
 ## 12 gates per crate admission
 
-A crate enters `Cargo.toml` `members = [...]` only when ALL 12 gates are green :
+A crate enters `Cargo.toml` `members = [...]` only when **all 12**
+gates are green in the same atomic commit. Full spec:
+[ADR-003](docs/adr/adr-003-12-gate-admission.md).
 
-1. **SPEC** — `docs/crate-specs/<name>.md` exists
-2. **TDD** — tests written before impl (RED → GREEN)
-3. **IMPL** — compiles, tests pass, no `# TEMP` without removal plan
-4. **CLIPPY 0** — `cargo clippy --workspace --all-targets -- -D warnings`
-5. **MUTATION ≥90%** — `cargo mutants -p <name>`
-6. **PROPERTY** — proptest if sensitive (security, parsers, encoding)
-7. **BENCHMARKS** — `benches/` if hot path (exempt if documented)
-8. **DOCS** — `cargo doc --no-deps` 0 warnings
-9. **CANARY E2E** — `tests/canary-<name>.nika.yaml` passes (exempt L0-L1)
-10. **PARITY LEGACY** — golden test vs `git show main:...` output
-11. **REVIEW SWARM** — 3 agents parallel, P0/P1 fixed same session
-12. **ATOMIC COMMIT** — `feat(<name>): admit to workspace — all 12 gates passed`
+1. **Spec** — `docs/crate-specs/<name>.md` exists (purpose, layer, LOC budget, public API)
+2. **TDD** — tests written before implementation (RED → GREEN)
+3. **Impl** — compiles, tests pass, no temporary code
+4. **Clippy 0** — `cargo clippy --workspace --all-targets -- -D warnings`
+5. **Mutation ≥ 90%** — `cargo mutants -p <name>`
+6. **Property** — `proptest` on sensitive surfaces (parsers, encoding)
+7. **Benchmarks** — `benches/` on hot paths (exempt otherwise, documented)
+8. **Docs** — `cargo doc --no-deps` zero warnings
+9. **Canary E2E** — `tests/canary-<name>.nika.yaml` (exempt L0-L1)
+10. **Legacy parity** — golden test vs `git show main:...` output
+11. **Review swarm** — three agents in parallel, P0/P1 fixed same session
+12. **Atomic commit** — one admission, one commit
 
----
+## 7 pre-launch shadow zones
 
-## 7 pre-launch gates (shadow zones)
+Before `git tag v0.90.0`, all seven must be green:
 
-Before `git tag v0.90.0`, these 7 MUST be green :
+1. `nika serve` input trust (P0 prompt injection boundary)
+2. Cross-provider structured output parity (~35 tests)
+3. `binding/template` hardening (legacy 7,243 LOC file + 15 unwraps — auto-resolved by Phase 1 `nika-binding` rewrite)
+4. L1 taint analysis at runtime (lint-only today)
+5. `for_each` per-element spotlight
+6. `NikaError` Display parity — auto-resolved by `nika-error` admission
+7. Provider parity matrix (~72 tests)
 
-1. `nika serve` input trust (P0 prompt injection hole)
-2. Cross-provider structured output parity (35 tests)
-3. `binding/template` rewrite (7,243 LOC legacy + 15 unwraps → resolved by Phase 1 nika-binding)
-4. L1 Taint analysis runtime (lint-only today)
-5. `for_each` per-element spotlight (Sprint 3 deferred)
-6. NikaError Display parity tests (95% variants sans golden → resolved by Phase 1 nika-error)
-7. Provider parity matrix (72 tests)
+## Forever v0.x
 
-Details : `~/.claude/projects/.../memory/PRE_LAUNCH_GATES.md`.
+No v1.0 target. Each release is diamond-grade for its declared scope.
+SQLite stayed on 3.x for 20 years while adding WAL, FTS, JSON1,
+window functions — each release complete at that release. That is
+the model. See [ADR-002](docs/adr/adr-002-forever-v0x.md).
 
----
+Phase roadmap (no dates):
 
-## 2-year roadmap
+- **v0.81** — forward-compat seams (shipped), hygiene 10 → 31 vectors (done), `tools/` → `crates/` rename (done).
+- **v0.90** — Diamond foundation: 40-42 crates admitted, 7 shadow zones green, pck MVP, 7 native API adapters.
+- **v0.95** — Memory / Cortex (9-10 satellite crates), agent-v2 (parallel tools, ReWOO, reflection, resume), pck full with sigstore signing.
+- **v0.100** — WASM plugins (wasmtime + extism sandbox), full observability (OpenTelemetry), full LSP, keys subsystem.
+- **v0.110+** — Ecosystem growth; hosted Nika Cloud and Nika Enterprise are demand-driven, deferred until warranted.
 
-```
-v0.79 (main)  →  v0.90 (diamond, +11-12 months)  →  v0.95 (Cortex + agent-v2, +6-8 months)
-             →  v1.0 (Nika Cloud hosted, +6 months)  →  v1.x (Nika Enterprise)
-```
+Full breakdown: [`ROADMAP.md`](ROADMAP.md).
 
-- **v0.90** (target) : 34 crates admitted, 7 pre-launch gates green, diamond complete.
-- **v0.95** : nika-memory/Cortex (Oxigraph + HNSW + FSRS-6) + agent-v2 features.
-- **v1.0** : Nika Cloud (hosted workflow runner, Tailscale model).
-- **v1.x** : Nika Enterprise (on-prem + SSO + web UI, Grafana model).
+## Method
 
----
+This is **not an extraction**. This is **craft**.
 
-## Building
+Each crate is rewritten from scratch, guided by the legacy code on
+`main` via `git show main:path` but never copy-pasted. Every
+`.unwrap()` becomes `?` propagation. Every file >1,500 LOC gets
+split into modules. Every function >100 lines gets decomposed. Every
+public API gets `#[non_exhaustive]`, a `new()` constructor, a spec,
+and tests before implementation.
 
-```bash
-# On nika-diamond branch (this one)
-cd tools
-cargo check --workspace        # workspace compiles
-cargo nextest run --workspace  # tests (nextest for process isolation)
-cargo clippy --workspace --all-targets -- -D warnings
-cargo deny check               # licenses + advisories + layer bans
-cargo mutants -p <crate>       # mutation testing before admission
-```
-
-Crate admission commits use `scripts/ci/` gates (bash ratchets use clippy
-as source of truth, see `PHASE_1_AUDIT.md` in repo root).
-
----
-
-## Authority for all decisions
-
-If anything is unclear, consult in this order :
-
-1. `~/.claude/projects/.../memory/POST_AUDIT_REVISIONS.md` — supreme authority
-2. `~/.claude/.../PRE_LAUNCH_GATES.md` — shadow zones
-3. `~/.claude/.../HANDOFF_PHASE_1_REVISED.md` — current execution plan
-4. `.claude/CLAUDE.md` — per-repo rules
-5. `.claude/rules/*.md` — enforcement patterns
-
-If two docs contradict, higher in the list wins.
-
----
+The butterfly on the logo is not what Nika is today. It is what
+Nika becomes at v0.90 emergence, when the chrysalis opens.
 
 ## License
 
-AGPL-3.0-or-later (public) + Commercial License (enterprise).
-See `LICENSE` and `COMMERCIAL_LICENSE.md`.
+AGPL-3.0-or-later — see [`LICENSE`](LICENSE). Commercial relicense
+(Grafana model) available for enterprise consumers. Contact:
+`contact@supernovae.studio`.
 
-© 2024-2026 SuperNovae Studio · [supernovae.studio](https://supernovae.studio)
+© 2024-2026 [SuperNovae Studio](https://supernovae.studio)
 
 🦋 Nika — the butterfly on the SuperNovae flag.
