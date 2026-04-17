@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `eac346c71` — 7 crates in workspace (6 admitted + 1 WIP), **846 lib tests**, 25 providers, 42 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `d58d981f8` — 7 crates in workspace (6 admitted + 1 WIP), **905 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -135,10 +135,11 @@ Narrative context (manually maintained):
 - L0.5 admitted: nika-kernel (with prelude hub, Q7), nika-kernel-mock.
 - L4 admitted: nika-catalog-verify.
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
-- 25 providers, 42 capability rules, 7-axis ModelPricing, scope.providers canonical.
-- Q1-Q8 L0/L0.5 architecture decisions LOCKED 2026-04-16
+- 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.
+- Q1-Q13 L0/L0.5 architecture decisions LOCKED 2026-04-16
   (`docs/architecture/l0-l05-architecture-decisions.md`).
-- 8 new ADRs (021-027 + ADR-006 amendment) lock Foundation v0.81 constellation.
+- 8 new ADRs (021-028 + ADR-006 amendment) lock Foundation v0.81 constellation.
+- 5 stub ADRs (029/030/031/032/035) mark Wave 4A/4B reservations — prose lands Phase C.
 - **Active arc: Phase B (hygiene vectors 22-33, P0 ratchets) → Phase C (ADR
   prose) → Phase D (14-crate envelope refactor with rename, facade drop,
   schema split).** See `~/.claude/.../memory/MEGA_HANDOFF_FOUNDATION_LOCK_V081.md`.
