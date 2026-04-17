@@ -1,5 +1,21 @@
 # Nika Roadmap
 
+> **🦋 PHILOSOPHY SHIFT 2026-04-17 — see ADR-037**
+>
+> Section headers `v0.81 Foundation / v0.90 Ship / v0.95 Cortex / v0.100 WASM`
+> are being replaced with layer-progression sections. Bottom-up diamond build:
+> L0 → L0.5 → L1 → L2 → L3 → L4 → L5. No feature defer. No marketing
+> milestones. Forever-v0.x unchanged. Full restructure pending — meanwhile
+> the sections below use the OLD model and should be read as reference-only.
+>
+> Tag scheme (Q-plan 3b): `v0.8X.Y` where X climbs per layer-phase completion,
+> Y increments per admission. See ADR-037 for the full `v0.80 → v0.92`
+> progression map.
+>
+> Target crate count: 40-42 → **50-90 crates** (cap 100 unchanged). Driven by
+> 14-crate memory subsystem (8 core + 6 reserved), 4 storage backends,
+> ~30 provider crates, own `nika-embed`, WASM + sandbox.
+
 **Philosophy: Forever v0.x.** Nika increments quality in v0.x releases
 indefinitely. There is no v1.0 target. Each release is diamond-grade for its
 declared scope. Unshipped features are on this roadmap — **nothing ships as a
