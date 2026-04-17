@@ -2,22 +2,41 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #
-# mintlify-snapshot.sh — regenerate docs/mintlify/snippets/_status-snapshot.mdx
-# from the canonical refresh-status.sh output. Keeps Mintlify docs live-linked
-# to the engine state. Drift caught by hygiene vector 23.
+# mintlify-snapshot.sh — regenerate the Mintlify docs snippet
+# snippets/_status-snapshot.mdx from refresh-status.sh output. Keeps
+# docs.nika.sh live-linked to engine state; drift caught by hygiene
+# vector 23.
+#
+# Target path resolution (in priority order):
+#   1. $NIKA_DOCS_SNIPPETS env var (explicit override)
+#   2. $ENGINE_ROOT/../docs/snippets/       (monorepo sibling submodule)
+#   3. error out with actionable message
+#
+# The docs live in the supernovae-st/nika-docs repo, submoduled at
+# nika/docs/ in the supernovae-hq monorepo. This script runs from the
+# engine repo but writes to the docs submodule (cross-repo coordination).
 #
 # Usage:
-#   bash scripts/mintlify-snapshot.sh           # full refresh (runs cargo test + clippy)
-#   bash scripts/mintlify-snapshot.sh --quick   # skip cargo, use placeholder tests/clippy
-#
-# Output: docs/mintlify/snippets/_status-snapshot.mdx (overwritten)
+#   bash scripts/mintlify-snapshot.sh           # full refresh
+#   bash scripts/mintlify-snapshot.sh --quick   # skip cargo
+#   NIKA_DOCS_SNIPPETS=/path/to/snippets bash scripts/mintlify-snapshot.sh
 
 set -euo pipefail
 
 ENGINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ENGINE_ROOT"
 
-SNIPPET_DIR="docs/mintlify/snippets"
+# Resolve the snippets directory
+if [[ -n "${NIKA_DOCS_SNIPPETS:-}" ]]; then
+  SNIPPET_DIR="$NIKA_DOCS_SNIPPETS"
+elif [[ -d "$ENGINE_ROOT/../docs" ]]; then
+  SNIPPET_DIR="$ENGINE_ROOT/../docs/snippets"
+else
+  echo "error: nika-docs submodule not found at ../docs/ relative to engine" >&2
+  echo "hint: run from a supernovae-hq monorepo checkout, or set NIKA_DOCS_SNIPPETS" >&2
+  exit 2
+fi
+
 SNIPPET_PATH="$SNIPPET_DIR/_status-snapshot.mdx"
 
 mkdir -p "$SNIPPET_DIR"
@@ -27,10 +46,13 @@ QUICK="${1:-}"
 # Capture canonical status block
 BLOCK=$(bash scripts/refresh-status.sh "$QUICK")
 
-# Parse values from refresh-status.sh GFM table
+# Parse values from refresh-status.sh GFM table.
+# Terminator is optional-whitespace + literal pipe so both
+# "| label | value" (padded) and "| label| value" (unpadded)
+# columns resolve cleanly.
 extract_cell() {
   # args: $1 = row label regex
-  echo "$BLOCK" | grep -E "^\| $1 " | head -1 \
+  echo "$BLOCK" | grep -E "^\| $1[[:space:]]*\|" | head -1 \
     | awk -F'|' '{print $3}' | sed -E 's/^ +//; s/ +$//'
 }
 
@@ -57,8 +79,9 @@ clippy_warnings=$(echo "$clippy_cell" | awk '{print $1}')
 
 # Extras not emitted by refresh-status.sh — derive from repo
 adrs=$(find docs/adr -maxdepth 1 -name 'adr-*.md' | wc -l | tr -d ' ')
-adrs_accepted=$(grep -l '^status: Accepted' docs/adr/adr-*.md 2>/dev/null | wc -l | tr -d ' ')
-adrs_proposed=$(grep -l '^status: Proposed' docs/adr/adr-*.md 2>/dev/null | wc -l | tr -d ' ')
+# ADR frontmatter uses lowercase status — `^status: accepted|proposed|...`
+adrs_accepted=$({ grep -li '^status: accepted' docs/adr/adr-*.md 2>/dev/null || true; } | wc -l | tr -d ' ')
+adrs_proposed=$({ grep -li '^status: proposed' docs/adr/adr-*.md 2>/dev/null || true; } | wc -l | tr -d ' ')
 providers=$(grep -c '^\[\[providers\]\]' crates/nika-catalog/data/llm-providers.toml 2>/dev/null || echo 0)
 capability_rules=$(grep -c '^\[\[rules\]\]' crates/nika-catalog/data/model-capabilities.toml 2>/dev/null || echo 0)
 
