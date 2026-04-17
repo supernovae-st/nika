@@ -1,7 +1,7 @@
 ---
 id: ADR-028
 title: "Forward-compat API-type reservation (amended — feature scheduling dropped)"
-status: amended
+status: accepted
 date: "2026-04-16 (amended 2026-04-17 by ADR-037)"
 phase: "Phase D — swarm-3 SOTA audit close-out; amended post bottom-up progression lock"
 deciders: ["@ThibautMelen", "swarm-3 (rust-architect + rust-pro + web-researcher)"]
