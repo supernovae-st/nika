@@ -101,8 +101,8 @@ Diamond foundation, **6 crates admitted** + **1 WIP** in workspace
   - **PENDING REWRITE** — Phase D nuke + redo with `apiVersion: nika.sh/v1` + `kind: Workflow` + `metadata` + `spec` envelope (ADR-016 lands Phase C)
 
 Total: **905 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
-~30k LOC, 32 providers, 49 capability rules, 30 ADRs, 31 hygiene
-vectors deployed (27 green / 4 yellow / 0 red).
+~30k LOC, 32 providers, 49 capability rules, **35 ADRs** (30 Accepted +
+5 Proposed), **31 hygiene vectors** (28 green / 3 yellow / 0 red).
 
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
 Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅,
@@ -407,9 +407,11 @@ Grok 4 variants (grok-4/grok-4-fast).
 - `/architecture` — 3D diamond view (R3F, P1 post-launch)
 - `/install.sh` + `/schema/workflow.json` (static assets for CLI consumers)
 
-**docs.nika.sh** (Mintlify monorepo mode, deploy from `nika:docs/mintlify/`):
-- Getting started, concepts, guides, reference, examples
-- 23 initial MDX files
+**docs.nika.sh** (Mintlify, deployed from
+[`supernovae-st/nika-docs`](https://github.com/supernovae-st/nika-docs)
+— split out of this repo in Wave 4E, 2026-04-17):
+- Getting started, concepts, guides, reference
+- 2-tab navigation (Guide / Reference), live snapshot of workspace state
 
 **`nika-design-skill`** (Claude Code Skill, v0.1.0 AGPL-3.0):
 - Consumed by nika.sh via git submodule
