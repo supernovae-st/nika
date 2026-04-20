@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -163,7 +163,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Use HEAD for dry-run, tag for real releases
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
@@ -303,7 +303,7 @@ jobs:
           "$hash  $env:ARTIFACT-$env:VERSION.zip" | Out-File -Encoding utf8 "dist/$env:ARTIFACT-$env:VERSION.zip.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -336,19 +336,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Use HEAD for dry-run, tag for real releases
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Download Linux amd64 artifact (musl static)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nika-linux-musl-x64
           path: artifacts/amd64
 
       - name: Download Linux arm64 artifact (musl static)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nika-linux-musl-arm64
           path: artifacts/arm64
@@ -445,13 +445,13 @@ jobs:
       ai_telegram_msg: ${{ steps.ai_notes.outputs.telegram_msg }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Use HEAD for dry-run, tag for real releases
           ref: ${{ inputs.dry_run && github.sha || env.RELEASE_TAG }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -670,7 +670,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: "🦋 Nika ${{ steps.version.outputs.version }}${{ steps.codename.outputs.value && format(' — {0}', steps.codename.outputs.value) || '' }}"
@@ -854,7 +854,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -884,7 +884,7 @@ jobs:
 
       - name: Download binary artifact
         if: matrix.artifact != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: editors/vscode/server/
@@ -961,7 +961,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -972,7 +972,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -1053,7 +1053,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
@@ -1108,12 +1108,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nika-windows-x64
           path: artifacts
@@ -1319,7 +1319,7 @@ jobs:
 
     steps:
       - name: Checkout for stats
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
