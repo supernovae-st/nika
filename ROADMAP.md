@@ -1,8 +1,8 @@
 # Nika Roadmap
 
-> Last updated: 2026-04-04
-> Current version: **v0.79.0** | Schema: `nika/workflow@0.12`
-> Nika stays 0.x.x forever.
+> Last updated: 2026-04-29
+> Current version: **v0.79.x** | Schema: `nika/workflow@0.12`
+> Nika stays 0.x.x forever — see [design principles](#design-principles).
 
 ## Current: v0.65 -- Native JQ + Dashboard (DONE)
 
@@ -40,11 +40,16 @@
 
 ---
 
-## Launch: May 5, 2026
+## In development — foundation phase
 
-Nika's public launch. Everything below targets this date.
+Nika is in foundation phase. The engine is being refactored under the
+**Constellation / Diamond** architecture: layered crates (L0 kernel →
+L5 binary), strict trait boundaries for every side-effect (HTTP,
+shell, FS, LLM, MCP), and a 12-gate per-crate admission discipline.
+Quality and stability take priority over a fixed shipping date —
+Nika ships when the foundation is right, not when a calendar says so.
 
-### Documentation & Website
+### Documentation & website
 
 - [ ] Mintlify docs site (supernovae-docs)
 - [ ] Quickstart guide (5-minute onboarding)
@@ -52,7 +57,7 @@ Nika's public launch. Everything below targets this date.
 - [ ] Cookbook: 20+ real-world workflow examples
 - [ ] Video walkthroughs
 
-### Stability & Polish
+### Stability & polish
 
 - [ ] Final pass on error messages (every NIKA-XXX code has a clear fix suggestion)
 - [ ] `nika doctor --fix` covers all common setup issues
@@ -66,7 +71,7 @@ Nika's public launch. Everything below targets this date.
 - [ ] GitHub Releases (pre-built binaries for Linux/macOS/Windows)
 - [ ] Docker image (`docker pull supernovae/nika`)
 - [ ] VS Code extension (LSP-based)
-- [ ] npm package (`nika-napi`)
+- [ ] npm bridge (`nika-napi` — TypeScript/JavaScript embedding)
 
 ### Legal
 
@@ -77,26 +82,33 @@ Nika's public launch. Everything below targets this date.
 
 ---
 
-## Post-Launch
+## Long-term direction
 
 ### NikaVault Universal Identity
 
-Evolve NikaVault from API key storage into a universal credential vault. OAuth2 PKCE flows, auto-refresh, import from Doppler/1Password/Bitwarden, audit logging.
+Evolve NikaVault from API key storage into a universal credential
+vault. OAuth2 PKCE flows, auto-refresh, import from
+Doppler/1Password/Bitwarden, audit logging.
 
-### Nika Egghead (Memory Engine)
+### Nika Cortex — cognitive memory engine
 
-7 cognitive mechanisms, 4 memory types. SQLite + usearch + petgraph + fastembed.
+A persistent cognitive memory subsystem for Nika workflows
+(historically referenced as "Egghead" in early plans; **canonical
+name is now Cortex**). Embedded RDF-star graph with cognitive
+mechanisms — Hebbian reinforcement, FSRS / ACT-R decay, AGM belief
+revision, consolidation, dopamine gating, ontology evolution. Built
+on Oxigraph 0.5.6 (W3C RDF / SPARQL conformant) with HNSW
+reconstructed at boot — single file, single binary, single
+transaction atomicity.
 
-- Working memory (task context during execution)
-- Episodic memory (past workflow runs, outcomes)
-- Semantic memory (domain knowledge, embeddings)
-- Procedural memory (learned patterns, skill refinement)
+7+ cognitive mechanisms · 4 memory types (working / episodic /
+semantic / procedural).
 
-### Infrastructure Scaling
+### Infrastructure scaling
 
-- Stage 1: Single VPS + H100 (~100 workflows/day) -- current
+- Stage 1: Single VPS + H100 (~100 workflows/day) — current
 - Stage 2: Bigger VPS, still SQLite (~10K workflows/day)
-- Stage 3: 2x App + LB + PostgreSQL (~100K workflows/day)
+- Stage 3: 2× App + LB + PostgreSQL (~100K workflows/day)
 - Stage 4: Multi-region (~1M workflows/day)
 
 ---
