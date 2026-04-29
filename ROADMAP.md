@@ -90,19 +90,31 @@ Evolve NikaVault from API key storage into a universal credential
 vault. OAuth2 PKCE flows, auto-refresh, import from
 Doppler/1Password/Bitwarden, audit logging.
 
-### Nika Cortex — cognitive memory engine
+### Nika Memory — cognitive memory engine
 
 A persistent cognitive memory subsystem for Nika workflows
-(historically referenced as "Egghead" in early plans; **canonical
-name is now Cortex**). Embedded RDF-star graph with cognitive
-mechanisms — Hebbian reinforcement, FSRS / ACT-R decay, AGM belief
-revision, consolidation, dopamine gating, ontology evolution. Built
-on Oxigraph 0.5.6 (W3C RDF / SPARQL conformant) with HNSW
-reconstructed at boot — single file, single binary, single
-transaction atomicity.
+(historically referenced as "Egghead" / "Cortex" in early plans;
+**canonical name is now Nika Memory**, crate `nika-memory`).
+Embedded RDF-star graph with cognitive mechanisms — Hebbian
+reinforcement, FSRS / ACT-R decay, AGM belief revision,
+consolidation, dopamine gating, ontology evolution. Built on
+Oxigraph 0.5.6 (W3C RDF / SPARQL / RDF-star, no fork) with 8 L1
+satellites publishable standalone on crates.io — `nika-hnsw`,
+`nika-bm25`, `nika-rrf`, `nika-fsrs`, `nika-graph-algos`,
+`nika-rdfs-reasoner`, `nika-temporal`, `nika-autodesc` — wrapped
+by the `nika-memory` orchestrator (NikaStore actor + 9 builtins +
+12 cognitive mechanisms). HNSW ephemeral cache rebuilt at boot —
+single file, single binary, single transaction atomicity.
 
-7+ cognitive mechanisms · 4 memory types (working / episodic /
+12 cognitive mechanisms · 4 memory types (working / episodic /
 semantic / procedural).
+
+**Status (2026-04-29):** Phase 0 prep ~90 % complete (21 design
+docs + 4 ADRs locked in `nika/hq/docs/nika-memory/`). Phase 1
+implementation runs 2026-05-06 → 2026-06-25. Target release
+**`nika-memory v0.1.0` + 8 satellites publishable on crates.io on
+2026-06-25**. Phase 2 workflow integration 2026-07-01 →
+2026-08-30 (`v0.2.0`).
 
 ### Infrastructure scaling
 
