@@ -226,7 +226,7 @@ All screenshots taken with a clean terminal (JetBrains Mono, navy background, no
 | Technical Deep Dive | 10 min | Rust choice, AST pipeline, rig-core integration, MCP protocol |
 | Open Source Philosophy | 5 min | Why AGPL, the "AI is electricity" thesis, community-first approach |
 | Showcase & Onboarding | 5 min | 115 showcase workflows, `nika init` scaffolding, VS Code LSP integration, MCP-first development |
-| Future | 5 min | Roadmap, Memory engine (Mnestic, ADR-004), distribution, public arXiv paper Q4 2026 |
+| Future | 5 min | Roadmap, Nika Memory engine (ADR-004), distribution, public arXiv paper Q4 2026 |
 | Q&A / Close | 5 min | Where to find it, how to contribute, community links |
 
 ---
@@ -311,8 +311,8 @@ via Homebrew (`brew install supernovae-st/tap/nika`).
 **About SuperNovae Studio**
 
 SuperNovae Studio builds open-source AI infrastructure. The company's flagship
-project is Nika (workflow engine), with the upcoming Nika Memory ("Mnestic")
-cognitive memory engine planned for release in Q4 2026.
+project is Nika (workflow engine), with the upcoming Nika Memory cognitive
+memory engine planned for release in Q4 2026.
 
 **Contact**: press@supernovae.studio | https://supernovae.studio
 

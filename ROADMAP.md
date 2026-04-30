@@ -110,7 +110,7 @@ single file, single binary, single transaction atomicity.
 semantic / procedural).
 
 **Status (2026-04-29):** Phase 0 prep ~90 % complete (21 design
-docs + 4 ADRs locked in `nika/hq/docs/nika-memory/`). Phase 1
+docs + 4 ADRs locked in internal Nika Memory docs). Phase 1
 implementation runs 2026-05-06 → 2026-06-25. Target release
 **`nika-memory v0.1.0` + 8 satellites publishable on crates.io on
 2026-06-25**. Phase 2 workflow integration 2026-07-01 →
