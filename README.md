@@ -731,7 +731,7 @@ Read the [Manifesto](MANIFESTO.md) to understand why.
 
 <div align="center">
 
-**Nika v0.79.3** · Schema `nika/workflow@0.12` · Rust 1.86+ · 32 crates · 10,900+ tests
+**Nika v0.80.0** · Schema `nika/workflow@0.12` · Rust 1.86+ · 32 crates · 10,900+ tests
 
 [SuperNovae Studio](https://supernovae.studio) · [QR Code AI](https://qrcode-ai.com) · [GitHub](https://github.com/supernovae-st/nika)
 
