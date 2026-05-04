@@ -90,31 +90,31 @@ Evolve NikaVault from API key storage into a universal credential
 vault. OAuth2 PKCE flows, auto-refresh, import from
 Doppler/1Password/Bitwarden, audit logging.
 
-### Nika Memory — cognitive memory engine
+### Memory subsystem (cognitive memory layer)
 
-A persistent cognitive memory subsystem for Nika workflows
-(historically referenced as "Egghead" / "Cortex" in early plans;
-**canonical name is now Nika Memory**, crate `nika-memory`).
-Embedded RDF-star graph with cognitive mechanisms — Hebbian
-reinforcement, FSRS / ACT-R decay, AGM belief revision,
-consolidation, dopamine gating, ontology evolution. Built on
-Oxigraph 0.5.6 (W3C RDF / SPARQL / RDF-star, no fork) with 8 L1
-satellites publishable standalone on crates.io — `nika-hnsw`,
-`nika-bm25`, `nika-rrf`, `nika-fsrs`, `nika-graph-algos`,
-`nika-rdfs-reasoner`, `nika-temporal`, `nika-autodesc` — wrapped
-by the `nika-memory` orchestrator (NikaStore actor + 9 builtins +
-12 cognitive mechanisms). HNSW ephemeral cache rebuilt at boot —
-single file, single binary, single transaction atomicity.
+A persistent cognitive memory layer for Nika workflows
+(historically referenced as "Egghead" / "Cortex" — internal
+codenames, retired). Embedded RDF-star graph with cognitive
+mechanisms — Hebbian reinforcement, FSRS / ACT-R decay, AGM
+belief revision, consolidation, dopamine gating, ontology
+evolution. Built on Oxigraph 0.5.6 (W3C RDF / SPARQL / RDF-star,
+no fork) with 8 L1 satellite crates — `nika-hnsw`, `nika-bm25`,
+`nika-rrf`, `nika-fsrs`, `nika-graph-algos`, `nika-rdfs-reasoner`,
+`nika-temporal`, `nika-autodesc` — wrapped by the `nika-memory`
+orchestrator (NikaStore actor + 9 builtins + 12 cognitive
+mechanisms). HNSW ephemeral cache rebuilt at boot — single file,
+single binary, single transaction atomicity.
 
 12 cognitive mechanisms · 4 memory types (working / episodic /
 semantic / procedural).
 
 **Status (2026-04-29):** Phase 0 prep ~90 % complete (21 design
-docs + 4 ADRs locked in internal Nika Memory docs). Phase 1
-implementation runs 2026-05-06 → 2026-06-25. Target release
-**`nika-memory v0.1.0` + 8 satellites publishable on crates.io on
-2026-06-25**. Phase 2 workflow integration 2026-07-01 →
-2026-08-30 (`v0.2.0`).
+docs + 4 ADRs locked). Phase 1 implementation runs 2026-05-06 →
+2026-06-25 and reaches `v0.1.0` on the 8 satellite crates +
+`nika-memory` orchestrator. The 8 satellites are publishable
+standalone on crates.io as Rust RDF/ML ecosystem contributions;
+they publish individually as ready, no monolithic release event.
+Phase 2 workflow integration 2026-07-01 → 2026-08-30 (`v0.2.0`).
 
 ### Infrastructure scaling
 
