@@ -1,6 +1,35 @@
 # Nika
 
+> # ⚠️ THIS BRANCH IS THE BROUILLON · NOT PRODUCTION
+>
+> You are reading `CLAUDE.md` on the **`main` branch** of `nika/engine`.
+> This branch is **read-only legacy reference** (v0.79 exploration era · 138K LOC monolith · `tools/` dir layout).
+>
+> **Production rebuild lives on the `nika-diamond` branch** (`crates/` layout · 12-gate admission · CRAFT not extraction · 40-42 crates target).
+>
+> Before any architecture / strategy / code question, switch :
+> ```bash
+> git checkout nika-diamond
+> bash scripts/refresh-status.sh   # canonical live state
+> cat .claude/CLAUDE.md            # Diamond rules + auto-generated state block
+> ```
+>
+> Or read without checkout :
+> ```bash
+> git show nika-diamond:.claude/CLAUDE.md | head -100
+> git show nika-diamond:ROADMAP.md | head -50
+> git show nika-diamond:DIAMOND.md | head -100
+> ```
+>
+> **DO NOT cite the L0-L5 32-crate description below as Diamond truth.** It describes the v0.79 brouillon monolith state, kept as historical reference. Diamond has its own (different, smaller) crate set, its own ADRs (001-044+), its own discipline (12 gates, ≤15k LOC/crate, ≤1500 LOC/file).
+>
+> See `dx/.claude/rules/nika-branch-topology.md` for the full branch detector protocol.
+
+---
+
 Semantic YAML workflow engine for AI tasks. Schema `nika/workflow@0.12` | 32 crates | 65 transforms | 63 builtin tools
+
+> **Note** : the numbers above describe the **v0.79 brouillon** that lived on this branch. Diamond rebuild on `nika-diamond` branch starts from scratch with different counts. Run `git show nika-diamond:.claude/CLAUDE.md` for current Diamond state.
 
 ## 5 Verbs
 
