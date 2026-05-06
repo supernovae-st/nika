@@ -8,7 +8,7 @@ this repository. This is the public AGENTS counterpart to the
 
 | Field             | Value                                                  |
 |-------------------|--------------------------------------------------------|
-| Branch            | `nika-diamond` (orphan, no shared history with `main`) |
+| Branch            | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
 | HEAD (last docs)  | `393fdefa8`                                            |
 | Workspace         | v0.80.0                                                |
 | Crates (admitted) | 6 / 40-42 target (+ 1 WIP: `nika-schema`)              |
@@ -29,7 +29,7 @@ Regenerate with `bash scripts/refresh-status.sh`.
 
 ## Hard rules (non-negotiable)
 
-- `main` branch is **read-only**. Access legacy code via `git show main:path` only. Never `git checkout main`.
+- `brouillon` branch is **read-only** (legacy v0.79.3 reference). Access legacy code via `git show brouillon:path` only. Never `git checkout brouillon`.
 - No `.unwrap()` or `.expect(` in `src/` (use `?` propagation). Enforced by clippy + hygiene.
 - No `#[allow(dead_code)]` (delete or make `pub(crate)`).
 - Files greater than 1,500 LOC must be split. Crates greater than 15,000 LOC are rejected.
@@ -51,7 +51,7 @@ No crate enters `Cargo.toml` `members = [...]` without all 12 gates passing in t
 7. BENCHMARKS — `benches/` if hot path
 8. DOCS — 0 `cargo doc` warnings, all pub items documented
 9. CANARY E2E — `tests/canary-X.nika.yaml`
-10. PARITY LEGACY — golden test vs `git show main:...` output
+10. PARITY LEGACY — golden test vs `git show brouillon:...` output
 11. REVIEW SWARM — 3-agent parallel review
 12. ATOMIC COMMIT — 1 commit, `feat(nika-X): admit to workspace — all 12 gates passed`
 

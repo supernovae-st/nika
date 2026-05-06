@@ -63,8 +63,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `nika-diamond`                                      |
-| HEAD             | `9ebaf05ca` (`9ebaf05ca48221aea5de7f0ed674e9ca2c8855b1`)             |
+| branch           | `main`                                      |
+| HEAD             | `94ebc0954` (`94ebc0954593c9838932cca360a1474a5f9dfe94`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 7                                              |
 | crates (admitted)| 6 / 40-42                                   |
