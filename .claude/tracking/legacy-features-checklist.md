@@ -1,6 +1,6 @@
 # Legacy → Diamond Migration Checklist
 
-> Authoritative map of every feature on legacy main (`830aa6154`) and its
+> Authoritative map of every feature on legacy brouillon (`830aa6154`) and its
 > diamond destination. Zero feature lost.
 >
 > Last updated: 2026-04-14. Produced by 4-agent legacy audit.
@@ -179,7 +179,7 @@ OR explicitly dropped with reason.
 ## Verification protocol
 
 Before admitting each Phase 2+ crate:
-1. Grep legacy `git show main:tools/<legacy-name>/src/` for top-level modules
+1. Grep legacy `git show brouillon:tools/<legacy-name>/src/` for top-level modules
 2. Cross-reference this checklist — every feature mapped or explicitly dropped
 3. Update `docs/crate-specs/nika-X.md` with migration notes
 4. Run `scripts/hygiene/check-all.sh` to verify ROADMAP ↔ checklist ↔ Linear coherence

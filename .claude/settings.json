@@ -20,7 +20,7 @@
           },
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git[[:space:]]+(checkout|switch)[[:space:]]+main\\b'; then echo '❌ FORBIDDEN: main is read-only. Use `git show main:path` instead.' >&2; exit 2; fi"
+            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git[[:space:]]+(checkout|switch)[[:space:]]+main\\b'; then echo '❌ FORBIDDEN: main is read-only. Use `git show brouillon:path` instead.' >&2; exit 2; fi"
           },
           {
             "type": "command",

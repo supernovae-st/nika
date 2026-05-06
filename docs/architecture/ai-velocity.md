@@ -47,7 +47,7 @@ total cost of fixing them in-place, while keeping main shippable, is higher
 than starting fresh.
 
 We chose fresh. Orphan branch `nika-diamond` from commit zero. No
-inheritance. Legacy main is a read-only reference: `git show main:<path>`
+inheritance. Legacy main is a read-only reference: `git show brouillon:<path>`
 to look something up, then rewrite it clean. Never copy-paste.
 
 ## The 12 gates
@@ -64,7 +64,7 @@ gates green. The gates are not negotiable:
 7. BENCHMARKS — `benches/` with criterion if hot path
 8. DOCS — `cargo doc --no-deps` with zero warnings; every `pub` item documented
 9. CANARY E2E — `tests/canary-X.nika.yaml` workflow passes
-10. PARITY LEGACY — golden test vs `git show main:...` output
+10. PARITY LEGACY — golden test vs `git show brouillon:...` output
 11. REVIEW SWARM — 3 agents in parallel (patterns / idioms / architecture)
 12. ATOMIC COMMIT — one commit, `feat(nika-X): admit to workspace — all 12 gates passed`
 

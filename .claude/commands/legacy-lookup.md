@@ -1,6 +1,6 @@
 # Legacy Lookup — safe main branch reference
 
-Look up code from the legacy main branch WITHOUT checking out.
+Look up code from the legacy brouillon branch WITHOUT checking out.
 Usage: `/legacy-lookup tools/nika-core/src/error.rs`
 
 ## Argument
@@ -34,7 +34,7 @@ git grep -n "fn $ARGUMENTS" main -- '*.rs' | head -10
 
 ## Rules
 
-- NEVER `git checkout main`
+- NEVER `git checkout brouillon`
 - NEVER modify anything on main
 - Read-only reference via `git show` and `git grep`
 - This is for understanding how legacy did things, to guide the REWRITE (not copy-paste)

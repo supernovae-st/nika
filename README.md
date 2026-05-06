@@ -48,12 +48,13 @@ a project, run `nika run`, get deterministic output.
 
 ## The Diamond rewrite
 
-`nika-diamond` is an **orphan branch** — no shared history with `main`.
-The legacy `main` branch (138,724 LOC engine monolith, v0.79.3) stays
-intact as a read-only reference while Nika is rebuilt as **40-42 clean
-crates**, each ≤15,000 LOC, every file ≤1,500 LOC, every function ≤100
-lines, and every crate gated through a **12-point admission checklist**
-before joining the workspace.
+`main` is an **orphan branch** (production · renamed 2026-05-06 from
+`nika-diamond`) — no shared history with `brouillon` (renamed 2026-05-06
+from `main` legacy). The `brouillon` branch (138,724 LOC engine monolith,
+v0.79.3) stays intact as a read-only reference while Nika is rebuilt as
+**40-42 clean crates**, each ≤15,000 LOC, every file ≤1,500 LOC, every
+function ≤100 lines, and every crate gated through a **12-point admission
+checklist** before joining the workspace.
 
 **Why rewrite?** Every crate must fit in an AI assistant's context
 window with its tests and kernel traits visible. 15k LOC per crate ≈ 7%
@@ -138,7 +139,7 @@ are green in the same commit:
 7. **Benchmarks** — `benches/` on hot paths (exempt otherwise)
 8. **Docs** — `cargo doc --no-deps` zero warnings
 9. **Canary E2E** — `tests/canary-<name>.nika.yaml` passes (exempt L0)
-10. **Legacy parity** — golden test vs `git show main:...` output
+10. **Legacy parity** — golden test vs `git show brouillon:...` output
 11. **Review swarm** — three agents in parallel; P0/P1 fixed same session
 12. **Atomic commit** — one admission, one commit
 

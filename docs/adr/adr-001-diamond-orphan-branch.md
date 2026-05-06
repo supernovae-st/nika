@@ -32,7 +32,7 @@ Shadow-zone audit (16-agent Rust Council, 2026-04-13) confirmed 7 subsystems whe
 
 ## Decision
 
-Create an **orphan branch `nika-diamond`** from scratch. No code inherited from `main`. Legacy `main` becomes a read-only reference via `git show main:path`. Every line of the diamond is **rewritten**, not ported. 32 legacy crate directories are excluded from `Cargo.toml` members via the `exclude` key — they sit in the orphan working tree but do not participate in the workspace.
+Create an **orphan branch `nika-diamond`** from scratch. No code inherited from `main`. Legacy `main` becomes a read-only reference via `git show brouillon:path`. Every line of the diamond is **rewritten**, not ported. 32 legacy crate directories are excluded from `Cargo.toml` members via the `exclude` key — they sit in the orphan working tree but do not participate in the workspace.
 
 Legacy `main` stays frozen at v0.79.3. The diamond starts at **v0.80.0** to mark the boundary. Users on v0.79.x cannot benefit until v0.90 feature parity.
 

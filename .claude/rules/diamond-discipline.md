@@ -21,15 +21,16 @@ If a gate is genuinely not applicable (e.g., benchmarks for a pure-types
 crate), document the exemption in `docs/crate-specs/nika-X.md` with a
 1-paragraph justification.
 
-## Rule 3 — Main is read-only
+## Rule 3 — Brouillon is read-only
 
-`main` branch contains legacy code at HEAD `830aa6154` (or user hotfixes).
-This branch (`nika-diamond`) **NEVER** modifies main. Main is referenced
-via `git show main:path/to/file.rs` only.
+`brouillon` branch contains legacy code at HEAD `830aa6154` (or user
+hotfixes). This branch (`main` · production · renamed 2026-05-06 from
+`nika-diamond`) **NEVER** modifies brouillon. Brouillon is referenced
+via `git show brouillon:path/to/file.rs` only.
 
-If you need to copy something from main : read it, understand it, REWRITE
-it propre (not copy-paste). Legacy has 1,276 unwraps in nika-core alone
-— inherit those = inherit the bugs.
+If you need to copy something from brouillon : read it, understand it,
+REWRITE it propre (not copy-paste). Legacy has 1,276 unwraps in
+nika-core alone — inherit those = inherit the bugs.
 
 ## Rule 4 — Rewrite, not verbatim copy
 

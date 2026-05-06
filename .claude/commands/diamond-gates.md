@@ -57,7 +57,7 @@ GATE 9  — CANARY E2E: tests/canary-$CRATE.nika.yaml exists?
            → Check: ls tests/canary-$CRATE.nika.yaml 2>/dev/null
            → (exempt for L0/L1 crates without runtime)
 
-GATE 10 — PARITY: golden test vs git show main:... output?
+GATE 10 — PARITY: golden test vs git show brouillon:... output?
            → Check parity test exists in test suite
 
 GATE 11 — REVIEW SWARM: 3 agents ran? P0/P1 fixed?

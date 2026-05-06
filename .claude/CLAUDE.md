@@ -1,7 +1,7 @@
 # Nika Diamond — Claude Code rules
 
-**Branch** : `nika-diamond` — DEFAULT working branch for the next 11-12 months.
-**Main** : `830aa6154` — read-only reference via `git show main:path`. NEVER checkout, NEVER modify, NEVER push. Access legacy code ONLY via `git show`.
+**Branch** : `main` — DEFAULT working branch (production · renamed 2026-05-06 from `nika-diamond`).
+**Brouillon** : `830aa6154` (legacy v0.79.3 anchor) — read-only reference via `git show brouillon:path`. NEVER checkout, NEVER modify, NEVER push. Access legacy code ONLY via `git show`.
 **Legacy binary** : `~/bin/nika-legacy` — pre-built v0.79 for parity tests (Phase 5+).
 **This is NOT extraction. This is CRAFT.** Each crate rewritten from scratch, guided by legacy. User learns Rust in parallel.
 
@@ -35,8 +35,8 @@ Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `d58d981
 ## 🚫 Interdits stricts
 
 - ❌ Co-Authored-By: Claude (always Nika 🦋 `<nika@supernovae.studio>`)
-- ❌ Copy-paste from main verbatim (rewrite propre requis, main = reference only)
-- ❌ git checkout main or modify main in any way
+- ❌ Copy-paste from brouillon verbatim (rewrite propre requis, brouillon = reference only)
+- ❌ git checkout brouillon or modify brouillon in any way
 - ❌ Admit crate to workspace without all 12 gates passing
 - ❌ `.unwrap()` or `.expect(` in src/ (use `?` propagation)
 - ❌ `#[allow(dead_code)]` (delete or pub(crate))
@@ -72,7 +72,7 @@ Read full spec in `RUST_ENFORCEMENT.md`. Summary :
 7. BENCHMARKS — `benches/` if hot path
 8. DOCS — `cargo doc --no-deps` 0 warnings, pub items documented
 9. CANARY E2E — `tests/canary-X.nika.yaml` passes (or exemption)
-10. PARITY LEGACY — golden test vs `git show main:...` output
+10. PARITY LEGACY — golden test vs `git show brouillon:...` output
 11. REVIEW SWARM — 3 agents parallel, P0/P1 fixed same session
 12. ATOMIC COMMIT — 1 commit, co-authored Nika 🦋
 
@@ -114,7 +114,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `nika-diamond`                                      |
+| branch           | `main`                                      |
 | HEAD             | `9ebaf05ca` (`9ebaf05ca48221aea5de7f0ed674e9ca2c8855b1`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 7                                              |

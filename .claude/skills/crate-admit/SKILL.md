@@ -61,7 +61,7 @@ Add `tests/canary-$ARGUMENTS.nika.yaml` that exercises the crate end-to-end.
 If the crate is infra-only (kernel traits, mocks), mark N/A.
 
 ### Gate 10 — PARITY LEGACY
-Create a golden test comparing diamond output to `git show main:...` output
+Create a golden test comparing diamond output to `git show brouillon:...` output
 for the same input. Diff must be empty or annotated.
 
 ### Gate 11 — REVIEW SWARM (parallel)

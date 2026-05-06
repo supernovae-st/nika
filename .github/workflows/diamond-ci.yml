@@ -6,9 +6,9 @@ name: Diamond CI
 
 on:
   push:
-    branches: [nika-diamond]
+    branches: [main]
   pull_request:
-    branches: [nika-diamond]
+    branches: [main]
 
 concurrency:
   group: diamond-${{ github.ref }}

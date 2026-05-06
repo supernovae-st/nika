@@ -5,10 +5,11 @@ of 40-42 small crates. This document is the strategy overview. For
 the authoritative architectural decision, see
 [ADR-001 — Diamond orphan branch](docs/adr/adr-001-diamond-orphan-branch.md).
 
-- **Branch** — `nika-diamond` (default). Orphan branch, no shared
-  history with `main`.
-- **Main** — reference only, read-only, where legacy Nika v0.79.3
-  lives. Accessed via `git show main:path/to/file.rs` when guidance
+- **Branch** — `main` (default · production). Orphan branch, no shared
+  history with `brouillon` (renamed 2026-05-06 from the previous side-name
+  `nika-diamond` per ADR-001 amendment).
+- **Brouillon** — reference only, read-only, where legacy Nika v0.79.3
+  lives. Accessed via `git show brouillon:path/to/file.rs` when guidance
   is needed. Never copy-pasted — every crate is rewritten clean.
 
 For the project's landing page, see [`README.md`](README.md). For
@@ -98,7 +99,7 @@ gates are green in the same atomic commit. Full spec:
 7. **Benchmarks** — `benches/` on hot paths (exempt otherwise, documented)
 8. **Docs** — `cargo doc --no-deps` zero warnings
 9. **Canary E2E** — `tests/canary-<name>.nika.yaml` (exempt L0-L1)
-10. **Legacy parity** — golden test vs `git show main:...` output
+10. **Legacy parity** — golden test vs `git show brouillon:...` output
 11. **Review swarm** — three agents in parallel, P0/P1 fixed same session
 12. **Atomic commit** — one admission, one commit
 
@@ -136,7 +137,7 @@ Full breakdown: [`ROADMAP.md`](ROADMAP.md).
 This is **not an extraction**. This is **craft**.
 
 Each crate is rewritten from scratch, guided by the legacy code on
-`main` via `git show main:path` but never copy-pasted. Every
+`brouillon` via `git show brouillon:path` but never copy-pasted. Every
 `.unwrap()` becomes `?` propagation. Every file >1,500 LOC gets
 split into modules. Every function >100 lines gets decomposed. Every
 public API gets `#[non_exhaustive]`, a `new()` constructor, a spec,

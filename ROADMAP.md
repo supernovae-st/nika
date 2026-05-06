@@ -46,7 +46,7 @@ Same task. 10x the reasoning headroom. Zero hallucination refactor.
 This is why we rewrite instead of refactor. Refactoring a 322k codebase with
 1,276 `.unwrap()` calls and 47 files above 1,500 LOC is not a craft activity —
 it's damage control. We want to craft. So we start from zero, keep legacy as a
-read-only reference (`git show main:...`), and admit each crate through 12 gates
+read-only reference (`git show brouillon:...`), and admit each crate through 12 gates
 before it joins the workspace.
 
 See `docs/architecture/ai-velocity.md` for the full argument.

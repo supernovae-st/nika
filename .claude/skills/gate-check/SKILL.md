@@ -68,7 +68,7 @@ test -f tests/canary-$ARGUMENTS.nika.yaml && echo PASS || echo "N/A"
 
 ## Gate 10 — PARITY LEGACY
 
-Crate-specific. Check golden-test file against `git show main:…` output.
+Crate-specific. Check golden-test file against `git show brouillon:…` output.
 
 ## Gate 11 — REVIEW SWARM
 

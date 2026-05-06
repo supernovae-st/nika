@@ -86,8 +86,8 @@ echo "── Gate 9: CANARY E2E (manual) ──"
 test -f "tests/canary-$CRATE.nika.yaml" && echo "✅ canary exists" \
   || echo "⚠️  no canary — exempt only for L0/L0.5 (justify in spec)"
 
-echo "── Gate 10: PARITY vs legacy main (manual) ──"
-echo "Compare: git show main:tools/$CRATE/... vs current"
+echo "── Gate 10: PARITY vs legacy brouillon (manual) ──"
+echo "Compare: git show brouillon:tools/$CRATE/... vs current"
 echo "Run any golden parity test in the suite."
 
 echo "── Gate 11: REVIEW SWARM (manual) ──"
