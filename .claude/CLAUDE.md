@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `d58d981f8` — 7 crates in workspace (6 admitted + 1 WIP), **905 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `ee74d97e0` — 7 crates in workspace (6 admitted + 1 WIP), **905 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,7 +115,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `9ebaf05ca` (`9ebaf05ca48221aea5de7f0ed674e9ca2c8855b1`)             |
+| HEAD             | `ee74d97e0` (`ee74d97e043633845ccfbeacce58ca4e96b5ab27`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 7                                              |
 | crates (admitted)| 6 / 40-42                                   |
