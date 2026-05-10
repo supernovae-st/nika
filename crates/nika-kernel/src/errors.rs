@@ -8,7 +8,17 @@
 //! - 100–139: File/IO (`BlobError`)
 //! - 140–189: Http/network (`HttpError`)
 //! - 230–279: MCP/tools (`ToolExecError`)
-//! - 380–429: Provider (`ProviderError`)
+//! - 330–379: Provider (`ProviderError`) (moved from 380-429 2026-05-11 to
+//!   free the Shield-reserved 380-389 slot per `dx/.claude/rules/security.md`
+//!   §"Nika Shield" canonical mapping. Historical `NIKA_380..389` names dropped
+//!   per `no-legacy-no-back-compat.md` · zero alias · git is archive.)
+//! - 380–429: Shield (`ShieldError`) — RESERVED, per `nika/SECURITY.md`
+//!   6-layer defense stack. `NIKA-380` `CapabilityDenied` · `NIKA-381`
+//!   `TrustViolation` · `NIKA-382` `CanaryLeaked` · `NIKA-383`
+//!   `InjectionDetected` · `NIKA-384` `SpotlightRequired` · `NIKA-385`
+//!   `MlModelMissing` · `NIKA-386` `RunDepthExceeded` · `NIKA-387`
+//!   `RunCycleDetected` · `NIKA-388` `CanaryInThinking` · `NIKA-389`
+//!   `UntrustedVisionBlocked`. Crate not yet admitted — slot LOCKED.
 //! - 600–649: Memory (`MemoryError`)
 //! - 700–749: WASM plugin (`WasmPluginError`)
 //! - 750–799: Sandbox (`SandboxError`)
@@ -162,38 +172,38 @@ pub const NIKA_233: NikaCode = NikaCode {
     slug: "tool-not-available",
 };
 
-// Provider: 380–429
+// Provider: 330–379 (moved from 380-429 2026-05-11 · Shield slot free)
 /// Provider API error.
-pub const NIKA_380: NikaCode = NikaCode {
-    num: 380,
+pub const NIKA_330: NikaCode = NikaCode {
+    num: 330,
     category: Category::Provider,
     severity: Severity::Error,
     slug: "provider-api",
 };
 /// Model not found.
-pub const NIKA_381: NikaCode = NikaCode {
-    num: 381,
+pub const NIKA_331: NikaCode = NikaCode {
+    num: 331,
     category: Category::Provider,
     severity: Severity::Error,
     slug: "provider-model-not-found",
 };
 /// Rate limited.
-pub const NIKA_382: NikaCode = NikaCode {
-    num: 382,
+pub const NIKA_332: NikaCode = NikaCode {
+    num: 332,
     category: Category::Provider,
     severity: Severity::Error,
     slug: "provider-rate-limited",
 };
 /// Authentication failed.
-pub const NIKA_383: NikaCode = NikaCode {
-    num: 383,
+pub const NIKA_333: NikaCode = NikaCode {
+    num: 333,
     category: Category::Provider,
     severity: Severity::Error,
     slug: "provider-auth-failed",
 };
 /// Provider other.
-pub const NIKA_389: NikaCode = NikaCode {
-    num: 389,
+pub const NIKA_339: NikaCode = NikaCode {
+    num: 339,
     category: Category::Provider,
     severity: Severity::Error,
     slug: "provider-other",
@@ -280,11 +290,11 @@ impl NikaErrorCode for ToolExecError {
 impl NikaErrorCode for ProviderError {
     fn nika_code(&self) -> NikaCode {
         match self {
-            Self::Api { .. } => NIKA_380,
-            Self::ModelNotFound { .. } => NIKA_381,
-            Self::RateLimited { .. } => NIKA_382,
-            Self::AuthFailed { .. } => NIKA_383,
-            Self::Other { .. } => NIKA_389,
+            Self::Api { .. } => NIKA_330,
+            Self::ModelNotFound { .. } => NIKA_331,
+            Self::RateLimited { .. } => NIKA_332,
+            Self::AuthFailed { .. } => NIKA_333,
+            Self::Other { .. } => NIKA_339,
         }
     }
 
@@ -366,7 +376,7 @@ mod tests {
         let err = ProviderError::ModelNotFound { model: "x".into() };
         let code = err.nika_code();
         assert!(
-            code.num >= 380 && code.num <= 429,
+            code.num >= 330 && code.num <= 379,
             "provider code {}",
             code.num
         );
