@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # Vector 1: MEMORY.md HEAD SHA vs actual git HEAD.
 set -u
-MEMORY="$HOME/.claude/projects/-Users-thibaut-supernovae/memory/MEMORY.md"
+MEMORY_NEW="$HOME/.claude/projects/-Users-thibaut-supernovae/memory/MEMORY.md"
+MEMORY_LEGACY="$HOME/.claude/projects/-Users-thibaut-supernovae-hq/memory/MEMORY.md"
+if [ -f "$MEMORY_NEW" ]; then
+  MEMORY="$MEMORY_NEW"
+elif [ -f "$MEMORY_LEGACY" ]; then
+  MEMORY="$MEMORY_LEGACY"
+else
+  MEMORY="$MEMORY_NEW" # will trigger the not-found error below
+fi
 [ -f "$MEMORY" ] || {
   echo "MEMORY.md not found"
   exit 2
