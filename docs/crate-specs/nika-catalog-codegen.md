@@ -1,6 +1,6 @@
 ---
-lastUpdated: 2026-04-17
-status: Pending
+lastUpdated: 2026-05-09
+status: Admitted
 ---
 
 # Crate spec — `nika-catalog-codegen`

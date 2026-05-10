@@ -64,22 +64,22 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `94ebc0954` (`94ebc0954593c9838932cca360a1474a5f9dfe94`)             |
+| HEAD             | `611ccdf7e` (`611ccdf7ed08aaae303df310a8e8ae9fa697c410`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 7                                              |
-| crates (admitted)| 6 / 40-42                                   |
+| crates (workspace)| 8                                              |
+| crates (admitted)| 7 / 40-42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
-| L0               | 4                                              |
+| L0               | 5                                              |
 | L0.5             | 2                                              |
 | L1               | 0                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 905 passed, 0 failed                              |
+| lib tests        | 1018 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
-Diamond foundation, **6 crates admitted** + **1 WIP** in workspace
-(7 total), orphan branch from scratch.
+Diamond foundation, **7 crates admitted** + **1 WIP** in workspace
+(8 total), orphan branch from scratch.
 
 - **nika-types** — L0 foundation value types (split from nika-error 2026-04-16, `5baeee044`)
   - 23 types (cost, trust, budget, retry, baggage, schema, hash, resource, role, token_usage, etc.)

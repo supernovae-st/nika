@@ -1,0 +1,554 @@
+# nika-catalog — model capabilities rule table
+#
+# Drives `model_capabilities(provider, model) -> ModelCapabilities` from the
+# `nika-catalog` crate. Every rule is materialised into a `&'static` slice at
+# build time (`build.rs`) and resolved at runtime with zero allocation.
+#
+# Schema invariants (enforced in build.rs — fail the build, not a runtime test):
+#   * top-level `schema` matches CAPABILITIES_SCHEMA constant
+#   * every `scope.providers[i]` is a canonical provider id declared in
+#     llm-providers.toml (FK check — catches typos immediately)
+#   * every `scope.api_dialect` is in the declared dialect set
+#   * every `match.kind` is one of: any | exact | exact_any | prefix_any
+#     (NO regex — keeps zero runtime deps in L0)
+#   * every rule `name` is unique
+#   * `caps.token_limit_param`, when present, is one of:
+#     max-tokens | max-completion-tokens | max-output-tokens
+#   * modality strings ∈ { text, image, audio, video, pdf, embedding,
+#     speech, image-gen } and input_modalities must contain "text"
+#   * supported_parameters strings ∈ {parallel-tool-calls, reasoning-effort,
+#     thinking-budget, prompt-caching, file-search, web-search,
+#     streaming-thinking, batch-api, context-caching, predicted-outputs,
+#     computer-use, citations, include-reasoning}
+#   * json_mode ∈ {unavailable, object, schema} (Session 4a — replaces
+#     structured-output-native ParamFlag with 3-level enum)
+#
+# Resolution algorithm (see `src/types/capabilities.rs`):
+#   1. start from `[defaults]` (mirrors ModelCapabilities::default())
+#   2. scan `[[rules]]` in file order
+#   3. for each rule: skip if scope.providers is non-empty and canonical
+#      provider id is not in the list, or if scope.api_dialect is Some and
+#      the provider's declared dialect does not match
+#   4. if the matcher matches the model name, merge `caps` into the
+#      accumulator (Some fields win) and BREAK — first-match-wins
+#   5. materialise into `ModelCapabilities`, filling any still-unset field
+#      from `defaults` (P0-1 fix: defaults come from [defaults], not from
+#      ModelCapabilities::default())
+#
+# ⚠ INSERTION ORDER IS LOAD-BEARING
+# First-match-wins means rule[i] shadows rule[i+1] for any model that matches
+# both. Two orderings are particularly fragile:
+#   * openai-o4-family [rule 2] MUST appear before openai-o-series-family
+#     [rule 3] because "o4-mini".starts_with("o4") = TRUE is caught by rule 2
+#     (vision=YES, developer role) BEFORE the broader "o4-" prefix of rule 3
+#     (text-only, developer role). Reversing them silently drops vision on
+#     o4-mini with no build error — only spot-check tests catch it.
+#   * gpt-4o [rule 6] → gpt-4.1 [rule 7] → gpt-4 [rule 8] — all prefixes
+#     overlap on "gpt-4". Wrong order = wrong tokenizer on gpt-4o / gpt-4.1.
+#   * Every Matcher::Any rule (anthropic-any-model, deepseek-any-model,
+#     xai-any-model, gemini-any-model, mistral-any-model, native-any,
+#     voyage-any, mock-full) MUST appear LAST within its provider scope,
+#     enforced by check_any_last_in_scope() at build time in
+#     build/capabilities.rs (P0 fix — Session 2b review swarm).
+
+schema = "nika/model-capabilities@1.0"
+
+# ─── Baseline — mirrors ModelCapabilities::default() ────────────────────────
+# Session 2b additions:
+#   * input_modalities / output_modalities — declaration-order sorted by
+#     build.rs at codegen time (text=0, image=1, audio=2, video=3, pdf=4).
+#     Default input_modalities = ["text", "image"] (vision capable baseline).
+#   * tokenizer — omitted → None (most providers don't disclose).
+#   * supported_parameters — empty; rules add flags for specific models.
+#   * supports_system_messages — true (virtually all chat models).
+[defaults]
+token_limit_param        = "max-tokens"
+supports_temperature     = true
+supports_stop_sequences  = true
+reasoning                = false
+input_modalities         = ["text", "image"]
+output_modalities        = ["text"]
+supported_parameters     = []
+supports_system_messages = true
+
+# ─── 49 rules — ordered, FIRST MATCH WINS ───────────────────────────────────
+
+# [1] OpenAI reasoning series — exact names (o1, o3, o4). Vision YES (o1+o3
+#     confirmed; o4 confirmed April 2025). System role silently reclassified
+#     as developer by API — supports_system_messages=false tells the runtime
+#     to send "developer" as canonical.
+#     ⚠ o3 stop=false (per OpenAI SDK completions.py: "Not supported with
+#       latest reasoning models o3 and o4-mini"). o1 stop=unknown. Bundled
+#       in exact_any, supports_stop_sequences left at default=true — accepted
+#       gap; reasoning models rarely rely on stop sequences.
+[[rules]]
+name  = "openai-o-series-exact"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "exact_any", models = ["o1", "o3", "o4"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], supports_system_messages = false, json_mode = "schema" }
+
+# [2] OpenAI o4 family (o4-mini, future o4-*). Vision YES. stop=false
+#     confirmed per OpenAI SDK completions.py.
+#     ⚠ POSITION 2 — must appear BEFORE openai-o-series-family [rule 3]
+#       because "o4-mini".starts_with("o4") = TRUE matches here (correct
+#       caps: vision, developer role) and would otherwise be caught by
+#       rule 3's "o4-" prefix with wrong caps (text-only, developer role).
+[[rules]]
+name  = "openai-o4-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["o4"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, supports_stop_sequences = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort", "web-search"], supports_system_messages = false, json_mode = "schema" }
+
+# [3] OpenAI reasoning series, dash-suffix family (o1-preview, o1-mini,
+#     o3-mini, …). Text-only: o1-mini and o3-mini never got the vision
+#     update that o1-2024-12-17 received. input_modalities=["text"] explicit —
+#     contradicts the default baseline ["text", "image"].
+[[rules]]
+name  = "openai-o-series-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["o1-", "o3-", "o4-"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], supports_system_messages = false, json_mode = "schema" }
+
+# [4] OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
+[[rules]]
+name  = "openai-gpt5-exact"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "exact_any", models = ["gpt-5"] }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [5] OpenAI GPT-5 family — dash and dot variants (gpt-5-turbo, gpt-5.1, …).
+[[rules]]
+name  = "openai-gpt5-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-5-", "gpt-5."] }
+caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [6] OpenAI GPT-4o family (gpt-4o, gpt-4o-mini, …). o200k tokenizer.
+#     ⚠ MUST appear BEFORE gpt-4.1 and gpt-4 rules (both have "gpt-4"
+#       prefix overlap). Wrong order = wrong tokenizer on gpt-4o.
+[[rules]]
+name  = "openai-gpt4o-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4o"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [7] OpenAI GPT-4.1 family (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano). o200k
+#     (NOT cl100k — confirmed via tiktoken maintainer + library source).
+#     ⚠ MUST appear BEFORE gpt-4-family ("gpt-4.1".starts_with("gpt-4")
+#       = TRUE).
+[[rules]]
+name  = "openai-gpt41-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4.1"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [8] OpenAI GPT-4 legacy (gpt-4, gpt-4-turbo, gpt-4-32k). cl100k tokenizer.
+#     ⚠ MUST appear AFTER gpt-4o and gpt-4.1 rules.
+[[rules]]
+name  = "openai-gpt4-family"
+scope = { providers = ["openai", "openrouter"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4"] }
+caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [9] Any model starting with "claude", on ANY provider. Legacy matched
+#     lower.starts_with("claude") independent of provider. PDF confirmed
+#     for "all active Claude models" per Anthropic docs.
+#     Prompt caching + streaming thinking + structured output + thinking
+#     budget per Anthropic API.
+#
+#     LOAD-BEARING ORDER: sits BEFORE the deepseek rules so (deepseek,
+#     "claude-foo") picks up reasoning=true instead of the text-only
+#     deepseek baseline. Proptest-era parity pinned this; kept same.
+[[rules]]
+name  = "claude-family-any-provider"
+match = { kind = "prefix_any", prefixes = ["claude"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "streaming-thinking", "thinking-budget"], json_mode = "schema" }
+
+# [10] Anthropic provider default — catches anthropic-hosted models that
+#      don't start with "claude" (future internal codenames).
+#      routing_complete=true: intentionally inherits supports_parameters
+#      from defaults (only prompt-caching is Anthropic-wide beyond caps
+#      added by prefix rules).
+[[rules]]
+name             = "anthropic-any-model"
+scope            = { providers = ["anthropic"] }
+match            = { kind = "any" }
+caps             = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching"] }
+routing_complete = true
+
+# [11] DeepSeek reasoner — rejects temperature. IS a reasoning model
+#      (reasoning=true was MISSING from the pre-2b TOML: current rule only
+#      had supports_temperature=false + text-only modalities). DeepSeek R1
+#      returns reasoning_content on the reasoner endpoint.
+#      ⚠ NO StructuredOutputNative — DeepSeek supports json_object only,
+#        not json_schema (confirmed from api-docs.deepseek.com).
+[[rules]]
+name  = "deepseek-reasoner"
+scope = { providers = ["deepseek"] }
+match = { kind = "exact", model = "deepseek-reasoner" }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "object" }
+
+# [12] Any other DeepSeek model — loses vision (API limitation).
+#      ⚠ NO StructuredOutputNative (same json_object-only constraint).
+[[rules]]
+name  = "deepseek-any-model"
+scope = { providers = ["deepseek"] }
+match = { kind = "any" }
+caps  = { tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "object" }
+
+# [13] xAI grok-4 family (grok-4, grok-4-0709, grok-4.20, grok-4-1-fast,
+#      grok-4-latest). ALL are reasoning models per xAI docs. Temperature
+#      unreliable on reasoning models. Stop sequences blocked on reasoning
+#      models. NO reasoning-effort (grok-4.20 + grok-4-1-fast reason
+#      automatically — passing reasoning_effort returns an error).
+#      Tokenizer NOT set: xAI uses a custom SentencePiece (131k vocab, per
+#      grok-1 README), no standard TokenizerFamily variant.
+[[rules]]
+name  = "xai-grok4"
+scope = { providers = ["xai"] }
+match = { kind = "prefix_any", prefixes = ["grok-4"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, tokenizer = "grok", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+
+# [14] xAI grok-3-mini — P0 FIX. grok-3-mini IS a reasoning model
+#      (algorithm: grok3Reasoning, reasoning=true in xAI OpenAPI feature
+#      flags; returns reasoning_content in Responses API). Without this
+#      rule, grok-3-mini falls to xai-any-model (Matcher::Any) which
+#      would give reasoning=false + stop=true + temperature=true — ALL
+#      WRONG. Unlike grok-4, grok-3-mini supports reasoning_effort.
+#      Text-only (inputModalities=[1] per xAI docs embedded JSON).
+[[rules]]
+name  = "xai-grok3-mini"
+scope = { providers = ["xai"] }
+match = { kind = "prefix_any", prefixes = ["grok-3-mini"] }
+caps  = { supports_temperature = false, supports_stop_sequences = false, reasoning = true, tokenizer = "grok", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "schema" }
+
+# [15] Any other xAI model (grok-3, grok-3-fast, grok-3-beta). Text-only
+#      (grok-3 inputModalities=[1] per xAI docs). reasoning=false. stop=true
+#      (non-reasoning models keep stop sequences per xAI docs).
+#      ⚠ input_modalities = ["text"] REQUIRED — without it, defaults give
+#        ["text", "image"], which is WRONG for grok-3.
+[[rules]]
+name             = "xai-any-model"
+scope            = { providers = ["xai"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "grok", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+routing_complete = true
+
+# [16] Gemini 2.5 Pro — full multimodal (audio + image + pdf + text + video).
+#      PDF confirmed for Pro (not listed on Flash model card).
+[[rules]]
+name  = "gemini-2-5-pro"
+scope = { providers = ["gemini", "vertex"] }
+match = { kind = "prefix_any", prefixes = ["gemini-2.5-pro"] }
+caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
+
+# [17] Gemini 2.5 Flash — multimodal (audio + image + text + video).
+#      Video confirmed max 10/prompt via LiteLLM verification.
+#      Flash Thinking exposes reasoning_effort.
+[[rules]]
+name  = "gemini-2-5-flash"
+scope = { providers = ["gemini", "vertex"] }
+match = { kind = "prefix_any", prefixes = ["gemini-2.5-flash"] }
+caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "web-search"], json_mode = "schema" }
+
+# [18] Any other Gemini model. routing_complete=true.
+[[rules]]
+name             = "gemini-any-model"
+scope            = { providers = ["gemini", "vertex"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "gemini", input_modalities = ["image", "text"], output_modalities = ["text"] }
+routing_complete = true
+
+# [19] Mistral Small 3.x / 4.x. mistral-small-latest maps to Small 4.0
+#      (mistral-small-4-0-26-03) as of early 2026. Small 4.0 vision
+#      confirmed Round-7 review (model page shows vision icon enabled,
+#      not opacity-30; Mistral docs vision page uses mistral-small-latest
+#      in code example). Small 3.1-2503 retired Nov 30 2025; 3.2-2506 also
+#      routable.
+#      ⚠ prefix "mistral-small-4" catches versioned ID
+#        mistral-small-4-0-26-03 which otherwise falls to mistral-any-model.
+#      Appears BEFORE mistral-vision-models (more specific prefix).
+[[rules]]
+name  = "mistral-small-3"
+scope = { providers = ["mistral"] }
+match = { kind = "prefix_any", prefixes = ["mistral-small-2503", "mistral-small-2506", "mistral-small-latest", "mistral-small-3", "mistral-small-4"] }
+caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+
+# [20] Mistral vision models (pixtral, large, medium). mistral-large-latest
+#      → mistral-large-2512 (Mistral Large 3) with vision confirmed.
+[[rules]]
+name  = "mistral-vision-models"
+scope = { providers = ["mistral"] }
+match = { kind = "prefix_any", prefixes = ["mistral-large", "mistral-medium", "pixtral"] }
+caps  = { tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+
+# [21] Magistral family — reasoning + multimodal. Docs.mistral.ai:
+#      "Native — Available on magistral-small-latest and magistral-medium-
+#       latest. These models always generate reasoning traces and are
+#       purpose-built for deep reasoning." Latest magistral-medium-1-2-25-09
+#      is "frontier-class MULTIMODAL reasoning model" — vision enabled.
+#      Temperature + stop NOT documented as restricted (unlike xAI/OpenAI);
+#      keep defaults=true.
+#      ⚠ Appears BEFORE mistral-any-model (Matcher::Any must be last).
+[[rules]]
+name  = "magistral-family"
+scope = { providers = ["mistral"] }
+match = { kind = "prefix_any", prefixes = ["magistral"] }
+caps  = { reasoning = true, tokenizer = "mistral-v3", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+
+# [22] Any other Mistral model (codestral, devstral, ministral, …). Text.
+#      ⚠ input_modalities = ["text"] REQUIRED (defaults give ["text", "image"];
+#        text-only contradicts).
+#      supported_parameters includes structured-output-native: Mistral
+#      OpenAPI spec lists ResponseFormats = [text, json_object, json_schema]
+#      for ALL chat completions models (codestral/devstral included).
+[[rules]]
+name             = "mistral-any-model"
+scope            = { providers = ["mistral"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "mistral-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+routing_complete = true
+
+# [23] AWS Bedrock — Claude models via Bedrock use "anthropic.claude-<name>
+#      -v<N>:0" naming, NOT "claude-" prefix. claude-family-any-provider
+#      rule [9] does NOT fire on "anthropic.claude-*".
+[[rules]]
+name  = "bedrock-claude"
+scope = { providers = ["bedrock"] }
+match = { kind = "prefix_any", prefixes = ["anthropic.claude"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "thinking-budget"], json_mode = "schema" }
+
+# [24] Azure OpenAI — GPT-4o on Azure. Azure uses model names without
+#      "openai" scope; openai-gpt4o-family [rule 6] is scoped to
+#      providers=["openai","openrouter"] and does NOT fire for azure.
+[[rules]]
+name  = "azure-gpt4o"
+scope = { providers = ["azure"] }
+match = { kind = "prefix_any", prefixes = ["gpt-4o"] }
+caps  = { tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [25] OpenRouter — Claude models via OpenRouter use "anthropic/claude-"
+#      prefix. claude-family-any-provider rule [9] (prefix "claude") does
+#      NOT match "anthropic/claude-*" (starts with "anthropic/"). Bare
+#      "claude-*" on openrouter IS covered by rule [9] (no scope
+#      restriction).
+[[rules]]
+name  = "openrouter-claude"
+scope = { providers = ["openrouter"] }
+match = { kind = "prefix_any", prefixes = ["anthropic/claude"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "thinking-budget"], json_mode = "schema" }
+
+# [26] Native (local GGUF / mistral.rs) — text-only by default. No
+#      structured output native. No system messages restriction.
+#      ⚠ input_modalities = ["text"] REQUIRED (defaults give ["text", "image"]; text-only).
+[[rules]]
+name             = "native-any"
+scope            = { providers = ["native"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+routing_complete = true
+
+# [27] Voyage — embedding-only API. No chat, no structured output, no
+#      system messages. supports_system_messages=false signals "no chat
+#      API available" so runtime takes the embed-only path.
+[[rules]]
+name             = "voyage-any"
+scope            = { providers = ["voyage"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], supports_system_messages = false }
+routing_complete = true
+
+# ─── Session 3 additions (12 new rules) ─────────────────────────────────────
+# New Chinese-frontier providers + capability fallbacks for 8 in-catalog
+# providers that previously had no rules (all were inheriting defaults ——
+# vision=true, which is WRONG for most of them).
+
+# [29] Moonshot Kimi K2 — text base models. -vision-preview suffix gets
+#      vision but those model IDs are not in our catalog yet (deferred).
+#      OpenAI-compat: json_schema YES, stop YES. Tokenizer unknown.
+[[rules]]
+name  = "moonshot-kimi"
+scope = { providers = ["moonshot"] }
+match = { kind = "any" }
+caps  = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [30] Qwen VL — vision model (qwen-vl-plus, qwen-vl-max). Must be BEFORE
+#      qwen-any-model (Matcher::Any must be last).
+[[rules]]
+name  = "qwen-vl"
+scope = { providers = ["qwen"] }
+match = { kind = "prefix_any", prefixes = ["qwen-vl"] }
+caps  = { tokenizer = "qwen", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+
+# [31] Qwen any other — text base models (qwen-max, qwen-turbo, qwen-plus).
+#      OpenAI-compat: json_schema YES, stop YES. Tokenizer: Qwen-family BPE
+#      (Session 3 addition — distinct from cl100k/o200k vocab).
+[[rules]]
+name             = "qwen-any-model"
+scope            = { providers = ["qwen"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "qwen", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [32] MiniMax VL-01 — vision model. Must be BEFORE minimax-any-model.
+[[rules]]
+name  = "minimax-vl"
+scope = { providers = ["minimax"] }
+match = { kind = "prefix_any", prefixes = ["MiniMax-VL"] }
+caps  = { input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+
+# [33] MiniMax any other — text (MiniMax-M2.x). OpenAI-compat json_schema YES.
+[[rules]]
+name             = "minimax-any-model"
+scope            = { providers = ["minimax"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+routing_complete = true
+
+# [34] Zhipu GLM — vision YES (GLM-4.5+ and -flash both support vision).
+[[rules]]
+name             = "zhipu-any-model"
+scope            = { providers = ["zhipu"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "glm", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = [], json_mode = "schema" }
+routing_complete = true
+
+# [35] Groq — text-only fallback (Llama 4 Scout 17B has vision via a
+#      specific model ID, not covered here). OpenAI-compat: json_schema
+#      YES, stop YES. Tokenizer: llama-v3.
+[[rules]]
+name             = "groq-any-model"
+scope            = { providers = ["groq"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [36] Together AI — text-only fallback (specific Llama 4 Maverick /
+#      Qwen3-VL model IDs have vision, not covered here).
+[[rules]]
+name             = "together-any-model"
+scope            = { providers = ["together"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [37] Fireworks — hardware inference. No vision. json_schema YES.
+[[rules]]
+name             = "fireworks-any-model"
+scope            = { providers = ["fireworks"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [38] Cerebras — hardware inference (WSC). No vision. json_schema YES.
+[[rules]]
+name             = "cerebras-any-model"
+scope            = { providers = ["cerebras"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [39] SambaNova — hardware inference. No vision. json_schema YES.
+[[rules]]
+name             = "sambanova-any-model"
+scope            = { providers = ["sambanova"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [40] Cohere — text-only. structured output via tool-calling (distinct
+#      dialect); no StructuredOutputNative until we model the Cohere
+#      response_format contract in a dedicated ParamFlag.
+[[rules]]
+name             = "cohere-any-model"
+scope            = { providers = ["cohere"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"] }
+routing_complete = true
+
+# [41] AI21 Jamba — text-only. json_object only (no json_schema — similar
+#      to DeepSeek). NO StructuredOutputNative.
+[[rules]]
+name             = "ai21-any-model"
+scope            = { providers = ["ai21"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+routing_complete = true
+
+# [42] Perplexity — search-augmented. Some models have vision (sonar-pro
+#      with image context), others text-only. Default to text-only; cover
+#      vision via a dedicated prefix rule when specific model IDs arrive.
+[[rules]]
+name             = "perplexity-any-model"
+scope            = { providers = ["perplexity"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
+routing_complete = true
+
+# ─── Session 4b additions (7 new provider rules) ────────────────────────────
+
+# [43] NVIDIA NIM — text-only fallback. OpenAI-compat: json_schema YES.
+[[rules]]
+name             = "nvidia-nim-any-model"
+scope            = { providers = ["nvidia-nim"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [44] DeepInfra — text-only fallback. OpenAI-compat: json_schema YES.
+#      Llama tokenizer for most hosted models.
+[[rules]]
+name             = "deepinfra-any-model"
+scope            = { providers = ["deepinfra"] }
+match            = { kind = "any" }
+caps             = { tokenizer = "llama-v3", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [45] Replicate — text-only fallback. OpenAI-compat shim.
+[[rules]]
+name             = "replicate-any-model"
+scope            = { providers = ["replicate"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [] }
+routing_complete = true
+
+# [46] Hyperbolic — text-only fallback. Llama + Qwen inference.
+[[rules]]
+name             = "hyperbolic-any-model"
+scope            = { providers = ["hyperbolic"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [47] Writer — text-only. Palmyra family.
+[[rules]]
+name             = "writer-any-model"
+scope            = { providers = ["writer"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [48] Databricks — text-only fallback. Model serving on workspace.
+[[rules]]
+name             = "databricks-any-model"
+scope            = { providers = ["databricks"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [49] Cloudflare Workers AI — text-only fallback. Edge inference.
+[[rules]]
+name             = "cloudflare-any-model"
+scope            = { providers = ["cloudflare"] }
+match            = { kind = "any" }
+caps             = { input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+routing_complete = true
+
+# [28] Mock — all flags enabled. Covers every runtime conditional branch
+#      without real API calls. Tokenizer cl100k (arbitrary). All
+#      supported_parameters set — tests can cover every path.
+[[rules]]
+name  = "mock-full"
+scope = { providers = ["mock"] }
+match = { kind = "any" }
+caps  = { reasoning = true, tokenizer = "cl100k", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["batch-api", "citations", "computer-use", "context-caching", "file-search", "include-reasoning", "parallel-tool-calls", "predicted-outputs", "prompt-caching", "reasoning-effort", "streaming-thinking", "thinking-budget", "web-search"], supports_system_messages = true, json_mode = "schema" }

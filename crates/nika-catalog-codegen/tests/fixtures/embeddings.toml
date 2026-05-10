@@ -1,0 +1,186 @@
+# nika-catalog — Embedding model catalog
+#
+# Vector-store compatibility is a compile-time fact. Every row below captures
+# the dimensions, context window, default normalisation, preferred similarity
+# metric, and price per 1M input tokens for a single embedding model.
+#
+# Schema invariants (enforced in build.rs):
+#   * top-level `schema` matches EMBEDDINGS_SCHEMA constant
+#   * unique id (case-insensitive, ASCII-only)
+#   * dimensions > 0
+#   * max_input_tokens > 0
+#   * input_per_million >= 0.0
+#   * similarity ∈ {cosine, dot-product, l2}
+#   * provider references an existing entry in llm-providers.toml
+#   * tags must be sorted alphabetically (kebab-case) and deduplicated
+#
+# Pricing snapshot: 2026-04-14. Prices DRIFT — xtask verify-catalog cron
+# flags drift against upstream pricing pages.
+
+schema = "nika/embeddings@1.0"
+
+# ─── Voyage AI ─────────────────────────────────────────────────────────
+
+[[embeddings]]
+id = "voyage/voyage-3-large"
+provider = "voyage"
+model = "voyage-3-large"
+dimensions = 1024
+max_input_tokens = 32000
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.18
+description = "Voyage 3 large — best-in-class RAG / retrieval."
+tags = ["embedding", "matryoshka", "rag"]
+
+[[embeddings]]
+id = "voyage/voyage-3-lite"
+provider = "voyage"
+model = "voyage-3-lite"
+dimensions = 512
+max_input_tokens = 32000
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.02
+description = "Voyage 3 lite — cheap fallback, half the dimensions."
+tags = ["budget", "embedding"]
+
+[[embeddings]]
+id = "voyage/voyage-code-3"
+provider = "voyage"
+model = "voyage-code-3"
+dimensions = 1024
+max_input_tokens = 32000
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.18
+description = "Voyage code — optimised for source code retrieval."
+tags = ["code", "embedding"]
+
+[[embeddings]]
+id = "voyage/voyage-multilingual-2"
+provider = "voyage"
+model = "voyage-multilingual-2"
+dimensions = 1024
+max_input_tokens = 32000
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.12
+description = "Voyage multilingual — 50+ languages."
+tags = ["embedding", "multilingual"]
+
+# ─── OpenAI ────────────────────────────────────────────────────────────
+
+[[embeddings]]
+id = "openai/text-embedding-3-small"
+provider = "openai"
+model = "text-embedding-3-small"
+dimensions = 1536
+max_input_tokens = 8191
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.02
+description = "OpenAI text-embedding-3-small — budget general-purpose."
+tags = ["budget", "embedding", "matryoshka"]
+
+[[embeddings]]
+id = "openai/text-embedding-3-large"
+provider = "openai"
+model = "text-embedding-3-large"
+dimensions = 3072
+max_input_tokens = 8191
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.13
+description = "OpenAI text-embedding-3-large — 3072 dims, strong retrieval."
+tags = ["embedding", "matryoshka"]
+
+[[embeddings]]
+id = "openai/text-embedding-ada-002"
+provider = "openai"
+model = "text-embedding-ada-002"
+dimensions = 1536
+max_input_tokens = 8191
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.10
+description = "OpenAI ada-002 — deprecated upstream, prefer text-embedding-3."
+tags = ["embedding"]
+
+# ─── Cohere ────────────────────────────────────────────────────────────
+
+[[embeddings]]
+id = "cohere/embed-english-v3"
+provider = "cohere"
+model = "embed-english-v3.0"
+dimensions = 1024
+max_input_tokens = 512
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.10
+description = "Cohere Embed v3 English — English-only."
+tags = ["embedding", "enterprise"]
+
+[[embeddings]]
+id = "cohere/embed-multilingual-v3"
+provider = "cohere"
+model = "embed-multilingual-v3.0"
+dimensions = 1024
+max_input_tokens = 512
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.10
+description = "Cohere Embed v3 multilingual — 100+ languages."
+tags = ["embedding", "enterprise", "multilingual"]
+
+[[embeddings]]
+id = "cohere/embed-english-light-v3"
+provider = "cohere"
+model = "embed-english-light-v3.0"
+dimensions = 384
+max_input_tokens = 512
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.10
+description = "Cohere Embed v3 English light — 384 dims."
+tags = ["budget", "embedding"]
+
+# ─── Mistral ───────────────────────────────────────────────────────────
+
+[[embeddings]]
+id = "mistral/mistral-embed"
+provider = "mistral"
+model = "mistral-embed"
+dimensions = 1024
+max_input_tokens = 8192
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.10
+description = "Mistral Embed — general-purpose multilingual."
+tags = ["embedding", "european", "multilingual"]
+
+# ─── Gemini ────────────────────────────────────────────────────────────
+
+[[embeddings]]
+id = "gemini/gemini-embedding-001"
+provider = "gemini"
+model = "gemini-embedding-001"
+dimensions = 3072
+max_input_tokens = 2048
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.15
+description = "Gemini Embedding 001 — Matryoshka (truncatable)."
+tags = ["embedding", "matryoshka", "multilingual"]
+
+[[embeddings]]
+id = "gemini/text-embedding-004"
+provider = "gemini"
+model = "text-embedding-004"
+dimensions = 768
+max_input_tokens = 2048
+normalized_by_default = true
+similarity = "cosine"
+input_per_million = 0.0
+description = "Gemini text-embedding-004 — free tier."
+tags = ["budget", "embedding"]

@@ -1173,6 +1173,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-catalog-codegen"
+version = "0.80.0"
+dependencies = [
+ "insta",
+ "phf_codegen",
+ "phf_shared",
+ "proptest",
+ "rstest",
+ "serde",
+ "syn",
+ "thiserror",
+ "toml",
+ "unicase",
+]
+
+[[package]]
 name = "nika-catalog-verify"
 version = "0.80.0"
 dependencies = [
