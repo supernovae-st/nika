@@ -58,7 +58,7 @@
 //!     for p in &emitted.rerun_paths {
 //!         println!("cargo:rerun-if-changed={}", p.display());
 //!     }
-//!     println!("cargo:rerun-if-changed=build.rs");
+//!     println!("cargo:rerun-if-changed=build.golden");
 //!     Ok(())
 //! }
 //! ```
@@ -278,7 +278,7 @@ pub fn generate(
     if features.providers {
         let raw = read_file(&providers_path)?;
         let rust_src = codegen_providers(&raw)?;
-        let out_path = out_dir.join("providers.rs");
+        let out_path = out_dir.join("providers.golden");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -287,7 +287,7 @@ pub fn generate(
         let path = data_dir.join("mcp-servers.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_mcp_servers(&raw)?;
-        let out_path = out_dir.join("mcp_servers.rs");
+        let out_path = out_dir.join("mcp_servers.golden");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -296,7 +296,7 @@ pub fn generate(
         let path = data_dir.join("embeddings.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_embeddings(&raw, &providers)?;
-        let out_path = out_dir.join("embeddings.rs");
+        let out_path = out_dir.join("embeddings.golden");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -305,7 +305,7 @@ pub fn generate(
         let path = data_dir.join("model-capabilities.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_capabilities(&raw, &providers)?;
-        let out_path = out_dir.join("model_capabilities.rs");
+        let out_path = out_dir.join("model_capabilities.golden");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -314,7 +314,7 @@ pub fn generate(
         let path = data_dir.join("model-pricing.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_pricing(&raw)?;
-        let out_path = out_dir.join("model_pricing.rs");
+        let out_path = out_dir.join("model_pricing.golden");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -358,11 +358,11 @@ mod tests {
     const FIXTURE_CAPABILITIES: &[u8] = include_bytes!("../tests/fixtures/model-capabilities.toml");
     const FIXTURE_PRICING: &[u8] = include_bytes!("../tests/fixtures/model-pricing.toml");
 
-    const GOLDEN_MCP: &str = include_str!("../tests/golden/mcp_servers.rs");
-    const GOLDEN_PROVIDERS: &str = include_str!("../tests/golden/providers.rs");
-    const GOLDEN_EMBEDDINGS: &str = include_str!("../tests/golden/embeddings.rs");
-    const GOLDEN_CAPABILITIES: &str = include_str!("../tests/golden/model_capabilities.rs");
-    const GOLDEN_PRICING: &str = include_str!("../tests/golden/model_pricing.rs");
+    const GOLDEN_MCP: &str = include_str!("../tests/golden/mcp_servers.golden");
+    const GOLDEN_PROVIDERS: &str = include_str!("../tests/golden/providers.golden");
+    const GOLDEN_EMBEDDINGS: &str = include_str!("../tests/golden/embeddings.golden");
+    const GOLDEN_CAPABILITIES: &str = include_str!("../tests/golden/model_capabilities.golden");
+    const GOLDEN_PRICING: &str = include_str!("../tests/golden/model_pricing.golden");
 
     #[test]
     fn parity_mcp_servers_byte_equal() {

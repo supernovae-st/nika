@@ -101,106 +101,119 @@ fn validate_providers(providers: &[ProviderEntry], path: &Path) -> Result<(), Co
     let ctx = path.display().to_string();
     let mut seen_keys: HashSet<String> = HashSet::new();
     for p in providers {
-        assert_ascii_key("provider id", &p.id)
-            .map_err(|r| CodegenError::schema_validation(&ctx, r))?;
-        if !seen_keys.insert(p.id.to_ascii_lowercase()) {
-            return Err(CodegenError::schema_validation(
-                &ctx,
-                format!("duplicate provider id (case-insensitive): {:?}", p.id),
-            ));
-        }
-        for a in &p.aliases {
-            assert_ascii_key("provider alias", a)
-                .map_err(|r| CodegenError::schema_validation(&ctx, r))?;
-            if !seen_keys.insert(a.to_ascii_lowercase()) {
-                return Err(CodegenError::schema_validation(
-                    &ctx,
-                    format!(
-                        "provider {:?}: alias {a:?} collides with an existing id or alias (case-insensitive)",
-                        p.id
-                    ),
-                ));
-            }
-        }
-        validate_tags(&p.tags, &p.id).map_err(|r| CodegenError::schema_validation(&ctx, r))?;
+        validate_one_provider(p, &ctx, &mut seen_keys)?;
+    }
+    Ok(())
+}
 
-        if p.requires_key && p.env_var.is_empty() {
+fn validate_one_provider(
+    p: &ProviderEntry,
+    ctx: &str,
+    seen_keys: &mut HashSet<String>,
+) -> Result<(), CodegenError> {
+    assert_ascii_key("provider id", &p.id).map_err(|r| CodegenError::schema_validation(ctx, r))?;
+    if !seen_keys.insert(p.id.to_ascii_lowercase()) {
+        return Err(CodegenError::schema_validation(
+            ctx,
+            format!("duplicate provider id (case-insensitive): {:?}", p.id),
+        ));
+    }
+    for a in &p.aliases {
+        assert_ascii_key("provider alias", a)
+            .map_err(|r| CodegenError::schema_validation(ctx, r))?;
+        if !seen_keys.insert(a.to_ascii_lowercase()) {
             return Err(CodegenError::schema_validation(
-                &ctx,
+                ctx,
                 format!(
-                    "provider {:?}: requires_key=true but env_var is empty",
+                    "provider {:?}: alias {a:?} collides with an existing id or alias (case-insensitive)",
                     p.id
-                ),
-            ));
-        }
-
-        if let Some(dialect) = p.api_dialect.as_deref() {
-            validate_api_dialect(dialect, &p.id)
-                .map_err(|r| CodegenError::schema_validation(&ctx, r))?;
-        }
-
-        if p.models.is_empty() {
-            return Err(CodegenError::schema_validation(
-                &ctx,
-                format!(
-                    "provider {:?}: models list is empty (at least one model required)",
-                    p.id
-                ),
-            ));
-        }
-
-        let mut seen_nicks: HashSet<String> = HashSet::new();
-        let mut seen_wires: HashSet<String> = HashSet::new();
-        for m in &p.models {
-            if !seen_nicks.insert(m.id.clone()) {
-                return Err(CodegenError::schema_validation(
-                    &ctx,
-                    format!("provider {:?}: duplicate model nickname {:?}", p.id, m.id),
-                ));
-            }
-            if m.model.is_empty() {
-                return Err(CodegenError::schema_validation(
-                    &ctx,
-                    format!(
-                        "provider {:?}: model {:?} has empty wire identifier",
-                        p.id, m.id
-                    ),
-                ));
-            }
-            if !seen_wires.insert(m.model.clone()) {
-                return Err(CodegenError::schema_validation(
-                    &ctx,
-                    format!("provider {:?}: duplicate model wire {:?}", p.id, m.model),
-                ));
-            }
-            if m.context_window_tokens == 0 || m.max_output_tokens == 0 {
-                return Err(CodegenError::schema_validation(
-                    &ctx,
-                    format!("provider {:?}: model {:?} has zero token limit", p.id, m.id),
-                ));
-            }
-        }
-
-        if !seen_wires.contains(&p.default_model) {
-            return Err(CodegenError::schema_validation(
-                &ctx,
-                format!(
-                    "provider {:?}: default_model {:?} not in models list",
-                    p.id, p.default_model
-                ),
-            ));
-        }
-        if !seen_wires.contains(&p.cheap_model) {
-            return Err(CodegenError::schema_validation(
-                &ctx,
-                format!(
-                    "provider {:?}: cheap_model {:?} not in models list",
-                    p.id, p.cheap_model
                 ),
             ));
         }
     }
+    validate_tags(&p.tags, &p.id).map_err(|r| CodegenError::schema_validation(ctx, r))?;
+
+    if p.requires_key && p.env_var.is_empty() {
+        return Err(CodegenError::schema_validation(
+            ctx,
+            format!(
+                "provider {:?}: requires_key=true but env_var is empty",
+                p.id
+            ),
+        ));
+    }
+
+    if let Some(dialect) = p.api_dialect.as_deref() {
+        validate_api_dialect(dialect, &p.id)
+            .map_err(|r| CodegenError::schema_validation(ctx, r))?;
+    }
+
+    if p.models.is_empty() {
+        return Err(CodegenError::schema_validation(
+            ctx,
+            format!(
+                "provider {:?}: models list is empty (at least one model required)",
+                p.id
+            ),
+        ));
+    }
+
+    let seen_wires = validate_provider_models(p, ctx)?;
+
+    if !seen_wires.contains(&p.default_model) {
+        return Err(CodegenError::schema_validation(
+            ctx,
+            format!(
+                "provider {:?}: default_model {:?} not in models list",
+                p.id, p.default_model
+            ),
+        ));
+    }
+    if !seen_wires.contains(&p.cheap_model) {
+        return Err(CodegenError::schema_validation(
+            ctx,
+            format!(
+                "provider {:?}: cheap_model {:?} not in models list",
+                p.id, p.cheap_model
+            ),
+        ));
+    }
     Ok(())
+}
+
+fn validate_provider_models(p: &ProviderEntry, ctx: &str) -> Result<HashSet<String>, CodegenError> {
+    let mut seen_nicks: HashSet<String> = HashSet::new();
+    let mut seen_wires: HashSet<String> = HashSet::new();
+    for m in &p.models {
+        if !seen_nicks.insert(m.id.clone()) {
+            return Err(CodegenError::schema_validation(
+                ctx,
+                format!("provider {:?}: duplicate model nickname {:?}", p.id, m.id),
+            ));
+        }
+        if m.model.is_empty() {
+            return Err(CodegenError::schema_validation(
+                ctx,
+                format!(
+                    "provider {:?}: model {:?} has empty wire identifier",
+                    p.id, m.id
+                ),
+            ));
+        }
+        if !seen_wires.insert(m.model.clone()) {
+            return Err(CodegenError::schema_validation(
+                ctx,
+                format!("provider {:?}: duplicate model wire {:?}", p.id, m.model),
+            ));
+        }
+        if m.context_window_tokens == 0 || m.max_output_tokens == 0 {
+            return Err(CodegenError::schema_validation(
+                ctx,
+                format!("provider {:?}: model {:?} has zero token limit", p.id, m.id),
+            ));
+        }
+    }
+    Ok(seen_wires)
 }
 
 /// Closed set of wire-protocol dialects. Synced with `Provider::api_dialect`

@@ -19,10 +19,15 @@ unicase     = { workspace = true }
 thiserror   = { workspace = true }
 
 [dev-dependencies]
-insta       = { workspace = true }
 proptest    = { workspace = true }
-rstest      = { workspace = true }
 syn         = { version = "2.0", features = ["full", "parsing"] }
 
 [lints]
 workspace = true
+
+# phf_shared is used implicitly by phf_codegen at compile time
+# (provides UniCase support via the `unicase` feature) — cargo-machete
+# can't detect the transitive usage. Keep it explicit so version drift
+# between phf_codegen and phf_shared is visible in this manifest.
+[package.metadata.cargo-machete]
+ignored = ["phf_shared"]

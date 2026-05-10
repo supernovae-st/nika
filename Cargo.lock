@@ -1176,11 +1176,9 @@ dependencies = [
 name = "nika-catalog-codegen"
 version = "0.80.0"
 dependencies = [
- "insta",
  "phf_codegen",
  "phf_shared",
  "proptest",
- "rstest",
  "serde",
  "syn",
  "thiserror",

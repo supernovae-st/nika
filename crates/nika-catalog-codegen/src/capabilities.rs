@@ -195,67 +195,13 @@ fn parse_capabilities_bytes(
 
     let mut seen_names: HashSet<String> = HashSet::new();
     for rule in &file.rules {
-        if rule.name.is_empty() {
-            return Err(CodegenError::schema_validation(
-                &path_ctx,
-                "capability rule: empty `name`".to_string(),
-            ));
-        }
-        if !seen_names.insert(rule.name.clone()) {
-            return Err(CodegenError::schema_validation(
-                &path_ctx,
-                format!("duplicate capability rule name: {:?}", rule.name),
-            ));
-        }
-
-        for p in &rule.scope.providers {
-            if !known_provider_ids.contains(&p.to_ascii_lowercase()) {
-                return Err(CodegenError::foreign_key(
-                    format!("rule {:?}", rule.name),
-                    format!(
-                        "scope.providers entry {p:?} is not a canonical \
-                         provider id declared in llm-providers.toml"
-                    ),
-                ));
-            }
-        }
-        if let Some(d) = rule.scope.api_dialect.as_deref() {
-            validate_api_dialect(d, &format!("rule {:?}", rule.name))
-                .map_err(|r| CodegenError::schema_validation(&path_ctx, r))?;
-            if !declared_dialects.contains(&d.to_ascii_lowercase()) {
-                return Err(CodegenError::schema_validation(
-                    &path_ctx,
-                    format!(
-                        "rule {:?}: scope.api_dialect {d:?} is valid but no provider \
-                         declares it in llm-providers.toml — either remove the scope \
-                         or add the dialect to a provider",
-                        rule.name
-                    ),
-                ));
-            }
-        }
-        if let Some(regions) = &rule.scope.region {
-            for r in regions {
-                validate_region(r, &format!("rule {:?}", rule.name))
-                    .map_err(|reason| CodegenError::schema_validation(&path_ctx, reason))?;
-            }
-            if !regions.is_empty() {
-                return Err(CodegenError::schema_validation(
-                    &path_ctx,
-                    format!(
-                        "rule {:?}: scope.region is set but the resolver does not \
-                         evaluate region yet — remove scope.region or wire the \
-                         resolver (Phase E2)",
-                        rule.name,
-                    ),
-                ));
-            }
-        }
-
-        validate_match(&rule.match_, &rule.name)
-            .map_err(|r| CodegenError::schema_validation(&path_ctx, r))?;
-        validate_caps_patch(&rule.caps, &format!("rule {:?}", rule.name), false)
-            .map_err(|r| CodegenError::schema_validation(&path_ctx, r))?;
+        validate_one_rule(
+            rule,
+            &path_ctx,
+            &known_provider_ids,
+            &declared_dialects,
+            &mut seen_names,
+        )?;
     }
 
     check_any_last_in_scope(&file.rules)
@@ -265,6 +211,77 @@ fn parse_capabilities_bytes(
         defaults: file.defaults,
         rules: file.rules,
     })
+}
+
+fn validate_one_rule(
+    rule: &RuleEntry,
+    path_ctx: &str,
+    known_provider_ids: &HashSet<String>,
+    declared_dialects: &HashSet<String>,
+    seen_names: &mut HashSet<String>,
+) -> Result<(), CodegenError> {
+    if rule.name.is_empty() {
+        return Err(CodegenError::schema_validation(
+            path_ctx,
+            "capability rule: empty `name`".to_string(),
+        ));
+    }
+    if !seen_names.insert(rule.name.clone()) {
+        return Err(CodegenError::schema_validation(
+            path_ctx,
+            format!("duplicate capability rule name: {:?}", rule.name),
+        ));
+    }
+
+    for p in &rule.scope.providers {
+        if !known_provider_ids.contains(&p.to_ascii_lowercase()) {
+            return Err(CodegenError::foreign_key(
+                format!("rule {:?}", rule.name),
+                format!(
+                    "scope.providers entry {p:?} is not a canonical \
+                     provider id declared in llm-providers.toml"
+                ),
+            ));
+        }
+    }
+    if let Some(d) = rule.scope.api_dialect.as_deref() {
+        validate_api_dialect(d, &format!("rule {:?}", rule.name))
+            .map_err(|r| CodegenError::schema_validation(path_ctx, r))?;
+        if !declared_dialects.contains(&d.to_ascii_lowercase()) {
+            return Err(CodegenError::schema_validation(
+                path_ctx,
+                format!(
+                    "rule {:?}: scope.api_dialect {d:?} is valid but no provider \
+                     declares it in llm-providers.toml — either remove the scope \
+                     or add the dialect to a provider",
+                    rule.name
+                ),
+            ));
+        }
+    }
+    if let Some(regions) = &rule.scope.region {
+        for r in regions {
+            validate_region(r, &format!("rule {:?}", rule.name))
+                .map_err(|reason| CodegenError::schema_validation(path_ctx, reason))?;
+        }
+        if !regions.is_empty() {
+            return Err(CodegenError::schema_validation(
+                path_ctx,
+                format!(
+                    "rule {:?}: scope.region is set but the resolver does not \
+                     evaluate region yet — remove scope.region or wire the \
+                     resolver (Phase E2)",
+                    rule.name,
+                ),
+            ));
+        }
+    }
+
+    validate_match(&rule.match_, &rule.name)
+        .map_err(|r| CodegenError::schema_validation(path_ctx, r))?;
+    validate_caps_patch(&rule.caps, &format!("rule {:?}", rule.name), false)
+        .map_err(|r| CodegenError::schema_validation(path_ctx, r))?;
+    Ok(())
 }
 
 /// Enforce "`Matcher::Any` must be last within its provider scope".
@@ -302,117 +319,16 @@ fn check_any_last_in_scope(rules: &[RuleEntry]) -> Result<(), String> {
     Ok(())
 }
 
-#[allow(clippy::too_many_lines)]
 fn validate_caps_patch(
     patch: &CapsPatchEntry,
     where_: &str,
     require_all: bool,
 ) -> Result<(), String> {
-    let CapsPatchEntry {
-        token_limit_param,
-        supports_temperature,
-        supports_stop_sequences,
-        reasoning,
-        tokenizer,
-        input_modalities,
-        output_modalities,
-        supported_parameters,
-        supports_system_messages,
-        context_window_tokens,
-        max_output_tokens,
-        json_mode,
-    } = patch;
+    validate_token_limit_param(patch.token_limit_param.as_deref(), where_)?;
+    validate_modality_lists(patch, where_)?;
+    validate_param_flags(patch.supported_parameters.as_deref(), where_)?;
 
-    if let Some(t) = token_limit_param.as_deref() {
-        match t {
-            "max-tokens" | "max-completion-tokens" | "max-output-tokens" => {}
-            _ => {
-                return Err(format!(
-                    "{where_}: unknown token_limit_param {t:?} — must be \
-                     max-tokens / max-completion-tokens / max-output-tokens"
-                ));
-            }
-        }
-    }
-
-    if let Some(list) = input_modalities {
-        if list.is_empty() {
-            return Err(format!(
-                "{where_}: input_modalities = [] is invalid — omit the field \
-                 to inherit defaults, or list at least \"text\""
-            ));
-        }
-        for m in list {
-            match m.as_str() {
-                "text" | "image" | "audio" | "video" | "pdf" | "embedding" | "speech"
-                | "image-gen" => {}
-                _ => {
-                    return Err(format!(
-                        "{where_}: unknown input modality {m:?} — expected \
-                         one of: text, image, audio, video, pdf, embedding, speech, image-gen"
-                    ));
-                }
-            }
-        }
-        if !list.iter().any(|m| m == "text") {
-            return Err(format!(
-                "{where_}: input_modalities must include \"text\" (chat-capable \
-                 models always accept text input — explicit omission would \
-                 corrupt the runtime's prompt-building path)"
-            ));
-        }
-    }
-    if let Some(list) = output_modalities {
-        if list.is_empty() {
-            return Err(format!(
-                "{where_}: output_modalities = [] is invalid — omit the field \
-                 to inherit defaults, or list at least \"text\""
-            ));
-        }
-        for m in list {
-            match m.as_str() {
-                "text" | "image" | "audio" | "video" | "pdf" | "embedding" | "speech"
-                | "image-gen" => {}
-                _ => {
-                    return Err(format!(
-                        "{where_}: unknown output modality {m:?} — expected \
-                         one of: text, image, audio, video, pdf, embedding, speech, image-gen"
-                    ));
-                }
-            }
-        }
-    }
-
-    if let Some(flags) = supported_parameters {
-        for f in flags {
-            match f.as_str() {
-                "parallel-tool-calls"
-                | "reasoning-effort"
-                | "thinking-budget"
-                | "prompt-caching"
-                | "file-search"
-                | "web-search"
-                | "streaming-thinking"
-                | "batch-api"
-                | "context-caching"
-                | "predicted-outputs"
-                | "computer-use"
-                | "citations"
-                | "include-reasoning" => {}
-                _ => {
-                    return Err(format!(
-                        "{where_}: unknown param_flag {f:?} — expected one of: \
-                         parallel-tool-calls, reasoning-effort, thinking-budget, \
-                         prompt-caching, file-search, web-search, streaming-thinking, \
-                         batch-api, context-caching, predicted-outputs, computer-use, \
-                         citations, include-reasoning"
-                    ));
-                }
-            }
-        }
-    }
-
-    if let (Some(ctx), Some(max_out)) = (context_window_tokens, max_output_tokens)
+    if let (Some(ctx), Some(max_out)) = (patch.context_window_tokens, patch.max_output_tokens)
         && max_out > ctx
     {
         return Err(format!(
@@ -421,55 +337,165 @@ fn validate_caps_patch(
         ));
     }
 
-    if where_.starts_with("rule ") {
-        let all_none = token_limit_param.is_none()
-            && supports_temperature.is_none()
-            && supports_stop_sequences.is_none()
-            && reasoning.is_none()
-            && tokenizer.is_none()
-            && input_modalities.is_none()
-            && output_modalities.is_none()
-            && supported_parameters.is_none()
-            && supports_system_messages.is_none()
-            && context_window_tokens.is_none()
-            && max_output_tokens.is_none()
-            && json_mode.is_none();
-        if all_none {
-            return Err(format!(
-                "{where_}: all caps fields are None — an empty-caps rule \
-                 matches and then shadows every later rule. Either add at \
-                 least one Some field, or delete the rule."
-            ));
-        }
+    if where_.starts_with("rule ") && caps_all_none(patch) {
+        return Err(format!(
+            "{where_}: all caps fields are None — an empty-caps rule \
+             matches and then shadows every later rule. Either add at \
+             least one Some field, or delete the rule."
+        ));
     }
 
     if require_all {
-        let missing: &[(&str, bool)] = &[
-            ("token_limit_param", token_limit_param.is_none()),
-            ("supports_temperature", supports_temperature.is_none()),
-            ("supports_stop_sequences", supports_stop_sequences.is_none()),
-            ("reasoning", reasoning.is_none()),
-            ("input_modalities", input_modalities.is_none()),
-            ("output_modalities", output_modalities.is_none()),
-            ("supported_parameters", supported_parameters.is_none()),
-            (
-                "supports_system_messages",
-                supports_system_messages.is_none(),
-            ),
-        ];
-        for (name, is_none) in missing {
-            if *is_none {
+        validate_caps_require_all(patch, where_)?;
+    }
+
+    Ok(())
+}
+
+fn validate_token_limit_param(t: Option<&str>, where_: &str) -> Result<(), String> {
+    let Some(t) = t else { return Ok(()) };
+    match t {
+        "max-tokens" | "max-completion-tokens" | "max-output-tokens" => Ok(()),
+        _ => Err(format!(
+            "{where_}: unknown token_limit_param {t:?} — must be \
+             max-tokens / max-completion-tokens / max-output-tokens"
+        )),
+    }
+}
+
+fn validate_modality_lists(patch: &CapsPatchEntry, where_: &str) -> Result<(), String> {
+    if let Some(list) = patch.input_modalities.as_ref() {
+        validate_modality_list(
+            list,
+            "input_modalities",
+            where_,
+            /* require_text */ true,
+        )?;
+    }
+    if let Some(list) = patch.output_modalities.as_ref() {
+        validate_modality_list(
+            list,
+            "output_modalities",
+            where_,
+            /* require_text */ false,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_modality_list(
+    list: &[String],
+    field: &str,
+    where_: &str,
+    require_text: bool,
+) -> Result<(), String> {
+    if list.is_empty() {
+        return Err(format!(
+            "{where_}: {field} = [] is invalid — omit the field \
+             to inherit defaults, or list at least \"text\""
+        ));
+    }
+    for m in list {
+        match m.as_str() {
+            "text" | "image" | "audio" | "video" | "pdf" | "embedding" | "speech" | "image-gen" => {
+            }
+            _ => {
+                let kind = if field == "input_modalities" {
+                    "input"
+                } else {
+                    "output"
+                };
                 return Err(format!(
-                    "{where_}: field `{name}` is required — every field with a \
-                     `unwrap_or` fallback in CapPatch::materialize must be \
-                     explicitly set in `[defaults]` so the fallback branch \
-                     stays structurally unreachable. `tokenizer` is the only \
-                     legitimately optional field on `[defaults]`."
+                    "{where_}: unknown {kind} modality {m:?} — expected \
+                     one of: text, image, audio, video, pdf, embedding, speech, image-gen"
                 ));
             }
         }
     }
+    if require_text && !list.iter().any(|m| m == "text") {
+        return Err(format!(
+            "{where_}: input_modalities must include \"text\" (chat-capable \
+             models always accept text input — explicit omission would \
+             corrupt the runtime's prompt-building path)"
+        ));
+    }
+    Ok(())
+}
 
+fn validate_param_flags(flags: Option<&[String]>, where_: &str) -> Result<(), String> {
+    let Some(flags) = flags else { return Ok(()) };
+    for f in flags {
+        match f.as_str() {
+            "parallel-tool-calls"
+            | "reasoning-effort"
+            | "thinking-budget"
+            | "prompt-caching"
+            | "file-search"
+            | "web-search"
+            | "streaming-thinking"
+            | "batch-api"
+            | "context-caching"
+            | "predicted-outputs"
+            | "computer-use"
+            | "citations"
+            | "include-reasoning" => {}
+            _ => {
+                return Err(format!(
+                    "{where_}: unknown param_flag {f:?} — expected one of: \
+                     parallel-tool-calls, reasoning-effort, thinking-budget, \
+                     prompt-caching, file-search, web-search, streaming-thinking, \
+                     batch-api, context-caching, predicted-outputs, computer-use, \
+                     citations, include-reasoning"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn caps_all_none(p: &CapsPatchEntry) -> bool {
+    p.token_limit_param.is_none()
+        && p.supports_temperature.is_none()
+        && p.supports_stop_sequences.is_none()
+        && p.reasoning.is_none()
+        && p.tokenizer.is_none()
+        && p.input_modalities.is_none()
+        && p.output_modalities.is_none()
+        && p.supported_parameters.is_none()
+        && p.supports_system_messages.is_none()
+        && p.context_window_tokens.is_none()
+        && p.max_output_tokens.is_none()
+        && p.json_mode.is_none()
+}
+
+fn validate_caps_require_all(p: &CapsPatchEntry, where_: &str) -> Result<(), String> {
+    let missing: &[(&str, bool)] = &[
+        ("token_limit_param", p.token_limit_param.is_none()),
+        ("supports_temperature", p.supports_temperature.is_none()),
+        (
+            "supports_stop_sequences",
+            p.supports_stop_sequences.is_none(),
+        ),
+        ("reasoning", p.reasoning.is_none()),
+        ("input_modalities", p.input_modalities.is_none()),
+        ("output_modalities", p.output_modalities.is_none()),
+        ("supported_parameters", p.supported_parameters.is_none()),
+        (
+            "supports_system_messages",
+            p.supports_system_messages.is_none(),
+        ),
+    ];
+    for (name, is_none) in missing {
+        if *is_none {
+            return Err(format!(
+                "{where_}: field `{name}` is required — every field with a \
+                 `unwrap_or` fallback in CapPatch::materialize must be \
+                 explicitly set in `[defaults]` so the fallback branch \
+                 stays structurally unreachable. `tokenizer` is the only \
+                 legitimately optional field on `[defaults]`."
+            ));
+        }
+    }
     Ok(())
 }
 
