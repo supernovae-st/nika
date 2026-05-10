@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Vector 1: MEMORY.md HEAD SHA vs actual git HEAD.
 set -u
-MEMORY="$HOME/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/MEMORY.md"
+MEMORY="$HOME/.claude/projects/-Users-thibaut-supernovae/memory/MEMORY.md"
 [ -f "$MEMORY" ] || {
   echo "MEMORY.md not found"
   exit 2
