@@ -40,6 +40,10 @@ layers.nika-catalog-verify = "L4"
 layers.nika-schema = "L0"
 layers.nika-kernel = "L0.5"
 layers.nika-kernel-mock = "L0.5"
+# nika-bm25 = L1 memory satellite · admission target Wave 3 · ADR-038 (proposed)
+# Layer entry pre-registered to surface in check-layering.sh once the crate
+# scaffolds in crates/nika-bm25/ ; until then the script emits a soft warn.
+layers.nika-bm25 = "L1"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-layer banned external deps (runtime-binding crates forbidden at layers
