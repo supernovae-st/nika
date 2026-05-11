@@ -355,7 +355,7 @@ prose-only · save ~5 empty ADR shells.
 - **ADR-060 · Kani-verified kernel** · which verifier + which boundary · ADR-grade decision
 - **ADR-062 · PGO + BOLT release pipeline** · profile corpus + build infra decision · ADR-grade
 - **ADR-064 · AOT-compiled `pck`** · `wasmtime::Module::serialize` · post-ADR-050 dependency · ADR-grade · DEFER until ADR-050 ships
-- **ADR-066 · OTLP-neutral `ObservabilitySink`** · L0.5 trait surface decision · absorbs ADR-061 SLSA L3 + cargo-vet + sigstore + cargo-auditable as §release-pipeline subsection · ADR-grade · MUST encode `#[tracing::instrument(skip(self, query), level = "debug")]` discipline (orchestrator-level signal · NOT inner hot loops · cost ~100-500ns/span creation untenable on 1M+/sec BGE-M3 cosine calls)
+- **ADR-066 · OTLP export adapter** · CLARIFIED 2026-05-12 per devil's-advocate audit · NOT a kernel trait revival · Q12 rev.3 explicitly DROPPED `ObservabilitySink` from `nika-kernel` (`docs/architecture/l0-l05-architecture-decisions.md` Q12 rev.3 SSoT) · the canonical 4-sink ISP shape stays · `AuditSink` + `EventSink` + `BillingSink` + `MetricSink/TracerProvider` (per `nika-kernel/src/infra/event_sink.rs` + `forward-compat-invariants.md:58,384`) · ADR-066 ships at the EXPORTER layer · per-sink OTLP adapter + per-sink JSON-stdout adapter + per-sink Prometheus pull adapter · matches ISP discipline ADR-006 (1 trait per concern · NOT 1 trait covering 5 use-cases). MUST encode `#[tracing::instrument(skip(self, query), level = "debug")]` discipline (orchestrator-level signal · NOT inner hot loops · cost ~100-500ns/span creation untenable on 1M+/sec BGE-M3 cosine calls).
 - **ADR-070 · `nika-memory` orchestrator fan-out contract** (NEW · per rust-async audit) · `tokio_util::task::TaskTracker::spawn(token.child_token().run_until_cancelled(fut))` pattern · child-token tree gives per-satellite cancellation without killing siblings · kernel `MemoryRecall::recall` signature stays `(query)` only (NO cancel param · ADR-016 Alt-A explicit) · cooperative `CancelCtx::is_cancelled()` poll happens INSIDE satellites between hot-loop iterations · L2 only · zero kernel pollution
 
 ### Security-lens additions (per rust-security audit 2026-05-12)
@@ -366,6 +366,22 @@ prose-only · save ~5 empty ADR shells.
 - **`nika-hnsw` unsafe carve-out (pre-W7 lock)** · `#![cfg_attr(..., allow(unsafe_code))]` AT CRATE BOUNDARY documented as Gate 12 encapsulation invariant · workspace stays `unsafe_code = "forbid"` (`Cargo.toml:68`)
 - **`MemoryFrameRef.signature: Option<SignatureRef>`** reservation per ADR-030 amendment · forward-compat Phase 2+ provenance signing via `signature::Signer<T>` trait (PQ migration 2032+)
 - **`NikaStore<Ready>` Drop-order invariant** (per ADR-041) · backend connection MUST outlive satellites via field declaration order (Rust drop-order guarantee) · documented at L2 orchestrator admission W10
+
+### Scaling reservations · multi-tenant + provider failover + daemon (per use-case audit 2026-05-12)
+
+- **ADR-074 (queued · HIGH)** · Provider failover policy across 9-provider catalog (ADR-008) · current state · single-provider retry via `ProviderError::is_transient()` + `nika-types::RetryConfig` per-call only · ZERO cross-provider failover. 3 design axes · (a) `FailoverPolicy` enum on `InferRequest` (per-call · reservation field NOW) · (b) Tower-style `Service<Request>` middleware in `nika-runtime` (orchestrator · DEFER post-W10) · (c) declarative `on_provider_error: [anthropic, openai, mistral]` in workflow YAML (runtime admission). Trigger · L2 `nika-runtime` admission OR `nika serve` consumer signal.
+
+- **ADR-075 (queued · MED)** · Multi-tenant quota + cost rollup contract · current state · `TenantId` shipped at L0 + `RecallQuery.tenant` MANDATORY + `InferRequest.tenant: Option<TenantId>` + `Trust` is u8 lattice NOT tenant-aware. Reservation `BillingSink.aggregate_by(TenantId)` + `QuotaPolicy` kernel trait stub L0.5 surface · zero impl until consumer signal (LOCK-031 spirit). Trigger · 10k concurrent users measured OR multi-tenant SaaS consumer ticket.
+
+### §5.bis · Daemon operational surface (queued · per use-case audit)
+
+For `nika serve` L4 daemon (planned post-W10) · 3-axis operational contract not yet in BLUEPRINT prose ·
+
+- **Hot YAML reload** · `tokio::sync::watch<Config>` for atomic config updates without dropping in-flight requests · SIGHUP signal handler convention
+- **Graceful shutdown** · `TaskTracker` + `CancellationToken` for in-flight request drain · per ADR-070 child-token pattern
+- **Health + readiness** · separate `/healthz` (process alive) + `/readyz` (memory subsystem warmed + providers reachable) endpoints · K8s probe convention
+
+**ADR-076 (queued)** · L4 daemon operational contract · admission gate at `nika serve` ship. Trigger · L4 `nika-serve` admission OR Olympus MCP bridge consumer signal.
 
 ### ADR-041 type-state amendment (queued · per rust-async audit)
 

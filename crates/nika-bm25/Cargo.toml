@@ -1,0 +1,55 @@
+[package]
+name          = "nika-bm25"
+description   = "BM25 (Okapi) lexical scoring satellite for the Nika diamond memory subsystem. L1 · pure-algo · publishable standalone (ADR-004 · ADR-038)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = true  # L1 memory satellite — publishable on crates.io per ADR-004 (Rust IR ecosystem value).
+
+# NOTE: W3 admission target · Gate 12 atomic admission commit happens
+# when Gates 2/4-11 GREEN. See `docs/crate-specs/nika-bm25.md`.
+#
+# Q6 single-crate-feature-gated (Option E per devil's advocate audit
+# 2026-05-12) supersedes the earlier Q6 split into 2 crates · per
+# cargo-public-api 0.30+ + cargo-semver-checks 0.30+ (2024+) which DO
+# gate feature-flagged pub items separately · matches ADR-040 verbatim
+# (`bm25 = ["dep:nika-bm25"]` singular).
+
+[features]
+default = ["kernel"]
+# kernel · ships the MemoryRecall trait adapter (Diamond-internal default)
+# External crates.io consumers · `cargo add nika-bm25 --no-default-features`
+# = pure-algo zero-kernel-dep · matches Q6 split intent without the 2-crate tax
+kernel = ["dep:nika-kernel", "dep:nika-types", "dep:nika-error", "dep:thiserror", "dep:tokio", "dep:trait-variant"]
+
+[dependencies]
+# Pure-algo core uses ZERO nika-* deps · maison tokenizer (std::char) · BTreeMap (std) · f64 (std)
+
+# Kernel adapter deps · gated behind `kernel` feature
+nika-types     = { path = "../nika-types",  version = "0.80.0", optional = true }
+nika-error     = { path = "../nika-error",  version = "0.80.0", optional = true }
+nika-kernel    = { path = "../nika-kernel", version = "0.80.0", optional = true }
+thiserror      = { workspace = true, optional = true }
+tokio          = { workspace = true, features = ["rt"], optional = true }
+trait-variant  = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest    = { workspace = true }
+criterion   = { workspace = true }
+insta       = { workspace = true }
+rstest      = { workspace = true }
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-machete]
+# Pre-W3 scaffold ignores · feature-gated optional deps + dev-deps not yet
+# consumed (Gate 3 GREEN + Gate 6 proptest + Gate 7 criterion lands them).
+ignored = [
+  "nika-types", "nika-error", "nika-kernel", "thiserror", "tokio", "trait-variant",
+  "criterion", "insta", "proptest", "rstest",
+]

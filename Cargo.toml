@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25-core", "crates/nika-bm25-kernel"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -40,11 +40,11 @@ layers.nika-catalog-verify = "L4"
 layers.nika-schema = "L0"
 layers.nika-kernel = "L0.5"
 layers.nika-kernel-mock = "L0.5"
-# Q6 split per rust-architect 2026-05-12 audit · nika-bm25-core (pure-algo
-# publishable standalone) + nika-bm25-kernel (MemoryRecall adapter) ·
-# ADR-038 + ADR-043 binding · spec docs/crate-specs/nika-bm25.md
-layers.nika-bm25-core = "L1"
-layers.nika-bm25-kernel = "L1"
+# nika-bm25 · W3 admission target · single-crate-feature-gated per devil's
+# advocate 2026-05-12 audit (Option E supersedes 2-crate split) · ADR-038
+# binding · spec docs/crate-specs/nika-bm25.md · `kernel` feature default-on
+# Diamond-internal · external crates.io consumers `--no-default-features`
+layers.nika-bm25 = "L1"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-layer banned external deps (runtime-binding crates forbidden at layers
