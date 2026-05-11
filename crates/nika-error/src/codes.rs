@@ -213,6 +213,52 @@ pub const NIKA_600: NikaCode = NikaCode {
     slug: "memory",
 };
 
+// ─── Memory subsystem concrete codes (601-604) ──────────────────────────
+//
+// Wired Diamond W2.1 (2026-05-12) per Phase 1 entry plan §2 v1.1 amendment.
+// Sub-allocation within reserved 600-649 range:
+//   - 601..=604  active (this commit · MemoryError variant mapping)
+//   - 605..=607  reserved (tenant-quota / consolidation-budget / prune-tombstone)
+//   - 610..=619  reserved · nika-hnsw L1 satellite
+//   - 620..=629  reserved · nika-bm25 (W3 admission · ADR-038)
+//   - 630..=634  reserved · nika-rrf (W4 admission)
+//   - 635..=639  reserved · nika-fsrs
+//   - 640..=644  reserved · nika-rdfs-reasoner / graph-algos / temporal / autodesc
+//   - 645..=649  reserved · nika-memory L2 orchestrator
+// See dx/.claude/plans/active/sprint/2026-05-11-diamond-memory-phase-1-entry-plan.md §2.
+
+/// NIKA-601: Memory store unavailable (provider misconfigured · runtime down).
+pub const NIKA_601: NikaCode = NikaCode {
+    num: 601,
+    category: Category::Memory,
+    severity: Severity::Error,
+    slug: "memory-unavailable",
+};
+
+/// NIKA-602: Memory fact not found (deterministic miss · not transient).
+pub const NIKA_602: NikaCode = NikaCode {
+    num: 602,
+    category: Category::Memory,
+    severity: Severity::Error,
+    slug: "memory-not-found",
+};
+
+/// NIKA-603: Embedding provider failed (transient · retry-eligible).
+pub const NIKA_603: NikaCode = NikaCode {
+    num: 603,
+    category: Category::Memory,
+    severity: Severity::Error,
+    slug: "embedding-failed",
+};
+
+/// NIKA-604: Memory storage layer error (`Oxigraph` / `RocksDB` / IO · transient).
+pub const NIKA_604: NikaCode = NikaCode {
+    num: 604,
+    category: Category::Memory,
+    severity: Severity::Error,
+    slug: "memory-storage",
+};
+
 /// NIKA-700: WASM plugin error (range placeholder 700-749).
 pub const NIKA_700: NikaCode = NikaCode {
     num: 700,
@@ -257,7 +303,7 @@ pub const NIKA_999: NikaCode = NikaCode {
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_600, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
+    NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -297,7 +343,19 @@ pub fn code_help(code: NikaCode) -> &'static str {
         380..=429 => {
             "Provider or Shield security error. Check API credentials, trust levels, and capability grants."
         }
-        600..=649 => {
+        601 => {
+            "Memory store unavailable. Verify the configured backend (Oxigraph / RocksDB / runtime) is initialised and reachable."
+        }
+        602 => {
+            "Memory fact not found. The id does not exist in the store; verify the id is correct and not yet evicted."
+        }
+        603 => {
+            "Embedding provider failed. Transient — retry-eligible. Check provider connectivity and credentials."
+        }
+        604 => {
+            "Memory storage layer error. Transient — IO / cache / RocksDB-level failure. Retry-eligible after a brief backoff."
+        }
+        600 | 605..=649 => {
             "Memory subsystem reported an error. Check store availability, embedding provider, and tenant quotas."
         }
         700..=749 => {
