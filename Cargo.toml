@@ -96,6 +96,19 @@ print_stderr   = "warn"
 # Per-function 100-LOC soft cap (ADR-023). Function modularity discipline.
 too_many_lines = "warn"
 
+# World-class discipline (post-blueprint v1.1 audit · 2026-05-12)
+# `must_use_candidate` + `let_underscore_must_use` DEFERRED to ratchet sprint ·
+# existing codebase ships 126 candidate sites · enabling either at warn breaks
+# `-D warnings` CI gate · queue as standalone refactor with `#[expect(...)]`
+# baseline per uv pattern · v0.85 milestone target.
+
+[workspace.lints.rustdoc]
+# Compile-time doc discipline (was script-only via check-doc-private-items.sh)
+broken_intra_doc_links     = "deny"
+private_intra_doc_links    = "warn"
+invalid_codeblock_attributes = "deny"
+bare_urls                  = "warn"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared dependencies. Populated when Phase 1 extract-ready crates land.
 # Rule (RUST_ENFORCEMENT §2): pin once here, downstream = `.workspace = true`.

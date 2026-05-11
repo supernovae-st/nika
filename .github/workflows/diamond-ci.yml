@@ -136,7 +136,7 @@ jobs:
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           package: nika-error,nika-catalog,nika-kernel
-          baseline-rev: origin/nika-diamond
+          baseline-rev: origin/main
 
   typos:
     name: typos (spell check)
