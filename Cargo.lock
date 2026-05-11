@@ -1152,11 +1152,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "nika-bm25"
+name = "nika-bm25-core"
 version = "0.80.0"
 dependencies = [
  "criterion",
  "insta",
+ "proptest",
+ "rstest",
+]
+
+[[package]]
+name = "nika-bm25-kernel"
+version = "0.80.0"
+dependencies = [
+ "insta",
+ "nika-bm25-core",
  "nika-error",
  "nika-kernel",
  "nika-types",

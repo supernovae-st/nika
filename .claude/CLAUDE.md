@@ -117,8 +117,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | branch           | `main`                                      |
 | HEAD             | `6af1b7ced` (post BLUEPRINT v1.3 + W3 prep · nika-bm25 scaffold)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 9                                              |
-| crates (admitted)| 8 / 40-42                                   |
+| crates (workspace)| 10                                              |
+| crates (admitted)| 9 / 40-42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |

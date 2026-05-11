@@ -50,7 +50,7 @@ wrappers = [
   "nika-catalog-verify",   # L4 binary: async HTTP for online catalog verification
   "nika-kernel",           # L0.5 trait crate: tokio dev-dep for #[tokio::test] in async trait tests
   "nika-kernel-mock",      # L0.5 test mock: tokio channels for trait harness
-  "nika-bm25",             # L1 memory satellite: tokio::task::consume_budget() cooperative scheduling per BLUEPRINT v1.3 §4 (W3 · ADR-038)
+  "nika-bm25-kernel",      # L1 memory adapter: tokio::task::consume_budget() cooperative scheduling per BLUEPRINT v1.3 §4 (Q6 split per rust-architect 2026-05-12 · nika-bm25-core stays kernel-free + publishable standalone)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
   "tower", "tokio-util", "tokio-rustls",

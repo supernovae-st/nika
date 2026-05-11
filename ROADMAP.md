@@ -66,8 +66,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `main`                                      |
 | HEAD             | `6af1b7ced` (post W3 prep · nika-bm25 scaffold · 2026-05-12)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 9                                              |
-| crates (admitted)| 8 / 40-42                                   |
+| crates (workspace)| 10                                              |
+| crates (admitted)| 9 / 40-42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |

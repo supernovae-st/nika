@@ -1,0 +1,37 @@
+[package]
+name          = "nika-bm25-core"
+description   = "BM25 (Okapi) lexical scoring · pure-algo · zero-kernel-dep · publishable standalone Rust IR primitive (Q6 split Option D · ADR-038 + ADR-043)."
+# NOTE: W3 admission IN PROGRESS · workspace member but NOT YET admitted ·
+# Gate 12 atomic admission commit happens when Gates 2/4-11 GREEN.
+# Current state · Gate 1 SPEC ✓ · Gate 3 scaffold (BmParams only) ·
+# `docs/crate-specs/nika-bm25.md` is the binding plan.
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = true  # L1 memory satellite — publishable on crates.io per ADR-004.
+
+[dependencies]
+# Q6 SPLIT · ZERO dependencies · pure-algo · publishable standalone on crates.io
+# per ADR-004 « 9 satellites publishable standalone as Rust IR ecosystem
+# contribution » · ZERO nika-* coupling · external users get clean BM25 primitive.
+#
+# Q1 · tokenization via std::char (maison) · zero dep · UTF-8 multilingual
+# Q2 · BTreeMap from std · deterministic iteration · zero dep
+# Q3 · f64 canonical · std primitive · BM25 ecosystem standard
+
+[dev-dependencies]
+proptest    = { workspace = true }
+criterion   = { workspace = true }
+insta       = { workspace = true }
+rstest      = { workspace = true }
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-machete]
+# Pre-W3 scaffold ignores · dev-deps for Gates 2/6/7 not yet consumed.
+ignored = ["criterion", "insta", "proptest", "rstest"]
