@@ -541,5 +541,83 @@ mod tests {
             sorted.dedup();
             assert_eq!(nums.len(), sorted.len(), "duplicate nums in ALL registry");
         }
+
+        // ─── Registry uniqueness + memory cross-mapping (Diamond W2.3) ───
+
+        #[test]
+        fn all_registered_codes_have_unique_slugs() {
+            let slugs: Vec<&'static str> = super::ALL.iter().map(|c| c.slug).collect();
+            let mut sorted = slugs.clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(slugs.len(), sorted.len(), "duplicate slugs in ALL registry");
+        }
+
+        proptest! {
+            // Every registered slug MUST be lowercase kebab-case (^[a-z][a-z0-9-]*$).
+            #[test]
+            fn all_slugs_are_kebab_case(idx in 0usize..super::ALL.len()) {
+                let slug = super::ALL[idx].slug;
+                prop_assert!(!slug.is_empty(), "slug must not be empty");
+                let first = slug.chars().next().expect("non-empty checked above");
+                prop_assert!(
+                    first.is_ascii_lowercase(),
+                    "slug must start with a-z, got {first:?}"
+                );
+                for c in slug.chars() {
+                    prop_assert!(
+                        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-',
+                        "slug contains invalid char {c:?}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn code_help_some_for_every_registered_code() {
+            // Every code in ALL must return a non-empty, non-Unknown help string.
+            for code in super::ALL {
+                let help = super::code_help(*code);
+                assert!(!help.is_empty(), "empty help for {code}");
+                assert!(
+                    !help.contains("Unknown"),
+                    "registered code {code} got fallback Unknown help"
+                );
+            }
+        }
+
+        #[test]
+        fn memory_codes_601_to_604_are_memory_category() {
+            for code in [
+                super::NIKA_601,
+                super::NIKA_602,
+                super::NIKA_603,
+                super::NIKA_604,
+            ] {
+                assert_eq!(
+                    code.category,
+                    super::Category::Memory,
+                    "{code} must be Category::Memory"
+                );
+                assert!(
+                    code.num >= 601 && code.num <= 604,
+                    "{code} num must be 601..=604 sub-allocation"
+                );
+            }
+        }
+
+        #[test]
+        fn memory_codes_lookup_roundtrip() {
+            for code in [
+                super::NIKA_601,
+                super::NIKA_602,
+                super::NIKA_603,
+                super::NIKA_604,
+            ] {
+                let wire = format!("{code}");
+                let back = super::lookup(&wire);
+                assert_eq!(back, Some(code), "memory code roundtrip failed for {code}");
+            }
+        }
     }
 }
