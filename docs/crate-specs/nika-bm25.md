@@ -4,7 +4,7 @@
 |---|---|
 | Status | **Phase 1.5 W3 admission target** (first L1 memory satellite · ADR-004 1+9 architecture · ADR-038 admission prep shipped) |
 | Layer | L1 — memory satellite · pure-algo · zero I/O at trait boundary · `Send + Sync` |
-| Sub-tier | L1-deterministic — no ML deps · no async sleep · CPU-bound scoring + bounded `consume_budget()` cooperation |
+| Sub-tier | L1-deterministic — no ML deps · no async · pure-sync CPU-bound scoring (cooperation delegated to L2 `RecallPool` fan-out boundary per ADR-078 step 6) |
 | Design | **Pure BM25 (Okapi)** — Robertson 1994 canonical formula · k1 saturation · b length-norm · IDF smoothing |
 | LOC budget | ≤800 src (target ~600 · scoring kernel ~150 + index ~200 + query ~100 + impls ~150) |
 | File cap | ≤1,500 LOC each (none expected near cap) |
@@ -29,7 +29,8 @@ BM25 is the IR standard for 15+ years (Robertson 1994 · refined Sparck Jones 20
 Solr · Lucene · tantivy · Meilisearch.
 
 The crate is intentionally **pure-algo** — no embeddings · no LLM · no async I/O
-beyond cooperative `tokio::task::consume_budget()` scheduling. Anything that
+beyond what the L2 `RecallPool` fan-out arranges (cooperative yield is the
+pool's responsibility per ADR-078 step 6 · satellite stays pure-sync). Anything that
 touches embeddings lives in `nika-hnsw` · anything that fuses rankers lives in
 `nika-rrf` · anything that orchestrates lives in `nika-memory` (W10).
 
@@ -78,7 +79,7 @@ impl MemoryRecall for BmIndex {
 | `params.rs` | ~50 | `BmParams` · canonical k1=1.2 · b=0.75 |
 | `tokenize.rs` | ~80 | UTF-8 + Unicode-aware token splitting · whitespace + punctuation · lowercase |
 | `index.rs` | ~200 | `BmIndex` · postings list · doc-length statistics · IDF computation |
-| `scorer.rs` | ~150 | Score formula · `tokio::task::consume_budget()` cooperative yield every 128 iters per BLUEPRINT v1.3 §4 |
+| `scorer.rs` | ~118 (shipped) | Pure-sync `idf_robertson` + `term_score` Robertson 1994 canonical · no async · cooperation delegated to L2 pool per ADR-078 step 6 |
 | `query.rs` | ~100 | Query parsing + execution · `top_k` heap-based · cancel-cooperative |
 | `recall_impl.rs` | ~80 | `MemoryRecall` trait impl bridging `BmIndex` to `RecallQuery` |
 | **Total** | **~710** | within ≤800 budget · ~90 LOC headroom |
@@ -94,8 +95,9 @@ nika-error  = { path = "../nika-error", workspace = true }
 nika-kernel = { path = "../nika-kernel", workspace = true }
 thiserror   = { workspace = true }
 
-# Tokio for cooperative scheduling (consume_budget · per BLUEPRINT v1.3 §4)
-tokio = { workspace = true, features = ["rt"] }
+# Tokio · gated behind `kernel` feature · used only by the deferred
+# `MemoryRecall` adapter (W4-W10) · NOT by the pure-algo core.
+tokio = { workspace = true, features = ["rt"], optional = true }
 
 # Async trait variant (per ADR-006 + ADR-014 sealed traits)
 trait-variant = { workspace = true }
@@ -124,14 +126,26 @@ discipline. The lexical-only stance is the W3 invariant.
 | 6 PROPERTY | ✅ | `tests/proptest_invariants.rs` · 4 proptest (256 cases each) + 2 deterministic (monotonicity + saturation) · commit `2da7c1e24` |
 | 7 BENCHMARKS | ✅ | `benches/bm25_bench.rs` · 3 criterion benches · `manning` · `synthetic_100` · `finalize_100` · `[profile.bench]` LTO inherited |
 | 8 DOCS | ✅ | `cargo doc --no-deps` 0 warnings · 1 doctest passes · `rustdoc::broken_intra_doc_links=deny` inherited |
-| 9 CANARY | **EXEMPT** | Pure-algo · no I/O · no provider call · no MCP server · workflow harness N/A. Justified per `nika-bm25.md` §1 « pure-algo · no async I/O beyond `consume_budget()` ». |
+| 9 CANARY | **EXEMPT** | Pure-algo · no I/O · no provider call · no MCP server · workflow harness N/A. Justified per `nika-bm25.md` §1 « pure-sync · cooperation delegated to L2 RecallPool ». |
 | 10 PARITY | **EXEMPT** | CRAFT not extraction · `git show brouillon:tools/` had no BM25 impl (verified · brouillon predates Diamond memory subsystem) · greenfield crate per ADR-001. |
 | 11 REVIEW | ⏸️ pending | 3-agent swarm (`spn-nika:code-reviewer` + `spn-rust:rust-pro` + `feature-dev:code-reviewer`) · deferred to next session (session-cap 3/3 reached) |
 | 12 ATOMIC | ⏸️ blocked on 5+11 | Single commit adds to `[workspace.members]` + admission body per `commit-granularity.md` |
 
 ---
 
-## 6. Forward-compat (FCI · per ADR-007)
+## 6. Performance roadmap (post rust-pro SOTA audit 2026-05-12)
+
+W3 admission ships **correct + clean + lint-pure** · NOT yet optimal-throughput. 3 named perf trade-offs · all spec'd here to prevent W4-W10 cascade.
+
+- **P-1 · `Vec<String>` tokenize allocation** (`tokenize.rs:14`) · per-call heap alloc per token. Acceptable for W3 admission (small corpora). Migrate to iterator API (`fn tokens(&str) -> impl Iterator<Item = &str>` lifetime-tied · zero-alloc) at W4 if `synthetic_100_top_k_10` criterion bench > 1ms. Cross-link · BLUEPRINT v1.5 Gallant ripgrep 0-alloc CLI craft ratchet · tantivy `TextAnalyzer::token_stream` precedent.
+- **P-2 · `BTreeMap<String, u32>` tf-table** (`index.rs:24`) · O(log n) lookup · poor cache locality. Acceptable for W3 (deterministic iteration · zero unsafe · zero new dep). Migrate to `rustc_hash::FxHashMap` (used by rust-analyzer + cargo + tantivy stacker) at W4 if hot-path benchmark > 1ms. Pre-empt 8-sister cascade by documenting the trade-off now.
+- **P-3 · `BmIndex` type-state (Building → Finalized)** (`index.rs:36`) · today runtime `finalized: bool` flag · score-before-finalize is silent stale-IDF math. Migrate to `BmIndex<Building>` / `BmIndex<Finalized>` typestate (ADR-079 family · `PhantomData<S>` zero-cost) at W4 once sealed-pattern stabilizes across 9 satellites. Compile-time enforcement of state machine.
+
+P-1/P-2/P-3 are tracked as **ADR-082 candidates** (post-W3 perf hardening cluster). NOT Gate 12 blockers · gate via Gate 7 criterion bench numbers (target `synthetic_100_top_k_10` < 1ms · `finalize_100` < 5ms per spec §5).
+
+---
+
+## 7. Forward-compat (FCI · per ADR-007)
 
 - **FCI-003** · on-disk format · `BmIndex` postings serialization · DEFERRED to W3 GREEN phase · candidate format = bincode-compressed postings OR `xsd:base64Binary` literals in Oxigraph (per ADR-029 reservation · placeholder ADR-043) · NOT locked at admission · re-evaluate when `nika-memory` orchestrator (W10) needs persistence
 - **FCI-006** · `MemoryRecall` sealed trait per ADR-014 · `BmIndex: MemoryRecall` impl crosses sealed boundary via `nika-kernel` workspace dep (not external impl)
@@ -139,7 +153,7 @@ discipline. The lexical-only stance is the W3 invariant.
 
 ---
 
-## 7. References
+## 8. References
 
 - Robertson, S. E., & Walker, S. (1994). « Some simple effective approximations to the 2-Poisson model for probabilistic weighted retrieval. »
 - Manning, C. D., Raghavan, P., & Schütze, H. (2008). *Introduction to Information Retrieval* · ch. 11 « Probabilistic information retrieval ».

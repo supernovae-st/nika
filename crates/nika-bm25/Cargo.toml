@@ -20,18 +20,22 @@ publish                = true  # L1 memory satellite — publishable on crates.i
 # (`bm25 = ["dep:nika-bm25"]` singular).
 
 [features]
-default = ["_gate-3-green-phase"]
-# Gate 3 GREEN active 2026-05-12 · BmIndex API shipped (tokenize + index +
-# scorer + query modules) · 5 RED tests in tests/red_phase.rs::gate_3_green
-# now pass. `kernel` feature still deferred to W4-W10 (MemoryRecall trait
-# adapter needs metadata-layer integration).
-_gate-3-green-phase = []
+# Default · pure-algo · zero kernel dep · crates.io-friendly (Option E per
+# Q6 devil's advocate audit · NUKE-LEGACY clean post Gate 3 GREEN ship).
+default = []
 
-# kernel · MemoryRecall trait adapter · DEFERRED to W4-W10 per ADR-078
-# step 5+6 · MemoryHit shape requires metadata BM25 alone can't populate.
-# External crates.io consumers · `cargo add nika-bm25 --no-default-features`
-# = pure-algo zero-kernel-dep · matches Q6 split intent without 2-crate tax.
-kernel = []
+# kernel · activates the `MemoryRecall` trait adapter (deferred wire-up
+# in `recall.rs` lands W4-W10 per ADR-078 step 5+6 · MemoryHit metadata
+# integration with L2 `RecallPool`). Feature reserves the dep-set + cfg
+# namespace today so the future W4 adapter ships additive (FCI-002).
+kernel = ["dep:nika-kernel", "dep:nika-types", "dep:nika-error",
+          "dep:thiserror", "dep:tokio", "dep:trait-variant"]
+
+# Activates Gate 3 GREEN tests in tests/red_phase.rs::gate_3_green
+# (BmIndex API contract assertions). Always-on in workspace dev profile ·
+# kept as a feature for crates.io consumers who want to skip the kernel
+# dep walk during their own test runs.
+_gate-3-green-phase = []
 
 [dependencies]
 # Pure-algo core uses ZERO nika-* deps · maison tokenizer (std::char) · BTreeMap (std) · f64 (std)

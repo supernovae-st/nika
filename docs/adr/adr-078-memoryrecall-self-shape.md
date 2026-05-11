@@ -46,21 +46,31 @@ Anchor: BLUEPRINT_2036.md v1.5 §ADR-078 entry (locked 2026-05-12).
 
 ### L0.5 kernel contract (UNCHANGED)
 
-The kernel trait keeps `&self + Send + Sync`. Ships sealed (ADR-014) in the same commit:
+The kernel trait keeps `&self + Send + Sync`. Reuses the **soft seal** pattern
+already canonical at `nika-kernel/src/sealed.rs:42-50` (per ADR-014 + 6 sister
+seals: `Provider` · `EventSink` · `BillingSink` · `AuditSink` · `SecretResolver`).
+External crates opt-in explicitly via `impl crate::sealed::Sealed for MySatellite {}`
+— accidental impl prevention via discoverability, NOT hard barrier (per
+ADR-014 v0.81 doctrine · hard-seal tracked for v0.85+ follow-up).
 
 ```rust
-mod private { pub trait Sealed {} }
+// Existing canon at nika-kernel/src/sealed.rs:50 ·
+//   pub trait Sealed {}
+// Re-exported · external impls require explicit opt-in (no blanket impl).
 
 #[trait_variant::make(MemoryRecallDyn: Send)]
-pub trait MemoryRecall: private::Sealed + Send + Sync {
+pub trait MemoryRecall: Send + Sync + crate::sealed::Sealed {
     /// CANCEL SAFETY: cancel-safe (read-only similarity search).
     /// SYNC BOUND: explicit per ADR-078. Satellites SHOULD use parking_lot::Mutex,
-    /// DashMap, or AtomicU64 for stats/cache state. Hot-path contention is bounded
-    /// by per-satellite sharding at the L2 RecallPool boundary.
+    /// DashMap, or AtomicU64 for stats/cache state WHEN interior mutability is
+    /// needed. Pure-algo + finalize-then-freeze pattern (e.g. `nika-bm25`
+    /// post-`finalize()`) is preferred — no Mutex needed. Hot-path contention
+    /// is bounded by per-satellite sharding at the L2 `RecallPool` boundary.
     async fn recall(&self, query: RecallQuery) -> Result<Vec<MemoryHit>, MemoryError>;
 }
 
-impl<T: MemoryRecall + ?Sized> private::Sealed for T {}
+// L1 satellite opt-in (1 line per crate) ·
+//   impl nika_kernel::sealed::Sealed for MyBmIndex {}
 ```
 
 Sister traits `MemoryRemember::remember(&self, frame)` (line 240) and `MemoryForget::forget(&self, id)` (line 259) keep symmetric `&self + Send + Sync` shape — same rationale, ISP discipline preserved (ADR-006).

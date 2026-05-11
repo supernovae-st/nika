@@ -68,11 +68,11 @@ impl BmIndex {
             })
             .collect();
         // Sort descending by score · stable tiebreak by doc_id ascending.
-        scored.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.0.cmp(&b.0))
-        });
+        // Per rust-pro 2026 SOTA audit · `f64::total_cmp` (stable 1.62+) is the
+        // canonical form for finite-by-construction scores · NaN would sort to
+        // a definite position (closing the silent-coalesce gap that
+        // `partial_cmp().unwrap_or(Equal)` had · Gate 5 mutation hardening).
+        scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
         scored.truncate(k);
         scored
     }
