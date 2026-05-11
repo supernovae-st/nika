@@ -20,16 +20,18 @@ publish                = true  # L1 memory satellite — publishable on crates.i
 # (`bm25 = ["dep:nika-bm25"]` singular).
 
 [features]
-default = ["kernel"]
-# Gate 2 RED phase placeholder · activates Gate 3 GREEN tests
-# (tests/red_phase.rs::gate_3_green module · BmIndex API contract assertions).
-# Today · gated OFF · pre-Gate-3-IMPL · prevents unexpected_cfgs warning.
+default = ["_gate-3-green-phase"]
+# Gate 3 GREEN active 2026-05-12 · BmIndex API shipped (tokenize + index +
+# scorer + query modules) · 5 RED tests in tests/red_phase.rs::gate_3_green
+# now pass. `kernel` feature still deferred to W4-W10 (MemoryRecall trait
+# adapter needs metadata-layer integration).
 _gate-3-green-phase = []
 
-# kernel · ships the MemoryRecall trait adapter (Diamond-internal default)
+# kernel · MemoryRecall trait adapter · DEFERRED to W4-W10 per ADR-078
+# step 5+6 · MemoryHit shape requires metadata BM25 alone can't populate.
 # External crates.io consumers · `cargo add nika-bm25 --no-default-features`
-# = pure-algo zero-kernel-dep · matches Q6 split intent without the 2-crate tax
-kernel = ["dep:nika-kernel", "dep:nika-types", "dep:nika-error", "dep:thiserror", "dep:tokio", "dep:trait-variant"]
+# = pure-algo zero-kernel-dep · matches Q6 split intent without 2-crate tax.
+kernel = []
 
 [dependencies]
 # Pure-algo core uses ZERO nika-* deps · maison tokenizer (std::char) · BTreeMap (std) · f64 (std)
