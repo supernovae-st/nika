@@ -55,6 +55,21 @@ pub use tokenize::tokenize as tokenize_text;
 ///
 /// - `k1` controls term-frequency saturation. Typical: 1.2.
 /// - `b` controls length-normalization (`0..=1`). Typical: 0.75.
+/// - `delta` reserved for BM25+ lower-bound smoothing (Lv & Zhai 2011 ·
+///   adds `δ` constant fixing « long doc with one rare-term hit »
+///   under-scoring). `None` = canonical Okapi (current default).
+///   `Some(0.5..=1.0)` activates BM25+ when shipped W4+ (consumer-signal
+///   gated per LOCK-031 · per rust-ml audit 2026-05-12 Q1).
+///
+/// # Score normalization
+///
+/// Scores returned by [`BmIndex::score`] / [`BmIndex::top_k`] are
+/// **raw f64** in approximately `[0, |Q| · (k1+1)]`. Per 2026 SOTA hybrid
+/// retrieval consensus (Cormack 2009 RRF · Mem0 weighted-RRF · Microsoft
+/// Azure AI Search · `ParadeDB`) · **do NOT normalize · fuse RANKS not
+/// SCORES**. The L2 `nika-memory::RecallPool` (W10) consumes the
+/// sorted output and derives ranks for `nika-rrf` fusion · raw score is
+/// preserved for tiebreaking + logging.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct BmParams {
@@ -62,13 +77,32 @@ pub struct BmParams {
     pub k1: f64,
     /// Length-normalization tunable in `0..=1` (canonical 0.75).
     pub b: f64,
+    /// BM25+ lower-bound smoothing constant (Lv & Zhai 2011) · reserved
+    /// for W4+ activation · `None` = pure Okapi (current canonical).
+    pub delta: Option<f64>,
 }
 
 impl BmParams {
-    /// Create new params. Caller responsible for sanity (`k1 > 0` · `b ∈ 0..=1`).
+    /// Create new params (Okapi canonical · no BM25+ smoothing).
+    ///
+    /// Caller responsible for sanity (`k1 > 0` · `b ∈ 0..=1`).
     #[must_use]
     pub const fn new(k1: f64, b: f64) -> Self {
-        Self { k1, b }
+        Self { k1, b, delta: None }
+    }
+
+    /// Create new BM25+ params with lower-bound smoothing constant.
+    ///
+    /// `delta` typical range `0.5..=1.0` per Lv & Zhai 2011. RESERVED
+    /// for W4+ activation · current `BmIndex` ignores this field
+    /// (Okapi formula only · BM25+ wire-up gated on consumer signal).
+    #[must_use]
+    pub const fn with_delta(k1: f64, b: f64, delta: f64) -> Self {
+        Self {
+            k1,
+            b,
+            delta: Some(delta),
+        }
     }
 }
 

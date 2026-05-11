@@ -108,6 +108,132 @@ Rejected per forever-v0.x · breaking changes ship on MINOR but pure-additive is
 Rejected · adds tower dep · L2 orchestrator doesn't need middleware stack today ·
 revisit if cross-cutting concerns (rate-limit · circuit-breaker) emerge.
 
+## SOTA locks 2026-05-12 (post rust-async-expert + rust-ml + web-researcher audit)
+
+Per parallel 3-agent dispatch 2026-05-12 PM · convergent SOTA Rust 2026 locks ·
+
+### L-1 · Stream type · `Pin<Box<dyn Stream + Send + '_>>` canonical
+
+LOCK · per rust-async-expert §3 · the canonical 2026 trait surface for
+streaming recall is ·
+
+```rust
+fn recall_stream<'a>(
+    &'a self,
+    query: &'a RecallQuery,
+) -> Pin<Box<dyn Stream<Item = Result<MemoryHit, MemoryError>> + Send + 'a>>;
+```
+
+**NOT** RPIT `impl Stream` (not yet dyn-safe at trait surface · kills `Arc<dyn>`).
+**NOT** `async fn -> impl Stream` (forces 2 await points · breaks cancel-on-first-await).
+
+### L-2 · Stream impl · `async_stream::stream!` macro
+
+LOCK · canonical 2026 form for yielding from algorithm loops ·
+
+```rust
+fn recall_stream(&self, q: &RecallQuery) -> Pin<Box<dyn Stream<...> + Send + '_>> {
+    let qtokens = tokenize(&q.text);
+    Box::pin(async_stream::stream! {
+        for (id, tf, doc_len) in self.docs_iter() {
+            let score = compute(qtokens, tf, doc_len, ...);
+            yield Ok(self.to_hit(id, score));
+            if id.is_multiple_of(64) {
+                tokio::task::yield_now().await; // §L-5 cooperation
+            }
+        }
+    })
+}
+```
+
+ROI · `async-stream 0.3` macro_rules! dep (zero runtime cost · Tower/hyper ecosystem standard 2026).
+
+### L-3 · `MemoryRecallStream` separate trait (Pattern A)
+
+LOCK · per rust-async-expert §9 Q-B · ship `MemoryRecallStream` as a
+**separate sealed trait** rather than overloading `MemoryRecall` with a
+default-impl on top of `recall`. Rationale · matches publishable-standalone
+story (simple satellite ships `MemoryRecall` only without `async-stream` dep ·
+streaming satellite opts in to `MemoryRecallStream`). ISP discipline preserved.
+
+```rust
+#[trait_variant::make(MemoryRecallStreamDyn: Send)]
+pub trait MemoryRecallStream: Send + Sync + crate::sealed::Sealed {
+    /// CANCEL SAFETY · cancel-safe · drop-cancel propagates.
+    fn recall_stream<'a>(
+        &'a self,
+        query: &'a RecallQuery,
+    ) -> Pin<Box<dyn Stream<Item = Result<MemoryHit, MemoryError>> + Send + 'a>>;
+}
+```
+
+### L-4 · `JoinSet` (NOT FuturesUnordered, NOT try_join_all) for 9-way fan-out
+
+LOCK · per rust-async-expert §4 · `RecallPool` (W10) uses `tokio::task::JoinSet`
+for parallel satellite fan-out. Rationale ·
+- True multi-core parallelism (BM25 CPU-bound · HNSW SIMD · must spread across cores)
+- `JoinSet::Drop → abort_all()` cascades cancellation cleanly · zero explicit plumbing
+- Early-terminate at k results · drop loop · drop JoinSet · stragglers aborted
+
+### L-5 · `tokio::task::yield_now()` for cooperation (NOT `consume_budget`)
+
+LOCK · per rust-async-expert §6 · use stable `tokio::task::yield_now()` ·
+DO NOT use `tokio::task::consume_budget()` (still unstable · semantics change
+1.40→1.42). Yield at the STREAM BOUNDARY (per-yielded-item via `Stream::poll_next`
+return Pending IS the cooperation point) PLUS explicit `yield_now()` every
+N=64 scored items on tight CPU-bound loops.
+
+### L-6 · CancelCtx layering · L0 NO `&CancelCtx` · L2 TAKES `&CancelCtx`
+
+LOCK · per rust-async-expert §7 · `MemoryRecall` / `MemoryRecallStream` traits
+at L0.5 **stay free of `CancelCtx`** (cancellation is implicit via drop-cancel ·
+adding CancelCtx couples L0.5 to ADR-016 runtime concern · breaks layering).
+The L2 `RecallPool` **DOES take `&CancelCtx`** · uses `ctx.child("sat:bm25")`
+per ADR-070 child-token tree.
+
+### L-7 · `tokio_util::task::TaskTracker` for L2 pool graceful drain
+
+LOCK · per rust-async-expert §7 · `RecallPool` uses `TaskTracker` for graceful
+drain on shutdown · 2 cancel layers ·
+- `req_cancel.child()` per-recall-call (request-scoped)
+- `sat_cancel = pool.cancel.child_token()` per-satellite (pool-scoped shutdown)
+
+### L-8 · v-table dispatch cost is acceptable · DROP ADR-078 risk #2
+
+LOCK · per rust-async-expert §5 · `Arc<dyn MemoryRecallStreamDyn>` v-table
+dispatch is ~2-4ns/call · negligible vs 100-500ms BGE-M3 embed call. Stay
+with `Arc<dyn>` · keeps publishable-standalone story intact + cargo-public-api
++ cargo-semver-checks happy with opaque trait objects. The ADR-078 risk #2
+(typed enum escape hatch) stays as deferred escape if Gate 7 benches at W7
+show >5% regression vs enum baseline · but DO NOT pre-optimize.
+
+### L-9 · RRF k=60 industry standard 2026 confirmed
+
+LOCK · per rust-ml §4 + web-researcher §2 · Cormack 2009 `k=60` smoothing
+constant remains 2026 industry standard (Microsoft Azure AI Search · MongoDB ·
+ParadeDB · Lucene 10 all converge on k=60 default). `RrfParams::default()` at
+W4 admission MUST ship `k: 60` per Cormack 2009 anchor.
+
+`nika-rrf::RrfParams` canonical shape ·
+```rust
+pub struct RrfParams {
+    /// Smoothing constant · canonical 60 (Cormack 2009).
+    pub k: u32,
+    /// Optional per-retriever weights · None = unweighted (Cormack pure) ·
+    /// Some(_) = Mem0-style weighted RRF (forward-compat reserved).
+    pub weights: Option<Vec<f64>>,
+}
+```
+
+### L-10 · Score normalization · « don't normalize · fuse RANKS »
+
+LOCK · per rust-ml §3 + web-researcher §1 · the 2026 SOTA consensus is
+**rank-fusion via RRF beats score-normalization**. Raw `f64` scores from
+`top_k` are correct · L2 `RecallPool` derives ranks from sorted output ·
+`nika-rrf` consumes ranks. NO normalization at satellite layer.
+
+Documented inline in `nika-bm25::BmParams` rustdoc 2026-05-12.
+
 ## Related
 - ADR-006 — ISP atomic traits
 - ADR-014 — sealed kernel traits
