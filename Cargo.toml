@@ -146,3 +146,27 @@ proptest    = "1.6"
 insta       = { version = "1.42", features = ["yaml"] }
 rstest      = "0.22"
 expect-test = "1.5"  # inline snapshots, see ADR-015
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Release profile (post rust-perf audit 2026-05-12 · BLUEPRINT v1.2 §4 ship-now)
+# ─────────────────────────────────────────────────────────────────────────────
+# LTO=fat + codegen-units=1 unlock ~5-10% on hot loops (BGE-M3 cosine, BM25
+# scoring, RRF fusion) per cargo-pgo + rust-compiler-team Kobzol research.
+# Cost · 2× build time at release · `cargo build --release` only · dev builds
+# unaffected. strip=symbols matches ADR-061 SLSA L3 byte-determinism target.
+# panic=unwind KEPT · panic=abort breaks `cargo test` panic-catching + violates
+# security.md §Propagate errors discipline (forbidden at dx/ level · ambiguous
+# at engine/ · default unwind is the conservative choice). debug=line-tables-only
+# preserves enough symbols for `cargo flamegraph` without bloating release binary.
+
+[profile.release]
+lto             = "fat"
+codegen-units   = 1
+strip           = "symbols"
+panic           = "unwind"
+debug           = "line-tables-only"
+incremental     = false
+
+[profile.bench]
+inherits        = "release"
+debug           = true

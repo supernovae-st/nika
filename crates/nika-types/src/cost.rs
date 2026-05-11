@@ -38,13 +38,13 @@ pub struct Cost {
 impl Cost {
     /// Create a cost from nano-USD.
     #[must_use]
-    pub fn new(nano_usd: i128) -> Self {
+    pub const fn new(nano_usd: i128) -> Self {
         Self { nano_usd }
     }
 
     /// Zero cost.
     #[must_use]
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self { nano_usd: 0 }
     }
 
@@ -66,7 +66,7 @@ impl Cost {
 
     /// Whether this cost is zero.
     #[must_use]
-    pub fn is_zero(&self) -> bool {
+    pub const fn is_zero(&self) -> bool {
         self.nano_usd == 0
     }
 

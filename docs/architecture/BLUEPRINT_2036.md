@@ -254,6 +254,48 @@ Default `std::alloc` for v0.x. `mimalloc` global allocator opt-in via feature fl
 ### Backpressure
 `tokio::sync::mpsc` bounded channels for L2 RRF fusion · bound = top-K × N-rankers · prevents satellite-flood. Specific to ADR-039 streaming MemoryRecall consumer at W4.
 
+**RRF fairness amendment** (per rust-async-expert audit 2026-05-12) · `tokio::select!`
+**non-biased default** is correct for RRF top-K · biased order skews fusion toward
+first-listed satellite contradicting RRF's rank-fusion invariant. `biased;` keyword
+ONLY on top-K cutoff guard (fast-path drain) NOT on N-ranker exhaustion polling. Note
+· `select_biased!` is `futures::select_biased!` NOT Tokio · Tokio uses `select! { biased; ... }`.
+
+**Loom scope amendment** · per ADR-013 « Loom mandatory crate-by-crate » · full
+9-satellite DAG (~10⁶ interleavings × 3-thread) exceeds Loom's reach. **Minimal model
+at W3-W9 admission** · 2-thread × 2-recall-fanout + 1 cancel signal captures
+cancel-during-fanout + partial-completion merge race. For full-DAG verification at
+v0.95 emergence · **Shuttle PCT** (Probabilistic Concurrency Testing) per ADR-013
+follow-up · not Loom.
+
+**Cooperative scheduling** (per Tokio 1.40+ stable `consume_budget`) · pure-CPU
+satellites (`nika-bm25` scoring · `nika-hnsw` k-NN walk · 100k+ docs) MUST call
+`tokio::task::consume_budget().await` every N iterations (N ~ 64-256 · bench-driven
+at W3+ admission). Trust-the-runtime fails on tight CPU loops with no `.await`.
+
+### Release profile · LTO + codegen-units=1 (SHIPPED 2026-05-12)
+
+Per rust-perf audit · `Cargo.toml [profile.release]` now ships ·
+
+```toml
+lto             = "fat"              # whole-program LTO · ~5-10% on hot loops
+codegen-units   = 1                  # required for LTO=fat to fuse
+strip           = "symbols"          # ADR-061 byte-determinism target
+panic           = "unwind"           # cargo test panic-catch · security.md compat
+debug           = "line-tables-only" # cargo flamegraph without bloat
+incremental     = false              # release builds never benefit
+```
+
+Cost · 2× build time at release · dev builds unaffected. Matches ADR-061 SLSA L3
+prep · 5-10% perf delta on BGE-M3 cosine + BM25 + RRF hot paths.
+
+### `const fn` exhaustion · partial shipment (2026-05-12)
+
+Per Rust 1.91 stable `const fn` expansion · 4 safe promotions shipped to
+`nika-types::Cost` + `nika-types::Trust` (`new` · `zero` · `is_zero` · `is_at_least`).
+`From` trait + `Option::map` blocked (not const-stable yet · 2027+ horizon) · those
+constructors stay `pub fn`. Forward-compat per ADR-007 · `pub fn → pub const fn`
+is non-breaking · ratchet as const-traits stabilize.
+
 ### Cryptographic provenance
 Ed25519 signing of memory frames (Phase 2+ multi-device sync) · RDF-star reification carries signature triples · `ed25519-dalek` 2.x via `signature` trait abstraction. PQ migration (Dilithium · SPHINCS+) deferred to 2032+ when NIST PQC standardizes Rust ecosystem.
 
@@ -313,7 +355,14 @@ prose-only · save ~5 empty ADR shells.
 - **ADR-060 · Kani-verified kernel** · which verifier + which boundary · ADR-grade decision
 - **ADR-062 · PGO + BOLT release pipeline** · profile corpus + build infra decision · ADR-grade
 - **ADR-064 · AOT-compiled `pck`** · `wasmtime::Module::serialize` · post-ADR-050 dependency · ADR-grade · DEFER until ADR-050 ships
-- **ADR-066 · OTLP-neutral `ObservabilitySink`** · L0.5 trait surface decision · absorbs ADR-061 SLSA L3 + cargo-vet + sigstore + cargo-auditable as §release-pipeline subsection · ADR-grade
+- **ADR-066 · OTLP-neutral `ObservabilitySink`** · L0.5 trait surface decision · absorbs ADR-061 SLSA L3 + cargo-vet + sigstore + cargo-auditable as §release-pipeline subsection · ADR-grade · MUST encode `#[tracing::instrument(skip(self, query), level = "debug")]` discipline (orchestrator-level signal · NOT inner hot loops · cost ~100-500ns/span creation untenable on 1M+/sec BGE-M3 cosine calls)
+- **ADR-070 · `nika-memory` orchestrator fan-out contract** (NEW · per rust-async audit) · `tokio_util::task::TaskTracker::spawn(token.child_token().run_until_cancelled(fut))` pattern · child-token tree gives per-satellite cancellation without killing siblings · kernel `MemoryRecall::recall` signature stays `(query)` only (NO cancel param · ADR-016 Alt-A explicit) · cooperative `CancelCtx::is_cancelled()` poll happens INSIDE satellites between hot-loop iterations · L2 only · zero kernel pollution
+
+### ADR-041 type-state amendment (queued · per rust-async audit)
+
+`NikaStore::with_recall` · `with_lifecycle` · `build` MUST carry `#[track_caller]`
+(Rust 1.46+ stable) · zero runtime cost · panic site shows USER's `.build()` call
+location not `nika-memory` internals · canonical 2026 builder idiom.
 
 Net · 9 amplifier candidates → 3 real + 1 deferred (4 ADRs to author) instead of 9 · 55% reduction · « rien de nouveau · améliore et stabilise ».
 

@@ -45,13 +45,13 @@ impl TrustLevel {
 
     /// Create a custom trust level.
     #[must_use]
-    pub fn new(level: u8) -> Self {
+    pub const fn new(level: u8) -> Self {
         Self { level }
     }
 
     /// Whether this trust level is at least the given minimum.
     #[must_use]
-    pub fn is_at_least(&self, min: Self) -> bool {
+    pub const fn is_at_least(&self, min: Self) -> bool {
         self.level >= min.level
     }
 
