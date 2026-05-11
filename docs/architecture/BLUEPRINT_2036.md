@@ -358,6 +358,15 @@ prose-only · save ~5 empty ADR shells.
 - **ADR-066 · OTLP-neutral `ObservabilitySink`** · L0.5 trait surface decision · absorbs ADR-061 SLSA L3 + cargo-vet + sigstore + cargo-auditable as §release-pipeline subsection · ADR-grade · MUST encode `#[tracing::instrument(skip(self, query), level = "debug")]` discipline (orchestrator-level signal · NOT inner hot loops · cost ~100-500ns/span creation untenable on 1M+/sec BGE-M3 cosine calls)
 - **ADR-070 · `nika-memory` orchestrator fan-out contract** (NEW · per rust-async audit) · `tokio_util::task::TaskTracker::spawn(token.child_token().run_until_cancelled(fut))` pattern · child-token tree gives per-satellite cancellation without killing siblings · kernel `MemoryRecall::recall` signature stays `(query)` only (NO cancel param · ADR-016 Alt-A explicit) · cooperative `CancelCtx::is_cancelled()` poll happens INSIDE satellites between hot-loop iterations · L2 only · zero kernel pollution
 
+### Security-lens additions (per rust-security audit 2026-05-12)
+
+- **ADR-071 (queued)** · plugin capability + cancel-token interaction · gates ADR-050 WASM Component admission · prevents malicious `pck` cancel-cascade bypass of capability checks
+- **ADR-072 (queued · M6)** · ML model weights provenance · `audits.toml` scaffolded BEFORE W3 admission · 4 critical deps vetted (oxigraph 0.5.6 · fastembed-rs 5.x · hnsw_rs 0.3.x · ONNX-runtime) · **BGE-M3 weights SHA-pinned with checksum verification in `nika-memory` build.rs** · binary blob distinct from crate vetting · we'd be early in Rust ecosystem
+- **ADR-073 (queued · M7 · CRITICAL)** · `MemoryRemember` injection scan · NIKA-390 new code · ML scanner + canary-on-ingest · symmetric to `MemoryRecall` trust gate (ADR-030) · **structurally fills the highest-stakes « aucun détail » gap surfaced by 2026-05-12 security audit**
+- **`nika-hnsw` unsafe carve-out (pre-W7 lock)** · `#![cfg_attr(..., allow(unsafe_code))]` AT CRATE BOUNDARY documented as Gate 12 encapsulation invariant · workspace stays `unsafe_code = "forbid"` (`Cargo.toml:68`)
+- **`MemoryFrameRef.signature: Option<SignatureRef>`** reservation per ADR-030 amendment · forward-compat Phase 2+ provenance signing via `signature::Signer<T>` trait (PQ migration 2032+)
+- **`NikaStore<Ready>` Drop-order invariant** (per ADR-041) · backend connection MUST outlive satellites via field declaration order (Rust drop-order guarantee) · documented at L2 orchestrator admission W10
+
 ### ADR-041 type-state amendment (queued · per rust-async audit)
 
 `NikaStore::with_recall` · `with_lifecycle` · `build` MUST carry `#[track_caller]`

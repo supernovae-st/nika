@@ -58,6 +58,7 @@ enforcement) ·
 | `NIKA-387`  | Workflow cycle                 | cycle-detection block                        |
 | `NIKA-388`  | Canary-in-thinking             | extended-thinking trace leak detection       |
 | `NIKA-389`  | Vision sanitization            | untrusted images from untrusted sources      |
+| `NIKA-390`  | Memory-write injection (queued · ADR-073) | `MemoryRemember` payload scan at ingest · prevents stored prompt-injection from triggering via later `MemoryRecall` semantic match (symmetric to recall-time gate ADR-030) |
 
 ## Structural Hardening (architectural)
 

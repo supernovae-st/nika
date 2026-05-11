@@ -103,6 +103,14 @@ Admitted crates:
 
 WIP: **`nika-schema`** — workflow AST + parser (Phase D, scaffolded).
 
+### 10-year horizon
+
+For the canonical **10-year architectural horizon (2026 → 2036)** with
+42-crate target · 5-verb stress test · per-crate detail · best-enemies
+SOTA differentiation · 11/10 amplifiers · anti-Palantir guardian framing ·
+see [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
+(v1.3 · proposal-grade · annual decennial review 2027-04+).
+
 ## Architecture
 
 ```

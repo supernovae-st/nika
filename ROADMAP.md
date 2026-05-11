@@ -822,6 +822,19 @@ Per ADR-037 the cadence is **admission-driven**, not calendar-driven.
   take what they take. Quality > speed.
 - **Tag `v0.8X.Y`** — per crate admission within the active phase. Incremental,
   landed the same day as the admission commit.
+
+## See also
+
+- [`README.md`](README.md) — landing page · current state · quick-start
+- [`DIAMOND.md`](DIAMOND.md) — strategy overview · 7 shadow zones
+- [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
+  — **10-year horizon canon (v1.3) · LAYER 1 DECENNIAL anchor** ·
+  42-crate target · 5-verb 2036 stress-test · 11/10 amplifiers ·
+  ADR queue 050-056 + 060/062/064/066/070/071/072/073
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — 12-gate admission · contributor process
+- [`SECURITY.md`](SECURITY.md) — vulnerability disclosure · 11-row defense layers + NIKA-390 queued
+- [`CHANGELOG.md`](CHANGELOG.md) — release log · per-crate semver entries
+- [`docs/adr/`](docs/adr/) — 38+ ADRs · architectural decisions canonical
 - **No pre-release labels** (no `-alpha.N`, no `-rc.N`). Every tag is diamond.
   If it isn't diamond, it doesn't get tagged.
 
