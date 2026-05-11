@@ -1,11 +1,13 @@
 ---
 title: "Nika Diamond · Blueprint 2036 · architecture final v0.x"
 status: proposal
-version: 1.0
+version: 1.2
 date: 2026-05-12
 horizon: "10-year build · 2026 → 2036"
 deciders: ["@ThibautMelen"]
-adr_queue: ["ADR-050", "ADR-051", "ADR-052", "ADR-053", "ADR-054", "ADR-055", "ADR-056"]
+adr_queue_v1_1: ["ADR-050", "ADR-051", "ADR-052", "ADR-053", "ADR-054", "ADR-055", "ADR-056"]
+adr_queue_v1_2: ["ADR-060", "ADR-062", "ADR-064", "ADR-066"]
+adr_prose_folded: ["ADR-061-into-066", "ADR-063-mimalloc", "ADR-065-signer", "ADR-067-zerocopy", "ADR-068-hakari"]
 companion_adrs: ["ADR-001", "ADR-002", "ADR-004", "ADR-006", "ADR-014", "ADR-038", "ADR-039", "ADR-040", "ADR-041", "ADR-042"]
 sources:
   - "context7 /bytecodealliance/wasmtime v38.0.4 (validated 2026-05-12)"
@@ -291,13 +293,29 @@ roadmap 2026-2027). Combined with A1 Kani-verified kernel boundary = **provably-
 safe sandboxed-extension architecture** none of Restate/LangGraph/Temporal/Mem0
 ships.
 
-### Additional INLINE practices (ADR-063 · 065-068)
-- **mimalloc-rust** opt-in via `--features mimalloc-global` on `nika` binary · `microsoft/mimalloc` 2.5× jemalloc on multi-thread (`/microsoft/mimalloc` 75 score · 837 snippets) · trigger W3+ bench
-- **`signature::Signer<T>` trait abstraction** for Ed25519 provenance · maps to PQ migration (ML-DSA/Dilithium · SLH-DSA/SPHINCS+) at 2032+
-- **OTLP-neutral `ObservabilitySink` trait** in `nika-kernel` (L0.5 zero-dep) · `nika-otel` L1 adapter feature-gated · users opt-in any backend
-- **zerocopy 0.8 for binary hot paths** · `nika-hnsw` vector serialization + `nika-event-types` framing + Oxigraph embedding literals · NOT for YAML
-- **MIRI expansion** to `nika-kernel` + `nika-types` at W3 (currently nika-error + nika-catalog continue-on-error)
-- **cargo-hakari workspace-hack** evaluation at 20-crate milestone (~v0.85) · uv 50+ crates precedent
+### Prose-folded items (NOT separate ADRs · per take-a-step-back audit 2026-05-12)
+
+Per rust-architect coherence audit 2026-05-12 + `socratic-research-discipline.md`
+Step 5 Option D · the following are TRIGGER-GATED practices · NOT decision-bearing
+ADRs · they live in BLUEPRINT prose only · zero separate ADR file ·
+
+- **mimalloc-rust opt-in** · `--features mimalloc-global` on `nika` binary · `microsoft/mimalloc` 2.5× jemalloc multi-thread per `/microsoft/mimalloc` context7 75 score · trigger · bench at W3+ post-bm25 admission · config-knob not architecture
+- **`signature::Signer<T>` abstraction** for Ed25519 provenance · `ed25519-dalek 2.x` per `signature` trait · PQ migration (ML-DSA/Dilithium · SLH-DSA/SPHINCS+) DEFER 2032+ · library-choice not architecture
+- **zerocopy 0.8 for binary hot paths** · `nika-hnsw` vector ser + `nika-event-types` framing + Oxigraph embedding literals · per-crate impl choice · NOT YAML
+- **cargo-hakari workspace-hack** · evaluate at 20-crate milestone (~v0.85) · uv 50+ crates precedent · trigger-gated · zero decision today
+- **MIRI expansion** (post-W3 quality ratchet) · extend to `nika-kernel` + `nika-types` once W3 stabilizes · today `nika-error` + `nika-catalog` run continue-on-error · ratchet not gating
+
+Per LOCK-031 spirit · « no infra behind locked gate » · 5 items above stay
+prose-only · save ~5 empty ADR shells.
+
+### Real architectural ADRs (NOT folded · queue 060 · 062 · 064 · 066)
+
+- **ADR-060 · Kani-verified kernel** · which verifier + which boundary · ADR-grade decision
+- **ADR-062 · PGO + BOLT release pipeline** · profile corpus + build infra decision · ADR-grade
+- **ADR-064 · AOT-compiled `pck`** · `wasmtime::Module::serialize` · post-ADR-050 dependency · ADR-grade · DEFER until ADR-050 ships
+- **ADR-066 · OTLP-neutral `ObservabilitySink`** · L0.5 trait surface decision · absorbs ADR-061 SLSA L3 + cargo-vet + sigstore + cargo-auditable as §release-pipeline subsection · ADR-grade
+
+Net · 9 amplifier candidates → 3 real + 1 deferred (4 ADRs to author) instead of 9 · 55% reduction · « rien de nouveau · améliore et stabilise ».
 
 ### The combinatorial moat 2030
 
@@ -328,6 +346,8 @@ Nika Diamond is the **structural inverse** ·
 | Provenance             | Black-box           | RDF-star reification (W3C standard · audit)   |
 | Inference provider     | Single-vendor       | **9-provider catalog · user picks**           |
 | Threat model           | Surveillance        | Sovereignty + capability-scoped agents        |
+
+**Framing lens-pair** · « unified Rust runtime contract » (per `dx/.claude/rules/naming-memory-subsystem.md` substrate lens · one Rust binary · one ABI · zero runtime fragmentation) + « 7-axes distributed third path » (this §4.7 strategic lens · anti-Palantir surface positioning) are SAME structural commitment from different altitudes · NOT contradictory.
 
 Per `olympus-vs-nika-distinction.md` D-2026-05-08-N1 · **Nika engine = public
 moat** (competes with GPT/Claude/Cursor/LangGraph/Temporal) · **Olympus =
