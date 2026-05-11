@@ -10,9 +10,9 @@ affects_crates: ["nika-bm25", "nika-kernel", "nika-error"]
 affects_layers: ["L1"]
 supersedes: []
 superseded_by: []
-related: ["ADR-001", "ADR-003", "ADR-004", "ADR-016", "ADR-023", "ADR-037"]
+related: ["ADR-001", "ADR-003", "ADR-016", "ADR-023", "ADR-037"]
 amends: []
-requires: ["ADR-004"]
+requires: []
 enables: ["ADR-NNN nika-rrf admission", "ADR-NNN nika-hnsw admission"]
 fci: ["FCI-001", "FCI-002", "FCI-003"]
 inv: ["INV-019", "INV-028"]
@@ -34,7 +34,7 @@ follow_ups:
 
 ## Context
 
-Per ADR-004 (Phase 1 Option B lock, 2026-04-10) the Diamond memory subsystem ships as 1 L2 orchestrator (`nika-memory`) + 8 L1 satellites — `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc` ★. Each satellite is independently admissible via the 12-gate ceremony (ADR-003) and publishable standalone on crates.io as a SuperNovae contribution to the Rust RDF/ML ecosystem.
+The Diamond memory subsystem architecture (locked separately in private studio doctrine and surfaced publicly via `crates/nika-kernel/src/ai/memory.rs:1-413`) ships as 1 L2 orchestrator (`nika-memory`) + 8 L1 satellites — `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc` ★. Each satellite is independently admissible via the 12-gate ceremony (ADR-003) and publishable standalone on crates.io as a SuperNovae contribution to the Rust RDF/ML ecosystem.
 
 Per Diamond Phase 1 entry plan §3 (W3 wave) `nika-bm25` is the **simplest L1 satellite to admit first** because :
 
@@ -75,7 +75,7 @@ Reserve **NIKA-620..629** sub-range for `nika-bm25` error codes (Phase 1 entry p
 ### Positive
 - Proves the L1 satellite admission flow (lower-bound complexity reference for the 7 remaining satellites)
 - Adds a real-world `MemoryRecall` implementer the kernel mock can be tested against (parity with the abstract trait)
-- Lexical scoring complements future semantic HNSW (per ADR-004 the orchestrator fuses both via RRF · nika-rrf admits at W4)
+- Lexical scoring complements future semantic HNSW (the orchestrator fuses both via RRF · nika-rrf admits at W4)
 - Publishable on crates.io as `nika-bm25` (sovereign IR primitive · AGPL · zero vendor lock · per Rule 3 vendor-neutral default)
 - ~600 LOC well under the 15k crate cap and 1500-LOC file cap (ADR-023 + nika-invariants §"Max LOC per file")
 
@@ -94,12 +94,12 @@ Per ADR-003 the admission ceremony runs all 12 gates. Pre-flight status before W
 
 | Gate | Check | Pre-flight verdict | Where it lands |
 |---|---|---|---|
-| **1** | SPEC · `docs/crate-specs/nika-bm25.md` exists | ⏸ pending W3 | New file at W3 ; must cite this ADR + ADR-004 + Phase 1 entry plan §3 |
+| **1** | SPEC · `docs/crate-specs/nika-bm25.md` exists | ⏸ pending W3 | New file at W3 ; must cite this ADR + the Diamond Phase 1 entry plan §3 |
 | **2** | LOC cap · ≤15k | ✅ trivially (target ~600 LOC) | `wc -l crates/nika-bm25/src/*.rs` |
 | **3** | Single-file cap · ≤1500 LOC | ✅ trivially (scorer ~200 · index ~250 · query ~150) | Per ADR-023 file modularity discipline |
 | **4** | Function cap · ≤100 LOC | ✅ design splits per-term scoring + corpus stats | Per nika-invariants §"Max LOC per fn" |
 | **5** | Zero `.unwrap()` in `src/` | ✅ enforced via `workspace.lints.clippy unwrap_used = "deny"` | Per dx/.claude/rules/security.md §"Propagate errors" |
-| **6** | Layer registry (L0/0.5/1/2/3/4/5) | ✅ L1 per ADR-004 (satellite layer) | `[workspace.metadata.diamond.layers]` row added in W2.5 |
+| **6** | Layer registry (L0/0.5/1/2/3/4/5) | ✅ L1 satellite layer | `[workspace.metadata.diamond.layers]` row added in W3 admission commit |
 | **7** | Forward-compat invariants (8 patterns) | ✅ FCI-001 `trait_variant::make` (impls `MemoryRecall`) · FCI-002 `#[non_exhaustive]` on public error enum · FCI-003 versioned BM25 index format | Per `docs/architecture/forward-compat-invariants.md` |
 | **8** | Test coverage (TDD · RED→GREEN) | ⏸ pending W3 | Insta snapshots + proptest fuzzing + 1:1 textbook fidelity tests |
 | **9** | Clippy `-D warnings` | ✅ enforced via workspace lints | `cargo clippy --workspace --all-targets -- -D warnings` |
@@ -118,7 +118,7 @@ Plus the mandatory pattern gates per `nika/engine/.claude/CLAUDE.md` ·
 
 Per `dx/.claude/rules/steal-pattern.md` §"Step 0 — Consumer-signal gate" (Wave 10 of the DS federation discipline · adopted as a general anti-speculative-port pattern), Tier B/C steal-pattern ports require ≥1 consumer signal before status flips Proposed → Accepted. ADR-038 is an **internal Diamond admission**, not a Tier B/C steal-pattern port, but the same anti-speculative discipline applies ·
 
-- **Locked decision** · ADR-004 (Phase 1 Option B · 2026-04-10) lists `nika-bm25` as one of the 8 mandatory L1 memory satellites · ✅ satisfies « locked decision » in §Step 0
+- **Locked decision** · the Diamond memory architecture (private studio doctrine + public trait surface at `crates/nika-kernel/src/ai/memory.rs`) lists `nika-bm25` as one of the 8 mandatory L1 memory satellites · ✅ satisfies « locked decision » in §Step 0
 - **Scheduled launch** · Phase 1 entry plan §3 schedules `nika-bm25` as W3 admission with ~7h focused effort · ✅ satisfies « scheduled launch »
 - **Consumer ticket** · `nika-memory` L2 orchestrator (deferred to W11+) requires both lexical and semantic recall paths · BM25 IS the lexical half · the orchestrator is the consumer-of-record once it ships
 
@@ -126,7 +126,6 @@ Per `dx/.claude/rules/steal-pattern.md` §"Step 0 — Consumer-signal gate" (Wav
 
 - `crates/nika-kernel/src/ai/memory.rs:218-223` — `MemoryRecall` trait definition that `nika-bm25` will implement
 - `crates/nika-error/src/codes.rs:208-275` — NIKA_600 placeholder + NIKA_601..604 active + NIKA-620..629 reserved for this crate
-- `docs/adr/adr-004-phase-1-option-b-lock.md` — parent ADR locking the 8-satellite memory architecture
 - W3 admission plan in the SuperNovae monorepo `dx/.claude/plans/active/sprint/` (private DX surface · not engine-bound)
 - Commit anchor pre-W3 · `git log --oneline -1` on `main` at admission time will land in the W3 closeout commit body
 
@@ -155,7 +154,6 @@ Stub the trait surface · land real algorithm later. Rejected because :
 
 - **ADR-001** — Orphan branch · CRAFT not extraction (rejects Alt A wrapper approach)
 - **ADR-003** — 12-gate admission ceremony (governs the W3 admission close)
-- **ADR-004** — Phase 1 Option B · 8-satellite memory architecture (locks `nika-bm25` as a mandatory satellite)
 - **ADR-016** — Cancel-safety discipline (lib functions must be cancel-safe per `MemoryRecall::recall()` contract)
 - **ADR-023** — File modularity discipline (≤1500 LOC/file enforced)
 - **ADR-037** — Bottom-up Diamond progression (no feature-milestone defer · admit when ready)
