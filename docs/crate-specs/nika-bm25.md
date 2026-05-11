@@ -120,7 +120,7 @@ discipline. The lexical-only stance is the W3 invariant.
 | 2 TDD | ✅ | `tests/red_phase.rs` · 7 tests RED→GREEN transition shipped 2026-05-12 |
 | 3 IMPL | ✅ | 580 LOC · 5 modules (tokenize · scorer · index · query · lib) · commit `92e5d39fb` |
 | 4 CLIPPY | ✅ | 0 warnings pedantic-strict · workspace-inherited |
-| 5 MUTATION ≥90% | 🟡 in-flight | `cargo mutants -p nika-bm25` running 2026-05-12 · proptest set-equivalence at threshold per rust-architect mitigation |
+| 5 MUTATION ≥90% | ✅ | **96.9% kill rate** (95/98 viable · 3 survivors are defensive `\|\|→&&` guard-clause flips · acceptable per ADR-038 set-equivalence threshold) · added `tests/ranking_parity.rs` (5 pairwise ordering pins) + `tests/golden_values.rs` (5 exact-score pins within 1e-9) |
 | 6 PROPERTY | ✅ | `tests/proptest_invariants.rs` · 4 proptest (256 cases each) + 2 deterministic (monotonicity + saturation) · commit `2da7c1e24` |
 | 7 BENCHMARKS | ✅ | `benches/bm25_bench.rs` · 3 criterion benches · `manning` · `synthetic_100` · `finalize_100` · `[profile.bench]` LTO inherited |
 | 8 DOCS | ✅ | `cargo doc --no-deps` 0 warnings · 1 doctest passes · `rustdoc::broken_intra_doc_links=deny` inherited |
