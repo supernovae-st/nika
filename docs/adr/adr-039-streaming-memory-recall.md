@@ -18,7 +18,8 @@ inv: []
 shadow_zones: []
 nika_codes: []
 timeline: "W4 (nika-rrf admission · 2026-06/07)"
-follow_ups: []
+follow_ups:
+  - "Gate 5 mutation on nika-rrf · proptest set-equivalence top-K (NOT exact float equality) · per Agent 1 §4 mitigation"
 ---
 
 # ADR-039 — Streaming `MemoryRecall` for lazy RRF fusion
@@ -79,7 +80,7 @@ emits top-K without realizing the full candidate set.
 - Additive change per ADR-007 · forward-compat invariant respected (sealed trait amendment OK).
 
 ### Negative
-- `async_stream` dep added to `nika-kernel` (~50KB · MIT). Acceptable.
+- `async_stream` proc-macro dep added to `nika-kernel` (MIT · binary impact measured at W4 admission via `cargo bloat --release`).
 - `Pin<Box<dyn Stream>>` heap alloc per recall call. Mitigated · if Rust 1.85+ stabilizes
   `impl Stream + use<>` precise capture (RFC 3617), migrate to zero-alloc return at Phase 2.
 - Mutation testing on stream merging requires proptest set-equivalence (not exact float

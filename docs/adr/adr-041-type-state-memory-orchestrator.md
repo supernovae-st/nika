@@ -45,15 +45,17 @@ zero-cost (phantom is monomorphized away).
 use core::marker::PhantomData;
 
 pub struct NikaStore<S = Building> {
-    satellites: Satellites,  // Option<Arc<dyn MemoryRecall>> · etc.
-    backend: Option<Arc<dyn MemoryBackend>>,
-    _state: PhantomData<S>,
+    satellites: Satellites,                       // private · Option<Arc<dyn MemoryRecall>> · etc.
+    backend: Option<Arc<dyn MemoryBackend>>,      // private · construction only via build()
+    _state: PhantomData<S>,                       // private · sealed by visibility
 }
 
-// Type-state markers (zero-size · zero-cost)
+// Type-state markers (zero-size · zero-cost · pub for consumer type-bounds · NO ctor)
 pub struct Building;
 pub struct Ready;
-pub struct Querying;
+// `Querying` marker DELETED per review (was dead code · no impl block referenced it).
+// Reintroduce as `Closing` / `Closed` only if explicit teardown ceremony crystallizes
+// (per no-legacy-no-back-compat.md doctrine · no speculative abstraction).
 
 // Methods on Building only
 impl NikaStore<Building> {
@@ -97,12 +99,14 @@ let hits = store.recall(&query).await?;            // OK · Ready impl
 - **Eliminates a class of zero-unwrap bugs** · « called recall() before binding » becomes UNREPRESENTABLE.
 
 ### Negative
-- **API surface doubles in signature complexity** · `NikaStore<S>` instead of `NikaStore`.
-  Mitigated · `pub type NikaStore = NikaStore<Building>` default-param alias.
+- **API surface adds one type parameter** · `NikaStore<S>` · mitigated by the default
+  parameter at line 47 (`S = Building`) which lets consumers write `NikaStore::new()` and
+  let inference fill in `<Building>` · then `build()` returns `NikaStore<Ready>` explicit.
+  No separate `pub type` alias needed (would be redundant).
 - **Test fixtures need explicit `<Ready>` annotation** in some cases. Acceptable ceremony.
-- **`Querying` state** (mid-query · for cancellation tokens) considered · deferred ·
-  add when cancellation crystallizes (probably never · `&self` immutable methods + Tokio
-  cancellation tokens at param-level sufficient per ADR-012).
+- **`build()` is one-shot** · on `Err(_)` the `NikaStore<Building>` is consumed and
+  dropped · consumer cannot retry binding mid-failure · chain all `with_*()` calls
+  BEFORE `build()?`. Clean failure mode per NUKE-LEGACY doctrine.
 
 ### Neutral
 - Pattern proven in 2026 Rust ecosystem (axum routers · tower stacks · per Perplexity citations) · not novel · battle-tested idiom.

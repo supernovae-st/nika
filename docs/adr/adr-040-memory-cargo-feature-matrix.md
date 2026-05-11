@@ -63,25 +63,27 @@ fsrs = ["dep:nika-fsrs"]
 temporal = ["dep:nika-temporal"]
 
 # L1 satellites · heavy deps · opt-in
-hnsw = ["dep:nika-hnsw", "dep:fastembed", "ml-runtime"]
+hnsw = ["dep:nika-hnsw", "dep:fastembed"]   # consumer MUST pick ml-runtime-{onnx|candle}
 graph-algos = ["dep:nika-graph-algos"]
 rdfs-reasoner = ["dep:nika-rdfs-reasoner"]
 
-# Embedding runtime · mutually-exclusive choice (consumer picks ONE)
+# Embedding runtime · mutually-exclusive choice (consumer picks ONE · compile_error gate below)
 ml-runtime-onnx = ["fastembed/ort"]        # Path A · prod default · cross-platform
+                                            #   UNVERIFIED · validate `fastembed` v5 Cargo.toml exposes `ort`
+                                            #   feature at W7 hnsw admission · queue empirical check
 ml-runtime-candle = ["dep:candle-core",     # Path B · pure-Rust · Metal/CUDA
                      "dep:candle-transformers"]
-ml-runtime = []                              # marker · pick a backend
 
 # Storage backend · Oxigraph RDF-star (sovereignty structural-lock · Rule 5)
 rdf-star = ["oxigraph/rdf-12", "oxigraph/sparql-12"]
 
 # Mechanisms · M4/M5/M11 LLM-augmented opt-in (G2 lock 2026-05-12)
 llm-enrich = ["dep:nika-verb-infer"]       # M4 prospective · M5 narrative · M11 auto-link
+                                            # errors propagate via nika-verb-infer NIKA-5xx range · no new range
 
-# Autodesc bundles (G3 lock 2026-05-12)
-autodesc-minimal = ["rdfs-reasoner", "temporal"]                     # W4 · provenance+punning
-autodesc-full = ["autodesc-minimal", "graph-algos"]                  # Phase 2 · + summarization
+# Autodesc bundles (G3 lock 2026-05-12 · per ADR-042 1+9 split)
+autodesc-minimal = ["dep:nika-autodesc-minimal", "rdfs-reasoner", "temporal"]  # W4 · provenance+punning
+autodesc-full = ["dep:nika-autodesc-full", "autodesc-minimal", "graph-algos"]  # Phase 2 · + summarization
 
 # Convenience bundle · everything
 full = [
@@ -118,7 +120,7 @@ default (4 deterministic)
 #[cfg(all(feature = "ml-runtime-onnx", feature = "ml-runtime-candle"))]
 compile_error!("Pick ONE ml-runtime backend · onnx OR candle · not both");
 
-#[cfg(all(feature = "hnsw", not(feature = "ml-runtime")))]
+#[cfg(all(feature = "hnsw", not(any(feature = "ml-runtime-onnx", feature = "ml-runtime-candle"))))]
 compile_error!("Feature `hnsw` requires `ml-runtime-onnx` or `ml-runtime-candle`");
 
 #[cfg(all(feature = "autodesc-full", not(feature = "graph-algos")))]

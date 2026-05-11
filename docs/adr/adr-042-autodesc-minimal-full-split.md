@@ -62,8 +62,17 @@ at W4 · BEFORE 5 commodity satellites land. Forcing-function for credibility.
 - `summarize.rs` · graph summarization via `nika-graph-algos` (Louvain · centrality · communities)
 - Re-exports + façade pattern over `nika-autodesc-minimal`
 
-Ships post-Phase-1.5 close (2026-08-30 +) · the ACTUAL summarization differentiator
-lands when graph-algos satellite ships at W8.
+**Admission trigger** (explicit · per LOCK-031 spirit + `steal-pattern.md` Step 0
+consumer-signal gate + `time-architecture.md` Layer 3 quarterly review) · admit
+`nika-autodesc-full` WHEN ·
+1. `nika-graph-algos` admitted (W8 satellite · per ADR-040 dependency · structural blocker)
+2. AND ≥1 consumer signal explicitly cites graph-summarization use case (issue · PR
+   citation · scheduled launch · OR locked decision)
+3. AND quarterly review (Q3 2026 close · 2026-10-15) confirms scope still load-bearing
+   (Keeper Test · « lost autodesc-FULL today · re-invent? » must answer YES)
+
+Without all three · `autodesc-full` stays parked. Prevents indefinite Phase 2 deferral
+masquerading as « roadmap ».
 
 ### Cargo features (per ADR-040)
 
