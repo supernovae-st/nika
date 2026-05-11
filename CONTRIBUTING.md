@@ -5,13 +5,19 @@ diamond rewrite: 40 to 42 crates, each passing a 12-gate admission checklist
 before joining the workspace. This document explains how to contribute.
 
 See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
-[`SECURITY.md`](SECURITY.md), [`AGENTS.md`](AGENTS.md).
+[`SECURITY.md`](SECURITY.md), [`AGENTS.md`](AGENTS.md),
+[`DIAMOND.md`](DIAMOND.md) (strategy overview),
+[`ROADMAP.md`](ROADMAP.md) (forever-v0.x plan),
+[`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
+(10-year horizon canon · v1.3 · 42-crate target · 11/10 amplifiers).
 
 ---
 
 ## Current phase
 
-Nika is being crafted in public on the `nika-diamond` orphan branch.
+Nika is being crafted in public on the `main` orphan branch (production
+Diamond · renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives
+on `brouillon` (read-only · accessed via `git show brouillon:path`).
 External code contributions are formally welcomed once the first
 post-diamond release (**v0.90**) ships and all 7 pre-launch shadow zones
 are green. Until then:
