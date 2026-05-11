@@ -61,7 +61,7 @@ Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `ee74d97
 
 ## 📋 12 Gates per crate admission
 
-Read full spec in `RUST_ENFORCEMENT.md`. Summary :
+Read full spec in `docs/adr/adr-003-12-gate-admission.md` + `docs/architecture/forward-compat-invariants.md`. Summary :
 
 1. SPEC — `docs/crate-specs/nika-X.md` exists (purpose, layer, LOC budget, public API)
 2. TDD — tests written before impl, RED then GREEN
@@ -115,7 +115,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `611ccdf7e` (`611ccdf7ed08aaae303df310a8e8ae9fa697c410`)             |
+| HEAD             | `dd2ec28e5` (post BLUEPRINT_2036 v1.1 + pre-W3 stabilization)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 8                                              |
 | crates (admitted)| 7 / 40-42                                   |
@@ -126,7 +126,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1018 passed, 0 failed                              |
+| lib tests        | 1031 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
