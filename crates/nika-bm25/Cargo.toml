@@ -50,6 +50,10 @@ criterion   = { workspace = true }
 insta       = { workspace = true }
 rstest      = { workspace = true }
 
+[[bench]]
+name = "bm25_bench"
+harness = false
+
 [lints]
 workspace = true
 
