@@ -23,6 +23,9 @@ impl NullMemoryStore {
     }
 }
 
+// Opt-in sealed pattern per ADR-078 · workspace-internal mock.
+impl nika_kernel::sealed::Sealed for NullMemoryStore {}
+
 impl MemoryRemember for NullMemoryStore {
     async fn remember(&self, _frame: MemoryFrame) -> Result<MemoryId, MemoryError> {
         Ok(MemoryId::nil())

@@ -229,8 +229,11 @@ impl nika_error::traits::NikaErrorCode for MemoryError {
 // ─── Traits ──────────────────────────────────────────────────────────
 
 /// Store a memory frame.
+///
+/// Sealed via [`crate::sealed::Sealed`] per ADR-078 (opt-in soft seal ·
+/// L1 satellite impls add `impl crate::sealed::Sealed for MySatellite {}`).
 #[trait_variant::make(MemoryRememberDyn: Send)]
-pub trait MemoryRemember: Send + Sync {
+pub trait MemoryRemember: Send + Sync + crate::sealed::Sealed {
     /// Store a memory frame and return its identifier.
     ///
     /// CANCEL SAFETY: cancel-safe if impl uses atomic insert (single DB
@@ -241,8 +244,20 @@ pub trait MemoryRemember: Send + Sync {
 }
 
 /// Recall memories by similarity.
+///
+/// Sealed via [`crate::sealed::Sealed`] per ADR-078 Option D · the L0.5
+/// satellite contract keeps `&self + Send + Sync` (zero W3 cascade). The
+/// L2 orchestrator pool (`nika-memory::RecallPool`, W10) owns `&mut self`
+/// access internally — Restate stateful-vs-stateless split.
+///
+/// SYNC BOUND: explicit. Satellites SHOULD use `parking_lot::Mutex`,
+/// `DashMap`, or `AtomicU64` for stats/cache state. Hot-path contention
+/// is bounded by per-satellite sharding at the L2 pool boundary
+/// (1M+ BGE-M3 cosine calls/sec is mitigated by fan-out, not by
+/// flipping the trait to `&mut self` per Ryhl 2026 « Sync bound nobody
+/// asked for »).
 #[trait_variant::make(MemoryRecallDyn: Send)]
-pub trait MemoryRecall: Send + Sync {
+pub trait MemoryRecall: Send + Sync + crate::sealed::Sealed {
     /// Search memories and return ranked results.
     ///
     /// CANCEL SAFETY: cancel-safe — read-only similarity search.
@@ -250,8 +265,10 @@ pub trait MemoryRecall: Send + Sync {
 }
 
 /// Forget a memory by its identifier.
+///
+/// Sealed via [`crate::sealed::Sealed`] per ADR-078.
 #[trait_variant::make(MemoryForgetDyn: Send)]
-pub trait MemoryForget: Send + Sync {
+pub trait MemoryForget: Send + Sync + crate::sealed::Sealed {
     /// Remove a memory from the store.
     ///
     /// CANCEL SAFETY: cancel-safe — idempotent delete. Retrying on a
