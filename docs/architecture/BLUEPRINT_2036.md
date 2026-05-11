@@ -1,12 +1,14 @@
 ---
 title: "Nika Diamond · Blueprint 2036 · architecture final v0.x"
 status: proposal
-version: 1.2
+version: 1.5
 date: 2026-05-12
 horizon: "10-year build · 2026 → 2036"
 deciders: ["@ThibautMelen"]
 adr_queue_v1_1: ["ADR-050", "ADR-051", "ADR-052", "ADR-053", "ADR-054", "ADR-055", "ADR-056"]
 adr_queue_v1_2: ["ADR-060", "ADR-062", "ADR-064", "ADR-066"]
+adr_queue_v1_4: ["ADR-074", "ADR-075", "ADR-076", "ADR-077-clarification"]
+adr_queue_v1_5: ["ADR-077-async-drop", "ADR-078-memoryrecall-self-shape", "ADR-079-capabilities-phantom-type", "ADR-080-mcp-stdio-cve-sandbox"]
 adr_prose_folded: ["ADR-061-into-066", "ADR-063-mimalloc", "ADR-065-signer", "ADR-067-zerocopy", "ADR-068-hakari"]
 companion_adrs: ["ADR-001", "ADR-002", "ADR-004", "ADR-006", "ADR-014", "ADR-038", "ADR-039", "ADR-040", "ADR-041", "ADR-042"]
 sources:
@@ -382,6 +384,63 @@ For `nika serve` L4 daemon (planned post-W10) · 3-axis operational contract not
 - **Health + readiness** · separate `/healthz` (process alive) + `/readyz` (memory subsystem warmed + providers reachable) endpoints · K8s probe convention
 
 **ADR-076 (queued)** · L4 daemon operational contract · admission gate at `nika serve` ship. Trigger · L4 `nika-serve` admission OR Olympus MCP bridge consumer signal.
+
+### Best-architects 2030 discipline · v1.5 ratchet (per deep-critique 2026-05-12)
+
+Per Niko Matsakis · Without Boats · Yoshua Wuyts · David Tolnay · Andrew
+Gallant · Alice Ryhl · Aaron Turon · Mara Bos · Eliza Weisman · Charlie
+Marsh · canonical 2026-2030 discipline ratchet ·
+
+- **Tolnay `thiserror 2.0` ratchet** · `error_code` attribute canonical · NIKA-XXX taxonomy « never renumber · only append » · `#[error(transparent)]` for variant chaining
+- **Wuyts/Boats structured concurrency** · `NikaStore` MUST implement Drop calling `tracker.close()` synchronously · `Drop::drop` cannot `.await` → prefer explicit `async fn shutdown(self)` consuming `self` · `async Drop` deferred to ADR-077 (RFC stabilization 2027+ horizon)
+- **Mara Bos canonical** · « Rust Atomics and Locks » textbook reference for INV-016 + ADR-013 · every new concurrent primitive ships `cfg(loom)` shadow at admission (gate 9.5 ratchet)
+- **Karpathy ≤800 LOC/file ethos** · NEW per-file budget · 1500 hard cap (ADR-023 unchanged) · 800 soft cap encoded as workspace lint future-ratchet · `nika-kernel/src/ai/memory.rs` currently 752/800 · split signal at 900
+- **Gallant zero-cost CLI craft (ripgrep pattern)** · for `nika serve` L4 daemon (ADR-076) · 3-rule discipline · (a) hot path 0 alloc after parse · (b) bounded `crossbeam-channel` worker fan-out · (c) `cargo bloat --release --crates` ratchet at admission
+
+### ADR-077 (queued · MED) · `async Drop` migration plan
+
+When async Drop RFC stabilizes (Rust 2027+ target per Wuyts/Boats roadmap)
+· migrate `NikaStore::shutdown(self)` explicit pattern → `impl AsyncDrop`.
+Today's pattern · sync `Drop` + explicit `shutdown()` is canonical
+2026-2030 transitional · stable through stabilization horizon.
+
+### ADR-078 (queued · 🔴 CRITICAL · MUST RESOLVE PRE-W3 BM25 ADMISSION)
+
+**`MemoryRecall::recall` trait shape audit** · per Ryhl/Terekhin 2026 SOTA
+« the Sync bound nobody asked for » · `async fn recall(&self, query)` forces
+`Self: Sync` bound · empirically measurable interior-mutability tax at
+1M+ BGE-M3 cosine calls/sec hot path.
+
+Current state · `crates/nika-kernel/src/ai/memory.rs:249` uses `&self` ·
+forces every L1 satellite impl into `Mutex/RwLock` for LRU cache + stats
+counters + connection pools.
+
+3-option audit (Option D recommended) ·
+- (a) flip to `&mut self` · Tower idiom · breaks `Arc<dyn MemoryRecall>` fan-out
+- (b) keep `&self` + document `Send + Sync` canonical · today's reality · interior-mutability tax
+- (c) split `MemoryRecallShared` (`&self`) + `MemoryRecallExclusive` (`&mut self`)
+- **(d · RECOMMENDED)** · separate `&self` for **satellite contract** + `&mut self` for **orchestrator pool** · matches Restate stateful-vs-stateless service split (BLUEPRINT §2.7)
+
+Pre-admission gate · resolve ADR-078 BEFORE W3 nika-bm25 Gate 12 atomic
+commit · changing trait shape post-admission cascades through 9 satellites
++ orchestrator + best-enemy positioning.
+
+### ADR-079 (queued · HIGH) · `Capabilities<E: EffectSet>` phantom-type
+
+Kernel-level type-state capability tracking · `EffectSet = (NoFs, NoNet,
+NoExec)` for sandbox · compile-time refusal of `nika-effects::http::fetch(&caps, url)`
+when `caps: Capabilities<NoNet>`. Required before `nika-mcp-server` (Phase 2)
+admission. Per Anthropic public-eng blog effect-systems pattern + 2030 AI
+discipline (Karpathy · Kokotajlo AI-2027 capability bounds).
+
+### ADR-080 (queued · HIGH) · MCP STDIO CVE-2026-04 sandbox canon
+
+Per CVE-2026-04 disclosed 2026-04 (150M+ MCP downloads affected · STDIO
+transport RCE class) · `nika-mcp-server` admission MUST sandbox STDIO
+transport · 3-layer mitigation · (a) command allowlist · (b) verified-
+source manifest gate · (c) `nika-binding` capability check before tool
+invocation. Anthropic refused protocol-level fix → SDK consumers must
+sandbox by construction.
 
 ### ADR-041 type-state amendment (queued · per rust-async audit)
 
