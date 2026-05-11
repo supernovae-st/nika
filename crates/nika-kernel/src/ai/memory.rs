@@ -173,6 +173,7 @@ impl MemoryHit {
 pub enum MemoryError {
     /// Memory system not available.
     #[error("memory unavailable: {reason}")]
+    #[diagnostic(help("{}", nika_error::codes::code_help(nika_error::codes::NIKA_601)))]
     Unavailable {
         /// Why the memory system is unavailable.
         reason: String,
@@ -180,6 +181,7 @@ pub enum MemoryError {
 
     /// Memory not found.
     #[error("memory not found: {id}")]
+    #[diagnostic(help("{}", nika_error::codes::code_help(nika_error::codes::NIKA_602)))]
     NotFound {
         /// The ID that was looked up.
         id: MemoryId,
@@ -187,6 +189,7 @@ pub enum MemoryError {
 
     /// Embedding generation failed.
     #[error("embedding failed: {reason}")]
+    #[diagnostic(help("{}", nika_error::codes::code_help(nika_error::codes::NIKA_603)))]
     EmbeddingFailed {
         /// Why embedding failed.
         reason: String,
@@ -194,10 +197,33 @@ pub enum MemoryError {
 
     /// Storage backend error.
     #[error("memory storage error: {reason}")]
+    #[diagnostic(help("{}", nika_error::codes::code_help(nika_error::codes::NIKA_604)))]
     Storage {
         /// Description of the storage failure.
         reason: String,
     },
+}
+
+impl nika_error::traits::NikaErrorCode for MemoryError {
+    fn nika_code(&self) -> nika_error::codes::NikaCode {
+        match self {
+            Self::Unavailable { .. } => nika_error::codes::NIKA_601,
+            Self::NotFound { .. } => nika_error::codes::NIKA_602,
+            Self::EmbeddingFailed { .. } => nika_error::codes::NIKA_603,
+            Self::Storage { .. } => nika_error::codes::NIKA_604,
+        }
+    }
+
+    /// Whether retrying the same operation may succeed.
+    ///
+    /// Per Diamond W2.2 (plan §2 v1.1 amendment) :
+    /// - `Unavailable` → false · config issue · not transient
+    /// - `NotFound`    → false · deterministic miss
+    /// - `EmbeddingFailed` → true · provider transient · retry-eligible
+    /// - `Storage`     → true · IO / cache layer retriable
+    fn is_transient(&self) -> bool {
+        matches!(self, Self::EmbeddingFailed { .. } | Self::Storage { .. })
+    }
 }
 
 // ─── Traits ──────────────────────────────────────────────────────────
@@ -603,5 +629,124 @@ mod tests {
         _assert_send_sync::<ConsolidationReport>();
         _assert_send_sync::<PrunePolicy>();
         _assert_send_sync::<PruneReport>();
+    }
+
+    // ─── MemoryError → NIKA-60X cross-mapping (Diamond W2.2) ───────────
+
+    mod error_code_mapping {
+        use super::*;
+        use nika_error::codes;
+        use nika_error::traits::NikaErrorCode;
+
+        #[test]
+        fn unavailable_maps_to_nika_601() {
+            let e = MemoryError::Unavailable {
+                reason: "backend down".into(),
+            };
+            assert_eq!(e.nika_code(), codes::NIKA_601);
+            assert_eq!(e.nika_code().category, codes::Category::Memory);
+        }
+
+        #[test]
+        fn not_found_maps_to_nika_602() {
+            let e = MemoryError::NotFound {
+                id: MemoryId::nil(),
+            };
+            assert_eq!(e.nika_code(), codes::NIKA_602);
+            assert_eq!(e.nika_code().category, codes::Category::Memory);
+        }
+
+        #[test]
+        fn embedding_failed_maps_to_nika_603() {
+            let e = MemoryError::EmbeddingFailed {
+                reason: "rate limit".into(),
+            };
+            assert_eq!(e.nika_code(), codes::NIKA_603);
+            assert_eq!(e.nika_code().category, codes::Category::Memory);
+        }
+
+        #[test]
+        fn storage_maps_to_nika_604() {
+            let e = MemoryError::Storage {
+                reason: "disk full".into(),
+            };
+            assert_eq!(e.nika_code(), codes::NIKA_604);
+            assert_eq!(e.nika_code().category, codes::Category::Memory);
+        }
+
+        #[test]
+        fn transience_unavailable_and_not_found_are_non_transient() {
+            let unavail = MemoryError::Unavailable { reason: "x".into() };
+            let nf = MemoryError::NotFound {
+                id: MemoryId::nil(),
+            };
+            assert!(
+                !unavail.is_transient(),
+                "unavailable must NOT be transient · config issue"
+            );
+            assert!(
+                !nf.is_transient(),
+                "not-found must NOT be transient · deterministic miss"
+            );
+        }
+
+        #[test]
+        fn transience_embedding_and_storage_are_transient() {
+            let emb = MemoryError::EmbeddingFailed {
+                reason: "timeout".into(),
+            };
+            let st = MemoryError::Storage {
+                reason: "io".into(),
+            };
+            assert!(
+                emb.is_transient(),
+                "embedding failure IS transient · retry-eligible"
+            );
+            assert!(
+                st.is_transient(),
+                "storage IS transient · retry after backoff"
+            );
+        }
+
+        #[test]
+        fn fingerprint_differs_per_variant() {
+            let a = MemoryError::Unavailable { reason: "x".into() }.fingerprint();
+            let b = MemoryError::NotFound {
+                id: MemoryId::nil(),
+            }
+            .fingerprint();
+            let c = MemoryError::EmbeddingFailed { reason: "x".into() }.fingerprint();
+            let d = MemoryError::Storage { reason: "x".into() }.fingerprint();
+            // Default fingerprint hashes nika_code().num · 4 distinct nums → 4 distinct hashes
+            // Pairwise inequality avoids HashSet dep per kernel disallowed-types policy.
+            assert_ne!(a, b, "601 vs 602 must differ");
+            assert_ne!(a, c, "601 vs 603 must differ");
+            assert_ne!(a, d, "601 vs 604 must differ");
+            assert_ne!(b, c, "602 vs 603 must differ");
+            assert_ne!(b, d, "602 vs 604 must differ");
+            assert_ne!(c, d, "603 vs 604 must differ");
+        }
+
+        #[test]
+        fn miette_help_resolves_per_variant() {
+            use miette::Diagnostic;
+            for e in [
+                MemoryError::Unavailable { reason: "x".into() },
+                MemoryError::NotFound {
+                    id: MemoryId::nil(),
+                },
+                MemoryError::EmbeddingFailed { reason: "x".into() },
+                MemoryError::Storage { reason: "x".into() },
+            ] {
+                let help = e.help().map(|h| h.to_string());
+                assert!(help.is_some(), "{e} must carry miette help");
+                let txt = help.expect("checked above");
+                assert!(!txt.is_empty(), "help must be non-empty for {e}");
+                assert!(
+                    !txt.contains("Unknown"),
+                    "{e} must resolve to specific help"
+                );
+            }
+        }
     }
 }

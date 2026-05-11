@@ -29,6 +29,7 @@ use nika_error::prelude::*;
 
 use crate::blob::BlobError;
 use crate::http::HttpError;
+#[cfg(test)]
 use crate::memory::MemoryError;
 use crate::plugin::WasmPluginError;
 use crate::process::ShellError;
@@ -209,35 +210,11 @@ pub const NIKA_339: NikaCode = NikaCode {
     slug: "provider-other",
 };
 
-// Memory: 600–649
-/// Memory unavailable.
-pub const NIKA_600: NikaCode = NikaCode {
-    num: 600,
-    category: Category::Memory,
-    severity: Severity::Error,
-    slug: "memory-unavailable",
-};
-/// Memory not found.
-pub const NIKA_601: NikaCode = NikaCode {
-    num: 601,
-    category: Category::Memory,
-    severity: Severity::Error,
-    slug: "memory-not-found",
-};
-/// Embedding failed.
-pub const NIKA_602: NikaCode = NikaCode {
-    num: 602,
-    category: Category::Memory,
-    severity: Severity::Error,
-    slug: "memory-embedding-failed",
-};
-/// Memory storage error.
-pub const NIKA_603: NikaCode = NikaCode {
-    num: 603,
-    category: Category::Memory,
-    severity: Severity::Error,
-    slug: "memory-storage",
-};
+// Memory: 600–649 codes live in `nika_error::codes` (NIKA_601..604 wired
+// Diamond W2.1). The kernel-local NIKA_600..603 placeholders were DRIFT
+// (off-by-one + duplicate slug surface) and removed per Diamond W2.2 /
+// no-legacy-no-back-compat. Use `nika_error::codes::NIKA_601..604`
+// directly · MemoryError impl is in ai/memory.rs.
 
 // ─── NikaErrorCode implementations ──────────────────────────────────
 
@@ -310,16 +287,10 @@ impl NikaErrorCode for ProviderError {
     }
 }
 
-impl NikaErrorCode for MemoryError {
-    fn nika_code(&self) -> NikaCode {
-        match self {
-            Self::Unavailable { .. } => NIKA_600,
-            Self::NotFound { .. } => NIKA_601,
-            Self::EmbeddingFailed { .. } => NIKA_602,
-            Self::Storage { .. } => NIKA_603,
-        }
-    }
-}
+// MemoryError NikaErrorCode impl lives in ai/memory.rs co-located with the
+// enum definition · maps to NIKA_601..604 per Diamond W2.2 (plan §2 v1.1
+// amendment). Previous mapping 600..603 in this file was DRIFT vs the
+// canonical sub-allocation table · removed per no-legacy-no-back-compat.
 
 impl NikaErrorCode for WasmPluginError {
     fn nika_code(&self) -> NikaCode {
