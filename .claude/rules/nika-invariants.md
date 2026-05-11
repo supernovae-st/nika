@@ -2,7 +2,13 @@
 
 ## Crate structure
 
-- Total target : **40-42 crates diamond v0.90** (cap 100) + **9 memory crates** at v0.95 Cortex (1 L2 orchestrator `nika-memory` + 8 L1 satellites: hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc) — separate count. See `nika/hq/docs/nika-memory/` ADR-004 + `project_nika_cortex_design.md`.
+- Total target : **40-42 crates diamond v0.90** (cap 100) + **10 memory crates** at v0.95 Cortex (1 L2 orchestrator `nika-memory` + **9 L1 satellite crates** · 8 algorithmic concerns · autodesc splits into `nika-autodesc-minimal` [W4] + `nika-autodesc-full` [Phase 2] per ADR-042) — separate count. Satellites · `hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
+
+## Collapse-vs-publish principle (LOCKED · post BLUEPRINT_2036 v1.0)
+
+- **Internal-only clusters → collapse to one crate** · `nika-effects` (was 5 effect crates · ADR-055 queued) · `nika-verbs` (was 5 verb crates · ADR-056 queued · 5-verb semantic lock preserved at module level) · `init+lints+catalog-verify` → `nika-cli` subcommands. Per ADR-006 monolithic-kernel-spirit applied across clusters.
+- **Externally-publishable clusters → preserve per-crate granularity** · memory satellites (9 crates · ADR-004 publishable standalone on crates.io · external Rust RDF/ML ecosystem value) · provider variants (rig · native · mock · 3 crates · heavy-dep isolation). Per ADR-004 + ADR-042.
+- **Decision rule** · « is there genuine external value to per-crate granularity? » YES → split · NO → collapse. Default is collapse (12-gate ceremony × N crates costs more than module discipline within 1 crate).
 - Max LOC per crate : **15,000** (strict, enforced by xtask/CI)
 - Max LOC per file : **1,500** (strict, CI blocks)
 - Max lines per fn : **100** (warning, ≤100 preferred)

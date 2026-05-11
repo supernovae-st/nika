@@ -38,6 +38,33 @@ Per ADR-001 + INV-022 · 5 verbs locked forever. 10-year stress test ·
 
 **Verdict** · 5 verbs hold to 2036. Lock confirmed.
 
+## §1.5 · Collapse-vs-publish principle (locked v1.1)
+
+The blueprint's aggressive cluster-collapse applies a single decision rule (now ratified in `nika-invariants.md` §Collapse-vs-publish) ·
+
+```
+Is there GENUINE EXTERNAL VALUE to per-crate granularity?
+├── YES → preserve split (memory satellites · provider variants · pck packages)
+│         · publishable standalone on crates.io with own semver
+│         · external consumers benefit from isolated dep
+└── NO  → collapse to one crate with modules (effects · verbs · cli subcommands)
+          · 12-gate ceremony × N crates > module discipline within 1 crate
+          · per ADR-006 monolithic-kernel-spirit
+```
+
+Application matrix ·
+
+| Cluster | Decision | External value? | Why |
+|---|---|:-:|---|
+| Memory satellites (9) | SPLIT | ✅ | Rust RDF/ML ecosystem · `nika-bm25` · `nika-hnsw` standalone-useful on crates.io |
+| Provider variants (3) | SPLIT | ✅ | Heavy-dep isolation (rig vs native mistral.rs vs mock) · users pick 1 |
+| pck packages (3-5) | SPLIT | ✅ | Plugin protocol Phase 4+ · external authors ship pcks |
+| Effect impls (5→1) | COLLAPSE | ❌ | Internal trait impls · no external consumer asks for `nika-fs` alone |
+| Verb executors (5→1) | COLLAPSE | ❌ | Shared dispatcher · 5-verb lock semantic (preserved at module level) |
+| L4 tools (init·lints·catalog-verify) | COLLAPSE | ❌ | Subcommands of `nika-cli` · not independent binaries |
+
+This principle is the structural enforcement (per `supernovae-alignment.md` Rule 5) that distinguishes Diamond from competitor architectures (Restate's 3-service-types · LangGraph's monolithic graph · Temporal's history-heavy SDK).
+
 ## §2 · Refined crate table · BLUEPRINT v0.x final
 
 Aggressive cluster-collapse per ADR-006 monolithic-kernel spirit applied to ALL clusters where external-publishability isn't load-bearing.
@@ -59,6 +86,120 @@ Aggressive cluster-collapse per ADR-006 monolithic-kernel spirit applied to ALL 
 | Edge | `nika-memory-edge` *(Phase 3+ · feature-gated no_std)* | 1 | DEFERRED |
 | **TOTAL ADMITTED** | | **~42** | **ON TARGET** |
 | With optional/deferred | | **~52** | Under cap 100 |
+
+## §2.5 · Per-crate detail (v1.1 enrichment)
+
+Each row · Purpose (1 line) · LOC budget · Key deps · Trait surface · Gate 9 canary stance · Admission target.
+
+### L0 · primitives (6 crates · ~30k LOC total)
+
+- `nika-types` · shared types · 2k LOC · `serde` `chrono` · no public trait (types only) · Gate 9 EXEMPT (pure types) · ADMITTED v0.81
+- `nika-error` · error taxonomy `NikaError` enum + NIKA-XXX codes · 3k LOC · `thiserror` `miette` (opt-in) · sealed `NikaError` variant enum · Gate 9 EXEMPT · ADMITTED v0.81
+- `nika-catalog` · capability vocabulary (105 MCP · 32 LLM providers · 13 embeddings) · 8-10k LOC · `nika-types` · `Catalog` query API + `ModelPricing` 7-axis · Gate 9 via canary-catalog.yaml fixtures · ADMITTED v0.81
+- `nika-catalog-codegen` · build-time codegen of catalog rust types · 2k LOC · `nika-catalog` `quote` · proc-macro (no runtime trait) · Gate 9 EXEMPT (build-tool) · ADMITTED
+- `nika-schema` · workflow YAML parser `apiVersion: nika.sh/v1` · 4-6k LOC · `serde_yaml` `nika-types` · `Workflow` parsed struct · Gate 9 via canary-workflows · WIP (W2 target)
+- `nika-event-types` · canonical event envelope shape (cross-product · per `olympus-platform-canonical.md`) · 1k LOC · `nika-types` · `Event` `EventKind` enum sealed · Gate 9 EXEMPT · PLANNED L0
+
+### L0.5 · kernel (2 crates · monolithic forever per ADR-006)
+
+- `nika-kernel` · ~20 atomic ISP traits + InferRequest/Response + memory traits + capability tokens · ~5-7k LOC · `async-trait` (`trait_variant`) · sealed traits per ADR-014 · Gate 9 EXEMPT (abstract) · ADMITTED
+- `nika-kernel-mock` · test mock impl · 4k LOC · `nika-kernel` · `MockProvider` `MockMemoryStore` etc · Gate 9 via 88 lib tests · ADMITTED
+
+### L1 effects (1 collapsed crate · ADR-055 queue · ~6-8k LOC)
+
+- `nika-effects` · `fs+http+blob+process+clock` impls of kernel L1 traits · modules per axis · 6-8k LOC · `reqwest` (vendored TLS) · `tokio` · `walkdir` · per-module trait impls · Gate 9 via real-fs/http canary fixtures · post-W3 admission
+
+### L1 memory satellites (9 crates · ADR-042 split · publishable standalone)
+
+- `nika-bm25` · lexical BM25 scoring · 600-800 LOC · `nika-kernel` only · `MemoryRecall` impl · Gate 9 EXEMPT (pure-algo) · **W3 target ADR-038**
+- `nika-rrf` · Reciprocal Rank Fusion · ~200 LOC · `nika-kernel` · `MemoryRecall` (composing) · Gate 9 EXEMPT · W4 target ADR-039
+- `nika-fsrs` · FSRS-6 forgetting scheduler · 400 LOC · `nika-kernel` · `MemoryLifecycle` (consolidate/prune) · Gate 9 EXEMPT · W5 target
+- `nika-temporal` · valid-time + transaction-time annotations · 300 LOC · `nika-kernel` `chrono` · `MemoryTemporal` trait · Gate 9 EXEMPT · W6 target
+- `nika-hnsw` · approx vector index wrap of `hnsw_rs 0.3.x` · 800-1200 LOC · `nika-kernel` `hnsw_rs` (unsafe encapsulated) · `MemoryRecall` (semantic) · Gate 9 via 100k vector canary (TRIGGER-GATED per ADR-005) · W7 target
+- `nika-rdfs-reasoner` · RDFS-13 forward chaining + OWL 2 punning · 1000 LOC · `nika-kernel` `oxigraph` · `RdfsInfer` trait · Gate 9 via owl-test-suite canary · W8 target
+- `nika-graph-algos` · Louvain · centrality · shortest-path · communities · 1500 LOC · `nika-kernel` `petgraph` (or maison) · `GraphAlgo` trait · Gate 9 via SNAP datasets canary · W8 target (parallel)
+- `nika-autodesc-minimal` ★ · provenance-attached ingest + RDFS-OWL2 punning + SPARQL-star query · 300 LOC · `nika-kernel` `oxigraph` (rdf-star feature) · `Autodesc` trait minimal · Gate 9 via provenance-chain canary · **W4 target ADR-042 (moat foundation)**
+- `nika-autodesc-full` ★ · adds schema evolution + graph summarization · 300 LOC delta · `nika-autodesc-minimal` `nika-graph-algos` · `Autodesc` trait full · Gate 9 via summarization canary · Phase 2 (3-condition trigger per ADR-042)
+
+### L2 (6 crates · ~25k LOC)
+
+- `nika-memory` · L2 orchestrator · NikaStore type-state · 9 satellites composed via `Arc<dyn MemoryRecall>` · 5-7k LOC · `nika-kernel` `tokio_util::task::TaskTracker` `tokio::sync::mpsc` · `MemoryStore` blanket + `MemoryLifecycle` · Gate 9 via end-to-end recall canary · W10 target ADR-041
+- `nika-runtime` · core runtime + DAG executor · 8-12k LOC · `nika-kernel` `tokio` `petgraph` · `Runtime` trait · Gate 9 via 50 representative workflow canaries · post-W10
+- `nika-verbs` · 5 verb executors (`infer · exec · fetch · invoke · agent`) collapsed · modules per verb · 8-12k LOC · `nika-kernel` `nika-effects` `nika-runtime` · `VerbExecutor` trait (sub-trait per verb) · Gate 9 via 5 verb canaries · ADR-056 queue · post-W10
+- `nika-protocols` · multi-protocol gateway (MCP · ACP · future) · modules per protocol · 4-6k LOC · `nika-kernel` `tower` `serde_json` · `Protocol` trait · Gate 9 via mcp-conformance canary · ADR-053 queue · Phase 2
+- `nika-workflows` · YAML workflow engine consumed by Olympus + CLI · 3-5k LOC · `nika-schema` `nika-runtime` · `WorkflowEngine` trait · Gate 9 via golden-workflows · Phase 2
+- `nika-wasm-host` · WASM Component Model plugin host · 3-5k LOC · `wasmtime v38+` `wasmtime-wasi` (WASIp2) · `WasmPluginHost` trait · Gate 9 via component-conformance · ADR-050 queue · Phase 4+
+
+### L3 (2 crates · ~8k LOC)
+
+- `nika-runtime-dag` · DAG execution layer + dispatcher · 5-7k LOC · `nika-runtime` `nika-verbs` · `DagExecutor` trait · Gate 9 via 100-node DAG canary · post-W10
+- `nika-binding` · capability/policy binding layer · 3k LOC · `nika-kernel` (policy module · NOT separate crate per `nika-invariants.md`) · `Binding` trait · Gate 9 via policy-fixture canary · post-W10
+
+### L4 interfaces (5 crates · ~25k LOC)
+
+- `nika-cli` · main CLI · subcommands `init` · `lints` · `catalog-verify` · `run` · `inspect` · 12-15k LOC · `clap` (latest) `nika-runtime-dag` `nika-workflows` · binary not trait · Gate 9 via cli-snapshot tests · post-W10
+- `nika-tui` · terminal UI · 3-5k LOC · `ratatui` `nika-runtime` · no public trait · Gate 9 via tui-fixture · Phase 3
+- `nika-serve` · HTTP/gRPC daemon · 4-6k LOC · `tower` `tonic` `nika-runtime-dag` · binary · Gate 9 via http-canary · Phase 2
+- `nika-lsp` · LSP server for workflow YAML · 3-5k LOC · `tower-lsp` `nika-schema` · binary · Gate 9 via lsp-snapshot · Phase 3
+- `nika-mcp-server` · expose Nika AS MCP server · 2-3k LOC · `nika-protocols` (MCP module) · binary · Gate 9 via mcp-client canary · Phase 2
+
+### L5 (1 binary · <500 LOC)
+
+- `nika` · composition root binary · <500 LOC · all L4 deps · no trait · Gate 9 via release-canary · v0.90 emergence
+
+### Optional · pck + builtin + provider + media + edge (10-14 crates)
+
+- `nika-pck-{manifest,registry,store,git}` + `nika-pck` orchestrator · 5 crates · ~10k LOC total · Phase 4+
+- `nika-builtin-{github,cloud,workspace}` · 3 crates · ~4k LOC total · native API adapters · Phase 3
+- `nika-provider-{rig,native,mock}` · 3 crates · heavy-dep isolation · ~6k LOC total · post-W10
+- `nika-media` · default 1 crate · audit at first pck need (ADR-054 queue) · ~3k LOC · Phase 3
+- `nika-memory-edge` · no_std subset · 1k LOC · feature-gated · ADR-052 queue · Phase 3+
+- `nika-memory-sync` · CRDT federation adapter · 2-3k LOC · ADR-051 queue · Phase 2+
+
+**Total LOC budget** · ~42 admitted × ~10k average = ~420k LOC · headroom under 100-crate cap × 15k = 1.5M LOC.
+
+## §2.7 · Best enemies · architectural differentiation (v1.1)
+
+Closest 2026 competitors in workflow-engine + agent-memory + agent-orchestration space ·
+
+### Restate (Rust SDK · context7-grounded)
+
+Per context7 `/restatedev/sdk-rust` · 3 service abstractions ·
+1. **Services** (stateless handlers · `#[restate_sdk::service]` macro)
+2. **Virtual Objects** (stateful + isolated K/V state + single-writer · `#[restate_sdk::object]`)
+3. **Workflows** (durable step-by-step + exactly-once · `#[restate_sdk::workflow]` · `ctx.run()` for durable side-effects · `ctx.promise()` for durable promises)
+
+**Architectural lessons** · macro-driven trait generation · `Context<'_>` parameter for all handlers · automatic journaling + transparent retry + suspension. **Diamond differentiation** · Nika ships **5 verbs locked forever** instead of 3 service-types open · YAML workflow envelope instead of macro-driven Rust trait · AGPL instead of BSL.
+
+### LangGraph (Python · context7-grounded)
+
+Per context7 `/langchain-ai/langgraph` v1.0.8 · graph-based stateful agents · durable execution · streaming + human-in-the-loop. Core abstraction · `StateGraph` with nodes (functions) + edges (transitions) + persistent state per thread.
+
+**Diamond differentiation** · Nika does NOT model agents as graphs (graphs are an EMERGENT property of `agent` verb composing other verbs). Workflow DAG is explicit · per-node state is via `nika-memory` (Diamond memory subsystem) · NOT per-graph-thread-local.
+
+### Temporal (Go · industry baseline)
+
+Workflow history + worker pull-model + deterministic replay. Architectural giant in Go ecosystem. **Diamond differentiation** · Nika is **Rust-first** · embedded single-binary (no separate worker process needed for v0.x) · workflow envelope is YAML (auditable forever per `supernovae-alignment.md` Rule 5).
+
+### Mem0 + Letta + Zep (Python agent memory)
+
+Production agent memory · Python-centric · cloud-hosted SaaS paths · graph + vector hybrid · 7-13 cognitive mechanisms. **Diamond differentiation** · `nika-memory` is **Rust embedded** · **AGPL local-first** · **RDF-star native via Oxigraph** (W3C standard) · **9 satellites publishable standalone on crates.io** · **12 cognitive mechanisms** with 3 LLM-enrich opt-in via Cargo feature.
+
+### Differentiation matrix
+
+| Dimension | Restate | LangGraph | Temporal | Mem0/Letta | **Nika Diamond** |
+|---|---|---|---|---|---|
+| Language | Java+Rust SDK | Python | Go | Python | **Rust** |
+| Durability | ✓ journal | ✓ checkpoint | ✓ history | ✗ | ✓ YAML workflow |
+| Memory subsystem | ✗ | partial | ✗ | ✓ | ✓ 1+9 satellites |
+| RDF/SPARQL | ✗ | ✗ | ✗ | ✗ | **✓ Oxigraph 0.5.6** |
+| Verbs locked | ✓ 3 service types | ✗ open graph | ✓ workflow-only | ✗ | **✓ 5 forever** |
+| License | BSL | MIT | Apache | Apache | **AGPL-3.0-or-later** |
+| Local-first | ✗ | ✗ | ✗ | ✗ partial | **✓ Rule 1 structural** |
+| WASM Component plugins | ✗ | ✗ | ✗ | ✗ | **✓ ADR-050 Phase 4+** |
+| Crates publishable | partial | NA | NA | NA | **✓ 9 satellites + provider variants** |
+
+**Conclusion** · Diamond's unique structural moat is **the 4-axis combo none ships together** · Rust embedded + AGPL forever + RDF/SPARQL native + 5-verb locked taxonomy + local-first by default + 9 publishable memory satellites. Per « unified Rust runtime contract » framing of `naming-memory-subsystem.md` v2.3.
 
 ## §3 · ADR queue · 7 amendments for 2026-2030 horizon
 
