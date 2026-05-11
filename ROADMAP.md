@@ -64,7 +64,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `611ccdf7e` (`611ccdf7ed08aaae303df310a8e8ae9fa697c410`)             |
+| HEAD             | `def291c2b` (post BLUEPRINT v1.3 + perf profile · 2026-05-12)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 8                                              |
 | crates (admitted)| 7 / 40-42                                   |
@@ -75,7 +75,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1018 passed, 0 failed                              |
+| lib tests        | 1031 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation, **7 crates admitted** + **1 WIP** in workspace

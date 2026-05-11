@@ -13,6 +13,61 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
+### ⚡ Perf profile + craft amendments (2026-05-12)
+
+Pre-W3 perf-craft + architecture polish per 2-agent SOTA audit
+(`spn-rust:rust-async-expert` + `spn-rust:rust-perf` parallel) ·
+
+- **`Cargo.toml [profile.release]`** · `lto=fat` + `codegen-units=1` +
+  `strip=symbols` + `panic=unwind` + `debug=line-tables-only` +
+  `incremental=false` · matches ADR-061 SLSA L3 prep · ~5-10% perf
+  delta on BGE-M3 cosine + BM25 + RRF hot paths · 2× build cost
+  release only · dev unaffected.
+- **`Cargo.toml [profile.bench]`** · inherits release + `debug=true`
+  for `cargo flamegraph` + `perf annotate` at W3 admission Gate 7.
+- **4 `const fn` promotions in `nika-types`** · `Cost::new` ·
+  `Cost::zero` · `Cost::is_zero` · `Trust::new` · `Trust::is_at_least` ·
+  unlocks `const SATELLITE_COST: Cost = Cost::from_milli_usd(5)` at
+  call-sites = zero runtime eval. `From`-trait + `Option::map` blocked
+  (not const-stable yet · 2027+ horizon · per Rust 1.91 limits).
+  Forward-compat per ADR-007 · `pub fn → pub const fn` non-breaking.
+
+### 📐 BLUEPRINT_2036 v1.3 amendments (2026-05-12)
+
+Cumulative cascade v1.0 → v1.1 → v1.2 → v1.3 per `docs/architecture/
+BLUEPRINT_2036.md` frontmatter · status proposal · annual decennial
+review 2027-04+.
+
+- **v1.1 (per-crate detail + best-enemies SOTA)** · 42-crate table
+  with LOC + deps + trait + Gate-9 + admission target per row ·
+  Restate/LangGraph/Temporal/Mem0/Letta differentiation matrix ·
+  collapse-vs-publish principle § 1.5 locked
+- **v1.2 (11/10 amplifiers + guardian framing)** · 9→4 amplifier ADR
+  fold (saves 5 empty shells · `socratic-research-discipline.md`
+  Step 5 Option D) · §4.7 anti-Palantir + AI-2027 trajectory mapping ·
+  14 prior Nika-mappings re-validated 2026-Q2
+- **v1.3 (perf craft + async depth · this entry)** · §4 RRF fairness ·
+  Loom scope (2-thread minimal + Shuttle PCT for full DAG) ·
+  `consume_budget` cooperative scheduling · `[profile.release]`
+  mirror · §4.5 ADR-066 `#[tracing::instrument]` discipline · NEW
+  ADR-070 (`TaskTracker` + child-token fan-out · kernel-pure preserved
+  per ADR-016 Alt-A) · ADR-041 `#[track_caller]` builder amendment
+
+### 📚 Pre-launch hygiene shipped (2026-05-12)
+
+- **Per-crate READMEs** · 4 missing of 8 shipped (`nika-error` ·
+  `nika-catalog` · `nika-kernel` · `nika-kernel-mock`) following
+  tokio/serde/thiserror SOTA pattern (~80-120L each)
+- **`CODE_OF_CONDUCT.md`** · Contributor Covenant v2.1 boilerplate ·
+  conduct@supernovae.studio · 4-tier enforcement ladder
+- **`SECURITY.md`** · vulnerability disclosure policy · 72h ack · 90d
+  disclosure · 11-row NIKA-271..389 defense layers table
+- **`Cargo.toml [workspace.lints.rustdoc]`** · compile-time doc gate
+  (broken_intra_doc_links=deny · private=warn · invalid_codeblock=deny)
+- **`.github/workflows/diamond-ci.yml`** · semver-checks baseline ·
+  `origin/nika-diamond` (renamed branch · stale since 2026-05-06) →
+  `origin/main` · was silently failing
+
 ### 📚 Wave 4E — Mintlify rebuild + docs repo split (2026-04-17)
 
 End-user documentation split out to a dedicated public repository and

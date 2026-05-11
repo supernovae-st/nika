@@ -115,7 +115,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `dd2ec28e5` (post BLUEPRINT_2036 v1.1 + pre-W3 stabilization)             |
+| HEAD             | `def291c2b` (post BLUEPRINT v1.3 · perf profile LTO=fat + const fn + ADR-070 fan-out queue)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 8                                              |
 | crates (admitted)| 7 / 40-42                                   |
