@@ -5,8 +5,9 @@ All notable changes to Nika are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Nika follows [forever-v0.x](ROADMAP.md) — incremental quality, no v1.0 target.
 
-Nika Diamond is a ground-up rewrite on an orphan branch (`nika-diamond`).
-Legacy main sits at v0.79.3. Diamond starts at v0.80.0.
+Nika Diamond is a ground-up rewrite on an orphan branch (`main` ·
+renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
+`brouillon` (renamed 2026-05-06 from `main`). Diamond starts at v0.80.0.
 
 ---
 
@@ -541,7 +542,7 @@ All 12 gates passed. Commit `42909b1c7`. 🦋
 
 ### The beginning
 
-Orphan branch `nika-diamond` created from scratch. No code inherited from main.
+Orphan branch `nika-diamond` (renamed `main` on 2026-05-06) created from scratch. No code inherited from legacy.
 Clean slate, edition 2024, Rust 1.91.
 
 From the start, the workspace enforces:

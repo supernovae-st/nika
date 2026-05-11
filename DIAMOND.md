@@ -14,7 +14,19 @@ the authoritative architectural decision, see
 
 For the project's landing page, see [`README.md`](README.md). For
 the forever-v0.x plan across v0.81 → v0.90 → v0.95 → v0.100 → v0.110+,
-see [`ROADMAP.md`](ROADMAP.md).
+see [`ROADMAP.md`](ROADMAP.md). For the **10-year architectural horizon
+(2026 → 2036)** with refined 42-crate target, 5-verb stress test
+through 2036, 7-ADR queue (050-056) and per-crate detail, see
+[`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
+(v1.1 · proposal-grade · annual decennial review 2027-04+).
+
+**Memory subsystem note** · Diamond and the memory cluster are
+**orthogonal** (per `naming-memory-subsystem.md` v2.4 external rule).
+Diamond = construction METHOD (modular crates · 12-gate admission ·
+L0→L5). Memory cluster = 9 L1 satellite crates + 1 L2 orchestrator ·
+publishable standalone on crates.io · implements `nika-kernel` traits.
+« unified Rust runtime contract » framing supersedes earlier
+4-axis-combo moat language.
 
 ## Why rewrite into a Diamond
 

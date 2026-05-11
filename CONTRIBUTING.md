@@ -90,7 +90,7 @@ in the same PR. No "we'll fix gate X later."
 | 7 | BENCHMARKS     | `benches/` if hot path (or justified exemption in spec)               |
 | 8 | DOCS           | `cargo doc --no-deps` 0 warnings, all pub items documented            |
 | 9 | CANARY E2E     | `tests/canary-X.nika.yaml` passes (or justified exemption)            |
-| 10| PARITY LEGACY  | Golden test vs `git show main:...` output                             |
+| 10| PARITY LEGACY  | Golden test vs `git show brouillon:...` output                             |
 | 11| REVIEW SWARM   | 3 parallel reviewers (`spn-nika:code-reviewer`, `spn-rust:rust-pro`, `feature-dev:code-reviewer`), P0/P1 fixed same session |
 | 12| ATOMIC COMMIT  | 1 commit, co-authored Nika                                            |
 
@@ -136,7 +136,7 @@ chore(deps): bump tokio 1.42 to 1.43
 Every commit message ends with:
 
 ```
-Co-Authored-By: Nika <nika@supernovae.studio>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 Full rules: [`.claude/rules/commit-granularity.md`](.claude/rules/commit-granularity.md).

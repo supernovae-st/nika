@@ -153,11 +153,14 @@ Next phases (~35 commits across B-H):
 - Phase H: SOTA patterns adoption (bon, Arc<str>, camino, public-api,
   release-plz, doc examples ratchet)
 
-**Next steps (priority order):**
-1. **Session 4C** — public launch tooling: `nika-catalog-tools` consolidation (dump+sync+verify+sign), Sigstore keyless signing, wire-format `$schema` envelope, catalog.nika.sh Scaleway publish, LiteLLM/models.dev freshness sync, `nika catalog doctor` CLI
-2. **Crate 6: nika-schema** — workflow YAML parser + analyzer (L0, ~13k LOC). The first non-catalog crate. Blocks all 5 verb crates.
-3. **Crate 7: nika-binding** — template resolver + 65 pipe transforms (L0, ~13k LOC). Blocks runtime + CLI.
-4. **Phase E2** — full TOML-driven pricing migration (cached_input/image/reasoning rates populated per-provider from live research)
+**Next steps (priority order · refreshed 2026-05-12 post BLUEPRINT_2036 v1.1)** ·
+
+1. **W3 · `nika-bm25` admission** — first L1 memory satellite per ADR-038 prep · 12-gate ceremony (Gate 1 spec → Gate 2 TDD → Gate 3 scaffold → Gate 4 clippy → Gate 12 atomic commit). Pre-W3 stabilization SHIPPED 2026-05-12 (workspace lints rustdoc · CI semver baseline · CLAUDE.md refresh · dead pointer fix).
+2. **W4 · `nika-rrf` + `nika-autodesc-minimal`** — RRF fusion + autodesc moat foundation (300 LOC subset per ADR-042 split) · streaming `MemoryRecall::recall_stream()` lands here per ADR-039.
+3. **W5-W8 · L1 satellite cascade** — `nika-fsrs` · `nika-temporal` · `nika-hnsw` (trigger-gated per ADR-005) · `nika-rdfs-reasoner` + `nika-graph-algos` (parallel) per BLUEPRINT_2036 admission DAG.
+4. **W9-W10 · `nika-autodesc-full` + `nika-memory` L2 orchestrator** — type-state `NikaStore<Building→Ready>` per ADR-041 · closes Phase 1.5 waypoint (2026-08-30).
+
+The **5-verb invariant (`infer · exec · fetch · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test · candidates `embed/evaluate/train/serve/stream/transform` all collapse cleanly into existing taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
 
 ## Tag scheme (Q-plan 3b)
 
