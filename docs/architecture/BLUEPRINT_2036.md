@@ -258,6 +258,94 @@ Ed25519 signing of memory frames (Phase 2+ multi-device sync) · RDF-star reific
 ### Supply chain hardening
 `cargo-vet` provenance attestations · `cargo-auditable` embed Cargo.lock in binary · sigstore-signed releases · SLSA L3+ at v0.90 emergence. Reproducible builds priority gate-12 invariant.
 
+## §4.5 · 11/10 amplifiers · « projet Rust le mieux codé au monde 2030 » (v1.2)
+
+Per rust-architect 10-dimension SOTA audit 2026-05-12 PM · 9 new ADRs queued
+(ADR-060..068) · NO speculative · all trigger-gated. 4 amplifiers combine into
+a singleton 2030 architectural moat ·
+
+### A1 · Kani-verified `nika-kernel` sealed traits (ADR-060)
+Formal model-checking of memory-safety + panic-freedom + arithmetic-overflow
+on the L0.5 boundary every `pck` extension crosses. AWS uses Kani on `std`
+precedent. Zero workflow engine ships this. Trigger · `model-checking/kani`
+empirical re-verification at L0.5 stabilization. Effort ~1 week. Creusot /
+Prusti functional-spec maturity gap · DEFER 2030+.
+
+### A2 · SLSA L3 + cargo-vet + sigstore + cargo-auditable (ADR-061)
+Every release binary carries embedded SBOM + signed provenance + reproducible
+bit-exact rebuild. Tokio + uv (Astral) precedent confirmed 2026. Trigger ·
+v0.85 release pipeline. Already-shipped · `cargo-deny` config (per `deny.toml`).
+Missing · `cargo-vet` + `cargo-auditable` + sigstore + SLSA L3 GitHub Actions
+provenance + `[profile.release] strip = "symbols"` byte-determinism.
+
+### A3 · PGO + BOLT at v0.90 (ADR-062)
+`cargo-pgo` (Kobzol · rust-compiler-team contributor) + LLVM BOLT post-link =
+10-25% perf delta on inference hot path (BGE-M3 cosine · BM25 scoring · RRF
+fusion). Profile via internal `nika-bench` corpus · NEVER user telemetry per
+`supernovae-alignment.md` Rule 1. Cost = bench-harness + 2× build time.
+
+### A4 · AOT-compiled `pck` packages (ADR-064 · post-ADR-050)
+`wasmtime::Module::serialize` pre-warmed plugin runtime · sub-millisecond
+cold-start · WASIp2 + Component Model + future Preview 3 (Bytecode Alliance
+roadmap 2026-2027). Combined with A1 Kani-verified kernel boundary = **provably-
+safe sandboxed-extension architecture** none of Restate/LangGraph/Temporal/Mem0
+ships.
+
+### Additional INLINE practices (ADR-063 · 065-068)
+- **mimalloc-rust** opt-in via `--features mimalloc-global` on `nika` binary · `microsoft/mimalloc` 2.5× jemalloc on multi-thread (`/microsoft/mimalloc` 75 score · 837 snippets) · trigger W3+ bench
+- **`signature::Signer<T>` trait abstraction** for Ed25519 provenance · maps to PQ migration (ML-DSA/Dilithium · SLH-DSA/SPHINCS+) at 2032+
+- **OTLP-neutral `ObservabilitySink` trait** in `nika-kernel` (L0.5 zero-dep) · `nika-otel` L1 adapter feature-gated · users opt-in any backend
+- **zerocopy 0.8 for binary hot paths** · `nika-hnsw` vector serialization + `nika-event-types` framing + Oxigraph embedding literals · NOT for YAML
+- **MIRI expansion** to `nika-kernel` + `nika-types` at W3 (currently nika-error + nika-catalog continue-on-error)
+- **cargo-hakari workspace-hack** evaluation at 20-crate milestone (~v0.85) · uv 50+ crates precedent
+
+### The combinatorial moat 2030
+
+Stacking · formal verification (A1) × reproducible-signed releases (A2) ×
+PGO-optimized hot path (A3) × AOT-WASM-Component plugins (A4) × 9 publishable
+memory satellites (ADR-004) × 5 verbs locked forever (ADR-001) × AGPL-3.0-or-
+later = **singleton in 2030**. Nothing else combines this stack.
+
+## §4.7 · Guardian AI · anti-Palantir · Nika + Olympus integration (v1.2)
+
+Per `studio/council/research/2026-04-29-ai-2027-trajectory.md` empirical
+research + ai-2027.com modal-year scenario (modal 2027 · median 2029-2032 ·
+METR HCAST doubling 4.5 months · 5-milestone ladder SC → SAR → SIAR → ASI) ·
+Nika's 7-axes structural position (Rust + YAML + Memory native + MCP+Shield
++ AGPL + local-first + BYO-LLM) is **the distributed third path** between
+the AI-2027 « Race » and « Slowdown » endings.
+
+**Anti-Palantir framing** · Palantir = surveillance-capitalism architecture
+(centralized data fusion · government contracts · vendor capture by design).
+Nika Diamond is the **structural inverse** ·
+
+| Dimension              | Palantir-style      | Nika Diamond                                   |
+|------------------------|---------------------|------------------------------------------------|
+| Data location          | Centralized cloud   | Local-first per Rule 1 (`supernovae-alignment`)|
+| User memory ownership  | Vendor-controlled   | User-controlled (Oxigraph · file-based · RDF) |
+| License                | Proprietary         | **AGPL-3.0-or-later** (share-alike forced)    |
+| Plugin protocol        | Closed-vendor       | **MCP + ACP + WASM Component** (open)         |
+| Provenance             | Black-box           | RDF-star reification (W3C standard · audit)   |
+| Inference provider     | Single-vendor       | **9-provider catalog · user picks**           |
+| Threat model           | Surveillance        | Sovereignty + capability-scoped agents        |
+
+Per `olympus-vs-nika-distinction.md` D-2026-05-08-N1 · **Nika engine = public
+moat** (competes with GPT/Claude/Cursor/LangGraph/Temporal) · **Olympus =
+atelier interne** (Jarvis-like operational alter-ego · NOT a product · consumes
+Nika crates one-way). The « mini guardian AI » framing maps cleanly ·
+
+- **Nika engine** = the SOVEREIGN AGENT INFRASTRUCTURE · what the world uses ·
+  AGPL forces share-alike on hosted forks · AI-2027 « distributed third path »
+- **Olympus** = the GUARDIAN OF THE STUDIO · ingests Nika engine + cockpit +
+  hygiene runs · per `olympus-platform-canonical.md` v1.x · atelier-tier
+  Jarvis-like surface · alter-ego operational (D-2026-05-11-N7)
+
+The 14 AI-2027-to-Nika mappings (research locked 2026-04-29) survive 2026-Q2
+stress-test · Diamond memory subsystem maps directly to AI-2027 « Memory bundle
+of vectors mar 2027 » prediction (BGE-M3 + Oxigraph + 9 satellites). Nika is
+NOT racing AGI · Nika is building the infrastructure that makes the AI-2027
+trajectory LIVABLE without vendor capture.
+
 ## §5 · Migration roadmap · Phase 1.5 → Phase 8
 
 ```
