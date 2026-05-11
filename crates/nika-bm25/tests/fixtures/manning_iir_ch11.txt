@@ -1,0 +1,27 @@
+# Manning IIR ch.11 BM25 reference corpus + expected scores
+# Source · Manning, Raghavan, Schütze (2008) « Introduction to
+# Information Retrieval » ch. 11.4.3 example 11.22-11.23
+# License · ADR-038 §Gate 2 fixture parity · educational reference
+# Format · one document per line · # = comment · canonical BM25 params (k1=1.2, b=0.75)
+#
+# Toy corpus · 4 documents · vocabulary { auto, car, insurance, best }
+#
+# DOC_ID|DOC_TEXT
+1|auto car insurance
+2|best auto insurance
+3|car insurance best auto
+4|insurance best car
+#
+# Test queries + expected top-K (computed via okapibm25 MIT reference)
+# Query format · QUERY|EXPECTED_TOP_K_DOC_IDS
+#
+# QUERY: "best car insurance"
+# Expected top-3 by score · doc 3 (4 terms · all match · longest doc) >
+#   doc 4 (3 terms · all match · short) > doc 2 (3 terms · 2 match · short)
+#
+# Numerical sanity invariants for proptest (Gate 6 · NOT fixture parity) ·
+# - score(d, q) >= 0 for non-empty intersection
+# - score(d, q) = 0 if zero query-term overlap
+# - score(d, q) finite (never NaN/Inf)
+# - monotonic · if term-freq(t, d1) > term-freq(t, d2) AND
+#                  same doc-length AND same idf · then score(d1) > score(d2)

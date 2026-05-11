@@ -21,6 +21,11 @@ publish                = true  # L1 memory satellite — publishable on crates.i
 
 [features]
 default = ["kernel"]
+# Gate 2 RED phase placeholder · activates Gate 3 GREEN tests
+# (tests/red_phase.rs::gate_3_green module · BmIndex API contract assertions).
+# Today · gated OFF · pre-Gate-3-IMPL · prevents unexpected_cfgs warning.
+_gate-3-green-phase = []
+
 # kernel · ships the MemoryRecall trait adapter (Diamond-internal default)
 # External crates.io consumers · `cargo add nika-bm25 --no-default-features`
 # = pure-algo zero-kernel-dep · matches Q6 split intent without the 2-crate tax
