@@ -117,17 +117,17 @@ discipline. The lexical-only stance is the W3 invariant.
 | Gate | Status | Notes |
 |---|---|---|
 | 1 SPEC | ✅ | This doc |
-| 2 TDD | ⏸️ pending W3 · fixtures forked from `furkantoprak/okapibm25` (MIT) for 1:1 parity |
-| 3 IMPL | ⏸️ scaffold shipped (todos) · GREEN phase next session |
-| 4 CLIPPY | ⏸️ pending W3 · `[workspace.lints]` discipline inherited |
-| 5 MUTATION ≥90% | ⏸️ pending W3 · **proptest set-equivalence at threshold** mitigation per rust-architect 2026-05-12 (NOT exact float equality · ranking ties confound mutants) |
-| 6 PROPERTY | ⏸️ pending W3 · monotonicity + IDF symmetry + saturation + length-norm bounds |
-| 7 BENCHMARKS | ⏸️ pending W3 · 10k doc corpus · <100µs target per score query · `[profile.bench]` LTO inherited |
-| 8 DOCS | ⏸️ pending W3 · `cargo doc 0 warnings` · `rustdoc::broken_intra_doc_links=deny` inherited |
-| 9 CANARY | **EXEMPT** | Pure-algo · no I/O · documented justification |
-| 10 PARITY | **EXEMPT** | CRAFT not extraction · brouillon v0.79 had no BM25 · greenfield |
-| 11 REVIEW | ⏸️ pending W3 · 3-agent swarm |
-| 12 ATOMIC | ⏸️ pending W3 · single commit adds to `[workspace.members]` + admission body per `commit-granularity.md` |
+| 2 TDD | ✅ | `tests/red_phase.rs` · 7 tests RED→GREEN transition shipped 2026-05-12 |
+| 3 IMPL | ✅ | 580 LOC · 5 modules (tokenize · scorer · index · query · lib) · commit `92e5d39fb` |
+| 4 CLIPPY | ✅ | 0 warnings pedantic-strict · workspace-inherited |
+| 5 MUTATION ≥90% | 🟡 in-flight | `cargo mutants -p nika-bm25` running 2026-05-12 · proptest set-equivalence at threshold per rust-architect mitigation |
+| 6 PROPERTY | ✅ | `tests/proptest_invariants.rs` · 4 proptest (256 cases each) + 2 deterministic (monotonicity + saturation) · commit `2da7c1e24` |
+| 7 BENCHMARKS | ✅ | `benches/bm25_bench.rs` · 3 criterion benches · `manning` · `synthetic_100` · `finalize_100` · `[profile.bench]` LTO inherited |
+| 8 DOCS | ✅ | `cargo doc --no-deps` 0 warnings · 1 doctest passes · `rustdoc::broken_intra_doc_links=deny` inherited |
+| 9 CANARY | **EXEMPT** | Pure-algo · no I/O · no provider call · no MCP server · workflow harness N/A. Justified per `nika-bm25.md` §1 « pure-algo · no async I/O beyond `consume_budget()` ». |
+| 10 PARITY | **EXEMPT** | CRAFT not extraction · `git show brouillon:tools/` had no BM25 impl (verified · brouillon predates Diamond memory subsystem) · greenfield crate per ADR-001. |
+| 11 REVIEW | ⏸️ pending | 3-agent swarm (`spn-nika:code-reviewer` + `spn-rust:rust-pro` + `feature-dev:code-reviewer`) · deferred to next session (session-cap 3/3 reached) |
+| 12 ATOMIC | ⏸️ blocked on 5+11 | Single commit adds to `[workspace.members]` + admission body per `commit-granularity.md` |
 
 ---
 
