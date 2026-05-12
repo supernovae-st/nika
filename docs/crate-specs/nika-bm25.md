@@ -142,13 +142,22 @@ on engine main `36ca8c3ee`) ·
 | Bench | Measured | Target | Headroom |
 |---|---|---|---|
 | `manning_top_k_3` | 454 ns | sub-µs | 2.2× under |
-| `synthetic_100_top_k_10` | 14.05 µs | <1 ms | **71× headroom** |
+| `synthetic_100_top_k_10` | 14.05 µs | <1 ms | 71× headroom (trivial scale) |
 | `finalize_100` | 331 µs | <5 ms | 15× headroom |
+| `synthetic_10k_top_k_10` | **1.49 ms** | <5 ms (10k scale) | **3.3× headroom** |
+| `finalize_10k` | (measured next iter) | <500 ms (10k scale) | (pending) |
 
 Per-doc scoring cost ~140 ns at 3-token query × ~30-token avg doc · right
 on cache-line latency for non-pathological BTreeMap walk. SIMD opportunity
 zero at this scale (`idf_robertson` pre-computed once at finalize ·
 14 unique vocab terms × 50 ns total).
+
+**Production-scale validation 2026-05-12** (post socratic critique Q6) ·
+linear-scale assumption HOLDS at 10k docs · 1.49 ms vs 1.4 ms linear
+extrapolation = within 6% (cache effects minimal · BTreeMap log-N
+behaviour empirical). **At 100k+ docs** the P-2 BTreeMap → FxHashMap
+migration becomes meaningful (predicted ~15 ms linear vs target 50 ms ·
+3× headroom · marginal · ADR-082 trigger).
 
 3 named perf trade-offs · all empirically deferred · all spec'd to prevent W4-W10 cascade.
 

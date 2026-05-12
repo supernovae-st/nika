@@ -86,10 +86,39 @@ fn bench_finalize_100(c: &mut Criterion) {
     });
 }
 
+// ─── Production-scale benches (post socratic critique 2026-05-12 Q6) ────
+//
+// rust-perf measured 71× headroom on synthetic_100_top_k_10 (14 µs vs 1ms)
+// but production target per ADR-078 + spec §1 hybrid retrieval is 10k-1M
+// docs. Linear extrapolation says 14 µs × 100 = 1.4 ms at 10k · STILL
+// within target but cache effects + BTreeMap depth + IDF cache misses may
+// invalidate the linear-scale assumption. These benches validate.
+
+fn bench_synthetic_10k_top_k(c: &mut Criterion) {
+    let idx = synthetic_corpus(10_000);
+    c.bench_function("synthetic_10k_top_k_10", |b| {
+        b.iter(|| {
+            let r = idx.top_k(black_box("best premium policy"), black_box(10));
+            black_box(r)
+        });
+    });
+}
+
+fn bench_finalize_10k(c: &mut Criterion) {
+    c.bench_function("finalize_10k", |b| {
+        b.iter(|| {
+            let idx = synthetic_corpus(black_box(10_000));
+            black_box(idx)
+        });
+    });
+}
+
 criterion_group!(
     benches,
     bench_manning_top_k,
     bench_synthetic_100_top_k,
-    bench_finalize_100
+    bench_finalize_100,
+    bench_synthetic_10k_top_k,
+    bench_finalize_10k
 );
 criterion_main!(benches);

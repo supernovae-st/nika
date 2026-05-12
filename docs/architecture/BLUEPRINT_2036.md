@@ -391,11 +391,17 @@ Per Niko Matsakis · Without Boats · Yoshua Wuyts · David Tolnay · Andrew
 Gallant · Alice Ryhl · Aaron Turon · Mara Bos · Eliza Weisman · Charlie
 Marsh · canonical 2026-2030 discipline ratchet ·
 
-- **Tolnay `thiserror 2.0` ratchet** · `error_code` attribute canonical · NIKA-XXX taxonomy « never renumber · only append » · `#[error(transparent)]` for variant chaining
-- **Wuyts/Boats structured concurrency** · `NikaStore` MUST implement Drop calling `tracker.close()` synchronously · `Drop::drop` cannot `.await` → prefer explicit `async fn shutdown(self)` consuming `self` · `async Drop` deferred to ADR-077 (RFC stabilization 2027+ horizon)
-- **Mara Bos canonical** · « Rust Atomics and Locks » textbook reference for INV-016 + ADR-013 · every new concurrent primitive ships `cfg(loom)` shadow at admission (gate 9.5 ratchet)
-- **Karpathy ≤800 LOC/file ethos** · NEW per-file budget · 1500 hard cap (ADR-023 unchanged) · 800 soft cap encoded as workspace lint future-ratchet · `nika-kernel/src/ai/memory.rs` currently 752/800 · split signal at 900
-- **Gallant zero-cost CLI craft (ripgrep pattern)** · for `nika serve` L4 daemon (ADR-076) · 3-rule discipline · (a) hot path 0 alloc after parse · (b) bounded `crossbeam-channel` worker fan-out · (c) `cargo bloat --release --crates` ratchet at admission
+**Sourcing discipline** (post socratic critique Q9 2026-05-12) · ratchets
+flagged ✅ are vendor-canonical (cite primary URL) · ratchets flagged 🟡
+are SuperNovae synthesis applying the architect's broader doctrine (cite
+inspiration URL · NOT direct quote).
+
+- ✅ **Tolnay `thiserror 2.0` ratchet** · `#[error(...)]` derives + `#[non_exhaustive]` on error enums · NIKA-XXX taxonomy « never renumber · only append » per FCI-005 reserved error code ranges · primary source · [thiserror 2.0 release](https://docs.rs/thiserror/latest/thiserror/) + [serde semver hygiene patterns](https://github.com/dtolnay/thiserror/releases) · `#[error(transparent)]` is canonical Tolnay pattern
+- ✅ **Mara Bos canonical** · « Rust Atomics and Locks » textbook (O'Reilly 2024 · [marabos.nl/atomics](https://marabos.nl/atomics/)) Ch.10 « Ideas and Inspiration » · `cfg(loom)` shadow testing canonical · every new concurrent primitive ships `cfg(loom)` shadow at admission (gate 9.5 ratchet)
+- 🟡 **Wuyts/Boats structured concurrency** · SuperNovae synthesis applying their async-drop doctrine · sources · [Boats « Asynchronous clean-up »](https://without.boats/blog/asynchronous-clean-up/) + [Wuyts async-drop blog](https://blog.yoshuawuyts.com/) · canonical inspiration · `Drop::drop` cannot `.await` · explicit `async fn shutdown(self)` consuming `self` · `async Drop` deferred to ADR-077 pending RFC stabilization (2027+ horizon per current Rust roadmap · NOT a Boats/Wuyts dated commitment)
+- 🟡 **Karpathy ≤800 LOC/file ethos** · SuperNovae synthesis applying Karpathy's broader « code should fit in one file » philosophy from [nanoGPT](https://github.com/karpathy/nanoGPT) + [llm.c](https://github.com/karpathy/llm.c) · the SPECIFIC « 800 LOC » number is SuperNovae's quantification · NOT a Karpathy-published constant. ADR-023 1500 LOC hard cap stays · 800 soft cap is per-file split-signal threshold.
+- 🟡 **Gallant zero-cost CLI craft (ripgrep pattern)** · SuperNovae synthesis applying Gallant's published patterns · sources · [« ripgrep is faster than ... »](https://blog.burntsushi.net/ripgrep/) + [regex crate stride-based search](https://blog.burntsushi.net/regex-internals/) · canonical 3-rule framing is OUR distillation · (a) hot path 0 alloc after parse · (b) bounded `crossbeam-channel` worker fan-out · (c) `cargo bloat --release --crates` ratchet at admission
+- ✅ **Ryhl « Sync bound nobody asked for »** (added 2026-05-12 · was implicit in ADR-078 Option D rationale) · [ryhl.io/blog/async-what-is-blocking/](https://ryhl.io/blog/async-what-is-blocking/) + [RustLatAm 2024 talk](https://www.youtube.com/c/RustLatAm) · `async fn recall(&self)` desugar forces `Self: Sync` · interior-mutability tax measurable at 1M+ calls/sec · mitigation = `&self` post-finalize + L2 RecallPool sharding
 
 ### ADR-077 (queued · MED) · `async Drop` migration plan
 
