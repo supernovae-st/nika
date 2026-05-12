@@ -34,6 +34,7 @@ struct DocEntry {
 /// Per ADR-078 the recall surface uses `&self` after finalize · interior
 /// state is read-only post-finalization.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct BmIndex {
     params: BmParams,
     docs: BTreeMap<u32, DocEntry>,

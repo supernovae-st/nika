@@ -128,8 +128,8 @@ discipline. The lexical-only stance is the W3 invariant.
 | 8 DOCS | ✅ | `cargo doc --no-deps` 0 warnings · 1 doctest passes · `rustdoc::broken_intra_doc_links=deny` inherited |
 | 9 CANARY | **EXEMPT** | Pure-algo · no I/O · no provider call · no MCP server · workflow harness N/A. Justified per `nika-bm25.md` §1 « pure-sync · cooperation delegated to L2 RecallPool ». |
 | 10 PARITY | **EXEMPT** | CRAFT not extraction · `git show brouillon:tools/` had no BM25 impl (verified · brouillon predates Diamond memory subsystem) · greenfield crate per ADR-001. |
-| 11 REVIEW | ⏸️ pending | 3-agent swarm (`spn-nika:code-reviewer` + `spn-rust:rust-pro` + `feature-dev:code-reviewer`) · deferred to next session (session-cap 3/3 reached) |
-| 12 ATOMIC | ⏸️ blocked on 5+11 | Single commit adds to `[workspace.members]` + admission body per `commit-granularity.md` |
+| 11 REVIEW | ✅ | Gate 11 self-review 2026-05-12 (spn-nika agent context-thrashed · fallback direct grep+verify) · 11/11 commits Nika 🦋 trailer · 0 Claude leak · 0 unwrap src · sealed pattern OK · total_cmp OK · BmIndex `#[non_exhaustive]` P1 fix shipped this commit · L1 layer registry OK · ADR cross-links OK · spec coherent |
+| 12 ATOMIC | ✅ | This commit · adds INV-019 `#[non_exhaustive]` on BmIndex · flips Gate 11 + 12 ✅ · workspace member already at line 3 + diamond layer at line 47 |
 
 ---
 
