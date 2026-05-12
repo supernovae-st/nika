@@ -134,6 +134,127 @@ pub enum MemoryDirective {
     Disabled,
 }
 
+// ─── DocId · satellite-local row index ──────────────────────────────
+
+/// Satellite-local document identifier.
+///
+/// `DocId` is the row index used inside an L1 memory satellite
+/// (`nika-bm25` · `nika-hnsw` · `nika-rrf` · etc.) for compact storage
+/// + fast O(1) lookup in vec-backed postings.
+///
+/// Distinct from [`MemoryId`] · `MemoryId` is the corpus-wide
+/// UUIDv7-backed identifier exposed at the L2 `RecallPool` boundary ·
+/// `DocId` is the satellite-internal compact representation.
+///
+/// Locked at L0 (this crate) to prevent 9-satellite id-space drift per
+/// rust-architect Q2.C 2026-05-12 (pre-W4 nika-rrf admission action).
+///
+/// Conversion to [`MemoryId`] happens at the L2 `RecallPool` boundary
+/// via the per-satellite `DocId ↔ MemoryId` map maintained by
+/// `nika-memory` (W10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct DocId(pub u32);
+
+impl DocId {
+    /// Create a new satellite-local document identifier.
+    #[must_use]
+    pub const fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    /// Get the underlying `u32`.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl core::fmt::Display for DocId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "doc-{}", self.0)
+    }
+}
+
+// ─── Score · raw retrieval score (NOT normalized similarity) ────────
+
+/// Raw retrieval score from a memory satellite.
+///
+/// `Score` is the **unnormalized f64 score** returned by satellites
+/// (BM25 · approximately `[0, |Q|·(k1+1)]` · HNSW distance · RRF rank
+/// fusion). It is **distinct from `nika_kernel::ai::memory::MemoryHit::score`**
+/// (f32 normalized similarity `[0.0, 1.0]` for the L2 surface).
+///
+/// Per ADR-039 L-10 + rust-ml 2026 SOTA audit · the L2 `RecallPool`
+/// derives ranks from `Score` and fuses via RRF (Cormack 2009 `k=60`) ·
+/// satellites NEVER normalize · « don't normalize · fuse RANKS ».
+///
+/// Locked at L0 to prevent 9-satellite score-shape drift per
+/// rust-architect Q2.C 2026-05-12.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Score(pub f64);
+
+impl Score {
+    /// Create a new raw retrieval score.
+    #[must_use]
+    pub const fn new(value: f64) -> Self {
+        Self(value)
+    }
+
+    /// Get the underlying `f64`.
+    #[must_use]
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+
+    /// Zero score (no overlap · no relevance).
+    #[must_use]
+    pub const fn zero() -> Self {
+        Self(0.0)
+    }
+
+    /// `true` if the score is finite (not NaN · not infinite).
+    #[must_use]
+    pub fn is_finite(self) -> bool {
+        self.0.is_finite()
+    }
+}
+
+impl core::fmt::Display for Score {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:.6}", self.0)
+    }
+}
+
+// ─── RankedDoc · satellite output shape (id + score) ────────────────
+
+/// Satellite output element · pairs a [`DocId`] with its raw [`Score`].
+///
+/// Returned by `nika-bm25::top_k` · `nika-hnsw::knn` · `nika-rrf::fuse`
+/// at the satellite output boundary. The L2 `RecallPool` (W10) consumes
+/// `Vec<RankedDoc>` per satellite and merges via Reciprocal Rank Fusion
+/// (Cormack 2009 `k=60` · ADR-039 L-9 + L-10).
+///
+/// Locked at L0 to prevent 9-satellite output-shape drift per
+/// rust-architect Q2.C 2026-05-12.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct RankedDoc {
+    /// Satellite-local document identifier.
+    pub id: DocId,
+    /// Raw retrieval score · NOT normalized · NOT a similarity.
+    pub score: Score,
+}
+
+impl RankedDoc {
+    /// Create a new ranked document entry.
+    #[must_use]
+    pub const fn new(id: DocId, score: Score) -> Self {
+        Self { id, score }
+    }
+}
+
 // ─── MemoryFrameRef ─────────────────────────────────────────────────
 
 /// Lightweight memory reference for `InferResponse`.
@@ -340,5 +461,95 @@ mod tests {
     fn memory_types_send_sync() {
         _assert_send_sync::<MemoryId>();
         _assert_send_sync::<MemoryFrameRef>();
+        _assert_send_sync::<DocId>();
+        _assert_send_sync::<Score>();
+        _assert_send_sync::<RankedDoc>();
+    }
+
+    // ─── DocId tests ────────────────────────────────────────────────
+
+    #[test]
+    fn doc_id_new_and_get() {
+        let id = DocId::new(42);
+        assert_eq!(id.get(), 42);
+    }
+
+    #[test]
+    fn doc_id_display() {
+        let id = DocId::new(7);
+        assert_eq!(id.to_string(), "doc-7");
+    }
+
+    #[test]
+    fn doc_id_ord_ascending() {
+        let mut v = vec![DocId::new(3), DocId::new(1), DocId::new(2)];
+        v.sort();
+        assert_eq!(v, vec![DocId::new(1), DocId::new(2), DocId::new(3)]);
+    }
+
+    #[test]
+    fn doc_id_serde_roundtrip() {
+        let id = DocId::new(123);
+        let json = serde_json::to_string(&id).expect("ser");
+        let back: DocId = serde_json::from_str(&json).expect("de");
+        assert_eq!(id, back);
+    }
+
+    // ─── Score tests ────────────────────────────────────────────────
+
+    #[test]
+    fn score_new_and_get() {
+        let s = Score::new(1.234);
+        assert!((s.get() - 1.234).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn score_zero() {
+        assert!((Score::zero().get() - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn score_is_finite_true() {
+        assert!(Score::new(1.234).is_finite());
+        assert!(Score::zero().is_finite());
+    }
+
+    #[test]
+    fn score_is_finite_false_for_nan_and_inf() {
+        assert!(!Score::new(f64::NAN).is_finite());
+        assert!(!Score::new(f64::INFINITY).is_finite());
+        assert!(!Score::new(f64::NEG_INFINITY).is_finite());
+    }
+
+    #[test]
+    fn score_partial_ord() {
+        assert!(Score::new(1.0) < Score::new(2.0));
+        assert!(Score::new(2.5) > Score::new(2.4));
+    }
+
+    #[test]
+    fn score_serde_roundtrip() {
+        let s = Score::new(4.32);
+        let json = serde_json::to_string(&s).expect("ser");
+        let back: Score = serde_json::from_str(&json).expect("de");
+        assert!((s.get() - back.get()).abs() < f64::EPSILON);
+    }
+
+    // ─── RankedDoc tests ────────────────────────────────────────────
+
+    #[test]
+    fn ranked_doc_new() {
+        let r = RankedDoc::new(DocId::new(5), Score::new(0.85));
+        assert_eq!(r.id, DocId::new(5));
+        assert!((r.score.get() - 0.85).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn ranked_doc_serde_roundtrip() {
+        let r = RankedDoc::new(DocId::new(99), Score::new(4.567));
+        let json = serde_json::to_string(&r).expect("ser");
+        let back: RankedDoc = serde_json::from_str(&json).expect("de");
+        assert_eq!(r.id, back.id);
+        assert!((r.score.get() - back.score.get()).abs() < f64::EPSILON);
     }
 }
