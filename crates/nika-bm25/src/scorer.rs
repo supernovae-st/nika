@@ -26,6 +26,7 @@
 ///
 /// Returns `0.0` if `n == 0` or `df > n` (defensive · empty corpus).
 #[must_use]
+#[inline]
 pub(crate) fn idf_robertson(n: usize, df: usize) -> f64 {
     if n == 0 || df > n {
         return 0.0;
@@ -47,6 +48,7 @@ pub(crate) fn idf_robertson(n: usize, df: usize) -> f64 {
 ///
 /// Returns `0.0` if `tf == 0` (term absent) · `avgdl == 0` (empty corpus).
 #[must_use]
+#[inline]
 pub(crate) fn term_score(tf: u32, doc_len: u32, avgdl: f64, idf: f64, k1: f64, b: f64) -> f64 {
     if tf == 0 || avgdl <= 0.0 {
         return 0.0;

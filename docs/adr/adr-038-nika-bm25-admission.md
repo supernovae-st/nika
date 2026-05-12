@@ -1,7 +1,7 @@
 ---
 id: ADR-038
 title: "Admit nika-bm25 as the first L1 memory satellite (CRAFT-from-scratch BM25 scorer)"
-status: proposed
+status: accepted
 date: "2026-05-12"
 phase: "Phase 1.5 memory · Wave 3 (pre-admission gate-readiness)"
 deciders: ["@ThibautMelen"]

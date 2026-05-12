@@ -133,9 +133,24 @@ discipline. The lexical-only stance is the W3 invariant.
 
 ---
 
-## 6. Performance roadmap (post rust-pro SOTA audit 2026-05-12)
+## 6. Performance roadmap (post rust-pro + rust-perf SOTA audit 2026-05-12)
 
-W3 admission ships **correct + clean + lint-pure** · NOT yet optimal-throughput. 3 named perf trade-offs · all spec'd here to prevent W4-W10 cascade.
+W3 admission ships **correct + clean + lint-pure** · **all 3 Gate 7 bench
+targets met with massive headroom** (per rust-perf audit 2026-05-12 PM
+on engine main `36ca8c3ee`) ·
+
+| Bench | Measured | Target | Headroom |
+|---|---|---|---|
+| `manning_top_k_3` | 454 ns | sub-µs | 2.2× under |
+| `synthetic_100_top_k_10` | 14.05 µs | <1 ms | **71× headroom** |
+| `finalize_100` | 331 µs | <5 ms | 15× headroom |
+
+Per-doc scoring cost ~140 ns at 3-token query × ~30-token avg doc · right
+on cache-line latency for non-pathological BTreeMap walk. SIMD opportunity
+zero at this scale (`idf_robertson` pre-computed once at finalize ·
+14 unique vocab terms × 50 ns total).
+
+3 named perf trade-offs · all empirically deferred · all spec'd to prevent W4-W10 cascade.
 
 - **P-1 · `Vec<String>` tokenize allocation** (`tokenize.rs:14`) · per-call heap alloc per token. Acceptable for W3 admission (small corpora). Migrate to iterator API (`fn tokens(&str) -> impl Iterator<Item = &str>` lifetime-tied · zero-alloc) at W4 if `synthetic_100_top_k_10` criterion bench > 1ms. Cross-link · BLUEPRINT v1.5 Gallant ripgrep 0-alloc CLI craft ratchet · tantivy `TextAnalyzer::token_stream` precedent.
 - **P-2 · `BTreeMap<String, u32>` tf-table** (`index.rs:24`) · O(log n) lookup · poor cache locality. Acceptable for W3 (deterministic iteration · zero unsafe · zero new dep). Migrate to `rustc_hash::FxHashMap` (used by rust-analyzer + cargo + tantivy stacker) at W4 if hot-path benchmark > 1ms. Pre-empt 8-sister cascade by documenting the trade-off now.
