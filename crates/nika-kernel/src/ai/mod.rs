@@ -9,3 +9,4 @@ pub mod context;
 pub mod genai;
 pub mod memory;
 pub mod provider;
+pub mod vision;
