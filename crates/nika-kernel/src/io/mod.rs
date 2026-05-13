@@ -10,6 +10,7 @@ pub mod blob;
 pub mod clock;
 pub mod fs;
 pub mod http;
+pub mod input;
 pub mod ocr;
 pub mod process;
 pub mod screen;
