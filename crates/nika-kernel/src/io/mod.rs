@@ -5,6 +5,7 @@
 //!
 //! Future sub-crate: `nika-kernel-io` (when kernel exceeds 10k LOC or 50 traits).
 
+pub mod a11y;
 pub mod blob;
 pub mod clock;
 pub mod fs;
