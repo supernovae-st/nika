@@ -127,7 +127,7 @@ phf        = { version = "0.13", features = ["macros", "unicase"] }
 unicase    = "2.9"
 
 trait-variant = "0.1"
-bytes         = "1"
+bytes         = { version = "1", features = ["serde"] }
 futures-core  = "0.3"
 parking_lot   = "0.12"
 tokio         = { version = "1", features = ["rt", "macros", "time"] }
