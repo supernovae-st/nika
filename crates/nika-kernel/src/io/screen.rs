@@ -131,8 +131,14 @@ pub struct Frame {
     pub pixels: Bytes,
     /// Source display identifier.
     pub display_id: DisplayId,
-    /// Monotonic capture timestamp (milliseconds since UNIX epoch).
-    pub captured_at_ms: u64,
+    /// Monotonic capture timestamp (nanoseconds since UNIX epoch).
+    ///
+    /// Canonical timestamp resolution across the `SuperNovae` galaxy
+    /// (cockpit `nano_now()` + `nika-kernel` `input.rs` ns canon · EC-4
+    /// ratchet 2026-05-14 · USER GATE OUI ns canonical). Sub-ms
+    /// precision matches Rust `std::time::Instant::as_nanos` idiom
+    /// and avoids ms-vs-ns conversion drift at the IPC boundary.
+    pub captured_at_ns: u64,
 }
 
 impl Frame {
@@ -149,7 +155,7 @@ impl Frame {
         scale_factor: f32,
         pixels: Bytes,
         display_id: DisplayId,
-        captured_at_ms: u64,
+        captured_at_ns: u64,
     ) -> Self {
         Self {
             width,
@@ -157,7 +163,7 @@ impl Frame {
             scale_factor,
             pixels,
             display_id,
-            captured_at_ms,
+            captured_at_ns,
         }
     }
 }
@@ -291,5 +297,23 @@ mod tests {
         _assert::<DisplayInfo>();
         _assert::<Rect>();
         _assert::<Frame>();
+    }
+
+    /// EC-4 ratchet · Frame uses `captured_at_ns` (nanoseconds since UNIX
+    /// epoch) as the canonical timestamp field name. Cohérent cockpit
+    /// `nano_now()` + nika-kernel input.rs ns canon + USER GATE EC-4 OUI
+    /// ns canonical. Per `no-legacy-no-back-compat.md` · breaking-on-MINOR
+    /// during forever-v0.x · zero shim · zero `captured_at_ms` alias.
+    #[test]
+    fn frame_uses_captured_at_ns_canonical_field_name() {
+        let frame = Frame::new(
+            1920,
+            1080,
+            1.0,
+            Bytes::from_static(&[0u8; 16]),
+            DisplayId(0),
+            1_700_000_000_000_000_000_u64, // ns since UNIX epoch
+        );
+        assert_eq!(frame.captured_at_ns, 1_700_000_000_000_000_000_u64);
     }
 }

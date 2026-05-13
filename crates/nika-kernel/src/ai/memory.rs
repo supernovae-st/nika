@@ -32,7 +32,11 @@ pub struct MemoryFrame {
     pub metadata: BTreeMap<String, String>,
     /// Origin source (e.g., workflow name, task ID).
     pub source: Option<String>,
-    /// When the observation was made (Unix epoch millis).
+    /// When the observation was made (Unix epoch nanoseconds).
+    ///
+    /// Canonical timestamp resolution across the `SuperNovae` galaxy
+    /// (cohérent `screen.rs` `captured_at_ns` + cockpit `nano_now()` ·
+    /// EC-4 ratchet 2026-05-14 · USER GATE OUI ns canonical).
     pub observed_at: Option<u64>,
     /// Encryption cipher used (v0.95 Cortex — encrypted memory).
     /// Reserved: always `None` until nika-memory crate ships.
@@ -90,11 +94,13 @@ pub struct RecallQuery {
     pub limit: Option<usize>,
     /// Minimum similarity score (0.0–1.0).
     pub min_score: Option<f32>,
-    /// Filter: only return memories observed after this timestamp (Unix ms).
-    /// Reserved for nika-memory-temporal (v0.95).
+    /// Filter: only return memories observed after this timestamp (Unix ns).
+    /// Reserved for `nika-memory-temporal` (v0.95). Cohérent EC-4 ratchet
+    /// 2026-05-14 · ns canonical across the `SuperNovae` galaxy.
     pub observed_after: Option<u64>,
-    /// Filter: only return memories observed before this timestamp (Unix ms).
-    /// Reserved for nika-memory-temporal (v0.95).
+    /// Filter: only return memories observed before this timestamp (Unix ns).
+    /// Reserved for `nika-memory-temporal` (v0.95). Cohérent EC-4 ratchet
+    /// 2026-05-14 · ns canonical across the `SuperNovae` galaxy.
     pub observed_before: Option<u64>,
 }
 
