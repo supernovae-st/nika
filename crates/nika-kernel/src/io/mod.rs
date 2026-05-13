@@ -9,5 +9,6 @@ pub mod blob;
 pub mod clock;
 pub mod fs;
 pub mod http;
+pub mod ocr;
 pub mod process;
 pub mod screen;
