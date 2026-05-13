@@ -77,7 +77,14 @@ use serde::{Deserialize, Serialize};
 pub trait ConsentState {
     /// The value carried by an Authorized state · `Infallible` when
     /// Unconfirmed · `ConsentProof` when Authorized.
-    type Granted;
+    ///
+    /// `Send + Sync` bound · enables `&S::Granted` proof references to
+    /// cross async task boundaries (cohérent CANCEL SAFETY · L1 impls
+    /// wrap synchronous OS event syscalls in `spawn_blocking` and pass
+    /// the proof reference into the worker). `Infallible` and
+    /// `ConsentProof` both satisfy the bound automatically · primitive
+    /// fields · `Copy + Send + Sync` by default.
+    type Granted: Send + Sync;
 }
 
 /// Type-state · consent has not been acquired · `Granted = Infallible`
@@ -415,13 +422,20 @@ pub enum KeyCode {
 
 /// Synthetic input device · async trait gated by type-state consent.
 ///
-/// CANCEL SAFETY: every method is best-effort cancel-safe at the syscall
-/// boundary · per the per-method documentation below. L1 impls SHOULD
-/// wrap the OS call in a `spawn_blocking` + cancel token shim because
-/// macOS `CGEvent` · Windows `SendInput` · Linux `uinput` APIs are
-/// synchronous. Once the OS has queued the event (post-syscall) cancel
-/// becomes a no-op · the synthetic event is committed to the input
-/// pipeline · this is documented per-method.
+/// CANCEL SAFETY · async methods are BEST-EFFORT cancel-safe with one
+/// exception · `type_text` may produce PARTIAL INPUT if cancelled
+/// mid-string (multi-character strings emit one synthetic key event per
+/// code point · cancel mid-stream leaves the target with a partial
+/// substring). See per-method CANCEL SAFETY blocks for exact semantics.
+///
+/// Other methods (`move_cursor` · `click` · `key_press`) are best-effort ·
+/// once the synthetic event is queued at the kernel layer · dropping the
+/// future abandons the post-queue synchronous wait but the event itself
+/// proceeds. L1 impls SHOULD wrap the OS call in a `spawn_blocking` +
+/// cancel token shim because macOS `CGEvent` · Windows `SendInput` ·
+/// Linux `uinput` APIs are synchronous. Once the OS has queued the
+/// event (post-syscall) cancel becomes a no-op · the synthetic event is
+/// committed to the input pipeline · this is documented per-method.
 ///
 /// `#[trait_variant::make(InputDeviceDyn: Send)]` generates a `Send`
 /// companion trait `InputDeviceDyn` for generic constraints (cohérent

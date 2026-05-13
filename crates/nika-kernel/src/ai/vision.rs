@@ -96,6 +96,56 @@ impl BoundingBox {
     }
 }
 
+/// Lossy conversion from a vision-LLM `BoundingBox` (`f32`) to a
+/// screen-capture `Rect` (`i32 + u32`) · truncates fractional pixels and
+/// guards non-finite / negative dimensions.
+///
+/// `x` · `y` truncate to `i32` (saturating cast · `as` semantics in
+/// Rust 1.45+ saturate at `i32::MIN`/`MAX` for out-of-range `f32`).
+/// `width` · `height` clamp to `u32` · NaN · Infinity · or `<= 0.0`
+/// produce `0` (degenerate rect · L1 consumers MUST check for empty
+/// before downstream capture / paint). Cohérent the canonical Class 1
+/// single-geometry-type discipline · enables vision-LLM bbox results
+/// to flow into screen-capture region requests without manual coercion
+/// at every call site.
+///
+/// Lossy by design · vision-LLM outputs are sub-pixel · screen capture
+/// is pixel-integer. Per Invariant #19 spirit · this conversion is
+/// surfaced as `From<&BoundingBox>` not `From<BoundingBox>` so the
+/// vision response retains ownership for downstream consumers.
+impl From<&BoundingBox> for crate::io::screen::Rect {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss,
+        reason = "lossy by contract · vision-LLM bbox `f32` sub-pixel coordinates \
+                  truncate to screen-capture `Rect` `i32 + u32` pixel-integer · \
+                  documented on the impl docstring · negative / NaN / Infinity \
+                  width/height guarded to 0 explicitly · x/y saturating-cast per \
+                  Rust 1.45+ `as` semantics for out-of-range f32"
+    )]
+    fn from(bb: &BoundingBox) -> Self {
+        let x = bb.x as i32;
+        let y = bb.y as i32;
+        let width = if bb.width.is_finite() && bb.width > 0.0 {
+            bb.width as u32
+        } else {
+            0
+        };
+        let height = if bb.height.is_finite() && bb.height > 0.0 {
+            bb.height as u32
+        } else {
+            0
+        };
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
 /// Detected object · label + bounding box + arbitrary attribute map.
 ///
 /// `label` is the recognized class name (e.g. `"person"` · `"button"`
@@ -307,6 +357,42 @@ mod tests {
         assert_eq!(from_new, from_lit);
     }
 
+    /// `BoundingBox` → `Rect` lossy conversion truncates fractional
+    /// pixels · guards NaN / Infinity / negative dimensions to `0` ·
+    /// preserves the canonical happy path (positive finite f32 maps
+    /// 1-to-1 to truncated integer pixels). Cohérent the doc-comment
+    /// contract on the `From<&BoundingBox>` impl.
+    #[test]
+    fn bounding_box_to_rect_truncates_correctly() {
+        // Happy path · positive finite f32 truncates cleanly.
+        let bb = BoundingBox::new(100.5, 200.7, 80.3, 32.9, 0.95);
+        let rect: Rect = (&bb).into();
+        assert_eq!(rect.x, 100);
+        assert_eq!(rect.y, 200);
+        assert_eq!(rect.width, 80);
+        assert_eq!(rect.height, 32);
+
+        // Negative width / height clamp to 0 (degenerate rect).
+        let bb_neg = BoundingBox::new(10.0, 20.0, -5.0, -10.0, 0.5);
+        let rect_neg: Rect = (&bb_neg).into();
+        assert_eq!(rect_neg.width, 0);
+        assert_eq!(rect_neg.height, 0);
+
+        // NaN / Infinity dimensions clamp to 0.
+        let bb_nan = BoundingBox::new(0.0, 0.0, f32::NAN, f32::INFINITY, 0.5);
+        let rect_nan: Rect = (&bb_nan).into();
+        assert_eq!(rect_nan.width, 0);
+        assert_eq!(rect_nan.height, 0);
+
+        // Zero width / height clamps to 0 (matches positive-only guard).
+        let bb_zero = BoundingBox::new(5.0, 6.0, 0.0, 0.0, 0.5);
+        let rect_zero: Rect = (&bb_zero).into();
+        assert_eq!(rect_zero.x, 5);
+        assert_eq!(rect_zero.y, 6);
+        assert_eq!(rect_zero.width, 0);
+        assert_eq!(rect_zero.height, 0);
+    }
+
     #[test]
     fn vision_response_round_trip() {
         let resp = VisionResponse::new(
@@ -358,9 +444,15 @@ mod tests {
 
     /// DEV-2 generic-bound compile check · ensures the trait shape is
     /// usable as a generic constraint via the `Send` companion. The
-    /// function never runs · the type-check is the assertion.
-    #[allow(dead_code)]
-    fn vision_model_generic_bound_compile_check<T: VisionModelDyn>(_: &T) {}
+    /// inner function never runs · the type-check is the assertion.
+    /// Cohérent sister-modules pattern (`io::screen` · `io::ocr` ·
+    /// `io::a11y` · `io::browser` · `io::input`) · `#[test]` wrapper
+    /// contains the generic-bound inner fn (no `#[allow(dead_code)]` ·
+    /// tests excuse `dead_code` automatically).
+    #[test]
+    fn vision_model_generic_bound_compile_check() {
+        fn _accepts_vision_model<T: VisionModelDyn>(_: &T) {}
+    }
 
     /// Sanity-check the synthetic frame builder used across test cases.
     #[test]
