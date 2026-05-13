@@ -7,6 +7,7 @@
 
 pub mod a11y;
 pub mod blob;
+pub mod browser;
 pub mod clock;
 pub mod fs;
 pub mod http;
