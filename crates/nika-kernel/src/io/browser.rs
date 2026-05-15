@@ -189,8 +189,8 @@ impl DomNode {
 /// code uses `T: BrowserAutomationDyn` for monomorphized hot paths.
 /// Per `trait_variant` 0.1 semantics · the companion uses `impl Future
 /// + Send` returns which are NOT dyn-compatible · this is intentional
-/// (kernel traits stay zero-cost · L1 impls wrap via `Arc<T>` not
-/// `Arc<dyn _>`).
+/// (kernel traits stay zero-cost · L1 impls wrap via generic `Arc` over
+/// `T: BrowserAutomation` not over trait objects).
 #[trait_variant::make(BrowserAutomationDyn: Send)]
 pub trait BrowserAutomation: Send + Sync {
     /// Launch a new browser session.
