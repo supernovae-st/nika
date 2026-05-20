@@ -22,6 +22,11 @@
 //! }
 //! ```
 //!
+//! `context_json` accepts EITHER a JSON-encoded string OR an inline object.
+//! The engine's `coerce_json_types` template-resolution helper auto-parses
+//! JSON-shaped strings into native `Value::Object` BEFORE the schema is
+//! validated, so accepting both shapes prevents B-4-style false rejects.
+//!
 //! # Returns
 //!
 //! ```json
@@ -60,6 +65,21 @@ fn default_max_depth() -> u32 {
     3
 }
 
+/// Accepts EITHER a JSON-encoded string OR an inline JSON object/array.
+///
+/// Template resolution in the engine (`coerce_json_types`) auto-parses
+/// JSON-shaped strings like `"{\"k\":\"v\"}"` back to `Value::Object`
+/// BEFORE schema validation. Without an untagged enum here, the param
+/// resolver passes a Map · serde rejects on `Option<String>` (B-4).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum ContextJson {
+    /// Pre-serialized JSON string (legacy OpenAI strict-mode shape).
+    String(String),
+    /// Native JSON value (object/array/primitive) — post template resolve.
+    Value(serde_json::Value),
+}
+
 /// Parameters for `nika:run`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RunParams {
@@ -69,9 +89,13 @@ pub struct RunParams {
     /// Inline YAML content (alternative to file path).
     #[serde(default)]
     pub yaml_content: Option<String>,
-    /// Context as JSON string (for OpenAI strict mode where objects aren't allowed).
+    /// Context as JSON string OR object (see [`ContextJson`]).
+    ///
+    /// Pre-B-4 this was `Option<String>` only. Now accepts both shapes
+    /// because the engine's template-resolution coerces JSON-shaped
+    /// strings into objects before this struct is deserialized.
     #[serde(default)]
-    pub context_json: Option<String>,
+    pub context_json: Option<ContextJson>,
     /// Context object to pass into the child workflow.
     #[serde(default)]
     pub context: Option<serde_json::Value>,
@@ -85,15 +109,21 @@ pub struct RunParams {
 
 impl RunParams {
     fn get_context(&self) -> Result<Option<serde_json::Value>, BuiltinError> {
-        if let Some(ref json_str) = self.context_json {
-            serde_json::from_str(json_str).map(Some).map_err(|e| {
-                BuiltinError::InvalidArgs {
-                    tool: "nika:run".into(),
-                    reason: format!("Invalid context_json: {e}"),
-                }
-            })
-        } else {
-            Ok(self.context.clone())
+        match self.context_json {
+            Some(ContextJson::String(ref json_str)) => {
+                // Backward-compat path · pre-serialized JSON-encoded string.
+                serde_json::from_str(json_str).map(Some).map_err(|e| {
+                    BuiltinError::InvalidArgs {
+                        tool: "nika:run".into(),
+                        reason: format!("Invalid context_json: {e}"),
+                    }
+                })
+            }
+            Some(ContextJson::Value(ref v)) => {
+                // B-4 fix path · post-coercion native object/array.
+                Ok(Some(v.clone()))
+            }
+            None => Ok(self.context.clone()),
         }
     }
 }
@@ -149,8 +179,11 @@ impl BuiltinTool for RunTool {
                     "description": "Inline YAML content (alternative to file path)"
                 },
                 "context_json": {
-                    "type": "string",
-                    "description": "Context as JSON string"
+                    "type": ["string", "object", "array", "null"],
+                    "description": "Context as JSON string OR native object/array. \
+                                    Strings are parsed; objects/arrays are passed through. \
+                                    Engine template-resolution coerces JSON-shaped strings \
+                                    to objects before this point (B-4 fix v0.82)."
                 },
                 "timeout_secs": {
                     "type": "integer",
@@ -483,5 +516,112 @@ mod tests {
     #[test]
     fn test_name_is_run() {
         assert_eq!(make_tool().name(), "run");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // B-4 regression coverage · context_json accepts Object OR String
+    // ─────────────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_b4_context_json_accepts_inline_object() {
+        // The bug · template engine renders the string in JSON shape,
+        // then coerce_json_types turns it into Value::Object before this
+        // struct is deserialized. Pre-fix this rejected at NIKA-212.
+        let tool = make_tool();
+        let result = tool
+            .call(
+                serde_json::json!({
+                    "workflow": "wf.nika.yaml",
+                    "context_json": { "urls": ["https://a", "https://b"] }
+                })
+                .to_string(),
+            )
+            .await;
+        assert!(result.is_ok(), "Object-shape context_json must parse · {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn test_b4_context_json_accepts_inline_array() {
+        let tool = make_tool();
+        let result = tool
+            .call(
+                serde_json::json!({
+                    "workflow": "wf.nika.yaml",
+                    "context_json": ["a", "b", "c"]
+                })
+                .to_string(),
+            )
+            .await;
+        assert!(result.is_ok(), "Array-shape context_json must parse · {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn test_b4_context_json_backward_compat_string() {
+        // Pre-existing string-shape MUST still work post-fix.
+        let tool = make_tool();
+        let result = tool
+            .call(
+                serde_json::json!({
+                    "workflow": "wf.nika.yaml",
+                    "context_json": "{\"k\":\"v\"}"
+                })
+                .to_string(),
+            )
+            .await;
+        assert!(result.is_ok(), "String-shape context_json backward-compat · {:?}", result);
+    }
+
+    #[test]
+    fn test_b4_get_context_object_path() {
+        let params = RunParams {
+            workflow: "x".into(),
+            yaml_content: None,
+            context_json: Some(ContextJson::Value(serde_json::json!({"urls": [1, 2]}))),
+            context: None,
+            timeout_secs: 300,
+            max_depth: 3,
+        };
+        let ctx = params.get_context().unwrap();
+        assert_eq!(ctx, Some(serde_json::json!({"urls": [1, 2]})));
+    }
+
+    #[test]
+    fn test_b4_get_context_string_path() {
+        let params = RunParams {
+            workflow: "x".into(),
+            yaml_content: None,
+            context_json: Some(ContextJson::String(r#"{"k":"v"}"#.into())),
+            context: None,
+            timeout_secs: 300,
+            max_depth: 3,
+        };
+        let ctx = params.get_context().unwrap();
+        assert_eq!(ctx, Some(serde_json::json!({"k": "v"})));
+    }
+
+    #[test]
+    fn test_b4_get_context_invalid_string_errors() {
+        let params = RunParams {
+            workflow: "x".into(),
+            yaml_content: None,
+            context_json: Some(ContextJson::String("not json".into())),
+            context: None,
+            timeout_secs: 300,
+            max_depth: 3,
+        };
+        let err = params.get_context().unwrap_err();
+        assert!(err.to_string().contains("NIKA-212"), "{err}");
+    }
+
+    #[test]
+    fn test_b4_schema_declares_both_shapes() {
+        let tool = make_tool();
+        let schema = tool.parameters_schema();
+        let cj_type = &schema["properties"]["context_json"]["type"];
+        let types: Vec<&str> = cj_type.as_array().unwrap()
+            .iter().map(|v| v.as_str().unwrap()).collect();
+        assert!(types.contains(&"string"));
+        assert!(types.contains(&"object"));
+        assert!(types.contains(&"array"));
     }
 }
