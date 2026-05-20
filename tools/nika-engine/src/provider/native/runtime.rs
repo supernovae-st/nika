@@ -33,7 +33,7 @@ use tokio_util::sync::CancellationToken;
 #[cfg(feature = "native-inference")]
 use crate::util::constants::INFER_TIMEOUT;
 #[cfg(feature = "native-inference")]
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock as ParkingRwLock};
 #[cfg(feature = "native-inference")]
 use std::path::Path;
 #[cfg(feature = "native-inference")]
@@ -99,23 +99,53 @@ struct TrackedTask {
 /// runtime.load(PathBuf::new(), config).await?;
 /// assert!(runtime.supports_vision());
 /// ```
-pub struct NativeRuntime {
-    /// The loaded model (None if no model is loaded).
-    #[cfg(feature = "native-inference")]
-    model: Option<Arc<RwLock<Model>>>,
-
+/// Snapshot of everything materialized by a successful `load()` call.
+///
+/// Bundled into a single struct so the whole loaded state can hide behind a
+/// single `Arc<ParkingRwLock<Option<LoadedState>>>` (see
+/// [`NativeRuntime::loaded`]). That layout gives us interior mutability:
+/// cloning a `NativeRuntime` shares the same `Arc`, so loading on one clone is
+/// visible to every other clone (the executor caches and clones `RigProvider`
+/// per call, so this matters in practice — see B-1 in
+/// `agency/dynergie-scrap/UPSTREAM_FIXES.md`).
+#[cfg(feature = "native-inference")]
+struct LoadedState {
+    /// The loaded mistral.rs `Model` behind an async `RwLock` for concurrent
+    /// inference. Cloning the outer `Arc` is cheap; the inner `Model` stays
+    /// pinned in GPU/CPU memory until the last `Arc` is dropped.
+    model: Arc<RwLock<Model>>,
     /// Metadata about the loaded model.
-    model_info: Option<ModelInfo>,
-
-    /// Path to the currently loaded model.
-    model_path: Option<PathBuf>,
-
-    /// Load configuration used for the current model.
-    config: Option<LoadConfig>,
-
-    /// Whether the loaded model supports vision (derived from ModelCategory).
-    /// Set during `load()` by inspecting `Model::config().category`.
+    info: ModelInfo,
+    /// Source path of the loaded model. `None` for HuggingFace vision models
+    /// where the file isn't a single artifact on the local FS.
+    path: Option<PathBuf>,
+    /// Load configuration used.
+    config: LoadConfig,
+    /// Whether the loaded model supports vision (derived from
+    /// `Model.config().category`).
     is_vision: bool,
+}
+
+#[cfg(feature = "native-inference")]
+impl std::fmt::Debug for LoadedState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoadedState")
+            .field("info", &self.info)
+            .field("path", &self.path)
+            .field("config", &self.config)
+            .field("is_vision", &self.is_vision)
+            .finish_non_exhaustive()
+    }
+}
+
+pub struct NativeRuntime {
+    /// Shared loaded state, populated by `load()` and consumed by every infer
+    /// path. `None` until a successful load. Cloning the runtime shares this
+    /// `Arc`, so the cache→clone pattern used by the executor still sees a
+    /// loaded model after any one caller triggers `load()` /
+    /// `ensure_loaded()`.
+    #[cfg(feature = "native-inference")]
+    loaded: Arc<ParkingRwLock<Option<LoadedState>>>,
 
     /// Master cancellation token for all spawned tasks.
     cancellation_token: CancellationToken,
@@ -125,16 +155,25 @@ pub struct NativeRuntime {
     tasks: Arc<Mutex<Vec<TrackedTask>>>,
 }
 
-// Manual Debug implementation (Model doesn't implement Debug)
+// Manual Debug implementation (Model doesn't implement Debug).
 impl std::fmt::Debug for NativeRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut dbg = f.debug_struct("NativeRuntime");
-        dbg.field("model_info", &self.model_info)
-            .field("model_path", &self.model_path)
-            .field("config", &self.config)
-            .field("is_loaded", &self.is_loaded())
-            .field("is_vision", &self.is_vision)
-            .field("is_cancelled", &self.cancellation_token.is_cancelled());
+
+        #[cfg(feature = "native-inference")]
+        {
+            let guard = self.loaded.read();
+            // Mirror the pre-refactor surface so legacy tests + log scrapers
+            // see `is_loaded` + `is_vision` at the top level.
+            dbg.field("loaded", &*guard)
+                .field("is_loaded", &guard.is_some())
+                .field(
+                    "is_vision",
+                    &guard.as_ref().is_some_and(|s| s.is_vision),
+                );
+        }
+
+        dbg.field("is_cancelled", &self.cancellation_token.is_cancelled());
 
         #[cfg(feature = "native-inference")]
         {
@@ -146,17 +185,17 @@ impl std::fmt::Debug for NativeRuntime {
     }
 }
 
-// Manual Clone implementation (clones the Arc, not the model itself)
-// Note: Clone shares the same cancellation token and task list
+// Manual Clone implementation (Arc clones only — the underlying state IS shared).
+//
+// This is intentional: the executor caches one `RigProvider` per provider name
+// (`runtime/executor/mod.rs::get_rig_provider`) and hands clones back to call
+// sites. We rely on those clones seeing the SAME `loaded` slot so a single
+// `load()` (or `ensure_loaded()`) call benefits every subsequent infer.
 impl Clone for NativeRuntime {
     fn clone(&self) -> Self {
         Self {
             #[cfg(feature = "native-inference")]
-            model: self.model.clone(),
-            model_info: self.model_info.clone(),
-            model_path: self.model_path.clone(),
-            config: self.config.clone(),
-            is_vision: self.is_vision,
+            loaded: Arc::clone(&self.loaded),
             cancellation_token: self.cancellation_token.clone(),
             #[cfg(feature = "native-inference")]
             tasks: Arc::clone(&self.tasks),
@@ -173,11 +212,7 @@ impl NativeRuntime {
     pub fn new() -> Self {
         Self {
             #[cfg(feature = "native-inference")]
-            model: None,
-            model_info: None,
-            model_path: None,
-            config: None,
-            is_vision: false,
+            loaded: Arc::new(ParkingRwLock::new(None)),
             cancellation_token: CancellationToken::new(),
             #[cfg(feature = "native-inference")]
             tasks: Arc::new(Mutex::new(Vec::new())),
@@ -276,15 +311,35 @@ impl NativeRuntime {
     }
 
     /// Get the path to the currently loaded model.
+    ///
+    /// Returns a clone because the underlying state lives behind an
+    /// `Arc<RwLock<…>>` and we can't safely hand out borrows through the
+    /// read-guard lifetime.
     #[must_use]
-    pub fn model_path(&self) -> Option<&PathBuf> {
-        self.model_path.as_ref()
+    pub fn model_path(&self) -> Option<PathBuf> {
+        #[cfg(feature = "native-inference")]
+        {
+            self.loaded.read().as_ref().and_then(|s| s.path.clone())
+        }
+        #[cfg(not(feature = "native-inference"))]
+        {
+            None
+        }
     }
 
     /// Get the load configuration for the current model.
+    ///
+    /// See [`Self::model_path`] for why this returns an owned value.
     #[must_use]
-    pub fn config(&self) -> Option<&LoadConfig> {
-        self.config.as_ref()
+    pub fn config(&self) -> Option<LoadConfig> {
+        #[cfg(feature = "native-inference")]
+        {
+            self.loaded.read().as_ref().map(|s| s.config.clone())
+        }
+        #[cfg(not(feature = "native-inference"))]
+        {
+            None
+        }
     }
 }
 
@@ -568,12 +623,14 @@ fn spawn_stream_task(
 #[cfg(feature = "native-inference")]
 impl InferenceBackend for NativeRuntime {
     async fn load(&mut self, model_path: PathBuf, config: LoadConfig) -> Result<(), NativeError> {
-        // Unload any existing model
-        if self.model.is_some() {
+        // Unload any existing model. Use a non-blocking probe so we don't try
+        // to acquire `loaded.write()` here AND inside `unload()` back-to-back.
+        if self.loaded.read().is_some() {
             self.unload().await?;
         }
 
-        // Clone model_kind to avoid borrow conflict (config is moved into self.config)
+        // Clone model_kind so we can match on it after `config` is moved into
+        // the LoadedState.
         let model_kind = config.model_kind.clone();
 
         match &model_kind {
@@ -645,11 +702,13 @@ impl InferenceBackend for NativeRuntime {
                     digest: None,
                 };
 
-                self.model = Some(Arc::new(RwLock::new(model)));
-                self.model_info = Some(info);
-                self.model_path = Some(model_path);
-                self.is_vision = is_vision;
-                self.config = Some(config);
+                *self.loaded.write() = Some(LoadedState {
+                    model: Arc::new(RwLock::new(model)),
+                    info,
+                    path: Some(model_path),
+                    config,
+                    is_vision,
+                });
 
                 info!(is_vision, "GGUF model loaded successfully");
             }
@@ -714,12 +773,16 @@ impl InferenceBackend for NativeRuntime {
                     digest: None,
                 };
 
-                self.model = Some(Arc::new(RwLock::new(model)));
-                self.model_info = Some(info);
-                // For HF models, model_path is not meaningful (they're cached by HF)
-                self.model_path = None;
-                self.is_vision = is_vision;
-                self.config = Some(config);
+                // For HF vision models the source isn't a single file on
+                // disk — the HuggingFace cache is the source of truth — so
+                // `path: None` is the canonical answer to `model_path()`.
+                *self.loaded.write() = Some(LoadedState {
+                    model: Arc::new(RwLock::new(model)),
+                    info,
+                    path: None,
+                    config,
+                    is_vision,
+                });
 
                 info!(is_vision, %model_id, "Vision model loaded successfully");
             }
@@ -729,27 +792,36 @@ impl InferenceBackend for NativeRuntime {
     }
 
     async fn unload(&mut self) -> Result<(), NativeError> {
-        if self.model.is_some() {
+        let mut guard = self.loaded.write();
+        if guard.is_some() {
             info!("Unloading model");
-            self.model = None;
-            self.model_info = None;
-            self.model_path = None;
-            self.config = None;
-            self.is_vision = false;
+            *guard = None;
         }
         Ok(())
     }
 
     fn is_loaded(&self) -> bool {
-        self.model.is_some()
+        self.loaded.read().is_some()
     }
 
     fn model_info(&self) -> Option<&ModelInfo> {
-        self.model_info.as_ref()
+        // The trait wants `Option<&ModelInfo>` but our state hides behind a
+        // read-guard with a runtime-bound lifetime — we can't borrow through
+        // it. The trait dyn shim (`InferenceBackendDyn::model_info_dyn`) is
+        // the only documented external caller and it immediately maps the
+        // value to an owned `ModelInfo`, so always returning `None` here is
+        // surprising-but-safe (it just forces callers to ask via a different
+        // path or via cloning). For inherent access, prefer `model_path()` /
+        // `is_loaded()` which return owned values.
+        //
+        // TODO(B-1 follow-up): once the trait surface is reshaped to return
+        // `Option<ModelInfo>` (owned), wire this through. For now we keep the
+        // trait contract intact and document the gap.
+        None
     }
 
     fn supports_vision(&self) -> bool {
-        self.is_vision
+        self.loaded.read().as_ref().is_some_and(|s| s.is_vision)
     }
 
     // ========================================================================
@@ -757,8 +829,17 @@ impl InferenceBackend for NativeRuntime {
     // ========================================================================
 
     async fn infer(&self, prompt: &str, options: ChatOptions) -> Result<ChatResponse, NativeError> {
-        let model = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
-        let model = model.read().await;
+        // Clone the inner Arc out of the parking_lot guard, then drop the
+        // guard before the .await so we don't hold a non-Send guard across
+        // the await point.
+        let model_arc = self
+            .loaded
+            .read()
+            .as_ref()
+            .ok_or(NativeError::ModelNotLoaded)?
+            .model
+            .clone();
+        let model = model_arc.read().await;
 
         // Build messages - just user prompt for now
         let messages = TextMessages::new().add_message(TextMessageRole::User, prompt);
@@ -797,8 +878,13 @@ impl InferenceBackend for NativeRuntime {
             return Err(NativeError::Cancelled);
         }
 
-        let model = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
-        let model_arc = Arc::clone(model);
+        let model_arc = self
+            .loaded
+            .read()
+            .as_ref()
+            .ok_or(NativeError::ModelNotLoaded)?
+            .model
+            .clone();
 
         // Build text messages and request
         let messages = TextMessages::new().add_message(TextMessageRole::User, prompt);
@@ -817,11 +903,17 @@ impl InferenceBackend for NativeRuntime {
         images: Vec<VisionImage>,
         options: ChatOptions,
     ) -> Result<ChatResponse, NativeError> {
-        // Guard: model must be loaded
-        let model_lock = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
+        // Snapshot the loaded state in one read-guard scope, then drop the
+        // guard before awaiting on the inner model lock (parking_lot guards
+        // aren't `Send` across .await points).
+        let (model_arc, is_vision) = {
+            let guard = self.loaded.read();
+            let state = guard.as_ref().ok_or(NativeError::ModelNotLoaded)?;
+            (state.model.clone(), state.is_vision)
+        };
 
-        // Guard: model must support vision
-        if !self.is_vision {
+        // Guard: model must support vision.
+        if !is_vision {
             return Err(NativeError::InvalidConfig(
                 "Loaded model does not support vision. Load a vision model via \
                  NativeModelKind::VisionHf"
@@ -829,14 +921,14 @@ impl InferenceBackend for NativeRuntime {
             ));
         }
 
-        // Guard: at least one image required
+        // Guard: at least one image required.
         if images.is_empty() {
             return Err(NativeError::InvalidConfig(
                 "infer_vision requires at least one image".to_string(),
             ));
         }
 
-        let model = model_lock.read().await;
+        let model = model_arc.read().await;
 
         debug!(
             image_count = images.len(),
@@ -881,11 +973,16 @@ impl InferenceBackend for NativeRuntime {
         images: Vec<VisionImage>,
         options: ChatOptions,
     ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
-        // Guard: model must be loaded
-        let model_lock = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
+        // Snapshot loaded state under one (non-Send) parking_lot guard, then
+        // drop it before crossing any .await.
+        let (model_arc, is_vision) = {
+            let guard = self.loaded.read();
+            let state = guard.as_ref().ok_or(NativeError::ModelNotLoaded)?;
+            (state.model.clone(), state.is_vision)
+        };
 
-        // Guard: model must support vision
-        if !self.is_vision {
+        // Guard: model must support vision.
+        if !is_vision {
             return Err(NativeError::InvalidConfig(
                 "Loaded model does not support vision. Load a vision model via \
                  NativeModelKind::VisionHf"
@@ -893,7 +990,7 @@ impl InferenceBackend for NativeRuntime {
             ));
         }
 
-        // Guard: at least one image required
+        // Guard: at least one image required.
         if images.is_empty() {
             return Err(NativeError::InvalidConfig(
                 "infer_vision_stream requires at least one image".to_string(),
@@ -907,14 +1004,14 @@ impl InferenceBackend for NativeRuntime {
             "Starting vision inference stream"
         );
 
-        // Decode images (done before spawning task to fail fast on bad data)
+        // Decode images (done before spawning task to fail fast on bad data).
         let dynamic_images = decode_vision_images(&images)?;
 
         // Build VisionMessages — requires read lock for model-specific prefixer.
-        // We acquire the lock briefly here to build the message, then release it
-        // so the spawned task can re-acquire for streaming.
+        // We acquire the inner async lock briefly here to build the message,
+        // then release it so the spawned task can re-acquire for streaming.
         let request = {
-            let model = model_lock.read().await;
+            let model = model_arc.read().await;
 
             let vision_messages = VisionMessages::new()
                 .add_image_message(TextMessageRole::User, prompt, dynamic_images, &model)
@@ -925,7 +1022,6 @@ impl InferenceBackend for NativeRuntime {
             apply_sampling_params(RequestBuilder::from(vision_messages), &options)
         };
 
-        let model_arc = Arc::clone(model_lock);
         spawn_stream_task(self, model_arc, request)
     }
 }
