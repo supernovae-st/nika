@@ -177,6 +177,12 @@ fn validate_with_spec(
             continue;
         };
 
+        // `__parent_context__` is injected at runtime by nika:run — it has no
+        // DAG node, so skip the existence / upstream checks for it.
+        if from_task == nika_core::ast::PARENT_CONTEXT_BINDING {
+            continue;
+        }
+
         // E11: detect for_each loop variable used as task reference in with:
         if let Some(var) = loop_var {
             if from_task == var {

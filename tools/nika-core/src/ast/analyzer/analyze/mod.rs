@@ -913,9 +913,12 @@ fn analyze_task(
                             if !task.implicit_deps.contains(&dep_id) {
                                 task.implicit_deps.push(dep_id);
                             }
-                        } else if !ctx.is_included_task(dep_task_name) {
+                        } else if !ctx.is_included_task(dep_task_name)
+                            && dep_task_name != crate::ast::PARENT_CONTEXT_BINDING
+                        {
                             // Unknown task reference in with: binding
-                            // (skip check for tasks matching include prefixes)
+                            // (skip include-prefixed tasks and the
+                            //  runtime-injected __parent_context__ binding)
                             let all_names: Vec<&str> =
                                 all_task_names.iter().map(|s| s.as_str()).collect();
                             let suggestion = find_similar(dep_task_name, &all_names, 0.6);

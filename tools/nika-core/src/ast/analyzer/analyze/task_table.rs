@@ -118,6 +118,7 @@ pub(super) fn validate_task_refs(
                     if let Some(dep_task_name) = entry.task_id() {
                         if task_table.get_id(dep_task_name).is_none()
                             && !ctx.is_included_task(dep_task_name)
+                            && dep_task_name != crate::ast::PARENT_CONTEXT_BINDING
                         {
                             // Check if this is a for_each loop variable
                             let is_loop_var = raw.for_each.as_ref().is_some_and(|fe| {

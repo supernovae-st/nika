@@ -69,6 +69,18 @@ pub mod routing;
 pub mod schedule;
 pub mod structured;
 
+/// Reserved binding name for the parent workflow context injected by
+/// `nika:run`.
+///
+/// The runner inserts the `nika:run` `context:` payload into the child
+/// workflow's datastore under this key (see `run_executor.rs`), so a child
+/// may bind it like any task output: `with: { ctx: $__parent_context__ }`.
+/// The static analyzer and the DAG validator treat it as an always-known
+/// pseudo-task — it has no DAG node, so existence / upstream checks are
+/// skipped for it. When a workflow runs standalone (not as a child) the
+/// binding simply resolves to a missing value.
+pub const PARENT_CONTEXT_BINDING: &str = "__parent_context__";
+
 // Re-export key types for convenient access
 pub use agent_def::AgentDef;
 pub use context::ContextConfig;

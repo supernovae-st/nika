@@ -64,9 +64,11 @@ impl RunExecutor for EngineRunExecutor {
             ceiling: spec.caller_trust,
         });
 
-        // Inject parent context
+        // Inject parent context — keyed by the canonical reserved binding so
+        // the child can read it via `with: { x: $__parent_context__ }`.
         if let Some(context) = spec.parent_context {
-            runner = runner.with_initial_context("__parent_context__", context);
+            runner =
+                runner.with_initial_context(nika_core::ast::PARENT_CONTEXT_BINDING, context);
         }
 
         let timeout = spec.timeout;
