@@ -71,6 +71,15 @@ impl RigProvider {
                 use futures::StreamExt;
                 use std::pin::pin;
 
+                // B-1 fix · auto-load on first call (see also the
+                // `_with_options` sibling above).
+                runtime
+                    .ensure_loaded(model_id)
+                    .await
+                    .map_err(|e: super::super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })?;
+
                 // Native inference now supports streaming via mistral.rs
                 let stream = runtime
                     .infer_stream(prompt, super::super::native::ChatOptions::default())
@@ -243,6 +252,18 @@ impl RigProvider {
             RigProvider::Native(runtime) => {
                 use futures::StreamExt;
                 use std::pin::pin;
+
+                // B-1 fix · auto-load on first call (kernel-bridge text path
+                // routes through here from `Provider::infer` so the CLI infer
+                // verb hits this site BEFORE the simpler `RigProvider::infer`
+                // arm — both paths now call `ensure_loaded` to share the
+                // interior-mutable LoadedState introduced in b47595f5f).
+                runtime
+                    .ensure_loaded(model_id)
+                    .await
+                    .map_err(|e: super::super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })?;
 
                 // Native doesn't support preamble — concatenate system prompt for native only
                 let native_prompt = if let Some(ref system) = options.system {

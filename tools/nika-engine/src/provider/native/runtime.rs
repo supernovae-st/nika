@@ -596,10 +596,19 @@ impl NativeRuntime {
 /// concrete arguments [`NativeRuntime::ensure_loaded`] needs to call
 /// [`NativeRuntime::do_load`].
 ///
-/// On-disk layout: `~/.nika/models/<filename>` where `<filename>` is the
-/// curated GGUF file declared in `KNOWN_MODELS`. Vision (HuggingFace)
-/// models stay out of this fast path — they need explicit `LoadConfig`
-/// from the caller because the `model_id` alone doesn't carry an ISQ hint.
+/// Tries two on-disk layouts in order ·
+///
+///  1. **Nested HuggingFace cache** (canonical post-`nika model pull`) ·
+///     `~/.nika/models/<hf_repo>/<default_file>` — this is what
+///     `HuggingFaceStorage::new(default_model_dir()).pull(...)` writes,
+///     because the HuggingFace hub natively organises files by repo.
+///  2. **Flat layout** (legacy / manual `cp`) · `~/.nika/models/<default_file>`
+///     — kept for backward-compat with operators who downloaded GGUF
+///     files by hand before `nika model pull` shipped.
+///
+/// Vision (HuggingFace) models stay out of this fast path — they need
+/// explicit `LoadConfig` from the caller because the `model_id` alone
+/// does not carry an ISQ hint.
 #[cfg(feature = "native-inference")]
 fn resolve_native_model(model_id: &str) -> Result<(PathBuf, LoadConfig), NativeError> {
     use nika_core::catalogs::models::find_model;
@@ -612,19 +621,27 @@ fn resolve_native_model(model_id: &str) -> Result<(PathBuf, LoadConfig), NativeE
         ),
     })?;
 
-    let path = crate::core::storage::default_model_dir().join(model.default_file);
+    let models_dir = crate::core::storage::default_model_dir();
+    let nested = models_dir.join(model.hf_repo).join(model.default_file);
+    let flat = models_dir.join(model.default_file);
 
-    if !path.exists() {
+    let path = if nested.exists() {
+        nested
+    } else if flat.exists() {
+        flat
+    } else {
         return Err(NativeError::ModelNotFound {
             repo: model.hf_repo.to_string(),
             filename: format!(
-                "{} not found at {}. Run `nika model pull {}` to download.",
+                "{} not found (tried {} then {}). \
+                 Run `nika model pull {}` to download.",
                 model.default_file,
-                path.display(),
+                nested.display(),
+                flat.display(),
                 model_id,
             ),
         });
-    }
+    };
 
     let config = LoadConfig {
         model_kind: NativeModelKind::TextGguf,
