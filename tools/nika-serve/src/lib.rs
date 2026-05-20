@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+// The handler types compose deeply-nested async futures (axum routes
+// returning Tower services returning tokio tasks returning futures over
+// the engine runner). Release-mode monomorphization of those futures
+// exceeds the default 128-iteration query depth for layout computation.
+// 256 covers the worst case we hit post-B-1 (auto-load adds another
+// frame to the engine infer future). See cargo build warning
+// « consider increasing the recursion limit by adding a
+// `#![recursion_limit = "256"]` ».
+#![recursion_limit = "256"]
+
 //! Nika HTTP API server (`nika serve`).
 //!
 //! Exposes workflow execution over HTTP with Bearer token authentication,
