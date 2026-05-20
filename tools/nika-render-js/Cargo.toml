@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+[package]
+name = "nika-render-js"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "ChromiumClient — HttpClient impl rendering JavaScript via headless Chrome (chromiumoxide 0.9.1)"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = true
+
+[dependencies]
+# Kernel trait surface — the ONLY nika-* runtime dep (cross-flow asymmetric).
+nika-kernel = { workspace = true }
+
+# Async machinery (workspace-pinned).
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["macros", "sync", "time"] }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+
+# HttpResponse body shape.
+bytes = { workspace = true }
+
+# Error taxonomy.
+thiserror = { workspace = true }
+
+# Structured logging.
+tracing = { workspace = true }
+
+# Headless Chrome wrapper · EXACT pin per cratesio primary-source verify
+# 2026-05-20 (max_stable 0.9.1 · MIT/Apache-2.0 · 1.8M downloads). The async
+# runtime is determined by the calling context (workspace tokio rt-multi-thread)
+# — chromiumoxide 0.9.1 has NO runtime feature (context7-verified 2026-05-20).
+#
+# `default-features = false` · v0 controls a SYSTEM-installed Chrome/Chromium
+# (chromiumoxide auto-detects via PATH + standard locations). The default
+# `fetcher` feature (auto-download Chromium) needs a zip backend (zip0/zip8) +
+# TLS and is DEFERRED to Round 2 (trigger · operator without system Chrome).
+# Lighter + more sovereign for v0 (no network download). Breaking changes in
+# 0.10+ require an ADR (NUKE-LEGACY · forever-v0.x).
+chromiumoxide = { version = "=0.9.1", default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+[lints]
+workspace = true

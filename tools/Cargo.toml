@@ -33,6 +33,7 @@ members = [
     "nika-verb-invoke",
     "nika-verb-fetch",
     "nika-verb-infer",
+    "nika-render-js",
 ]
 
 [workspace.package]
