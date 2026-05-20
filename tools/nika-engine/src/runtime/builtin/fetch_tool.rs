@@ -57,18 +57,34 @@ impl FetchTool {
 #[derive(Debug, Deserialize)]
 struct FetchToolParams {
     url: String,
-    #[serde(default = "default_method")]
-    method: String,
     #[serde(default)]
-    headers: Option<serde_json::Map<String, serde_json::Value>>,
+    method: Option<String>,
+    /// Schema-typed as a JSON-object string (OpenAI strict mode cannot
+    /// express a free-form map). A lenient provider may still send a raw
+    /// object — `normalize_json_arg` accepts either.
+    #[serde(default)]
+    headers: Option<serde_json::Value>,
+    /// Schema-typed as a JSON string for the same reason.
     #[serde(default)]
     json: Option<serde_json::Value>,
     #[serde(default)]
     timeout: Option<u64>,
 }
 
-fn default_method() -> String {
-    "GET".into()
+/// Normalize a tool argument that may arrive as a JSON-encoded string
+/// (OpenAI strict mode) or as a raw JSON value (lenient providers).
+///
+/// `Ok(None)` for absent / null input. A `String` argument is parsed as
+/// JSON; a malformed string is surfaced as `Err` so the caller can fail
+/// loudly instead of silently dropping a body / headers.
+fn normalize_json_arg(
+    arg: Option<&serde_json::Value>,
+) -> Result<Option<serde_json::Value>, serde_json::Error> {
+    match arg {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) => serde_json::from_str(s).map(Some),
+        Some(other) => Ok(Some(other.clone())),
+    }
 }
 
 impl BuiltinTool for FetchTool {
@@ -80,35 +96,46 @@ impl BuiltinTool for FetchTool {
         "Make HTTP requests. Returns { status, headers, body, url, elapsed_ms }."
     }
 
+    /// Tool parameter schema — kept **OpenAI-strict-mode compatible**.
+    ///
+    /// rig-core routes agent streaming through the OpenAI Responses API,
+    /// which enables strict mode by default and runs `sanitize_schema`:
+    /// it forces every property into `required` and adds
+    /// `additionalProperties: false` to every object. A free-form
+    /// `{"type": "object"}` (no `properties`) is rejected by OpenAI strict
+    /// mode. So `headers` / `json` are typed here as **JSON strings** (the
+    /// agent passes a JSON-encoded value); all optionals are nullable
+    /// unions and no `default` keyword is used (strict mode forbids it).
     fn parameters_schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
-            "required": ["url"],
+            "additionalProperties": false,
+            "required": ["url", "method", "headers", "json", "timeout"],
             "properties": {
                 "url": {
                     "type": "string",
                     "description": "URL to fetch (must be http/https)"
                 },
                 "method": {
-                    "type": "string",
-                    "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
-                    "default": "GET",
-                    "description": "HTTP method"
+                    "type": ["string", "null"],
+                    "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", null],
+                    "description": "HTTP method — null means GET"
                 },
                 "headers": {
-                    "type": "object",
-                    "description": "HTTP headers as key-value pairs"
+                    "type": ["string", "null"],
+                    "description": "Optional HTTP headers as a JSON object string, \
+                                    e.g. {\"Authorization\":\"Bearer x\"} — null for none"
                 },
                 "json": {
-                    "description": "JSON body (auto-serialized, sets Content-Type)"
+                    "type": ["string", "null"],
+                    "description": "Optional JSON request body as a JSON string \
+                                    (auto-serialized, sets Content-Type) — null for none"
                 },
                 "timeout": {
-                    "type": "integer",
-                    "description": "Timeout in seconds (default: 30, max: 120)",
-                    "default": 30
+                    "type": ["integer", "null"],
+                    "description": "Timeout in seconds (max 120) — null means 30"
                 }
-            },
-            "additionalProperties": false
+            }
         })
     }
 
@@ -132,11 +159,12 @@ impl BuiltinTool for FetchTool {
                 });
             }
 
-            // Build request
-            let method = params.method.parse::<reqwest::Method>().map_err(|_| {
+            // Build request — method defaults to GET when the agent omits it.
+            let method_str = params.method.as_deref().unwrap_or("GET");
+            let method = method_str.parse::<reqwest::Method>().map_err(|_| {
                 NikaError::BuiltinToolError {
                     tool: "nika:fetch".into(),
-                    reason: format!("Invalid HTTP method: {}", params.method),
+                    reason: format!("Invalid HTTP method: {method_str}"),
                 }
             })?;
 
@@ -146,8 +174,19 @@ impl BuiltinTool for FetchTool {
                 .request(method.clone(), &params.url)
                 .timeout(Duration::from_secs(timeout_secs));
 
-            if let Some(headers) = &params.headers {
-                for (k, v) in headers {
+            // `headers` arrives as a JSON-object string under strict mode;
+            // `normalize_json_arg` also tolerates a raw object from lenient
+            // providers. A malformed string fails loudly.
+            let header_arg = normalize_json_arg(params.headers.as_ref()).map_err(|e| {
+                NikaError::BuiltinToolError {
+                    tool: "nika:fetch".into(),
+                    reason: format!(
+                        "malformed `headers` argument (expected a JSON object string): {e}"
+                    ),
+                }
+            })?;
+            if let Some(serde_json::Value::Object(headers)) = header_arg {
+                for (k, v) in &headers {
                     if let Some(val) = v.as_str() {
                         if let (Ok(name), Ok(value)) = (
                             reqwest::header::HeaderName::from_bytes(k.as_bytes()),
@@ -159,7 +198,18 @@ impl BuiltinTool for FetchTool {
                 }
             }
 
-            if let Some(json) = &params.json {
+            // `json` arrives as a JSON string under strict mode. Normalize
+            // once: the result drives both the request body and the
+            // `has_body` telemetry flag below.
+            let body = normalize_json_arg(params.json.as_ref()).map_err(|e| {
+                NikaError::BuiltinToolError {
+                    tool: "nika:fetch".into(),
+                    reason: format!(
+                        "malformed `json` argument (expected a JSON string): {e}"
+                    ),
+                }
+            })?;
+            if let Some(ref json) = body {
                 req = req.json(json);
             }
 
@@ -168,7 +218,7 @@ impl BuiltinTool for FetchTool {
                 task_id: Arc::from("agent"),
                 url: params.url.clone(),
                 method: method.to_string(),
-                has_body: params.json.is_some(),
+                has_body: body.is_some(),
             });
 
             // Execute
@@ -305,5 +355,49 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&serde_json::json!("url")));
+    }
+
+    #[test]
+    fn fetch_tool_schema_is_strict_clean() {
+        // OpenAI strict mode: every property must be in `required`, and no
+        // free-form `{"type":"object"}` (must be string or scalar).
+        let schema = setup().parameters_schema();
+        let props = schema["properties"].as_object().unwrap();
+        let required: Vec<&str> = schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        for key in props.keys() {
+            assert!(required.contains(&key.as_str()), "{key} missing from required");
+        }
+        // `headers` / `json` must be string-typed, never bare object.
+        for key in ["headers", "json"] {
+            let ty = &props[key]["type"];
+            assert!(
+                ty.as_array().is_some_and(|a| a.iter().any(|t| t == "string")),
+                "{key} must be a (nullable) string, got {ty}"
+            );
+        }
+    }
+
+    #[test]
+    fn normalize_json_arg_variants() {
+        use serde_json::json;
+        // absent / null → Ok(None)
+        assert_eq!(normalize_json_arg(None).unwrap(), None);
+        assert_eq!(normalize_json_arg(Some(&json!(null))).unwrap(), None);
+        // JSON-encoded string → parsed
+        let encoded = json!("{\"a\":1}");
+        assert_eq!(
+            normalize_json_arg(Some(&encoded)).unwrap(),
+            Some(json!({"a": 1}))
+        );
+        // raw object passes through unchanged (lenient providers)
+        let raw = json!({"b": 2});
+        assert_eq!(normalize_json_arg(Some(&raw)).unwrap(), Some(json!({"b": 2})));
+        // malformed string → Err (no longer silently swallowed)
+        assert!(normalize_json_arg(Some(&json!("{not json"))).is_err());
     }
 }
