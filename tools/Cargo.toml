@@ -37,7 +37,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.82.0"
+version = "0.83.0-dev"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 license = "AGPL-3.0-or-later"
@@ -46,36 +46,36 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # Internal crates
-nika-cli = { path = "nika-cli", version = "0.82.0" }
-nika-core = { path = "nika-core", version = "0.82.0" }
-nika-display = { path = "nika-display", version = "0.82.0" }
-nika-engine = { path = "nika-engine", version = "0.82.0", default-features = true }
-nika-init = { path = "nika-init", version = "0.82.0" }
-nika-event = { path = "nika-event", version = "0.82.0" }
-nika-mcp = { path = "nika-mcp", version = "0.82.0" }
-nika-media = { path = "nika-media", version = "0.82.0" }
-nika-daemon = { path = "nika-daemon", version = "0.82.0" }
-nika-storage = { path = "nika-storage", version = "0.82.0" }
-nika-serve = { path = "nika-serve", version = "0.82.0" }
-nika-lsp-core = { path = "nika-lsp-core", version = "0.82.0" }
-nika-sdk = { path = "nika-sdk", version = "0.82.0" }
-nika-vault = { path = "nika-vault", version = "0.82.0" }
-nika-kernel = { path = "nika-kernel", version = "0.82.0" }
-nika-kernel-mock = { path = "nika-kernel-mock", version = "0.82.0" }
-nika-clock = { path = "nika-clock", version = "0.82.0" }
-nika-fs = { path = "nika-fs", version = "0.82.0" }
-nika-blob = { path = "nika-blob", version = "0.82.0" }
-nika-http = { path = "nika-http", version = "0.82.0" }
-nika-exec-runner = { path = "nika-exec-runner", version = "0.82.0" }
-nika-macros = { path = "nika-macros", version = "0.82.0" }
-nika-builtin = { path = "nika-builtin", version = "0.82.0" }
-nika-policy = { path = "nika-policy", version = "0.82.0" }
-nika-extract = { path = "nika-extract", version = "0.82.0" }
-nika-security = { path = "nika-security", version = "0.82.0" }
-nika-verb-exec = { path = "nika-verb-exec", version = "0.82.0" }
-nika-verb-invoke = { path = "nika-verb-invoke", version = "0.82.0" }
-nika-verb-fetch = { path = "nika-verb-fetch", version = "0.82.0" }
-nika-verb-infer = { path = "nika-verb-infer", version = "0.82.0" }
+nika-cli = { path = "nika-cli", version = "0.83.0-dev" }
+nika-core = { path = "nika-core", version = "0.83.0-dev" }
+nika-display = { path = "nika-display", version = "0.83.0-dev" }
+nika-engine = { path = "nika-engine", version = "0.83.0-dev", default-features = true }
+nika-init = { path = "nika-init", version = "0.83.0-dev" }
+nika-event = { path = "nika-event", version = "0.83.0-dev" }
+nika-mcp = { path = "nika-mcp", version = "0.83.0-dev" }
+nika-media = { path = "nika-media", version = "0.83.0-dev" }
+nika-daemon = { path = "nika-daemon", version = "0.83.0-dev" }
+nika-storage = { path = "nika-storage", version = "0.83.0-dev" }
+nika-serve = { path = "nika-serve", version = "0.83.0-dev" }
+nika-lsp-core = { path = "nika-lsp-core", version = "0.83.0-dev" }
+nika-sdk = { path = "nika-sdk", version = "0.83.0-dev" }
+nika-vault = { path = "nika-vault", version = "0.83.0-dev" }
+nika-kernel = { path = "nika-kernel", version = "0.83.0-dev" }
+nika-kernel-mock = { path = "nika-kernel-mock", version = "0.83.0-dev" }
+nika-clock = { path = "nika-clock", version = "0.83.0-dev" }
+nika-fs = { path = "nika-fs", version = "0.83.0-dev" }
+nika-blob = { path = "nika-blob", version = "0.83.0-dev" }
+nika-http = { path = "nika-http", version = "0.83.0-dev" }
+nika-exec-runner = { path = "nika-exec-runner", version = "0.83.0-dev" }
+nika-macros = { path = "nika-macros", version = "0.83.0-dev" }
+nika-builtin = { path = "nika-builtin", version = "0.83.0-dev" }
+nika-policy = { path = "nika-policy", version = "0.83.0-dev" }
+nika-extract = { path = "nika-extract", version = "0.83.0-dev" }
+nika-security = { path = "nika-security", version = "0.83.0-dev" }
+nika-verb-exec = { path = "nika-verb-exec", version = "0.83.0-dev" }
+nika-verb-invoke = { path = "nika-verb-invoke", version = "0.83.0-dev" }
+nika-verb-fetch = { path = "nika-verb-fetch", version = "0.83.0-dev" }
+nika-verb-infer = { path = "nika-verb-infer", version = "0.83.0-dev" }
 
 # Allocator
 mimalloc = { version = "0.1", default-features = false }

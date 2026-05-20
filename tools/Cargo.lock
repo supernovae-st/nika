@@ -5666,7 +5666,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "clap",
  "clap_complete",
@@ -5709,7 +5709,7 @@ dependencies = [
 
 [[package]]
 name = "nika-blob"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "blake3",
@@ -5723,7 +5723,7 @@ dependencies = [
 
 [[package]]
 name = "nika-builtin"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -5749,7 +5749,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "blake3",
  "chrono",
@@ -5792,7 +5792,7 @@ dependencies = [
 
 [[package]]
 name = "nika-clock"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "nika-kernel",
@@ -5801,7 +5801,7 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5838,7 +5838,7 @@ dependencies = [
 
 [[package]]
 name = "nika-daemon"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "blake3",
@@ -5867,7 +5867,7 @@ dependencies = [
 
 [[package]]
 name = "nika-display"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "colored",
  "indexmap 2.13.0",
@@ -5884,7 +5884,7 @@ dependencies = [
 
 [[package]]
 name = "nika-engine"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -5967,7 +5967,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "chrono",
  "nika-macros",
@@ -5985,7 +5985,7 @@ dependencies = [
 
 [[package]]
 name = "nika-exec-runner"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "nika-kernel",
@@ -5997,7 +5997,7 @@ dependencies = [
 
 [[package]]
 name = "nika-extract"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "dom_smoothie",
  "feed-rs",
@@ -6015,7 +6015,7 @@ dependencies = [
 
 [[package]]
 name = "nika-fs"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6028,7 +6028,7 @@ dependencies = [
 
 [[package]]
 name = "nika-http"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6042,7 +6042,7 @@ dependencies = [
 
 [[package]]
 name = "nika-init"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "serde",
  "serde-saphyr 0.0.20",
@@ -6054,7 +6054,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6069,7 +6069,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-mock"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "blake3",
@@ -6086,7 +6086,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -6107,7 +6107,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "dashmap",
  "insta",
@@ -6125,7 +6125,7 @@ dependencies = [
 
 [[package]]
 name = "nika-macros"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6138,7 +6138,7 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "backon",
  "dashmap",
@@ -6163,7 +6163,7 @@ dependencies = [
 
 [[package]]
 name = "nika-media"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -6215,7 +6215,7 @@ dependencies = [
 
 [[package]]
 name = "nika-policy"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "nika-core",
  "nika-kernel",
@@ -6229,7 +6229,7 @@ dependencies = [
 
 [[package]]
 name = "nika-render-js"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6244,7 +6244,7 @@ dependencies = [
 
 [[package]]
 name = "nika-sdk"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -6265,7 +6265,7 @@ dependencies = [
 
 [[package]]
 name = "nika-security"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "nika-core",
  "tempfile",
@@ -6276,7 +6276,7 @@ dependencies = [
 
 [[package]]
 name = "nika-serve"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "aide",
  "async-stream",
@@ -6315,7 +6315,7 @@ dependencies = [
 
 [[package]]
 name = "nika-storage"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -6331,7 +6331,7 @@ dependencies = [
 
 [[package]]
 name = "nika-vault"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "chrono",
  "fs2",
@@ -6349,7 +6349,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-exec"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "nika-event",
  "nika-exec-runner",
@@ -6365,7 +6365,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-fetch"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "bytes",
  "nika-core",
@@ -6383,7 +6383,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-infer"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "nika-event",
  "nika-kernel",
@@ -6397,7 +6397,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-invoke"
-version = "0.82.0"
+version = "0.83.0-dev"
 dependencies = [
  "nika-core",
  "nika-event",

@@ -95,6 +95,9 @@ mod tests {
             attempts: 2,
             max_attempts: 5,
         };
-        assert_eq!(err.to_string(), "fetch: deadline exceeded after 2/5 attempt(s)");
+        assert_eq!(
+            err.to_string(),
+            "fetch: deadline exceeded after 2/5 attempt(s)"
+        );
     }
 }

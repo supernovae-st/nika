@@ -34,7 +34,7 @@ use std::time::{Duration, Instant};
 use nika_core::ast::extract::ExtractMode;
 use nika_event::{EventKind, EventLog};
 use nika_kernel::caps::FetchCaps;
-use nika_kernel::http::{HttpError, HttpMethod, HttpRequest, HttpResponse};
+use nika_kernel::http::{HttpClient, HttpError, HttpMethod, HttpRequest, HttpResponse};
 
 mod error;
 pub use error::VerbFetchError;
@@ -79,6 +79,63 @@ pub async fn run(
     caps: &FetchCaps<'_>,
     event_log: &EventLog,
 ) -> Result<String, VerbFetchError> {
+    // Default backend = the static HTTP client in `caps.http`.
+    run_via(input, caps, event_log, caps.http).await
+}
+
+/// JS-render backend selector for [`run_with_render`].
+///
+/// Forward-compat `#[non_exhaustive]` enum — additional engines (e.g. a
+/// Firefox/WebKit headless backend) ratchet in on MINOR per
+/// `no-legacy-no-back-compat.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum RenderBackend {
+    /// Static HTTP fetch (no JS rendering) — routes through `caps.http`.
+    #[default]
+    Default,
+    /// Headless-Chrome JS rendering — routes through the supplied render
+    /// client (e.g. `nika_render_js::ChromiumClient`) when one is available.
+    ChromiumJs,
+}
+
+/// Execute a fetch verb task, optionally routing through a JS-rendering
+/// backend (`render: js`).
+///
+/// Additive companion to [`run`] — the engine bridge calls this when a fetch
+/// task declares `render: js`, passing a JS-render `HttpClient` (typically
+/// `nika_render_js::ChromiumClient`). When `backend` is
+/// [`RenderBackend::ChromiumJs`] **and** `render_client` is `Some`, the render
+/// client handles the request; otherwise it falls back to `caps.http` (so a
+/// `render: js` task on an operator without a render client degrades to a
+/// static fetch rather than failing).
+///
+/// The render client implements the same [`nika_kernel::http::HttpClient`]
+/// trait, so the cancellation + event-emission + extraction path is identical
+/// to the static fetch — only the transport differs.
+pub async fn run_with_render(
+    input: &FetchInput<'_>,
+    caps: &FetchCaps<'_>,
+    event_log: &EventLog,
+    render_client: Option<&dyn HttpClient>,
+    backend: RenderBackend,
+) -> Result<String, VerbFetchError> {
+    let client: &dyn HttpClient = match (backend, render_client) {
+        (RenderBackend::ChromiumJs, Some(rc)) => rc,
+        _ => caps.http,
+    };
+    run_via(input, caps, event_log, client).await
+}
+
+/// Shared fetch implementation, parameterized over the [`HttpClient`] used for
+/// transport. [`run`] passes `caps.http`; [`run_with_render`] passes either the
+/// render client or `caps.http`.
+async fn run_via(
+    input: &FetchInput<'_>,
+    caps: &FetchCaps<'_>,
+    event_log: &EventLog,
+    client: &dyn HttpClient,
+) -> Result<String, VerbFetchError> {
     let start = std::time::Instant::now();
 
     // Build the HttpRequest from the input.
@@ -99,7 +156,7 @@ pub async fn run(
                 task_id: input.task_id.to_string(),
             });
         }
-        r = caps.http.send(request) => r,
+        r = client.send(request) => r,
     };
 
     let response = result.map_err(VerbFetchError::from)?;
@@ -124,11 +181,10 @@ pub async fn run(
 
     // Decode body as UTF-8 (the basic extraction path — binary/CAS
     // storage is handled by the engine bridge).
-    let body_str = String::from_utf8(response.body.to_vec()).map_err(|e| {
-        VerbFetchError::InvalidBody {
+    let body_str =
+        String::from_utf8(response.body.to_vec()).map_err(|e| VerbFetchError::InvalidBody {
             reason: format!("response body is not valid UTF-8: {e}"),
-        }
-    })?;
+        })?;
 
     // Apply extraction if requested.
     let base_url = Some(response.final_url.as_str());
@@ -362,10 +418,7 @@ mod tests {
     #[tokio::test]
     async fn fetch_extract_jsonpath_returns_selected_value() {
         let http = MockHttpClient::default();
-        http.enqueue_ok(
-            200,
-            r#"{"user": {"name": "Alice", "age": 30}}"#,
-        );
+        http.enqueue_ok(200, r#"{"user": {"name": "Alice", "age": 30}}"#);
 
         let policy = MockPolicyChecker::allow_all();
         let blobs = MemoryBlobStore::default();
@@ -661,5 +714,115 @@ mod tests {
         let p = RetryPolicy::new(5, 100, 2.0).with_deadline(Duration::from_secs(30));
         assert_eq!(p.max_attempts, 5);
         assert_eq!(p.deadline, Some(Duration::from_secs(30)));
+    }
+
+    // ── P5: render: js dispatch (run_with_render) ───────────────────────
+    //
+    // These exercise the backend-selection seam with two MockHttpClients:
+    // `static_http` (caps.http) returns a JS-shell stub, `render_http`
+    // (the render client) returns the post-JS rendered HTML. The 4 framework
+    // cases prove the render client's output flows through unchanged; the two
+    // fallback cases prove `Default` backend + a missing render client both
+    // degrade to `caps.http`. Mock transport · not Chromium-gated.
+
+    /// Build `caps` over a static client + run `run_with_render`, returning the
+    /// body. The render client returns `rendered`; the static client `STATIC`.
+    async fn render_dispatch(
+        rendered: &str,
+        render_client_present: bool,
+        backend: RenderBackend,
+    ) -> String {
+        let static_http = MockHttpClient::default();
+        static_http.enqueue_ok(200, "STATIC");
+        let render_http = MockHttpClient::default();
+        render_http.enqueue_ok(200, rendered.to_string());
+
+        let policy = MockPolicyChecker::allow_all();
+        let blobs = MemoryBlobStore::default();
+        let clock = MockClock::new();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let caps = FetchCaps::new(&static_http, &policy, &blobs, &clock, &cancel);
+        let log = EventLog::new();
+
+        let input = retry_input("https://spa.test/app");
+        let render_client: Option<&dyn HttpClient> = if render_client_present {
+            Some(&render_http)
+        } else {
+            None
+        };
+
+        run_with_render(&input, &caps, &log, render_client, backend)
+            .await
+            .expect("render dispatch ok")
+    }
+
+    #[tokio::test]
+    async fn render_chromium_routes_react_spa_to_render_client() {
+        let body = render_dispatch(
+            "<html><body><div id=\"root\">React rendered</div></body></html>",
+            true,
+            RenderBackend::ChromiumJs,
+        )
+        .await;
+        assert!(
+            body.contains("React rendered"),
+            "render client output expected, got {body}"
+        );
+        assert!(!body.contains("STATIC"), "must not use static client");
+    }
+
+    #[tokio::test]
+    async fn render_chromium_routes_vue_spa_to_render_client() {
+        let body = render_dispatch(
+            "<html><body><div id=\"app\">Vue rendered</div></body></html>",
+            true,
+            RenderBackend::ChromiumJs,
+        )
+        .await;
+        assert!(body.contains("Vue rendered"));
+    }
+
+    #[tokio::test]
+    async fn render_chromium_routes_next_spa_to_render_client() {
+        let body = render_dispatch(
+            "<html><body><div id=\"__next\">Next rendered</div></body></html>",
+            true,
+            RenderBackend::ChromiumJs,
+        )
+        .await;
+        assert!(body.contains("Next rendered"));
+    }
+
+    #[tokio::test]
+    async fn render_chromium_routes_nuxt_spa_to_render_client() {
+        let body = render_dispatch(
+            "<html><body><div id=\"__nuxt\">Nuxt rendered</div></body></html>",
+            true,
+            RenderBackend::ChromiumJs,
+        )
+        .await;
+        assert!(body.contains("Nuxt rendered"));
+    }
+
+    #[tokio::test]
+    async fn render_default_backend_uses_static_client() {
+        // Backend = Default → static client even though a render client exists.
+        let body = render_dispatch("<div>rendered</div>", true, RenderBackend::Default).await;
+        assert_eq!(body, "STATIC", "Default backend must use caps.http");
+    }
+
+    #[tokio::test]
+    async fn render_chromium_without_client_degrades_to_static() {
+        // ChromiumJs requested but no render client wired → graceful fallback.
+        let body = render_dispatch("<div>rendered</div>", false, RenderBackend::ChromiumJs).await;
+        assert_eq!(
+            body, "STATIC",
+            "missing render client must fall back to caps.http"
+        );
+    }
+
+    #[test]
+    fn render_backend_default_is_default_variant() {
+        assert_eq!(RenderBackend::default(), RenderBackend::Default);
     }
 }

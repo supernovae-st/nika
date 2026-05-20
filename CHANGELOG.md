@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.83.0-dev] — 2026-05-20
+
+### Added
+- **`nika-render-js` crate (P5)** — headless-Chrome JavaScript rendering as a
+  drop-in `nika_kernel::http::HttpClient`, for fetching SPA pages (React / Vue /
+  Next / Nuxt) whose content only exists after client-side hydration.
+  - `ChromiumClient` wraps `chromiumoxide` 0.9.1 (`default-features = false` ·
+    controls a system-installed Chrome · `rustls` auto-download fetcher deferred
+    to Round 2). v0 is GET-only, headless, single-page (`MAX_CONCURRENT_PAGES = 1`
+    via a semaphore).
+  - `BrowserHandle` owns the Chrome process + Handler pump task with cooperative
+    shutdown (`CancellationToken`) + bounded async `close()` + best-effort `Drop`.
+  - `render_page()` closes the tab on EVERY exit path (success / error / cancel)
+    with bounded timeouts (goto 30s · settle 10s · close 2s) — chromiumoxide does
+    not auto-close tabs on `Page` drop.
+  - `RenderError` taxonomy (`NIKA-CHRM-001..009`) · `#[non_exhaustive]` ·
+    `error_code()` + `is_transient()` + `From<RenderError> for HttpError`.
+- **`fetch:` render backend seam** — `nika_verb_fetch::run_with_render()` +
+  `RenderBackend { Default, ChromiumJs }`. Routes a `render: js` fetch task
+  through a JS-render `HttpClient` when wired, else falls back to the static
+  `caps.http` (graceful degrade). The static `run()` path is unchanged.
+
+### Notes
+- The verb-crate render seam is wired and tested (mock-transport dispatch); the
+  **engine-bridge wire** (parsing `render: js` from workflow YAML in
+  `nika-engine` + constructing the `ChromiumClient`) is a follow-up — it requires
+  `nika-engine` edits out of this change's scope.
+- Workspace version bumped `0.82.0` → `0.83.0-dev`.
+
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║  NIKA v0.79.3 — CONSTELLATION KEYSTONE                                    ║

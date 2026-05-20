@@ -84,9 +84,7 @@ mod tests {
     // pattern (`headers.get(RETRY_AFTER).and_then(|v| v.to_str().ok())`)
     // produces the correct input. reqwest is `[dev-dependencies]` only.
 
-    fn retry_after_from_headers(
-        headers: &reqwest::header::HeaderMap,
-    ) -> Option<&str> {
+    fn retry_after_from_headers(headers: &reqwest::header::HeaderMap) -> Option<&str> {
         headers
             .get(reqwest::header::RETRY_AFTER)
             .and_then(|v| v.to_str().ok())
@@ -96,7 +94,10 @@ mod tests {
     fn parse_retry_after_integer_seconds() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, "30".parse().unwrap());
-        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), Some(30_000));
+        assert_eq!(
+            parse_retry_after(retry_after_from_headers(&headers)),
+            Some(30_000)
+        );
     }
 
     #[test]
@@ -122,7 +123,10 @@ mod tests {
     fn parse_retry_after_caps_at_5_minutes() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, "600".parse().unwrap());
-        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), Some(300_000));
+        assert_eq!(
+            parse_retry_after(retry_after_from_headers(&headers)),
+            Some(300_000)
+        );
     }
 
     #[test]
@@ -139,7 +143,10 @@ mod tests {
     fn parse_retry_after_whitespace_trimmed() {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::RETRY_AFTER, " 5 ".parse().unwrap());
-        assert_eq!(parse_retry_after(retry_after_from_headers(&headers)), Some(5_000));
+        assert_eq!(
+            parse_retry_after(retry_after_from_headers(&headers)),
+            Some(5_000)
+        );
     }
 
     #[test]

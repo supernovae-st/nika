@@ -109,8 +109,7 @@ mod tests {
 
     #[test]
     fn error_is_passed_through() {
-        let result: Result<String, std::io::Error> =
-            Err(std::io::Error::other("upstream"));
+        let result: Result<String, std::io::Error> = Err(std::io::Error::other("upstream"));
         let out = merge_link_hreflang(result, Some(ExtractMode::Metadata), &["x".to_string()]);
         assert!(out.is_err());
     }
