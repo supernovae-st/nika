@@ -341,6 +341,297 @@ impl NativeRuntime {
             None
         }
     }
+
+    /// `&self`-callable load: the shared implementation behind both
+    /// `InferenceBackend::load(&mut self)` (trait method) and
+    /// `ensure_loaded(&self)` (lazy auto-load from inference paths).
+    ///
+    /// All field mutation goes through `self.loaded.write()` so we never
+    /// need a `&mut self` borrow — this is the whole point of bundling the
+    /// loaded state behind `Arc<ParkingRwLock<Option<LoadedState>>>`.
+    #[cfg(feature = "native-inference")]
+    async fn do_load(
+        &self,
+        model_path: PathBuf,
+        config: LoadConfig,
+    ) -> Result<(), NativeError> {
+        // Unload any existing model. Use a non-blocking probe so we don't
+        // try to acquire `loaded.write()` here AND inside `do_unload()`
+        // back-to-back.
+        if self.loaded.read().is_some() {
+            self.do_unload();
+        }
+
+        // Clone model_kind so we can match on it after `config` is moved
+        // into the LoadedState.
+        let model_kind = config.model_kind.clone();
+
+        match &model_kind {
+            // ============================================================
+            // TextGguf — existing GGUF loading path.
+            // ============================================================
+            NativeModelKind::TextGguf => {
+                info!(?model_path, "Loading GGUF model");
+
+                // Validate path exists.
+                if !model_path.exists() {
+                    return Err(NativeError::ModelNotFound {
+                        repo: "local".to_string(),
+                        filename: model_path.to_string_lossy().to_string(),
+                    });
+                }
+
+                // Build the model using GgufModelBuilder.
+                // API: GgufModelBuilder::new(directory, vec![filename]).
+                let parent = model_path
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| ".".to_string());
+                let filename = model_path
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .ok_or_else(|| {
+                        NativeError::InvalidConfig(
+                            "Invalid model path: no filename".to_string(),
+                        )
+                    })?;
+
+                debug!(
+                    gpu_layers = config.gpu_layers,
+                    %parent, %filename, "Building GGUF model"
+                );
+
+                // Build model with PagedAttention for better memory
+                // management. PagedAttention enables efficient KV cache
+                // handling for longer contexts. Use context_size from
+                // LoadConfig, defaulting to 2048 if not specified.
+                let context_size = config.context_size.unwrap_or(2048);
+                let model = GgufModelBuilder::new(parent, vec![filename])
+                    .with_logging()
+                    .with_paged_attn(|| {
+                        PagedAttentionMetaBuilder::default()
+                            .with_block_size(32)
+                            .with_gpu_memory(MemoryGpuConfig::ContextSize(
+                                context_size as usize,
+                            ))
+                            .build()
+                    })
+                    .map_err(|e| {
+                        NativeError::InvalidConfig(format!(
+                            "PagedAttention config error: {e}"
+                        ))
+                    })?
+                    .build()
+                    .await
+                    .map_err(|e| {
+                        NativeError::InvalidConfig(format!(
+                            "Failed to build model: {e}"
+                        ))
+                    })?;
+
+                // GGUF models are always text-only (no VisionModelBuilder).
+                let is_vision = detect_vision_capability(&model);
+
+                // Extract model info from the loaded model.
+                let info = ModelInfo {
+                    name: model_path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    size: tokio::fs::metadata(&model_path)
+                        .await
+                        .map(|m| m.len())
+                        .unwrap_or(0),
+                    quantization: extract_quantization_from_path(&model_path),
+                    parameters: None,
+                    digest: None,
+                };
+
+                *self.loaded.write() = Some(LoadedState {
+                    model: Arc::new(RwLock::new(model)),
+                    info,
+                    path: Some(model_path),
+                    config,
+                    is_vision,
+                });
+
+                info!(is_vision, "GGUF model loaded successfully");
+            }
+
+            // ============================================================
+            // VisionHf — HuggingFace vision model loading path.
+            // ============================================================
+            NativeModelKind::VisionHf { model_id, isq } => {
+                info!(%model_id, ?isq, "Loading HuggingFace vision model");
+
+                let context_size = config.context_size.unwrap_or(4096);
+
+                // Start building the vision model.
+                let mut builder = VisionModelBuilder::new(model_id).with_logging();
+
+                // Apply ISQ quantization if specified. ISQ (In-Situ
+                // Quantization) quantizes the model weights after loading,
+                // reducing memory usage while maintaining quality.
+                if let Some(isq_str) = isq {
+                    let isq_type =
+                        mistralrs::parse_isq_value(isq_str, None).map_err(|e| {
+                            NativeError::InvalidConfig(format!(
+                                "Invalid ISQ type '{}': {}",
+                                isq_str, e
+                            ))
+                        })?;
+                    debug!(?isq_type, "Applying ISQ quantization");
+                    builder = builder.with_isq(isq_type);
+                }
+
+                // Apply PagedAttention for efficient KV cache handling.
+                builder = builder
+                    .with_paged_attn(|| {
+                        PagedAttentionMetaBuilder::default()
+                            .with_block_size(32)
+                            .with_gpu_memory(MemoryGpuConfig::ContextSize(
+                                context_size as usize,
+                            ))
+                            .build()
+                    })
+                    .map_err(|e| {
+                        NativeError::InvalidConfig(format!(
+                            "PagedAttention config error: {e}"
+                        ))
+                    })?;
+
+                // Build the model (downloads from HuggingFace if not cached).
+                let model = builder.build().await.map_err(|e| {
+                    NativeError::InvalidConfig(format!(
+                        "Failed to build vision model '{}': {}",
+                        model_id, e
+                    ))
+                })?;
+
+                // Verify this is actually a vision model.
+                let is_vision = detect_vision_capability(&model);
+                if !is_vision {
+                    warn!(
+                        %model_id,
+                        "Model loaded via VisionHf path but does not report \
+                         Vision category"
+                    );
+                }
+
+                // Build model info for vision models.
+                let info = ModelInfo {
+                    name: model_id.clone(),
+                    // HF models don't have a single file size.
+                    size: 0,
+                    quantization: isq.clone(),
+                    parameters: None,
+                    digest: None,
+                };
+
+                // For HF vision models the source isn't a single file on
+                // disk — the HuggingFace cache is the source of truth — so
+                // `path: None` is the canonical answer to `model_path()`.
+                *self.loaded.write() = Some(LoadedState {
+                    model: Arc::new(RwLock::new(model)),
+                    info,
+                    path: None,
+                    config,
+                    is_vision,
+                });
+
+                info!(is_vision, %model_id, "Vision model loaded successfully");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// `&self`-callable unload: the shared implementation behind
+    /// `InferenceBackend::unload(&mut self)`.
+    ///
+    /// Synchronous (no async work, just dropping the loaded state). Returns
+    /// nothing because the only way it can fail is poison and parking_lot
+    /// is poison-free.
+    #[cfg(feature = "native-inference")]
+    fn do_unload(&self) {
+        let mut guard = self.loaded.write();
+        if guard.is_some() {
+            info!("Unloading model");
+            *guard = None;
+        }
+    }
+
+    /// Ensure a model is loaded for native inference, auto-loading on first
+    /// call.
+    ///
+    /// Idempotent. Resolves `model_id` (a catalog alias like `"mistral:7b"`
+    /// or `"qwen3:8b"`) into `(PathBuf, LoadConfig)` via the curated
+    /// `nika_core::catalogs::models` catalog, then runs the same load path
+    /// the trait `load()` does — except via interior mutability, so the
+    /// inference path can call this from `&self` (the `RigProvider::Native(_)`
+    /// arm only ever has a borrow).
+    ///
+    /// Returns the actionable error (with the exact `nika model pull`
+    /// command in the message) when the model file has not been downloaded
+    /// yet, so the operator gets a one-step recovery path instead of an
+    /// opaque NIKA-031.
+    ///
+    /// **Limitation (B-1 follow-up):** if a *different* model is already
+    /// loaded, this is a no-op and the existing model serves the call.
+    /// Mid-session model switching is out of scope; call `unload()`
+    /// explicitly first to switch.
+    ///
+    /// Closes B-1 in `agency/dynergie-scrap/UPSTREAM_FIXES.md`.
+    #[cfg(feature = "native-inference")]
+    pub async fn ensure_loaded(&self, model_id: &str) -> Result<(), NativeError> {
+        if self.loaded.read().is_some() {
+            return Ok(());
+        }
+        let (path, config) = resolve_native_model(model_id)?;
+        self.do_load(path, config).await
+    }
+}
+
+/// Resolve a catalog model id (`"mistral:7b"`, `"qwen3:8b"`, …) into the
+/// concrete arguments [`NativeRuntime::ensure_loaded`] needs to call
+/// [`NativeRuntime::do_load`].
+///
+/// On-disk layout: `~/.nika/models/<filename>` where `<filename>` is the
+/// curated GGUF file declared in `KNOWN_MODELS`. Vision (HuggingFace)
+/// models stay out of this fast path — they need explicit `LoadConfig`
+/// from the caller because the `model_id` alone doesn't carry an ISQ hint.
+#[cfg(feature = "native-inference")]
+fn resolve_native_model(model_id: &str) -> Result<(PathBuf, LoadConfig), NativeError> {
+    use nika_core::catalogs::models::find_model;
+
+    let model = find_model(model_id).ok_or_else(|| NativeError::ModelNotFound {
+        repo: "catalog".to_string(),
+        filename: format!(
+            "{model_id} — unknown model alias. \
+             Run `nika model list` to see available aliases."
+        ),
+    })?;
+
+    let path = crate::core::storage::default_model_dir().join(model.default_file);
+
+    if !path.exists() {
+        return Err(NativeError::ModelNotFound {
+            repo: model.hf_repo.to_string(),
+            filename: format!(
+                "{} not found at {}. Run `nika model pull {}` to download.",
+                model.default_file,
+                path.display(),
+                model_id,
+            ),
+        });
+    }
+
+    let config = LoadConfig {
+        model_kind: NativeModelKind::TextGguf,
+        ..Default::default()
+    };
+
+    Ok((path, config))
 }
 
 impl Default for NativeRuntime {
@@ -623,180 +914,15 @@ fn spawn_stream_task(
 #[cfg(feature = "native-inference")]
 impl InferenceBackend for NativeRuntime {
     async fn load(&mut self, model_path: PathBuf, config: LoadConfig) -> Result<(), NativeError> {
-        // Unload any existing model. Use a non-blocking probe so we don't try
-        // to acquire `loaded.write()` here AND inside `unload()` back-to-back.
-        if self.loaded.read().is_some() {
-            self.unload().await?;
-        }
-
-        // Clone model_kind so we can match on it after `config` is moved into
-        // the LoadedState.
-        let model_kind = config.model_kind.clone();
-
-        match &model_kind {
-            // ================================================================
-            // TextGguf — existing GGUF loading path
-            // ================================================================
-            NativeModelKind::TextGguf => {
-                info!(?model_path, "Loading GGUF model");
-
-                // Validate path exists
-                if !model_path.exists() {
-                    return Err(NativeError::ModelNotFound {
-                        repo: "local".to_string(),
-                        filename: model_path.to_string_lossy().to_string(),
-                    });
-                }
-
-                // Build the model using GgufModelBuilder
-                // API: GgufModelBuilder::new(directory, vec![filename])
-                let parent = model_path
-                    .parent()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| ".".to_string());
-                let filename = model_path
-                    .file_name()
-                    .map(|f| f.to_string_lossy().to_string())
-                    .ok_or_else(|| {
-                        NativeError::InvalidConfig("Invalid model path: no filename".to_string())
-                    })?;
-
-                debug!(gpu_layers = config.gpu_layers, %parent, %filename, "Building GGUF model");
-
-                // Build model with PagedAttention for better memory management.
-                // PagedAttention enables efficient KV cache handling for longer contexts.
-                // Use context_size from LoadConfig, defaulting to 2048 if not specified.
-                let context_size = config.context_size.unwrap_or(2048);
-                let model = GgufModelBuilder::new(parent, vec![filename])
-                    .with_logging()
-                    .with_paged_attn(|| {
-                        PagedAttentionMetaBuilder::default()
-                            .with_block_size(32)
-                            .with_gpu_memory(MemoryGpuConfig::ContextSize(context_size as usize))
-                            .build()
-                    })
-                    .map_err(|e| {
-                        NativeError::InvalidConfig(format!("PagedAttention config error: {e}"))
-                    })?
-                    .build()
-                    .await
-                    .map_err(|e| {
-                        NativeError::InvalidConfig(format!("Failed to build model: {e}"))
-                    })?;
-
-                // GGUF models are always text-only (no VisionModelBuilder)
-                let is_vision = detect_vision_capability(&model);
-
-                // Extract model info from the loaded model
-                let info = ModelInfo {
-                    name: model_path
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    size: tokio::fs::metadata(&model_path)
-                        .await
-                        .map(|m| m.len())
-                        .unwrap_or(0),
-                    quantization: extract_quantization_from_path(&model_path),
-                    parameters: None,
-                    digest: None,
-                };
-
-                *self.loaded.write() = Some(LoadedState {
-                    model: Arc::new(RwLock::new(model)),
-                    info,
-                    path: Some(model_path),
-                    config,
-                    is_vision,
-                });
-
-                info!(is_vision, "GGUF model loaded successfully");
-            }
-
-            // ================================================================
-            // VisionHf — HuggingFace vision model loading path
-            // ================================================================
-            NativeModelKind::VisionHf { model_id, isq } => {
-                info!(%model_id, ?isq, "Loading HuggingFace vision model");
-
-                let context_size = config.context_size.unwrap_or(4096);
-
-                // Start building the vision model
-                let mut builder = VisionModelBuilder::new(model_id).with_logging();
-
-                // Apply ISQ quantization if specified.
-                // ISQ (In-Situ Quantization) quantizes the model weights after loading,
-                // reducing memory usage while maintaining quality.
-                if let Some(isq_str) = isq {
-                    let isq_type = mistralrs::parse_isq_value(isq_str, None).map_err(|e| {
-                        NativeError::InvalidConfig(format!("Invalid ISQ type '{}': {}", isq_str, e))
-                    })?;
-                    debug!(?isq_type, "Applying ISQ quantization");
-                    builder = builder.with_isq(isq_type);
-                }
-
-                // Apply PagedAttention for efficient KV cache handling
-                builder = builder
-                    .with_paged_attn(|| {
-                        PagedAttentionMetaBuilder::default()
-                            .with_block_size(32)
-                            .with_gpu_memory(MemoryGpuConfig::ContextSize(context_size as usize))
-                            .build()
-                    })
-                    .map_err(|e| {
-                        NativeError::InvalidConfig(format!("PagedAttention config error: {e}"))
-                    })?;
-
-                // Build the model (downloads from HuggingFace if not cached)
-                let model = builder.build().await.map_err(|e| {
-                    NativeError::InvalidConfig(format!(
-                        "Failed to build vision model '{}': {}",
-                        model_id, e
-                    ))
-                })?;
-
-                // Verify this is actually a vision model
-                let is_vision = detect_vision_capability(&model);
-                if !is_vision {
-                    warn!(
-                        %model_id,
-                        "Model loaded via VisionHf path but does not report Vision category"
-                    );
-                }
-
-                // Build model info for vision models
-                let info = ModelInfo {
-                    name: model_id.clone(),
-                    size: 0, // HF models don't have a single file size
-                    quantization: isq.clone(),
-                    parameters: None,
-                    digest: None,
-                };
-
-                // For HF vision models the source isn't a single file on
-                // disk — the HuggingFace cache is the source of truth — so
-                // `path: None` is the canonical answer to `model_path()`.
-                *self.loaded.write() = Some(LoadedState {
-                    model: Arc::new(RwLock::new(model)),
-                    info,
-                    path: None,
-                    config,
-                    is_vision,
-                });
-
-                info!(is_vision, %model_id, "Vision model loaded successfully");
-            }
-        }
-
-        Ok(())
+        // Trait signature keeps `&mut self` for backward-compat, but the
+        // actual work runs through interior mutability so the `&self`
+        // version (`do_load`) is the single source of truth — it's also
+        // what `ensure_loaded()` calls from the inference fast-path.
+        self.do_load(model_path, config).await
     }
 
     async fn unload(&mut self) -> Result<(), NativeError> {
-        let mut guard = self.loaded.write();
-        if guard.is_some() {
-            info!("Unloading model");
-            *guard = None;
-        }
+        self.do_unload();
         Ok(())
     }
 

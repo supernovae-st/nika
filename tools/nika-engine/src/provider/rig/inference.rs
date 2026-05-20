@@ -187,8 +187,23 @@ impl RigProvider {
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
-                // Native inference uses direct API, not rig-core agent
-                // Model must be pre-loaded via load_native_model()
+                // B-1 fix · auto-load the requested model on first call.
+                // Before this, `nikab infer --provider native --model X`
+                // bounced with NIKA-031 because nothing in the inference
+                // path ever triggered `load_native_model()`. ensure_loaded
+                // resolves the alias via `nika_core::catalogs::models`,
+                // verifies the file exists under `~/.nika/models/`, and
+                // loads via interior mutability — so the cached
+                // RigProvider clone gets the model and every subsequent
+                // call short-circuits.
+                runtime
+                    .ensure_loaded(model_id)
+                    .await
+                    .map_err(|e: super::super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })?;
+
+                // Native inference uses direct API, not rig-core agent.
                 timeout(
                     INFER_TIMEOUT,
                     runtime.infer(prompt, super::super::native::ChatOptions::default()),
