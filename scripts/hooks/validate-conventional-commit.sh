@@ -18,7 +18,7 @@
 set -Eeuo pipefail
 
 readonly VALID_TYPES='feat|fix|chore|docs|perf|test|refactor|build|ci|revert|security'
-readonly VALID_SCOPES='workspace|kernel|catalog|error|kernel-mock|ci|hygiene|docs|adr|hq|deps|release|dx|rules|skills|hooks|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|runtime|provider|dag|event|resilience|core|db|mcp|cli|tui|schema'
+readonly VALID_SCOPES='workspace|kernel|catalog|error|kernel-mock|ci|hygiene|docs|adr|hq|deps|release|dx|rules|skills|hooks|claude|submodules|templates|nika|jungo|novanet|qrcodeai|engine|website|client-sdk|sdk|design-skill|homebrew|audit-workflow|brew|skill|runtime|provider|dag|event|resilience|core|db|mcp|cli|tui|schema|screen'
 readonly COAUTHOR_PATTERN='^Co-Authored-By: Nika 🦋 <nika@supernovae\.studio>$'
 readonly MAX_HEADER=100
 readonly MAX_BODY_LINE=72
