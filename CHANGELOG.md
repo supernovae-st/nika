@@ -13,6 +13,16 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
+### 🖥️ Phase 2 M2.1 · nika-screen L1 admission (in progress · 2026-05-23)
+
+- **`nika-kernel` `io::screen`** · NEW `capture_stream` additive trait method +
+  `FrameStream` type alias (`Pin<Box<dyn Stream<Item = io::Result<Frame>> + Send>>`),
+  the canonical kernel streaming idiom (cohérent `ai::provider::InferEventStream`).
+  Zero breaking change · uses `futures-core` (NOT `tokio-stream`, which is
+  L0.5 layer-banned per `Cargo.toml`). Begins the M2.1 6-batch dispatch (B.1).
+- **`crate-layer-registry`** · `nika-screen` registered L1 — first computer-use
+  effect crate (Gate 1). ADR-081 7-guard contract already shipped (`3e40c18b3`).
+
 ### ⚡ Perf profile + craft amendments (2026-05-12)
 
 Pre-W3 perf-craft + architecture polish per 2-agent SOTA audit

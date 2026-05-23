@@ -16,7 +16,9 @@
 //! can ship the frame across process boundaries without re-encoding.
 
 use bytes::Bytes;
+use futures_core::Stream;
 use serde::{Deserialize, Serialize};
+use std::pin::Pin;
 
 /// Stable display identifier — opaque integer assigned by the host OS.
 ///
@@ -168,6 +170,21 @@ impl Frame {
     }
 }
 
+/// Continuous frame stream — boxed `dyn Stream` of capture results.
+///
+/// Boxed because `dyn Stream` is the only object-safe way to return an
+/// async iterator from a trait method — the canonical kernel streaming idiom,
+/// cohérent `ai::provider::InferEventStream` and the `io::http` body stream.
+/// Single allocation per capture session. Items are `std::io::Result<Frame>`
+/// so a transient per-frame capture error surfaces to the consumer WITHOUT
+/// tearing down the whole stream — the L1 impl decides whether to continue.
+///
+/// `futures_core::Stream` (not `tokio-stream`) keeps this L0.5-legal: the
+/// kernel is layer-banned from `tokio-stream` per `Cargo.toml` `layer-bans`,
+/// and `futures-core` is the workspace-canonical Stream trait already in
+/// `ai::provider` + `io::http`.
+pub type FrameStream = Pin<Box<dyn Stream<Item = std::io::Result<Frame>> + Send>>;
+
 /// Screen-capture capability — async trait over a single display.
 ///
 /// CANCEL SAFETY: the design contract MUST be evaluated per-method
@@ -205,6 +222,22 @@ pub trait ScreenCapture: Send + Sync {
     /// reads MUST NOT surface partial frames. `region` coordinates are
     /// physical-pixel relative to the display origin (top-left).
     async fn capture_region(&self, display: DisplayId, region: Rect) -> std::io::Result<Frame>;
+
+    /// Stream frames continuously from a display until the stream is dropped.
+    ///
+    /// Establishing the capture session is `async` (may await OS grant /
+    /// device handshake) and returns a [`FrameStream`]; each polled item is a
+    /// `std::io::Result<Frame>` so a transient per-frame error surfaces without
+    /// ending the stream. Mirrors the canonical `ai::provider::infer_stream`
+    /// idiom (`async fn` → `Result<BoxedStream, _>`).
+    ///
+    /// CANCEL SAFETY: cancel-safe. Dropping the returned [`FrameStream`] reaps
+    /// the capture worker — L1 impls MUST wire a cancellation token so the OS
+    /// capture session releases promptly on drop. Partial frame data MUST NOT
+    /// surface to the consumer on cancel (L1 impl invariant · enforced by
+    /// integration tests at Phase 3 M3). Setup errors (e.g. display gone)
+    /// return `Err` before any frame is produced.
+    async fn capture_stream(&self, display: DisplayId) -> std::io::Result<FrameStream>;
 }
 
 #[cfg(test)]
@@ -315,5 +348,58 @@ mod tests {
             1_700_000_000_000_000_000_u64, // ns since UNIX epoch
         );
         assert_eq!(frame.captured_at_ns, 1_700_000_000_000_000_000_u64);
+    }
+
+    /// M2.1 B.1 · `capture_stream` is implementable AND its `FrameStream`
+    /// return is pollable — proves the additive trait method is well-formed
+    /// end-to-end (not merely nameable), so the L1 impl (nika-screen M2.1)
+    /// can satisfy it. Mirrors `ai::provider::infer_stream` canonical pattern
+    /// (async fn → `Result<BoxedStream, _>` · hand-rolled empty stream · zero
+    /// `futures-util` dep · `std::future::poll_fn` to poll once).
+    #[tokio::test]
+    async fn capture_stream_is_implementable_and_pollable() {
+        use std::task::{Context, Poll};
+
+        struct TestCapture;
+
+        impl ScreenCapture for TestCapture {
+            async fn list_displays(&self) -> std::io::Result<Vec<DisplayInfo>> {
+                Ok(vec![])
+            }
+            async fn capture_full(&self, _display: DisplayId) -> std::io::Result<Frame> {
+                Ok(Frame::new(0, 0, 1.0, Bytes::new(), DisplayId(0), 0))
+            }
+            async fn capture_region(
+                &self,
+                _display: DisplayId,
+                _region: Rect,
+            ) -> std::io::Result<Frame> {
+                Ok(Frame::new(0, 0, 1.0, Bytes::new(), DisplayId(0), 0))
+            }
+            async fn capture_stream(&self, _display: DisplayId) -> std::io::Result<FrameStream> {
+                // Hand-rolled empty stream · no `futures-util` dep needed
+                // (mirrors the `ai::provider` test mock).
+                struct EmptyFrames;
+                impl Stream for EmptyFrames {
+                    type Item = std::io::Result<Frame>;
+                    fn poll_next(
+                        self: Pin<&mut Self>,
+                        _cx: &mut Context<'_>,
+                    ) -> Poll<Option<Self::Item>> {
+                        Poll::Ready(None)
+                    }
+                }
+                Ok(Box::pin(EmptyFrames))
+            }
+        }
+
+        let cap = TestCapture;
+        let mut stream = cap
+            .capture_stream(DisplayId(0))
+            .await
+            .expect("stream setup succeeds");
+        // Poll once · the empty stream ends immediately.
+        let first = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await;
+        assert!(first.is_none(), "empty FrameStream yields no frames");
     }
 }
