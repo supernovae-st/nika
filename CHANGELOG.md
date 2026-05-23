@@ -26,9 +26,13 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
   · `ScreenBackend` + consent/LED guard skeletons) → B.3 single-shot capture WIRED
   via `xcap` 0.9.5 (`list_displays` / `capture_full` / `capture_region` · sync OS
   calls wrapped in `spawn_blocking` so the `!Send` `Monitor` stays worker-local and
-  dropped futures surrender promptly · zero-copy RGBA8 `Frame`). `capture_stream`
-  stays the B.2 skeleton pending B.4. xcap encapsulates the OS FFI (objc2 / x11 /
-  windows) so the crate is `unsafe_code = forbid`-clean. Plan-dep correction · the
+  dropped futures surrender promptly · zero-copy RGBA8 `Frame`) → B.4 wires
+  `capture_stream` (bounded `tokio::mpsc` + dedicated capture thread · ~30fps
+  cadence · drop-stop cancellation via channel-close · `futures_core::Stream`
+  adapter over `poll_recv`). All 4 `ScreenCapture` methods now real — the B.2
+  `BackendNotWired` skeleton is fully CLOSED. xcap encapsulates the OS FFI
+  (objc2 / x11 / windows) so the crate is `unsafe_code = forbid`-clean. Plan-dep
+  correction · the
   plan's `nokhwa` is a WEBCAM lib (docs.rs verbatim); `xcap` is the screen-capture
   crate (per `cross-source-validation.md` §2.7).
 

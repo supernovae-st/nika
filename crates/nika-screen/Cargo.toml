@@ -27,8 +27,10 @@ xcap        = "0.9"
 # B.3 wraps the sync xcap calls in `spawn_blocking` (rt) so a dropped future
 # surrenders the worker promptly (kernel CANCEL SAFETY contract); B.4 adds the
 # mpsc stream worker. L1 tokio is layer-legal + deny.toml-allowlisted here.
-# `#[tokio::test]` macros ride the same workspace feature set (no dev-dep needed).
-tokio       = { workspace = true }
+# `#[tokio::test]` macros + spawn_blocking (rt) ride the workspace base feature set;
+# `sync` (added here) brings the bounded `mpsc` channel for the B.4 capture stream.
+tokio        = { workspace = true, features = ["sync"] }
+futures-core = { workspace = true }  # `Stream` trait for the B.4 capture_stream adapter
 
 [lints]
 workspace = true

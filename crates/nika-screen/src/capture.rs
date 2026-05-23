@@ -17,14 +17,18 @@
 //! dropped entirely inside the blocking closure; only `Send` results
 //! (`Frame`, `Vec<DisplayInfo>`) cross the `.await` boundary.
 //!
-//! `capture_stream` remains the B.2 skeleton (`BackendNotWired`) until B.4
-//! wires the `tokio::mpsc` worker + `CancellationToken` frame-pump. Per
-//! `skeleton-option-a-pattern.md` §5 the B.2 placeholder is CLOSED here for
-//! the 3 single-shot methods; the streaming placeholder closes at B.4.
+//! `capture_stream` (B.4) drives a bounded `tokio::mpsc` channel fed by a
+//! `spawn_blocking` capture worker; dropping the returned stream closes the
+//! channel and the worker exits (drop-stop · no `CancellationToken` needed).
+//! Per `skeleton-option-a-pattern.md` §5 the B.2 `BackendNotWired` placeholder
+//! is now fully CLOSED across all four `ScreenCapture` methods.
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
+use futures_core::Stream;
 use nika_kernel::io::screen::{DisplayId, DisplayInfo, Frame, FrameStream, Rect, ScreenCapture};
 use xcap::Monitor;
 use xcap::image::RgbaImage;
@@ -70,10 +74,25 @@ impl ScreenCapture for ScreenBackend {
         Ok(frame)
     }
 
-    async fn capture_stream(&self, _display: DisplayId) -> std::io::Result<FrameStream> {
-        // B.4 wires the tokio mpsc worker + CancellationToken frame-pump.
-        // Closed at B.4 (skeleton-option-a closure ceremony · streaming half).
-        Err(ScreenError::BackendNotWired.into())
+    async fn capture_stream(&self, display: DisplayId) -> std::io::Result<FrameStream> {
+        // Fail fast · verify the display exists before spawning the worker
+        // (keeps the !Send Monitor inside the blocking probe).
+        tokio::task::spawn_blocking(move || find_monitor_sync(display.0).map(|_| ()))
+            .await
+            .map_err(|e| join_err(&e))??;
+
+        // Bounded channel · backpressure paces the worker to the consumer.
+        let (tx, rx) = tokio::sync::mpsc::channel::<std::io::Result<Frame>>(STREAM_BUFFER);
+
+        // Long-lived capture worker on the tokio blocking pool (the sanctioned
+        // tokio-first primitive · holds one pool slot for the stream's lifetime).
+        // Drop-stop cancellation · when the consumer drops the returned stream the
+        // channel closes, the next `blocking_send` fails, the worker exits and
+        // frees the slot. A `CancellationToken` would add nothing — a sync
+        // `capture_image` mid-flight cannot be interrupted regardless.
+        tokio::task::spawn_blocking(move || stream_worker(display, &tx));
+
+        Ok(Box::pin(FrameRx { rx }))
     }
 }
 
@@ -196,6 +215,51 @@ fn capture_region_sync(display: DisplayId, region: Rect) -> Result<Frame, Screen
     Ok(rgba_to_frame(img, scale, display))
 }
 
+// --- B.4 continuous capture stream ---
+
+/// Bounded frame buffer · backpressure paces the worker to the consumer.
+const STREAM_BUFFER: usize = 4;
+
+/// Fixed ~30fps capture cadence for the B.4 stream. A configurable
+/// frame-rate / change-detection policy is a later-round refinement.
+const STREAM_FRAME_INTERVAL: Duration = Duration::from_millis(33);
+
+/// Continuous capture loop · runs on a dedicated OS thread.
+///
+/// Captures one full-display frame per `STREAM_FRAME_INTERVAL` and pushes it
+/// (Ok or per-frame Err) to the consumer. Per the kernel contract a transient
+/// per-frame error surfaces WITHOUT tearing down the stream — the consumer
+/// decides whether to keep polling or drop. `blocking_send` returning `Err`
+/// means the consumer dropped the receiver → the worker exits (drop-stop).
+fn stream_worker(display: DisplayId, tx: &tokio::sync::mpsc::Sender<std::io::Result<Frame>>) {
+    loop {
+        let item = capture_full_sync(display).map_err(std::io::Error::from);
+        if tx.blocking_send(item).is_err() {
+            break;
+        }
+        std::thread::sleep(STREAM_FRAME_INTERVAL);
+    }
+}
+
+/// `Stream` adapter over the worker's bounded `mpsc::Receiver`.
+///
+/// Dropping this (the `FrameStream`) closes the channel; the worker's next
+/// `blocking_send` fails and the capture thread exits (drop-stop · no separate
+/// cancellation token needed). `futures_core::Stream` keeps this consistent
+/// with the kernel `FrameStream` type alias.
+struct FrameRx {
+    rx: tokio::sync::mpsc::Receiver<std::io::Result<Frame>>,
+}
+
+impl Stream for FrameRx {
+    type Item = std::io::Result<Frame>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // `FrameRx` is `Unpin` (Receiver is Unpin) · safe to project via get_mut.
+        self.get_mut().rx.poll_recv(cx)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,24 +289,41 @@ mod tests {
         }
     }
 
-    /// `capture_stream` is still the skeleton until B.4 wires the worker —
-    /// documents the remaining placeholder (NIKA-1000).
+    /// B.4 closure proof · `capture_stream` no longer returns the
+    /// `BackendNotWired` skeleton. On a host where the display resolves it
+    /// returns `Ok(stream)` (not polled here · polling needs TCC + a display);
+    /// otherwise the up-front probe errors — but NEVER with NIKA-1000.
     #[tokio::test]
-    async fn capture_stream_still_skeleton_pending_b4() {
+    async fn capture_stream_no_longer_skeleton() {
         let backend = ScreenBackend::new();
-        let stream = backend.capture_stream(DisplayId::new(0)).await;
-        assert!(
-            stream.is_err(),
-            "capture_stream is the skeleton pending B.4"
-        );
-        let io = stream.err().expect("stream skeleton error present");
-        let src = io.into_inner().expect("boxed source");
-        let se = src.downcast::<ScreenError>().expect("ScreenError source");
-        assert_eq!(
-            se.code(),
-            "NIKA-1000",
-            "capture_stream skeleton pending B.4"
-        );
+        if let Err(e) = backend.capture_stream(DisplayId::new(0)).await {
+            let src = e.into_inner().expect("boxed source");
+            let se = src.downcast::<ScreenError>().expect("ScreenError source");
+            assert_ne!(
+                se.code(),
+                "NIKA-1000",
+                "B.4 CLOSES the capture_stream skeleton"
+            );
+        }
+    }
+
+    /// Real continuous-capture smoke test — requires a connected display AND
+    /// OS screen-recording permission (macOS TCC). `#[ignore]` keeps the
+    /// default `--lib` suite headless-safe; run with `-- --ignored`.
+    #[tokio::test]
+    #[ignore = "requires a display + OS screen-recording permission (TCC)"]
+    async fn capture_stream_yields_frames() {
+        let backend = ScreenBackend::new();
+        let displays = backend.list_displays().await.expect("enumerate displays");
+        let first = displays.first().expect("at least one display");
+        let mut stream = backend.capture_stream(first.id).await.expect("open stream");
+        let item = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx))
+            .await
+            .expect("at least one frame");
+        let frame = item.expect("frame ok");
+        assert_eq!(frame.display_id, first.id, "frame carries source display");
+        assert!(!frame.pixels.is_empty(), "frame has pixels");
+        drop(stream); // closes the channel · worker thread exits
     }
 
     /// Real full-display capture smoke test — requires a connected display
