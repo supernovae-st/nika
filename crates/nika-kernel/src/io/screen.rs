@@ -30,6 +30,19 @@ use std::pin::Pin;
 #[non_exhaustive]
 pub struct DisplayId(pub u32);
 
+impl DisplayId {
+    /// Construct a display identifier from an OS-assigned integer.
+    ///
+    /// Per Invariant #19 · every `#[non_exhaustive]` struct ships a `new()`
+    /// constructor so downstream L1 impls (e.g. `nika-screen`) can mint ids
+    /// from OS display handles — `#[non_exhaustive]` otherwise forbids external
+    /// tuple-struct construction even though the inner field is `pub`-readable.
+    #[must_use]
+    pub const fn new(id: u32) -> Self {
+        Self(id)
+    }
+}
+
 /// Display geometry + identity metadata.
 ///
 /// All fields are public-read via destructuring `let DisplayInfo { .. } = ...`
@@ -276,6 +289,15 @@ mod tests {
         assert_eq!(m.get(&DisplayId(1)), Some(&"secondary"));
         assert_eq!(DisplayId(0), DisplayId(0));
         assert_ne!(DisplayId(0), DisplayId(1));
+    }
+
+    /// `DisplayId::new` constructs (Invariant #19 · const constructor · lets
+    /// external L1 impls mint ids past the `#[non_exhaustive]` ratchet).
+    #[test]
+    fn display_id_new_constructs() {
+        const ID: DisplayId = DisplayId::new(42);
+        assert_eq!(ID.0, 42);
+        assert_eq!(DisplayId::new(0), DisplayId(0));
     }
 
     /// `ScreenCapture` + `ScreenCaptureDyn` (the `Send` companion
