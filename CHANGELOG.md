@@ -30,7 +30,11 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
   `capture_stream` (bounded `tokio::mpsc` + dedicated capture thread · ~30fps
   cadence · drop-stop cancellation via channel-close · `futures_core::Stream`
   adapter over `poll_recv`). All 4 `ScreenCapture` methods now real — the B.2
-  `BackendNotWired` skeleton is fully CLOSED. xcap encapsulates the OS FFI
+  `BackendNotWired` skeleton is fully CLOSED. B.5 makes the ADR-081 guards real
+  + ENFORCED · a fail-closed `ConsentGate` (guard 7 · in-memory · session-scoped
+  · revocable · per-frame re-check inside the stream worker) gates every pixel
+  capture, and a RAII `LedIndicator` (guard 6 · engaged-count) stays lit for the
+  whole capture. xcap encapsulates the OS FFI
   (objc2 / x11 / windows) so the crate is `unsafe_code = forbid`-clean. Plan-dep
   correction · the
   plan's `nokhwa` is a WEBCAM lib (docs.rs verbatim); `xcap` is the screen-capture

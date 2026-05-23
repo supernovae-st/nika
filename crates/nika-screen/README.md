@@ -35,8 +35,8 @@ exposes capture **state** the consuming UI renders (ADR-081 guard 6's
 **Alpha · M2.1 in progress.** The 6-batch admission dispatch:
 
 - ✅ B.1 — `capture_stream` additive kernel trait method
-- 🔨 B.2 — crate skeleton + `ScreenError` (NIKA-1000..1009) + guard skeletons
-- ⬜ B.3 — `xcap` single-shot capture impl
-- ⬜ B.4 — `Stream<Frame>` impl + cancel-safety
-- ⬜ B.5 — guards 6 + 7 (LED state + consent state machine)
+- ✅ B.2 — crate skeleton + `ScreenError` (NIKA-1000..1009) + guard skeletons
+- ✅ B.3 — `xcap` single-shot capture impl (`spawn_blocking` · zero-copy RGBA8)
+- ✅ B.4 — `Stream<Frame>` impl + cancel-safety (mpsc · drop-stop)
+- ✅ B.5 — guards 6 + 7 (RAII LED indicator + fail-closed consent · enforced)
 - ⬜ B.6 — `From<ScreenPoint>` shim + 12-gate close

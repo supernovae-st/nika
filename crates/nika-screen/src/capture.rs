@@ -24,6 +24,7 @@
 //! is now fully CLOSED across all four `ScreenCapture` methods.
 
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -34,21 +35,50 @@ use xcap::Monitor;
 use xcap::image::RgbaImage;
 
 use crate::error::ScreenError;
+use crate::guards::{ConsentGate, LedIndicator};
 
 /// Cross-platform screen-capture backend (driven by `xcap`).
 ///
-/// A zero-sized handle — `xcap` enumerates monitors per call, so there is no
-/// persistent OS state to hold. `#[non_exhaustive]` leaves room for the B.5
-/// guard handles (consent gate + LED indicator) to land as fields.
+/// Composes the ADR-081 capture guards · a fail-closed [`ConsentGate`]
+/// (guard 7) and a shared [`LedIndicator`] (guard 6). `xcap` enumerates
+/// monitors per call, so the only persistent state is the guard state.
 #[derive(Debug, Default)]
 #[non_exhaustive]
-pub struct ScreenBackend;
+pub struct ScreenBackend {
+    /// Capture-consent gate (ADR-081 guard 7) · fail-closed · session-scoped.
+    /// `Arc` so the stream worker can re-check consent per frame (revoke).
+    consent: Arc<ConsentGate>,
+    /// Capture-LED indicator (ADR-081 guard 6) · shared so a stream worker can
+    /// hold the engaged scope for the stream's whole lifetime.
+    led: Arc<LedIndicator>,
+}
 
 impl ScreenBackend {
-    /// Construct a new screen-capture backend.
+    /// Construct a new screen-capture backend (consent fail-closed · LED off).
     #[must_use]
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// Grant capture consent for the session (guard 7).
+    ///
+    /// Driven by the OS consent-dialog result at the deferred FFI layer; the
+    /// pure-Rust gate records the session-scoped grant.
+    pub fn grant_consent(&self) {
+        self.consent.grant();
+    }
+
+    /// Revoke capture consent (guard 7) · single-shot captures are denied and a
+    /// running stream stops (surfacing `ConsentRevoked`) at its next frame.
+    pub fn revoke_consent(&self) {
+        self.consent.revoke();
+    }
+
+    /// Whether the capture-LED indicator is currently lit (guard 6) · the
+    /// consuming UI renders this.
+    #[must_use]
+    pub fn led_is_engaged(&self) -> bool {
+        self.led.is_engaged()
     }
 }
 
@@ -61,6 +91,8 @@ impl ScreenCapture for ScreenBackend {
     }
 
     async fn capture_full(&self, display: DisplayId) -> std::io::Result<Frame> {
+        self.consent.check()?; // guard 7 · fail-closed (before any OS call)
+        let _led = LedIndicator::engage(&self.led); // guard 6 · RAII · off on drop
         let frame = tokio::task::spawn_blocking(move || capture_full_sync(display))
             .await
             .map_err(|e| join_err(&e))??;
@@ -68,6 +100,8 @@ impl ScreenCapture for ScreenBackend {
     }
 
     async fn capture_region(&self, display: DisplayId, region: Rect) -> std::io::Result<Frame> {
+        self.consent.check()?; // guard 7 · fail-closed (before any OS call)
+        let _led = LedIndicator::engage(&self.led); // guard 6 · RAII · off on drop
         let frame = tokio::task::spawn_blocking(move || capture_region_sync(display, region))
             .await
             .map_err(|e| join_err(&e))??;
@@ -75,6 +109,8 @@ impl ScreenCapture for ScreenBackend {
     }
 
     async fn capture_stream(&self, display: DisplayId) -> std::io::Result<FrameStream> {
+        self.consent.check()?; // guard 7 · fail-closed (re-checked per frame below)
+
         // Fail fast · verify the display exists before spawning the worker
         // (keeps the !Send Monitor inside the blocking probe).
         tokio::task::spawn_blocking(move || find_monitor_sync(display.0).map(|_| ()))
@@ -90,7 +126,9 @@ impl ScreenCapture for ScreenBackend {
         // channel closes, the next `blocking_send` fails, the worker exits and
         // frees the slot. A `CancellationToken` would add nothing — a sync
         // `capture_image` mid-flight cannot be interrupted regardless.
-        tokio::task::spawn_blocking(move || stream_worker(display, &tx));
+        let consent = Arc::clone(&self.consent);
+        let led = Arc::clone(&self.led);
+        tokio::task::spawn_blocking(move || stream_worker(display, &consent, &led, &tx));
 
         Ok(Box::pin(FrameRx { rx }))
     }
@@ -224,15 +262,29 @@ const STREAM_BUFFER: usize = 4;
 /// frame-rate / change-detection policy is a later-round refinement.
 const STREAM_FRAME_INTERVAL: Duration = Duration::from_millis(33);
 
-/// Continuous capture loop · runs on a dedicated OS thread.
+/// Continuous capture loop · runs on a tokio blocking-pool thread.
 ///
 /// Captures one full-display frame per `STREAM_FRAME_INTERVAL` and pushes it
 /// (Ok or per-frame Err) to the consumer. Per the kernel contract a transient
 /// per-frame error surfaces WITHOUT tearing down the stream — the consumer
 /// decides whether to keep polling or drop. `blocking_send` returning `Err`
 /// means the consumer dropped the receiver → the worker exits (drop-stop).
-fn stream_worker(display: DisplayId, tx: &tokio::sync::mpsc::Sender<std::io::Result<Frame>>) {
+fn stream_worker(
+    display: DisplayId,
+    consent: &Arc<ConsentGate>,
+    led: &Arc<LedIndicator>,
+    tx: &tokio::sync::mpsc::Sender<std::io::Result<Frame>>,
+) {
+    // Guard 6 · the indicator stays lit for the whole stream (the scope drops
+    // when this loop exits → disengage).
+    let _led = LedIndicator::engage(led);
     loop {
+        // Guard 7 · per-frame consent re-check · a mid-stream revoke surfaces
+        // ConsentRevoked then tears the stream down.
+        if let Err(e) = consent.check() {
+            let _ = tx.blocking_send(Err(std::io::Error::from(e)));
+            break;
+        }
         let item = capture_full_sync(display).map_err(std::io::Error::from);
         if tx.blocking_send(item).is_err() {
             break;
@@ -296,6 +348,7 @@ mod tests {
     #[tokio::test]
     async fn capture_stream_no_longer_skeleton() {
         let backend = ScreenBackend::new();
+        backend.grant_consent(); // guard 7 · exercise the capture path, not the gate
         if let Err(e) = backend.capture_stream(DisplayId::new(0)).await {
             let src = e.into_inner().expect("boxed source");
             let se = src.downcast::<ScreenError>().expect("ScreenError source");
@@ -307,6 +360,47 @@ mod tests {
         }
     }
 
+    /// Guard 7 integration · a fail-closed backend denies capture BEFORE any OS
+    /// call (deterministic · no display/TCC) and never lights the LED (guard 6).
+    #[tokio::test]
+    async fn capture_denied_fail_closed_keeps_led_off() {
+        let backend = ScreenBackend::new();
+        let io = backend
+            .capture_full(DisplayId::new(0))
+            .await
+            .expect_err("fail-closed denies capture");
+        let se = io
+            .into_inner()
+            .expect("boxed source")
+            .downcast::<ScreenError>()
+            .expect("ScreenError source");
+        assert_eq!(
+            se.code(),
+            "NIKA-1006",
+            "guard 7 · consent denied fail-closed"
+        );
+        assert!(!backend.led_is_engaged(), "guard 6 · LED off when denied");
+    }
+
+    /// Guard 7 integration · revoking after a grant denies capture (NIKA-1007)
+    /// before any OS call.
+    #[tokio::test]
+    async fn capture_revoked_consent_denies() {
+        let backend = ScreenBackend::new();
+        backend.grant_consent();
+        backend.revoke_consent();
+        let io = backend
+            .capture_full(DisplayId::new(0))
+            .await
+            .expect_err("revoked consent denies capture");
+        let se = io
+            .into_inner()
+            .expect("boxed source")
+            .downcast::<ScreenError>()
+            .expect("ScreenError source");
+        assert_eq!(se.code(), "NIKA-1007", "guard 7 · consent revoked");
+    }
+
     /// Real continuous-capture smoke test — requires a connected display AND
     /// OS screen-recording permission (macOS TCC). `#[ignore]` keeps the
     /// default `--lib` suite headless-safe; run with `-- --ignored`.
@@ -314,6 +408,7 @@ mod tests {
     #[ignore = "requires a display + OS screen-recording permission (TCC)"]
     async fn capture_stream_yields_frames() {
         let backend = ScreenBackend::new();
+        backend.grant_consent(); // guard 7 · grant before pixel capture
         let displays = backend.list_displays().await.expect("enumerate displays");
         let first = displays.first().expect("at least one display");
         let mut stream = backend.capture_stream(first.id).await.expect("open stream");
@@ -334,6 +429,7 @@ mod tests {
     #[ignore = "requires a display + OS screen-recording permission (TCC)"]
     async fn capture_full_real_smoke() {
         let backend = ScreenBackend::new();
+        backend.grant_consent(); // guard 7 · grant before pixel capture
         let displays = backend.list_displays().await.expect("enumerate displays");
         let first = displays.first().expect("at least one display");
         let frame = backend.capture_full(first.id).await.expect("capture full");

@@ -3,76 +3,166 @@
 
 //! ADR-081 security guards — capture-LED indicator (guard 6) + consent (guard 7).
 //!
-//! **B.2 skeleton.** [`ConsentGate`] + [`LedIndicator`] are placeholder structs;
-//! the real consent state machine + indicator state land at B.5. Both are
-//! **pure-Rust** — the crate is `unsafe_code = forbid` (workspace lint), so the
-//! OS-native indicator polling (macOS `AVCaptureDevice` / Windows LED API) is
-//! out of scope for this crate and deferred to a future unsafe-allowing layer
-//! (or the Olympus cockpit's own FFI). This is ADR-081 guard 6's documented
-//! "explicit UI indicator otherwise" fallback: the indicator exposes capture
-//! STATE that the consuming UI renders.
+//! **B.5 · real state machines.** Both are pure-Rust (the crate is
+//! `unsafe_code = forbid`); the OS-native enhancements (macOS TCC consent
+//! dialog · `AVCaptureDevice` recording LED · Windows capture API) are
+//! ADR-081's "OS-native when available" path, deferred to a future
+//! unsafe-allowing layer (or the Olympus cockpit's own FFI). These types are
+//! the "explicit error gate / explicit UI indicator otherwise" fallback · they
+//! hold the canonical capture STATE that the OS layer drives and the consuming
+//! UI renders.
+//!
+//! Consent is **in-memory + session-scoped** (ADR-081 · persistence DEFERRED
+//! to M2.4 `nika-input` · `~/.olympus/cache/consent/` when the daemon ships) ·
+//! **fail-closed** · **revocable**. Telemetry-canon §0 · zero cloud · in-memory
+//! only. Both guards use atomics so they are shared behind `&self` (the
+//! `ScreenCapture` trait methods take `&self`).
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 use crate::error::ScreenError;
 
-/// Capture-LED indicator (ADR-081 guard 6) — skeleton.
+/// Capture-consent state (ADR-081 guard 7) — session-scoped · revocable.
 ///
-/// B.5 ships the real `is_capturing` state + change-notification hook the UI
-/// surfaces. The OS-native LED enhancement is deferred (unsafe FFI · separate
-/// layer).
-#[derive(Debug, Default)]
+/// `Unknown` is the fail-closed default: capture is denied until an explicit
+/// grant (driven by the OS consent-dialog result at the deferred FFI layer).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct LedIndicator;
+pub enum Consent {
+    /// No decision yet — fail-closed (capture denied).
+    Unknown,
+    /// Capture explicitly granted for the session.
+    Granted,
+    /// Capture explicitly denied.
+    Denied,
+    /// Consent was granted then revoked — active capture must tear down.
+    Revoked,
+}
 
-impl LedIndicator {
-    /// Construct a new capture-LED indicator.
-    #[must_use]
-    pub fn new() -> Self {
-        Self
+impl Consent {
+    /// Stable wire encoding (`Unknown == 0` so `AtomicU8::default()` is fail-closed).
+    const fn as_u8(self) -> u8 {
+        match self {
+            Self::Unknown => 0,
+            Self::Granted => 1,
+            Self::Denied => 2,
+            Self::Revoked => 3,
+        }
     }
 
-    /// Engage the capture indicator (skeleton no-op · real state at B.5).
-    ///
-    /// # Errors
-    /// Never errors in the skeleton; B.5 may return
-    /// [`ScreenError::IndicatorUnavailable`] when no indicator surface exists.
-    pub fn engage(&self) -> Result<(), ScreenError> {
-        Ok(())
-    }
-
-    /// Disengage the capture indicator (skeleton no-op).
-    ///
-    /// # Errors
-    /// Never errors in the skeleton.
-    pub fn disengage(&self) -> Result<(), ScreenError> {
-        Ok(())
+    /// Decode from the atomic store (unknown encodings fail closed to `Unknown`).
+    const fn from_u8(v: u8) -> Self {
+        match v {
+            1 => Self::Granted,
+            2 => Self::Denied,
+            3 => Self::Revoked,
+            _ => Self::Unknown,
+        }
     }
 }
 
-/// Consent gate (ADR-081 guard 7) — skeleton.
-///
-/// B.5 ships the real per-app / session-scoped, revocable consent state
-/// machine (in-memory this sprint; persistence location resolved at M2.4
-/// nika-input per the M2.1 plan carry-forward).
+/// Consent gate (ADR-081 guard 7) — in-memory · fail-closed · revocable.
 #[derive(Debug, Default)]
 #[non_exhaustive]
-pub struct ConsentGate;
+pub struct ConsentGate {
+    state: AtomicU8,
+}
 
 impl ConsentGate {
-    /// Construct a new consent gate.
+    /// Construct a fail-closed consent gate (`Consent::Unknown`).
     #[must_use]
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 
-    /// Check whether capture consent is currently granted (skeleton: denied).
-    ///
-    /// The skeleton denies by default (fail-closed · sovereignty) — B.5 wires
-    /// the real grant/revoke state machine.
+    /// Current consent state.
+    #[must_use]
+    pub fn status(&self) -> Consent {
+        Consent::from_u8(self.state.load(Ordering::SeqCst))
+    }
+
+    /// Grant capture consent for the session (idempotent).
+    pub fn grant(&self) {
+        self.state.store(Consent::Granted.as_u8(), Ordering::SeqCst);
+    }
+
+    /// Explicitly deny capture consent (fail-closed).
+    pub fn deny(&self) {
+        self.state.store(Consent::Denied.as_u8(), Ordering::SeqCst);
+    }
+
+    /// Revoke previously-granted consent — active capture must tear down.
+    pub fn revoke(&self) {
+        self.state.store(Consent::Revoked.as_u8(), Ordering::SeqCst);
+    }
+
+    /// Gate a capture · `Ok(())` only when consent is `Granted`.
     ///
     /// # Errors
-    /// Returns [`ScreenError::ConsentDenied`] until B.5 wires real consent.
+    /// [`ScreenError::ConsentRevoked`] if revoked mid-session · otherwise
+    /// [`ScreenError::ConsentDenied`] (fail-closed for `Unknown` / `Denied`).
     pub fn check(&self) -> Result<(), ScreenError> {
-        Err(ScreenError::ConsentDenied)
+        match self.status() {
+            Consent::Granted => Ok(()),
+            Consent::Revoked => Err(ScreenError::ConsentRevoked),
+            Consent::Unknown | Consent::Denied => Err(ScreenError::ConsentDenied),
+        }
+    }
+}
+
+/// Capture-LED indicator (ADR-081 guard 6) — engaged-count state machine.
+///
+/// `is_engaged()` is true while ≥1 capture is active. [`LedIndicator::engage`]
+/// returns a [`LedScope`] RAII guard that disengages on drop — so a panicking
+/// or early-returning capture path can never leave the indicator stuck on.
+/// Shared behind `Arc` so a streaming-capture worker can hold the scope for the
+/// stream's whole lifetime.
+#[derive(Debug, Default)]
+#[non_exhaustive]
+pub struct LedIndicator {
+    active: AtomicUsize,
+}
+
+impl LedIndicator {
+    /// Construct a disengaged capture indicator.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Whether capture is currently active (indicator lit).
+    #[must_use]
+    pub fn is_engaged(&self) -> bool {
+        self.active.load(Ordering::SeqCst) > 0
+    }
+
+    /// Engage the indicator for the lifetime of the returned [`LedScope`].
+    ///
+    /// Increments the active-capture count; the indicator disengages when the
+    /// count returns to zero (every scope dropped). An associated function (not
+    /// a method) because `self: &Arc<Self>` is not a stable receiver type — the
+    /// scope must own an `Arc` clone to outlive a `&self` borrow (streaming).
+    #[must_use = "drop the LedScope to disengage the capture indicator"]
+    pub fn engage(led: &Arc<Self>) -> LedScope {
+        led.active.fetch_add(1, Ordering::SeqCst);
+        LedScope {
+            led: Arc::clone(led),
+        }
+    }
+}
+
+/// RAII guard keeping the capture-LED indicator engaged · disengages on drop.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct LedScope {
+    led: Arc<LedIndicator>,
+}
+
+impl Drop for LedScope {
+    fn drop(&mut self) {
+        // Balanced with the `fetch_add` in `engage` (one scope == one increment).
+        self.led.active.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -80,20 +170,71 @@ impl ConsentGate {
 mod tests {
     use super::*;
 
-    /// Skeleton consent gate fails closed (denied by default · sovereignty).
+    /// Guard 7 happy path · an explicit grant allows capture.
+    #[test]
+    fn consent_gate_grant_allows() {
+        let gate = ConsentGate::new();
+        gate.grant();
+        assert_eq!(gate.status(), Consent::Granted);
+        assert!(gate.check().is_ok(), "granted consent allows capture");
+    }
+
+    /// Guard 7 denial path · fail-closed by default + explicit deny (NIKA-1006).
     #[test]
     fn consent_gate_fails_closed() {
         let gate = ConsentGate::new();
-        let res = gate.check();
-        assert!(res.is_err(), "skeleton consent denied by default");
-        assert_eq!(res.unwrap_err().code(), "NIKA-1006");
+        assert_eq!(gate.status(), Consent::Unknown, "default is fail-closed");
+        assert_eq!(
+            gate.check().expect_err("unknown denies").code(),
+            "NIKA-1006"
+        );
+        gate.deny();
+        assert_eq!(gate.check().expect_err("denied denies").code(), "NIKA-1006");
     }
 
-    /// Skeleton LED indicator engage/disengage are infallible no-ops.
+    /// Guard 7 revoke-mid-session (cancel) path · revoked → NIKA-1007.
     #[test]
-    fn led_indicator_skeleton_noops() {
-        let led = LedIndicator::new();
-        assert!(led.engage().is_ok());
-        assert!(led.disengage().is_ok());
+    fn consent_gate_revoke_denies() {
+        let gate = ConsentGate::new();
+        gate.grant();
+        assert!(gate.check().is_ok());
+        gate.revoke();
+        assert_eq!(gate.status(), Consent::Revoked);
+        assert_eq!(
+            gate.check().expect_err("revoked denies").code(),
+            "NIKA-1007"
+        );
+    }
+
+    /// Guard 6 happy path · the engage scope lights the indicator.
+    #[test]
+    fn led_engage_scope_lights() {
+        let led = Arc::new(LedIndicator::new());
+        assert!(!led.is_engaged(), "starts disengaged");
+        let scope = LedIndicator::engage(&led);
+        assert!(led.is_engaged(), "engaged while scope held");
+        drop(scope);
+        assert!(!led.is_engaged(), "disengaged after scope drop");
+    }
+
+    /// Guard 6 default / disengaged path.
+    #[test]
+    fn led_starts_disengaged() {
+        let led = Arc::new(LedIndicator::new());
+        assert!(!led.is_engaged());
+    }
+
+    /// Guard 6 concurrency (drop-mid) path · nested scopes count · the
+    /// indicator stays lit until the LAST scope drops.
+    #[test]
+    fn led_nested_engage_counts() {
+        let led = Arc::new(LedIndicator::new());
+        let s1 = LedIndicator::engage(&led);
+        let s2 = LedIndicator::engage(&led);
+        assert!(led.is_engaged(), "lit with two scopes");
+        drop(s1);
+        assert!(led.is_engaged(), "still lit · one scope remains");
+        drop(s2);
+        assert!(!led.is_engaged(), "disengaged after the last scope");
     }
 }

@@ -28,8 +28,10 @@
 //!
 //! # Status
 //!
-//! **Alpha · B.2 skeleton.** The capture backend returns
-//! `ScreenError::BackendNotWired` until the B.3 `xcap` impl ships.
+//! **Alpha.** All four `ScreenCapture` methods are wired via `xcap` (single-shot
+//! B.3 + continuous stream B.4) and the ADR-081 guards are enforced (B.5).
+//! OS-native consent/LED FFI is deferred; pixel-capture tests are `#[ignore]`-
+//! gated on screen-recording permission (TCC).
 
 #![cfg_attr(
     test,
@@ -47,4 +49,4 @@ pub mod guards;
 
 pub use capture::ScreenBackend;
 pub use error::ScreenError;
-pub use guards::{ConsentGate, LedIndicator};
+pub use guards::{Consent, ConsentGate, LedIndicator, LedScope};
