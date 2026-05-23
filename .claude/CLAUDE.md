@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase D (parser scaffolding, Round 2c+2d+2e-part-1 DONE). HEAD `ee74d97e0` — 7 crates in workspace (6 admitted + 1 WIP), **905 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M1 (kernel L0.5 sealed-trait milestone for computer-use) **COMPLETE** — all 6 effect domains sealed (io::{screen,ocr,a11y,input,browser} + ai::vision). Next: M2.1 nika-screen — first L1 effect-crate admission (ADR-081 guards 6+7). HEAD `1245e976f` — 9 crates in workspace (8 admitted + 1 WIP nika-schema), **1110 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,7 +115,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `6af1b7ced` (post BLUEPRINT v1.3 + W3 prep · nika-bm25 scaffold)             |
+| HEAD             | `1245e976f` (`1245e976f9bc4e1ffa910675f154615b70059e80`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 9                                              |
 | crates (admitted)| 8 / 40-42                                   |
@@ -126,7 +126,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1031 passed, 0 failed                              |
+| lib tests        | 1110 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -140,8 +140,11 @@ Narrative context (manually maintained):
   (`docs/architecture/l0-l05-architecture-decisions.md`).
 - 8 new ADRs (021-028 + ADR-006 amendment) lock Foundation v0.81 constellation.
 - 5 stub ADRs (029/030/031/032/035) mark Wave 4A/4B reservations — prose lands Phase C.
-- **Active arc: Phase B (hygiene vectors 22-33, P0 ratchets) → Phase C (ADR
-  prose) → Phase D (14-crate envelope refactor with rename, facade drop,
-  schema split).** See `~/.claude/.../memory/MEGA_HANDOFF_FOUNDATION_LOCK_V081.md`.
+- **Active arc: Phase 2 M1 (kernel L0.5 sealed traits for computer-use) COMPLETE —
+  nika-kernel now seals 6 effect domains (io::{screen,ocr,a11y,input,browser} +
+  ai::vision) plus infra/runtime/plugin groups; ADR-081 locks 7 L1 security guards
+  forever (NIKA-1000..1599 reserved). Next: M2.1 nika-screen — first L1 effect-crate
+  admission (12-gate · guards 6+7 capture-LED + consent-UX · OS-native capture).**
+  See `docs/adr/adr-081-l1-effect-crate-guard-contract.md`.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
