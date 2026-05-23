@@ -1290,6 +1290,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-screen"
+version = "0.80.0"
+dependencies = [
+ "miette",
+ "nika-kernel",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "nika-types"
 version = "0.80.0"
 dependencies = [

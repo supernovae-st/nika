@@ -51,6 +51,7 @@ wrappers = [
   "nika-kernel",           # L0.5 trait crate: tokio dev-dep for #[tokio::test] in async trait tests
   "nika-kernel-mock",      # L0.5 test mock: tokio channels for trait harness
   "nika-bm25",             # L1 memory satellite (feature=kernel gated, W4+ wire-up): tokio reserved for L2 RecallPool fan-out cooperative scheduling per ADR-078 step 6 + ADR-039 L-5 (yield_now NOT consume_budget) · Option E single-crate-feature-gated per devil's advocate 2026-05-12
+  "nika-screen",           # L1 effect crate (M2.1): tokio dev-dep for #[tokio::test] async ScreenCapture tests · B.4 wires mpsc stream worker + CancellationToken reaping
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
   "tower", "tokio-util", "tokio-rustls",

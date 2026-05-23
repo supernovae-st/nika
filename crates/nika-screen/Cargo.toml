@@ -1,0 +1,27 @@
+[package]
+name          = "nika-screen"
+description   = "Screen-capture L1 effect crate — implements the nika-kernel ScreenCapture trait (display enumeration + full/region/stream capture). First computer-use L1 · ADR-081 guards 6+7."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# Gate 2 (ADR linked) · ADR-081 = 7 L1 security guards forever; this crate owns
+# guards 6 (capture-LED indicator) + 7 (consent UX), MANDATORY-at-admission.
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-081"]
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+thiserror   = { workspace = true }
+miette      = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }  # #[tokio::test] for the async ScreenCapture impl
+
+[lints]
+workspace = true
