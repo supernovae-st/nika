@@ -13,7 +13,7 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
-### 🖥️ Phase 2 M2.1 · nika-screen L1 admission (in progress · 2026-05-23)
+### 🖥️ Phase 2 M2.1 · nika-screen L1 admission (ADMITTED · 12-gate closed · 2026-05-23)
 
 - **`nika-kernel` `io::screen`** · NEW `capture_stream` additive trait method +
   `FrameStream` type alias (`Pin<Box<dyn Stream<Item = io::Result<Frame>> + Send>>`),
@@ -39,6 +39,15 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
   correction · the
   plan's `nokhwa` is a WEBCAM lib (docs.rs verbatim); `xcap` is the screen-capture
   crate (per `cross-source-validation.md` §2.7).
+- **`nika-screen` 12-gate close (B.6)** · admitted as the first L1 effect crate —
+  all 12 gates green (registry · ADR-081 · `#[non_exhaustive]` · zero-unwrap ·
+  LOC 943 · NIKA-1000..1009 · cancel-safety · `test --workspace --lib` 1125 ·
+  clippy 0 · `cargo deny` ok · forward-compat). GAP-3 `From<ScreenPoint>` shim
+  CARRIED FORWARD to M2.4 `nika-input` · `ScreenPoint` is a `cockpit_overlay`
+  (Olympus) type, so a `From` impl in `nika-screen` would violate cross-flow
+  D-2026-05-08-N1 (Nika→Olympus) and is an `io::input` (cursor) concern, not
+  `io::screen`; the conversion lives on the Olympus consumer side (where
+  `cockpit-input-injection` already mirrors it).
 
 ### ⚡ Perf profile + craft amendments (2026-05-12)
 
