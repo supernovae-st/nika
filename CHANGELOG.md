@@ -22,6 +22,15 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
   L0.5 layer-banned per `Cargo.toml`). Begins the M2.1 6-batch dispatch (B.1).
 - **`crate-layer-registry`** · `nika-screen` registered L1 — first computer-use
   effect crate (Gate 1). ADR-081 7-guard contract already shipped (`3e40c18b3`).
+- **`nika-screen` crate** · B.2 skeleton (`ScreenError` NIKA-1000..1009 · 10 codes
+  · `ScreenBackend` + consent/LED guard skeletons) → B.3 single-shot capture WIRED
+  via `xcap` 0.9.5 (`list_displays` / `capture_full` / `capture_region` · sync OS
+  calls wrapped in `spawn_blocking` so the `!Send` `Monitor` stays worker-local and
+  dropped futures surrender promptly · zero-copy RGBA8 `Frame`). `capture_stream`
+  stays the B.2 skeleton pending B.4. xcap encapsulates the OS FFI (objc2 / x11 /
+  windows) so the crate is `unsafe_code = forbid`-clean. Plan-dep correction · the
+  plan's `nokhwa` is a WEBCAM lib (docs.rs verbatim); `xcap` is the screen-capture
+  crate (per `cross-source-validation.md` §2.7).
 
 ### ⚡ Perf profile + craft amendments (2026-05-12)
 
