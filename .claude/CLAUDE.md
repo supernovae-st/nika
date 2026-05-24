@@ -117,12 +117,12 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | branch           | `main`                                      |
 | HEAD             | `1245e976f` (`1245e976f9bc4e1ffa910675f154615b70059e80`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 9                                              |
-| crates (admitted)| 8 / 40-42                                   |
+| crates (workspace)| 10                                              |
+| crates (admitted)| 9 / 40-42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |
-| L1               | 0                                              |
+| L1               | 1                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
