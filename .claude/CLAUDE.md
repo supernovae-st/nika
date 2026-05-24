@@ -25,7 +25,7 @@ If any doc contradicts another, **POST_AUDIT_REVISIONS wins**.
 
 ## 🎯 What we're doing
 
-Nika Diamond = 40-42 crates architecture (cap 100). Building on fresh
+Nika Diamond = 42 crates architecture (cap 100). Building on fresh
 orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
@@ -118,7 +118,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | HEAD             | `fe2be76b0` (`fe2be76b00e875e97e450efbeb9f35f3b415493a`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 10                                              |
-| crates (admitted)| 8 / 40-42                                   |
+| crates (admitted)| 8 / 42                                   |
 | crates (WIP)     | 2 — nika-schema,nika-screen                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |

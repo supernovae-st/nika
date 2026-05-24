@@ -1,7 +1,7 @@
 # 💎 Nika Diamond
 
 The ground-up rewrite of Nika into a clean, AI-refactorable workspace
-of 40-42 small crates. This document is the strategy overview. For
+of 42 small crates. This document is the strategy overview. For
 the authoritative architectural decision, see
 [ADR-001 — Diamond orphan branch](docs/adr/adr-001-diamond-orphan-branch.md).
 
@@ -67,7 +67,7 @@ servers).
 
 ## Crate architecture
 
-40-42 crates at v0.90 target, expanding to ~75 at v0.100, hard cap
+42 crates at v0.90 target, expanding to ~75 at v0.100, hard cap
 100 ever. Strict downward-only layering (L0 → L5):
 
 ```
@@ -137,7 +137,7 @@ the model. See [ADR-002](docs/adr/adr-002-forever-v0x.md).
 Phase roadmap (no dates):
 
 - **v0.81** — forward-compat seams (shipped), hygiene 10 → 31 vectors (done), `tools/` → `crates/` rename (done).
-- **v0.90** — Diamond foundation: 40-42 crates admitted, 7 shadow zones green, pck MVP, 7 native API adapters.
+- **v0.90** — Diamond foundation: 42 crates admitted, 7 shadow zones green, pck MVP, 7 native API adapters.
 - **v0.95** — Memory / Cortex (9-10 satellite crates), agent-v2 (parallel tools, ReWOO, reflection, resume), pck full with sigstore signing.
 - **v0.100** — WASM plugins (wasmtime + extism sandbox), full observability (OpenTelemetry), full LSP, keys subsystem.
 - **v0.110+** — Ecosystem growth; hosted Nika Cloud and Nika Enterprise are demand-driven, deferred until warranted.

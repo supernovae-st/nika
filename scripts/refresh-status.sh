@@ -88,7 +88,7 @@ cat <<EOF
 | HEAD             | \`$HEAD_SHA_SHORT\` (\`$HEAD_SHA_FULL\`)             |
 | workspace        | v$WORKSPACE_VERSION                                  |
 | crates (workspace)| $WORKSPACE_MEMBERS                                              |
-| crates (admitted)| $ADMITTED_COUNT / 40-42                                   |
+| crates (admitted)| $ADMITTED_COUNT / 42                                   |
 | crates (WIP)     | $WIP_COUNT — $WIP_CRATES                                  |
 | L0               | $L0_COUNT                                              |
 | L0.5             | $L05_COUNT                                              |

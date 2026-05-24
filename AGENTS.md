@@ -11,7 +11,7 @@ this repository. This is the public AGENTS counterpart to the
 | Branch            | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
 | HEAD (last docs)  | `393fdefa8`                                            |
 | Workspace         | v0.80.0                                                |
-| Crates (admitted) | 6 / 40-42 target (+ 1 WIP: `nika-schema`)              |
+| Crates (admitted) | 8 / 42 target (+ 2 WIP: `nika-schema`, `nika-screen`)              |
 | Lib tests         | 905 passing, 0 failed                                  |
 | Clippy            | 0 warnings                                             |
 | Hygiene vectors   | 31 total (28 green / 3 yellow / 0 red)                 |

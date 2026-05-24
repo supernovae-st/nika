@@ -2,7 +2,7 @@
 
 ## Crate structure
 
-- Total target : **40-42 crates diamond v0.90** (cap 100) + **10 memory crates** at v0.95 Cortex (1 L2 orchestrator `nika-memory` + **9 L1 satellite crates** · 8 algorithmic concerns · autodesc splits into `nika-autodesc-minimal` [W4] + `nika-autodesc-full` [Phase 2] per ADR-042) — separate count. Satellites · `hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
+- Total target : **42 crates diamond v0.90** (cap 100) + **10 memory crates** at v0.95 Cortex (1 L2 orchestrator `nika-memory` + **9 L1 satellite crates** · 8 algorithmic concerns · autodesc splits into `nika-autodesc-minimal` [W4] + `nika-autodesc-full` [Phase 2] per ADR-042) — separate count. Satellites · `hnsw, bm25, rrf, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
 
 ## Collapse-vs-publish principle (LOCKED · post BLUEPRINT_2036 v1.0)
 
@@ -68,7 +68,7 @@
 - `nika-pck` — L2, orchestrator (~3k LOC)
 - `nika-git` — L1, gix wrapper for pck (~1.5k LOC)
 
-Total v0.90 target confirmed: **40-42 crates** (including these 8).
+Total v0.90 target confirmed: **42 crates** (including these 8).
 
 ## Kernel hooks Phase 0 (mandatory)
 
@@ -118,7 +118,7 @@ And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 
 ## Timeline (forever-v0.x — no hard deadlines)
 
-Diamond rewrite is open-ended. v0.90 ships when all 40-42 crates pass 12 gates
+Diamond rewrite is open-ended. v0.90 ships when all 42 crates pass 12 gates
 and the 7 shadow zones are green. Estimated 11-12 months total, but this is a
 rough target, not a commitment. Quality > speed.
 

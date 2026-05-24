@@ -67,7 +67,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | HEAD             | `fe2be76b0` (`fe2be76b00e875e97e450efbeb9f35f3b415493a`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 10                                              |
-| crates (admitted)| 8 / 40-42                                   |
+| crates (admitted)| 8 / 42                                   |
 | crates (WIP)     | 2 — nika-schema,nika-screen                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |

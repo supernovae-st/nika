@@ -553,7 +553,7 @@ Per `socratic-research-discipline.md` Rule 6 · grounded claims ·
 - Automerge sync protocol mature · context7 `/automerge/automerge` · `AutoCommit` + `generate_sync_message` / `receive_sync_message` (2026-05-12 query)
 - Memory subsystem stack · `naming-memory-subsystem.md` v2.4 + ADR-004 + ADR-005 + ADR-038-042 (this engine repo)
 - 5-verb lock · ADR-001 + `nika-invariants.md` (this engine repo)
-- 40-42 crate cap · ADR-006 amendment + ROADMAP.md (this engine repo)
+- 42 crate cap · ADR-006 amendment + ROADMAP.md (this engine repo)
 
 ## §9 · This blueprint's status
 
