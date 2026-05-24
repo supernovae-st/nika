@@ -1,0 +1,15 @@
+---
+source: crates/nika-event/tests/event_contract.rs
+expression: slugs
+---
+- workflow_started
+- workflow_completed
+- workflow_failed
+- task_scheduled
+- task_started
+- task_completed
+- task_failed
+- task_skipped
+- verb_invoked
+- tool_invoked
+- checkpoint_written

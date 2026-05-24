@@ -1846,6 +1846,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-event"
+version = "0.80.0"
+dependencies = [
+ "insta",
+ "miette",
+ "nika-error",
+ "nika-types",
+ "proptest",
+ "rstest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "nika-kernel"
 version = "0.80.0"
 dependencies = [

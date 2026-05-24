@@ -37,7 +37,6 @@ Cargo.lock.bak
 /crates/nika-daemon/
 /crates/nika-display/
 /crates/nika-engine/
-/crates/nika-event/
 /crates/nika-exec-runner/
 /crates/nika-extract/
 /crates/nika-fs/

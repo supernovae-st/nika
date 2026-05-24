@@ -1,0 +1,44 @@
+[package]
+name          = "nika-event"
+description   = "Canonical event log + trace types + emitter for the Nika diamond. Layer L0 — pure, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-017.
+
+[dependencies]
+nika-types = { path = "../nika-types", version = "0.80.0" }
+nika-error = { path = "../nika-error", version = "0.80.0" }
+thiserror  = { workspace = true }
+miette     = { workspace = true, features = ["fancy-no-backtrace"] }
+serde      = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+serde   = ["dep:serde", "dep:serde_json", "nika-types/serde", "nika-error/serde"]
+
+[dev-dependencies]
+insta       = { workspace = true }
+proptest    = { workspace = true }
+rstest      = { workspace = true }
+serde_json  = { workspace = true }
+uuid        = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["insta", "rstest"]  # dev-deps used in #[cfg(test)] blocks
+
+[package.metadata.lore]
+daemon      = "scribe"
+archetype   = "kodama-scribe"
+spirit_role = "range les souvenirs · chaque événement une bouteille à la mer"
+voice_pattern = "silent"
+layer       = "L0"
+err_prefix  = "NIKA-EVT"
+
+[lints]
+workspace = true
