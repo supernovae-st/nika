@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase 2 M1 (kernel L0.5 sealed-trait milestone for computer-use) **COMPLETE** — all 6 effect domains sealed (io::{screen,ocr,a11y,input,browser} + ai::vision). Next: M2.1 nika-screen — first L1 effect-crate admission (ADR-081 guards 6+7). HEAD `fe2be76b0` — 10 crates in workspace (8 admitted + 2 WIP · nika-schema + nika-screen), **1125 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M1 (kernel L0.5 sealed-trait milestone for computer-use) **COMPLETE** — all 6 effect domains sealed (io::{screen,ocr,a11y,input,browser} + ai::vision). Next: M2.1 nika-screen — first L1 effect-crate admission (ADR-081 guards 6+7). HEAD `ba2f65236` — 10 crates in workspace (8 admitted + 2 WIP · nika-schema + nika-screen), **1125 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,7 +115,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `fe2be76b0` (`fe2be76b00e875e97e450efbeb9f35f3b415493a`)             |
+| HEAD             | `ba2f65236` (`ba2f652366000597c99177e06d38245b818b1f29`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 10                                              |
 | crates (admitted)| 8 / 42                                   |

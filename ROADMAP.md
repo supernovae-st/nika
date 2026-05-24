@@ -64,7 +64,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `fe2be76b0` (`fe2be76b00e875e97e450efbeb9f35f3b415493a`)             |
+| HEAD             | `ba2f65236` (`ba2f652366000597c99177e06d38245b818b1f29`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 10                                              |
 | crates (admitted)| 8 / 42                                   |
