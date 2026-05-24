@@ -32,7 +32,6 @@ Cargo.lock.bak
 /crates/nika-blob/
 /crates/nika-builtin/
 /crates/nika-cli/
-/crates/nika-clock/
 /crates/nika-core/
 /crates/nika-daemon/
 /crates/nika-display/

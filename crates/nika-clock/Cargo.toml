@@ -1,0 +1,32 @@
+[package]
+name          = "nika-clock"
+description   = "Production SystemClock — L1 impl of the nika-kernel Clock trait via std::time + tokio::time."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+tokio       = { workspace = true, features = ["time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+
+[package.metadata.cargo-machete]
+ignored = ["tokio"]  # tokio::time::sleep used in async fn; dev tokio in #[tokio::test]
+
+[package.metadata.lore]
+daemon        = "klabautermann"
+archetype     = "kodama-klabautermann"
+spirit_role   = "garde le rythme du bateau · le tempo invisible sous le pont"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true

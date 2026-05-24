@@ -1831,6 +1831,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-clock"
+version = "0.80.0"
+dependencies = [
+ "nika-kernel",
+ "tokio",
+]
+
+[[package]]
 name = "nika-error"
 version = "0.80.0"
 dependencies = [
