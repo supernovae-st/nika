@@ -64,21 +64,21 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `6af1b7ced` (post W3 prep · nika-bm25 scaffold · 2026-05-12)             |
+| HEAD             | `fe2be76b0` (`fe2be76b00e875e97e450efbeb9f35f3b415493a`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 10                                              |
-| crates (admitted)| 9 / 40-42                                   |
-| crates (WIP)     | 1 — nika-schema                                  |
+| crates (admitted)| 8 / 40-42                                   |
+| crates (WIP)     | 2 — nika-schema,nika-screen                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |
 | L1               | 1                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1031 passed, 0 failed                              |
+| lib tests        | 1125 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
-Diamond foundation, **7 crates admitted** + **1 WIP** in workspace
+Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
 (8 total), orphan branch from scratch.
 
 - **nika-types** — L0 foundation value types (split from nika-error 2026-04-16, `5baeee044`)

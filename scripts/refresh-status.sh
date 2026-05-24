@@ -54,11 +54,12 @@ L2_COUNT=$(count_layer "L2")
 L3_COUNT=$(count_layer "L3")
 L4_COUNT=$(count_layer "L4")
 
-# Identify the WIP crate (admitted = passed all 12 gates; WIP = in
-# workspace but pre-admission). Heuristic: parser/analyzer in progress
-# inside nika-schema → schema is WIP. Refine when a per-crate
-# admission ledger lands (Phase B vector 27 candidate).
-WIP_CRATES="nika-schema"
+# Identify WIP crates (admitted = passed all 12 gates; WIP = in
+# workspace but pre-admission). Heuristic: nika-schema (L0 parser
+# scaffolding) + nika-screen (L1 effect-crate · M2.1 next admission ·
+# no admission commit yet). Refine when a per-crate admission ledger
+# lands (Phase B vector 27 candidate).
+WIP_CRATES="nika-schema,nika-screen"
 WIP_COUNT=$(echo "$WIP_CRATES" | tr ',' '\n' | wc -l | tr -d ' ')
 ADMITTED_COUNT=$((WORKSPACE_MEMBERS - WIP_COUNT))
 

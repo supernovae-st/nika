@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase 2 M1 (kernel L0.5 sealed-trait milestone for computer-use) **COMPLETE** — all 6 effect domains sealed (io::{screen,ocr,a11y,input,browser} + ai::vision). Next: M2.1 nika-screen — first L1 effect-crate admission (ADR-081 guards 6+7). HEAD `1245e976f` — 9 crates in workspace (8 admitted + 1 WIP nika-schema), **1110 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M1 (kernel L0.5 sealed-trait milestone for computer-use) **COMPLETE** — all 6 effect domains sealed (io::{screen,ocr,a11y,input,browser} + ai::vision). Next: M2.1 nika-screen — first L1 effect-crate admission (ADR-081 guards 6+7). HEAD `fe2be76b0` — 10 crates in workspace (8 admitted + 2 WIP · nika-schema + nika-screen), **1125 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,18 +115,18 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `1245e976f` (`1245e976f9bc4e1ffa910675f154615b70059e80`)             |
+| HEAD             | `fe2be76b0` (`fe2be76b00e875e97e450efbeb9f35f3b415493a`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 10                                              |
-| crates (admitted)| 9 / 40-42                                   |
-| crates (WIP)     | 1 — nika-schema                                  |
+| crates (admitted)| 8 / 40-42                                   |
+| crates (WIP)     | 2 — nika-schema,nika-screen                                  |
 | L0               | 5                                              |
 | L0.5             | 2                                              |
 | L1               | 1                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1110 passed, 0 failed                              |
+| lib tests        | 1125 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
