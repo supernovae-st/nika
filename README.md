@@ -12,10 +12,13 @@
 
 ```yaml
 # workflow.nika.yaml
-schema: "nika/workflow@0.12"
+nika: v1
+workflow: summarize-article
 tasks:
   - id: fetch
-    fetch: { url: "https://example.com/article", extract: article }
+    invoke:
+      tool: "nika:fetch"        # fetch is a builtin tool, not a verb
+      with: { url: "https://example.com/article", extract: article }
   - id: summarize
     with: { text: $fetch }
     infer: "Summarize in 3 bullets: {{with.text}}"

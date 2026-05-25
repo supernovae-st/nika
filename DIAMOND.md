@@ -51,7 +51,8 @@ YAML file and executes a DAG of verbs:
 
 ```yaml
 # workflow.nika.yaml
-schema: "nika/workflow@0.12"
+nika: v1
+workflow: summarize-article
 tasks:
   - id: fetch
     invoke:

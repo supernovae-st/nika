@@ -84,17 +84,16 @@ version.
 **Example**:
 ```rust
 #[derive(Deserialize)]
-#[serde(tag = "schema")]
+#[serde(tag = "nika")]               // single version marker · envelope `nika: v1`
 pub enum WorkflowDoc {
-    #[serde(rename = "nika/workflow@0.12")]
-    V0_12(WorkflowV0_12),
-    #[serde(rename = "nika/workflow@0.20")]
-    V0_20(WorkflowV0_20),
+    #[serde(rename = "v1")]
+    V1(WorkflowV1),
+    // v2 reserved · forever-v0.x makes a contract break effectively never
 }
 ```
 
 **Locked schemas (v0.80)**:
-- `nika/workflow@0.12` — current workflow YAML
+- `nika: v1` — current workflow envelope (single version marker · per nika-spec · supersedes the K8s `apiVersion:` + `schema: nika/workflow@X` forms)
 - `nika/pck@1` — pck manifest TOML
 - `nika/event@1` — event log JSON
 - `nika/memory-frame@1` — memory frame JSON (v0.95)

@@ -1,0 +1,87 @@
+---
+id: ADR-082
+title: "Workflow envelope: single version marker `nika: v1` (supersedes K8s apiVersion form)"
+status: accepted
+date: 2026-05-25
+phase: "Phase C — foundation lock v0.81"
+deciders: ["@ThibautMelen"]
+tags: ["schema", "yaml", "envelope", "version-marker", "spec-alignment"]
+affects_crates: ["nika-schema", "nika-schema-ast", "nika-binding", "nika-catalog", "nika-event"]
+affects_layers: ["L0", "L0.5"]
+supersedes: ["ADR-021"]
+superseded_by: []
+related: ["ADR-021"]
+requires: []
+enables: []
+amends: []
+fci: ["FCI-009"]
+inv: ["INV-019"]
+shadow_zones: ["GATE-1"]
+nika_codes: []
+timeline: "v0.81 · aligns engine to public nika-spec"
+follow_ups: ["nuke nika-schema parser envelope branch · parse `nika: v1` not `apiVersion:`/`schema:`"]
+---
+
+# ADR-082: Workflow envelope — single version marker `nika: v1`
+
+## Context
+
+The public **`nika-spec`** (Apache-2.0 · created 2026-05-22 · 5 pillars
+locked D-2026-05-22-N1..N8) defines the canonical workflow envelope as a
+**single version marker**:
+
+```yaml
+nika: v1                 # required · language name (key) + contract version (value)
+workflow: my-workflow-id # required · kebab-case · unique within file
+tasks:
+  - id: ...
+```
+
+This **supersedes** the Kubernetes-style envelope adopted in **ADR-021**
+(`apiVersion: nika.sh/v1` + `kind` + `metadata` + `spec`). The spec
+explicitly rejects the two-field `apiVersion:`/`schema:` ceremony
+(cf `nika-spec spec/01-envelope.md` · "Why one field, not apiVersion +
+schema") on the grounds that modern specs converge on a single version
+marker — OpenAPI writes `openapi: 3.1.0`, Docker Compose dropped its
+`version:` field entirely.
+
+Two contradictory legacy forms were also still scattered across engine
+docs and surfaced by a verification swarm 2026-05-25:
+
+- `apiVersion: nika.sh/v1` (the ADR-021 K8s form)
+- `schema: "nika/workflow@0.12"` (the pre-Diamond brouillon form)
+
+A phantom citation `ADR-044` ("adr-044-schema-envelope.md") was referenced
+in several docs but the file never existed.
+
+## Decision
+
+**Adopt `nika: v1` as the single canonical envelope version marker for
+every Nika user-facing workflow YAML.** The contract version is `v1`,
+locked forever (per `forever-v0.x` · a `v2` would require a breaking
+contract change · effectively never).
+
+- The **`kind` discriminator** + multi-document rationale from ADR-021
+  **survives** (9 doc kinds: Workflow · Skill · Agent · Provider · Mcp ·
+  Eval · Recipe · Shield · Lints). Only the **version-field shape**
+  changed: `apiVersion: nika.sh/v1` → `nika: v1`.
+- The engine's internal canonical URI stays `https://nika.sh/spec/v1` for
+  RDF / conformance tooling — but the **author never types a URL**.
+- The serde discriminator becomes `#[serde(tag = "nika")]` with variant
+  `#[serde(rename = "v1")]` (was `tag = "schema"` / `nika/workflow@0.12`).
+
+## Consequences
+
+- `nika-schema` parser rewrite (Phase D) targets `nika: v1`, not the
+  `apiVersion:`/`schema:` forms.
+- ADR-021 marked `superseded`; its `kind`/multi-doc analysis stays valid
+  reference material.
+- The phantom `ADR-044` references are removed; this ADR is the canonical
+  engine-side anchor for the envelope decision (mirrors the public spec).
+- Public canon source of truth: `nika-spec spec/01-envelope.md`.
+
+## Related
+
+- `docs/adr/adr-021-yaml-envelope-convention.md` (superseded · K8s form)
+- `nika-spec` spec/01-envelope.md — the public `nika: v1` contract
+- `docs/architecture/forward-compat-invariants.md` — FCI-009 envelope versioning

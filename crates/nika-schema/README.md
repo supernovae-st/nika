@@ -9,8 +9,8 @@ Workflow AST, parser, analyzer, and DAG validation — pure, zero I/O, zero asyn
 > has not closed. Do not depend on this crate from sibling crates until
 > admission ships.
 
-Layer **L0**. Parses the canonical `apiVersion: nika.sh/v1` envelope
-([ADR-044]) into a typed AST, validates the DAG of tasks, and surfaces
+Layer **L0**. Parses the canonical `nika: v1` envelope
+(per [nika-spec]) into a typed AST, validates the DAG of tasks, and surfaces
 diagnostics via [miette] so the CLI can render rich error spans. The
 parser is a two-stage pipeline : `marked-yaml` (source-span preserving) →
 `serde-saphyr` (typed deserialize) → analyzer (DAG checks + guardrails).
@@ -49,10 +49,10 @@ AGPL-3.0-or-later. Co-author `Nika 🦋 <nika@supernovae.studio>`.
 
 ## Related
 
-- `docs/adr/adr-044-schema-envelope.md` — `apiVersion: nika.sh/v1` forever
+- `docs/adr/adr-021-yaml-envelope-convention.md` (superseded) + `nika-spec` spec/01-envelope.md — `nika: v1` envelope forever
 - `docs/adr/adr-003-12-gate-admission.md` — admission gates (this crate awaiting)
 - `docs/architecture/forward-compat-invariants.md` — `#[non_exhaustive]` ratchet
 - `docs/architecture/crate-layer-registry.md` — L0 contract
 
-[ADR-044]: ../../docs/adr/adr-044-schema-envelope.md
+[nika-spec]: https://github.com/supernovae-st/nika-spec
 [miette]: https://docs.rs/miette

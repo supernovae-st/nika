@@ -113,7 +113,7 @@ Each row · Purpose (1 line) · LOC budget · Key deps · Trait surface · Gate 
 - `nika-error` · error taxonomy `NikaError` enum + NIKA-XXX codes · 3k LOC · `thiserror` `miette` (opt-in) · sealed `NikaError` variant enum · Gate 9 EXEMPT · ADMITTED v0.81
 - `nika-catalog` · capability vocabulary (105 MCP · 32 LLM providers · 13 embeddings) · 8-10k LOC · `nika-types` · `Catalog` query API + `ModelPricing` 7-axis · Gate 9 via canary-catalog.yaml fixtures · ADMITTED v0.81
 - `nika-catalog-codegen` · build-time codegen of catalog rust types · 2k LOC · `nika-catalog` `quote` · proc-macro (no runtime trait) · Gate 9 EXEMPT (build-tool) · ADMITTED
-- `nika-schema` · workflow YAML parser `apiVersion: nika.sh/v1` · 4-6k LOC · `serde_yaml` `nika-types` · `Workflow` parsed struct · Gate 9 via canary-workflows · WIP (W2 target)
+- `nika-schema` · workflow YAML parser `nika: v1` envelope · 4-6k LOC · `serde_yaml` `nika-types` · `Workflow` parsed struct · Gate 9 via canary-workflows · WIP (W2 target)
 - `nika-event-types` · canonical event envelope shape (cross-product · per `olympus-platform-canonical.md`) · 1k LOC · `nika-types` · `Event` `EventKind` enum sealed · Gate 9 EXEMPT · PLANNED L0
 
 ### L0.5 · kernel (2 crates · monolithic forever per ADR-006)

@@ -9,8 +9,9 @@
 > Tag scheme (Q-plan 3b): `v0.8X.Y` where `X` climbs per layer-phase completion
 > and `Y` increments per crate admission. See §Tag scheme below.
 >
-> Schema envelope (Q-R5): `apiVersion: nika.sh/v1` **forever**. K8s-style
-> `x-nika-alpha/beta` annotations gate sub-field maturity within v1. See ADR-044.
+> Schema envelope (Q-R5): `nika: v1` **forever** (single version marker per
+> nika-spec · supersedes the K8s `apiVersion:` form of ADR-021). `x-nika-alpha/beta`
+> annotations gate sub-field maturity within v1. See nika-spec spec/01-envelope.md.
 >
 > Target crate count: **50-90** (cap 100). Driven by 14-crate memory subsystem
 > (8 core + 6 reserved), 4 storage backends, ~30 provider crates, own
@@ -92,6 +93,7 @@ Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
 - **nika-catalog** — static catalogs with phf+unicase lookup (226 tests after 4B)
   - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
   - 105 MCP servers, **32 LLM providers**, 13 embeddings, 63 builtins, 65 transforms
+    *(this is the `nika-catalog` **inventory** — what the engine has metadata for. Distinct from the `nika-spec` **v0.1 stdlib contract** of 13 providers · 42 builtins · 9 extract modes that a conformant engine must support · the extra builtins are media/opt-in, deferred to stdlib v0.x.)*
   - **TOML-driven capability resolver** — **49 rules**, zero-alloc, proptest 10k parity
   - `api_dialect` on all 32 providers (closed set, FK-validated at build time)
   - **12-field `ModelCapabilities`**: token_limit_param + temperature + stop + reasoning + input/output modalities + tokenizer (**12 families**: Cl100k/O200k/ClaudeV3/Gemini/LlamaV3/LlamaV4/MistralV3/DeepSeek/Qwen/Granite/Glm/Grok) + supported_parameters (**13 flags**: incl. BatchApi/ContextCaching/PredictedOutputs/ComputerUse/Citations/IncludeReasoning) + system_messages + context_window_tokens + max_output_tokens + json_mode
@@ -114,7 +116,7 @@ Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
   - **Round 2d** (`2480822df`): `tasks:` sequence + 5-verb action discriminator (`enum Verb` exhaustive match) + minimum required field per verb
   - **Round 2e-part-1** (`eac346c71`): optional task-level `depends_on`, `condition`, `for_each`
   - 38 parser tests + 100+ across raw/types/guardrails/source/trust/error
-  - **PENDING REWRITE** — Phase D nuke + redo with `apiVersion: nika.sh/v1` + `kind: Workflow` + `metadata` + `spec` envelope (ADR-016 lands Phase C)
+  - **PENDING REWRITE** — Phase D nuke + redo with `nika: v1` + `kind: Workflow` + `metadata` + `spec` envelope (per nika-spec · the `kind` discriminator survives, the version-field shape is `nika: v1` not `apiVersion: nika.sh/v1`)
 
 Total: **905 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
 ~30k LOC, 32 providers, 49 capability rules, **35 ADRs** (30 Accepted +
@@ -189,10 +191,15 @@ The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 
 No tag = "Ship". No marketing milestone. `v0.92.0` is merely "the last
 structural climb"; `v0.93+` keeps shipping diamond-grade increments forever.
 
-## Schema envelope — forever v1 (Q-R5, ADR-044)
+## Schema envelope — forever v1 (Q-R5 · per nika-spec)
 
-Every `.nika.yaml` workflow carries `apiVersion: nika.sh/v1` **forever**.
-This is a K8s-style stability guarantee: the envelope never bumps to v2.
+Every `.nika.yaml` workflow carries `nika: v1` **forever** — a single
+version marker (the language name as key, the contract version as value).
+The envelope never bumps to v2 (forever-v0.x · a `v2` is effectively
+never). The earlier K8s-style `apiVersion: nika.sh/v1` form (ADR-021) is
+superseded by `nika-spec` spec/01-envelope.md, which rejects the two-field
+`apiVersion:`/`schema:` ceremony; `https://nika.sh/spec/v1` survives only
+as the internal RDF/conformance URI, never typed by authors.
 
 Sub-field maturity is annotated inline via `x-nika-alpha` / `x-nika-beta` /
 `x-nika-deprecated` hints that parsers surface as warnings, never errors.
@@ -466,7 +473,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 `response: {full, binary}`, reached via `invoke: {tool: "nika:fetch"}`.
 Per D-2026-05-22-N18.)
 
-**63 builtin tools** split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
+**63 builtin tools** (full engine inventory · the `nika-spec` **v0.1 stdlib contract** curates **42** of these — 7 core · 5 file · 22 data · 6 introspection · 2 network — and defers 24 media builtins to stdlib v0.x) split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
 - Core (7): `sleep`, `log`, `emit`, `assert`, `prompt`, `run`, `complete`
 - File (5): `read`, `write`, `edit`, `glob`, `grep`
 - Introspection (6): `dag_info`, `task_status`, `threads`, `orchestrate`, `cost`, `records`
@@ -479,7 +486,7 @@ Per D-2026-05-22-N18.)
 
 **Schema AST (`nika-schema` L0 ~13k LOC)**:
 - Raw AST → analyzed AST with `Spanned<T>` source tracking for `ariadne` diagnostics
-- Parser: YAML → workflow (schema version pinned `nika/workflow@0.12`)
+- Parser: YAML → workflow (envelope `nika: v1` · single version marker per nika-spec)
 - Analyzer: DAG construction + cycle detection + unreachable task detection + run-depth enforcement (workflow recursion guard)
 - Validator: type coercion on 65 templatable fields (string → f64/u32/bool/provider enum/etc.)
 - Taint propagation: `Trust::Untrusted` bits flow through `with:` bindings, enforced at verb boundaries

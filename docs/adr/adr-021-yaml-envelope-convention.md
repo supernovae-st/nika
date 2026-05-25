@@ -1,16 +1,17 @@
 ---
 id: ADR-021
 title: "YAML envelope convention: apiVersion + kind + metadata + spec, multi-doc, 9 doc kinds"
-status: accepted
+status: superseded
 date: "2026-04-16"
+superseded_date: "2026-05-25"
 phase: "Phase C — foundation lock v0.81"
 deciders: ["@ThibautMelen"]
 tags: ["schema", "yaml", "envelope", "k8s", "multi-doc", "kind-discriminator"]
 affects_crates: ["nika-envelope", "nika-schema-ast", "nika-schema", "nika-binding", "nika-catalog", "nika-event"]
 affects_layers: ["L0", "L0.5"]
 supersedes: []
-superseded_by: []
-related: ["ADR-022", "ADR-023", "ADR-024"]
+superseded_by: ["ADR-082"]
+related: ["ADR-022", "ADR-023", "ADR-024", "ADR-082"]
 requires: []
 enables: ["ADR-022"]
 amends: []
@@ -23,6 +24,19 @@ follow_ups: ["nuke nika-schema parser, rewrite to envelope"]
 ---
 
 # ADR-021: YAML envelope convention
+
+> **⚠️ SUPERSEDED 2026-05-25** · The K8s envelope decided here
+> (`apiVersion: nika.sh/v1` + `kind` + `metadata` + `spec`) is **superseded
+> by the public `nika-spec`**, which adopts a **single version marker** ·
+> `nika: v1` + `workflow: <id>` + `tasks:`. The spec explicitly rejects the
+> `apiVersion:`/`schema:` two-field form as Kubernetes-ceremony a workflow
+> file does not need (cf `nika-spec spec/01-envelope.md` · "Why one field,
+> not apiVersion + schema"). The engine's internal canonical URI stays
+> `https://nika.sh/spec/v1` for RDF/conformance tooling, but the author
+> never types it. Decision below preserved as audit trail per
+> `cross-source-validation.md` §2.7. The `kind` discriminator + multi-doc
+> rationale (9 doc kinds) is the part that survives — only the version-field
+> shape changed (`apiVersion: nika.sh/v1` → `nika: v1`).
 
 ## Context
 
