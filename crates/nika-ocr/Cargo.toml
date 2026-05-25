@@ -1,0 +1,33 @@
+[package]
+name          = "nika-ocr"
+description   = "OCR text-extraction L1 effect crate — implements the nika-kernel OcrEngine trait (read + read_region) via the pure-Rust ocrs backend. Second computer-use L1 · M2.2."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# Gate 2 (ADR linked) · ADR-081 = 7 L1 security guards forever; nika-ocr owns
+# NONE mandatory (read-only inference · guards enforced upstream at capture).
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-081"]
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+thiserror   = { workspace = true }
+# B.3 adds · ocrs = "0.12" (pure-Rust OCR · rten runtime · spawn_blocking
+# inference) + tokio (sync spawn_blocking) + bytes (RGBA→ImageSource). The B.2
+# skeleton is dep-light · the placeholder validates frame/region purely.
+
+[dev-dependencies]
+# #[tokio::test] for the async OcrEngine methods · bytes builds Frame payloads ·
+# proptest pins the pure frame-bounds + region validation (Gate 6).
+tokio    = { workspace = true, features = ["macros", "rt"] }
+bytes    = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

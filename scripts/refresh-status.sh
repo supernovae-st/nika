@@ -56,11 +56,12 @@ L4_COUNT=$(count_layer "L4")
 
 # Identify WIP crates (admitted = passed all 12 gates; WIP = in
 # workspace but pre-admission). Heuristic: nika-schema (L0 parser
-# scaffolding · no admission commit yet). nika-screen ADMITTED 2026-05-25
-# (M2.1 · ADR-003 canonical 12 gates · mutation 40/45 viable + Rule-2
-# OS-FFI exemption + 3-agent review swarm). Refine when a per-crate
-# admission ledger lands (Phase B vector 27 candidate).
-WIP_CRATES="nika-schema"
+# scaffolding · no admission commit yet) + nika-ocr (M2.2 L1 effect ·
+# B.2 skeleton · BackendNotWired placeholder · pre-admission). nika-screen
+# ADMITTED 2026-05-25 (M2.1 · ADR-003 canonical 12 gates · mutation 40/45
+# viable + Rule-2 OS-FFI exemption + 3-agent review swarm). Refine when a
+# per-crate admission ledger lands (Phase B vector 27 candidate).
+WIP_CRATES="nika-schema,nika-ocr"
 WIP_COUNT=$(echo "$WIP_CRATES" | tr ',' '\n' | wc -l | tr -d ' ')
 ADMITTED_COUNT=$((WORKSPACE_MEMBERS - WIP_COUNT))
 

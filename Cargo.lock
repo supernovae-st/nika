@@ -1906,6 +1906,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-ocr"
+version = "0.80.0"
+dependencies = [
+ "bytes",
+ "nika-kernel",
+ "proptest",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "nika-schema"
 version = "0.80.0"
 dependencies = [
