@@ -1930,6 +1930,7 @@ dependencies = [
  "futures-core",
  "miette",
  "nika-kernel",
+ "proptest",
  "thiserror",
  "tokio",
  "xcap",

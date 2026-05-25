@@ -217,17 +217,20 @@ fn capture_full_sync(display: DisplayId) -> Result<Frame, ScreenError> {
     Ok(rgba_to_frame(img, scale, display))
 }
 
-/// Capture a sub-region frame (sync · runs inside `spawn_blocking`).
+/// Validate a capture region against display bounds — **pure** (no OS call ·
+/// display-local top-left coordinates). Returns the unsigned `(x, y)` origin,
+/// or [`ScreenError::RegionOutOfBounds`] for a negative offset · a zero extent
+/// · or an out-of-bounds extent (strictly `> display`; the exact boundary
+/// `rx + width == display_w` is IN bounds).
 ///
-/// The region is validated against the display bounds in display-local
-/// top-left coordinates; a negative offset or an out-of-bounds extent
-/// yields [`ScreenError::RegionOutOfBounds`] (structural · non-transient).
-fn capture_region_sync(display: DisplayId, region: Rect) -> Result<Frame, ScreenError> {
-    let monitor = find_monitor_sync(display.0)?;
-    let scale = monitor.scale_factor().map_err(capture_failed)?;
-    let display_w = monitor.width().map_err(capture_failed)?;
-    let display_h = monitor.height().map_err(capture_failed)?;
-
+/// Extracted from [`capture_region_sync`] so the bounds logic is unit- and
+/// mutation-tested headless — the OS-coupled capture call stays `#[ignore]`
+/// (needs a real display + TCC). ADR-003 gate 5/6 coverage of the pure path.
+fn validate_region(
+    region: Rect,
+    display_w: u32,
+    display_h: u32,
+) -> Result<(u32, u32), ScreenError> {
     let oob = || ScreenError::RegionOutOfBounds {
         x: region.x,
         y: region.y,
@@ -246,7 +249,20 @@ fn capture_region_sync(display: DisplayId, region: Rect) -> Result<Frame, Screen
     {
         return Err(oob());
     }
+    Ok((rx, ry))
+}
 
+/// Capture a sub-region frame (sync · runs inside `spawn_blocking`).
+///
+/// The region is validated against the display bounds by [`validate_region`]
+/// (a negative offset or an out-of-bounds extent yields
+/// [`ScreenError::RegionOutOfBounds`] · structural · non-transient).
+fn capture_region_sync(display: DisplayId, region: Rect) -> Result<Frame, ScreenError> {
+    let monitor = find_monitor_sync(display.0)?;
+    let scale = monitor.scale_factor().map_err(capture_failed)?;
+    let display_w = monitor.width().map_err(capture_failed)?;
+    let display_h = monitor.height().map_err(capture_failed)?;
+    let (rx, ry) = validate_region(region, display_w, display_h)?;
     let img = monitor
         .capture_region(rx, ry, region.width, region.height)
         .map_err(capture_failed)?;
@@ -442,5 +458,128 @@ mod tests {
             frame.display_id, first.id,
             "frame carries the source display id"
         );
+    }
+
+    /// `now_ns` returns a real epoch-nanosecond timestamp (not a constant) ·
+    /// pins it against `-> 0` / `-> 1` mutations. Headless · no display needed.
+    #[test]
+    fn now_ns_is_a_real_epoch_timestamp() {
+        // 2020-01-01T00:00:00Z expressed in nanoseconds since the UNIX epoch.
+        const Y2020_NS: u64 = 1_577_836_800_000_000_000;
+        assert!(
+            now_ns() > Y2020_NS,
+            "capture timestamp is a real epoch-ns value, not a constant"
+        );
+    }
+
+    /// The `FrameRx` stream forwards a sent frame then ends when the channel
+    /// closes · pins `poll_next` against `-> Poll::from(None)`. Headless · the
+    /// channel plumbing is exercised directly without an OS capture.
+    #[tokio::test]
+    async fn frame_rx_yields_then_ends_on_close() {
+        let (tx, rx) = tokio::sync::mpsc::channel::<std::io::Result<Frame>>(STREAM_BUFFER);
+        let mut stream = FrameRx { rx };
+        let frame = Frame::new(
+            4,
+            2,
+            1.0,
+            Bytes::from_static(&[0u8; 32]),
+            DisplayId::new(7),
+            1,
+        );
+        tx.send(Ok(frame)).await.expect("send frame");
+        let got = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx))
+            .await
+            .expect("stream yields the sent frame")
+            .expect("frame ok");
+        assert_eq!(
+            got.display_id,
+            DisplayId::new(7),
+            "poll_next forwards the frame (not a constant None)"
+        );
+        drop(tx); // close the channel
+        let end = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
+        assert!(end.is_none(), "a closed channel ends the stream");
+    }
+
+    /// Guard 7 · `grant_consent` lets capture PAST the gate · pins it against a
+    /// no-op mutation. With consent granted, `capture_full` reaches the OS
+    /// layer: on a headless / TCC-denied host it errors with an OS code
+    /// (`NoDisplaysFound` / `BackendInit` / `CaptureFailed`) — NEVER 1006/1007.
+    /// If `grant_consent` were a no-op the fail-closed gate would deny (1006).
+    #[tokio::test]
+    async fn grant_consent_lets_capture_past_the_gate() {
+        let backend = ScreenBackend::new();
+        backend.grant_consent();
+        if let Err(io) = backend.capture_full(DisplayId::new(0)).await {
+            let se = io
+                .into_inner()
+                .expect("boxed source")
+                .downcast::<ScreenError>()
+                .expect("ScreenError source");
+            assert_ne!(
+                se.code(),
+                "NIKA-1006",
+                "grant_consent must pass the gate, not deny"
+            );
+            assert_ne!(se.code(), "NIKA-1007", "consent was granted, not revoked");
+        }
+    }
+
+    // --- validate_region · PURE bounds logic (headless · mutation-killing) ---
+
+    /// A well-inside region returns its unsigned origin.
+    #[test]
+    fn validate_region_accepts_in_bounds() {
+        assert_eq!(
+            validate_region(Rect::new(10, 20, 100, 50), 1920, 1080).expect("in bounds"),
+            (10, 20)
+        );
+    }
+
+    /// The exact boundary `rx + width == display_w` (and height) is IN bounds
+    /// (`>` not `>=`) · pins the `>` comparators against `>=` / `==`.
+    #[test]
+    fn validate_region_accepts_exact_boundary() {
+        assert_eq!(
+            validate_region(Rect::new(0, 0, 1920, 1080), 1920, 1080).expect("exact bound"),
+            (0, 0)
+        );
+        assert_eq!(
+            validate_region(Rect::new(1820, 980, 100, 100), 1920, 1080).expect("exact bound"),
+            (1820, 980)
+        );
+    }
+
+    /// One pixel past the width bound is rejected · pins `>` against `<` / `==`.
+    #[test]
+    fn validate_region_rejects_width_overflow_by_one() {
+        assert!(validate_region(Rect::new(1, 0, 1920, 100), 1920, 1080).is_err());
+    }
+
+    /// One pixel past the height bound is rejected · pins `>` against `<` / `==`.
+    #[test]
+    fn validate_region_rejects_height_overflow_by_one() {
+        assert!(validate_region(Rect::new(0, 1, 100, 1080), 1920, 1080).is_err());
+    }
+
+    /// Zero width alone (every other term valid) is rejected · pins the
+    /// `width == 0` check + the first `||` against `!=` / `&&`.
+    #[test]
+    fn validate_region_rejects_zero_width_alone() {
+        assert!(validate_region(Rect::new(0, 0, 0, 50), 1920, 1080).is_err());
+    }
+
+    /// Zero height alone is rejected · pins `height == 0` + the second `||`.
+    #[test]
+    fn validate_region_rejects_zero_height_alone() {
+        assert!(validate_region(Rect::new(0, 0, 50, 0), 1920, 1080).is_err());
+    }
+
+    /// A negative offset (signed→unsigned conversion fails) is rejected.
+    #[test]
+    fn validate_region_rejects_negative_offset() {
+        assert!(validate_region(Rect::new(-1, 0, 10, 10), 1920, 1080).is_err());
+        assert!(validate_region(Rect::new(0, -5, 10, 10), 1920, 1080).is_err());
     }
 }

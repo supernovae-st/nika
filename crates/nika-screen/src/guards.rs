@@ -169,6 +169,7 @@ impl Drop for LedScope {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     /// Guard 7 happy path · an explicit grant allows capture.
     #[test]
@@ -236,5 +237,82 @@ mod tests {
         assert!(led.is_engaged(), "still lit · one scope remains");
         drop(s2);
         assert!(!led.is_engaged(), "disengaged after the last scope");
+    }
+
+    /// Guard 7 · `deny()` records the explicit `Denied` state — distinct from
+    /// the `Unknown` fail-closed default (both deny capture, but are different
+    /// states). Pins `deny` against a no-op mutation.
+    #[test]
+    fn consent_gate_deny_sets_denied() {
+        let gate = ConsentGate::new();
+        assert_eq!(gate.status(), Consent::Unknown);
+        gate.deny();
+        assert_eq!(
+            gate.status(),
+            Consent::Denied,
+            "deny() records Denied, not Unknown"
+        );
+    }
+
+    proptest! {
+        /// Gate 6 · `from_u8` decodes every canonical encoding back to its
+        /// variant and fail-closes every out-of-range byte to `Unknown`
+        /// (never panics) · canonical variants round-trip through `as_u8`.
+        /// Pins each `from_u8` match arm + the fail-closed default.
+        #[test]
+        fn consent_u8_roundtrip_and_fail_closed(v in any::<u8>()) {
+            let decoded = Consent::from_u8(v);
+            match v {
+                1 => prop_assert_eq!(decoded, Consent::Granted),
+                2 => prop_assert_eq!(decoded, Consent::Denied),
+                3 => prop_assert_eq!(decoded, Consent::Revoked),
+                _ => prop_assert_eq!(decoded, Consent::Unknown), // fail-closed
+            }
+            prop_assert_eq!(Consent::from_u8(decoded.as_u8()), decoded);
+        }
+
+        /// Gate 6 · after any sequence of transitions, `status()` is the last
+        /// applied state and `check()` is Ok IFF that state is `Granted`
+        /// (1007 revoked · 1006 unknown/denied). Pins grant/deny/revoke
+        /// against no-op mutations + the `check()` arms.
+        #[test]
+        fn consent_check_matches_final_state(
+            ops in prop::collection::vec(0u8..3, 0..32),
+        ) {
+            let gate = ConsentGate::new();
+            let mut last = Consent::Unknown;
+            for op in &ops {
+                match op {
+                    0 => { gate.grant();  last = Consent::Granted; }
+                    1 => { gate.deny();   last = Consent::Denied; }
+                    _ => { gate.revoke(); last = Consent::Revoked; }
+                }
+            }
+            prop_assert_eq!(gate.status(), last);
+            match last {
+                Consent::Granted => prop_assert!(gate.check().is_ok()),
+                Consent::Revoked => {
+                    prop_assert_eq!(gate.check().expect_err("revoked").code(), "NIKA-1007");
+                }
+                _ => {
+                    prop_assert_eq!(gate.check().expect_err("denied").code(), "NIKA-1006");
+                }
+            }
+        }
+
+        /// Gate 6 · the capture-LED is engaged IFF ≥1 scope is held. Push N
+        /// scopes (lit), then drop one at a time — lit until the last drop.
+        /// Pins the engaged-count `fetch_add`/`fetch_sub`/`> 0` machine.
+        #[test]
+        fn led_engaged_iff_scopes_held(n in 0usize..16) {
+            let led = Arc::new(LedIndicator::new());
+            let mut scopes: Vec<LedScope> = (0..n).map(|_| LedIndicator::engage(&led)).collect();
+            prop_assert_eq!(led.is_engaged(), n > 0);
+            while !scopes.is_empty() {
+                scopes.pop();
+                prop_assert_eq!(led.is_engaged(), !scopes.is_empty());
+            }
+            prop_assert!(!led.is_engaged());
+        }
     }
 }

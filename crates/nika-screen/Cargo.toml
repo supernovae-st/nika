@@ -32,5 +32,12 @@ xcap        = "0.9"
 tokio        = { workspace = true, features = ["sync"] }
 futures-core = { workspace = true }  # `Stream` trait for the B.4 capture_stream adapter
 
+[dev-dependencies]
+# Gate 6 (PROPERTY) · proptest exercises the security state machines
+# (ConsentGate fail-closed transitions · LedIndicator engaged-count) over
+# randomized op sequences — the OS-FFI capture paths stay #[ignore] (need a
+# real display + TCC), so mutation coverage of the pure logic comes from here.
+proptest = { workspace = true }
+
 [lints]
 workspace = true

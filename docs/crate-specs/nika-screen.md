@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ADMITTED** (Phase 2 M2.1 · first L1 effect crate · 12-gate closed 2026-05-24) |
+| Status | **ADMITTED** (Phase 2 M2.1 · first L1 effect crate · ADR-003 canonical 12-gate closed 2026-05-25 · mutation 40/45 viable + Rule-2 OS-FFI exemption · review swarm 3× ADMIT · see §5) |
 | Layer | L1 — effect implementation · async · `Send + Sync` · depends only on L0 / L0.5 |
 | Sub-tier | L1-effect — OS screen capture behind the L0.5 `ScreenCapture` trait. OS FFI is encapsulated by the `xcap` dependency, so the crate itself is `unsafe_code = forbid`-clean |
 | Design | Thin adapter over **xcap 0.9.5** (cross-platform screen capture · macOS CoreGraphics · Linux X11/Wayland portal · Windows DXGI). Sync `xcap` calls run inside `tokio::task::spawn_blocking` so the `!Send` `xcap::Monitor` stays worker-local and dropped futures surrender promptly (kernel CANCEL SAFETY contract) |
@@ -101,13 +101,39 @@ pub enum ScreenError { /* BackendNotWired(1000) .. BackendInit(1009) */ }
   early-returning capture path can never leave the indicator stuck on). The
   stream worker holds the scope for the stream's whole lifetime.
 
-## 5. Gate status (12/12 green · ADR-003)
+## 5. Gate status — ADR-003 canonical 12 gates
 
-`registry` · `ADR-081 linked` · `schema N/A (trait-impl)` · `#[non_exhaustive]`
-(6 public types) · `zero unwrap/expect in src` (clippy `unwrap_used = deny`) ·
-`LOC 943` · `NIKA-1000..1009` · `CANCEL SAFETY docs` · `test --workspace --lib`
-GREEN · `clippy --workspace --all-targets -D warnings` 0 · `cargo deny` ok ·
-`forward-compat` (`#[non_exhaustive]` + `#[trait_variant::make]` + additive).
+| # | Gate | Status | Evidence |
+|---|------|--------|----------|
+| 1 | SPEC | ✅ | this file |
+| 2 | TDD | ✅ | tests precede impl · 27 lib tests + 4 proptest cases |
+| 3 | IMPL | ✅ | 943 src LOC · `cargo check` 0 |
+| 4 | CLIPPY | ✅ | `clippy --workspace --all-targets -D warnings` 0 |
+| 5 | MUTATION | ✅ + exemption | `cargo mutants -p nika-screen -- --lib` · **40/45 viable caught (88.9%)** · 100 % of headless-reachable · 5 OS-FFI mutants exempt (§5.1) |
+| 6 | PROPERTY | ✅ | proptest · `ConsentGate` transitions + `from_u8` fail-closed roundtrip + `LedIndicator` engaged-count (`guards.rs`) |
+| 7 | BENCHMARKS | ⚪ N/A | thin `xcap` adapter · capture latency is OS-bound, not a Nika hot path (exempt · ADR-003 Rule 2) |
+| 8 | DOCS | ✅ | `cargo doc --no-deps` 0 warnings · all pub items documented |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` workflow surface · the 2 `#[ignore]` real-capture smoke tests are the E2E (need display + TCC) |
+| 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.1) · no v0.79 brouillon equivalent to golden-test against |
+| 11 | REVIEW SWARM | ✅ | 3-agent swarm 2026-05-25 · feature-dev:code-reviewer + 2× general-purpose (Nika-conventions + Rust-quality) · **all 3 verdict ADMIT** · findings LOW/MED only |
+| 12 | ATOMIC COMMIT | ✅ | the admission commit |
+
+### 5.1 Gate 5 mutation exemption (ADR-003 Rule 2 · OS-FFI adapter)
+
+`nika-screen` is a thin OS-FFI adapter (`xcap`). 5 mutants are **exempt** —
+they live on the irreducible OS-call paths reachable only with a real display
++ OS screen-recording permission (macOS TCC), exercised by the 2 `#[ignore]`
+real-capture tests, not headless CI:
+
+- `led_is_engaged` delegation (a held capture is needed to observe `true`)
+- `list_displays` / `list_displays_sync` (OS monitor enumeration)
+- `find_monitor_sync` id match (needs real monitors)
+- `stream_worker` loop (needs a capture device)
+
+All **headless-reachable** logic — the `ConsentGate` / `LedIndicator` state
+machines (guards 6+7) and the pure `validate_region` bounds — is at 100 %
+mutation kill. Per ADR-003 Rule 2 the OS-FFI residue is documented-exempt,
+not skipped. Re-run locally with a display: `cargo test -p nika-screen -- --ignored`.
 
 ## 6. Deferred / carry-forward
 

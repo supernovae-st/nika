@@ -98,7 +98,8 @@ pub enum ScreenError {
 impl ScreenError {
     /// Stable NIKA code for this error (grep-anchor for logs + journal).
     ///
-    /// NIKA-1000..1009 · the reserved nika-screen sub-range (ADR-081).
+    /// NIKA-1000..1009 currently used · NIKA-1000..1099 reserved for
+    /// nika-screen (ADR-081).
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
