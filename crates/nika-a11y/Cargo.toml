@@ -18,15 +18,21 @@ adr = ["ADR-003", "ADR-081"]
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
 thiserror   = { workspace = true }
-# B.3 adds (macOS-gated) · accessibility = "0.2" (safe AXUIElement API · rten-style
-# encapsulated unsafe FFI · keeps this crate unsafe_code = forbid) + tokio rt
-# (spawn_blocking · the !Send AXUIElement walk stays worker-local). The B.2
-# skeleton is dep-light · the placeholder returns BackendNotWired and the
-# MANDATORY Guard 3 redaction is a pure tree-transform (headless-testable now).
+# tokio `rt` for spawn_blocking (the !Send AXUIElement walk runs off the async
+# runtime · worker-local · kernel CANCEL SAFETY contract). Cross-platform.
+tokio       = { workspace = true, features = ["rt"] }
+
+# macOS backend (B.3) · accessibility = safe AXUIElement API (TreeWalker · the
+# unsafe ApplicationServices FFI is encapsulated → this crate stays
+# unsafe_code = forbid). core-foundation for CFString/CFType reads (value ·
+# subrole). Both gated to macOS — Linux AT-SPI / Windows UIA land later (§4).
+[target.'cfg(target_os = "macos")'.dependencies]
+accessibility   = { workspace = true }
+core-foundation = { workspace = true }
 
 [dev-dependencies]
 # #[tokio::test] for the async AccessibilityTree methods · proptest pins the
-# pure helpers (Guard 3 redaction · role mapping · query filter).
+# pure helpers (Guard 3 redaction · role mapping · find-by-id · query filter).
 tokio    = { workspace = true, features = ["macros", "rt"] }
 proptest = { workspace = true }
 

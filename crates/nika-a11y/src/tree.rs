@@ -15,42 +15,147 @@
 //! every `snapshot`/`find`/`resolve_ref` result before return. The OS walk
 //! that builds the raw tree is the only Rule-2-exempt (FFI) residue.
 
-use nika_kernel::io::a11y::{AccessibilityTree, AxNode, AxQuery};
+use std::sync::Mutex;
+
+use nika_kernel::io::a11y::{AccessibilityTree, AxNode, AxQuery, AxRole};
 
 use crate::error::A11yError;
 
 /// Accessibility backend (macOS `AXUIElement` via the safe `accessibility`
-/// crate at B.3). The B.2 skeleton holds no state; B.3 adds the per-session
-/// `@e<N>` ref cache + the focused-app target.
+/// crate). Caches the last redacted snapshot as the per-session
+/// ref-resolution store for `resolve_ref`.
 #[derive(Debug, Default)]
 #[non_exhaustive]
-pub struct AxBackend {}
+pub struct AxBackend {
+    /// Last redacted snapshot · the `@e<N>` → node resolution cache (best-
+    /// effort · populated on every `snapshot`/`find`).
+    last_snapshot: Mutex<Option<AxNode>>,
+}
 
 impl AxBackend {
     /// Construct an accessibility backend bound to the focused application.
     ///
-    /// B.2 skeleton · always succeeds. B.3 adds the macOS Accessibility-trust
-    /// check (`AXIsProcessTrusted`) → [`A11yError::PermissionDenied`].
-    ///
     /// # Errors
-    /// B.3 · [`A11yError::PermissionDenied`] when the process is not trusted.
+    /// None today · B.4 may add a macOS Accessibility-trust pre-check
+    /// (`AXIsProcessTrusted`) → [`A11yError::PermissionDenied`].
     pub fn new() -> Result<Self, A11yError> {
         Ok(Self::default())
     }
 
-    /// Walk the focused application's accessibility tree into an [`AxNode`].
+    /// Walk the focused window, apply the MANDATORY Guard 3 redaction, cache
+    /// the result for `resolve_ref`, and return it.
     ///
-    /// B.2 placeholder · returns [`A11yError::BackendNotWired`]. B.3 wires the
-    /// macOS `AXUIElement` `TreeWalker` (role string → [`AxNode`] · subrole →
-    /// secure flag · frame → `Rect`) inside `spawn_blocking` (the `!Send`
-    /// handle stays worker-local · kernel CANCEL SAFETY contract).
-    #[expect(
-        clippy::unused_self,
-        reason = "B.3 reads &self (focused-app target + @e<N> ref cache) for the real AXUIElement walk"
-    )]
-    fn walk_tree(&self) -> Result<AxNode, A11yError> {
-        Err(A11yError::BackendNotWired)
+    /// The sync OS walk runs in `spawn_blocking` — the `!Send` `AXUIElement`
+    /// handle is created + dropped worker-local (kernel CANCEL SAFETY: a
+    /// dropped future abandons the read with no caller-visible state · the
+    /// blocking task finishes on the pool and its result is discarded).
+    async fn redacted_snapshot(&self) -> std::io::Result<AxNode> {
+        let raw = tokio::task::spawn_blocking(walk_focused_tree)
+            .await
+            .map_err(|e| A11yError::TaskJoinFailed {
+                reason: e.to_string(),
+            })??;
+        let tree = redact_secure_fields(raw);
+        if let Ok(mut cache) = self.last_snapshot.lock() {
+            *cache = Some(tree.clone());
+        }
+        Ok(tree)
     }
+}
+
+/// Map a platform AX role string to the canonical [`AxRole`] — **pure** ·
+/// headless-testable. Unmapped roles fall back to [`AxRole::Unknown`]
+/// (extended additively as more macOS roles surface).
+fn ax_role_from_str(raw: &str) -> AxRole {
+    match raw {
+        "AXButton" => AxRole::Button,
+        "AXLink" => AxRole::Link,
+        "AXTextField" | "AXTextArea" => AxRole::TextField,
+        "AXImage" => AxRole::Image,
+        "AXGroup" => AxRole::Group,
+        "AXWindow" => AxRole::Window,
+        "AXMenu" => AxRole::Menu,
+        "AXStaticText" => AxRole::StaticText,
+        "AXList" => AxRole::List,
+        "AXRow" | "AXCell" | "AXMenuItem" => AxRole::ListItem,
+        "AXHeading" => AxRole::Heading,
+        _ => AxRole::Unknown,
+    }
+}
+
+/// Find a node by its stable `@e<N>` id in a cached tree — **pure** ·
+/// headless-testable. Returns a clone (the cache stays owned).
+fn find_by_id(node: &AxNode, id: &str) -> Option<AxNode> {
+    if node.id == id {
+        return Some(node.clone());
+    }
+    node.children.iter().find_map(|c| find_by_id(c, id))
+}
+
+/// Walk the focused window's accessibility tree into an [`AxNode`].
+///
+/// macOS · `AXUIElement::system_wide().focused_window()` rooted recursive walk
+/// (role/label/value/subrole/children). The `value` of secure fields is
+/// stripped downstream by [`redact_secure_fields`] (Guard 3). Non-macOS ·
+/// [`A11yError::BackendUnavailable`] until AT-SPI / UIA backends land (§4).
+#[cfg(target_os = "macos")]
+fn walk_focused_tree() -> Result<AxNode, A11yError> {
+    use accessibility::{AXUIElement, AXUIElementAttributes};
+
+    let root = AXUIElement::system_wide()
+        .focused_window()
+        .map_err(|_| A11yError::NoFocusedApplication)?;
+    let mut counter: u32 = 0;
+    Ok(build_node(&root, &mut counter))
+}
+
+/// Recursively map one `AXUIElement` to an [`AxNode`] — macOS. Assigns a
+/// stable per-walk `@e<N>` id. `bbox` is `None` at B.3 (frame→`Rect` mapping
+/// is a later refinement). Attribute-read failures degrade to `None`/empty
+/// (a partial tree is better than no tree · the redaction guard still runs).
+#[cfg(target_os = "macos")]
+fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32) -> AxNode {
+    use accessibility::AXUIElementAttributes;
+    use core_foundation::string::CFString;
+    use std::collections::BTreeMap;
+
+    *counter += 1;
+    let id = format!("@e{counter}");
+
+    let role_str = elem.role().map(|s| s.to_string()).unwrap_or_default();
+    let role = ax_role_from_str(&role_str);
+    let label = elem
+        .title()
+        .ok()
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty());
+    let value = elem
+        .value()
+        .ok()
+        .and_then(|v| v.downcast::<CFString>())
+        .map(|s| s.to_string());
+
+    let mut attributes = BTreeMap::new();
+    if let Ok(sub) = elem.subrole() {
+        let s = sub.to_string();
+        if !s.is_empty() {
+            attributes.insert("AXSubrole".to_string(), s);
+        }
+    }
+
+    let children = elem
+        .children()
+        .map(|arr| arr.iter().map(|c| build_node(&c, counter)).collect())
+        .unwrap_or_default();
+
+    AxNode::new(id, role, label, value, None, children, attributes)
+}
+
+/// Non-macOS · no accessibility backend yet (§4 macOS-first · Linux AT-SPI /
+/// Windows UIA land additively on a consumer signal).
+#[cfg(not(target_os = "macos"))]
+fn walk_focused_tree() -> Result<AxNode, A11yError> {
+    Err(A11yError::BackendUnavailable)
 }
 
 /// True when a node is a secure-text field whose `value` MUST be redacted —
@@ -136,26 +241,30 @@ fn collect_matches(node: &AxNode, query: &AxQuery, depth: u16, out: &mut Vec<AxN
 
 impl AccessibilityTree for AxBackend {
     async fn snapshot(&self) -> std::io::Result<AxNode> {
-        // walk_tree is the B.2 placeholder (returns BackendNotWired) · the
-        // MANDATORY Guard 3 redaction wraps it so no secure value ever leaves.
-        // B.3 makes walk_tree the real AXUIElement walk inside spawn_blocking.
-        let tree = self.walk_tree()?;
-        Ok(redact_secure_fields(tree))
+        // Guard 3 redaction is applied inside redacted_snapshot · no secure
+        // value ever leaves the crate.
+        self.redacted_snapshot().await
     }
 
     async fn find(&self, query: &AxQuery) -> std::io::Result<Vec<AxNode>> {
-        // B.3 = redacted snapshot → depth-bounded collect_matches. The redact
-        // step runs BEFORE the filter so secure values never surface.
-        let tree = redact_secure_fields(self.walk_tree()?);
+        // Redacted snapshot → depth-bounded filter. The redact step runs
+        // BEFORE the filter so secure values never surface.
+        let tree = self.redacted_snapshot().await?;
         let mut out = Vec::new();
         collect_matches(&tree, query, 0, &mut out);
         Ok(out)
     }
 
-    async fn resolve_ref(&self, _ref_id: &str) -> std::io::Result<Option<AxNode>> {
-        // B.2 placeholder · B.3 looks up the @e<N> ref cache → redact → return.
-        let _ = self.walk_tree()?;
-        Ok(None)
+    async fn resolve_ref(&self, ref_id: &str) -> std::io::Result<Option<AxNode>> {
+        // Resolve against the last cached (already-redacted) snapshot · `None`
+        // when the ref is stale or no snapshot has run yet.
+        let cache = self
+            .last_snapshot
+            .lock()
+            .map_err(|_| A11yError::AttributeError {
+                reason: "snapshot cache poisoned".to_string(),
+            })?;
+        Ok(cache.as_ref().and_then(|tree| find_by_id(tree, ref_id)))
     }
 }
 
@@ -341,39 +450,66 @@ mod tests {
         assert_eq!(unbounded.len(), 2, "unbounded reaches child + grandchild");
     }
 
-    // --- skeleton trait methods (B.2 placeholder · NIKA-1200) ---
+    // --- ax_role_from_str (pure · mutation-killing) ---
 
-    #[tokio::test]
-    async fn snapshot_hits_placeholder() {
-        let backend = AxBackend::new().expect("new");
-        let io = backend
-            .snapshot()
-            .await
-            .expect_err("B.2 placeholder denies");
-        let ae = io
-            .into_inner()
-            .expect("boxed")
-            .downcast::<A11yError>()
-            .expect("A11yError");
-        assert_eq!(ae.code(), "NIKA-1200");
+    #[test]
+    fn ax_role_from_str_maps_known_and_unknown() {
+        assert_eq!(ax_role_from_str("AXButton"), AxRole::Button);
+        assert_eq!(ax_role_from_str("AXTextField"), AxRole::TextField);
+        assert_eq!(ax_role_from_str("AXTextArea"), AxRole::TextField);
+        assert_eq!(ax_role_from_str("AXStaticText"), AxRole::StaticText);
+        assert_eq!(ax_role_from_str("AXMenuItem"), AxRole::ListItem);
+        assert_eq!(ax_role_from_str("AXSomethingNovel"), AxRole::Unknown);
+        assert_eq!(ax_role_from_str(""), AxRole::Unknown);
     }
 
+    // --- find_by_id (pure ref-cache resolution · mutation-killing) ---
+
+    #[test]
+    fn find_by_id_finds_root_nested_and_misses() {
+        let grandchild = leaf("@e3", AxRole::Button, Some("ok"), &[]);
+        let child = AxNode::new(
+            "@e2".into(),
+            AxRole::Group,
+            None,
+            None,
+            None,
+            vec![grandchild],
+            BTreeMap::new(),
+        );
+        let root = AxNode::new(
+            "@e1".into(),
+            AxRole::Window,
+            None,
+            None,
+            None,
+            vec![child],
+            BTreeMap::new(),
+        );
+        assert_eq!(find_by_id(&root, "@e1").map(|n| n.id), Some("@e1".into()));
+        assert_eq!(find_by_id(&root, "@e3").map(|n| n.id), Some("@e3".into()));
+        assert_eq!(find_by_id(&root, "@e99"), None);
+    }
+
+    // --- resolve_ref on a fresh backend (empty cache · headless · NIKA-N/A) ---
+
     #[tokio::test]
-    async fn find_and_resolve_ref_hit_placeholder() {
+    async fn resolve_ref_on_empty_cache_is_none() {
         let backend = AxBackend::new().expect("new");
-        let f = backend
-            .find(&AxQuery::default())
-            .await
-            .expect_err("placeholder");
-        let r = backend.resolve_ref("@e1").await.expect_err("placeholder");
-        for io in [f, r] {
-            let ae = io
-                .into_inner()
-                .expect("boxed")
-                .downcast::<A11yError>()
-                .expect("A11yError");
-            assert_eq!(ae.code(), "NIKA-1200");
-        }
+        let got = backend.resolve_ref("@e1").await.expect("empty cache ok");
+        assert_eq!(got, None, "no snapshot cached yet ⇒ Ok(None)");
+    }
+
+    // --- real-walk smoke (needs AX permission + a focused window) ---
+
+    #[tokio::test]
+    #[ignore = "needs macOS Accessibility grant + a focused window · run: cargo test -p nika-a11y -- --ignored"]
+    async fn snapshot_smoke_real_focused_window() {
+        let backend = AxBackend::new().expect("new");
+        let tree = backend.snapshot().await.expect("focused-window snapshot");
+        // The root window walk yields at least itself; secure fields (if any)
+        // are already redacted by the time the tree returns.
+        assert!(!tree.id.is_empty());
     }
 
     proptest! {

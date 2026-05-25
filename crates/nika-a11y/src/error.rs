@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Accessibility error taxonomy — NIKA-1200..1206.
+//! Accessibility error taxonomy — NIKA-1201..1206.
 //!
 //! Reserved sub-range **NIKA-1200..1299** per ADR-081 `nika_codes` matrix
 //! (supersedes the stale `io/a11y.rs` doc-comment "NIKA-1060..1079" which
 //! predates ADR-081 · same reconciliation as nika-ocr NIKA-1100..1199).
 //! `code()` is the grep-anchor for logs + journal; `is_transient()` lets a
 //! caller decide retry vs structural failure.
+//!
+//! NIKA-1200 was the B.2 `BackendNotWired` skeleton placeholder · CLOSED at
+//! B.3 when the macOS `AXUIElement` walk was wired (per
+//! `skeleton-option-a-pattern.md` §5) · the slot stays reserved.
 
 use thiserror::Error;
 
-/// Accessibility backend errors · NIKA-1200..1206 · `code()` grep-anchor.
+/// Accessibility backend errors · NIKA-1201..1206 · `code()` grep-anchor.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum A11yError {
-    /// B.2 skeleton placeholder — real `AXUIElement` walk lands B.3.
-    #[error("NIKA-1200 · accessibility backend not wired (skeleton placeholder)")]
-    BackendNotWired,
     /// The process lacks the OS accessibility grant (macOS Accessibility
     /// trust · `AXIsProcessTrusted` false) — the operator must grant it.
     #[error("NIKA-1201 · accessibility permission denied (grant Accessibility access)")]
@@ -52,12 +53,11 @@ pub enum A11yError {
 impl A11yError {
     /// Stable NIKA code for this error (grep-anchor for logs + journal).
     ///
-    /// NIKA-1200..1206 currently used · NIKA-1200..1299 reserved for
-    /// nika-a11y (ADR-081).
+    /// NIKA-1201..1206 currently used · NIKA-1200..1299 reserved for
+    /// nika-a11y (ADR-081 · NIKA-1200 = retired B.2 placeholder slot).
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
-            Self::BackendNotWired => "NIKA-1200",
             Self::PermissionDenied => "NIKA-1201",
             Self::NoFocusedApplication => "NIKA-1202",
             Self::AttributeError { .. } => "NIKA-1203",
@@ -93,7 +93,6 @@ mod tests {
 
     fn all_variants() -> Vec<A11yError> {
         vec![
-            A11yError::BackendNotWired,
             A11yError::PermissionDenied,
             A11yError::NoFocusedApplication,
             A11yError::AttributeError { reason: "x".into() },
@@ -138,7 +137,6 @@ mod tests {
         assert!(A11yError::AttributeError { reason: "x".into() }.is_transient());
         assert!(A11yError::TreeWalkFailed { reason: "x".into() }.is_transient());
         assert!(A11yError::TaskJoinFailed { reason: "x".into() }.is_transient());
-        assert!(!A11yError::BackendNotWired.is_transient());
         assert!(!A11yError::PermissionDenied.is_transient());
         assert!(!A11yError::NoFocusedApplication.is_transient());
         assert!(!A11yError::BackendUnavailable.is_transient());

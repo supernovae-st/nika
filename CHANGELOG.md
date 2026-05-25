@@ -13,7 +13,7 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
-### ♿ Phase 2 M2.3 · nika-a11y L1 (WIP · B.1 spec + B.2 skeleton · 2026-05-25)
+### ♿ Phase 2 M2.3 · nika-a11y L1 (WIP · B.1 spec + B.2 skeleton + B.3 macOS walk · 2026-05-25)
 
 - **`nika-a11y` crate** · third computer-use L1 effect crate · implements the
   L0.5 `io::a11y::AccessibilityTree` trait (`snapshot` + `find` + `resolve_ref`)
@@ -32,11 +32,21 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
   applied before any node leaves the crate. The pure `find` filter
   (`matches_query` + depth-bounded `collect_matches`) ships too. 12 lib tests
   (incl. a proptest pinning the redaction invariant) · clippy 0 · doc 0 ·
-  `cargo-machete` clean · `cargo deny` ok · workspace `test --lib` 1168. The OS
-  `AXUIElement` walk + role mapping land B.3 (`spawn_blocking` · Rule-2 exempt);
-  B.4 = mutation + 12-gate close + admission. `nika-a11y` added to `deny.toml`
+  `cargo-machete` clean · `cargo deny` ok. `nika-a11y` added to `deny.toml`
   tokio wrapper allowlist. API primary-source verified via context7
   (`/eiz/accessibility`) before recommending the backend.
+- **B.3 macOS `AXUIElement` walk wired** · `system_wide().focused_window()`
+  rooted recursive `build_node` (role/label/value/subrole → `AxNode`) inside
+  `spawn_blocking` (the `!Send` handle stays worker-local · CANCEL SAFETY) ·
+  macOS-gated deps `accessibility` 0.2 + `core-foundation` 0.10 (CFString/CFType
+  reads · all upstream symbols — `focused_window` · `value().downcast::<CFString>()`
+  · `children().iter()` · `subrole()` — verified against the crate source before
+  use). Non-macOS compiles to `BackendUnavailable` (NIKA-1205). `resolve_ref`
+  backed by a `Mutex<Option<AxNode>>` cache of the last redacted snapshot + pure
+  `find_by_id`. Pure `ax_role_from_str`. Closed the `BackendNotWired` placeholder
+  (NIKA-1200 retired · slot reserved). `bbox` deferred (`None` · frame→`Rect`
+  refinement). 13 lib tests + 1 `#[ignore]` real-walk smoke · clippy 0 · doc 0 ·
+  machete/deny green · workspace `--lib` 1169. B.4 = mutation + 12-gate + admission.
 
 ### 🔤 Phase 2 M2.2 · nika-ocr L1 admission (ADMITTED · 12-gate closed · 2026-05-25)
 

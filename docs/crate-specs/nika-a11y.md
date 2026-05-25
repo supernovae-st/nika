@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WIP** (Phase 2 M2.3 · third L1 effect crate · B.1 spec · backend-scope decision OPEN · §4) |
+| Status | **WIP** (Phase 2 M2.3 · third L1 effect crate · B.3 macOS `AXUIElement` walk wired + Guard 3 redaction · pre-admission · B.4 = mutation + 12-gate close) |
 | Layer | L1 — effect implementation · async · `Send + Sync` · depends only on L0 / L0.5 |
 | Sub-tier | L1-effect — accessibility-tree query behind the L0.5 `AccessibilityTree` trait. macOS backend via the safe-API `accessibility` crate (encapsulates `AXUIElement` unsafe FFI · so `nika-a11y` stays `unsafe_code = forbid`) |
 | Design | macOS-first adapter over **accessibility 0.2.0** (`AXUIElement` · `TreeWalker`/`TreeVisitor` · MIT/Apache · safe Rust API · the unsafe ApplicationServices FFI is encapsulated inside the crate, same posture `nika-screen` got from `xcap` + `nika-ocr` from `ocrs`). Sync `AXUIElement` walk runs inside `tokio::task::spawn_blocking` (the `AXUIElement` handle is `!Send` · stays worker-local · produces the `Send` `AxNode` tree · kernel CANCEL SAFETY contract · same pattern as `nika-screen`'s `xcap::Monitor`). AX tree → `AxNode` mapping → **mandatory AX-secure-field redaction (Guard 3)** → `Vec<AxNode>` |
@@ -59,9 +59,10 @@ impl nika_kernel::io::a11y::AccessibilityTree for AxBackend {
     async fn resolve_ref(&self, ref_id: &str) -> io::Result<Option<AxNode>>;
 }
 
-/// Errors · NIKA-1201..12NN · #[non_exhaustive] + code() + is_transient().
+/// Errors · NIKA-1201..1206 · #[non_exhaustive] + code() + is_transient().
+/// NIKA-1200 = retired B.2 BackendNotWired placeholder slot (reserved).
 #[non_exhaustive]
-pub enum A11yError { /* PermissionDenied(1201) .. TaskJoinFailed(12NN) */ }
+pub enum A11yError { /* PermissionDenied(1201) .. TaskJoinFailed(1206) */ }
 ```
 
 ## 3. Layer discipline
@@ -98,9 +99,12 @@ mandatory redaction guard ship all-OS, headless** (§5). Deps stay macOS-gated
 backends + their per-OS attribute→`AxNode` mapping + tri-platform CI. ~3× the
 surface · not needed while the only consumer (Olympus cockpit) is darwin.
 
-> **OPEN** · confirm Option A (macOS-first · recommended) vs Option B (full
-> 3-OS) before B.2. The mandatory Guard 3 + DTO mapping + ref-cache are
-> backend-agnostic and identical either way.
+> **RESOLVED B.3 · Option A (macOS-first)** locked. The macOS `accessibility`
+> backend is wired (`system_wide().focused_window()` rooted recursive walk ·
+> role/label/value/subrole → `AxNode`); `core-foundation` reads `CFString`/
+> `CFType`. Linux/Windows compile to `A11yError::BackendUnavailable`
+> (`#[cfg(not(target_os = "macos"))]`) until a consumer signal (LOCK-031).
+> The mandatory Guard 3 + DTO mapping + ref-cache stay backend-agnostic.
 
 ## 5. Mandatory Guard 3 — AX-secure-field redaction (ADR-081 · MANDATORY-at-admission)
 
@@ -129,19 +133,22 @@ nested-secure-child) + the pure transform is the all-OS mandatory gate.
 ## 6. Batch plan (skeleton-option-A · per nika-screen / nika-ocr precedent)
 
 - **B.1** spec (this file) · backend research done · decision OPEN (§4).
-- **B.2** crate skeleton + `A11yError` NIKA-1201.. + `AxBackend` skeleton
-  (snapshot/find/resolve_ref return `BackendNotWired`-style placeholder) +
-  the **pure Guard 3 redaction** (`redact_secure_fields` / `is_secure_field`)
-  + DTO-mapping pure helpers (`ax_role_from_str`, attribute extraction) +
-  headless tests (guard + mapping). Mandatory guard headless-complete at B.2.
-- **B.3** wire the macOS `accessibility` backend (`AXUIElement::application` /
-  `system_wide` · `TreeWalker` → `AxNode` · subrole→secure flag · frame→`Rect`
-  · ref-cache for `resolve_ref`) inside `spawn_blocking` · closes the skeleton.
-  Linux/Windows `#[cfg]` `BackendUnavailable`.
+- **B.2** crate skeleton + `A11yError` NIKA-1200..1206 + `AxBackend` skeleton
+  + the **pure Guard 3 redaction** (`redact_secure_fields` / `is_secure_field`)
+  + pure `find` filter (`matches_query` / `collect_matches`) + headless tests.
+  Mandatory guard headless-complete at B.2. ✅
+- **B.3** macOS `accessibility` backend wired · `system_wide().focused_window()`
+  rooted recursive `build_node` (role/label/value/subrole → `AxNode`) inside
+  `spawn_blocking` · `core-foundation` `CFString`/`CFType` reads · `@e<N>`
+  ref-cache (`Mutex<Option<AxNode>>` + pure `find_by_id`) for `resolve_ref` ·
+  pure `ax_role_from_str` · `bbox` deferred (`None` · frame→`Rect` refinement).
+  Non-macOS `#[cfg]` `BackendUnavailable`. Closed the `BackendNotWired`
+  placeholder (NIKA-1200 retired). 13 lib tests + 1 `#[ignore]` real-walk
+  smoke · clippy/doc/machete/deny green · workspace `--lib` 1169. ✅
 - **B.4** mutation (`cargo mutants -p nika-a11y -- --lib`) → ≥90 % on the pure
-  surface (guard + mapping + query-filter) + Rule-2 exemption for the
-  `AXUIElement` walk residue + ADR-003 canonical 12-gate close + review swarm
-  (or Foreman-direct per PE-5.1) + admission commit.
+  surface (guard + role map + find_by_id + query-filter) + Rule-2 exemption for
+  the `AXUIElement` walk residue + ADR-003 canonical 12-gate close + review
+  swarm (or Foreman-direct per PE-5.1) + admission commit.
 
 ## 7. Gate-5 mutation posture (forward note)
 
