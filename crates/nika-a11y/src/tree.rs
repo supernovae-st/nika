@@ -61,6 +61,15 @@ impl AxBackend {
         }
         Ok(tree)
     }
+
+    /// Seed the ref-resolution cache directly (test-only · lets `resolve_ref`
+    /// be exercised headlessly without a real `AXUIElement` walk).
+    #[cfg(test)]
+    fn seed_cache_for_test(&self, tree: AxNode) {
+        if let Ok(mut cache) = self.last_snapshot.lock() {
+            *cache = Some(tree);
+        }
+    }
 }
 
 /// Map a platform AX role string to the canonical [`AxRole`] — **pure** ·
@@ -92,6 +101,30 @@ fn find_by_id(node: &AxNode, id: &str) -> Option<AxNode> {
     node.children.iter().find_map(|c| find_by_id(c, id))
 }
 
+/// Assemble an [`AxNode`] from the raw strings a backend read off a platform
+/// element — **pure** (no FFI · headless-testable · mutation-killable). Maps
+/// the role, drops empty `title`/`subrole`, and records a non-empty subrole in
+/// `attributes["AXSubrole"]` (the secure-field marker Guard 3 reads). `bbox` is
+/// `None` (frame→`Rect` is a later refinement).
+fn assemble_node(
+    id: String,
+    role_str: &str,
+    title: Option<String>,
+    value: Option<String>,
+    subrole: Option<String>,
+    children: Vec<AxNode>,
+) -> AxNode {
+    use std::collections::BTreeMap;
+
+    let role = ax_role_from_str(role_str);
+    let label = title.filter(|s| !s.is_empty());
+    let mut attributes = BTreeMap::new();
+    if let Some(sub) = subrole.filter(|s| !s.is_empty()) {
+        attributes.insert("AXSubrole".to_string(), sub);
+    }
+    AxNode::new(id, role, label, value, None, children, attributes)
+}
+
 /// Walk the focused window's accessibility tree into an [`AxNode`].
 ///
 /// macOS · `AXUIElement::system_wide().focused_window()` rooted recursive walk
@@ -106,49 +139,53 @@ fn walk_focused_tree() -> Result<AxNode, A11yError> {
         .focused_window()
         .map_err(|_| A11yError::NoFocusedApplication)?;
     let mut counter: u32 = 0;
-    Ok(build_node(&root, &mut counter))
+    Ok(build_node(&root, &mut counter, 0))
 }
+
+/// Hard recursion cap for the AX walk · the focused app's tree is untrusted
+/// input, so a pathologically deep (or cyclic) tree MUST NOT overflow the
+/// stack. Generous — native AX trees rarely exceed a few dozen levels;
+/// children below the cap are truncated (the node itself is kept).
+#[cfg(target_os = "macos")]
+const MAX_WALK_DEPTH: u16 = 512;
 
 /// Recursively map one `AXUIElement` to an [`AxNode`] — macOS. Assigns a
 /// stable per-walk `@e<N>` id. `bbox` is `None` at B.3 (frame→`Rect` mapping
 /// is a later refinement). Attribute-read failures degrade to `None`/empty
 /// (a partial tree is better than no tree · the redaction guard still runs).
+/// `depth` bounds recursion at [`MAX_WALK_DEPTH`] (untrusted-input safety).
 #[cfg(target_os = "macos")]
-fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32) -> AxNode {
+fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32, depth: u16) -> AxNode {
     use accessibility::AXUIElementAttributes;
     use core_foundation::string::CFString;
-    use std::collections::BTreeMap;
 
     *counter += 1;
     let id = format!("@e{counter}");
 
+    // Raw FFI reads (Rule-2 exempt · need a real AXUIElement). Failures degrade
+    // to None — the pure assemble_node + redaction guard still run.
     let role_str = elem.role().map(|s| s.to_string()).unwrap_or_default();
-    let role = ax_role_from_str(&role_str);
-    let label = elem
-        .title()
-        .ok()
-        .map(|s| s.to_string())
-        .filter(|s| !s.is_empty());
+    let title = elem.title().ok().map(|s| s.to_string());
     let value = elem
         .value()
         .ok()
         .and_then(|v| v.downcast::<CFString>())
         .map(|s| s.to_string());
+    let subrole = elem.subrole().ok().map(|s| s.to_string());
 
-    let mut attributes = BTreeMap::new();
-    if let Ok(sub) = elem.subrole() {
-        let s = sub.to_string();
-        if !s.is_empty() {
-            attributes.insert("AXSubrole".to_string(), s);
-        }
-    }
+    let children = if depth >= MAX_WALK_DEPTH {
+        Vec::new() // truncate below the cap · keep this node, drop the subtree
+    } else {
+        elem.children()
+            .map(|arr| {
+                arr.iter()
+                    .map(|c| build_node(&c, counter, depth + 1))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
 
-    let children = elem
-        .children()
-        .map(|arr| arr.iter().map(|c| build_node(&c, counter)).collect())
-        .unwrap_or_default();
-
-    AxNode::new(id, role, label, value, None, children, attributes)
+    assemble_node(id, &role_str, title, value, subrole, children)
 }
 
 /// Non-macOS · no accessibility backend yet (§4 macOS-first · Linux AT-SPI /
@@ -453,12 +490,23 @@ mod tests {
     // --- ax_role_from_str (pure · mutation-killing) ---
 
     #[test]
-    fn ax_role_from_str_maps_known_and_unknown() {
+    fn ax_role_from_str_maps_every_arm_and_unknown() {
+        // Every mapped arm (pins each match arm against deletion).
         assert_eq!(ax_role_from_str("AXButton"), AxRole::Button);
+        assert_eq!(ax_role_from_str("AXLink"), AxRole::Link);
         assert_eq!(ax_role_from_str("AXTextField"), AxRole::TextField);
         assert_eq!(ax_role_from_str("AXTextArea"), AxRole::TextField);
+        assert_eq!(ax_role_from_str("AXImage"), AxRole::Image);
+        assert_eq!(ax_role_from_str("AXGroup"), AxRole::Group);
+        assert_eq!(ax_role_from_str("AXWindow"), AxRole::Window);
+        assert_eq!(ax_role_from_str("AXMenu"), AxRole::Menu);
         assert_eq!(ax_role_from_str("AXStaticText"), AxRole::StaticText);
+        assert_eq!(ax_role_from_str("AXList"), AxRole::List);
+        assert_eq!(ax_role_from_str("AXRow"), AxRole::ListItem);
+        assert_eq!(ax_role_from_str("AXCell"), AxRole::ListItem);
         assert_eq!(ax_role_from_str("AXMenuItem"), AxRole::ListItem);
+        assert_eq!(ax_role_from_str("AXHeading"), AxRole::Heading);
+        // Unmapped + empty → Unknown.
         assert_eq!(ax_role_from_str("AXSomethingNovel"), AxRole::Unknown);
         assert_eq!(ax_role_from_str(""), AxRole::Unknown);
     }
@@ -491,13 +539,81 @@ mod tests {
         assert_eq!(find_by_id(&root, "@e99"), None);
     }
 
+    // --- assemble_node (pure node assembly · mutation-killing) ---
+
+    #[test]
+    fn assemble_node_maps_role_filters_empty_and_records_subrole() {
+        // Non-empty title + non-empty secure subrole.
+        let n = assemble_node(
+            "@e1".into(),
+            "AXTextField",
+            Some("Password".into()),
+            Some("hunter2".into()),
+            Some("AXSecureTextField".into()),
+            vec![],
+        );
+        assert_eq!(n.role, AxRole::TextField);
+        assert_eq!(n.label.as_deref(), Some("Password"));
+        assert_eq!(n.value.as_deref(), Some("hunter2"));
+        assert_eq!(
+            n.attributes.get("AXSubrole").map(String::as_str),
+            Some("AXSecureTextField")
+        );
+        assert!(is_secure_field(&n), "assembled secure field trips Guard 3");
+
+        // Empty title + empty subrole are dropped (NOT recorded).
+        let m = assemble_node(
+            "@e2".into(),
+            "AXUnknownThing",
+            Some(String::new()),
+            None,
+            Some(String::new()),
+            vec![],
+        );
+        assert_eq!(m.role, AxRole::Unknown);
+        assert_eq!(m.label, None, "empty title ⇒ no label");
+        assert!(
+            !m.attributes.contains_key("AXSubrole"),
+            "empty subrole ⇒ no attribute"
+        );
+        // None subrole ⇒ no attribute.
+        let p = assemble_node("@e3".into(), "AXGroup", None, None, None, vec![]);
+        assert!(!p.attributes.contains_key("AXSubrole"));
+    }
+
     // --- resolve_ref on a fresh backend (empty cache · headless · NIKA-N/A) ---
 
     #[tokio::test]
-    async fn resolve_ref_on_empty_cache_is_none() {
+    async fn resolve_ref_empty_cache_none_then_seeded_hit_and_miss() {
         let backend = AxBackend::new().expect("new");
-        let got = backend.resolve_ref("@e1").await.expect("empty cache ok");
-        assert_eq!(got, None, "no snapshot cached yet ⇒ Ok(None)");
+        // Empty cache ⇒ Ok(None).
+        assert_eq!(
+            backend.resolve_ref("@e1").await.expect("empty cache ok"),
+            None,
+            "no snapshot cached yet ⇒ Ok(None)"
+        );
+        // Seed a redacted tree, then resolve hits + misses against the cache.
+        let child = leaf("@e2", AxRole::Button, Some("ok"), &[]);
+        let root = AxNode::new(
+            "@e1".into(),
+            AxRole::Window,
+            None,
+            None,
+            None,
+            vec![child],
+            BTreeMap::new(),
+        );
+        backend.seed_cache_for_test(root);
+        assert_eq!(
+            backend.resolve_ref("@e2").await.expect("hit").map(|n| n.id),
+            Some("@e2".into()),
+            "seeded ref resolves to the cached node"
+        );
+        assert_eq!(
+            backend.resolve_ref("@e404").await.expect("miss"),
+            None,
+            "unknown ref ⇒ Ok(None)"
+        );
     }
 
     // --- real-walk smoke (needs AX permission + a focused window) ---

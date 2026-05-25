@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption) + **M2.3 nika-a11y WIP** (accessibility-tree query · macOS-first via safe `accessibility`/`AXUIElement` · B.2 skeleton + mandatory ADR-081 Guard 3 AX-secure-field redaction headless-complete · pre-admission). 14 crates in workspace (12 admitted + 2 WIP · nika-schema + nika-a11y), **1168 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption) + **M2.3 nika-a11y ADMITTED** (accessibility-tree query · macOS-first via safe `accessibility`/`AXUIElement` · ADR-003 12 gates · mandatory ADR-081 Guard 3 AX-secure-field redaction · mutation 82.9 % + Rule-2 AXUIElement-walk exemption). 14 crates in workspace (13 admitted + 1 WIP · nika-schema), **1170 lib tests**, 32 providers, 49 capability rules. Next: M2.4 `nika-input` (synthetic input · ADR-081 Guards 1+2 password-redaction + ConsentProof-TTL · MANDATORY). See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,18 +115,18 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `2541a9181` (`2541a91818f4b2e0d3a6f7ebb84e24047cd6b7f2`)             |
+| HEAD             | `a3ec54ee8` (`a3ec54ee8b6538586511bf12c9394647e3cd8eb6`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 14                                              |
-| crates (admitted)| 12 / 42                                   |
-| crates (WIP)     | 2 — nika-schema,nika-a11y                                  |
+| crates (admitted)| 13 / 42                                   |
+| crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
 | L0.5             | 2                                              |
 | L1               | 3                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1168 passed, 0 failed                              |
+| lib tests        | 1170 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -147,7 +147,11 @@ Narrative context (manually maintained):
   M2.2 nika-ocr ADMITTED 2026-05-25 (text extraction · pure-Rust `ocrs` 0.12
   + `rten` 0.24 · `spawn_blocking` · NIKA-1101..1109 · mutation 93.1 % +
   Rule-2 model-inference exemption · `with_models` sovereign local-path load).
-  Next: M2.3 per the computer-use L1 sequence. See
-  `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-ocr.md`.
+  M2.3 nika-a11y ADMITTED 2026-05-25 (accessibility-tree query · macOS `AXUIElement`
+  via safe `accessibility` 0.2 · `spawn_blocking` walk · NIKA-1201..1206 ·
+  MANDATORY Guard 3 AX-secure-field redaction (pure tree-transform) · mutation
+  82.9 % + Rule-2 walk exemption · `MAX_WALK_DEPTH` untrusted-input cap).
+  Next: M2.4 nika-input (synthetic input · ADR-081 Guards 1+2 MANDATORY). See
+  `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-a11y.md`.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

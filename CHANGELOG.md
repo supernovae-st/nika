@@ -13,7 +13,7 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
-### ♿ Phase 2 M2.3 · nika-a11y L1 (WIP · B.1 spec + B.2 skeleton + B.3 macOS walk · 2026-05-25)
+### ♿ Phase 2 M2.3 · nika-a11y L1 admission (ADMITTED · 12-gate closed · 2026-05-25)
 
 - **`nika-a11y` crate** · third computer-use L1 effect crate · implements the
   L0.5 `io::a11y::AccessibilityTree` trait (`snapshot` + `find` + `resolve_ref`)
@@ -45,8 +45,18 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
   backed by a `Mutex<Option<AxNode>>` cache of the last redacted snapshot + pure
   `find_by_id`. Pure `ax_role_from_str`. Closed the `BackendNotWired` placeholder
   (NIKA-1200 retired · slot reserved). `bbox` deferred (`None` · frame→`Rect`
-  refinement). 13 lib tests + 1 `#[ignore]` real-walk smoke · clippy 0 · doc 0 ·
-  machete/deny green · workspace `--lib` 1169. B.4 = mutation + 12-gate + admission.
+  refinement).
+- **B.4 12-gate close · ADMITTED** · extracted the pure `assemble_node` (role
+  map + empty-title/subrole filter + `AxNode::new`) out of the FFI `build_node`
+  to maximize headless coverage; added a `MAX_WALK_DEPTH` (512) recursion cap so
+  an untrusted/deep/cyclic focused-app tree can't overflow the stack (caught by
+  the Foreman-direct review). **Gate 5 mutation 34/41 viable caught (82.9 %)** ·
+  100 % of the headless surface · 7 `AXUIElement`-walk mutants documented-exempt
+  per ADR-003 Rule 2 (`docs/crate-specs/nika-a11y.md` §7.1). **Gate 11** ·
+  sub-agents hit the 1M-context credit wall → Foreman-direct 3-lens review
+  (PE-5.1 · rust-pro + Diamond + bug-hunt · all ADMIT). 14 lib tests + 1
+  `#[ignore]` smoke · clippy 0 · doc 0 · machete clean · deny ok · workspace
+  `--lib` 1170. Workspace 13/42 admitted · WIP nika-schema only.
 
 ### 🔤 Phase 2 M2.2 · nika-ocr L1 admission (ADMITTED · 12-gate closed · 2026-05-25)
 

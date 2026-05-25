@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WIP** (Phase 2 M2.3 · third L1 effect crate · B.3 macOS `AXUIElement` walk wired + Guard 3 redaction · pre-admission · B.4 = mutation + 12-gate close) |
+| Status | **ADMITTED** 2026-05-25 (Phase 2 M2.3 · third L1 effect crate · ADR-003 12 gates · Guard 3 AX-secure-field redaction MANDATORY · mutation 82.9 % + Rule-2 AXUIElement-walk exemption · §7) |
 | Layer | L1 — effect implementation · async · `Send + Sync` · depends only on L0 / L0.5 |
 | Sub-tier | L1-effect — accessibility-tree query behind the L0.5 `AccessibilityTree` trait. macOS backend via the safe-API `accessibility` crate (encapsulates `AXUIElement` unsafe FFI · so `nika-a11y` stays `unsafe_code = forbid`) |
 | Design | macOS-first adapter over **accessibility 0.2.0** (`AXUIElement` · `TreeWalker`/`TreeVisitor` · MIT/Apache · safe Rust API · the unsafe ApplicationServices FFI is encapsulated inside the crate, same posture `nika-screen` got from `xcap` + `nika-ocr` from `ocrs`). Sync `AXUIElement` walk runs inside `tokio::task::spawn_blocking` (the `AXUIElement` handle is `!Send` · stays worker-local · produces the `Send` `AxNode` tree · kernel CANCEL SAFETY contract · same pattern as `nika-screen`'s `xcap::Monitor`). AX tree → `AxNode` mapping → **mandatory AX-secure-field redaction (Guard 3)** → `Vec<AxNode>` |
@@ -145,20 +145,48 @@ nested-secure-child) + the pure transform is the all-OS mandatory gate.
   Non-macOS `#[cfg]` `BackendUnavailable`. Closed the `BackendNotWired`
   placeholder (NIKA-1200 retired). 13 lib tests + 1 `#[ignore]` real-walk
   smoke · clippy/doc/machete/deny green · workspace `--lib` 1169. ✅
-- **B.4** mutation (`cargo mutants -p nika-a11y -- --lib`) → ≥90 % on the pure
-  surface (guard + role map + find_by_id + query-filter) + Rule-2 exemption for
-  the `AXUIElement` walk residue + ADR-003 canonical 12-gate close + review
-  swarm (or Foreman-direct per PE-5.1) + admission commit.
+- **B.4** mutation (`cargo mutants -p nika-a11y -- --lib`) → **82.9 %** (34/41
+  viable) · 100 % of the headless surface (extracted pure `assemble_node` +
+  role map + find_by_id + redaction + query-filter) + Rule-2 exemption for the
+  7 `AXUIElement`-walk mutants (§7.1) + ADR-003 canonical 12-gate close (§7) +
+  Foreman-direct 3-lens review (PE-5.1 · added `MAX_WALK_DEPTH` untrusted-input
+  cap) + admission commit. ✅ ADMITTED 2026-05-25.
 
-## 7. Gate-5 mutation posture (forward note)
+## 7. Gate status — ADR-003 canonical 12 gates
 
-The `AXUIElement` walk is OS-permission-dependent (needs a real focused app +
-macOS Accessibility trust) → covered by `#[ignore]` smoke tests, not headless
-CI → Rule-2 exempt (same shape as nika-screen OS-FFI + nika-ocr model-inference
-residue). All headless-reachable logic — **the mandatory Guard 3 redaction**,
-the `AxRole` string mapping, the `AxQuery` filter (role / label_contains /
-value_contains / max_depth), error `code()`/`is_transient()` — targets 100 %
-mutation kill.
+| # | Gate | Status | Evidence |
+|---|------|--------|----------|
+| 1 | SPEC | ✅ | this file |
+| 2 | TDD | ✅ | tests precede impl · 14 lib tests (incl 1 proptest) + 1 `#[ignore]` smoke |
+| 3 | IMPL | ✅ | ~330 src LOC · `cargo check` 0 |
+| 4 | CLIPPY | ✅ | `clippy --workspace --all-targets -D warnings` 0 |
+| 5 | MUTATION | ✅ + exemption | `cargo mutants -p nika-a11y -- --lib` · **34/41 viable caught (82.9 %)** · 100 % of headless-reachable · 7 AXUIElement-walk mutants exempt (§7.1) |
+| 6 | PROPERTY | ✅ | proptest · Guard 3 redaction invariant (every secure node loses its `value`) |
+| 7 | BENCHMARKS | ⚪ N/A | thin `accessibility` adapter · walk latency is OS-bound, not a Nika hot path (Rule 2) |
+| 8 | DOCS | ✅ | `cargo doc --no-deps` 0 warnings · all pub items documented |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` surface · the `#[ignore]` real-walk smoke needs AX grant + a focused window |
+| 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.3) · no v0.79 brouillon a11y equivalent |
+| 11 | REVIEW SWARM | ✅ | 3-lens review 2026-05-25 · sub-agents hit the 1M-context credit wall → **Foreman-direct** per `orchestrator-autonomous-v6.md` PE-5.1 · rust-pro + Diamond + bug-hunt · all ADMIT · findings fixed (unbounded-recursion → `MAX_WALK_DEPTH` cap · role-arm test gap · `resolve_ref` cache-seed) |
+| 12 | ATOMIC COMMIT | ✅ | the admission commit |
+
+### 7.1 Gate 5 mutation exemption (ADR-003 Rule 2 · macOS AXUIElement walk)
+
+`nika-a11y` is a thin adapter over the synchronous `accessibility` walk. 7
+mutants are **exempt** — they live on the `AXUIElement` traversal control-flow,
+reachable only with a real macOS Accessibility grant + focused window (exercised
+by the `#[ignore]` smoke test, not headless CI):
+
+- `build_node` id-`counter += 1` (×2) + `depth >= MAX_WALK_DEPTH` cap + `depth + 1`
+  recursion (×2) — all inside the OS walk
+- `walk_focused_tree` non-macOS `BackendUnavailable` stub (cfg'd out on macOS)
+- `find` → `Ok(vec![])` (delegates to the walk via `redacted_snapshot`)
+
+All **headless-reachable** logic is at 100 % mutation kill — the MANDATORY
+Guard 3 (`is_secure_field` + `redact_secure_fields`), the pure node assembly
+(`assemble_node`), `ax_role_from_str` (every arm), `find_by_id` (ref cache),
+`matches_query` + depth-bounded `collect_matches`, and the full `A11yError`
+surface. Per ADR-003 Rule 2 the AXUIElement-walk residue is documented-exempt,
+not skipped. Re-run with a focused window: `cargo test -p nika-a11y -- --ignored`.
 
 ## 8. Security (ADR-081)
 
