@@ -455,7 +455,7 @@ crates/nika-schema/
 
     parser/
       mod.rs                        (~100 LOC — parse entry point + YAML utilities)
-      actions.rs                    (~1,200 LOC — infer/exec/fetch/invoke/agent action parsing)
+      actions.rs                    (~1,200 LOC — infer/exec/invoke/agent action parsing · fetch is the nika:fetch builtin under invoke)
       config.rs                     (~1,200 LOC — task/workflow/mcp/context/include/retry parsing)
       structured_parse.rs           (~400 LOC — structured output YAML parsing)
 

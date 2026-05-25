@@ -160,7 +160,7 @@ Next phases (~35 commits across B-H):
 3. **W5-W8 · L1 satellite cascade** — `nika-fsrs` · `nika-temporal` · `nika-hnsw` (trigger-gated per ADR-005) · `nika-rdfs-reasoner` + `nika-graph-algos` (parallel) per BLUEPRINT_2036 admission DAG.
 4. **W9-W10 · `nika-autodesc-full` + `nika-memory` L2 orchestrator** — type-state `NikaStore<Building→Ready>` per ADR-041 · closes Phase 1.5 waypoint (2026-08-30).
 
-The **5-verb invariant (`infer · exec · fetch · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test · candidates `embed/evaluate/train/serve/stream/transform` all collapse cleanly into existing taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
+The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test (D-2026-05-22-N18 · `fetch` is the `nika:fetch` builtin via `invoke`, not a verb) · candidates `fetch/embed/evaluate/train/serve/stream/transform` all collapse cleanly into the 4-verb taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
 
 ## Tag scheme (Q-plan 3b)
 
@@ -241,7 +241,7 @@ Sub-phased per Q2 (topological × user-value):
 
 ### L2 — domain (~15 crates)
 
-`nika-verb-{exec,fetch,invoke,infer,agent}`, `nika-pck` orchestrator,
+`nika-verb-{exec,invoke,infer,agent}` (fetch = `nika:fetch` builtin via invoke), `nika-pck` orchestrator,
 `nika-memory` orchestrator, `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
 `nika-mcp`, `nika-display`.
 
@@ -394,8 +394,8 @@ hybrid memory subsystem + forward-compatible architecture.
 
 ### Runtime-complete
 
-**Core engine**: schema, binding, event, runtime, daemon, cli, 5 verbs
-(infer/exec/fetch/invoke/agent).
+**Core engine**: schema, binding, event, runtime, daemon, cli, 4 verbs
+(infer/exec/invoke/agent · fetch = `nika:fetch` builtin via invoke).
 
 **Catalog v3**: TOML source-of-truth + `build.rs` + `phf_codegen` compile-time
 generation. `xtask verify-catalog` with parallel npm/pypi/docker registry
@@ -454,12 +454,17 @@ Grok 4 variants (grok-4/grok-4-fast).
 
 ### Runtime internals — itemized
 
-**5 verbs** (each a crate under `nika-verb-*`):
+**4 verbs** (each a crate under `nika-verb-*`):
 - `exec` — subprocess + `kill_on_drop(true)` + `tokio::try_join!` for concurrent pipe reading
-- `fetch` — HTTP + SSRF guard + 9 extract modes (markdown/article/text/selector/metadata/links/jsonpath/feed/llm_txt) + `response: {full, binary}`
 - `invoke` — builtins (`nika:*`) + MCP tools (`server::tool`) with shared dispatch
 - `infer` — LLM call with structured output 5-layer defense (tool injection → rig extractor → validation → retry → repair)
 - `agent` — multi-turn loop with `completion` modes (explicit/natural/pattern) + 4 guardrail types (length/schema/regex/llm-judge) + `token_budget` + `max_cost_usd`
+
+(`fetch` is **not** a verb — fetching a URL is calling a tool. It is the
+`nika:fetch` builtin: HTTP + SSRF guard + 9 extract modes
+(markdown/article/text/selector/metadata/links/jsonpath/feed/llm_txt) +
+`response: {full, binary}`, reached via `invoke: {tool: "nika:fetch"}`.
+Per D-2026-05-22-N18.)
 
 **63 builtin tools** split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
 - Core (7): `sleep`, `log`, `emit`, `assert`, `prompt`, `run`, `complete`
@@ -829,7 +834,7 @@ Per ADR-037 the cadence is **admission-driven**, not calendar-driven.
 - [`DIAMOND.md`](DIAMOND.md) — strategy overview · 7 shadow zones
 - [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
   — **10-year horizon canon (v1.3) · LAYER 1 DECENNIAL anchor** ·
-  42-crate target · 5-verb 2036 stress-test · 11/10 amplifiers ·
+  42-crate target · 4-verb 2036 stress-test · 11/10 amplifiers ·
   ADR queue 050-056 + 060/062/064/066/070/071/072/073
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — 12-gate admission · contributor process
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure · 11-row defense layers + NIKA-390 queued

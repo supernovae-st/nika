@@ -6,7 +6,7 @@
 
 ## Collapse-vs-publish principle (LOCKED · post BLUEPRINT_2036 v1.0)
 
-- **Internal-only clusters → collapse to one crate** · `nika-effects` (was 5 effect crates · ADR-055 queued) · `nika-verbs` (was 5 verb crates · ADR-056 queued · 5-verb semantic lock preserved at module level) · `init+lints+catalog-verify` → `nika-cli` subcommands. Per ADR-006 monolithic-kernel-spirit applied across clusters.
+- **Internal-only clusters → collapse to one crate** · `nika-effects` (was 5 effect crates · ADR-055 queued) · `nika-verbs` (was 4 verb crates · ADR-056 queued · 4-verb semantic lock preserved at module level · fetch is the `nika:fetch` builtin under invoke, not a verb crate) · `init+lints+catalog-verify` → `nika-cli` subcommands. Per ADR-006 monolithic-kernel-spirit applied across clusters.
 - **Externally-publishable clusters → preserve per-crate granularity** · memory satellites (9 crates · ADR-004 publishable standalone on crates.io · external Rust RDF/ML ecosystem value) · provider variants (rig · native · mock · 3 crates · heavy-dep isolation). Per ADR-004 + ADR-042.
 - **Decision rule** · « is there genuine external value to per-crate granularity? » YES → split · NO → collapse. Default is collapse (12-gate ceremony × N crates costs more than module discipline within 1 crate).
 - Max LOC per crate : **15,000** (strict, enforced by xtask/CI)
@@ -16,7 +16,7 @@
 ## Naming conventions (LOCKED)
 
 - `nika-*` prefix for all workspace members
-- `nika-verb-<verb>` for verb executors (exec, fetch, invoke, infer, agent)
+- `nika-verb-<verb>` for verb executors (exec, invoke, infer, agent · fetch is the `nika:fetch` builtin reached via invoke, not a verb)
 - `nika-memory-*` for memory subsystem satellites
 - `nika-<noun>` for effect impls (fs, http, blob, process, etc.)
 - `nika-process` (not `nika-exec-runner`, not `nika-shell`)

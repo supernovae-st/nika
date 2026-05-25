@@ -1,8 +1,8 @@
 ---
 title: "Nika Diamond · Blueprint 2036 · architecture final v0.x"
 status: proposal
-version: 1.5
-date: 2026-05-12
+version: 1.6
+date: 2026-05-25
 horizon: "10-year build · 2026 → 2036"
 deciders: ["@ThibautMelen"]
 adr_queue_v1_1: ["ADR-050", "ADR-051", "ADR-052", "ADR-053", "ADR-054", "ADR-055", "ADR-056"]
@@ -19,20 +19,32 @@ sources:
 
 # Nika Diamond · Blueprint final v0.x · 10-year horizon (2026 → 2036)
 
+> **v1.6 amendment (D-2026-05-22-N18)** · the « 5-verb » framing throughout
+> this doc is SUPERSEDED by the **4-verb canon** — `infer · exec · invoke ·
+> agent`. `fetch` is **not** a verb · fetching a URL is *calling a tool*, so
+> it is the `nika:fetch` builtin reached via `invoke`. The count is locked at
+> **4, absolute, forever** (a 5th would require a `nika: v2` contract · per
+> forever-v0.x, effectively never). Public canon · `nika/spec/spec/02-verbs.md`.
+> Prior 5-verb prose preserved below as audit trail per
+> `cross-source-validation.md` §2.7 self-application amendment cascade — the
+> stress-test logic is unchanged (`fetch` simply joins the candidates that
+> collapse cleanly into the 4).
+
 ## §0 · TL;DR · 5 sentences
 
-1. **5 verbs LOCKED forever** — `infer · exec · fetch · invoke · agent` survive 10-yr horizon · new verb candidates (`embed` · `evaluate` · `train` · `serve`) collapse cleanly into existing taxonomy.
-2. **42-crate target HOLDS** via aggressive cluster-collapse — `nika-effects` merges 5 L1 effect crates · `nika-verbs` merges 5 verb crates · `init+lints+catalog-verify` collapse to `nika-cli` subcommands.
+1. **4 verbs LOCKED forever** — `infer · exec · invoke · agent` survive 10-yr horizon · candidates (`fetch` · `embed` · `evaluate` · `train` · `serve`) collapse cleanly into the taxonomy (`fetch` → `nika:fetch` builtin via `invoke`).
+2. **42-crate target HOLDS** via aggressive cluster-collapse — `nika-effects` merges 5 L1 effect crates · `nika-verbs` merges 4 verb crates · `init+lints+catalog-verify` collapse to `nika-cli` subcommands.
 3. **Memory cluster 1+9** preserves publishable-satellite discipline (per ADR-004 · external open-source value) · only place where fine-grained splits stay justified.
 4. **7-ADR queue** for 2026-2030 milestones — WASM Component Model plugin protocol · CRDT federation adapter · edge subset · multi-protocol gateway · 3 cluster-collapses.
 5. **Structural locks unchanged** — AGPL forever · forever-v0.x · RDF/SPARQL canonical · `Co-Authored-By: Nika 🦋` · 12-gate admission · zero-unwrap.
 
-## §1 · 5-verb lock validation · 2036 horizon
+## §1 · 4-verb lock validation · 2036 horizon
 
-Per ADR-001 + INV-022 · 5 verbs locked forever. 10-year stress test ·
+Per ADR-001 + INV-022 + D-2026-05-22-N18 · 4 verbs locked forever. 10-year stress test ·
 
 | Candidate new verb | Collapses into | Why |
 |---|---|---|
+| `fetch` | `invoke` | Fetching a URL is *calling a tool* (`nika:fetch` builtin) · not a distinct execution model |
 | `embed` | `infer` | Embedding IS inference (BGE-M3 forward pass · zero new semantic) |
 | `evaluate` | `agent` | Evaluation = control loop with judge · not a new primitive |
 | `train` | `exec` | Training = process orchestration with GPU sub-process |
@@ -40,7 +52,7 @@ Per ADR-001 + INV-022 · 5 verbs locked forever. 10-year stress test ·
 | `stream` | `invoke` (or `infer`) | Streaming is transport · not a verb |
 | `transform` | `exec` | Pure compute IS exec |
 
-**Verdict** · 5 verbs hold to 2036. Lock confirmed.
+**Verdict** · 4 verbs hold to 2036. Lock confirmed.
 
 ## §1.5 · Collapse-vs-publish principle (locked v1.1)
 
@@ -64,7 +76,7 @@ Application matrix ·
 | Provider variants (3) | SPLIT | ✅ | Heavy-dep isolation (rig vs native mistral.rs vs mock) · users pick 1 |
 | pck packages (3-5) | SPLIT | ✅ | Plugin protocol Phase 4+ · external authors ship pcks |
 | Effect impls (5→1) | COLLAPSE | ❌ | Internal trait impls · no external consumer asks for `nika-fs` alone |
-| Verb executors (5→1) | COLLAPSE | ❌ | Shared dispatcher · 5-verb lock semantic (preserved at module level) |
+| Verb executors (4→1) | COLLAPSE | ❌ | Shared dispatcher · 4-verb lock semantic (preserved at module level) |
 | L4 tools (init·lints·catalog-verify) | COLLAPSE | ❌ | Subcommands of `nika-cli` · not independent binaries |
 
 This principle is the structural enforcement (per `supernovae-alignment.md` Rule 5) that distinguishes Diamond from competitor architectures (Restate's 3-service-types · LangGraph's monolithic graph · Temporal's history-heavy SDK).
@@ -79,7 +91,7 @@ Aggressive cluster-collapse per ADR-006 monolithic-kernel spirit applied to ALL 
 | L0.5 | `nika-kernel` · `nika-kernel-mock` | 2 | Monolithic forever per ADR-006 amendment |
 | L1 effects | `nika-effects` *(merged 5→1 · ADR-055 queue)* | 1 | Was fs+http+blob+process+clock · single dispatch crate |
 | L1 memory | `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc-minimal` ★ · `nika-autodesc-full` ★ | 9 | KEEP split · publishable on crates.io per ADR-004 · external value |
-| L2 | `nika-memory` · `nika-runtime` · `nika-verbs` *(merged 5→1)* · `nika-protocols` *(MCP+ACP+...)* · `nika-workflows` · `nika-wasm-host` *(Phase 4+)* | 6 | ADR-053 protocols · ADR-056 verbs · ADR-050 WASM |
+| L2 | `nika-memory` · `nika-runtime` · `nika-verbs` *(merged 4→1)* · `nika-protocols` *(MCP+ACP+...)* · `nika-workflows` · `nika-wasm-host` *(Phase 4+)* | 6 | ADR-053 protocols · ADR-056 verbs · ADR-050 WASM |
 | L3 | `nika-runtime-dag` · `nika-binding` | 2 | `nika-policy` = module not crate |
 | L4 | `nika-cli` · `nika-tui` · `nika-serve` · `nika-lsp` · `nika-mcp-server` | 5 | `init` · `lints` · `catalog-verify` = subcommands of `nika-cli` |
 | L5 | `nika` (binary) | 1 | Composition root <500 LOC per nika-invariants |
@@ -129,7 +141,7 @@ Each row · Purpose (1 line) · LOC budget · Key deps · Trait surface · Gate 
 
 - `nika-memory` · L2 orchestrator · NikaStore type-state · 9 satellites composed via `Arc<dyn MemoryRecall>` · 5-7k LOC · `nika-kernel` `tokio_util::task::TaskTracker` `tokio::sync::mpsc` · `MemoryStore` blanket + `MemoryLifecycle` · Gate 9 via end-to-end recall canary · W10 target ADR-041
 - `nika-runtime` · core runtime + DAG executor · 8-12k LOC · `nika-kernel` `tokio` `petgraph` · `Runtime` trait · Gate 9 via 50 representative workflow canaries · post-W10
-- `nika-verbs` · 5 verb executors (`infer · exec · fetch · invoke · agent`) collapsed · modules per verb · 8-12k LOC · `nika-kernel` `nika-effects` `nika-runtime` · `VerbExecutor` trait (sub-trait per verb) · Gate 9 via 5 verb canaries · ADR-056 queue · post-W10
+- `nika-verbs` · 4 verb executors (`infer · exec · invoke · agent`) collapsed · modules per verb · 8-12k LOC · `nika-kernel` `nika-effects` `nika-runtime` · `VerbExecutor` trait (sub-trait per verb) · Gate 9 via 4 verb canaries · `nika:fetch` ships as a builtin under `invoke` · ADR-056 queue · post-W10
 - `nika-protocols` · multi-protocol gateway (MCP · ACP · future) · modules per protocol · 4-6k LOC · `nika-kernel` `tower` `serde_json` · `Protocol` trait · Gate 9 via mcp-conformance canary · ADR-053 queue · Phase 2
 - `nika-workflows` · YAML workflow engine consumed by Olympus + CLI · 3-5k LOC · `nika-schema` `nika-runtime` · `WorkflowEngine` trait · Gate 9 via golden-workflows · Phase 2
 - `nika-wasm-host` · WASM Component Model plugin host · 3-5k LOC · `wasmtime v38+` `wasmtime-wasi` (WASIp2) · `WasmPluginHost` trait · Gate 9 via component-conformance · ADR-050 queue · Phase 4+
@@ -173,7 +185,7 @@ Per context7 `/restatedev/sdk-rust` · 3 service abstractions ·
 2. **Virtual Objects** (stateful + isolated K/V state + single-writer · `#[restate_sdk::object]`)
 3. **Workflows** (durable step-by-step + exactly-once · `#[restate_sdk::workflow]` · `ctx.run()` for durable side-effects · `ctx.promise()` for durable promises)
 
-**Architectural lessons** · macro-driven trait generation · `Context<'_>` parameter for all handlers · automatic journaling + transparent retry + suspension. **Diamond differentiation** · Nika ships **5 verbs locked forever** instead of 3 service-types open · YAML workflow envelope instead of macro-driven Rust trait · AGPL instead of BSL.
+**Architectural lessons** · macro-driven trait generation · `Context<'_>` parameter for all handlers · automatic journaling + transparent retry + suspension. **Diamond differentiation** · Nika ships **4 verbs locked forever** instead of 3 service-types open · YAML workflow envelope instead of macro-driven Rust trait · AGPL instead of BSL.
 
 ### LangGraph (Python · context7-grounded)
 
@@ -203,7 +215,7 @@ Production agent memory · Python-centric · cloud-hosted SaaS paths · graph + 
 | WASM Component plugins | ✗ | ✗ | ✗ | ✗ | **✓ ADR-050 Phase 4+** |
 | Crates publishable | partial | NA | NA | NA | **✓ 9 satellites + provider variants** |
 
-**Conclusion** · Diamond's unique structural moat is **the 4-axis combo none ships together** · Rust embedded + AGPL forever + RDF/SPARQL native + 5-verb locked taxonomy + local-first by default + 9 publishable memory satellites. Per « unified Rust runtime contract » framing of `naming-memory-subsystem.md` v2.3.
+**Conclusion** · Diamond's unique structural moat is **the 4-axis combo none ships together** · Rust embedded + AGPL forever + RDF/SPARQL native + 4-verb locked taxonomy + local-first by default + 9 publishable memory satellites. Per « unified Rust runtime contract » framing of `naming-memory-subsystem.md` v2.3.
 
 ## §3 · ADR queue · 7 amendments for 2026-2030 horizon
 
@@ -237,7 +249,7 @@ Merge `fs + http + blob + process + clock` → single `nika-effects` crate. Per 
 
 ### ADR-056 · L2 verbs collapse `nika-verbs`
 
-Merge `verb-{infer,exec,fetch,invoke,agent}` → single `nika-verbs` crate · sub-modules per verb. 5-verb lock preserved at semantic level · single dispatcher justifies single crate. Reduces L2 admission ceremony from 5 × 12-gate to 1 × 12-gate.
+Merge `verb-{infer,exec,invoke,agent}` → single `nika-verbs` crate · sub-modules per verb (`fetch` is the `nika:fetch` builtin under `invoke`, not a verb module). 4-verb lock preserved at semantic level · single dispatcher justifies single crate. Reduces L2 admission ceremony from 4 × 12-gate to 1 × 12-gate.
 
 ## §4 · SOTA 2030 angles · new dimensions
 
@@ -460,7 +472,7 @@ Net · 9 amplifier candidates → 3 real + 1 deferred (4 ADRs to author) instead
 
 Stacking · formal verification (A1) × reproducible-signed releases (A2) ×
 PGO-optimized hot path (A3) × AOT-WASM-Component plugins (A4) × 9 publishable
-memory satellites (ADR-004) × 5 verbs locked forever (ADR-001) × AGPL-3.0-or-
+memory satellites (ADR-004) × 4 verbs locked forever (ADR-001) × AGPL-3.0-or-
 later = **singleton in 2030**. Nothing else combines this stack.
 
 ## §4.7 · Guardian AI · anti-Palantir · Nika + Olympus integration (v1.2)
@@ -529,14 +541,14 @@ Per `time-architecture.md` Layer 1 DECENNIAL · vision immutable in spirit · am
 | ② Souveraineté | ✅ | CRDT federation (ADR-051) preserves local-first · edge subset (ADR-052) = device-level sovereignty · zero vendor-hosted state |
 | ③ Joy 🦋 | ✅ | 42-crate restraint discipline · aggressive cluster-collapse · craft over sprawl · « refined not bloated » |
 | ④ Composable galaxy | ✅ | 9 memory satellites publishable standalone · `nika-protocols` multi-protocol · WASM Component plugins · open ecosystem |
-| ⑤ Studio signature | ✅ | « collapse aggressively · publish satellites externally · lock 5 verbs forever » = SuperNovae intellectual style locked structural |
+| ⑤ Studio signature | ✅ | « collapse aggressively · publish satellites externally · lock 4 verbs forever » = SuperNovae intellectual style locked structural |
 
 ## §7 · Anti-fragility · what survives 10-yr stress
 
 Per `time-architecture.md` Layer 2 multi-year forever-v0.x ·
 - **AGPL-3.0-or-later** · forces share-alike on hosted forks · survives vendor capture attempts
 - **RDF/SPARQL canonical** · W3C standard since 2004 · still standard 2036
-- **5 verbs locked** · semantic taxonomy passes 10-yr stress test (§1)
+- **4 verbs locked** · semantic taxonomy passes 10-yr stress test (§1)
 - **12-gate admission** · quality discipline scales with crate count
 - **`Co-Authored-By: Nika 🦋`** · studio signature non-replicable
 
@@ -552,7 +564,7 @@ Per `socratic-research-discipline.md` Rule 6 · grounded claims ·
 - WASM Component Model + async stable · context7 `/bytecodealliance/wasmtime` v38.0.4 · `wasm_component_model(true)` · `bindgen!` macro · `instantiate_async` · WASIp2 (2026-05-12 query)
 - Automerge sync protocol mature · context7 `/automerge/automerge` · `AutoCommit` + `generate_sync_message` / `receive_sync_message` (2026-05-12 query)
 - Memory subsystem stack · `naming-memory-subsystem.md` v2.4 + ADR-004 + ADR-005 + ADR-038-042 (this engine repo)
-- 5-verb lock · ADR-001 + `nika-invariants.md` (this engine repo)
+- 4-verb lock · ADR-001 + D-2026-05-22-N18 + `nika-invariants.md` (this engine repo)
 - 42 crate cap · ADR-006 amendment + ROADMAP.md (this engine repo)
 
 ## §9 · This blueprint's status

@@ -15,7 +15,7 @@ the authoritative architectural decision, see
 For the project's landing page, see [`README.md`](README.md). For
 the forever-v0.x plan across v0.81 → v0.90 → v0.95 → v0.100 → v0.110+,
 see [`ROADMAP.md`](ROADMAP.md). For the **10-year architectural horizon
-(2026 → 2036)** with refined 42-crate target, 5-verb stress test
+(2026 → 2036)** with refined 42-crate target, 4-verb stress test
 through 2036, 7-ADR queue (050-056) and per-crate detail, see
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
 (v1.1 · proposal-grade · annual decennial review 2027-04+).
@@ -54,13 +54,17 @@ YAML file and executes a DAG of verbs:
 schema: "nika/workflow@0.12"
 tasks:
   - id: fetch
-    fetch: { url: "https://example.com/article", extract: article }
+    invoke:
+      tool: "nika:fetch"        # fetch is a builtin tool, not a verb
+      with: { url: "https://example.com/article", extract: article }
   - id: summarize
     with: { text: $fetch }
     infer: "Summarize in 3 bullets: {{with.text}}"
 ```
 
-Five verbs: `infer`, `exec`, `fetch`, `invoke`, `agent`. A typed
+Four verbs: `infer`, `exec`, `invoke`, `agent`. (Fetching a URL is
+*calling a tool*, not a distinct execution model — it is the
+`nika:fetch` builtin, reached via `invoke`.) A typed
 schema, a taint-tracking template engine, and a layered kernel of
 side effects wired through `rig` (LLM providers) + `rmcp` (MCP
 servers).
@@ -74,7 +78,7 @@ servers).
 L5   nika                         binary, <500 LOC composition root
 L4   cli · lsp · serve · init · lints · pck · catalog-verify
 L3   runtime · daemon
-L2   verb-{exec,fetch,invoke,infer,agent} ·
+L2   verb-{exec,invoke,infer,agent} ·
      provider-{rig,native,mock} ·
      builtin · builtin-{github,cloud,workspace} · mcp · display ·
      media-{cas,image,pdf,document,provenance} ·

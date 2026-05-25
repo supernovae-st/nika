@@ -38,8 +38,9 @@ tasks:
 
 ## What is Nika
 
-Nika is a **workflow engine for AI**: five verbs (`infer`, `exec`, `fetch`,
-`invoke`, `agent`) wired through a typed YAML schema, a taint-tracking
+Nika is a **workflow engine for AI**: four verbs (`infer`, `exec`,
+`invoke`, `agent` — fetching a URL is the `nika:fetch` builtin tool via
+`invoke`, not a verb) wired through a typed YAML schema, a taint-tracking
 template engine, and a layered kernel of side effects. Workflows are
 human-authored, machine-executable, and reproducible across providers.
 
@@ -106,7 +107,7 @@ WIP: **`nika-schema`** — workflow AST + parser (Phase D, scaffolded).
 ### 10-year horizon
 
 For the canonical **10-year architectural horizon (2026 → 2036)** with
-42-crate target · 5-verb stress test · per-crate detail · best-enemies
+42-crate target · 4-verb stress test · per-crate detail · best-enemies
 SOTA differentiation · 11/10 amplifiers · anti-Palantir guardian framing ·
 see [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
 (v1.3 · proposal-grade · annual decennial review 2027-04+).
@@ -117,7 +118,7 @@ see [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
 L5   nika                         binary, <500 LOC composition root
 L4   cli · lsp · serve · init · lints · pck · catalog-verify
 L3   runtime · daemon
-L2   verb-{exec,fetch,invoke,infer,agent} ·
+L2   verb-{exec,invoke,infer,agent} ·
      provider-{rig,native,mock} ·
      builtin · builtin-{github,cloud,workspace} · mcp · display ·
      media-{cas,image,pdf,document,provenance} ·

@@ -42,12 +42,13 @@
 
 ### Phase 3 (L2 domain — 20 crates)
 
-5 verbs (3 rewritten + 2 new):
+4 verbs (per D-2026-05-22-N18 · `fetch` is now the `nika:fetch` builtin via
+`invoke`, not a verb crate):
 
 | Legacy | Diamond |
 |---|---|
 | `nika-verb-exec` | `nika-verb-exec` |
-| `nika-verb-fetch` | `nika-verb-fetch` |
+| `nika-verb-fetch` | `nika:fetch` builtin (under `invoke` · no longer a verb crate) |
 | `nika-verb-invoke` | `nika-verb-invoke` |
 | `nika-verb-infer` | `nika-verb-infer` |
 | (new, split from engine) | `nika-verb-agent` |
@@ -117,7 +118,7 @@ OR explicitly dropped with reason.
 - `nika inputs` — prompt for workflow inputs interactively
 - `nika token` — token counting on an expression
 - `nika tools` — list builtins + MCP tools
-- `nika verbs` — documentation for 5 verbs
+- `nika verbs` — documentation for the 4 verbs
 - `nika switch` — provider/model switching
 - `nika clean` — clear cache + temp
 - `nika demo` — run bundled showcase workflows
