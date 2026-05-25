@@ -44,7 +44,9 @@ count_layer() {
   # `pipefail` would propagate grep's exit code 1 on zero matches —
   # absorb that with `|| true` so the empty-layer case returns 0
   # instead of failing the whole script.
-  { grep -E "layers\\.nika-[a-z-]+ = \"$1\"\$" Cargo.toml || true; } \
+  # NOTE `[a-z0-9-]` (not `[a-z-]`) · crate names carry digits (nika-bm25 ·
+  # nika-a11y) · the digit-blind regex undercounted L1 (showed 3 · was 5).
+  { grep -E "layers\\.nika-[a-z0-9-]+ = \"$1\"\$" Cargo.toml || true; } \
     | wc -l | tr -d ' '
 }
 L0_COUNT=$(count_layer "L0")

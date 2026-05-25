@@ -122,7 +122,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
 | L0.5             | 2                                              |
-| L1               | 3                                              |
+| L1               | 5                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
