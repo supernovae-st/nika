@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WIP** (Phase 2 M2.2 · second L1 effect crate · B.1 spec) |
+| Status | **WIP** (Phase 2 M2.2 · second L1 effect crate · B.3 real `ocrs` inference wired · pre-admission · B.4 = mutation + 12-gate close) |
 | Layer | L1 — effect implementation · async · `Send + Sync` · depends only on L0 / L0.5 |
 | Sub-tier | L1-effect — OCR text extraction behind the L0.5 `OcrEngine` trait. Pure-Rust backend (`ocrs`) so the crate is `unsafe_code = forbid`-clean |
 | Design | Thin adapter over **ocrs 0.12.2** (pure-Rust ML OCR · `rten` runtime · MIT/Apache · zero C system dep). Sync `ocrs` inference runs inside `tokio::task::spawn_blocking` (kernel CANCEL SAFETY contract · same pattern as `nika-screen`/`xcap`). RGBA8 `Frame` → RGB `ImageSource` → `prepare_input` → `detect_words` → `recognize_text` → `Vec<TextRegion>` |
@@ -55,9 +55,10 @@ impl nika_kernel::io::ocr::OcrEngine for OcrBackend {
     async fn read_region(&self, frame: &Frame, region: Rect) -> io::Result<Vec<TextRegion>>;
 }
 
-/// Errors · NIKA-1100..1109 · #[non_exhaustive] + code() + is_transient().
+/// Errors · NIKA-1101..1109 · #[non_exhaustive] + code() + is_transient().
+/// NIKA-1100 = retired B.2 BackendNotWired placeholder slot (reserved).
 #[non_exhaustive]
-pub enum OcrError { /* BackendNotWired(1100) .. RecognitionFailed(1109) */ }
+pub enum OcrError { /* ModelNotFound(1101) .. TaskJoinFailed(1109) */ }
 ```
 
 ## 3. Layer discipline
@@ -69,23 +70,27 @@ pub enum OcrError { /* BackendNotWired(1100) .. RecognitionFailed(1109) */ }
   used for `spawn_blocking` only (sync `ocrs` inference).
 - Zero `nika-*` cross-deps beyond `nika-kernel`. No upward imports.
 
-## 4. Model distribution — sovereignty decision (Rule 1 · DECISION POINT)
+## 4. Model distribution — sovereignty decision (Rule 1 · RESOLVED B.3)
 
 `ocrs` needs two `.rten` model files (text detection + recognition · ~few MB).
-**Proposed canonical posture (sovereignty · telemetry-canon §0 · zero cloud):**
+**Canonical posture (sovereignty · telemetry-canon §0 · zero cloud) — LOCKED B.3:**
 
 - `OcrBackend::with_models(detection, recognition)` takes **explicit local
-  paths** — the crate NEVER auto-downloads from the network at runtime.
+  paths** — the crate reads local files only and NEVER auto-downloads from the
+  network at runtime (verified: the only I/O is `Path::exists` + `Model::load_file`).
 - The cockpit / operator provisions the models once into a local cache
   (`~/.olympus/cache/ocr/` when the daemon ships · or a configured path) ·
   daemon-domain concern per `vendor-agnostic-architecture.md` Mandate 1 (same
   pattern as nika-screen consent persistence deferred to the Olympus side).
 - A `with_models_from_cache()` convenience (reads the canonical cache path) is
-  a later-batch convenience, gated on the daemon model-provisioning story.
+  a later-batch convenience, **gated** on the daemon model-provisioning story
+  (LOCK-031 spirit · no engine-side cache-path infra until the daemon owns it).
 
-> **OPEN** · model provisioning (bundle vs first-run fetch-with-consent vs
-> operator-manual) is a daemon-domain design that this spec defers · the
-> engine crate only takes a path. Confirm before B.3 wiring.
+> **RESOLVED B.3** · the engine crate takes explicit paths only · model
+> *provisioning* (bundle vs first-run fetch-with-consent vs operator-manual)
+> stays a daemon-domain decision deferred to the Olympus side. The sovereign
+> default — explicit operator/daemon-provisioned local paths, zero
+> auto-download — is the one implemented.
 
 ## 5. Batch plan (skeleton-option-A · per nika-screen precedent)
 
@@ -94,11 +99,15 @@ pub enum OcrError { /* BackendNotWired(1100) .. RecognitionFailed(1109) */ }
   `BackendNotWired` placeholder for `read`/`read_region` + pure frame-bounds
   validation (`validate_region` reused-shape) + headless tests.
 - **B.3** wire `ocrs` real inference (RGBA→RGB `ImageSource` · `prepare_input`
-  · `detect_words` · `recognize_text` · `TextLine` → `TextRegion` mapping) ·
-  `with_models` real load · closes the `BackendNotWired` skeleton.
-- **B.4** mutation hardening (extract pure RGBA→input + line→region mapping ·
-  proptest) + ADR-003 canonical 12-gate close + Rule-2 OS/model exemption +
-  review swarm.
+  · `detect_words` · `find_text_lines` · `recognize_text` · `TextLine` →
+  `TextRegion` via pure `words_bbox_union`) · `with_models` real `.rten` load
+  (NIKA-1101/1102/1103 error paths) · closed the `BackendNotWired` skeleton
+  (NIKA-1100 retired) · pure helpers `rgba_to_rgb` + `crop_rgba` +
+  `words_bbox_union` extracted + proptested · 17 lib tests · clippy/doc/deny
+  green. ✅
+- **B.4** mutation run (`cargo mutants -p nika-ocr`) → ≥90 % on the pure
+  surface + documented Rule-2 exemption for the `run_ocr` inference residue +
+  ADR-003 canonical 12-gate close + 3-agent review swarm + admission commit.
 
 ## 6. Gate-5 mutation posture (forward note)
 

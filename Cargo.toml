@@ -146,6 +146,8 @@ tokio         = { version = "1", features = ["rt", "macros", "time"] }
 strsim   = "0.11"   # nika-error Phase C suggest() — Levenshtein for "did you mean"
 smallvec = "1.13"   # SmallVec adoption per RUST_2026_BEST_PRACTICES (hot-path vecs)
 tracing  = "0.1"    # L1+ effect crates (fs/http/process/...) structured logging
+ocrs     = "0.12"   # nika-ocr L1 (M2.2) — pure-Rust OCR engine (rten runtime · no C dep · keeps unsafe forbid)
+rten     = "0.24"   # nika-ocr L1 — Model::load_file for .rten weights (ocrs ^0.24 normal dep · pinned aligned)
 uuid     = { version = "1", features = ["v7", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0)
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
@@ -153,6 +155,7 @@ zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 
 criterion   = { version = "0.5", features = ["html_reports"] }
 proptest    = "1.6"
 insta       = { version = "1.42", features = ["yaml"] }
+tempfile    = "3"   # nika-ocr dev — model-load error-path fixtures (with_models headless tests)
 rstest      = "0.22"
 expect-test = "1.5"  # inline snapshots, see ADR-015
 

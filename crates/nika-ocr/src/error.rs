@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! OCR error taxonomy — NIKA-1100..1109.
+//! OCR error taxonomy — NIKA-1101..1109.
 //!
 //! Reserved sub-range **NIKA-1100..1199** per ADR-081 `nika_codes` matrix
 //! (supersedes the stale `io/ocr.rs` doc-comment "NIKA-1020..1039" which
 //! predates ADR-081). `code()` is the grep-anchor for logs + journal;
 //! `is_transient()` lets a caller decide retry vs structural failure.
+//!
+//! NIKA-1100 was the B.2 `BackendNotWired` skeleton placeholder · CLOSED at
+//! B.3 when the `ocrs` backend was wired (per `skeleton-option-a-pattern.md`
+//! §5) · the slot stays reserved.
 
 use thiserror::Error;
 
-/// OCR backend errors · NIKA-1100..1109 · `code()` grep-anchor.
+/// OCR backend errors · NIKA-1101..1109 · `code()` grep-anchor.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum OcrError {
-    /// B.2 skeleton placeholder — real inference lands B.3 (ocrs wiring).
-    #[error("NIKA-1100 · OCR backend not wired (skeleton placeholder)")]
-    BackendNotWired,
     /// A `.rten` model file was not found at the configured path.
     #[error("NIKA-1101 · OCR model file not found: {path}")]
     ModelNotFound {
@@ -86,12 +87,11 @@ pub enum OcrError {
 impl OcrError {
     /// Stable NIKA code for this error (grep-anchor for logs + journal).
     ///
-    /// NIKA-1100..1109 currently used · NIKA-1100..1199 reserved for
-    /// nika-ocr (ADR-081).
+    /// NIKA-1101..1109 currently used · NIKA-1100..1199 reserved for
+    /// nika-ocr (ADR-081 · NIKA-1100 = retired B.2 placeholder slot).
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
-            Self::BackendNotWired => "NIKA-1100",
             Self::ModelNotFound { .. } => "NIKA-1101",
             Self::ModelLoadFailed { .. } => "NIKA-1102",
             Self::EngineInit { .. } => "NIKA-1103",
@@ -132,7 +132,6 @@ mod tests {
 
     fn all_variants() -> Vec<OcrError> {
         vec![
-            OcrError::BackendNotWired,
             OcrError::ModelNotFound {
                 path: "m.rten".into(),
             },
@@ -178,10 +177,13 @@ mod tests {
 
     #[test]
     fn from_ocr_error_to_io_preserves_source() {
-        let io: std::io::Error = OcrError::BackendNotWired.into();
+        let io: std::io::Error = OcrError::ModelNotFound {
+            path: "m.rten".into(),
+        }
+        .into();
         let src = io.into_inner().expect("boxed source");
-        let oe = src.downcast::<OcrError>().expect("ScreenError source");
-        assert_eq!(oe.code(), "NIKA-1100");
+        let oe = src.downcast::<OcrError>().expect("OcrError source");
+        assert_eq!(oe.code(), "NIKA-1101");
     }
 
     #[test]
@@ -189,7 +191,7 @@ mod tests {
         assert!(OcrError::RecognitionFailed { reason: "x".into() }.is_transient());
         assert!(OcrError::DetectionFailed { reason: "x".into() }.is_transient());
         assert!(OcrError::TaskJoinFailed { reason: "x".into() }.is_transient());
-        assert!(!OcrError::BackendNotWired.is_transient());
+        assert!(!OcrError::ModelLoadFailed { reason: "x".into() }.is_transient());
         assert!(!OcrError::ModelNotFound { path: "m".into() }.is_transient());
         assert!(
             !OcrError::RegionOutOfBounds {

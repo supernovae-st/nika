@@ -18,16 +18,24 @@ adr = ["ADR-003", "ADR-081"]
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
 thiserror   = { workspace = true }
-# B.3 adds · ocrs = "0.12" (pure-Rust OCR · rten runtime · spawn_blocking
-# inference) + tokio (sync spawn_blocking) + bytes (RGBA→ImageSource). The B.2
-# skeleton is dep-light · the placeholder validates frame/region purely.
+# ocrs = pure-Rust OCR engine (detect → find lines → recognize) · rten = the
+# tensor runtime, used directly for Model::load_file(.rten). tokio `rt` for
+# spawn_blocking (the ocrs engine is synchronous + CPU-bound · run it off the
+# async runtime per kernel CANCEL SAFETY contract). Models are NEVER bundled
+# nor auto-downloaded (sovereignty Rule 1) — loaded from explicit local paths
+# provisioned by the operator/daemon (see docs/crate-specs/nika-ocr.md §4).
+ocrs        = { workspace = true }
+rten        = { workspace = true }
+tokio       = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 # #[tokio::test] for the async OcrEngine methods · bytes builds Frame payloads ·
-# proptest pins the pure frame-bounds + region validation (Gate 6).
+# proptest pins the pure helpers (RGBA→RGB · crop · bbox-union · Gate 6) ·
+# tempfile feeds with_models() its model-load error paths headlessly.
 tokio    = { workspace = true, features = ["macros", "rt"] }
 bytes    = { workspace = true }
 proptest = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

@@ -3,32 +3,200 @@
 
 //! OCR backend — implements the L0.5 `OcrEngine` trait via `ocrs`.
 //!
-//! **B.2 skeleton.** `read` / `read_region` validate the input purely
-//! (RGBA8 frame format + sub-region bounds · headless-testable + mutation-
-//! killable) then return the `BackendNotWired` placeholder. B.3 wires the
-//! real `ocrs` inference (RGBA→`ImageSource` · `prepare_input` ·
-//! `detect_words` · `recognize_text` · `TextLine`→`TextRegion`) inside
-//! `tokio::task::spawn_blocking` (the sync `ocrs` engine · kernel CANCEL
-//! SAFETY contract · same pattern as `nika-screen`/`xcap`). Per
-//! `skeleton-option-a-pattern.md` §5 the placeholder is CLOSED at B.3.
+//! **B.3 · real inference wired.** [`OcrBackend::with_models`] eagerly loads
+//! the two `.rten` weight files (detection + recognition) from explicit local
+//! paths and builds the synchronous `ocrs` engine. `read` / `read_region`
+//! validate the RGBA8 frame purely (headless-testable · mutation-killable)
+//! then run the `ocrs` pipeline (`prepare_input` → `detect_words` →
+//! `find_text_lines` → `recognize_text`) inside `tokio::task::spawn_blocking`
+//! — the engine is CPU-bound + synchronous so it runs OFF the async runtime.
+//!
+//! **CANCEL SAFETY** (kernel `OcrEngine` contract) · dropping the future
+//! abandons the read with no caller-visible state · the blocking task runs to
+//! completion on the pool and its result is simply discarded (a `Frame` read
+//! is side-effect-free · partial text never leaks).
+//!
+//! **Sovereignty (Rule 1)** · models are NEVER bundled in the binary nor
+//! auto-downloaded · the caller passes explicit local paths (operator /
+//! daemon-provisioned · e.g. `~/.olympus/cache/ocr/*.rten`). See
+//! `docs/crate-specs/nika-ocr.md` §4.
+//!
+//! The `ocrs` inference path (`run_ocr`) needs real `.rten` weights · it is
+//! therefore NOT exercisable headless and carries a Rule-2 mutation exemption
+//! (spec §6). All surrounding logic — frame/region validation, RGBA→RGB,
+//! region crop, bbox union — is pure + fully tested.
+
+use std::path::Path;
+use std::sync::Arc;
 
 use nika_kernel::io::ocr::{OcrEngine, TextRegion};
 use nika_kernel::io::screen::{Frame, Rect};
+use ocrs::{ImageSource, OcrEngine as OcrsEngine, OcrEngineParams, TextItem};
+use rten::Model;
 
 use crate::error::OcrError;
 
-/// Pure-Rust OCR backend (driven by `ocrs` at B.3). The B.2 skeleton holds no
-/// state; B.3 adds the loaded `Arc<ocrs::OcrEngine>` + model paths.
-#[derive(Debug, Default)]
+/// Pure-Rust OCR backend (driven by `ocrs`). Holds the loaded engine behind an
+/// `Arc` so `read`/`read_region` hand a cheap clone to the `spawn_blocking`
+/// inference task.
+#[derive(Clone)]
 #[non_exhaustive]
-pub struct OcrBackend {}
+pub struct OcrBackend {
+    engine: Arc<OcrsEngine>,
+}
+
+impl std::fmt::Debug for OcrBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OcrBackend").finish_non_exhaustive()
+    }
+}
 
 impl OcrBackend {
-    /// Construct a new OCR backend (B.2 skeleton · models wired at B.3).
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    /// Load the detection + recognition `.rten` models from explicit local
+    /// paths and build the `ocrs` engine.
+    ///
+    /// Per sovereignty Rule 1 the paths are operator/daemon-provisioned · this
+    /// function reads local files only and NEVER fetches over the network.
+    ///
+    /// # Errors
+    /// - [`OcrError::ModelNotFound`] — a model path does not exist.
+    /// - [`OcrError::ModelLoadFailed`] — a `.rten` file failed to parse.
+    /// - [`OcrError::EngineInit`] — `ocrs` rejected the loaded models.
+    pub fn with_models(detection: &Path, recognition: &Path) -> Result<Self, OcrError> {
+        let detection_model = load_model(detection)?;
+        let recognition_model = load_model(recognition)?;
+        let engine = OcrsEngine::new(OcrEngineParams {
+            detection_model: Some(detection_model),
+            recognition_model: Some(recognition_model),
+            ..Default::default()
+        })
+        .map_err(|e| OcrError::EngineInit {
+            reason: e.to_string(),
+        })?;
+        Ok(Self {
+            engine: Arc::new(engine),
+        })
     }
+}
+
+/// Load one `.rten` model from a local path — pure existence guard + parse.
+fn load_model(path: &Path) -> Result<Model, OcrError> {
+    if !path.exists() {
+        return Err(OcrError::ModelNotFound {
+            path: path.display().to_string(),
+        });
+    }
+    Model::load_file(path).map_err(|e| OcrError::ModelLoadFailed {
+        reason: e.to_string(),
+    })
+}
+
+/// Drop the alpha channel · RGBA8 → RGB8 (the layout `ocrs::ImageSource`
+/// expects). **Pure** · headless-testable · the input length is a multiple of
+/// 4 (guaranteed by `validate_frame` upstream).
+fn rgba_to_rgb(rgba: &[u8]) -> Vec<u8> {
+    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
+    for px in rgba.chunks_exact(4) {
+        rgb.extend_from_slice(&px[0..3]);
+    }
+    rgb
+}
+
+/// Crop a row-major RGBA8 buffer to an in-bounds sub-region · returns the
+/// cropped RGBA bytes (`rw * rh * 4`). **Pure** · the caller guarantees bounds
+/// via [`validate_region`].
+fn crop_rgba(rgba: &[u8], frame_w: u32, rx: u32, ry: u32, rw: u32, rh: u32) -> Vec<u8> {
+    let fw = frame_w as usize;
+    let (rx, ry, rw, rh) = (rx as usize, ry as usize, rw as usize, rh as usize);
+    let mut out = Vec::with_capacity(rw * rh * 4);
+    for row in 0..rh {
+        let start = ((ry + row) * fw + rx) * 4;
+        out.extend_from_slice(&rgba[start..start + rw * 4]);
+    }
+    out
+}
+
+/// Union of word bounding boxes → one line bbox `(x, y, width, height)`. Each
+/// input is `(left, top, width, height)` in `i32` (the shape `ocrs` reports).
+/// Returns `None` for an empty iterator. **Pure** · headless-testable.
+fn words_bbox_union(
+    rects: impl IntoIterator<Item = (i32, i32, i32, i32)>,
+) -> Option<(i32, i32, u32, u32)> {
+    let mut it = rects.into_iter();
+    let (l0, t0, w0, h0) = it.next()?;
+    let mut left = l0;
+    let mut top = t0;
+    let mut right = l0.saturating_add(w0);
+    let mut bottom = t0.saturating_add(h0);
+    for (l, t, w, h) in it {
+        left = left.min(l);
+        top = top.min(t);
+        right = right.max(l.saturating_add(w));
+        bottom = bottom.max(t.saturating_add(h));
+    }
+    let width = u32::try_from(right - left).unwrap_or(0);
+    let height = u32::try_from(bottom - top).unwrap_or(0);
+    Some((left, top, width, height))
+}
+
+/// Run the full synchronous `ocrs` pipeline on a 3-channel RGB buffer.
+///
+/// CPU-bound + blocking — call ONLY inside `spawn_blocking`. `x_off`/`y_off`
+/// shift reported bboxes back into frame coordinates (`0,0` for a full read ·
+/// the region origin for `read_region`).
+///
+/// **Rule-2 mutation exemption** (spec §6) · every line below either calls into
+/// `ocrs`/`rten` or maps their output · it cannot run headless without real
+/// `.rten` weights, so cargo-mutants cannot exercise it. The pure helpers it
+/// composes (`words_bbox_union`) are tested + mutation-killed directly.
+fn run_ocr(
+    engine: &OcrsEngine,
+    rgb: &[u8],
+    w: u32,
+    h: u32,
+    x_off: i32,
+    y_off: i32,
+) -> Result<Vec<TextRegion>, OcrError> {
+    let source =
+        ImageSource::from_bytes(rgb, (w, h)).map_err(|e| OcrError::PrepareInputFailed {
+            reason: e.to_string(),
+        })?;
+    let input = engine
+        .prepare_input(source)
+        .map_err(|e| OcrError::PrepareInputFailed {
+            reason: e.to_string(),
+        })?;
+    let words = engine
+        .detect_words(&input)
+        .map_err(|e| OcrError::DetectionFailed {
+            reason: e.to_string(),
+        })?;
+    let lines = engine.find_text_lines(&input, &words);
+    let recognized =
+        engine
+            .recognize_text(&input, &lines)
+            .map_err(|e| OcrError::RecognitionFailed {
+                reason: e.to_string(),
+            })?;
+
+    let mut regions = Vec::new();
+    for line in recognized.into_iter().flatten() {
+        let text = line.to_string();
+        if text.is_empty() {
+            continue;
+        }
+        let word_rects = line.words().map(|word| {
+            let br = word.bounding_rect();
+            (br.left(), br.top(), br.width(), br.height())
+        });
+        if let Some((x, y, bw, bh)) = words_bbox_union(word_rects) {
+            // ocrs exposes no public per-line scalar confidence · presence of a
+            // recognized line ⇒ 1.0 (refine if a future ocrs surfaces it).
+            let bbox = Rect::new(x.saturating_add(x_off), y.saturating_add(y_off), bw, bh);
+            regions.push(TextRegion::new(text, bbox, 1.0, None));
+        }
+    }
+    Ok(regions)
 }
 
 /// Validate the frame carries a well-formed RGBA8 buffer — **pure** (no OS /
@@ -80,15 +248,40 @@ fn validate_region(region: Rect, frame_w: u32, frame_h: u32) -> Result<(u32, u32
 
 impl OcrEngine for OcrBackend {
     async fn read(&self, frame: &Frame) -> std::io::Result<Vec<TextRegion>> {
-        validate_frame(frame)?; // pure · structural NIKA-1105 before any inference
-        // B.2 placeholder · B.3 wires ocrs (prepare_input → detect → recognize).
-        Err(OcrError::BackendNotWired.into())
+        validate_frame(frame)?; // pure · NIKA-1105 before any inference
+        let rgb = rgba_to_rgb(frame.pixels.as_ref());
+        let (w, h) = (frame.width, frame.height);
+        let engine = Arc::clone(&self.engine);
+        let regions = tokio::task::spawn_blocking(move || run_ocr(&engine, &rgb, w, h, 0, 0))
+            .await
+            .map_err(|e| OcrError::TaskJoinFailed {
+                reason: e.to_string(),
+            })??;
+        Ok(regions)
     }
 
     async fn read_region(&self, frame: &Frame, region: Rect) -> std::io::Result<Vec<TextRegion>> {
         validate_frame(frame)?;
-        let _origin = validate_region(region, frame.width, frame.height)?; // NIKA-1104
-        Err(OcrError::BackendNotWired.into())
+        let (rx, ry) = validate_region(region, frame.width, frame.height)?; // NIKA-1104
+        let cropped = crop_rgba(
+            frame.pixels.as_ref(),
+            frame.width,
+            rx,
+            ry,
+            region.width,
+            region.height,
+        );
+        let rgb = rgba_to_rgb(&cropped);
+        let (w, h) = (region.width, region.height);
+        let (x_off, y_off) = (region.x, region.y);
+        let engine = Arc::clone(&self.engine);
+        let regions =
+            tokio::task::spawn_blocking(move || run_ocr(&engine, &rgb, w, h, x_off, y_off))
+                .await
+                .map_err(|e| OcrError::TaskJoinFailed {
+                    reason: e.to_string(),
+                })??;
+        Ok(regions)
     }
 }
 
@@ -105,89 +298,85 @@ mod tests {
         Frame::new(w, h, 1.0, Bytes::from(vec![0u8; len]), DisplayId::new(0), 1)
     }
 
-    #[tokio::test]
-    async fn read_on_valid_frame_hits_placeholder_not_format_error() {
-        let backend = OcrBackend::new();
-        let io = backend
-            .read(&frame(8, 4))
-            .await
-            .expect_err("B.2 placeholder denies");
-        let oe = io
-            .into_inner()
-            .expect("boxed")
-            .downcast::<OcrError>()
-            .expect("OcrError");
+    // --- with_models (real ocrs constructor · headless error paths) ---
+
+    #[test]
+    fn with_models_missing_detection_is_model_not_found() {
+        let err = OcrBackend::with_models(
+            Path::new("/no/such/detection.rten"),
+            Path::new("/no/such/recognition.rten"),
+        )
+        .expect_err("missing model rejected");
+        assert_eq!(err.code(), "NIKA-1101", "absent path is ModelNotFound");
+    }
+
+    #[test]
+    fn with_models_garbage_file_is_model_load_failed() {
+        // Detection path EXISTS but holds garbage → load_model parses it and
+        // fails with ModelLoadFailed *before* the (missing) recognition path.
+        let tmp = tempfile::NamedTempFile::new().expect("temp file");
+        std::fs::write(tmp.path(), b"this is not a real .rten model").expect("write garbage");
+        let err = OcrBackend::with_models(tmp.path(), Path::new("/no/such/recognition.rten"))
+            .expect_err("garbage model rejected");
         assert_eq!(
-            oe.code(),
-            "NIKA-1100",
-            "valid frame reaches the BackendNotWired placeholder"
+            err.code(),
+            "NIKA-1102",
+            "unparseable .rten is ModelLoadFailed"
         );
     }
 
-    #[tokio::test]
-    async fn read_rejects_malformed_frame_buffer() {
-        let backend = OcrBackend::new();
-        // Claim 8x4 (=128 bytes RGBA8) but give 10 bytes.
-        let bad = Frame::new(
-            8,
-            4,
-            1.0,
-            Bytes::from_static(&[0u8; 10]),
-            DisplayId::new(0),
-            1,
-        );
-        let io = backend
-            .read(&bad)
-            .await
-            .expect_err("malformed buffer rejected");
-        let oe = io
-            .into_inner()
-            .expect("boxed")
-            .downcast::<OcrError>()
-            .expect("OcrError");
-        assert_eq!(
-            oe.code(),
-            "NIKA-1105",
-            "wrong RGBA8 length is a frame-format error"
-        );
+    // --- rgba_to_rgb (pure · mutation-killing) ---
+
+    #[test]
+    fn rgba_to_rgb_drops_alpha_and_keeps_rgb_order() {
+        // Two pixels: (1,2,3,255) and (4,5,6,128) → 6 RGB bytes.
+        let rgba = [1, 2, 3, 255, 4, 5, 6, 128];
+        assert_eq!(rgba_to_rgb(&rgba), vec![1, 2, 3, 4, 5, 6]);
     }
 
-    #[tokio::test]
-    async fn read_region_rejects_out_of_bounds() {
-        let backend = OcrBackend::new();
-        let io = backend
-            .read_region(&frame(100, 100), Rect::new(0, 0, 200, 10))
-            .await
-            .expect_err("oob region rejected");
-        let oe = io
-            .into_inner()
-            .expect("boxed")
-            .downcast::<OcrError>()
-            .expect("OcrError");
-        assert_eq!(
-            oe.code(),
-            "NIKA-1104",
-            "region wider than frame is out of bounds"
-        );
+    #[test]
+    fn rgba_to_rgb_empty_is_empty() {
+        assert!(rgba_to_rgb(&[]).is_empty());
     }
 
-    #[tokio::test]
-    async fn read_region_in_bounds_hits_placeholder() {
-        let backend = OcrBackend::new();
-        let io = backend
-            .read_region(&frame(100, 100), Rect::new(10, 10, 50, 50))
-            .await
-            .expect_err("B.2 placeholder denies");
-        let oe = io
-            .into_inner()
-            .expect("boxed")
-            .downcast::<OcrError>()
-            .expect("OcrError");
-        assert_eq!(
-            oe.code(),
-            "NIKA-1100",
-            "valid region passes validation to the placeholder"
-        );
+    // --- crop_rgba (pure · mutation-killing) ---
+
+    #[test]
+    fn crop_rgba_extracts_the_requested_window() {
+        // 2x2 RGBA frame · each pixel's R = its linear index (0,1,2,3).
+        // Pixel layout (R only shown): [0][1]
+        //                              [2][3]
+        let mut rgba = Vec::new();
+        for r in 0u8..4 {
+            rgba.extend_from_slice(&[r, 0, 0, 255]);
+        }
+        // Crop the bottom-right 1x1 (rx=1, ry=1) → pixel index 3.
+        let got = crop_rgba(&rgba, 2, 1, 1, 1, 1);
+        assert_eq!(got, vec![3, 0, 0, 255]);
+        // Crop the top row (rx=0, ry=0, 2x1) → pixels 0,1.
+        let row = crop_rgba(&rgba, 2, 0, 0, 2, 1);
+        assert_eq!(row, vec![0, 0, 0, 255, 1, 0, 0, 255]);
+    }
+
+    // --- words_bbox_union (pure · mutation-killing) ---
+
+    #[test]
+    fn words_bbox_union_empty_is_none() {
+        let empty: Vec<(i32, i32, i32, i32)> = vec![];
+        assert_eq!(words_bbox_union(empty), None);
+    }
+
+    #[test]
+    fn words_bbox_union_single_word_is_that_rect() {
+        assert_eq!(words_bbox_union([(10, 20, 30, 40)]), Some((10, 20, 30, 40)));
+    }
+
+    #[test]
+    fn words_bbox_union_spans_min_left_top_to_max_right_bottom() {
+        // word A: x10..40 y20..50 · word B: x5..25 y30..90
+        // union: left=5 top=20 right=40 bottom=90 → (5,20,35,70)
+        let got = words_bbox_union([(10, 20, 30, 30), (5, 30, 20, 60)]);
+        assert_eq!(got, Some((5, 20, 35, 70)));
     }
 
     // --- validate_frame (pure · mutation-killing) ---
@@ -259,6 +448,23 @@ mod tests {
             if inside {
                 prop_assert_eq!(got.expect("inside"), (rx, ry));
             }
+        }
+
+        /// Crop window has the right byte length for any in-bounds region.
+        /// Region coords are derived from the frame dims (modulo) so every
+        /// case is in-bounds by construction — no rejects.
+        #[test]
+        fn crop_rgba_output_len_matches_region(
+            fw in 1u32..64, fh in 1u32..64,
+            rx_r in 0u32..4096, ry_r in 0u32..4096, rw_r in 0u32..4096, rh_r in 0u32..4096,
+        ) {
+            let rx = rx_r % fw;                  // 0 ..= fw-1
+            let ry = ry_r % fh;
+            let rw = (rw_r % (fw - rx)) + 1;     // 1 ..= fw-rx
+            let rh = (rh_r % (fh - ry)) + 1;     // 1 ..= fh-ry
+            let rgba = vec![0u8; (fw as usize) * (fh as usize) * 4];
+            let out = crop_rgba(&rgba, fw, rx, ry, rw, rh);
+            prop_assert_eq!(out.len(), (rw as usize) * (rh as usize) * 4);
         }
     }
 }
