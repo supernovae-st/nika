@@ -53,6 +53,7 @@ wrappers = [
   "nika-bm25",             # L1 memory satellite (feature=kernel gated, W4+ wire-up): tokio reserved for L2 RecallPool fan-out cooperative scheduling per ADR-078 step 6 + ADR-039 L-5 (yield_now NOT consume_budget) · Option E single-crate-feature-gated per devil's advocate 2026-05-12
   "nika-screen",           # L1 effect crate (M2.1): tokio dev-dep for #[tokio::test] async ScreenCapture tests · B.4 wires mpsc stream worker + CancellationToken reaping
   "nika-ocr",              # L1 effect crate (M2.2): tokio dev-dep for #[tokio::test] async OcrEngine tests · B.3 wires spawn_blocking ocrs inference (sync engine off the runtime · CANCEL SAFETY contract)
+  "nika-a11y",             # L1 effect crate (M2.3): tokio dev-dep for #[tokio::test] async AccessibilityTree tests · B.3 wires spawn_blocking AXUIElement walk (sync !Send handle worker-local · CANCEL SAFETY contract)
   "nika-clock",            # L1 time effect: tokio::time::sleep is the production async impl of nika-kernel Clock::sleep (the ONLY production tokio site) · 12-gate admitted 74a8ff483
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",

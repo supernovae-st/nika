@@ -1,0 +1,34 @@
+[package]
+name          = "nika-a11y"
+description   = "Accessibility-tree-query L1 effect crate — implements the nika-kernel AccessibilityTree trait (snapshot + find + resolve_ref) via the macOS AXUIElement backend (safe `accessibility` crate). Third computer-use L1 · M2.3 · owns ADR-081 Guard 3 (AX-secure-field redaction · mandatory)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# Gate 2 (ADR linked) · ADR-081 = 7 L1 security guards forever; nika-a11y OWNS
+# Guard 3 (AX-secure-field redaction · MANDATORY-at-admission · pure tree-transform).
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-081"]
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+thiserror   = { workspace = true }
+# B.3 adds (macOS-gated) · accessibility = "0.2" (safe AXUIElement API · rten-style
+# encapsulated unsafe FFI · keeps this crate unsafe_code = forbid) + tokio rt
+# (spawn_blocking · the !Send AXUIElement walk stays worker-local). The B.2
+# skeleton is dep-light · the placeholder returns BackendNotWired and the
+# MANDATORY Guard 3 redaction is a pure tree-transform (headless-testable now).
+
+[dev-dependencies]
+# #[tokio::test] for the async AccessibilityTree methods · proptest pins the
+# pure helpers (Guard 3 redaction · role mapping · query filter).
+tokio    = { workspace = true, features = ["macros", "rt"] }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

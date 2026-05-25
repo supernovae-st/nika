@@ -1774,6 +1774,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-a11y"
+version = "0.80.0"
+dependencies = [
+ "nika-kernel",
+ "proptest",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "nika-bm25"
 version = "0.80.0"
 dependencies = [

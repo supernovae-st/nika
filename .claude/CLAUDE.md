@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption). 13 crates in workspace (12 admitted + 1 WIP · nika-schema), **1156 lib tests**, 32 providers, 49 capability rules. Next: M2.3 (`nika-a11y` / `nika-input` per the computer-use L1 sequence). See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption) + **M2.3 nika-a11y WIP** (accessibility-tree query · macOS-first via safe `accessibility`/`AXUIElement` · B.2 skeleton + mandatory ADR-081 Guard 3 AX-secure-field redaction headless-complete · pre-admission). 14 crates in workspace (12 admitted + 2 WIP · nika-schema + nika-a11y), **1168 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,18 +115,18 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `0a95cb157` (`0a95cb1572cf4c3173c4933a575e2700c7fca30d`)             |
+| HEAD             | `2541a9181` (`2541a91818f4b2e0d3a6f7ebb84e24047cd6b7f2`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 13                                              |
+| crates (workspace)| 14                                              |
 | crates (admitted)| 12 / 42                                   |
-| crates (WIP)     | 1 — nika-schema                                  |
+| crates (WIP)     | 2 — nika-schema,nika-a11y                                  |
 | L0               | 6                                              |
 | L0.5             | 2                                              |
 | L1               | 3                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1156 passed, 0 failed                              |
+| lib tests        | 1168 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):

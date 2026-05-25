@@ -13,6 +13,31 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
+### ♿ Phase 2 M2.3 · nika-a11y L1 (WIP · B.1 spec + B.2 skeleton · 2026-05-25)
+
+- **`nika-a11y` crate** · third computer-use L1 effect crate · implements the
+  L0.5 `io::a11y::AccessibilityTree` trait (`snapshot` + `find` + `resolve_ref`)
+  exposing the active window's accessibility tree as `AxNode` records. **macOS-first**
+  (decision §4 of `docs/crate-specs/nika-a11y.md`): backend via the safe
+  **`accessibility` 0.2** crate (`AXUIElement` · `TreeWalker` · the unsafe
+  `ApplicationServices` FFI is encapsulated → crate stays `unsafe_code = forbid`);
+  Linux `atspi` / Windows `uiautomation` deferred to a consumer signal (LOCK-031).
+  B.1 spec (backend research: 3 vetted permissive crates verified on crates.io)
+  → B.2 skeleton (`A11yError` NIKA-1200..1206 · `AxBackend` · `snapshot`/`find`/
+  `resolve_ref` route through a `walk_tree` placeholder returning `BackendNotWired`).
+- **ADR-081 Guard 3 (AX-secure-field redaction · MANDATORY-at-admission) is
+  headless-complete at B.2** · a pure recursive tree-transform (`redact_secure_fields`
+  / `is_secure_field`) strips `value` from any secure-text node (macOS
+  `AXSecureTextField` subrole · AT-SPI `STATE_SENSITIVE`) to `None` (zero leak),
+  applied before any node leaves the crate. The pure `find` filter
+  (`matches_query` + depth-bounded `collect_matches`) ships too. 12 lib tests
+  (incl. a proptest pinning the redaction invariant) · clippy 0 · doc 0 ·
+  `cargo-machete` clean · `cargo deny` ok · workspace `test --lib` 1168. The OS
+  `AXUIElement` walk + role mapping land B.3 (`spawn_blocking` · Rule-2 exempt);
+  B.4 = mutation + 12-gate close + admission. `nika-a11y` added to `deny.toml`
+  tokio wrapper allowlist. API primary-source verified via context7
+  (`/eiz/accessibility`) before recommending the backend.
+
 ### 🔤 Phase 2 M2.2 · nika-ocr L1 admission (ADMITTED · 12-gate closed · 2026-05-25)
 
 - **`nika-ocr` crate** · second computer-use L1 effect crate · implements the
