@@ -13,6 +13,39 @@ renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 
 ## [Unreleased]
 
+### 🔤 Phase 2 M2.2 · nika-ocr L1 admission (ADMITTED · 12-gate closed · 2026-05-25)
+
+- **`nika-ocr` crate** · second computer-use L1 effect crate · implements the
+  L0.5 `io::ocr::OcrEngine` trait (`read` + `read_region`) via the pure-Rust
+  **`ocrs` 0.12** engine (**`rten` 0.24** runtime · no C system dep · keeps
+  `unsafe_code = forbid`). B.1 spec → B.2 skeleton (`OcrError` NIKA-1100..1109
+  · pure frame/region validation · `BackendNotWired` placeholder) → B.3 real
+  inference: `OcrBackend::with_models(detection, recognition)` eager-loads two
+  `.rten` weight files from **explicit local paths** (sovereignty Rule 1 ·
+  reads local files only · NEVER auto-downloads · models are operator/daemon-
+  provisioned), `read`/`read_region` validate the RGBA8 `Frame` purely then run
+  `prepare_input → detect_words → find_text_lines → recognize_text` inside
+  `tokio::task::spawn_blocking` (the sync CPU-bound engine runs off the async
+  runtime · kernel CANCEL SAFETY: a dropped future abandons the read with no
+  side effects). The B.2 `BackendNotWired` placeholder is CLOSED (NIKA-1100
+  retired · slot reserved) per `skeleton-option-a-pattern.md` §5.
+- **`nika-ocr` 12-gate close (B.4)** · admitted — all 12 gates green
+  (registry L1 · ADR-081 inherits 7-guard contract, owns none mandatory ·
+  `#[non_exhaustive]` · zero-unwrap src · ~290 LOC · NIKA-1101..1109 ·
+  cancel-safety · `test --workspace --lib` 1156 · clippy 0 · `cargo doc` 0 ·
+  `cargo-machete` clean · `cargo deny` ok). **Gate 5 mutation 81/87 viable
+  caught (93.1 %)** · 100 % of headless-reachable logic · 6 model-inference
+  mutants documented-exempt per ADR-003 Rule 2 (need real `.rten` weights ·
+  `docs/crate-specs/nika-ocr.md` §6.1). Pure helpers (`rgba_to_rgb` ·
+  `crop_rgba` · `words_bbox_union` · `validate_frame` · `validate_region`)
+  proptested + 100 % mutation-killed. **Gate 11 review** · sub-agents hit the
+  1M-context credit wall → Foreman-direct 3-lens review per
+  `orchestrator-autonomous-v6.md` PE-5.1 (rust-pro + Diamond-discipline +
+  bug-hunt · all ADMIT · 1 P1 stale-module-doc fixed). Deps: `+ocrs +rten`
+  (workspace) `+tokio` rt + `tempfile` dev · `nika-ocr` added to `deny.toml`
+  tokio wrapper allowlist. API primary-source verified via context7
+  (`/robertknight/ocrs`) before wiring · no phantom symbols.
+
 ### 🖥️ Phase 2 M2.1 · nika-screen L1 admission (ADMITTED · 12-gate closed · 2026-05-23)
 
 - **`nika-kernel` `io::screen`** · NEW `capture_stream` additive trait method +

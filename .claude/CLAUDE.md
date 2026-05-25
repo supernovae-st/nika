@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase 2 M1 (kernel L0.5 sealed-trait milestone for computer-use) **COMPLETE** — all 6 effect domains sealed (io::{screen,ocr,a11y,input,browser} + ai::vision). Next: M2.1 nika-screen — first L1 effect-crate admission (ADR-081 guards 6+7). HEAD `ba2f65236` — 10 crates in workspace (8 admitted + 2 WIP · nika-schema + nika-screen), **1125 lib tests**, 32 providers, 49 capability rules. See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption). 13 crates in workspace (12 admitted + 1 WIP · nika-schema), **1156 lib tests**, 32 providers, 49 capability rules. Next: M2.3 (`nika-a11y` / `nika-input` per the computer-use L1 sequence). See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -115,18 +115,18 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `ba2f65236` (`ba2f652366000597c99177e06d38245b818b1f29`)             |
+| HEAD             | `0a95cb157` (`0a95cb1572cf4c3173c4933a575e2700c7fca30d`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 13                                              |
-| crates (admitted)| 11 / 42                                   |
-| crates (WIP)     | 2 — nika-schema,nika-ocr                                  |
+| crates (admitted)| 12 / 42                                   |
+| crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
 | L0.5             | 2                                              |
 | L1               | 3                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1125 passed, 0 failed                              |
+| lib tests        | 1156 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -140,11 +140,14 @@ Narrative context (manually maintained):
   (`docs/architecture/l0-l05-architecture-decisions.md`).
 - 8 new ADRs (021-028 + ADR-006 amendment) lock Foundation v0.81 constellation.
 - 5 stub ADRs (029/030/031/032/035) mark Wave 4A/4B reservations — prose lands Phase C.
-- **Active arc: Phase 2 M1 (kernel L0.5 sealed traits for computer-use) COMPLETE —
-  nika-kernel now seals 6 effect domains (io::{screen,ocr,a11y,input,browser} +
-  ai::vision) plus infra/runtime/plugin groups; ADR-081 locks 7 L1 security guards
-  forever (NIKA-1000..1599 reserved). Next: M2.1 nika-screen — first L1 effect-crate
-  admission (12-gate · guards 6+7 capture-LED + consent-UX · OS-native capture).**
-  See `docs/adr/adr-081-l1-effect-crate-guard-contract.md`.
+- **Active arc: Phase 2 M2 (L1 computer-use effect crates).** M1 (kernel L0.5
+  sealed traits · 6 effect domains io::{screen,ocr,a11y,input,browser} +
+  ai::vision · ADR-081 7 guards · NIKA-1000..1599 reserved) COMPLETE. M2.1
+  nika-screen ADMITTED (capture · guards 6+7 · `xcap` · NIKA-1000..1009).
+  M2.2 nika-ocr ADMITTED 2026-05-25 (text extraction · pure-Rust `ocrs` 0.12
+  + `rten` 0.24 · `spawn_blocking` · NIKA-1101..1109 · mutation 93.1 % +
+  Rule-2 model-inference exemption · `with_models` sovereign local-path load).
+  Next: M2.3 per the computer-use L1 sequence. See
+  `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-ocr.md`.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

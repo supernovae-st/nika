@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WIP** (Phase 2 M2.2 · second L1 effect crate · B.3 real `ocrs` inference wired · pre-admission · B.4 = mutation + 12-gate close) |
+| Status | **ADMITTED** 2026-05-25 (Phase 2 M2.2 · second L1 effect crate · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption · §6) |
 | Layer | L1 — effect implementation · async · `Send + Sync` · depends only on L0 / L0.5 |
 | Sub-tier | L1-effect — OCR text extraction behind the L0.5 `OcrEngine` trait. Pure-Rust backend (`ocrs`) so the crate is `unsafe_code = forbid`-clean |
 | Design | Thin adapter over **ocrs 0.12.2** (pure-Rust ML OCR · `rten` runtime · MIT/Apache · zero C system dep). Sync `ocrs` inference runs inside `tokio::task::spawn_blocking` (kernel CANCEL SAFETY contract · same pattern as `nika-screen`/`xcap`). RGBA8 `Frame` → RGB `ImageSource` → `prepare_input` → `detect_words` → `recognize_text` → `Vec<TextRegion>` |
@@ -105,17 +105,47 @@ pub enum OcrError { /* ModelNotFound(1101) .. TaskJoinFailed(1109) */ }
   (NIKA-1100 retired) · pure helpers `rgba_to_rgb` + `crop_rgba` +
   `words_bbox_union` extracted + proptested · 17 lib tests · clippy/doc/deny
   green. ✅
-- **B.4** mutation run (`cargo mutants -p nika-ocr`) → ≥90 % on the pure
-  surface + documented Rule-2 exemption for the `run_ocr` inference residue +
-  ADR-003 canonical 12-gate close + 3-agent review swarm + admission commit.
+- **B.4** mutation run (`cargo mutants -p nika-ocr -- --lib`) → **93.1 %**
+  (81/87 viable) + documented Rule-2 exemption for the 6 model-inference
+  mutants (§6.1) + ADR-003 canonical 12-gate close (§6) + Foreman-direct
+  3-lens review (PE-5.1 fallback) + admission commit. ✅ ADMITTED 2026-05-25.
 
-## 6. Gate-5 mutation posture (forward note)
+## 6. Gate status — ADR-003 canonical 12 gates
 
-Like `nika-screen`, the real OCR inference path is model-dependent (needs the
-`.rten` models + a real frame) → covered by `#[ignore]` smoke tests, not
-headless CI. Headless-reachable logic (error codes · frame-bounds validation ·
-RGBA→input conversion · `TextLine`→`TextRegion` mapping) targets 100 % mutation
-kill; the `ocrs` inference residue is documented-exempt per ADR-003 Rule 2.
+| # | Gate | Status | Evidence |
+|---|------|--------|----------|
+| 1 | SPEC | ✅ | this file |
+| 2 | TDD | ✅ | tests precede impl · 17 lib tests (incl 2 proptest cases) |
+| 3 | IMPL | ✅ | ~290 src LOC · `cargo check` 0 |
+| 4 | CLIPPY | ✅ | `clippy --workspace --all-targets -D warnings` 0 |
+| 5 | MUTATION | ✅ + exemption | `cargo mutants -p nika-ocr -- --lib` · **81/87 viable caught (93.1 %)** · 100 % of headless-reachable · 6 model-dependent mutants exempt (§6.1) |
+| 6 | PROPERTY | ✅ | proptest · `validate_region` in-bounds origin roundtrip + `crop_rgba` output-length invariant (`recognize.rs`) |
+| 7 | BENCHMARKS | ⚪ N/A | thin `ocrs` adapter · inference latency is model + CPU-bound, not a Nika hot path (exempt · ADR-003 Rule 2) |
+| 8 | DOCS | ✅ | `cargo doc --no-deps` 0 warnings · all pub items documented |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` workflow surface · real inference needs operator-provisioned `.rten` weights (never bundled · sovereignty Rule 1) |
+| 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.2) · no v0.79 brouillon `ocrs` equivalent to golden-test against |
+| 11 | REVIEW SWARM | ✅ | 3-lens review 2026-05-25 · sub-agents hit the 1M-context credit wall → **Foreman-direct** per `orchestrator-autonomous-v6.md` PE-5.1 (`model-context-required` fallback) · rust-pro + Diamond-discipline + bug-hunt lenses · all verdict ADMIT · 1 P1 (stale `lib.rs` module doc) fixed · independent-agent re-review can run when 1M credits are enabled |
+| 12 | ATOMIC COMMIT | ✅ | the admission commit |
+
+### 6.1 Gate 5 mutation exemption (ADR-003 Rule 2 · model-dependent FFI)
+
+`nika-ocr` is a thin adapter over the synchronous `ocrs` engine. 6 mutants are
+**exempt** — they live on the model-inference paths reachable only with real
+`.rten` detection + recognition weights (which headless CI does not have ·
+models are operator/daemon-provisioned, never bundled · sovereignty Rule 1):
+
+- `OcrBackend::Debug::fmt` (observing it needs a constructed backend → real models)
+- delete `detection_model` / `recognition_model` field in `with_models` (the
+  engine's behaviour with a missing model is only observable at inference time)
+- `run_ocr` → `Ok(vec![])` (the `ocrs` `detect → find_lines → recognize` pipeline)
+- `read` / `read_region` → `Ok(vec![])` (the trait methods that `spawn_blocking` `run_ocr`)
+
+All **headless-reachable** logic — the pure helpers (`validate_frame`,
+`validate_region`, `rgba_to_rgb`, `crop_rgba`, `words_bbox_union`) and the full
+`OcrError` surface (`code()`, `is_transient()`, `From<OcrError> for io::Error`) —
+is at 100 % mutation kill. Per ADR-003 Rule 2 the model-inference residue is
+documented-exempt, not skipped. Re-run with real weights:
+`OcrBackend::with_models(det, rec)` + a captured `Frame`.
 
 ## 7. Security (ADR-081)
 

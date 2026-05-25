@@ -10,10 +10,13 @@
 //! dependency), so this crate honours `unsafe_code = "forbid"` — the same
 //! sovereign posture `nika-screen` gets from `xcap`.
 //!
-//! **B.2 skeleton** · the `OcrEngine` methods validate their input purely
-//! (frame RGBA8 length + sub-region bounds) then return `BackendNotWired`.
-//! B.3 wires the real `ocrs` inference inside `spawn_blocking`. Error taxonomy
-//! NIKA-1100..1109 (ADR-081 nika-ocr sub-range NIKA-1100..1199).
+//! The `OcrEngine` methods validate their input purely (frame RGBA8 length +
+//! sub-region bounds · headless-testable) then run the real `ocrs` pipeline
+//! inside `tokio::task::spawn_blocking` (the engine is sync + CPU-bound).
+//! [`OcrBackend::with_models`] loads the detection + recognition `.rten`
+//! weights from explicit local paths. Error taxonomy NIKA-1101..1109
+//! (ADR-081 nika-ocr sub-range NIKA-1100..1199 · NIKA-1100 = retired B.2
+//! placeholder slot).
 //!
 //! Model files (`.rten` detection + recognition) are provisioned locally by
 //! the caller (sovereignty · telemetry-canon §0 · zero cloud · never an
