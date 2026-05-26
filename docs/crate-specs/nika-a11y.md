@@ -109,21 +109,42 @@ surface · not needed while the only consumer (Olympus cockpit) is darwin.
 > **AMENDED 2026-05-26 · ADR-083 cross-platform doctrine** (preserves the B.3
 > macOS decision above as historical · per `cross-source-validation.md` §2.7).
 > The "macOS-first, defer the rest behind a consumer signal" disposition is
-> **superseded**: per ADR-083 (L1 computer-use cross-platform · macOS + Linux
-> prio · Windows + all), `nika-a11y` is **scheduled for a Linux backend
-> refactor** — add the **`atspi`** backend (Linux AT-SPI2 · Apache/MIT · vetted
-> in the table above) behind the same `AccessibilityTree` trait (the DTO + Guard 3
-> are already backend-agnostic → additive `#[cfg(target_os = "linux")]`), then
-> `uiautomation` (Windows) later. macOS is no longer the *permanent* gate · it
-> is the first of the macOS+Linux pair. Tracked as a post-admission refactor
-> (M2.3-bis) · the crate stays ADMITTED on the macOS backend in the interim.
+> **superseded** per ADR-083 (L1 computer-use cross-platform · macOS + Linux
+> prio · Windows + all). **B.3-bis (2026-05-26) · the Linux `atspi` backend is
+> WRITTEN** behind `#[cfg(target_os = "linux")]` (async AT-SPI2 D-Bus · same
+> `AccessibilityTree` trait · the DTO + the pure Guard 3 core are backend-
+> agnostic + reused · role mapped via `atspi::Role` · secure marker set on
+> `Role::PasswordText`) + `build_raw_tree()` is cfg-branched (macOS sync
+> `spawn_blocking` · Linux async · else `BackendUnavailable`).
+>
+> ⚠️ **The Linux backend is CI-PENDING** · the dev host is `aarch64-apple-darwin`
+> only, so the `#[cfg(target_os = "linux")]` code is **NOT compiled or tested
+> here** (it is primary-source-grounded against `atspi` 0.29). It MUST be
+> compiled + its Guard 3 (`Role::PasswordText` → redaction) tested on a real
+> Linux / AT-SPI host before the Linux backend is trusted — inline `CI-VERIFY`
+> markers flag the variant-name + proxy-lifetime + async-recursion checkpoints.
+> The macOS backend + the pure Guard 3 core stay fully verified on darwin (14
+> lib tests + clippy 0 + `cargo deny` clean incl the atspi/zbus tree). Windows
+> `uiautomation` lands later. macOS is no longer the *permanent* gate · it is
+> the first of the macOS + Linux pair.
 
 ## 5. Mandatory Guard 3 — AX-secure-field redaction (ADR-081 · MANDATORY-at-admission)
 
 Per ADR-081 §matrix, `nika-a11y` owns **Guard 3 · MANDATORY-at-admission**:
-secure-text fields (macOS `AXSecureTextField` subrole · `NSAccessibilityProtectedContent`
-· AT-SPI `STATE_SENSITIVE`) MUST have their `AxNode.value` **stripped** before
-any node leaves the crate — passwords never reach a caller.
+secure-text fields MUST have their `AxNode.value` **stripped** before any node
+leaves the crate — passwords never reach a caller. The per-OS secure signal is:
+- **macOS** · the `AXSecureTextField` **subrole** (`attributes["AXSubrole"]`).
+- **Linux (AT-SPI)** · the **`Role::PasswordText` role** → `attributes["secure"]
+  = "true"`.
+
+> ⚠️ **Correctness fix (ADR-083 · 2026-05-26)** · the earlier draft cited AT-SPI
+> `STATE_SENSITIVE` as the secure signal. That is **wrong** — AT-SPI
+> `State::Sensitive` means *"enabled / interactive / not greyed-out"* (true for
+> almost every usable field), the **opposite** of secret. Using it would BOTH
+> over-redact ordinary fields AND miss real password inputs. The canonical
+> AT-SPI password signal is the **`PasswordText` role**. The `is_secure_field`
+> predicate + its unit tests are corrected accordingly (a `sensitive=true`
+> attribute now explicitly does **not** trip the guard).
 
 **Design — the guard is a PURE tree-transform** (the security-critical core is
 backend-independent + 100 % headless-testable + mutation-killable):
@@ -134,13 +155,14 @@ fn redact_secure_fields(node: AxNode) -> AxNode;          // recursive
 fn is_secure_field(node: &AxNode) -> bool;                // role/attr predicate
 ```
 
-`is_secure_field` reads the canonical convention the backend populates while
+`is_secure_field` reads ONE canonical marker the backend populates while
 walking: `attributes["AXSubrole"] == "AXSecureTextField"` (macOS) OR
-`attributes["sensitive"] == "true"` (AT-SPI `STATE_SENSITIVE`). When true, the
-node's `value` is replaced with `None` (NOT a masked string — zero leak). The
-guard is applied to **every** `snapshot`/`find`/`resolve_ref` result before
-return. Per ADR-081 per-guard contract: ≥3 unit tests (happy / redacted /
-nested-secure-child) + the pure transform is the all-OS mandatory gate.
+`attributes["secure"] == "true"` (Linux · set when role is `Role::PasswordText`).
+When true, the node's `value` is replaced with `None` (NOT a masked string —
+zero leak). The guard is applied to **every** `snapshot`/`find`/`resolve_ref`
+result before return on **every OS**. Per ADR-081 per-guard contract: ≥3 unit
+tests (happy / redacted / nested-secure-child / `sensitive`-is-not-secure) + the
+pure transform is the all-OS mandatory gate.
 
 ## 6. Batch plan (skeleton-option-A · per nika-screen / nika-ocr precedent)
 
@@ -162,9 +184,25 @@ nested-secure-child) + the pure transform is the all-OS mandatory gate.
   role map + find_by_id + redaction + query-filter) + Rule-2 exemption for the
   7 `AXUIElement`-walk mutants (§7.1) + ADR-003 canonical 12-gate close (§7) +
   Foreman-direct 3-lens review (PE-5.1 · added `MAX_WALK_DEPTH` untrusted-input
-  cap) + admission commit. ✅ ADMITTED 2026-05-25.
+  cap) + admission commit. ✅ ADMITTED 2026-05-25 (macOS).
+- **B.3-bis** (2026-05-26 · ADR-083 cross-platform) Linux `atspi` backend
+  written behind `#[cfg(target_os = "linux")]` (async AT-SPI2 · `atspi_role_to_ax`
+  · `build_node_atspi` `Box::pin` recursion · `Role::PasswordText` → `secure`
+  marker reusing the pure Guard 3) + `build_raw_tree()` cfg-branch + Guard 3
+  semantic fix (`secure` marker · NOT `State::Sensitive`). macOS path re-verified
+  green (14 lib tests · clippy 0 · `cargo deny` clean incl atspi/zbus tree).
+  ⚠️ **Linux backend CI-PENDING** — `#[cfg(target_os = "linux")]` code NOT
+  compiled/tested on the darwin host · primary-source-grounded (`atspi` 0.29) ·
+  compile + Guard 3 test required on a Linux/AT-SPI host (inline `CI-VERIFY`).
 
 ## 7. Gate status — ADR-003 canonical 12 gates
+
+> **macOS backend** · all 12 gates ✅ (admitted 2026-05-25 · table below). The
+> **Linux `atspi` backend** (B.3-bis · 2026-05-26) is gate-tracked SEPARATELY ·
+> Gate 3 IMPL / Gate 4 CLIPPY / Gate 5 MUTATION are **⏳ Linux-CI-pending** (the
+> darwin dev host cannot compile `#[cfg(target_os = "linux")]`). The pure Guard 3
+> core it relies on IS verified on darwin; the atspi walk + its `Role::PasswordText`
+> detection MUST be compiled + tested on a Linux/AT-SPI host before trust.
 
 | # | Gate | Status | Evidence |
 |---|------|--------|----------|

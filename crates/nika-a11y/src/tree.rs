@@ -1,19 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Accessibility backend — implements the L0.5 `AccessibilityTree` trait.
+//! Accessibility backend — implements the L0.5 `AccessibilityTree` trait,
+//! **cross-platform** per ADR-083 (macOS + Linux prio · Windows + all).
 //!
-//! **B.2 skeleton.** `snapshot` / `find` / `resolve_ref` return the
-//! `BackendNotWired` placeholder; B.3 wires the macOS `accessibility`
-//! (`AXUIElement`) walk inside `tokio::task::spawn_blocking` (the handle is
-//! `!Send` · stays worker-local · same pattern as `nika-screen`'s `xcap`).
+//! Architecture · a backend-agnostic pure core (DTO assembly · the Guard 3
+//! redaction · `find`/query · `@e<N>` ref-cache · role + secure-marker logic)
+//! + a per-OS raw-tree walk dispatched by [`build_raw_tree`]:
+//! - **macOS** (verified) · sync `accessibility` `AXUIElement` walk in
+//!   `tokio::task::spawn_blocking` (the `!Send` handle stays worker-local).
+//! - **Linux** (⚠️ CI-pending) · async `atspi` AT-SPI2 D-Bus walk · NOT
+//!   compiled on the darwin dev host · primary-source-grounded · see the
+//!   Linux backend banner below.
+//! - **other** · `A11yError::BackendUnavailable`.
 //!
-//! **Mandatory Guard 3 (ADR-081 · AX-secure-field redaction) is headless-
-//! complete at B.2** — it is a PURE recursive tree-transform
-//! ([`redact_secure_fields`]) that strips `value` from any secure-text node
-//! ([`is_secure_field`]) so passwords NEVER leave the crate. B.3 applies it to
-//! every `snapshot`/`find`/`resolve_ref` result before return. The OS walk
-//! that builds the raw tree is the only Rule-2-exempt (FFI) residue.
+//! **Mandatory Guard 3 (ADR-081 · secure-field redaction) is a PURE recursive
+//! tree-transform** ([`redact_secure_fields`]) that strips `value` from any
+//! secure-text node ([`is_secure_field`]) so passwords NEVER leave the crate —
+//! applied to every `snapshot`/`find`/`resolve_ref` result on every OS. Each
+//! backend sets the canonical secure marker (macOS `AXSubrole ==
+//! AXSecureTextField` · Linux `Role::PasswordText` → `secure = true`). The OS
+//! walks that build the raw tree are the only Rule-2-exempt (FFI) residue.
 
 use std::sync::Mutex;
 
@@ -42,19 +49,16 @@ impl AxBackend {
         Ok(Self::default())
     }
 
-    /// Walk the focused window, apply the MANDATORY Guard 3 redaction, cache
-    /// the result for `resolve_ref`, and return it.
+    /// Walk the focused window via the per-OS backend ([`build_raw_tree`]),
+    /// apply the MANDATORY Guard 3 redaction, cache the result for
+    /// `resolve_ref`, and return it.
     ///
-    /// The sync OS walk runs in `spawn_blocking` — the `!Send` `AXUIElement`
-    /// handle is created + dropped worker-local (kernel CANCEL SAFETY: a
-    /// dropped future abandons the read with no caller-visible state · the
-    /// blocking task finishes on the pool and its result is discarded).
+    /// The OS walk is backend-specific (macOS · sync `AXUIElement` in
+    /// `spawn_blocking` · Linux · async AT-SPI2 D-Bus) but the redaction +
+    /// cache are backend-agnostic — Guard 3 runs on every result regardless of
+    /// OS, so no secure value ever leaves the crate on any platform.
     async fn redacted_snapshot(&self) -> std::io::Result<AxNode> {
-        let raw = tokio::task::spawn_blocking(walk_focused_tree)
-            .await
-            .map_err(|e| A11yError::TaskJoinFailed {
-                reason: e.to_string(),
-            })??;
+        let raw = build_raw_tree().await?;
         let tree = redact_secure_fields(raw);
         if let Ok(mut cache) = self.last_snapshot.lock() {
             *cache = Some(tree.clone());
@@ -125,12 +129,12 @@ fn assemble_node(
     AxNode::new(id, role, label, value, None, children, attributes)
 }
 
-/// Walk the focused window's accessibility tree into an [`AxNode`].
+/// Walk the focused window's accessibility tree into an [`AxNode`] — **macOS**.
 ///
-/// macOS · `AXUIElement::system_wide().focused_window()` rooted recursive walk
+/// `AXUIElement::system_wide().focused_window()` rooted recursive walk
 /// (role/label/value/subrole/children). The `value` of secure fields is
-/// stripped downstream by [`redact_secure_fields`] (Guard 3). Non-macOS ·
-/// [`A11yError::BackendUnavailable`] until AT-SPI / UIA backends land (§4).
+/// stripped downstream by [`redact_secure_fields`] (Guard 3). Sync · driven
+/// from [`build_raw_tree`] inside `spawn_blocking`.
 #[cfg(target_os = "macos")]
 fn walk_focused_tree() -> Result<AxNode, A11yError> {
     use accessibility::{AXUIElement, AXUIElementAttributes};
@@ -142,11 +146,12 @@ fn walk_focused_tree() -> Result<AxNode, A11yError> {
     Ok(build_node(&root, &mut counter, 0))
 }
 
-/// Hard recursion cap for the AX walk · the focused app's tree is untrusted
+/// Hard recursion cap for the OS walk · the focused app's tree is untrusted
 /// input, so a pathologically deep (or cyclic) tree MUST NOT overflow the
-/// stack. Generous — native AX trees rarely exceed a few dozen levels;
-/// children below the cap are truncated (the node itself is kept).
-#[cfg(target_os = "macos")]
+/// stack. Generous — native AX/AT-SPI trees rarely exceed a few dozen levels;
+/// children below the cap are truncated (the node itself is kept). Shared by
+/// the macOS `AXUIElement` walk + the Linux AT-SPI walk.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 const MAX_WALK_DEPTH: u16 = 512;
 
 /// Recursively map one `AXUIElement` to an [`AxNode`] — macOS. Assigns a
@@ -188,25 +193,193 @@ fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32, depth: u16) 
     assemble_node(id, &role_str, title, value, subrole, children)
 }
 
-/// Non-macOS · no accessibility backend yet (§4 macOS-first · Linux AT-SPI /
-/// Windows UIA land additively on a consumer signal).
-#[cfg(not(target_os = "macos"))]
-fn walk_focused_tree() -> Result<AxNode, A11yError> {
-    Err(A11yError::BackendUnavailable)
+/// Build the raw (un-redacted) accessibility tree via the per-OS backend.
+///
+/// Backend dispatch (ADR-083 cross-platform doctrine · macOS + Linux prio) ·
+/// - **macOS** · the sync `AXUIElement` walk in `spawn_blocking` (the `!Send`
+///   handle stays worker-local · kernel CANCEL SAFETY · a dropped future
+///   abandons the read, the blocking task finishes on the pool + is discarded).
+/// - **Linux** · the async AT-SPI2 D-Bus walk (`walk_focused_tree_async`,
+///   `#[cfg(target_os = "linux")]`) — no `spawn_blocking` (natively async).
+/// - **other** · [`A11yError::BackendUnavailable`] (NIKA-1205).
+///
+/// Guard 3 redaction is applied by the caller ([`AxBackend::redacted_snapshot`])
+/// on the result, so it is backend-agnostic.
+#[cfg(target_os = "macos")]
+async fn build_raw_tree() -> std::io::Result<AxNode> {
+    let raw = tokio::task::spawn_blocking(walk_focused_tree)
+        .await
+        .map_err(|e| A11yError::TaskJoinFailed {
+            reason: e.to_string(),
+        })??;
+    Ok(raw)
+}
+
+#[cfg(target_os = "linux")]
+async fn build_raw_tree() -> std::io::Result<AxNode> {
+    let raw = walk_focused_tree_async().await?;
+    Ok(raw)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+async fn build_raw_tree() -> std::io::Result<AxNode> {
+    Err(A11yError::BackendUnavailable.into())
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Linux AT-SPI2 backend (ADR-083 · M2.3-bis) · ⚠️ CI-PENDING.
+//
+// This `#[cfg(target_os = "linux")]` module is NOT compiled or tested on the
+// darwin dev host (aarch64-apple-darwin only). It is primary-source-grounded
+// against the `atspi` 0.29 API (docs.rs · `AccessibilityConnection` ·
+// `root_accessible_on_registry` · `get_children` · `get_role` → `Role` enum ·
+// `into_accessible_proxy`) BUT MUST be compiled + its Guard 3 path tested on a
+// real Linux / AT-SPI host before the Linux backend is trusted. Known
+// CI-verify points are flagged inline (`CI-VERIFY`).
+//
+// SECURITY (Guard 3) · the secure-field signal on AT-SPI is the
+// **`Role::PasswordText`** role — NOT `State::Sensitive` (which means
+// "enabled / interactive", the opposite of secret · ADR-083). A
+// `PasswordText` node is marked `attributes["secure"] = "true"`, which the
+// pure [`is_secure_field`] / [`redact_secure_fields`] then redact. If the
+// `Role::PasswordText` variant name is wrong, Guard 3 silently fails →
+// password leak · this is the #1 CI-VERIFY item.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Map an `atspi::Role` to the canonical [`AxRole`] — **Linux** · pure.
+/// Unmapped roles fall back to [`AxRole::Unknown`]. The `_` arm is mandatory
+/// (`atspi::Role` is `#[non_exhaustive]`).
+///
+/// CI-VERIFY · the `atspi::Role` variant names below are from the AT-SPI2
+/// `ROLE_*` standard (PascalCase) · confirm each against `atspi` 0.29 on the
+/// Linux build (a wrong name is a compile error here, caught by Linux CI).
+#[cfg(target_os = "linux")]
+fn atspi_role_to_ax(role: atspi::Role) -> AxRole {
+    use atspi::Role;
+    match role {
+        Role::PushButton | Role::ToggleButton => AxRole::Button,
+        Role::Link => AxRole::Link,
+        // PasswordText also maps to TextField for the role; the secure marker
+        // is set separately at walk time (see build_node_atspi).
+        Role::Entry | Role::Text | Role::PasswordText => AxRole::TextField,
+        Role::Image => AxRole::Image,
+        Role::Panel | Role::Filler => AxRole::Group,
+        Role::Frame | Role::Window | Role::Dialog => AxRole::Window,
+        Role::Menu => AxRole::Menu,
+        Role::Label | Role::Static => AxRole::StaticText,
+        Role::List => AxRole::List,
+        Role::ListItem | Role::TableRow | Role::TableCell => AxRole::ListItem,
+        Role::Heading => AxRole::Heading,
+        _ => AxRole::Unknown,
+    }
+}
+
+/// Walk the active desktop's AT-SPI2 tree into an [`AxNode`] — **Linux** ·
+/// async D-Bus. Connects to the session a11y bus, roots at the registry, and
+/// recursively maps each accessible. ⚠️ CI-PENDING (see module banner).
+#[cfg(target_os = "linux")]
+async fn walk_focused_tree_async() -> Result<AxNode, A11yError> {
+    use atspi::AccessibilityConnection;
+    use atspi::connection::set_session_accessibility;
+
+    let atspi_conn =
+        AccessibilityConnection::new()
+            .await
+            .map_err(|e| A11yError::TreeWalkFailed {
+                reason: format!("a11y bus connect: {e}"),
+            })?;
+    // CI-VERIFY · ensures the session AT-SPI bus is enabled (no-op if already).
+    set_session_accessibility(true)
+        .await
+        .map_err(|e| A11yError::TreeWalkFailed {
+            reason: format!("enable session a11y: {e}"),
+        })?;
+    let conn = atspi_conn.connection();
+    let root = atspi_conn
+        .root_accessible_on_registry()
+        .await
+        .map_err(|_| A11yError::NoFocusedApplication)?;
+    let mut counter: u32 = 0;
+    Ok(build_node_atspi(root, conn, &mut counter, 0).await)
+}
+
+/// Recursively map one AT-SPI `AccessibleProxy` to an [`AxNode`] — **Linux** ·
+/// `Box::pin` async recursion (depth-bounded by [`MAX_WALK_DEPTH`]). `value` is
+/// `None` at v1 (AT-SPI `Text`-interface reads are a later refinement · secure
+/// fields would be redacted regardless). ⚠️ CI-PENDING · the `AccessibleProxy`
+/// lifetime + `&mut counter` reborrow across `.await` are the CI-VERIFY items.
+#[cfg(target_os = "linux")]
+fn build_node_atspi<'a>(
+    proxy: atspi::proxy::accessible::AccessibleProxy<'a>,
+    // CI-VERIFY · zbus re-export path · `atspi::zbus::Connection` (atspi
+    // re-exports zbus) · if absent on 0.29, add `zbus` as a linux-target dep.
+    conn: &'a atspi::zbus::Connection,
+    counter: &'a mut u32,
+    depth: u16,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = AxNode> + 'a>> {
+    use atspi::proxy::accessible::ObjectRefExt;
+    use std::collections::BTreeMap;
+
+    Box::pin(async move {
+        *counter += 1;
+        let id = format!("@e{counter}");
+
+        // One role read · derive both the AxRole and the secure marker from it.
+        let raw_role = proxy.get_role().await.ok();
+        let secure = matches!(raw_role, Some(atspi::Role::PasswordText));
+        let role = raw_role.map_or(AxRole::Unknown, atspi_role_to_ax);
+        let label = proxy.name().await.ok().filter(|s| !s.is_empty());
+
+        let mut attributes = BTreeMap::new();
+        if secure {
+            // Guard 3 marker · is_secure_field reads attributes["secure"].
+            attributes.insert("secure".to_string(), "true".to_string());
+        }
+
+        let children = if depth >= MAX_WALK_DEPTH {
+            Vec::new()
+        } else {
+            match proxy.get_children().await {
+                Ok(refs) => {
+                    let mut out = Vec::new();
+                    for child_ref in refs {
+                        if child_ref.is_null() {
+                            continue;
+                        }
+                        if let Ok(child_proxy) = child_ref.into_accessible_proxy(conn).await {
+                            out.push(build_node_atspi(child_proxy, conn, counter, depth + 1).await);
+                        }
+                    }
+                    out
+                }
+                Err(_) => Vec::new(),
+            }
+        };
+
+        // value None at v1 (Text-interface read deferred · secure ⇒ redacted).
+        AxNode::new(id, role, label, None, None, children, attributes)
+    })
 }
 
 /// True when a node is a secure-text field whose `value` MUST be redacted —
-/// **pure** (ADR-081 Guard 3). The L1 backend populates the canonical markers
-/// while walking: macOS `attributes["AXSubrole"] == "AXSecureTextField"` ·
-/// AT-SPI `attributes["sensitive"] == "true"` (`STATE_SENSITIVE`).
+/// **pure** (ADR-081 Guard 3). The L1 backend populates ONE canonical marker
+/// while walking, per OS:
+/// - macOS · `attributes["AXSubrole"] == "AXSecureTextField"` (the secure
+///   subrole reported by `AXTextField` password inputs).
+/// - AT-SPI (Linux) · `attributes["secure"] == "true"`, set by the atspi
+///   backend when the element's **role is `Role::PasswordText`**.
+///
+/// ⚠️ Correctness note (ADR-083 · 2026-05-26) · AT-SPI `State::Sensitive` is
+/// **NOT** a secrecy signal — it means "enabled / interactive / not greyed-out"
+/// (true for almost every usable field). The earlier `attributes["sensitive"]
+/// == "true"` marker was a misreading that would BOTH over-redact ordinary
+/// fields AND miss real password inputs. The canonical AT-SPI password signal
+/// is the **`PasswordText` role**, mapped to the `secure` marker at walk time.
 fn is_secure_field(node: &AxNode) -> bool {
     node.attributes
         .get("AXSubrole")
         .is_some_and(|s| s == "AXSecureTextField")
-        || node
-            .attributes
-            .get("sensitive")
-            .is_some_and(|s| s == "true")
+        || node.attributes.get("secure").is_some_and(|s| s == "true")
 }
 
 /// Recursively strip `value` from every secure-text field in the tree —
@@ -333,18 +506,19 @@ mod tests {
     // --- is_secure_field + redact_secure_fields (Guard 3 · mutation-killing) ---
 
     #[test]
-    fn is_secure_field_detects_macos_subrole_and_atspi_sensitive() {
+    fn is_secure_field_detects_macos_subrole_and_atspi_secure_marker() {
         assert!(is_secure_field(&leaf(
             "@e1",
             AxRole::TextField,
             Some("hunter2"),
             &[("AXSubrole", "AXSecureTextField")]
         )));
+        // AT-SPI backend sets `secure=true` when role is `PasswordText`.
         assert!(is_secure_field(&leaf(
             "@e2",
             AxRole::TextField,
             Some("hunter2"),
-            &[("sensitive", "true")]
+            &[("secure", "true")]
         )));
         assert!(!is_secure_field(&leaf(
             "@e3",
@@ -358,6 +532,14 @@ mod tests {
             AxRole::TextField,
             Some("plain"),
             &[("AXSubrole", "AXSearchField")]
+        )));
+        // `sensitive=true` (AT-SPI "interactive / not greyed-out") must NOT
+        // trip the guard — it is NOT a secrecy signal (ADR-083 correctness).
+        assert!(!is_secure_field(&leaf(
+            "@e5",
+            AxRole::TextField,
+            Some("plain-but-interactive"),
+            &[("sensitive", "true")]
         )));
     }
 
@@ -383,7 +565,7 @@ mod tests {
             "@e2",
             AxRole::TextField,
             Some("topsecret"),
-            &[("sensitive", "true")],
+            &[("secure", "true")],
         );
         let plain_child = leaf("@e3", AxRole::StaticText, Some("label"), &[]);
         let parent = AxNode::new(
@@ -640,7 +822,7 @@ mod tests {
                 .map(|i| {
                     let secure = (secure_mask >> (i % 8)) & 1 == 1;
                     let attrs: &[(&str, &str)] =
-                        if secure { &[("sensitive", "true")] } else { &[] };
+                        if secure { &[("secure", "true")] } else { &[] };
                     leaf(&format!("@e{i}"), AxRole::TextField, Some("secret"), attrs)
                 })
                 .collect();

@@ -1,6 +1,6 @@
 [package]
 name          = "nika-a11y"
-description   = "Accessibility-tree-query L1 effect crate — implements the nika-kernel AccessibilityTree trait (snapshot + find + resolve_ref) via the macOS AXUIElement backend (safe `accessibility` crate). Third computer-use L1 · M2.3 · owns ADR-081 Guard 3 (AX-secure-field redaction · mandatory)."
+description   = "Accessibility-tree-query L1 effect crate — implements the nika-kernel AccessibilityTree trait (snapshot + find + resolve_ref) via per-OS backends: macOS AXUIElement (safe `accessibility` crate) + Linux AT-SPI2 (`atspi` · CI-pending). Third computer-use L1 · M2.3 · cross-platform per ADR-083 · owns ADR-081 Guard 3 (secure-field redaction · mandatory · backend-agnostic)."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -13,7 +13,7 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 # Gate 2 (ADR linked) · ADR-081 = 7 L1 security guards forever; nika-a11y OWNS
 # Guard 3 (AX-secure-field redaction · MANDATORY-at-admission · pure tree-transform).
 [package.metadata.adr]
-adr = ["ADR-003", "ADR-081"]
+adr = ["ADR-003", "ADR-081", "ADR-083"]
 
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
@@ -25,10 +25,21 @@ tokio       = { workspace = true, features = ["rt"] }
 # macOS backend (B.3) · accessibility = safe AXUIElement API (TreeWalker · the
 # unsafe ApplicationServices FFI is encapsulated → this crate stays
 # unsafe_code = forbid). core-foundation for CFString/CFType reads (value ·
-# subrole). Both gated to macOS — Linux AT-SPI / Windows UIA land later (§4).
+# subrole). macOS-gated · the macOS backend + the pure Guard 3 core are the
+# fully-verified path on the darwin dev host.
 [target.'cfg(target_os = "macos")'.dependencies]
 accessibility   = { workspace = true }
 core-foundation = { workspace = true }
+
+# Linux backend (B.3-bis · ADR-083 cross-platform doctrine) · atspi = pure-Rust
+# async AT-SPI2 D-Bus client (encapsulates the D-Bus FFI → keeps unsafe forbid).
+# ⚠️ CI-pending · this #[cfg(target_os = "linux")] path is NOT compiled/tested on
+# the darwin dev host (aarch64-apple-darwin only). It is primary-source-grounded
+# (atspi 0.29 API verified via docs.rs) but MUST be compiled + its Guard 3
+# (Role::PasswordText → secure redaction) tested on a Linux/AT-SPI host before
+# the Linux backend is trusted. Windows UIA (`uiautomation`) lands later.
+[target.'cfg(target_os = "linux")'.dependencies]
+atspi = { workspace = true }
 
 [dev-dependencies]
 # #[tokio::test] for the async AccessibilityTree methods · proptest pins the
