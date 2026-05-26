@@ -106,6 +106,18 @@ surface · not needed while the only consumer (Olympus cockpit) is darwin.
 > (`#[cfg(not(target_os = "macos"))]`) until a consumer signal (LOCK-031).
 > The mandatory Guard 3 + DTO mapping + ref-cache stay backend-agnostic.
 
+> **AMENDED 2026-05-26 · ADR-083 cross-platform doctrine** (preserves the B.3
+> macOS decision above as historical · per `cross-source-validation.md` §2.7).
+> The "macOS-first, defer the rest behind a consumer signal" disposition is
+> **superseded**: per ADR-083 (L1 computer-use cross-platform · macOS + Linux
+> prio · Windows + all), `nika-a11y` is **scheduled for a Linux backend
+> refactor** — add the **`atspi`** backend (Linux AT-SPI2 · Apache/MIT · vetted
+> in the table above) behind the same `AccessibilityTree` trait (the DTO + Guard 3
+> are already backend-agnostic → additive `#[cfg(target_os = "linux")]`), then
+> `uiautomation` (Windows) later. macOS is no longer the *permanent* gate · it
+> is the first of the macOS+Linux pair. Tracked as a post-admission refactor
+> (M2.3-bis) · the crate stays ADMITTED on the macOS backend in the interim.
+
 ## 5. Mandatory Guard 3 — AX-secure-field redaction (ADR-081 · MANDATORY-at-admission)
 
 Per ADR-081 §matrix, `nika-a11y` owns **Guard 3 · MANDATORY-at-admission**:
