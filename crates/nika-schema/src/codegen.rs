@@ -37,9 +37,9 @@ use serde_json::{Value, json};
 ///   "type": "string",
 ///   "description": "`nika:*` builtin · 26 canonical per stdlib v0.1",
 ///   "enum": [
-///     "nika:assert", "nika:cost", "nika:csv_to_json", "nika:dag_info",
-///     "nika:date",   "nika:done", "nika:edit",        "nika:emit",
-///     "nika:fetch",  "nika:glob", "nika:grep",        "nika:hash",
+///     "nika:assert", "nika:convert", "nika:cost",  "nika:dag_info",
+///     "nika:date",   "nika:done",    "nika:edit",  "nika:emit",
+///     "nika:fetch",  "nika:glob",    "nika:grep",  "nika:hash",
 ///     "nika:jq",     "nika:json_diff",   "nika:json_merge_patch",
 ///     "nika:log",    "nika:notify",      "nika:prompt",
 ///     "nika:read",   "nika:records",     "nika:sleep",

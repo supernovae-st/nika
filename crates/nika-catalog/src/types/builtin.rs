@@ -35,7 +35,7 @@ impl Builtin {
 /// 5 categories per `nika/spec/stdlib/builtins-v0.1.md` ·
 /// - [`Self::Core`] (7) · `sleep` · `log` · `emit` · `assert` · `prompt` · `done` · `wait_until`
 /// - [`Self::File`] (5) · `read` · `write` · `edit` · `glob` · `grep`
-/// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `csv_to_json` · `uuid` · `date` · `hash`
+/// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `convert` · `uuid` · `date` · `hash`
 /// - [`Self::Network`] (2) · `fetch` · `notify`
 /// - [`Self::Introspection`] (4) · `cost` · `records` · `dag_info` · `threads`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,7 +52,7 @@ pub enum BuiltinCategory {
     /// Data transform + validation + identity primitives. `jq` is THE
     /// data language (subsumes legacy `map` · `filter` · `group_by` ·
     /// `json_merge` · etc per D-2026-05-22-N6 cut).
-    /// `jq` · `json_diff` · `validate` · `json_merge_patch` · `csv_to_json` · `uuid` · `date` · `hash`.
+    /// `jq` · `json_diff` · `validate` · `json_merge_patch` · `convert` · `uuid` · `date` · `hash`.
     Data,
     /// Network I/O primitives. Output trust = `Untrusted` (always).
     /// `fetch` · `notify`.
