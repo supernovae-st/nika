@@ -473,7 +473,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 `response: {full, binary}`, reached via `invoke: {tool: "nika:fetch"}`.
 Per D-2026-05-22-N18.)
 
-**63 builtin tools** (full engine inventory · the `nika-spec` **v0.1 stdlib contract** curates **42** of these — 7 core · 5 file · 22 data · 6 introspection · 2 network — and defers 24 media builtins to stdlib v0.x) split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
+**63 builtin tools** (full engine inventory · the `nika-spec` **v0.1 stdlib contract** curates **26** of these — 7 core · 5 file · 8 data · 4 introspection · 2 network — per D-N6 jq-subsumption + json_merge cut 2026-05-27 · was 42 · and defers 24 media builtins to stdlib v0.x) split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
 - Core (7): `sleep`, `log`, `emit`, `assert`, `prompt`, `run`, `complete`
 - File (5): `read`, `write`, `edit`, `glob`, `grep`
 - Introspection (6): `dag_info`, `task_status`, `threads`, `orchestrate`, `cost`, `records`
@@ -481,6 +481,8 @@ Per D-2026-05-22-N18.)
 - Media always-on (5): `import`, `decode`, `dimensions`, `thumbhash`, `dominant_color`
 - Media core (3): `thumbnail`, `convert`, `strip`
 - Media opt-in (18): `metadata`, `optimize`, `svg_render`, `chart`, `phash`, `compare`, `pdf_extract`, `provenance`, `verify`, `qr_validate`, `quality`, `html_to_md`, `css_select`, `extract_metadata`, `extract_links`, `readability`, `pipeline`
+
+> ⚠️ **The per-category lists above are the engine's pre-D-N6 full-inventory snapshot** (§2.7 · preserve + flag). The **spec-curated 26** (the contract · `nika-spec/stdlib/builtins-v0.1.md`) is canonical: jq subsumes ~13 of the Data entries (`map`/`filter`/`group_by`/`flatten`/`aggregate`/`enrich`/`inject`/`base64`/`json_to_csv`/`locale_lookup`/`json_merge`) · `json_verify`+`yaml_validate`→`validate` · canonical Core = `sleep`/`log`/`emit`/`assert`/`prompt`/`done`/`wait_until` (`run` removed · `complete`→`done` per D-N18) · canonical Introspection = `cost`/`records`/`dag_info`/`threads` (`task_status`→`${{ tasks.X.status }}` · `orchestrate` cut) · fetch extract-mode `jsonpath`→`jq`. The engine's actual L2 `nika-builtin` set reconciles to the spec at admission (POST_AUDIT-governed · not a cascade edit).
 
 **65 pipe transforms** (in `nika-binding`): string (9), array (9), aggregation (7), numeric (5), type (5), logic (1), introspection (1), parametric (8), query (9), string-test (3), URL (4), encoding (4), JQ (1 — `jq(expr)` full stdlib), system (1 — `shell` escape).
 
