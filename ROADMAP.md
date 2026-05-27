@@ -93,7 +93,7 @@ Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
 - **nika-catalog** — static catalogs with phf+unicase lookup (226 tests after 4B)
   - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
   - 105 MCP servers, **32 LLM providers**, 13 embeddings, 63 builtins, 65 transforms
-    *(this is the `nika-catalog` **inventory** — what the engine has metadata for. Distinct from the `nika-spec` **v0.1 stdlib contract** of 13 providers · 42 builtins · 9 extract modes that a conformant engine must support · the extra builtins are media/opt-in, deferred to stdlib v0.x.)*
+    *(this is the `nika-catalog` **inventory** — what the engine has metadata for. Distinct from the `nika-spec` **v0.1 stdlib contract** of 13 providers · 26 builtins · 9 extract modes that a conformant engine must support · the extra builtins are media/opt-in, deferred to stdlib v0.x.)*
   - **TOML-driven capability resolver** — **49 rules**, zero-alloc, proptest 10k parity
   - `api_dialect` on all 32 providers (closed set, FK-validated at build time)
   - **12-field `ModelCapabilities`**: token_limit_param + temperature + stop + reasoning + input/output modalities + tokenizer (**12 families**: Cl100k/O200k/ClaudeV3/Gemini/LlamaV3/LlamaV4/MistralV3/DeepSeek/Qwen/Granite/Glm/Grok) + supported_parameters (**13 flags**: incl. BatchApi/ContextCaching/PredictedOutputs/ComputerUse/Citations/IncludeReasoning) + system_messages + context_window_tokens + max_output_tokens + json_mode
