@@ -79,7 +79,7 @@ impl InvocationSource {
 
 /// Builtins that propagate input trust (data transforms · in-process · 7).
 const TRUST_PROPAGATING_BUILTINS: &[&str] = &[
-    "nika:csv_to_json",
+    "nika:convert",
     "nika:glob",
     "nika:grep",
     "nika:jq",
@@ -214,8 +214,10 @@ mod tests {
 
     #[test]
     fn legacy_builtins_unknown_post_d_n6() {
-        // Builtins cut per D-2026-05-22-N6 must NOT be categorized (jq
-        // subsumes them · the unknown-builtin fail-closed path applies).
+        // Builtins cut per D-2026-05-22-N6 + 2026-05-27 Rams sweep must
+        // NOT be categorized (jq subsumes most · `csv_to_json` superseded
+        // by universal `nika:convert` per ADR-086 · the unknown-builtin
+        // fail-closed path applies).
         for legacy in [
             "nika:map",
             "nika:filter",
@@ -242,6 +244,7 @@ mod tests {
             "nika:store",
             "nika:recall",
             "nika:embed",
+            "nika:csv_to_json",
         ] {
             assert!(
                 !is_categorized_builtin(legacy),

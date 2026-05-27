@@ -159,8 +159,11 @@ mod tests {
 
     #[test]
     fn enum_excludes_legacy_post_d_n6() {
-        // Regression guard · 5 legacy names (cut per D-2026-05-22-N6 +
-        // 2026-05-27 json_merge cut · jq + json_merge_patch subsume them).
+        // Regression guard · 6 legacy names (cut per D-2026-05-22-N6 +
+        // 2026-05-27 json_merge cut + ADR-086 Rams sweep · jq +
+        // json_merge_patch subsume the data-transform legacy · `nika:
+        // convert` supersedes the single-direction `nika:csv_to_json`
+        // with universal multi-format conversion).
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum array");
         for legacy in [
@@ -169,6 +172,7 @@ mod tests {
             "nika:json_merge",
             "nika:run",
             "nika:complete",
+            "nika:csv_to_json",
         ] {
             assert!(
                 !arr.iter().any(|v| v.as_str() == Some(legacy)),

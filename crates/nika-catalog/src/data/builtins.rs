@@ -28,12 +28,12 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         category: Core,
     },
     Builtin {
-        name: "cost",
-        category: Introspection,
+        name: "convert",
+        category: Data,
     },
     Builtin {
-        name: "csv_to_json",
-        category: Data,
+        name: "cost",
+        category: Introspection,
     },
     Builtin {
         name: "dag_info",
