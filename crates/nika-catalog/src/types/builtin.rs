@@ -3,8 +3,13 @@
 
 //! Builtin tool definitions (nika:* tools).
 //!
-//! 63 tools across 10 categories. Stored in a sorted array for
+//! 26 tools across 5 categories. Stored in a sorted array for
 //! case-sensitive binary search.
+//!
+//! Reconciled to spec v0.1 stdlib per D-2026-05-22-N6 (42→26 collapse ·
+//! `jq` subsumes ~13 data builtins · `JSONPath` dropped · media DEFERRED
+//! to stdlib v0.x) + 2026-05-27 follow-on `nika:json_merge` cut (`jaq`
+//! source-verified · `jq *` recursive-merge subsumes it).
 
 /// A known `nika:*` builtin tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,29 +31,33 @@ impl Builtin {
 }
 
 /// Category of builtin tool.
+///
+/// 5 categories per `nika/spec/stdlib/builtins-v0.1.md` ·
+/// - [`Self::Core`] (7) · `sleep` · `log` · `emit` · `assert` · `prompt` · `done` · `wait_until`
+/// - [`Self::File`] (5) · `read` · `write` · `edit` · `glob` · `grep`
+/// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `csv_to_json` · `uuid` · `date` · `hash`
+/// - [`Self::Network`] (2) · `fetch` · `notify`
+/// - [`Self::Introspection`] (4) · `cost` · `records` · `dag_info` · `threads`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
 #[non_exhaustive]
 pub enum BuiltinCategory {
-    /// Core tools: sleep, log, emit, assert, prompt, run, complete.
+    /// Core control + assertion + observation primitives.
+    /// `sleep` · `log` · `emit` · `assert` · `prompt` · `done` · `wait_until`.
     Core,
-    /// File tools: read, write, edit, glob, grep.
+    /// File system primitives (read-side trust-propagating · write-side external).
+    /// `read` · `write` · `edit` · `glob` · `grep`.
     File,
-    /// Data tools: `jq`, `json_merge`, `json_diff`, etc.
+    /// Data transform + validation + identity primitives. `jq` is THE
+    /// data language (subsumes legacy `map` · `filter` · `group_by` ·
+    /// `json_merge` · etc per D-2026-05-22-N6 cut).
+    /// `jq` · `json_diff` · `validate` · `json_merge_patch` · `csv_to_json` · `uuid` · `date` · `hash`.
     Data,
-    /// Sprint 2 data tools: `json_verify`, `yaml_validate`, etc.
-    DataSprint2,
-    /// Introspection tools: `dag_info`, `task_status`, `threads`, `orchestrate`.
+    /// Network I/O primitives. Output trust = `Untrusted` (always).
+    /// `fetch` · `notify`.
+    Network,
+    /// Workflow introspection primitives (DAG state · cost · records · threads).
+    /// `cost` · `records` · `dag_info` · `threads`.
     Introspection,
-    /// Cost and records tools.
-    CostRecords,
-    /// Agent tools: fetch.
-    Agent,
-    /// Always-on media tools: `import`, `decode`, `dimensions`, `thumbhash`, `dominant_color`.
-    MediaAlwaysOn,
-    /// Core media tools: thumbnail, convert, strip.
-    MediaCore,
-    /// Opt-in media tools: `metadata`, `optimize`, `svg_render`, etc.
-    MediaOptIn,
 }

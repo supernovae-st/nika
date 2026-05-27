@@ -1,74 +1,51 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 63 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 26 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
+//!
+//! Source of truth · `nika/spec/stdlib/builtins-v0.1.md` (canonical 26 per
+//! D-2026-05-22-N6 stdlib-collapse 42→26 · `jq` subsumes ~13 data builtins ·
+//! `JSONPath` dropped · media DEFERRED to stdlib v0.x) + 2026-05-27 follow-on
+//! `nika:json_merge` cut (`jaq` source-verified · `nika:json_merge_patch` stays
+//! for RFC-7396 null-delete which `jq *` cannot express).
+//!
+//! 5 categories · Core 7 · File 5 · Data 8 · Network 2 · Introspection 4 = 26.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
-use BuiltinCategory::{
-    Agent, Core, CostRecords, Data, DataSprint2, File, Introspection, MediaAlwaysOn, MediaCore,
-    MediaOptIn,
-};
+use BuiltinCategory::{Core, Data, File, Introspection, Network};
 
-/// All 63 builtin tools, **sorted alphabetically by name**.
+/// All 26 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
 pub static ALL_BUILTINS: &[Builtin] = &[
     Builtin {
-        name: "aggregate",
-        category: DataSprint2,
-    },
-    Builtin {
         name: "assert",
         category: Core,
     },
     Builtin {
-        name: "chart",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "chunk",
-        category: Data,
-    },
-    Builtin {
-        name: "compare",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "complete",
-        category: Core,
-    },
-    Builtin {
-        name: "convert",
-        category: MediaCore,
-    },
-    Builtin {
         name: "cost",
-        category: CostRecords,
+        category: Introspection,
     },
     Builtin {
-        name: "css_select",
-        category: MediaOptIn,
+        name: "csv_to_json",
+        category: Data,
     },
     Builtin {
         name: "dag_info",
         category: Introspection,
     },
     Builtin {
-        name: "decode",
-        category: MediaAlwaysOn,
+        name: "date",
+        category: Data,
     },
     Builtin {
-        name: "dimensions",
-        category: MediaAlwaysOn,
-    },
-    Builtin {
-        name: "dominant_color",
-        category: MediaAlwaysOn,
+        name: "done",
+        category: Core,
     },
     Builtin {
         name: "edit",
@@ -79,24 +56,8 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         category: Core,
     },
     Builtin {
-        name: "enrich",
-        category: Data,
-    },
-    Builtin {
-        name: "extract_links",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "extract_metadata",
-        category: MediaOptIn,
-    },
-    Builtin {
         name: "fetch",
-        category: Agent,
-    },
-    Builtin {
-        name: "filter",
-        category: Data,
+        category: Network,
     },
     Builtin {
         name: "glob",
@@ -107,19 +68,7 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         category: File,
     },
     Builtin {
-        name: "group_by",
-        category: Data,
-    },
-    Builtin {
-        name: "html_to_md",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "import",
-        category: MediaAlwaysOn,
-    },
-    Builtin {
-        name: "inject",
+        name: "hash",
         category: Data,
     },
     Builtin {
@@ -131,144 +80,52 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         category: Data,
     },
     Builtin {
-        name: "json_flatten",
-        category: DataSprint2,
-    },
-    Builtin {
-        name: "json_merge",
+        name: "json_merge_patch",
         category: Data,
-    },
-    Builtin {
-        name: "json_unflatten",
-        category: DataSprint2,
-    },
-    Builtin {
-        name: "json_verify",
-        category: DataSprint2,
-    },
-    Builtin {
-        name: "locale_lookup",
-        category: DataSprint2,
     },
     Builtin {
         name: "log",
         category: Core,
     },
     Builtin {
-        name: "map",
-        category: Data,
-    },
-    Builtin {
-        name: "metadata",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "optimize",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "orchestrate",
-        category: Introspection,
-    },
-    Builtin {
-        name: "pdf_extract",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "phash",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "pipeline",
-        category: MediaOptIn,
+        name: "notify",
+        category: Network,
     },
     Builtin {
         name: "prompt",
         category: Core,
     },
     Builtin {
-        name: "provenance",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "qr_validate",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "quality",
-        category: MediaOptIn,
-    },
-    Builtin {
         name: "read",
         category: File,
     },
     Builtin {
-        name: "readability",
-        category: MediaOptIn,
-    },
-    Builtin {
         name: "records",
-        category: CostRecords,
-    },
-    Builtin {
-        name: "run",
-        category: Core,
-    },
-    Builtin {
-        name: "set_diff",
-        category: Data,
+        category: Introspection,
     },
     Builtin {
         name: "sleep",
         category: Core,
     },
     Builtin {
-        name: "strip",
-        category: MediaCore,
-    },
-    Builtin {
-        name: "svg_render",
-        category: MediaOptIn,
-    },
-    Builtin {
-        name: "task_status",
-        category: Introspection,
-    },
-    Builtin {
         name: "threads",
         category: Introspection,
     },
     Builtin {
-        name: "thumbhash",
-        category: MediaAlwaysOn,
-    },
-    Builtin {
-        name: "thumbnail",
-        category: MediaCore,
-    },
-    Builtin {
-        name: "token_count",
+        name: "uuid",
         category: Data,
     },
     Builtin {
-        name: "tree_data",
+        name: "validate",
         category: Data,
     },
     Builtin {
-        name: "verify",
-        category: MediaOptIn,
+        name: "wait_until",
+        category: Core,
     },
     Builtin {
         name: "write",
         category: File,
-    },
-    Builtin {
-        name: "yaml_validate",
-        category: DataSprint2,
-    },
-    Builtin {
-        name: "zip",
-        category: Data,
     },
 ];
 
@@ -293,7 +150,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 63);
+        assert_eq!(ALL_BUILTINS.len(), 26);
     }
 
     #[test]
@@ -310,7 +167,8 @@ mod tests {
 
     #[test]
     fn find_known_builtins() {
-        let names = ["sleep", "jq", "pipeline", "read", "write", "complete"];
+        // Sample across all 5 categories.
+        let names = ["sleep", "read", "jq", "fetch", "cost"];
         for name in names {
             assert!(find_builtin(name).is_some(), "builtin `{name}` not found");
         }
@@ -318,10 +176,17 @@ mod tests {
 
     #[test]
     fn is_known_builtin_works() {
+        // Spec-canonical builtins are known.
         assert!(is_known_builtin("sleep"));
         assert!(is_known_builtin("jq"));
+        assert!(is_known_builtin("validate"));
+        assert!(is_known_builtin("notify"));
+        // Unknown + legacy (cut per D-N6) return false.
         assert!(!is_known_builtin("typo_tool"));
         assert!(!is_known_builtin("json_query")); // deprecated, removed
+        assert!(!is_known_builtin("map")); // legacy, subsumed by jq
+        assert!(!is_known_builtin("json_merge")); // legacy, subsumed by jq
+        assert!(!is_known_builtin("pipeline")); // legacy, media DEFERRED
     }
 
     #[test]
@@ -349,8 +214,23 @@ mod tests {
         let core = ALL_BUILTINS.iter().filter(|b| b.category == Core).count();
         let file = ALL_BUILTINS.iter().filter(|b| b.category == File).count();
         let data = ALL_BUILTINS.iter().filter(|b| b.category == Data).count();
+        let network = ALL_BUILTINS
+            .iter()
+            .filter(|b| b.category == Network)
+            .count();
+        let intro = ALL_BUILTINS
+            .iter()
+            .filter(|b| b.category == Introspection)
+            .count();
         assert_eq!(core, 7, "expected 7 core builtins");
         assert_eq!(file, 5, "expected 5 file builtins");
-        assert_eq!(data, 13, "expected 13 data builtins");
+        assert_eq!(data, 8, "expected 8 data builtins");
+        assert_eq!(network, 2, "expected 2 network builtins");
+        assert_eq!(intro, 4, "expected 4 introspection builtins");
+        assert_eq!(
+            core + file + data + network + intro,
+            26,
+            "total must equal 26"
+        );
     }
 }

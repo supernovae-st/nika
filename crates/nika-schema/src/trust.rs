@@ -9,6 +9,10 @@
 //! This module adds schema-level trust primitives:
 //! - [`InvocationSource`] — how the workflow was invoked (determines input trust)
 //! - [`builtin_output_trust`] — output trust for each `nika:*` builtin tool
+//!
+//! Builtin set reconciled to spec 26 per `nika/spec/stdlib/builtins-v0.1.md`
+//! (D-2026-05-22-N6 stdlib-collapse 42→26 + 2026-05-27 `json_merge` cut ·
+//! jq subsumes legacy data transforms · media DEFERRED to stdlib v0.x).
 
 // Re-export for convenience — consumers can use `nika_schema::trust::TrustLevel`.
 pub use nika_error::TrustLevel;
@@ -29,7 +33,7 @@ pub enum InvocationSource {
     Serve,
     /// Test/mock execution: inputs = Trusted.
     Test,
-    /// Nested workflow via `nika:run`. Inputs inherit the caller's trust
+    /// Nested workflow via `nika:invoke`. Inputs inherit the caller's trust
     /// ceiling — propagates through arbitrary nesting.
     NestedRun {
         /// Trust ceiling inherited from the parent workflow.
@@ -64,92 +68,51 @@ impl InvocationSource {
 // Each `nika:*` builtin belongs to exactly one trust category. The output
 // trust of a builtin invocation is determined by its category:
 //
-// - PROPAGATING: output trust = min(input trust, Trusted) — data transforms
-// - REFERENCE:   output trust = input trust (CAS hashes, metadata)
-// - PURE:        output trust = Trusted always (side-effect free)
-// - EXTERNAL:    output trust = Untrusted always (network/exec I/O)
+// - PROPAGATING: output trust = input trust — data transforms (in-process)
+// - PURE:        output trust = Trusted always (no flow OR pure compute)
+// - EXTERNAL:    output trust = Untrusted always (network/exec/side-effect I/O)
+//
+// Spec 26 has no REFERENCE-only builtins (media is DEFERRED to stdlib v0.x);
+// PROPAGATING + REFERENCE were semantically equivalent in legacy trust.rs,
+// so they consolidate into PROPAGATING here. REFERENCE re-instates when
+// media builtins land (Phase v0.x · trigger-gated per LOCK-031).
 
-/// Builtins that propagate input trust (data transforms).
+/// Builtins that propagate input trust (data transforms · in-process · 7).
 const TRUST_PROPAGATING_BUILTINS: &[&str] = &[
-    "nika:jq",
-    "nika:map",
-    "nika:filter",
-    "nika:chunk",
-    "nika:zip",
-    "nika:json_merge",
-    "nika:inject",
-    "nika:enrich",
-    "nika:group_by",
-    "nika:aggregate",
-    "nika:json_flatten",
-    "nika:json_unflatten",
-    "nika:set_diff",
-    "nika:json_diff",
-    "nika:tree_data",
-    "nika:json_verify",
-    "nika:yaml_validate",
-    "nika:read",
+    "nika:csv_to_json",
     "nika:glob",
-    "nika:pdf_extract",
-    "nika:readability",
-    "nika:html_to_md",
-    "nika:svg_render",
+    "nika:grep",
+    "nika:jq",
+    "nika:json_diff",
+    "nika:json_merge_patch",
+    "nika:read",
 ];
 
-/// Builtins that return references/metadata about data (trust = input trust).
-const TRUST_REFERENCE_BUILTINS: &[&str] = &[
-    "nika:import",
-    "nika:decode",
-    "nika:dimensions",
-    "nika:thumbhash",
-    "nika:dominant_color",
-    "nika:phash",
-    "nika:compare",
-    "nika:provenance",
-    "nika:verify",
-    "nika:qr_validate",
-    "nika:quality",
-    "nika:metadata",
-    "nika:thumbnail",
-    "nika:convert",
-    "nika:strip_metadata",
-    "nika:optimize",
-    "nika:chart",
-    "nika:qr_gen",
-];
-
-/// Builtins with pure output (always Trusted, no I/O).
+/// Builtins with pure output (always Trusted, no flow OR pure compute · 14).
 const TRUST_PURE_BUILTINS: &[&str] = &[
-    "nika:sleep",
-    "nika:noop",
-    "nika:log",
     "nika:assert",
-    "nika:timestamp",
-    "nika:uuid",
-    "nika:template",
-    "nika:format",
+    "nika:cost",
+    "nika:dag_info",
+    "nika:date",
+    "nika:done",
+    "nika:emit",
     "nika:hash",
-    "nika:encode",
-    "nika:random",
-    "nika:math",
-    "nika:counter",
-    "nika:env",
-    "nika:complete",
+    "nika:log",
+    "nika:records",
+    "nika:sleep",
+    "nika:threads",
+    "nika:uuid",
+    "nika:validate",
+    "nika:wait_until",
 ];
 
-/// Builtins with external I/O (always Untrusted output).
+/// Builtins with external I/O (always Untrusted output · 5).
 const TRUST_EXTERNAL_BUILTINS: &[&str] = &[
+    "nika:edit",
     "nika:fetch",
-    "nika:exec",
-    "nika:write",
-    "nika:delete",
-    "nika:run",
-    "nika:publish",
     "nika:notify",
-    "nika:email",
-    "nika:store",
-    "nika:recall",
-    "nika:embed",
+    "nika:prompt",
+    "nika:write",
 ];
 
 /// Compute the output trust level for a builtin invocation.
@@ -159,9 +122,7 @@ const TRUST_EXTERNAL_BUILTINS: &[&str] = &[
 /// uncategorized builtins.
 #[must_use]
 pub fn builtin_output_trust(tool: &str, input_trust: TrustLevel) -> TrustLevel {
-    if TRUST_PROPAGATING_BUILTINS.contains(&tool) || TRUST_REFERENCE_BUILTINS.contains(&tool) {
-        // Both categories pass through input trust unchanged.
-        // Kept as separate lists for documentation/categorization purposes.
+    if TRUST_PROPAGATING_BUILTINS.contains(&tool) {
         input_trust
     } else if TRUST_PURE_BUILTINS.contains(&tool) {
         TrustLevel::TRUSTED
@@ -177,7 +138,6 @@ pub fn builtin_output_trust(tool: &str, input_trust: TrustLevel) -> TrustLevel {
 #[must_use]
 pub fn is_categorized_builtin(tool: &str) -> bool {
     TRUST_PROPAGATING_BUILTINS.contains(&tool)
-        || TRUST_REFERENCE_BUILTINS.contains(&tool)
         || TRUST_PURE_BUILTINS.contains(&tool)
         || TRUST_EXTERNAL_BUILTINS.contains(&tool)
 }
@@ -253,10 +213,47 @@ mod tests {
     }
 
     #[test]
+    fn legacy_builtins_unknown_post_d_n6() {
+        // Builtins cut per D-2026-05-22-N6 must NOT be categorized (jq
+        // subsumes them · the unknown-builtin fail-closed path applies).
+        for legacy in [
+            "nika:map",
+            "nika:filter",
+            "nika:json_merge",
+            "nika:aggregate",
+            "nika:enrich",
+            "nika:group_by",
+            "nika:pipeline",
+            "nika:run",
+            "nika:complete",
+            "nika:noop",
+            "nika:timestamp",
+            "nika:template",
+            "nika:format",
+            "nika:encode",
+            "nika:random",
+            "nika:math",
+            "nika:counter",
+            "nika:env",
+            "nika:exec",
+            "nika:delete",
+            "nika:publish",
+            "nika:email",
+            "nika:store",
+            "nika:recall",
+            "nika:embed",
+        ] {
+            assert!(
+                !is_categorized_builtin(legacy),
+                "legacy builtin `{legacy}` must not be categorized post D-N6"
+            );
+        }
+    }
+
+    #[test]
     fn no_duplicate_categorization() {
         let categories: &[(&str, &[&str])] = &[
             ("PROPAGATING", TRUST_PROPAGATING_BUILTINS),
-            ("REFERENCE", TRUST_REFERENCE_BUILTINS),
             ("PURE", TRUST_PURE_BUILTINS),
             ("EXTERNAL", TRUST_EXTERNAL_BUILTINS),
         ];
@@ -277,10 +274,31 @@ mod tests {
     }
 
     #[test]
+    fn category_totals_match_spec_26() {
+        assert_eq!(
+            TRUST_PROPAGATING_BUILTINS.len(),
+            7,
+            "expected 7 propagating builtins"
+        );
+        assert_eq!(TRUST_PURE_BUILTINS.len(), 14, "expected 14 pure builtins");
+        assert_eq!(
+            TRUST_EXTERNAL_BUILTINS.len(),
+            5,
+            "expected 5 external builtins"
+        );
+        let total = TRUST_PROPAGATING_BUILTINS.len()
+            + TRUST_PURE_BUILTINS.len()
+            + TRUST_EXTERNAL_BUILTINS.len();
+        assert_eq!(total, 26, "trust categorization total must equal spec 26");
+    }
+
+    #[test]
     fn is_categorized_builtin_true_for_known() {
         assert!(is_categorized_builtin("nika:jq"));
         assert!(is_categorized_builtin("nika:fetch"));
         assert!(is_categorized_builtin("nika:sleep"));
+        assert!(is_categorized_builtin("nika:notify"));
+        assert!(is_categorized_builtin("nika:validate"));
     }
 
     #[test]

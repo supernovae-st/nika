@@ -129,7 +129,8 @@ mod tests {
 
     #[test]
     fn all_builtins_non_empty() {
-        assert_eq!(all_builtins().len(), 63);
+        // Reconciled to spec 26 per D-2026-05-22-N6 + 2026-05-27 json_merge cut.
+        assert_eq!(all_builtins().len(), 26);
     }
 
     #[test]
