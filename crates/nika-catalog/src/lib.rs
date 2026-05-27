@@ -129,8 +129,9 @@ mod tests {
 
     #[test]
     fn all_builtins_non_empty() {
-        // Reconciled to spec 26 per D-2026-05-22-N6 + 2026-05-27 json_merge cut.
-        assert_eq!(all_builtins().len(), 26);
+        // Spec 25 post ADR-087 Rams sweep (sleep + wait_until merged into wait)
+        // and ADR-086 (csv_to_json → convert) and D-2026-05-22-N6 stdlib-collapse.
+        assert_eq!(all_builtins().len(), 25);
     }
 
     #[test]

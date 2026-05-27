@@ -3,7 +3,7 @@
 
 //! Builtin tool definitions (nika:* tools).
 //!
-//! 26 tools across 5 categories. Stored in a sorted array for
+//! 25 tools across 5 categories. Stored in a sorted array for
 //! case-sensitive binary search.
 //!
 //! Reconciled to spec v0.1 stdlib per D-2026-05-22-N6 (42→26 collapse ·
@@ -33,7 +33,7 @@ impl Builtin {
 /// Category of builtin tool.
 ///
 /// 5 categories per `nika/spec/stdlib/builtins-v0.1.md` ·
-/// - [`Self::Core`] (7) · `sleep` · `log` · `emit` · `assert` · `prompt` · `done` · `wait_until`
+/// - [`Self::Core`] (6) · `log` · `emit` · `assert` · `prompt` · `done` · `wait`
 /// - [`Self::File`] (5) · `read` · `write` · `edit` · `glob` · `grep`
 /// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `convert` · `uuid` · `date` · `hash`
 /// - [`Self::Network`] (2) · `fetch` · `notify`
@@ -44,7 +44,7 @@ impl Builtin {
 #[non_exhaustive]
 pub enum BuiltinCategory {
     /// Core control + assertion + observation primitives.
-    /// `sleep` · `log` · `emit` · `assert` · `prompt` · `done` · `wait_until`.
+    /// `log` · `emit` · `assert` · `prompt` · `done` · `wait`.
     Core,
     /// File system primitives (read-side trust-propagating · write-side external).
     /// `read` · `write` · `edit` · `glob` · `grep`.

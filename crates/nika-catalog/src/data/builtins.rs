@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 26 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 25 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
 //!
-//! Source of truth · `nika/spec/stdlib/builtins-v0.1.md` (canonical 26 per
+//! Source of truth · `nika/spec/stdlib/builtins-v0.1.md` (canonical 25 per
 //! D-2026-05-22-N6 stdlib-collapse 42→26 · `jq` subsumes ~13 data builtins ·
 //! `JSONPath` dropped · media DEFERRED to stdlib v0.x) + 2026-05-27 follow-on
-//! `nika:json_merge` cut (`jaq` source-verified · `nika:json_merge_patch` stays
-//! for RFC-7396 null-delete which `jq *` cannot express).
+//! `nika:json_merge` cut + ADR-086 `csv_to_json` → `convert` + ADR-087
+//! `sleep` + `wait_until` → `wait` (`jaq` source-verified · `nika:json_merge_patch`
+//! stays for RFC-7396 null-delete which `jq *` cannot express).
 //!
-//! 5 categories · Core 7 · File 5 · Data 8 · Network 2 · Introspection 4 = 26.
+//! 5 categories · Core 6 · File 5 · Data 8 · Network 2 · Introspection 4 = 25.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Network};
 
-/// All 26 builtin tools, **sorted alphabetically by name**.
+/// All 25 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
@@ -104,10 +105,6 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         category: Introspection,
     },
     Builtin {
-        name: "sleep",
-        category: Core,
-    },
-    Builtin {
         name: "threads",
         category: Introspection,
     },
@@ -120,7 +117,7 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         category: Data,
     },
     Builtin {
-        name: "wait_until",
+        name: "wait",
         category: Core,
     },
     Builtin {
@@ -150,7 +147,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 26);
+        assert_eq!(ALL_BUILTINS.len(), 25);
     }
 
     #[test]
@@ -168,7 +165,7 @@ mod tests {
     #[test]
     fn find_known_builtins() {
         // Sample across all 5 categories.
-        let names = ["sleep", "read", "jq", "fetch", "cost"];
+        let names = ["wait", "read", "jq", "fetch", "cost"];
         for name in names {
             assert!(find_builtin(name).is_some(), "builtin `{name}` not found");
         }
@@ -177,16 +174,19 @@ mod tests {
     #[test]
     fn is_known_builtin_works() {
         // Spec-canonical builtins are known.
-        assert!(is_known_builtin("sleep"));
+        assert!(is_known_builtin("wait"));
         assert!(is_known_builtin("jq"));
         assert!(is_known_builtin("validate"));
         assert!(is_known_builtin("notify"));
-        // Unknown + legacy (cut per D-N6) return false.
+        // Unknown + legacy (cut per D-N6 + ADR-086 + ADR-087) return false.
         assert!(!is_known_builtin("typo_tool"));
         assert!(!is_known_builtin("json_query")); // deprecated, removed
         assert!(!is_known_builtin("map")); // legacy, subsumed by jq
         assert!(!is_known_builtin("json_merge")); // legacy, subsumed by jq
         assert!(!is_known_builtin("pipeline")); // legacy, media DEFERRED
+        assert!(!is_known_builtin("sleep")); // ADR-087, merged into wait
+        assert!(!is_known_builtin("wait_until")); // ADR-087, merged into wait
+        assert!(!is_known_builtin("csv_to_json")); // ADR-086, replaced by convert
     }
 
     #[test]
@@ -222,15 +222,18 @@ mod tests {
             .iter()
             .filter(|b| b.category == Introspection)
             .count();
-        assert_eq!(core, 7, "expected 7 core builtins");
+        assert_eq!(
+            core, 6,
+            "expected 6 core builtins (post-ADR-087 wait merge)"
+        );
         assert_eq!(file, 5, "expected 5 file builtins");
         assert_eq!(data, 8, "expected 8 data builtins");
         assert_eq!(network, 2, "expected 2 network builtins");
         assert_eq!(intro, 4, "expected 4 introspection builtins");
         assert_eq!(
             core + file + data + network + intro,
-            26,
-            "total must equal 26"
+            25,
+            "total must equal 25"
         );
     }
 }
