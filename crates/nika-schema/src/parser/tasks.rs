@@ -13,16 +13,19 @@
 //!   deal — stored raw).
 //!
 //! Each task still MUST carry `name` + exactly one verb key (`infer`,
-//! `exec`, `fetch`, `invoke`, `agent`) with its minimum required
+//! `exec`, `invoke`, `agent`) with its minimum required
 //! field:
 //!
 //! | Verb    | Required field |
 //! |---------|----------------|
 //! | infer   | `prompt`       |
 //! | exec    | `command`      |
-//! | fetch   | `url`          |
 //! | invoke  | `tool` **or** `resource` |
 //! | agent   | `prompt`       |
+//!
+//! `fetch` is NOT a verb — it is the `nika:fetch` builtin reached via
+//! `invoke:` (spec D-2026-05-22-N18 · 4 verbs absolute). A verb is a
+//! distinct native execution model; calling a URL is calling a tool.
 //!
 //! Still deferred to later rounds: `max_retries` (u32, Round 2f),
 //! verb-specific optional fields (system prompt, temperature,
@@ -33,22 +36,20 @@ use marked_yaml::types::MarkedMappingNode;
 
 use crate::error::SchemaError;
 use crate::raw::{
-    RawAction, RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction,
-    RawTask,
+    RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction, RawTask,
 };
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 use super::{CharToByte, extract_scalar, yaml_span_to_span};
 
-/// The five task verbs. Exhaustiveness of the parser's action
+/// The four task verbs. Exhaustiveness of the parser's action
 /// dispatcher is enforced at compile time: every [`Verb`] variant
-/// has exactly one arm in [`build_action`], so adding a sixth verb
+/// has exactly one arm in [`build_action`], so adding a fifth verb
 /// cannot silently break parsing.
 #[derive(Clone, Copy, Debug)]
 enum Verb {
     Infer,
     Exec,
-    Fetch,
     Invoke,
     Agent,
 }
@@ -59,7 +60,6 @@ impl Verb {
         match self {
             Self::Infer => "infer",
             Self::Exec => "exec",
-            Self::Fetch => "fetch",
             Self::Invoke => "invoke",
             Self::Agent => "agent",
         }
@@ -68,13 +68,7 @@ impl Verb {
     /// All verbs, in deterministic order. Used to scan a task
     /// mapping for whichever verb key is present.
     const fn all() -> &'static [Verb] {
-        &[
-            Self::Infer,
-            Self::Exec,
-            Self::Fetch,
-            Self::Invoke,
-            Self::Agent,
-        ]
+        &[Self::Infer, Self::Exec, Self::Invoke, Self::Agent]
     }
 }
 
@@ -170,7 +164,7 @@ fn parse_string_list(
     Ok(out)
 }
 
-/// Detect which of the five verb keys is present and parse it.
+/// Detect which of the four verb keys is present and parse it.
 ///
 /// Returns [`SchemaError::MissingField`] if no verb key is present,
 /// [`SchemaError::Validation`] if more than one is present
@@ -187,7 +181,7 @@ fn parse_action(
         .collect();
     match present.as_slice() {
         [] => Err(SchemaError::MissingField {
-            field: "action (one of: infer, exec, fetch, invoke, agent)".to_owned(),
+            field: "action (one of: infer, exec, invoke, agent)".to_owned(),
             span: yaml_span_to_span(file_id, task.span(), char_to_byte),
         }),
         [verb] => build_action(*verb, task, file_id, char_to_byte),
@@ -230,10 +224,6 @@ fn build_action(
         Verb::Exec => {
             let command = require_scalar(body, "command", file_id, char_to_byte)?;
             Ok(RawAction::Exec(RawExecAction::new(command)))
-        }
-        Verb::Fetch => {
-            let url = require_scalar(body, "url", file_id, char_to_byte)?;
-            Ok(RawAction::Fetch(Box::new(RawFetchAction::new(url))))
         }
         Verb::Invoke => {
             let tool = extract_scalar(body, "tool", file_id, char_to_byte)?;
@@ -313,19 +303,25 @@ tasks:
         assert_eq!(action.command.value, "ls -la");
     }
 
+    // `fetch` is NOT a verb (spec D-2026-05-22-N18 · 4 verbs absolute) — it
+    // is the `nika:fetch` builtin reached via `invoke:`. A top-level `fetch:`
+    // key must therefore be rejected as "no verb present".
     #[test]
-    fn parse_minimal_fetch_task() {
+    fn fetch_key_is_not_a_verb() {
         let yaml = "\
 tasks:
   - name: poll
     fetch:
       url: https://api.example.com/v1/status
 ";
-        let wf = parse(yaml, fid()).expect("parse");
-        let RawAction::Fetch(ref action) = wf.tasks[0].value.action else {
-            panic!("expected Fetch");
+        let err = parse(yaml, fid()).expect_err("fetch: is not a verb");
+        let SchemaError::MissingField { field, .. } = err else {
+            panic!("expected MissingField, got {err:?}");
         };
-        assert_eq!(action.url.value, "https://api.example.com/v1/status");
+        assert!(
+            field.contains("infer, exec, invoke, agent"),
+            "error should list the 4 verbs without fetch, got: {field}"
+        );
     }
 
     #[test]

@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Raw action types — the five verb actions in the Nika workflow model.
+//! Raw action types — the four verb actions in the Nika workflow model.
+//!
+//! `fetch` is NOT a verb (spec D-2026-05-22-N18 · 4 verbs absolute) — it is
+//! the `nika:fetch` builtin reached via `invoke:`. The HTTP request shape it
+//! used to carry now lives in the catalog/builtin layer, not the parser AST.
 
 use crate::source::Spanned;
 use crate::types::{ContentPart, Templatable};
 
-/// The action a task performs — one of five verbs.
+/// The action a task performs — one of four verbs.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum RawAction {
@@ -14,8 +18,6 @@ pub enum RawAction {
     Infer(RawInferAction),
     /// Execute a shell command.
     Exec(RawExecAction),
-    /// Fetch from a URL.
-    Fetch(Box<RawFetchAction>),
     /// Invoke an MCP tool or resource.
     Invoke(RawInvokeAction),
     /// Run an agent loop.
@@ -96,57 +98,6 @@ impl RawExecAction {
             env: Vec::new(),
             timeout_ms: None,
             max_stdout: None,
-        }
-    }
-}
-
-/// Raw fetch action — HTTP request.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct RawFetchAction {
-    /// URL to fetch.
-    pub url: Spanned<String>,
-    /// HTTP method (GET, POST, etc.).
-    pub method: Option<Spanned<String>>,
-    /// HTTP headers.
-    pub headers: Vec<(Spanned<String>, Spanned<String>)>,
-    /// Request body (text).
-    pub body: Option<Spanned<String>>,
-    /// Request body (JSON).
-    pub json: Option<Spanned<serde_json::Value>>,
-    /// Timeout in milliseconds.
-    pub timeout_ms: Option<Spanned<Templatable<u64>>>,
-    /// Whether to follow redirects.
-    pub follow_redirects: Option<Spanned<Templatable<bool>>>,
-    /// Response mode hint.
-    pub response: Option<Spanned<String>>,
-    /// Extract mode hint.
-    pub extract: Option<Spanned<String>>,
-    /// CSS selector for extraction.
-    pub selector: Option<Spanned<String>>,
-    /// Whether to maintain a session.
-    pub session: Option<Spanned<Templatable<bool>>>,
-    /// Whether to cache the response.
-    pub cache: Option<Spanned<Templatable<bool>>>,
-}
-
-impl RawFetchAction {
-    /// Create a new fetch action for the given URL.
-    #[must_use]
-    pub fn new(url: Spanned<String>) -> Self {
-        Self {
-            url,
-            method: None,
-            headers: Vec::new(),
-            body: None,
-            json: None,
-            timeout_ms: None,
-            follow_redirects: None,
-            response: None,
-            extract: None,
-            selector: None,
-            session: None,
-            cache: None,
         }
     }
 }
@@ -299,13 +250,6 @@ mod tests {
     }
 
     #[test]
-    fn fetch_action_new() {
-        let a = RawFetchAction::new(span_str("https://api.example.com"));
-        assert_eq!(a.url.value, "https://api.example.com");
-        assert!(a.headers.is_empty());
-    }
-
-    #[test]
     fn invoke_action_new() {
         let a = RawInvokeAction::new();
         assert!(a.tool.is_none());
@@ -327,8 +271,5 @@ mod tests {
 
         let exec = RawAction::Exec(RawExecAction::new(span_str("echo")));
         assert!(matches!(exec, RawAction::Exec(_)));
-
-        let fetch = RawAction::Fetch(Box::new(RawFetchAction::new(span_str("http://x"))));
-        assert!(matches!(fetch, RawAction::Fetch(_)));
     }
 }
