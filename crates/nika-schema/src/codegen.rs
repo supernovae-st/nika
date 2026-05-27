@@ -4,9 +4,9 @@
 //! JSON-Schema codegen primitives for the Nika workflow schema.
 //!
 //! **Today** · pure-Rust helpers that emit JSON-Schema fragments derived
-//! from `nika-catalog` (single source of truth · the canonical 25 builtins
+//! from `nika-catalog` (single source of truth · the canonical 22 builtins
 //! per `nika/spec/stdlib/builtins-v0.1.md` post ADR-084 catalog reconciliation
-//! + ADR-086 convert + ADR-087 wait).
+//! + ADR-086 convert + ADR-087 wait + ADR-088 inspect).
 //!
 //! **Future (ADR-085 trigger-gated)** · once `WorkflowDocument` lands in
 //! nika-schema with `#[derive(JsonSchema)]` (schemars 1.0 adoption · trigger
@@ -28,7 +28,7 @@ use serde_json::{Value, json};
 ///
 /// Reads [`nika_catalog::all_builtins`] at call time · the schema is
 /// automatically up-to-date with the engine catalog (no-drift property ·
-/// **structural** · not discipline). The 25 entries are sorted alphabetically
+/// **structural** · not discipline). The 22 entries are sorted alphabetically
 /// (matches `ALL_BUILTINS` binary-search invariant).
 ///
 /// # Returned shape
@@ -36,16 +36,14 @@ use serde_json::{Value, json};
 /// ```jsonc
 /// {
 ///   "type": "string",
-///   "description": "`nika:*` builtin · 25 canonical per stdlib v0.1",
+///   "description": "`nika:*` builtin · 22 canonical per stdlib v0.1",
 ///   "enum": [
-///     "nika:assert", "nika:convert", "nika:cost",  "nika:dag_info",
-///     "nika:date",   "nika:done",    "nika:edit",  "nika:emit",
-///     "nika:fetch",  "nika:glob",    "nika:grep",  "nika:hash",
-///     "nika:jq",     "nika:json_diff",   "nika:json_merge_patch",
-///     "nika:log",    "nika:notify",      "nika:prompt",
-///     "nika:read",   "nika:records",     "nika:threads",
-///     "nika:uuid",   "nika:validate",    "nika:wait",
-///     "nika:write"
+///     "nika:assert", "nika:convert", "nika:date",  "nika:done",
+///     "nika:edit",   "nika:emit",    "nika:fetch", "nika:glob",
+///     "nika:grep",   "nika:hash",    "nika:inspect", "nika:jq",
+///     "nika:json_diff",   "nika:json_merge_patch",  "nika:log",
+///     "nika:notify", "nika:prompt",  "nika:read",  "nika:uuid",
+///     "nika:validate", "nika:wait",  "nika:write"
 ///   ]
 /// }
 /// ```
@@ -65,7 +63,7 @@ pub fn nika_builtin_tool_enum_schema() -> Value {
         .collect();
     json!({
         "type": "string",
-        "description": "`nika:*` builtin · 25 canonical per stdlib v0.1",
+        "description": "`nika:*` builtin · 22 canonical per stdlib v0.1",
         "enum": names
     })
 }
@@ -75,10 +73,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_has_25_entries() {
+    fn enum_has_22_entries() {
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum must be array");
-        assert_eq!(arr.len(), 25, "expected 25 spec-canonical builtins");
+        assert_eq!(arr.len(), 22, "expected 22 spec-canonical builtins");
     }
 
     #[test]
@@ -149,7 +147,7 @@ mod tests {
             "nika:read",
             "nika:jq",
             "nika:fetch",
-            "nika:cost",
+            "nika:inspect",
         ] {
             assert!(
                 arr.iter().any(|v| v.as_str() == Some(canonical)),
@@ -160,12 +158,13 @@ mod tests {
 
     #[test]
     fn enum_excludes_legacy_post_d_n6() {
-        // Regression guard · 8 legacy names (cut per D-2026-05-22-N6 +
-        // 2026-05-27 json_merge cut + ADR-086 convert + ADR-087 wait
-        // Rams sweep · jq + json_merge_patch subsume the data-transform
-        // legacy · `nika:convert` supersedes the single-direction `nika:
-        // csv_to_json` · unified `nika:wait` supersedes `nika:sleep` +
-        // `nika:wait_until`).
+        // Regression guard · 12 legacy names (cut per D-2026-05-22-N6 +
+        // 2026-05-27 json_merge cut + ADR-086 convert + ADR-087 wait +
+        // ADR-088 inspect Rams sweep · jq + json_merge_patch subsume
+        // the data-transform legacy · `nika:convert` supersedes
+        // `nika:csv_to_json` · unified `nika:wait` supersedes
+        // `nika:sleep` + `nika:wait_until` · view-discriminated
+        // `nika:inspect` supersedes `cost`+`records`+`dag_info`+`threads`).
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum array");
         for legacy in [
@@ -177,10 +176,14 @@ mod tests {
             "nika:csv_to_json",
             "nika:sleep",
             "nika:wait_until",
+            "nika:cost",
+            "nika:records",
+            "nika:dag_info",
+            "nika:threads",
         ] {
             assert!(
                 !arr.iter().any(|v| v.as_str() == Some(legacy)),
-                "legacy `{legacy}` must not appear in spec-25 enum"
+                "legacy `{legacy}` must not appear in spec-22 enum"
             );
         }
     }

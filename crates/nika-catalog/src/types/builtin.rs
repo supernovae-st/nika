@@ -3,7 +3,7 @@
 
 //! Builtin tool definitions (nika:* tools).
 //!
-//! 25 tools across 5 categories. Stored in a sorted array for
+//! 22 tools across 5 categories. Stored in a sorted array for
 //! case-sensitive binary search.
 //!
 //! Reconciled to spec v0.1 stdlib per D-2026-05-22-N6 (42→26 collapse ·
@@ -37,7 +37,7 @@ impl Builtin {
 /// - [`Self::File`] (5) · `read` · `write` · `edit` · `glob` · `grep`
 /// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `convert` · `uuid` · `date` · `hash`
 /// - [`Self::Network`] (2) · `fetch` · `notify`
-/// - [`Self::Introspection`] (4) · `cost` · `records` · `dag_info` · `threads`
+/// - [`Self::Introspection`] (1) · `inspect` (view-discriminated · 4 views · `cost` / `records` / `dag_info` / `threads`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
@@ -57,7 +57,8 @@ pub enum BuiltinCategory {
     /// Network I/O primitives. Output trust = `Untrusted` (always).
     /// `fetch` · `notify`.
     Network,
-    /// Workflow introspection primitives (DAG state · cost · records · threads).
-    /// `cost` · `records` · `dag_info` · `threads`.
+    /// Workflow introspection primitive · 1 builtin with view-discriminator
+    /// covering DAG state · cost · records · threads (post ADR-088 collapse).
+    /// `inspect` (view: `cost` | `records` | `dag_info` | `threads`).
     Introspection,
 }

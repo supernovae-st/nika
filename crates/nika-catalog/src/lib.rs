@@ -129,9 +129,10 @@ mod tests {
 
     #[test]
     fn all_builtins_non_empty() {
-        // Spec 25 post ADR-087 Rams sweep (sleep + wait_until merged into wait)
-        // and ADR-086 (csv_to_json → convert) and D-2026-05-22-N6 stdlib-collapse.
-        assert_eq!(all_builtins().len(), 25);
+        // Spec 22 post Rams sweep cascade · ADR-088 inspect (4 introspection
+        // → 1) + ADR-087 wait (sleep + wait_until → 1) + ADR-086 convert
+        // (csv_to_json → 1) + D-2026-05-22-N6 stdlib-collapse 42→26.
+        assert_eq!(all_builtins().len(), 22);
     }
 
     #[test]

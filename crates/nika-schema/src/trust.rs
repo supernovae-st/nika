@@ -10,11 +10,11 @@
 //! - [`InvocationSource`] — how the workflow was invoked (determines input trust)
 //! - [`builtin_output_trust`] — output trust for each `nika:*` builtin tool
 //!
-//! Builtin set reconciled to spec 25 per `nika/spec/stdlib/builtins-v0.1.md`
+//! Builtin set reconciled to spec 22 per `nika/spec/stdlib/builtins-v0.1.md`
 //! (D-2026-05-22-N6 stdlib-collapse 42→26 + 2026-05-27 `json_merge` cut +
 //! ADR-086 `csv_to_json` → `convert` + ADR-087 `sleep` + `wait_until` →
-//! `wait` · jq subsumes legacy data transforms · media DEFERRED to
-//! stdlib v0.x).
+//! `wait` + ADR-088 `cost`+`records`+`dag_info`+`threads` → `inspect` ·
+//! jq subsumes legacy data transforms · media DEFERRED to stdlib v0.x).
 
 // Re-export for convenience — consumers can use `nika_schema::trust::TrustLevel`.
 pub use nika_error::TrustLevel;
@@ -74,7 +74,7 @@ impl InvocationSource {
 // - PURE:        output trust = Trusted always (no flow OR pure compute)
 // - EXTERNAL:    output trust = Untrusted always (network/exec/side-effect I/O)
 //
-// Spec 25 has no REFERENCE-only builtins (media is DEFERRED to stdlib v0.x);
+// Spec 22 has no REFERENCE-only builtins (media is DEFERRED to stdlib v0.x);
 // PROPAGATING + REFERENCE were semantically equivalent in legacy trust.rs,
 // so they consolidate into PROPAGATING here. REFERENCE re-instates when
 // media builtins land (Phase v0.x · trigger-gated per LOCK-031).
@@ -90,18 +90,15 @@ const TRUST_PROPAGATING_BUILTINS: &[&str] = &[
     "nika:read",
 ];
 
-/// Builtins with pure output (always Trusted, no flow OR pure compute · 13).
+/// Builtins with pure output (always Trusted, no flow OR pure compute · 10).
 const TRUST_PURE_BUILTINS: &[&str] = &[
     "nika:assert",
-    "nika:cost",
-    "nika:dag_info",
     "nika:date",
     "nika:done",
     "nika:emit",
     "nika:hash",
+    "nika:inspect",
     "nika:log",
-    "nika:records",
-    "nika:threads",
     "nika:uuid",
     "nika:validate",
     "nika:wait",
@@ -215,11 +212,12 @@ mod tests {
 
     #[test]
     fn legacy_builtins_unknown_post_d_n6() {
-        // Builtins cut per D-2026-05-22-N6 + 2026-05-27 + ADR-086 + ADR-087
+        // Builtins cut per D-2026-05-22-N6 + 2026-05-27 + ADR-086/087/088
         // Rams sweep must NOT be categorized (jq subsumes most · ADR-086
         // `csv_to_json` → universal `nika:convert` · ADR-087 `sleep` +
-        // `wait_until` → unified `nika:wait` · the unknown-builtin
-        // fail-closed path applies).
+        // `wait_until` → unified `nika:wait` · ADR-088 4 introspection
+        // builtins → unified `nika:inspect` with view: discriminator ·
+        // the unknown-builtin fail-closed path applies).
         for legacy in [
             "nika:map",
             "nika:filter",
@@ -249,6 +247,10 @@ mod tests {
             "nika:csv_to_json",
             "nika:sleep",
             "nika:wait_until",
+            "nika:cost",
+            "nika:records",
+            "nika:dag_info",
+            "nika:threads",
         ] {
             assert!(
                 !is_categorized_builtin(legacy),
@@ -281,13 +283,13 @@ mod tests {
     }
 
     #[test]
-    fn category_totals_match_spec_25() {
+    fn category_totals_match_spec_22() {
         assert_eq!(
             TRUST_PROPAGATING_BUILTINS.len(),
             7,
             "expected 7 propagating builtins"
         );
-        assert_eq!(TRUST_PURE_BUILTINS.len(), 13, "expected 13 pure builtins");
+        assert_eq!(TRUST_PURE_BUILTINS.len(), 10, "expected 10 pure builtins");
         assert_eq!(
             TRUST_EXTERNAL_BUILTINS.len(),
             5,
@@ -296,7 +298,7 @@ mod tests {
         let total = TRUST_PROPAGATING_BUILTINS.len()
             + TRUST_PURE_BUILTINS.len()
             + TRUST_EXTERNAL_BUILTINS.len();
-        assert_eq!(total, 25, "trust categorization total must equal spec 25");
+        assert_eq!(total, 22, "trust categorization total must equal spec 22");
     }
 
     #[test]
@@ -306,6 +308,7 @@ mod tests {
         assert!(is_categorized_builtin("nika:wait"));
         assert!(is_categorized_builtin("nika:notify"));
         assert!(is_categorized_builtin("nika:validate"));
+        assert!(is_categorized_builtin("nika:inspect"));
     }
 
     #[test]
