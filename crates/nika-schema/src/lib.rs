@@ -36,6 +36,7 @@
     )
 )]
 
+pub mod codegen;
 pub mod error;
 pub mod guardrails;
 pub mod parser;
@@ -45,6 +46,7 @@ pub mod trust;
 pub mod types;
 
 // Re-exports for convenience.
+pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::SchemaError;
 pub use parser::parse;
 pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, Spanned};
