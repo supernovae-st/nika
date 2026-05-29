@@ -7,11 +7,21 @@
 #   2. id matches filename (adr-001-*.md -> ADR-001)
 #   3. status is one of the 6 allowed values
 #   4. date is valid ISO 8601 (YYYY-MM-DD)
-#   5. No dangling refs (references to non-existent ADR IDs)
-#   6. Bidirectional consistency (if A supersedes B, B.superseded_by contains A)
-#   7. No supersession cycles
+#   5. No dangling refs across all 6 ref fields
+#      (supersedes superseded_by related requires enables amends)
+#   6. Bidirectional reciprocity (warn-level in non-strict mode):
+#        - supersedes <-> superseded_by (both directions)
+#        - enables -> requires (an enables[] claim must be a real dependency)
+#        - related <-> related (symmetric)
+#      Note: requires -> enables (the reverse) is intentionally NOT enforced.
+#      enables[] is a CURATED HIGHLIGHT ("what this notably unblocks"), NOT
+#      the complete reverse index of requires[]. Foundational ADRs reciprocate
+#      requires/enables by hand; later ADRs curate the highlight. enables ->
+#      requires stays the load-bearing gate (every enables[] claim must be a
+#      real dependency the target declares via requires[]).
+#   7. No supersession cycles (DAG invariant over the supersedes relation)
 #   8. affects_layers values are valid (L0, L0.5, L1..L5)
-#   9. affects_crates match nika-* pattern
+#   9. affects_crates match nika-* / all / all-<L> / nika sentinels
 #
 # Exit codes:
 #   0 -- all valid
@@ -268,6 +278,44 @@ for filepath in "$ADR_DIR"/adr-[0-9][0-9][0-9]-*.md; do
       fi
     fi
   done <<<"$(fm_array "related" "$fm")"
+done
+
+# --- Pass 3: Supersession cycle detection (DAG invariant) ---
+# The supersedes relation must be acyclic: no ADR transitively supersedes
+# itself (A supersedes B supersedes ... supersedes A would be corruption).
+# 3.2-safe: per-id supersedes lists in temp files + worklist reachability
+# with a string seen-set (no associative arrays). O(N*E), N=54 is trivial.
+for fm_file in "$TMPDIR_VAL"/*.fm; do
+  [ -f "$fm_file" ] || continue
+  nid="$(fm_scalar "id" "$(cat "$fm_file")")"
+  [ -z "$nid" ] && continue
+  fm_array "supersedes" "$(cat "$fm_file")" | tr '\n' ' ' >"$TMPDIR_VAL/$nid.ss"
+done
+
+for ss_file in "$TMPDIR_VAL"/*.ss; do
+  [ -f "$ss_file" ] || continue
+  start="$(basename "$ss_file" .ss)"
+  worklist="$(cat "$ss_file")"
+  seen=" "
+  cycle_hit=0
+  iter=0
+  while [ -n "$(printf '%s' "$worklist" | tr -d ' ')" ] && [ "$iter" -lt 2000 ]; do
+    iter=$((iter + 1))
+    next=""
+    for n in $worklist; do
+      [ -z "$n" ] && continue
+      if [ "$n" = "$start" ]; then
+        cycle_hit=1
+        break
+      fi
+      case "$seen" in *" $n "*) continue ;; esac
+      seen="$seen$n "
+      [ -f "$TMPDIR_VAL/$n.ss" ] && next="$next $(cat "$TMPDIR_VAL/$n.ss")"
+    done
+    [ "$cycle_hit" = 1 ] && break
+    worklist="$next"
+  done
+  [ "$cycle_hit" = 1 ] && error "supersession cycle detected involving $start"
 done
 
 # --- Report ---
