@@ -15,10 +15,11 @@
 #        - related <-> related (symmetric)
 #      Note: requires -> enables (the reverse) is intentionally NOT enforced.
 #      enables[] is a CURATED HIGHLIGHT ("what this notably unblocks"), NOT
-#      the complete reverse index of requires[]. Foundational ADRs reciprocate
-#      requires/enables by hand; later ADRs curate the highlight. enables ->
-#      requires stays the load-bearing gate (every enables[] claim must be a
-#      real dependency the target declares via requires[]).
+#      the complete reverse index of requires[] -- LOCKED D-2026-05-30.
+#      Foundational ADRs reciprocate requires/enables by hand; later ADRs
+#      curate the highlight. enables -> requires stays the load-bearing gate
+#      (every enables[] claim must be a real dependency the target declares
+#      via requires[]).
 #   7. No supersession cycles (DAG invariant over the supersedes relation)
 #   8. affects_layers values are valid (L0, L0.5, L1..L5)
 #   9. affects_crates match nika-* / all / all-<L> / nika sentinels
