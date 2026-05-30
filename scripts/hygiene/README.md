@@ -42,7 +42,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 14 | `check-private-leaks.sh` | No `/.claude/projects/…` in tracked code |
 | 15 | `check-cargo-audit.sh` | `cargo audit` shows no RustSec advisories |
 | 16 | `check-adr-schema.sh` | ADR frontmatter missing required fields or invalid format |
-| 17 | `check-adr-cycles.sh` | Supersession cycle in ADR graph (A supersedes B supersedes A) |
+| 17 | *(killed 2026-05-30)* | was `check-adr-cycles.sh` — subsumed by vector 16 `check-adr-schema.sh` → `validate.sh` Pass 3 (DAG supersession-cycle detection, bash-3.2-safe worklist). The dedicated vector used `declare -A` (bash 4+); validate.sh Pass 3 is portable + self-contained. Kept gap in numbering |
 | 18 | *(killed 2026-04-17)* | was `check-adr-dangling.sh` — duplicated by vector 16 `check-adr-schema.sh` → `validate.sh` Pass 2 which already runs dangling-ref check. Kept gap in numbering (renumbering 33 vectors is churn for no value) |
 | 19 | `check-adr-orphan-proposed.sh` | ADR stuck in proposed/draft >30 days |
 | 20 | `check-adr-evidence.sh` | File path in Evidence section no longer exists |

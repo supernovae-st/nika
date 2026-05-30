@@ -69,7 +69,7 @@ run_check() {
   fi
 }
 
-# --- All 31 vectors (vectors 7 + 18 removed 2026-04-17; counts 33 deployed minus 2 = 31 live) ---
+# --- All 30 vectors (vectors 7 + 17 + 18 removed; counts 33 deployed minus 3 = 30 live) ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"
@@ -89,11 +89,13 @@ run_check "13 claude-coauthor-leak  " "check-claude-coauthor.sh"
 run_check "14 private-path-leak     " "check-private-leaks.sh"
 run_check "15 cargo-audit-rustsec   " "check-cargo-audit.sh"
 run_check "16 adr-schema-valid     " "check-adr-schema.sh"
-run_check "17 adr-supersede-cycles " "check-adr-cycles.sh"
-# Vector 18 (adr-dangling-refs) removed 2026-04-17 — duplicated by
-# vector 16 check-adr-schema.sh which invokes scripts/adr/validate.sh
-# (Pass 2 already runs dangling-ref check per validate.sh:186).
-# Kept the file's semantics; dropped the redundant invocation.
+# Vector 17 (adr-supersede-cycles) removed 2026-05-30 — subsumed by vector 16
+# check-adr-schema.sh → validate.sh Pass 3 (DAG supersession-cycle detection,
+# bash-3.2-safe worklist). The dedicated check-adr-cycles.sh used `declare -A`
+# (bash 4+); validate.sh Pass 3 is portable + self-contained.
+# Vector 18 (adr-dangling-refs) removed 2026-04-17 — subsumed by vector 16
+# → validate.sh Pass 2 (dangling-ref check across all 6 ref fields).
+# Kept the numbering gap (renumbering 30+ vectors is churn for no value).
 run_check "19 adr-orphan-proposed  " "check-adr-orphan-proposed.sh"
 run_check "20 adr-evidence-paths   " "check-adr-evidence.sh"
 run_check "21 layer-discipline     " "check-layering.sh"
