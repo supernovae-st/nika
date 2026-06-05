@@ -226,6 +226,10 @@ when v0.90 tags.
 
 - **End-user docs** — [docs.nika.sh](https://docs.nika.sh) (Mintlify,
   hosted from [supernovae-st/nika-docs](https://github.com/supernovae-st/nika-docs)).
+- **Language spec** — [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec)
+  (Apache-2.0): the runtime-agnostic Nika workflow language + its 5 pillars.
+  This repo is the reference engine that implements it (`SQL` is to PostgreSQL
+  what `Nika` is to this engine).
 - **Architecture** — [`docs/architecture/`](docs/architecture/):
   [forward-compat invariants](docs/architecture/forward-compat-invariants.md),
   [crate layer registry](docs/architecture/crate-layer-registry.md),
