@@ -9,6 +9,11 @@ Nika Diamond is a ground-up rewrite on an orphan branch (`main` ·
 renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives on
 `brouillon` (renamed 2026-05-06 from `main`). Diamond starts at v0.80.0.
 
+**Version history.** Nika has shipped since **v0.1.0**. The early engine
+(**v0.1.0 → v0.28.0**, 96 tags) is on this repository as historical record;
+the v0.29 → v0.79.3 legacy era is kept as a private reference; this changelog
+tracks the Diamond rebuild from **v0.80.0-alpha** onward.
+
 ---
 
 ## [Unreleased]
