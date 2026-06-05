@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a capability for the Nika engine
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Nika ships on a **forever-v0.x** model — every release is complete for
+        its declared scope (no half-features behind "coming in v2"). Proposals
+        are weighed against that discipline.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to do that Nika does not support today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How might it work? A workflow sketch helps.
+      render: yaml
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

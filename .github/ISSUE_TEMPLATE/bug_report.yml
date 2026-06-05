@@ -1,0 +1,45 @@
+name: Bug report
+description: Report a defect in the Nika engine
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Nika is pre-launch (the Diamond rebuild) —
+        reports against the admitted crates are very welcome.
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `nika --version`, or the `main` commit SHA.
+      placeholder: "v0.80.0 (abc1234)"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what occurred instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: A `.nika.yaml` workflow or the exact commands that reproduce it.
+      render: yaml
+  - type: dropdown
+    id: os
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x86_64)
+        - Linux (aarch64)
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      render: shell

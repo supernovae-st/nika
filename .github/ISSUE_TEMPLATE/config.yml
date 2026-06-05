@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.nika.sh
+    about: End-user guides, the workflow language, and the CLI reference.
+  - name: Security report
+    url: https://github.com/supernovae-st/nika/security/advisories/new
+    about: Please report vulnerabilities privately — see SECURITY.md.
