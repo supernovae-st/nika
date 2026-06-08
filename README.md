@@ -1,6 +1,6 @@
 # Nika 💎
 
-> **Inference as Code** — a single Rust binary that reads a YAML file
+> **Intent as Code** — a single Rust binary that reads a YAML file
 > and runs AI workflows. No Python, no Docker, no vendor lock-in.
 
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
@@ -269,12 +269,12 @@ complete at that release. That is the model. See
 
 See [`ROADMAP.md`](ROADMAP.md) for the full forever-v0.x plan across
 `v0.81` (forward-compat seams) → `v0.90` (Diamond foundation, 42
-crates) → `v0.95` (Cortex + agent-v2) → `v0.100` (WASM plugins +
+crates) → `v0.95` (the Connectome + agent-v2) → `v0.100` (WASM plugins +
 observability + LSP) → `v0.110+` (ecosystem, hosted runner, enterprise).
 
 Post-diamond highlights:
 
-- **`nika-memory` / Cortex** (v0.95) — persistent agent memory via
+- **`nika-connectome` / the Connectome** (v0.95) — persistent sovereign agent memory via
   Oxigraph + FSRS-6 + OWL 2 (9-10 satellite crates).
 - **Agent v2** (v0.95) — parallel tool calls, ReWOO planning,
   reflection, resume, context compression, four guardrail types.
