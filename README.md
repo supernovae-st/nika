@@ -1,311 +1,150 @@
-# Nika 💎
+# Nika
 
-> **Intent as Code** — a single Rust binary that reads a YAML file
-> and runs AI workflows. No Python, no Docker, no vendor lock-in.
+> **Intent as Code.** An open language for AI workflows — one portable file,
+> any model, no cloud.
 
+[![License](https://img.shields.io/badge/engine-AGPL--3.0--or--later-blue.svg)](LICENSE)
+[![Spec](https://img.shields.io/badge/spec-Apache--2.0-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
+[![Rust](https://img.shields.io/badge/built_in-Rust-orange.svg)](Cargo.toml)
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
-[![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
-[![Rust edition](https://img.shields.io/badge/rust-2024-orange.svg)](Cargo.toml)
-[![Branch](https://img.shields.io/badge/branch-main_(Diamond)-green.svg)](#the-diamond-rewrite)
-[![Unwrap](https://img.shields.io/badge/unwrap_in_src-0_(CI--enforced)-brightgreen.svg)](#hygiene-31-ci-vectors)
-[![Clippy](https://img.shields.io/badge/clippy-0_warnings-brightgreen.svg)](#current-state)
+
+Nika is an **open language for describing and running AI workflows** — a YAML
+specification ([Apache-2.0](https://github.com/supernovae-st/nika-spec)) and a
+reference engine, a single Rust binary (AGPL-3.0). The way SQL pairs with
+PostgreSQL, or the Dockerfile with Docker: a portable standard, plus an engine
+that runs it.
+
+A Nika workflow is just a file — readable, portable, verifiable. It runs
+locally, on whichever LLM you choose, with no cloud required.
 
 ```yaml
-# workflow.nika.yaml
+# review.nika.yaml — read a PR diff, judge its risk, comment only when it's high.
 nika: v1
-workflow: summarize-article
+workflow: pr-risk-review
+model: ollama/llama3.1               # local by default — swap to any provider
+
 tasks:
-  - id: fetch
+  - id: diff                          # exec — a read-only shell command
+    exec:
+      command: "git diff origin/main...HEAD"
+      capture: structured
+
+  - id: assess                        # infer — structured LLM judgment
+    with: { patch: ${{ tasks.diff.output.stdout }} }
+    infer:
+      prompt: "Risk-assess this diff (secrets, breaking changes, missing tests). Be terse.\n${{ with.patch }}"
+      schema:
+        type: object
+        required: [risk]
+        properties:
+          risk: { type: string, enum: [low, medium, high] }
+
+  - id: comment                       # invoke — the only write, gated on the verdict
+    when: ${{ tasks.assess.output.risk == 'high' }}
     invoke:
-      tool: "nika:fetch"        # fetch is a builtin tool, not a verb
-      with: { url: "https://example.com/article", extract: article }
-  - id: summarize
-    with: { text: $fetch }
-    infer: "Summarize in 3 bullets: {{with.text}}"
+      tool: "mcp:github/pr-comment"
+      args: { body: ${{ tasks.assess.output }} }
 ```
 
-## Contents
+## The model
 
-- [What is Nika](#what-is-nika)
-- [The Diamond rewrite](#the-diamond-rewrite)
-- [Current state](#current-state)
-- [Architecture](#architecture)
-- [Admission: 12 gates per crate](#admission-12-gates-per-crate)
-- [Hygiene: 31 CI vectors](#hygiene-31-ci-vectors)
-- [Getting started](#getting-started)
-- [Documentation](#documentation)
-- [Why the choices we made](#why-the-choices-we-made)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
+Four verbs, and nothing else. A small core that composes into arbitrary
+real-world workflows — the Unix and SQL discipline of "small surface, large
+composition."
 
-## What is Nika
+| Verb | What it does |
+|---|---|
+| `infer` | Call an LLM — any provider, local or hosted |
+| `exec` | Run a shell command |
+| `invoke` | Call a tool or MCP server (an HTTP fetch, GitHub, a builtin…) |
+| `agent` | Run an autonomous loop with tools, until the task is done |
 
-Nika is a **workflow engine for AI**: four verbs (`infer`, `exec`,
-`invoke`, `agent` — fetching a URL is the `nika:fetch` builtin tool via
-`invoke`, not a verb) wired through a typed YAML schema, a taint-tracking
-template engine, and a layered kernel of side effects. Workflows are
-human-authored, machine-executable, and reproducible across providers.
+Everything sits under one frozen, versioned envelope — `nika: v1` — that won't
+break. Three properties hold across every workflow:
 
-The engine ships as a single static binary. Drop `.nika.yaml` files into
-a project, run `nika run`, get deterministic output.
-
-## The Diamond rewrite
-
-`main` is an **orphan branch** — the production Diamond rebuild, with no
-shared history with the v0.79.3 legacy monolith (138,724 LOC), which is
-kept as a **private** read-only reference (not on this public remote).
-Nika is being rebuilt as **42 clean crates**, each ≤15,000 LOC, every file
-≤1,500 LOC, every function ≤100 lines, and every crate gated through a
-**12-point admission checklist** before joining the workspace.
-
-**Why rewrite?** Every crate must fit in an AI assistant's context
-window with its tests and kernel traits visible. 15k LOC per crate ≈ 7%
-of a 1M-token context — enough headroom that automated refactors stop
-hallucinating. The full argument lives in
-[`docs/architecture/ai-velocity.md`](docs/architecture/ai-velocity.md).
-
-Grounding decisions:
-- [ADR-001 — Diamond orphan branch](docs/adr/adr-001-diamond-orphan-branch.md)
-- [ADR-002 — Forever v0.x release model](docs/adr/adr-002-forever-v0x.md)
-- [ADR-004 — Context-window-sized crates](docs/adr/adr-004-context-window-sized-crates.md)
-- [ADR-006 — Layered kernel + ISP traits](docs/adr/adr-006-layered-kernel-isp-traits.md)
-- [ADR-007 — Forward-compat invariants](docs/adr/adr-007-forward-compat-invariants.md)
-- [ADR-008 — TOML-driven catalog](docs/adr/adr-008-toml-driven-catalog.md)
-
-Origin story: [`docs/MANIFESTO.md`](docs/MANIFESTO.md).
-
-### Version lineage
-
-Nika has shipped since **v0.1.0**. The public tag history covers the early
-engine (**v0.1.0 → v0.28.0**, 96 tags); the v0.29 → v0.79.3 legacy monolith
-is kept as a private reference; `main` carries the clean-slate Diamond
-rebuild from **v0.80.0-alpha** onward.
+- **Provider-agnostic, local-first** — local Ollama or LM Studio, or any API.
+  Your workflow doesn't change when the model does.
+- **Safe by construction** — a read-XOR-write capability model. A step that
+  reads cannot silently write; every effect is explicit and gated.
+- **Reproducible** — the file and its execution trace are an auditable,
+  re-runnable record.
 
 ```mermaid
-timeline
-    title Nika version lineage
-    Early engine (public · 96 tags) : v0.1.0 first prototype : v0.28.0 pre-launch
-    Legacy monolith (private reference) : v0.29 → v0.79.3 : 138K-LOC nika-engine monolith
-    Diamond rebuild (public · main) : v0.80.0-alpha : clean-slate 42-crate craft, 12-gate admission
+flowchart LR
+    F["workflow.nika.yaml<br/><i>portable · readable · verifiable</i>"] --> E["<b>nika</b><br/>single Rust binary"]
+    E -->|infer| L["LLMs<br/>Ollama · LM Studio · any API"]
+    E -->|exec| S["shell"]
+    E -->|invoke| T["tools · MCP"]
+    E -->|agent| A["autonomous loop"]
 ```
 
-## Current state
+## Why Nika
 
-Diamond is v0.80.x. The canonical status block is regenerated by
-`bash scripts/refresh-status.sh` and parity-checked in CI.
+The closest analogues aren't products — they're **standards**. SQL. The
+Dockerfile. A portable specification with a reference engine. The language is
+the contribution, not a product to sell.
 
-| Field | Value |
-|---|---|
-| Branch | `main` (production · the Diamond rebuild) |
-| Workspace version | `v0.80.0` |
-| Crates admitted | **13 / 42** (run `bash scripts/refresh-status.sh` for live count) |
-| Crates WIP | 1 (`nika-schema`) |
-| Layer distribution | L0: 6 · L0.5: 2 · L1: 5 · L4: 1 |
-| Lib tests | regenerated + CI parity-checked by `scripts/refresh-status.sh` (grows per crate admission) |
-| Clippy warnings | **0** |
-| `.unwrap()` in `src/` | **0** (CI-enforced) |
-| Providers | **32** (TOML-driven catalog) |
-| Capability rules | **49** |
-| Hygiene vectors | **31 deployed** (28 green / 3 yellow / 0 red) |
-| ADRs | **35** (30 Accepted + 5 Proposed) |
+As AI agents start acting on the real world, the interface where they act
+can't be free text (too vague) or raw code (too risky). It has to be a
+**verifiable action language** — one an AI writes, a human reviews and approves,
+and a machine runs deterministically. Kept open and sovereign, not locked
+inside one vendor's cloud.
 
-Admitted crates (13 of 42 — the live roster is regenerated by
-`scripts/refresh-status.sh`):
+What no existing workflow tool offers together: a single Rust binary · portable
+declarative YAML · local-first · read-XOR-write capability security · AGPL ·
+no cloud required · bring-your-own-LLM.
 
-- **`nika-types`** — L0, foundational value types (cost, trust, budget, baggage…).
-- **`nika-error`** — L0, `NIKA-XXX` error codes + `NikaErrorCode` trait + `miette` diagnostics.
-- **`nika-catalog`** + **`nika-catalog-codegen`** — L0, compile-time `phf` tables (32 LLM providers, 105 MCP servers, builtins, transforms, embeddings, 49 capability rules).
-- **`nika-kernel`** + **`nika-kernel-mock`** — L0.5, sealed trait contracts for every side effect + deterministic mocks.
-- **`nika-catalog-verify`** — L4 binary, nightly registry drift probe.
-- **L1 effects** — `nika-clock`, `nika-event`, `nika-bm25` (ranking), plus the computer-use crates `nika-screen` (capture), `nika-ocr` (text), `nika-a11y` (accessibility tree).
+## Status
 
-WIP: **`nika-schema`** — workflow AST + parser (scaffolded).
+Nika is built in the open.
 
-### 10-year horizon
+The **language** — the `nika: v1` envelope and its four verbs — is stable and
+won't break. The **engine** is a strict, modular Rust workspace under active
+development; its first complete public release tags as `v0.90`. Until then, the
+code, the [spec](https://github.com/supernovae-st/nika-spec), and the
+[example workflows](examples/) are all readable, and development happens on
+`main` in the open.
 
-For the canonical **10-year architectural horizon (2026 → 2036)** with
-42-crate target · 4-verb stress test · per-crate detail · best-enemies
-SOTA differentiation · 11/10 amplifiers · anti-Palantir guardian framing ·
-see [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
-(v1.3 · proposal-grade · annual decennial review 2027-04+).
+Forever `v0.x`: every release is complete for its declared scope — no
+half-features parked behind a future major version.
 
-## Architecture
-
-```mermaid
-flowchart TD
-    L5["<b>L5 · binary</b><br/>nika — composition root (&lt;500 LOC)"]
-    L4["<b>L4 · interfaces</b><br/>cli · lsp · serve · init · catalog-verify"]
-    L3["<b>L3 · orchestration</b><br/>runtime · daemon"]
-    L2["<b>L2 · domain</b><br/>verb-{exec,invoke,infer,agent} · provider-{rig,native,mock}<br/>builtin · mcp · media-* · pck-*"]
-    L1["<b>L1 · effects</b> (one trait impl each)<br/>shield · event · clock · fs · http · blob · process · extract · security · git · vault"]
-    L05["<b>L0.5 · kernel</b><br/>kernel · kernel-mock — sealed trait contracts for every side effect"]
-    L0["<b>L0 · core</b> (zero I/O, zero async)<br/>types · error · catalog · schema · binding"]
-    L5 --> L4 --> L3 --> L2 --> L1 --> L05 --> L0
-```
-
-*Dependencies flow **downward only** — an L2 crate may use L1/L0.5/L0, never
-an L3+ crate. Each crate's allowed I/O axes (fs / net / process / time…) are
-declared in `[workspace.metadata.diamond.axes]` and enforced by hygiene
-vectors. The diagram shows the **target 42-crate** shape; see the live roster
-below.*
-
-Strict downward-only dependencies. Axes (fs / net / process / time…)
-are declared per-crate in `[workspace.metadata.diamond.axes]` and
-enforced by hygiene vectors. Full layer map:
-[`docs/architecture/crate-layer-registry.md`](docs/architecture/crate-layer-registry.md).
-
-## Admission: 12 gates per crate
-
-A crate enters `Cargo.toml` `members = [...]` only when all 12 gates
-are green in the same commit:
-
-1. **Spec** — `docs/crate-specs/<name>.md` exists
-2. **TDD** — tests written before implementation
-3. **Impl** — compiles, tests pass, no temporary code
-4. **Clippy 0** — `cargo clippy --workspace --all-targets -- -D warnings`
-5. **Mutation ≥ 90%** — `cargo mutants -p <name>`
-6. **Property** — `proptest` on sensitive surfaces (parsers, encoding)
-7. **Benchmarks** — `benches/` on hot paths (exempt otherwise)
-8. **Docs** — `cargo doc --no-deps` zero warnings
-9. **Canary E2E** — `tests/canary-<name>.nika.yaml` passes (exempt L0)
-10. **Legacy parity** — golden test vs the private legacy-reference output
-11. **Review swarm** — three agents in parallel; P0/P1 fixed same session
-12. **Atomic commit** — one admission, one commit
-
-See [ADR-003](docs/adr/adr-003-12-gate-admission.md) for the full spec.
-
-## Hygiene: 31 CI vectors
-
-`scripts/hygiene/check-all.sh` + `scripts/ci/` + `.github/workflows/`
-enforce Diamond invariants on every push. Selected vectors:
-
-| Check | Rule |
-|---|---|
-| `check-loc-limits.sh` | file ≤ 1,500 LOC |
-| `check-crate-size.sh` | crate ≤ 15,000 LOC |
-| `check-fn-length.sh` | fn ≤ 100 lines |
-| `check-unwrap.sh` | 0 `.unwrap()` in `src/` |
-| `check-expect.sh` | 0 `.expect(` in `src/` |
-| `check-dead-code.sh` | 0 `#[allow(dead_code)]` |
-| `check-layer-deps.sh` | per-layer banned deps (L0 rejects tokio, reqwest, rayon…) |
-| `check-cancel-safety.sh` | every `async fn` annotated with `// CANCEL SAFETY:` |
-| `check-owned-strings.sh` | catalog public API stays `&'static str` |
-| `check-unsafe-count.sh` | `unsafe` token counter vs frozen baseline (currently 0) |
-| `check-status-claims-sync.sh` | README/ROADMAP status blocks match `refresh-status.sh` |
-| `forward-compat.yml` | `cargo-public-api` + `cargo-semver-checks` on every PR |
-| `hygiene-nightly.yml` | nightly drift issue on RED |
-
-P0/P1 vectors run pre-commit; P2/P3 run pre-push.
-
-## Getting started
-
-Nika is pre-launch. The public `nika` binary ships at **v0.90** once all
-42 crates are admitted and the seven pre-launch shadow zones are
-green. In the meantime, the Diamond workspace is developed in the open.
-
-To work on the engine locally:
+## Get started
 
 ```bash
-git clone https://github.com/supernovae-st/nika.git
-cd nika
-git checkout main      # production Diamond branch (default)
-
-cargo test --workspace --lib          # full lib suite (grows per crate admission)
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
-bash scripts/hygiene/check-all.sh      # 31 drift vectors
+git clone https://github.com/supernovae-st/nika.git && cd nika
+cargo test --workspace --lib
 ```
 
-End-user installation paths (Homebrew tap, `cargo install nika`,
-`curl | sh` installer) will be documented at
-[docs.nika.sh/getting-started/installation](https://docs.nika.sh/getting-started/installation)
-when v0.90 tags.
+End-user install (Homebrew tap · `cargo install nika` · `curl | sh`) is
+documented at
+[docs.nika.sh/getting-started](https://docs.nika.sh/getting-started) when
+`v0.90` tags.
 
 ## Documentation
 
-- **End-user docs** — [docs.nika.sh](https://docs.nika.sh) (Mintlify,
-  hosted from [supernovae-st/nika-docs](https://github.com/supernovae-st/nika-docs)).
-- **Language spec** — [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec)
-  (Apache-2.0): the runtime-agnostic Nika workflow language + its 5 pillars.
-  This repo is the reference engine that implements it (`SQL` is to PostgreSQL
-  what `Nika` is to this engine).
-- **Architecture** — [`docs/architecture/`](docs/architecture/):
-  [forward-compat invariants](docs/architecture/forward-compat-invariants.md),
-  [crate layer registry](docs/architecture/crate-layer-registry.md),
-  [capability axes](docs/architecture/axes.md),
-  [AI-velocity north star](docs/architecture/ai-velocity.md).
-- **ADRs** — [`docs/adr/`](docs/adr/README.md), 35 decisions (30 Accepted, 5 Proposed).
-- **Crate specs** — [`docs/crate-specs/`](docs/crate-specs/), one
-  spec per admitted crate (Gate 1 artifact).
-- **Example workflow** — [`examples/pr-risk-review.nika.yaml`](examples/pr-risk-review.nika.yaml):
-  a readable four-verb workflow (diff → assess → gated comment), local-first.
-- **Exemplary commits** — [`docs/golden-commits.md`](docs/golden-commits.md).
+- **Language spec** — [supernovae-st/nika-spec](https://github.com/supernovae-st/nika-spec) (Apache-2.0), the runtime-agnostic Nika language.
+- **End-user docs** — [docs.nika.sh](https://docs.nika.sh).
+- **Website** — [nika.sh](https://nika.sh).
+- **Example workflow** — [`examples/pr-risk-review.nika.yaml`](examples/pr-risk-review.nika.yaml), a readable four-verb workflow, local-first.
 
-## Why the choices we made
-
-### Why Rust
-
-Single static binary, no runtime install. No garbage collector —
-ownership gives workflow determinism. Strong type system catches
-integration errors at compile time. Mature async ecosystem (`tokio`,
-`rig`, `rmcp`). Cross-platform via `cargo-dist` with signed releases.
-
-### Why AGPL-3.0-or-later
-
-AGPL closes the SaaS loophole that MIT leaves open. If you modify Nika
-and run it as a hosted service, users of that service get the source.
-A commercial license is available for organizations that cannot accept
-AGPL's network clause (Grafana model). Contact:
-`contact@supernovae.studio`.
-
-### Why forever v0.x
-
-We do not ship half-features behind "coming in v2". Every release is
-diamond-grade for its declared scope. SQLite stayed on 3.x for 20
-years while adding WAL, FTS, JSON1, window functions — each release
-complete at that release. That is the model. See
-[ADR-002](docs/adr/adr-002-forever-v0x.md).
-
-## Roadmap
-
-See [`ROADMAP.md`](ROADMAP.md) for the full forever-v0.x plan across
-`v0.81` (forward-compat seams) → `v0.90` (Diamond foundation, 42
-crates) → `v0.95` (the Connectome + agent-v2) → `v0.100` (WASM plugins +
-observability + LSP) → `v0.110+` (ecosystem, hosted runner, enterprise).
-
-Post-diamond highlights:
-
-- **`nika-connectome` / the Connectome** (v0.95) — persistent sovereign agent memory via
-  Oxigraph + FSRS-6 + OWL 2 (9-10 satellite crates).
-- **Agent v2** (v0.95) — parallel tool calls, ReWOO planning,
-  reflection, resume, context compression, four guardrail types.
-- **WASM plugins** (v0.100) — wasmtime + extism sandbox for
-  third-party builtins.
-- **Observability** (v0.100) — OpenTelemetry, trace replay, metrics.
-- **`nika-pck` full** (v0.95) — sigstore keyless signing, PubGrub
-  resolver, nine first-class content types.
-
-Nika Cloud and Nika Enterprise are deferred to v0.110+ on demand.
-Self-hosting remains the primary target.
-
-## Contributing
-
-External contributions are welcome once the first post-diamond release
-(v0.90) ships. Until then, Nika is being crafted in public and every
-crate passes a 12-gate admission swarm. If you want to follow along,
-watch the `main` branch (Diamond production) and
-[docs.nika.sh/changelog](https://docs.nika.sh/changelog).
-
-Security reports: `security@supernovae.studio`.
+**Building Nika?** The engine is crafted under a strict workspace discipline —
+context-window-sized crates, a per-crate admission checklist, zero `.unwrap()`
+in `src/` (CI-enforced), downward-only layering. The design lives in
+[`docs/architecture/`](docs/architecture/) and the decisions in
+[`docs/adr/`](docs/adr/README.md); the roadmap is in [`ROADMAP.md`](ROADMAP.md).
 
 ## License
 
-AGPL-3.0-or-later — see [`LICENSE`](LICENSE).
+The **engine** is AGPL-3.0-or-later (see [`LICENSE`](LICENSE)) — modify it and
+run it as a hosted service, and users of that service get the source. The
+**spec** is [Apache-2.0](https://github.com/supernovae-st/nika-spec), maximally
+permissive for a standard.
 
-Commercial licensing (Grafana model) available for enterprise
-consumers. Contact: `contact@supernovae.studio`.
+A commercial license (Grafana model) is available for organizations that can't
+accept AGPL's network clause. Contact `contact@supernovae.studio`. Security
+reports: `security@supernovae.studio`.
 
-© 2024-2026 [SuperNovae Studio](https://supernovae.studio)
+---
 
-🦋 Nika — the butterfly on the SuperNovae flag.
+© 2024–2026 [SuperNovae Studio](https://supernovae.studio) · 🦋 Nika, the
+butterfly on the SuperNovae flag.
