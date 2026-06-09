@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# pr-risk-review — read a PR diff, assess its risk, and comment only when high.
+#
+# Why this one file is the whole pitch ·
+#   - four verbs, one readable file · a human reads it in seconds, the engine
+#     runs it deterministically (a verifiable action language, not free text).
+#   - local-first · the default model is a local one — swap nothing to run it
+#     fully offline · no cloud required, no key, nothing leaves your machine.
+#   - read-XOR-write capability model · the read step (`diff`) and the write
+#     step (the PR comment) are separate · the write is explicit and gated.
+nika: v1
+workflow: pr-risk-review
+
+# Local by default. Swap to anthropic/* · openai/* · etc. if you prefer.
+model: ollama/llama3.1
+
+vars:
+  base:
+    type: string
+    default: "origin/main"
+    description: "Branch to diff the current HEAD against"
+
+tasks:
+  # exec · read the diff (a read-only shell command)
+  - id: diff
+    exec:
+      command: "git diff ${{ vars.base }}...HEAD"
+      capture: structured            # → { stdout, stderr, exit_code }
+
+  # infer · assess risk · `schema:` makes the output structured so the gate
+  # below is reliable (the model MUST return matching JSON)
+  - id: assess
+    depends_on: [diff]
+    with:
+      patch: ${{ tasks.diff.output.stdout }}
+    infer:
+      prompt: |
+        Assess this pull-request diff for risk · leaked secrets, breaking
+        API changes, missing tests. Be terse.
+        Diff ·
+        ${{ with.patch }}
+      schema:
+        type: object
+        required: [risk, reasons]
+        properties:
+          risk:    { type: string, enum: [low, medium, high] }
+          reasons: { type: array, items: { type: string } }
+
+  # invoke · the ONLY write · runs only when the model judged risk high
+  - id: comment
+    depends_on: [assess]
+    when: ${{ tasks.assess.output.risk == 'high' }}
+    invoke:
+      tool: "mcp:github/pr-comment"
+      args:
+        body: ${{ tasks.assess.output.reasons }}
+
+# Typed return · the verdict, ready for a caller (a CI gate, a dashboard…).
+outputs:
+  risk:
+    value: ${{ tasks.assess.output.risk }}
+    type: string
+    description: "low | medium | high"
