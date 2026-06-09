@@ -74,6 +74,12 @@ Given a crate `nika-<role>`, ask these questions in order:
 │ nika-kernel-mock          [axes: none]  1:1 mirror, pure-memory mocks    │
 │                                                                          │
 │ Split into 4 sibling crates when kernel > 10k LOC OR traits > 50:        │
+│   ⚠ TRIGGER STATUS (2026-06-10 review) · 50 pub traits == the trigger ·  │
+│   8.0k src LOC (headroom). The NEXT trait admission FIRES the split —    │
+│   pre-plan it BEFORE L2 verb admission (which adds kernel traits).       │
+│   Sequence · (1) freeze trait census · (2) partition per the 4 buckets   │
+│   below · (3) kernel becomes the prelude/re-export hub (zero break for   │
+│   downstream `use nika_kernel::prelude::*`) · (4) Gate-12 per sibling.   │
 │   nika-kernel-core        Clock + Fs + Http + Process + Blob + Shell     │
 │   nika-kernel-ai          Provider* + Memory* + Embedding + Compressor   │
 │   nika-kernel-runtime     ToolExecutor + Agent + Checkpoint + Context    │

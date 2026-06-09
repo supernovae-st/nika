@@ -432,6 +432,12 @@ Every crate admitted to nika-diamond workspace passes Gate 12 verification:
 
 - [ ] All public types `#[non_exhaustive]`
 - [ ] All public errors `thiserror` + `#[from]` chains
+- [ ] Error enums implement `NikaErrorCode` (`nika_code() -> NikaCode` ·
+      the ONE canonical helper · typed num+category+slug). Inherent
+      string `code() -> &'static str` helpers (screen · ocr · a11y
+      pre-date this gate) are TRANSITIONAL — unify at next touch by
+      adding their reserved ranges to `nika-error::codes` and
+      implementing the trait (recorded 2026-06-10 architecture review).
 - [ ] All public traits sealed OR open-with-defaults
 - [ ] No `Vec<T>` returns in public APIs (Iterator/IntoIterator instead)
 - [ ] No third-party types in public API
