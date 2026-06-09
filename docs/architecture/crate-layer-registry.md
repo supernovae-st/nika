@@ -42,7 +42,7 @@ Given a crate `nika-<role>`, ask these questions in order:
 ║                              crates/                                       ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-╭─ L0  (pure, sync, zero I/O) — 9 crates ──────────────────────────────────╮
+╭─ L0  (pure, sync, zero I/O) — 6 crates in workspace (+3 planned) ───────╮
 │ nika-types                [axes: none]      Foundation value types (leaf) │
 │                                             + timestamp module (Q9)       │
 │                                             + hash::canonical (Q10, JCS)  │
@@ -137,7 +137,7 @@ flags. They obey the same 12-gate admission as any other crate.
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs (9 crates) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event`, `nika-binding`, `nika-transform`, `nika-pck-manifest` |
+| L0 | Pure types, lookup tables, sync-only APIs (6 in workspace · 3 planned) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event` · *planned (not yet admitted)* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
 | L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel`, `nika-kernel-mock` |
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +screen-capture from M2.1) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-bm25` (admission target W3 · ADR-038), `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-catalog-sync`, `nika-screen` (M2.1 · 1st computer-use L1 · ADR-081 guards 6+7) |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-verb-*`, `nika-policy`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |

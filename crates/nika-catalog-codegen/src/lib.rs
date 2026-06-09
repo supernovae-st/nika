@@ -11,9 +11,14 @@
 //! ## Layer
 //!
 //! L0 (sub-tier 0) — pure transformation, build-time only, zero
-//! `nika-*` dependencies. Consumed exclusively by `nika-catalog`'s
-//! `build.rs` as `[build-dependencies]`. Never compiled into a runtime
-//! binary.
+//! `nika-*` dependencies. Never compiled into a runtime binary.
+//!
+//! ⚠️ **Extraction status (2026-06-10 architecture review)** · NOT yet
+//! consumed — `nika-catalog/build.rs` (+ `build/capabilities.rs`) still
+//! implements the TOML→Rust generation in-tree, parallel to this crate.
+//! The intended shape is `nika-catalog [build-dependencies] → this crate`.
+//! Wire-or-NUKE decision pending (per `no-legacy-no-back-compat.md` ·
+//! a crate with zero consumers is drift · flagged for D-lock).
 //!
 //! ## Public API surface
 //!

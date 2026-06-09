@@ -20,6 +20,12 @@ use std::fmt;
 ///
 /// Template expressions (e.g. `{{inputs.temperature}}`) are preserved as
 /// strings through the AST pipeline and resolved at runtime.
+///
+/// **Exhaustive by design** (FCI-002 carve-out) · this is a closed 2-variant
+/// sum — a value IS either concrete or a template, there is no third state.
+/// Downstream exhaustive matching on `Value`/`Template` is the intended API;
+/// `#[non_exhaustive]` would force wildcard arms for a variant that cannot
+/// exist. Recorded 2026-06-10 (architecture review).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Templatable<T> {
     /// A concrete, already-parsed value.
