@@ -3,9 +3,7 @@
 
 //! `RawTask` — a single task in the raw workflow AST.
 
-use crate::guardrails::GuardrailConfig;
 use crate::source::Spanned;
-use crate::types::{BudgetConfig, CompletionConfig, DecomposeSpec, LimitsConfig, RecordSpec};
 
 use super::action::RawAction;
 
@@ -26,18 +24,6 @@ pub struct RawTask {
     pub condition: Option<Spanned<String>>,
     /// For-each iteration source (template expression).
     pub for_each: Option<Spanned<String>>,
-    /// Record specification (how to store output).
-    pub record: Option<Spanned<RecordSpec>>,
-    /// Decomposition specification.
-    pub decompose: Option<Spanned<DecomposeSpec>>,
-    /// Budget configuration for this task.
-    pub budget: Option<Spanned<BudgetConfig>>,
-    /// Limits configuration (agent tasks).
-    pub limits: Option<Spanned<LimitsConfig>>,
-    /// Completion configuration (agent tasks).
-    pub completion: Option<Spanned<CompletionConfig>>,
-    /// Guardrails for output validation.
-    pub guardrails: Vec<GuardrailConfig>,
     /// Maximum retry count on failure.
     pub max_retries: Option<Spanned<u32>>,
 }
@@ -52,12 +38,6 @@ impl RawTask {
             depends_on: Vec::new(),
             condition: None,
             for_each: None,
-            record: None,
-            decompose: None,
-            budget: None,
-            limits: None,
-            completion: None,
-            guardrails: Vec::new(),
             max_retries: None,
         }
     }
@@ -81,7 +61,6 @@ mod tests {
         let task = RawTask::new(name, action);
         assert_eq!(task.name.value, "my_task");
         assert!(task.depends_on.is_empty());
-        assert!(task.guardrails.is_empty());
         assert!(task.condition.is_none());
     }
 }

@@ -79,24 +79,6 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// Invalid structured output configuration.
-    #[error("invalid structured output: {reason}")]
-    InvalidStructuredOutput {
-        /// Why the config is invalid.
-        reason: String,
-        /// Source span.
-        span: Option<Span>,
-    },
-
-    /// Guardrail configuration error.
-    #[error("guardrail error: {reason}")]
-    InvalidGuardrail {
-        /// What's wrong with the guardrail.
-        reason: String,
-        /// Source span.
-        span: Option<Span>,
-    },
-
     /// Schema version mismatch or unsupported version.
     #[error("unsupported schema version: {version}")]
     UnsupportedVersion {
@@ -180,18 +162,6 @@ const SCHEMA_286: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "unknown-dependency",
 };
-const SCHEMA_287: NikaCode = NikaCode {
-    num: 287,
-    category: Category::Schema,
-    severity: Severity::Error,
-    slug: "invalid-structured-output",
-};
-const SCHEMA_288: NikaCode = NikaCode {
-    num: 288,
-    category: Category::Schema,
-    severity: Severity::Error,
-    slug: "invalid-guardrail",
-};
 const SCHEMA_289: NikaCode = NikaCode {
     num: 289,
     category: Category::Schema,
@@ -215,8 +185,6 @@ impl NikaErrorCode for SchemaError {
             Self::DuplicateTask { .. } => SCHEMA_284,
             Self::Cycle { .. } => SCHEMA_285,
             Self::UnknownDependency { .. } => SCHEMA_286,
-            Self::InvalidStructuredOutput { .. } => SCHEMA_287,
-            Self::InvalidGuardrail { .. } => SCHEMA_288,
             Self::UnsupportedVersion { .. } => SCHEMA_289,
             Self::Validation { .. } => SCHEMA_290,
         }
@@ -288,14 +256,6 @@ mod tests {
                 to: String::new(),
                 span: None,
             },
-            SchemaError::InvalidStructuredOutput {
-                reason: String::new(),
-                span: None,
-            },
-            SchemaError::InvalidGuardrail {
-                reason: String::new(),
-                span: None,
-            },
             SchemaError::UnsupportedVersion {
                 version: String::new(),
                 span: None,
@@ -345,14 +305,6 @@ mod tests {
             SchemaError::UnknownDependency {
                 from: String::new(),
                 to: String::new(),
-                span: None,
-            },
-            SchemaError::InvalidStructuredOutput {
-                reason: String::new(),
-                span: None,
-            },
-            SchemaError::InvalidGuardrail {
-                reason: String::new(),
                 span: None,
             },
             SchemaError::UnsupportedVersion {

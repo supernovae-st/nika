@@ -394,9 +394,7 @@ include:
 ";
         let wf = parse(yaml, fid()).expect("parse");
         assert_eq!(wf.name.unwrap().value, "partial");
-        assert!(wf.context.is_none());
-        assert!(wf.logging.is_none());
-        assert!(wf.include.is_empty());
+        assert!(wf.tasks.is_empty());
     }
 
     #[test]

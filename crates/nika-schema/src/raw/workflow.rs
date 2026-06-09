@@ -4,12 +4,8 @@
 //! `RawWorkflow` — the top-level AST node from YAML parsing.
 
 use crate::source::Spanned;
-use crate::types::{
-    ContextConfig, IncludeSpec, LogConfig, OrchestrateConfig, RoutingConfig, ScheduleConfig,
-    SchemaVersion,
-};
+use crate::types::SchemaVersion;
 
-use super::mcp::RawMcpConfig;
 use super::task::RawTask;
 
 /// A raw workflow — the direct output of YAML parsing.
@@ -31,24 +27,6 @@ pub struct RawWorkflow {
     pub provider: Option<Spanned<String>>,
     /// Default model for all tasks.
     pub model: Option<Spanned<String>>,
-    /// MCP server configuration.
-    pub mcp: Option<Spanned<RawMcpConfig>>,
-    /// Context configuration.
-    pub context: Option<Spanned<ContextConfig>>,
-    /// Include directives.
-    pub include: Vec<Spanned<IncludeSpec>>,
-    /// Input variable definitions.
-    pub inputs: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
-    /// Logging configuration.
-    pub logging: Option<Spanned<LogConfig>>,
-    /// Orchestration configuration.
-    pub orchestrate: Option<Spanned<OrchestrateConfig>>,
-    /// Routing configuration.
-    pub routing: Option<Spanned<RoutingConfig>>,
-    /// Schedule configuration.
-    pub schedule: Option<Spanned<ScheduleConfig>>,
-    /// Maximum workflow duration in seconds.
-    pub max_duration_secs: Option<Spanned<u64>>,
     /// The task list.
     pub tasks: Vec<Spanned<RawTask>>,
 }
@@ -64,15 +42,6 @@ impl RawWorkflow {
             goal: None,
             provider: None,
             model: None,
-            mcp: None,
-            context: None,
-            include: Vec::new(),
-            inputs: Vec::new(),
-            logging: None,
-            orchestrate: None,
-            routing: None,
-            schedule: None,
-            max_duration_secs: None,
             tasks: Vec::new(),
         }
     }
@@ -94,7 +63,5 @@ mod tests {
         assert!(w.schema.is_none());
         assert!(w.name.is_none());
         assert!(w.tasks.is_empty());
-        assert!(w.include.is_empty());
-        assert!(w.inputs.is_empty());
     }
 }

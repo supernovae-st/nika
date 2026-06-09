@@ -38,7 +38,6 @@
 
 pub mod codegen;
 pub mod error;
-pub mod guardrails;
 pub mod parser;
 pub mod raw;
 pub mod source;
@@ -53,9 +52,7 @@ pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, 
 
 // Type re-exports (§3.16 of crate spec).
 pub use types::{
-    AgentDef, ArtifactSpec, ArtifactsConfig, Budget, BudgetConfig, CompletionConfig,
-    CompletionMode, ContentPart, ContextConfig, DecomposeSpec, DecomposeStrategy, ExtractMode,
-    IncludeSpec, LimitAction, LimitStatus, LimitType, LimitsConfig, LogConfig, LogFormat, LogLevel,
-    OrchestrateConfig, OutputFormat, OutputPolicy, RecordSpec, ResponseMode, RoutingConfig,
-    ScheduleConfig, SchemaRef, SchemaVersion, StructuredOutputSpec, Templatable,
+    BackoffStrategy, CaptureMode, ExtractMode, GoDurationError, OnError, OutputDecl, ResponseMode,
+    RetryConfig, SchemaVersion, SecretRef, SecretSource, VarDecl, VarType, is_valid_error_code,
+    parse_go_duration,
 };

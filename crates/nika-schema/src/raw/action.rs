@@ -8,7 +8,6 @@
 //! used to carry now lives in the catalog/builtin layer, not the parser AST.
 
 use crate::source::Spanned;
-use crate::types::{ContentPart, Templatable};
 
 /// The action a task performs — one of four verbs.
 #[derive(Debug, Clone)]
@@ -18,7 +17,7 @@ pub enum RawAction {
     Infer(RawInferAction),
     /// Execute a shell command.
     Exec(RawExecAction),
-    /// Invoke an MCP tool or resource.
+    /// Invoke a builtin or MCP tool.
     Invoke(RawInvokeAction),
     /// Run an agent loop.
     Agent(Box<RawAgentAction>),
@@ -32,21 +31,7 @@ pub struct RawInferAction {
     pub prompt: Spanned<String>,
     /// System prompt.
     pub system: Option<Spanned<String>>,
-    /// Temperature (0.0-2.0).
-    pub temperature: Option<Spanned<Templatable<f64>>>,
-    /// Maximum output tokens.
-    pub max_tokens: Option<Spanned<Templatable<u32>>>,
-    /// Enable extended thinking.
-    pub extended_thinking: Option<Spanned<Templatable<bool>>>,
-    /// Thinking token budget.
-    pub thinking_budget: Option<Spanned<Templatable<u32>>>,
-    /// Multi-modal content parts.
-    pub content: Vec<ContentPart>,
-    /// Response format hint.
-    pub response_format: Option<Spanned<String>>,
-    /// Provider override.
-    pub provider: Option<Spanned<String>>,
-    /// Model override.
+    /// Model override (`<provider>/<name>`).
     pub model: Option<Spanned<String>>,
 }
 
@@ -57,13 +42,6 @@ impl RawInferAction {
         Self {
             prompt,
             system: None,
-            temperature: None,
-            max_tokens: None,
-            extended_thinking: None,
-            thinking_budget: None,
-            content: Vec::new(),
-            response_format: None,
-            provider: None,
             model: None,
         }
     }
@@ -75,16 +53,10 @@ impl RawInferAction {
 pub struct RawExecAction {
     /// The command to execute.
     pub command: Spanned<String>,
-    /// Whether to use a shell (default: true).
-    pub shell: Option<Spanned<Templatable<bool>>>,
     /// Working directory.
     pub cwd: Option<Spanned<String>>,
     /// Environment variables.
     pub env: Vec<(Spanned<String>, Spanned<String>)>,
-    /// Timeout in milliseconds.
-    pub timeout_ms: Option<Spanned<Templatable<u64>>>,
-    /// Maximum stdout bytes to capture.
-    pub max_stdout: Option<Spanned<Templatable<u64>>>,
 }
 
 impl RawExecAction {
@@ -93,16 +65,13 @@ impl RawExecAction {
     pub fn new(command: Spanned<String>) -> Self {
         Self {
             command,
-            shell: None,
             cwd: None,
             env: Vec::new(),
-            timeout_ms: None,
-            max_stdout: None,
         }
     }
 }
 
-/// Raw invoke action — MCP tool/resource invocation.
+/// Raw invoke action — builtin / MCP tool invocation.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RawInvokeAction {
@@ -110,12 +79,6 @@ pub struct RawInvokeAction {
     pub tool: Option<Spanned<String>>,
     /// Resource URI to read.
     pub resource: Option<Spanned<String>>,
-    /// Parameters (JSON).
-    pub params: Option<Spanned<serde_json::Value>>,
-    /// MCP server alias.
-    pub mcp: Option<Spanned<String>>,
-    /// Timeout in milliseconds.
-    pub timeout_ms: Option<Spanned<Templatable<u64>>>,
 }
 
 impl RawInvokeAction {
@@ -125,25 +88,14 @@ impl RawInvokeAction {
         Self {
             tool: None,
             resource: None,
-            params: None,
-            mcp: None,
-            timeout_ms: None,
         }
     }
 
     /// Create an invoke action with the target (tool or resource)
-    /// already populated. At least one of `tool` / `resource` must
-    /// be `Some` for the action to be semantically valid, but this
-    /// constructor does not enforce that — the parser does.
+    /// already populated.
     #[must_use]
     pub fn with_target(tool: Option<Spanned<String>>, resource: Option<Spanned<String>>) -> Self {
-        Self {
-            tool,
-            resource,
-            params: None,
-            mcp: None,
-            timeout_ms: None,
-        }
+        Self { tool, resource }
     }
 }
 
@@ -161,38 +113,10 @@ pub struct RawAgentAction {
     pub prompt: Spanned<String>,
     /// Available tools.
     pub tools: Vec<Spanned<String>>,
-    /// Maximum agent turns.
-    pub max_turns: Option<Spanned<Templatable<u32>>>,
-    /// Maximum tokens per turn.
-    pub max_tokens: Option<Spanned<Templatable<u32>>>,
-    /// Agent definition reference (from `agents:` section).
-    pub from: Option<Spanned<String>>,
-    /// Available skills.
-    pub skills: Vec<Spanned<String>>,
-    /// Provider override.
-    pub provider: Option<Spanned<String>>,
-    /// Model override.
-    pub model: Option<Spanned<String>>,
-    /// MCP server aliases.
-    pub mcp: Vec<Spanned<String>>,
-    /// Temperature.
-    pub temperature: Option<Spanned<Templatable<f64>>>,
-    /// Token budget for the agent.
-    pub token_budget: Option<Spanned<Templatable<u32>>>,
     /// System prompt.
     pub system: Option<Spanned<String>>,
-    /// Extended thinking.
-    pub extended_thinking: Option<Spanned<Templatable<bool>>>,
-    /// Thinking budget.
-    pub thinking_budget: Option<Spanned<Templatable<u32>>>,
-    /// Maximum recursion depth.
-    pub depth_limit: Option<Spanned<Templatable<u32>>>,
-    /// Tool choice constraint.
-    pub tool_choice: Option<Spanned<String>>,
-    /// Stop sequences.
-    pub stop_sequences: Vec<Spanned<String>>,
-    /// Agent scope.
-    pub scope: Option<Spanned<String>>,
+    /// Model override (`<provider>/<name>`).
+    pub model: Option<Spanned<String>>,
 }
 
 impl RawAgentAction {
@@ -202,22 +126,8 @@ impl RawAgentAction {
         Self {
             prompt,
             tools: Vec::new(),
-            max_turns: None,
-            max_tokens: None,
-            from: None,
-            skills: Vec::new(),
-            provider: None,
-            model: None,
-            mcp: Vec::new(),
-            temperature: None,
-            token_budget: None,
             system: None,
-            extended_thinking: None,
-            thinking_budget: None,
-            depth_limit: None,
-            tool_choice: None,
-            stop_sequences: Vec::new(),
-            scope: None,
+            model: None,
         }
     }
 }
@@ -239,7 +149,6 @@ mod tests {
         let a = RawInferAction::new(span_str("Summarize this"));
         assert_eq!(a.prompt.value, "Summarize this");
         assert!(a.system.is_none());
-        assert!(a.content.is_empty());
     }
 
     #[test]
@@ -261,7 +170,6 @@ mod tests {
         let a = RawAgentAction::new(span_str("Research quantum computing"));
         assert_eq!(a.prompt.value, "Research quantum computing");
         assert!(a.tools.is_empty());
-        assert!(a.mcp.is_empty());
     }
 
     #[test]
