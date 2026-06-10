@@ -35,9 +35,11 @@ trio **nika-screen + nika-ocr + nika-a11y ADMITTED** (ADR-003 12 gates ·
 ADR-081 guard contract · error one-voice via `NikaErrorCode` +
 `nika_error::codes` NIKA-1000..1206). Kernel 4-way split EXECUTED
 2026-06-10 (nika-kernel-{core,ai,runtime,plugin} + facade hub · see
-`docs/architecture/kernel-split-census-2026-06-10.md`). Next: M2.4
-`nika-input` (synthetic input · ADR-081 Guards 1+2 password-redaction +
-ConsentProof-TTL · MANDATORY). Announce-ladder slice runs in parallel
+`docs/architecture/kernel-split-census-2026-06-10.md`). M2.4 `nika-input`
+WIP — B.2 security core + B.3 enigo backend SHIPPED (ADR-081 Guards 1+2
+password-redaction + ConsentProof-TTL · 3-lens review folded in ·
+InputDeviceDyn Send-variant canon now uniform across ALL L1 effect crates) ·
+B.4 (mutation + 12-gate close) remaining. Announce-ladder slice runs in parallel
 (D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · next s8 nika-policy (design LOCKED · impl gated on kernel-migration) then s8.5 providers → s9 verb-infer. NO live counts in this paragraph — crate ·
 test · provider · capability-rule numbers live ONLY in the auto-generated
 block below (`scripts/refresh-status.sh` · vector 23 parity-enforced ·
@@ -164,7 +166,10 @@ Narrative context (manually maintained):
   via safe `accessibility` 0.2 · `spawn_blocking` walk · NIKA-1201..1206 ·
   MANDATORY Guard 3 AX-secure-field redaction (pure tree-transform) · mutation
   82.9 % + Rule-2 walk exemption · `MAX_WALK_DEPTH` untrusted-input cap).
-  Next: M2.4 nika-input (synthetic input · ADR-081 Guards 1+2 MANDATORY). See
-  `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-a11y.md`.
+  M2.4 nika-input WIP (synthetic input write-side · `enigo` 0.6 cross-platform ·
+  ADR-081 Guards 1+2 MANDATORY · B.2+B.3 shipped — type-state consent +
+  monotonic fail-closed TTL + TypedText un-formattable wrapper · B.4 mutation +
+  12-gate close remaining). See
+  `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-input.md`.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
