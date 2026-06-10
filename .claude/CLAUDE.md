@@ -36,10 +36,11 @@ ADR-081 guard contract · error one-voice via `NikaErrorCode` +
 `nika_error::codes` NIKA-1000..1206). Kernel 4-way split EXECUTED
 2026-06-10 (nika-kernel-{core,ai,runtime,plugin} + facade hub · see
 `docs/architecture/kernel-split-census-2026-06-10.md`). M2.4 `nika-input`
-WIP — B.2 security core + B.3 enigo backend SHIPPED (ADR-081 Guards 1+2
-password-redaction + ConsentProof-TTL · 3-lens review folded in ·
-InputDeviceDyn Send-variant canon now uniform across ALL L1 effect crates) ·
-B.4 (mutation + 12-gate close) remaining. Announce-ladder slice runs in parallel
+ADMITTED 2026-06-10 (ADR-003 12 gates · ADR-081 Guards 1+2 password-redaction
++ ConsentProof-TTL · 3-lens review folded in · InputDeviceDyn Send-variant
+canon now uniform across ALL L1 effect crates) — the M2 computer-use
+see→read→locate→ACT loop is closed. Next: M2.5 `nika-browser` (Guard 5) or
+M3 per roadmap. Announce-ladder slice runs in parallel
 (D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · next s8 nika-policy (design LOCKED · impl gated on kernel-migration) then s8.5 providers → s9 verb-infer. NO live counts in this paragraph — crate ·
 test · provider · capability-rule numbers live ONLY in the auto-generated
 block below (`scripts/refresh-status.sh` · vector 23 parity-enforced ·
@@ -129,18 +130,18 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/s4-nika-fs`                                      |
-| HEAD             | `2d5a3301b` (`2d5a3301b8ea7de524bc2c76c9c4ab32285410e5`)             |
+| HEAD             | `0a6a227af` (`0a6a227af53ec6c47c1dc35b312441ed6dc9e98d`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 23                                              |
-| crates (admitted)| 21 / 42                                   |
-| crates (WIP)     | 2 — nika-schema nika-input                                  |
+| crates (admitted)| 22 / 42                                   |
+| crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
 | L0.5             | 6                                              |
 | L1               | 10                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1380 passed, 0 failed                              |
+| lib tests        | 1383 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -166,10 +167,11 @@ Narrative context (manually maintained):
   via safe `accessibility` 0.2 · `spawn_blocking` walk · NIKA-1201..1206 ·
   MANDATORY Guard 3 AX-secure-field redaction (pure tree-transform) · mutation
   82.9 % + Rule-2 walk exemption · `MAX_WALK_DEPTH` untrusted-input cap).
-  M2.4 nika-input WIP (synthetic input write-side · `enigo` 0.6 cross-platform ·
-  ADR-081 Guards 1+2 MANDATORY · B.2+B.3 shipped — type-state consent +
-  monotonic fail-closed TTL + TypedText un-formattable wrapper · B.4 mutation +
-  12-gate close remaining). See
+  M2.4 nika-input ADMITTED 2026-06-10 (synthetic input write-side · `enigo` 0.6
+  cross-platform · NIKA-1301..1305 · ADR-081 Guards 1+2 MANDATORY — type-state
+  consent + monotonic fail-closed TTL + TypedText un-formattable wrapper ·
+  mutation 98.8 % + Rule-2 press_chord-executor exemption · 3-lens
+  adversarially-verified review, 9 findings folded same-session). See
   `docs/adr/adr-081-l1-effect-crate-guard-contract.md` + `docs/crate-specs/nika-input.md`.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

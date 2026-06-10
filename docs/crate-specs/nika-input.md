@@ -216,29 +216,37 @@ Invariant #27).
 | # | Gate | Status | Evidence |
 |---|------|--------|----------|
 | 1 | SPEC | ✅ | this file |
-| 2 | TDD | ⬜ | tests precede impl (both guards headless first) |
-| 3 | IMPL | ⬜ | `enigo` cross-platform backend · API verified before write |
-| 4 | CLIPPY | ⬜ | `clippy --workspace --all-targets -D warnings` 0 |
-| 5 | MUTATION | ⬜ | `cargo mutants -p nika-input -- --lib` ≥90 % headless + Rule-2 FFI exemption (§7.1) |
-| 6 | PROPERTY | ⬜ | proptest · Guard 1 no-content-leak invariant + Guard 2 ttl predicate |
+| 2 | TDD | ✅ | B.2 shipped both pure guards headless-first (`95fcf4002`) · B.3 backend after |
+| 3 | IMPL | ✅ | `enigo` 0.6.1 cross-platform backend · API tarball-verified BEFORE write (traits · Key cfg-gates · Settings · NewConError) · `c27bd850e` |
+| 4 | CLIPPY | ✅ | **measured 2026-06-10** `clippy --workspace --all-targets -D warnings` 0 |
+| 5 | MUTATION ≥ 90% | ✅ | **measured 2026-06-10** `cargo mutants -p nika-input -- --lib` · 98 mutants · **85/86 viable caught = 98.8 %** · 12 unviable · 1 exempt (§7.1 `GATE5-EXEMPT` below) |
+| 6 | PROPERTY | ✅ | proptest `redact_leaks_nothing_proptest` · Guard 1 no-content-leak under arbitrary input |
 | 7 | BENCHMARKS | ⚪ N/A | thin `enigo` adapter · post latency is OS-bound, not a Nika hot path (Rule 2) |
-| 8 | DOCS | ⬜ | `cargo doc --no-deps` 0 warnings · all pub items documented |
+| 8 | DOCS | ✅ | **measured 2026-06-10** `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` 0 |
 | 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` surface · a `#[ignore]` real-dispatch smoke needs consent grant |
 | 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.4) · no v0.79 brouillon synthetic-input equivalent |
-| 11 | REVIEW SWARM | ⬜ | 3-lens (rust-pro + Diamond + bug-hunt) · highest-scrutiny write-side crate · Foreman-direct fallback per PE-5.1 |
-| 12 | ATOMIC COMMIT | ⬜ | the admission commit |
+| 11 | REVIEW SWARM | ✅ | 3-lens adversarially-verified swarm (security + rust-arch + contract · 26 agents) ran ON B.2 · 9 confirmed findings ALL folded into B.3 same-session (P1 `InputDeviceDyn` · monotonic fail-closed consent clock · `TypedText` structural Guard-1 · no-`Default` derive · proof-minting pin) |
+| 12 | ATOMIC COMMIT | ✅ | the admission commit (B.2 `95fcf4002` + B.3 `c27bd850e` + B.4 close) |
 
 ### 7.1 Gate 5 mutation exemption (ADR-003 Rule 2 · `enigo` post — anticipated)
 
-`nika-input` is a thin adapter over the synchronous `enigo` calls. The mutants
-expected to be **exempt** live on the `enigo`-post control-flow, reachable only
-with a real consent grant + a live desktop session (exercised by an `#[ignore]`
-smoke test, not headless CI) — e.g. the `spawn_blocking` `enigo` call + the
-`KeyCode`→`enigo::Key` / `KeyMods`→modifier application at the dispatch site.
-All **headless-reachable** logic targets 100 % mutation kill — both MANDATORY
-guards (`redact_typed_text` + `consent_valid`), the `KeyCode`→`enigo::Key` map,
-and the full `InputError` surface. Per ADR-003 Rule 2 the `enigo`-post residue
-is documented-exempt, not skipped. Exact exempt-mutant list lands at B.4.
+`nika-input` is a thin adapter over the synchronous `enigo` calls. The design
+DELIBERATELY shrank the FFI residue to one function: all decision logic lives
+in pure, headless-killable functions (`map_key` exhaustively pinned over all 66
+variants · `map_button` · `mods_keys` · `chord_plan` · `dispatch_settings` ·
+`sanitize_text_error` · both MANDATORY guards), and the only surviving mutant
+is the plan EXECUTOR:
+
+<!-- GATE5-EXEMPT: 1 -->
+
+- `press_chord -> Result<(), InputError> with Ok(())` — the press/tap/release
+  executor takes a live `&mut Enigo` handle, constructible only with a real OS
+  consent grant + desktop session (an `#[ignore]` smoke test exercises it
+  manually, never headless CI). Its decision logic (which keys, what order,
+  fail-closed mapping) is the PURE `chord_plan`, which IS mutation-killed.
+
+Measured 2026-06-10 · 98 mutants · 85/86 viable caught = **98.8 %** · 12
+unviable (`Default::default()` replacements on types with no `Default`).
 
 ## 8. Security (ADR-081)
 

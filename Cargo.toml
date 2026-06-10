@@ -37,14 +37,15 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-schema", "nika-input"]
+wip = ["nika-schema"]
 layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"
 layers.nika-clock = "L1"
 # nika-fs · Phase-B slice step 4 (announce ladder · D-2026-06-10-N6 cascade) ·
 # implements kernel io::fs {FsRead,FsWrite,FsMeta,FsList} · tokio::fs + globset ·
-# atomic write (temp+rename per kernel CANCEL SAFETY contract) · no error enum (io::Result).
+# atomic write (temp+rename per kernel CANCEL SAFETY contract) · typed FsError
+# (Pattern A · FCI-023bis · NIKA-110..119).
 layers.nika-fs = "L1"
 # nika-blob · Phase-B slice step 6 (announce ladder · D-2026-06-10-N6 cascade) ·
 # implements kernel io::blob BlobStore via blake3 CAS · sharded fs layout ·
@@ -80,6 +81,9 @@ layers.nika-screen = "L1"
 # implements kernel io::ocr OcrEngine · ocrs pure-Rust backend (B.3) · NIKA-1100..1199.
 layers.nika-ocr = "L1"
 layers.nika-a11y = "L1"
+# nika-input · M2.4 fourth computer-use L1 effect crate · FIRST write-side ·
+# implements kernel io::input InputDeviceDyn · enigo cross-platform backend ·
+# ADR-081 Guards 1+2 MANDATORY · NIKA-1300..1399.
 layers.nika-input = "L1"
 
 # ─────────────────────────────────────────────────────────────────────────────
