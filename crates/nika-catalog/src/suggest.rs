@@ -160,11 +160,13 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
         }
     }
 
-    hits.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    // `f64::total_cmp` (the same SOTA form adopted in nika-bm25) gives a TOTAL,
+    // deterministic order over the finite-by-construction jaro-winkler scores —
+    // unlike `partial_cmp().unwrap_or(Equal)`, which would silently order any NaN
+    // as Equal (non-deterministic) and is weaker under mutation. Ties break on the
+    // name (ascending) so `truncate(MAX_SUGGESTIONS)` keeps a STABLE subset rather
+    // than an insertion-order-dependent one.
+    hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.name.cmp(b.name)));
     hits.truncate(MAX_SUGGESTIONS);
     hits
 }
@@ -225,6 +227,27 @@ mod tests {
         let hits = suggest("anthropic");
         for pair in hits.windows(2) {
             assert!(pair[0].score >= pair[1].score);
+        }
+    }
+
+    #[test]
+    fn ordering_is_total_and_deterministic_on_ties() {
+        // Equal scores must break on name (ascending) — the order is fully
+        // determined, so repeated calls + truncation are reproducible.
+        let proj =
+            |hits: Vec<Suggestion>| hits.iter().map(|s| (s.name, s.score)).collect::<Vec<_>>();
+        let a = proj(suggest("gpt"));
+        let b = proj(suggest("gpt"));
+        assert_eq!(a, b, "identical query yields identical ordering");
+        for pair in a.windows(2) {
+            // Mirror the production order via total_cmp (no float `==`): score
+            // descending, and on an exact score tie, name ascending.
+            let by_score = pair[0].1.total_cmp(&pair[1].1);
+            assert!(
+                by_score == std::cmp::Ordering::Greater
+                    || (by_score == std::cmp::Ordering::Equal && pair[0].0 <= pair[1].0),
+                "ties must break on name ascending"
+            );
         }
     }
 
