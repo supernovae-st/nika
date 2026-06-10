@@ -1,0 +1,38 @@
+[package]
+name          = "nika-exec-runner"
+description   = "Shell-execution L1 effect crate — implements the nika-kernel ShellRun/ShellCancel traits via tokio::process, with a safe-by-default command blocklist (NFKC + zero-width + quote/basename bypass defenses), kill_on_drop, concurrent stdout/stderr drain, timeout, and registry cancel-by-pid."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# ADR-016 (cancellation model · future-drop primary + ShellCancel kill-by-pid) +
+# INV-011 (kill_on_drop) + INV-012 (concurrent pipe drain via try_join!).
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-016"]
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+unicode-normalization = { workspace = true }  # NFKC confusable-bypass defense
+# tokio::process spawns the child; io-util drains pipes; sync::Notify backs the
+# cancel-by-pid registry; time::timeout enforces the deadline.
+tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tokio    = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
+
+[package.metadata.lore]
+daemon        = "timonier"
+archetype     = "kodama-timonier"
+spirit_role   = "tient la barre des process · rien d'ordonné qui ne soit d'abord jugé sûr · coupe le moteur d'un geste"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true

