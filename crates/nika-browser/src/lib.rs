@@ -40,20 +40,33 @@
 //! precedent) and the pure [`dom_depth`] measure is the headless-testable
 //! core of that cap: a hostile page cannot stack-overflow or OOM the agent.
 //!
-//! # Status (B.2 · the pure security core)
+//! # Backend (B.3 · `chromiumoxide` CDP · async-native)
 //!
-//! B.2 ships Guard 5's pure core + the `ChromiumBrowser` skeleton. The
-//! `chromiumoxide` CDP backend (async-native tokio — NO `spawn_blocking`,
-//! contrast the sync-backend M2 crates; one Handler task per session,
-//! `kill_on_drop(true)` on the chromium child per Invariant #11) lands at
-//! **B.3**; until then the dispatch methods return
-//! [`BrowserError::BackendUnavailable`] (NIKA-1405).
+//! The CDP backend is async-native tokio — NO `spawn_blocking` (contrast the
+//! sync-backend M2 crates): trait methods await CDP calls directly. Each
+//! `launch` spawns ONE chromium child (`kill_on_drop(true)` per Invariant #11
+//! — chromiumoxide sets it at spawn, verified on the 0.9.1 tarball) + ONE
+//! owned Handler task pumping the CDP event loop (aborted on backend drop).
+//! Chromium is DETECTED on the host (Chrome/Chromium/Edge), never downloaded
+//! (the `fetcher` feature stays OFF — sovereignty): a missing binary surfaces
+//! as [`BrowserError::BackendUnavailable`] (NIKA-1405) with install-a-browser
+//! remediation. Navigation is gated by a pure RFC-3986 check (http/https
+//! ONLY — `file://` and `javascript:` fail closed) BEFORE any CDP dispatch.
+//!
+//! CANCEL SAFETY: `launch` is NOT cancel-safe (child spawn) — chromiumoxide
+//! kills the child on the launch future's drop (`kill_on_drop` + its own
+//! partial-launch reaping). The query paths (`dom_snapshot` · `screenshot`)
+//! are read-only CDP calls; a dropped future abandons the response without
+//! page-side effects. `click_selector` is best-effort per the kernel trait
+//! doc: the CDP click may already have fired when the future drops.
 
 // Tests assert on Result/Option outcomes; `.unwrap()`/`.expect()` are the
 // idiomatic test-failure path (never in `src/` non-test code per Diamond Rule).
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 use std::collections::BTreeMap;
+
+mod cdp;
 
 pub use nika_kernel::io::browser::BrowserError as Error;
 use nika_kernel::io::browser::{BrowserError, BrowserProfile, BrowserSession, DomNode};
@@ -171,9 +184,25 @@ pub fn dom_depth(node: &DomNode) -> u32 {
     max
 }
 
-/// CDP browser backend (cross-platform via `chromiumoxide` at B.3). Owns the
-/// session registry; each `launch` spawns one chromium child
-/// (`kill_on_drop(true)` · Invariant #11) + one CDP Handler task.
+/// One live CDP session: the chromium child (killed on drop · Invariant #11
+/// via chromiumoxide's `kill_on_drop(true)`), its page, and the owned Handler
+/// task that pumps the CDP event loop (aborted on session/backend drop).
+struct SessionHandle {
+    /// Kept alive for the child-process lifetime — dropping it kills chromium.
+    _browser: chromiumoxide::Browser,
+    page: chromiumoxide::Page,
+    handler_task: tokio::task::JoinHandle<()>,
+}
+
+impl std::fmt::Debug for SessionHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionHandle").finish_non_exhaustive()
+    }
+}
+
+/// CDP browser backend (cross-platform via `chromiumoxide`). Owns the session
+/// registry; each `launch` spawns one chromium child (`kill_on_drop(true)` ·
+/// Invariant #11) + one CDP Handler task (aborted on drop).
 ///
 /// Deliberately NOT `Clone`/`Copy`/`Default`: the registry owns child-process
 /// lifetimes (no aliased owners), and a session-capable handle must only come
@@ -182,23 +211,52 @@ pub fn dom_depth(node: &DomNode) -> u32 {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ChromiumBrowser {
+    /// Live sessions · keyed by session id.
+    sessions: std::sync::Mutex<BTreeMap<String, SessionHandle>>,
     /// Per-session click expectations (Guard 5) · keyed by session id.
-    /// B.3 extends this registry with the live Page handles.
     expectations: std::sync::Mutex<BTreeMap<String, SelectorExpectation>>,
+    /// Monotonic session-id counter.
+    next_id: std::sync::atomic::AtomicU64,
+}
+
+impl Drop for ChromiumBrowser {
+    fn drop(&mut self) {
+        // Abort every Handler task; each Browser drop kills its chromium
+        // child (kill_on_drop · Invariant #11 — no orphan browsers).
+        if let Ok(mut sessions) = self.sessions.lock() {
+            for (_, handle) in std::mem::take(&mut *sessions) {
+                handle.handler_task.abort();
+            }
+        }
+    }
 }
 
 impl ChromiumBrowser {
     /// Construct the backend — hermetic (no chromium spawned · no I/O ·
     /// `cargo test --lib` never needs a browser). Chromium is located and
-    /// spawned per `launch` call (B.3).
+    /// spawned per `launch` call.
     ///
     /// # Errors
     /// None today (the `Result` shape is the forward-compat seam every
     /// kernel-facing constructor keeps).
     pub fn new() -> Result<Self, BrowserError> {
         Ok(Self {
+            sessions: std::sync::Mutex::new(BTreeMap::new()),
             expectations: std::sync::Mutex::new(BTreeMap::new()),
+            next_id: std::sync::atomic::AtomicU64::new(1),
         })
+    }
+
+    /// Clone the live page handle for `session_id` (chromiumoxide `Page` is a
+    /// cheap `Arc` clone — the registry lock is never held across an await).
+    fn page(&self, session_id: &str) -> Result<chromiumoxide::Page, BrowserError> {
+        let sessions = self.sessions.lock().map_err(|_| poisoned())?;
+        sessions
+            .get(session_id)
+            .map(|h| h.page.clone())
+            .ok_or_else(|| BrowserError::SessionNotFound {
+                session: session_id.to_owned(),
+            })
     }
 
     /// Register the Guard-5 expectation for the NEXT `click_selector` on
@@ -234,41 +292,198 @@ impl ChromiumBrowser {
     }
 }
 
+/// Registry-lock poisoning = a panicked sibling thread — an internal fault
+/// surfaced on the transient channel (retry-able · NIKA-1406).
+fn poisoned() -> BrowserError {
+    BrowserError::TaskJoinFailed {
+        reason: "session registry poisoned (a holder thread panicked)".to_owned(),
+    }
+}
+
+/// Epoch-nanosecond timestamp for screenshot frames (ns canon · EC-4).
+/// Observability metadata only — NOT a security gate (contrast nika-input's
+/// monotonic consent clock).
+fn epoch_now_ns() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
+}
+
+/// Map a chromiumoxide error on the SELECTOR path. The selector string is
+/// agent-authored (safe), but CDP error payloads can embed page-derived
+/// detail — forward the protocol message only (no DOM content rides
+/// chromiumoxide error Display for find/describe failures).
+fn selector_err(e: &chromiumoxide::error::CdpError) -> BrowserError {
+    BrowserError::SelectorFailed {
+        reason: format!("selector resolution failed: {e}"),
+    }
+}
+
 impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
-    async fn launch(&self, _profile: &BrowserProfile) -> Result<BrowserSession, BrowserError> {
-        // B.3 wires chromiumoxide Browser::launch (kill_on_drop child +
-        // Handler task) — until then: no backend on this build.
-        Err(BrowserError::BackendUnavailable)
+    async fn launch(&self, profile: &BrowserProfile) -> Result<BrowserSession, BrowserError> {
+        use chromiumoxide::browser::{Browser, BrowserConfig};
+        use futures_util::StreamExt;
+
+        let mut config = BrowserConfig::builder();
+        config = if profile.headless {
+            config.new_headless_mode() // chrome's `--headless=new` (the maintained mode)
+        } else {
+            config.with_head() // visible window — the kernel DTO default (transparency posture)
+        };
+        if let Some(dir) = &profile.user_data_dir {
+            config = config.user_data_dir(dir);
+        }
+        if let Some((w, h)) = profile.viewport {
+            config = config.window_size(w, h);
+        }
+        // Chrome/Chromium/Edge is DETECTED, never downloaded (fetcher OFF —
+        // sovereignty). A missing binary is a backend-absence, not a launch
+        // fault: remediation = install a browser.
+        let config = config.build().map_err(|reason| {
+            let _ = reason; // detection detail is host-environment, not actionable here
+            BrowserError::BackendUnavailable
+        })?;
+        let (browser, mut handler) =
+            Browser::launch(config)
+                .await
+                .map_err(|e| BrowserError::LaunchFailed {
+                    reason: format!("chromium launch failed: {e}"),
+                })?;
+        // ONE owned Handler task per session pumps the CDP event loop; it
+        // ends when the browser closes (stream None) or on abort at drop.
+        let handler_task = tokio::spawn(async move {
+            while let Some(event) = handler.next().await {
+                // Protocol-level errors are the session's own dispatch errors
+                // surfaced elsewhere; the pump just keeps the loop alive.
+                let _ = event;
+            }
+        });
+        let page =
+            browser
+                .new_page("about:blank")
+                .await
+                .map_err(|e| BrowserError::LaunchFailed {
+                    reason: format!("initial page creation failed: {e}"),
+                })?;
+        let id = format!(
+            "cdp-{}",
+            self.next_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        );
+        let mut sessions = self.sessions.lock().map_err(|_| poisoned())?;
+        sessions.insert(
+            id.clone(),
+            SessionHandle {
+                _browser: browser,
+                page,
+                handler_task,
+            },
+        );
+        Ok(BrowserSession::new(id, None))
     }
 
-    async fn navigate(&self, _session: &BrowserSession, _url: &str) -> Result<(), BrowserError> {
-        Err(BrowserError::BackendUnavailable) // B.3 wires CDP Page.navigate
+    async fn navigate(&self, session: &BrowserSession, url: &str) -> Result<(), BrowserError> {
+        // Pure RFC-3986 gate BEFORE any CDP dispatch (http/https only —
+        // file:// and javascript: fail closed per the cdp module).
+        cdp::validate_absolute_url(url)?;
+        let page = self.page(&session.id)?;
+        page.goto(url)
+            .await
+            .map_err(|e| BrowserError::NavigationFailed {
+                reason: format!("navigation to {url:?} failed: {e}"),
+            })?;
+        Ok(())
     }
 
-    async fn dom_snapshot(&self, _session: &BrowserSession) -> Result<DomNode, BrowserError> {
-        Err(BrowserError::BackendUnavailable) // B.3 wires DOM.getDocument + capped mapper
+    async fn dom_snapshot(&self, session: &BrowserSession) -> Result<DomNode, BrowserError> {
+        use chromiumoxide::cdp::browser_protocol::dom::GetDocumentParams;
+        let page = self.page(&session.id)?;
+        // depth -1 = full tree in ONE query (the per-node mapper applies the
+        // MAX_DOM_DEPTH cap — a hostile page cannot recurse past it).
+        let resp = page
+            .execute(GetDocumentParams::builder().depth(-1).build())
+            .await
+            .map_err(|e| selector_err(&e))?;
+        cdp::map_document(&resp.result.root)
     }
 
     async fn click_selector(
         &self,
         session: &BrowserSession,
-        _sel: &str,
+        sel: &str,
     ) -> Result<(), BrowserError> {
-        // Guard 5 ordering is FIXED here at B.2: the expectation is consumed
-        // and verified BEFORE any backend dispatch (B.3 inserts the fresh CDP
-        // re-resolve between take and verify — the verify call site does not
-        // move). With no live backend the resolved element cannot exist yet,
-        // so a registered expectation fails CLOSED and no click happens.
-        if let Some(_expectation) = self.take_click_expectation(&session.id) {
-            // B.3: resolve sel fresh → map to DomNode → verify_selector_target
-            // → only then CDP click. B.2 has no resolver: fail closed.
-            return Err(BrowserError::BackendUnavailable);
+        let page = self.page(&session.id)?;
+        // Guard 5 ordering FIXED since B.2: expectation consumed, fresh
+        // resolve, PURE verify — only then the CDP click.
+        let expectation = self.take_click_expectation(&session.id);
+
+        // Structural check 1 · the selector matches EXACTLY ONE element.
+        let matches = page
+            .find_elements(sel)
+            .await
+            .map_err(|e| selector_err(&e))?;
+        if matches.len() != 1 {
+            return Err(BrowserError::SelectorFailed {
+                reason: format!(
+                    "guard-5 structural: selector must match exactly one element (matched {})",
+                    matches.len()
+                ),
+            });
         }
-        Err(BrowserError::BackendUnavailable) // B.3 wires structural checks + click
+        // Structural check 2 · stable double-resolve (same backend node).
+        let first = &matches[0];
+        let second = page.find_element(sel).await.map_err(|e| selector_err(&e))?;
+        if first.backend_node_id != second.backend_node_id {
+            return Err(BrowserError::SelectorFailed {
+                reason: "guard-5 structural: selector resolution is unstable (DOM mutated \
+                         between resolves)"
+                    .to_owned(),
+            });
+        }
+        // Build the resolved DomNode (live bbox → visibility).
+        let desc = second.description().await.map_err(|e| selector_err(&e))?;
+        let bbox = match second.bounding_box().await {
+            Ok(b) => Some(cdp::bbox_to_rect(b.x, b.y, b.width, b.height)),
+            Err(_) => None, // unrenderable → INVISIBLE to the guard
+        };
+        let resolved = DomNode::new(
+            desc.local_name.to_ascii_lowercase(),
+            cdp::attrs_to_map(desc.attributes.as_deref().unwrap_or_default()),
+            Vec::new(),
+            bbox,
+        );
+        // Guard 5 · PURE verify (expectation pins) or structural visibility.
+        match expectation {
+            Some(exp) => verify_selector_target(&resolved, &exp)?,
+            None => {
+                if !is_visible(&resolved) {
+                    return Err(BrowserError::SelectorFailed {
+                        reason: "guard-5 visibility: resolved element has no renderable area"
+                            .to_owned(),
+                    });
+                }
+            }
+        }
+        second.click().await.map_err(|e| selector_err(&e))?;
+        Ok(())
     }
 
-    async fn screenshot(&self, _session: &BrowserSession) -> Result<Frame, BrowserError> {
-        Err(BrowserError::BackendUnavailable) // B.3 wires Page.captureScreenshot → RGBA8 Frame
+    async fn screenshot(&self, session: &BrowserSession) -> Result<Frame, BrowserError> {
+        use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
+        use chromiumoxide::page::ScreenshotParams;
+        let page = self.page(&session.id)?;
+        let png_bytes = page
+            .screenshot(
+                ScreenshotParams::builder()
+                    .format(CaptureScreenshotFormat::Png)
+                    .build(),
+            )
+            .await
+            .map_err(|e| BrowserError::TaskJoinFailed {
+                reason: format!("screenshot capture failed: {e}"),
+            })?;
+        cdp::png_to_frame(&png_bytes, epoch_now_ns())
     }
 }
 
@@ -429,64 +644,119 @@ mod tests {
     // ─── Skeleton dispatch (hermetic — no chromium) ─────────────────────────
 
     #[tokio::test]
-    async fn all_five_methods_stub_backend_unavailable() {
+    async fn session_scoped_methods_reject_unknown_sessions_hermetically() {
+        // The live backend resolves the SESSION before any CDP dispatch — an
+        // unknown id is NIKA-1403 and no browser is ever touched (these tests
+        // stay hermetic; real-chromium dispatch is the #[ignore] smoke below).
         let browser = ChromiumBrowser::new().expect("construct");
-        let session = BrowserSession::new("s-1".to_owned(), None);
-        let profile = BrowserProfile::default();
+        let ghost = BrowserSession::new("never-launched".to_owned(), None);
         assert_eq!(
-            browser.launch(&profile).await.expect_err("b.2").nika_code(),
-            codes::NIKA_1405
+            browser
+                .navigate(&ghost, "https://example.org")
+                .await
+                .expect_err("unknown session")
+                .nika_code(),
+            codes::NIKA_1403
         );
         assert_eq!(
             browser
-                .navigate(&session, "https://example.org")
+                .dom_snapshot(&ghost)
                 .await
-                .expect_err("b.2")
+                .expect_err("unknown session")
                 .nika_code(),
-            codes::NIKA_1405
+            codes::NIKA_1403
         );
         assert_eq!(
             browser
-                .dom_snapshot(&session)
+                .click_selector(&ghost, "#submit")
                 .await
-                .expect_err("b.2")
+                .expect_err("unknown session")
                 .nika_code(),
-            codes::NIKA_1405
+            codes::NIKA_1403
         );
         assert_eq!(
             browser
-                .click_selector(&session, "#submit")
+                .screenshot(&ghost)
                 .await
-                .expect_err("b.2")
+                .expect_err("unknown session")
                 .nika_code(),
-            codes::NIKA_1405
-        );
-        assert_eq!(
-            browser
-                .screenshot(&session)
-                .await
-                .expect_err("b.2")
-                .nika_code(),
-            codes::NIKA_1405
+            codes::NIKA_1403
         );
     }
 
     #[tokio::test]
-    async fn click_expectation_is_consumed_once_and_fails_closed() {
+    async fn navigate_rejects_malformed_urls_before_any_session_lookup_question() {
+        // The pure URL gate runs FIRST: a refused scheme errors NIKA-1402 even
+        // on an unknown session (never leak session-existence on a bad input).
+        let browser = ChromiumBrowser::new().expect("construct");
+        let ghost = BrowserSession::new("never-launched".to_owned(), None);
+        for bad in ["javascript:alert(1)", "file:///etc/passwd", "not-a-url"] {
+            assert_eq!(
+                browser
+                    .navigate(&ghost, bad)
+                    .await
+                    .expect_err("refused url")
+                    .nika_code(),
+                codes::NIKA_1402,
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn click_expectation_survives_a_failed_session_lookup() {
+        // Guard-5 bookkeeping: the expectation is consumed by a click ATTEMPT
+        // on a LIVE session only — a failed session lookup must not burn it.
         let browser = ChromiumBrowser::new().expect("construct");
         let session = BrowserSession::new("s-1".to_owned(), None);
         let exp = SelectorExpectation::new("button".to_owned(), BTreeMap::new());
         browser
             .set_click_expectation(&session, exp)
             .expect("register");
-        // First click consumes the expectation; with no backend it fails CLOSED.
         let err = browser
             .click_selector(&session, "#submit")
             .await
-            .expect_err("fail closed");
-        assert_eq!(err.nika_code(), codes::NIKA_1405);
-        // Consumed: the registry is empty again (one expectation = one click).
-        assert!(browser.take_click_expectation("s-1").is_none());
+            .expect_err("no live session");
+        assert_eq!(err.nika_code(), codes::NIKA_1403);
+        assert!(
+            browser.take_click_expectation("s-1").is_some(),
+            "expectation not consumed by a failed lookup"
+        );
+    }
+
+    /// Real-chromium smoke (B.3 acceptance) — needs an installed
+    /// Chrome/Chromium/Edge. Run: `cargo test -p nika-browser -- --ignored`.
+    #[tokio::test]
+    #[ignore = "spawns a real chromium · launch/snapshot/screenshot/guard-5 round-trip"]
+    async fn smoke_real_chromium_round_trip() {
+        let browser = ChromiumBrowser::new().expect("construct");
+        let profile = BrowserProfile::new(None, true, Some((800, 600)));
+        let session = browser.launch(&profile).await.expect("launch headless");
+        // about:blank still has a DOM: <html><head/><body/></html>.
+        let dom = browser.dom_snapshot(&session).await.expect("snapshot");
+        assert_eq!(dom.tag, "html");
+        assert!(dom.children.iter().any(|c| c.tag == "body"));
+        let frame = browser.screenshot(&session).await.expect("screenshot");
+        assert_eq!((frame.width, frame.height), (800, 600));
+        assert_eq!(frame.pixels.len(), 800 * 600 * 4, "RGBA8 contract");
+        // Guard-5 structural: a selector matching nothing fails CLOSED.
+        let err = browser
+            .click_selector(&session, "#does-not-exist")
+            .await
+            .expect_err("no match");
+        assert_eq!(err.nika_code(), codes::NIKA_1404);
+        // Guard-5 expectation: body resolves but a tag-swap pin refuses to click.
+        browser
+            .set_click_expectation(
+                &session,
+                SelectorExpectation::new("button".to_owned(), BTreeMap::new()),
+            )
+            .expect("register");
+        let err = browser
+            .click_selector(&session, "body")
+            .await
+            .expect_err("tag swap pinned");
+        assert_eq!(err.nika_code(), codes::NIKA_1404);
     }
 
     proptest::proptest! {

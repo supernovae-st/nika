@@ -6,12 +6,14 @@ pub fn nika_browser::ChromiumBrowser::new() -> core::result::Result<Self, nika_k
 pub fn nika_browser::ChromiumBrowser::set_click_expectation(&self, session: &nika_kernel_core::io::browser::BrowserSession, expectation: nika_browser::SelectorExpectation) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
 impl core::fmt::Debug for nika_browser::ChromiumBrowser
 pub fn nika_browser::ChromiumBrowser::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_browser::ChromiumBrowser
+pub fn nika_browser::ChromiumBrowser::drop(&mut self)
 impl nika_kernel_core::io::browser::BrowserAutomationDyn for nika_browser::ChromiumBrowser
-pub async fn nika_browser::ChromiumBrowser::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, _sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
-pub async fn nika_browser::ChromiumBrowser::dom_snapshot(&self, _session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
-pub async fn nika_browser::ChromiumBrowser::launch(&self, _profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
-pub async fn nika_browser::ChromiumBrowser::navigate(&self, _session: &nika_kernel_core::io::browser::BrowserSession, _url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
-pub async fn nika_browser::ChromiumBrowser::screenshot(&self, _session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
 impl<D> owo_colors::OwoColorize for nika_browser::ChromiumBrowser
 impl<T, U> core::convert::Into<U> for nika_browser::ChromiumBrowser where U: core::convert::From<T>
 pub fn nika_browser::ChromiumBrowser::into(self) -> U
@@ -31,12 +33,21 @@ impl<T> core::convert::From<T> for nika_browser::ChromiumBrowser
 pub fn nika_browser::ChromiumBrowser::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_browser::ChromiumBrowser where T: 'static
 pub fn nika_browser::ChromiumBrowser::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_browser::ChromiumBrowser where T: ?core::marker::Sized
+pub fn nika_browser::ChromiumBrowser::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_browser::ChromiumBrowser::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_browser::ChromiumBrowser
+impl<T> tracing::instrument::WithSubscriber for nika_browser::ChromiumBrowser
+impl<T> typenum::type_operators::Same for nika_browser::ChromiumBrowser
+pub type nika_browser::ChromiumBrowser::Output = T
 impl<TraitVariantBlanketType> nika_kernel_core::io::browser::BrowserAutomation for nika_browser::ChromiumBrowser where TraitVariantBlanketType: nika_kernel_core::io::browser::BrowserAutomationDyn
 pub async fn nika_browser::ChromiumBrowser::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
 pub async fn nika_browser::ChromiumBrowser::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
 pub async fn nika_browser::ChromiumBrowser::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
 pub async fn nika_browser::ChromiumBrowser::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
 pub async fn nika_browser::ChromiumBrowser::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
+impl<V, T> ppv_lite86::types::VZip<V> for nika_browser::ChromiumBrowser where V: ppv_lite86::types::MultiLane<T>
+pub fn nika_browser::ChromiumBrowser::vzip(self) -> V
 #[non_exhaustive] pub struct nika_browser::SelectorExpectation
 pub nika_browser::SelectorExpectation::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_browser::SelectorExpectation::tag: alloc::string::String
@@ -77,6 +88,15 @@ impl<T> core::convert::From<T> for nika_browser::SelectorExpectation
 pub fn nika_browser::SelectorExpectation::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_browser::SelectorExpectation where T: 'static
 pub fn nika_browser::SelectorExpectation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_browser::SelectorExpectation where T: ?core::marker::Sized
+pub fn nika_browser::SelectorExpectation::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_browser::SelectorExpectation::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_browser::SelectorExpectation
+impl<T> tracing::instrument::WithSubscriber for nika_browser::SelectorExpectation
+impl<T> typenum::type_operators::Same for nika_browser::SelectorExpectation
+pub type nika_browser::SelectorExpectation::Output = T
+impl<V, T> ppv_lite86::types::VZip<V> for nika_browser::SelectorExpectation where V: ppv_lite86::types::MultiLane<T>
+pub fn nika_browser::SelectorExpectation::vzip(self) -> V
 pub const nika_browser::MAX_DOM_DEPTH: u16
 pub fn nika_browser::dom_depth(node: &nika_kernel_core::io::browser::DomNode) -> u32
 pub fn nika_browser::is_visible(node: &nika_kernel_core::io::browser::DomNode) -> bool

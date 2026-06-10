@@ -29,12 +29,24 @@ tokio       = { workspace = true, features = ["rt"] }
 # (Browser::launch · Page::{goto,find_element,screenshot} · Element::click).
 # The `fetcher` feature stays OFF (sovereignty: never silently download a
 # browser binary — the user installs their own Chrome/Chromium/Edge).
+chromiumoxide = { workspace = true }
+# Handler stream drain (one owned tokio task per session · aborted on drop).
+futures-util  = { workspace = true }
+# Screenshot PNG → RGBA8 kernel Frame (pure decode · headless-testable).
+png           = { workspace = true }
+# RFC-3986 absolute-URL validation BEFORE any CDP dispatch (pure).
+url           = { workspace = true }
+# Frame pixel buffer (zero-copy Bytes · kernel DTO contract).
+bytes         = { workspace = true }
 
 [dev-dependencies]
 # #[tokio::test] for the async BrowserAutomationDyn methods · proptest pins
 # the pure Guard-5 core (verify_selector_target mismatch ⇒ never clicks).
 tokio    = { workspace = true, features = ["macros", "rt"] }
 proptest = { workspace = true }
+# CDP Node test construction via Deserialize (the codegen struct's 40+ field
+# literal churns per protocol revision — JSON is its stable surface).
+serde_json = { workspace = true }
 
 [lints]
 workspace = true
