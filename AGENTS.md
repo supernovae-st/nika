@@ -6,17 +6,21 @@ this repository. This is the public AGENTS counterpart to the
 
 ## Repository snapshot
 
-| Field             | Value                                                  |
-|-------------------|--------------------------------------------------------|
-| Branch            | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
-| HEAD (last docs)  | `393fdefa8`                                            |
-| Workspace         | v0.80.0                                                |
-| Crates (admitted) | 8 / 42 target (+ 2 WIP: `nika-schema`, `nika-screen`)              |
-| Lib tests         | 905 passing, 0 failed                                  |
-| Clippy            | 0 warnings                                             |
-| Hygiene vectors   | 31 total (28 green / 3 yellow / 0 red)                 |
+This page embeds **no volatile counts** (crate / test / vector numbers drift
+every session — a stale number here would mislead a Cursor/Codex/Aider session
+exactly as much as a Claude one). For the live, canonical state:
 
-Regenerate with `bash scripts/refresh-status.sh`.
+```bash
+bash scripts/refresh-status.sh        # the single source of truth
+```
+
+The regenerated block is quoted verbatim in `ROADMAP.md` and `.claude/CLAUDE.md`
+(kept in sync by hygiene vector `check-status-claims-sync.sh`). Stable facts:
+
+- **Branch topology**: `main` is the production Diamond orphan branch (renamed
+  2026-05-06 from `nika-diamond`). `brouillon` is the read-only legacy v0.79.3
+  reference (zero shared history). See `.claude/rules/diamond-discipline.md`.
+- **Workspace**: `v0.80.0`, forever-v0.x, 42-crate target (cap 100).
 
 ## What to read first
 
@@ -63,8 +67,17 @@ Full detail: `CONTRIBUTING.md` + `.claude/rules/diamond-discipline.md`.
 cargo test --workspace --lib              # always --lib, avoids Keychain
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
-bash scripts/hygiene/check-all.sh         # engine-internal hygiene vectors
+bash scripts/hygiene/check-all.sh         # engine-internal hygiene vectors (incl.
+                                          # supply-chain cargo-deny, ADR-081 guard
+                                          # presence, error one-voice)
 bash scripts/refresh-status.sh            # regenerate canonical status block
+```
+
+Admission-tier gates (slow · run per crate when admitting, not in the suite):
+
+```bash
+bash scripts/ci/check-mutation-floor.sh <crate>   # real Gate 5 (cargo-mutants ≥90%)
+cargo deny check                                   # full supply-chain policy
 ```
 
 ## Code intelligence
