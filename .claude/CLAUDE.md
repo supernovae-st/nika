@@ -41,7 +41,7 @@ ADMITTED 2026-06-10 (ADR-003 12 gates · ADR-081 Guards 1+2 password-redaction
 canon now uniform across ALL L1 effect crates) — the M2 computer-use
 see→read→locate→ACT loop is closed. Next: M2.5 `nika-browser` (Guard 5) or
 M3 per roadmap. Announce-ladder slice runs in parallel
-(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · s8.5 nika-providers ADMITTED 2026-06-11 (L1.5 · 13/14 wired · gemini s8.6) · next s8 nika-policy (design LOCKED · impl gated on kernel-migration) then s8.5 providers → s9 verb-infer. NO live counts in this paragraph — crate ·
+(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · s8.5 nika-providers ADMITTED 2026-06-11 (L1.5 · 13/14 wired · gemini s8.6) · s8 nika-policy design LOCKED (impl gated on kernel-migration) · next s9 verb-infer. NO live counts in this paragraph — crate ·
 test · provider · capability-rule numbers live ONLY in the auto-generated
 block below (`scripts/refresh-status.sh` · vector 23 parity-enforced ·
 hand-typed counts here are the drift class that said 14 crates while the
@@ -130,19 +130,20 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `3176466f7` (`3176466f70e7f64c3b8203588612ba2ba7429314`)             |
+| HEAD             | `4f1a9fb8d` (`4f1a9fb8d11c68e4816698516fd405af51b83b1d`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 25                                              |
-| crates (admitted)| 23 / 42                                   |
+| crates (workspace)| 26                                              |
+| crates (admitted)| 24 / 42                                   |
 | crates (WIP)     | 2 — nika-schema nika-browser                                  |
 | L0               | 7                                              |
 | L0.5             | 6                                              |
 | L1               | 11                                              |
+| L1.5             | 1                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | (skipped — pass --no-quick to compute)                              |
-| clippy           | (skipped)                              |
+| lib tests        | 1459 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
