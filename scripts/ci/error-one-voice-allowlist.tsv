@@ -1,0 +1,24 @@
+# Error one-voice exemption allowlist.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Doctrine (the "error one-voice" arc): every workspace error enum speaks the
+# single canonical NikaErrorCode trait (nika_error / nika_kernel::prelude),
+# mapping each variant to a central registry code. The completeness record is
+# docs/architecture/error-trait-completeness-2026-06-10.md (the audit table).
+#
+# A thiserror error enum (one with #[error(...)] variant attrs) in an admitted
+# crate's non-test src MUST impl NikaErrorCode — UNLESS it is one of the
+# documented exemption classes from the audit table. THIS file is the SSOT for
+# those exemptions; scripts/hygiene/check-error-one-voice.sh enforces it.
+#
+# Adding a NEW error enum without the trait AND without a row here → the gate
+# goes RED. To exempt a new enum, add a row here AND record it in the audit
+# table (the two must agree).
+#
+# Columns (TAB-separated): enum <TAB> crate <TAB> exemption_class <TAB> reason
+#
+# enum	crate	exemption_class	reason
+CodegenError	nika-catalog-codegen	build-time-tool	build.rs codegen error · never crosses a runtime/verb boundary · thiserror Display suffices · zero NIKA range owed (audit table)
+AuditSinkError	nika-kernel-core	deferred-with-trigger	Observability range 800-819 reserved for the v0.100 OTel adapter · code allocated when the first L2 retry consumer lands (audit table)
+ExprError	nika-schema	wrapped-intermediate	internal CEL-subset parser error · wrapped into SchemaError before crossing the crate boundary · the wrapper carries the code (audit table §50)
+GoDurationError	nika-schema	wrapped-intermediate	internal Go-duration parse error · wrapped into SchemaError before crossing the crate boundary · the wrapper carries the code (audit table §50)

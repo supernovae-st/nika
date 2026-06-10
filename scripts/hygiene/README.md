@@ -19,7 +19,7 @@ commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
 Exit codes: `0` = all green, `1` = at least one yellow, `2` = at least one red.
 
-## The 33 vectors
+## The 34 vectors
 
 Each vector is a single `check-*.sh` script. Single responsibility.
 Exits `0`/`1`/`2` to signal green/yellow/red.
@@ -58,6 +58,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 34 | `check-cargo-deny.sh` | Supply-chain POLICY via `cargo deny check` — superset of vector 15: advisories + bans (banned/duplicate crates) + licenses (SPDX/AGPL-compat allowlist) + sources (trusted registries). Config: `deny.toml`. Sovereignty Rule 1 / SLSA posture (added 2026-06-10) |
 | 35 | `check-adr-081-guards.sh` | ADR-081 computer-use guard-presence admission gate — for every MANDATORY guard in the ADR-081 ownership matrix whose owner-crate is a workspace member, an impl-binding (`scripts/ci/adr-081-guard-manifest.tsv`) + its impl/test markers MUST exist. Declarative/evolutive: a guard-owner admitted without its guard ⇒ RED (the security forcing-function for nika-input M2.4 et al.). yellow = guards owed at future admission (added 2026-06-10) |
 | 36 | `check-unused-deps.sh` | Unused `[dependencies]` via `cargo machete`, workspace-member-scoped (excluded legacy crates ignored). Dep-rot inflates the supply-chain audit surface (added 2026-06-10) |
+| 37 | `check-error-one-voice.sh` | "Error one-voice" doctrine enforcement — every thiserror error enum (one with `#[error(...)]` variant attrs) in an admitted crate's non-test src MUST impl `NikaErrorCode` (central registry codes) OR be in the documented exemption allowlist (`scripts/ci/error-one-voice-allowlist.tsv`, projected from `docs/architecture/error-trait-completeness-2026-06-10.md`). A new error enum that skips the canonical trait ⇒ RED. Orphan-allowlist check keeps the SSOT honest (added 2026-06-10) |
 
 ## Adding a new vector
 
