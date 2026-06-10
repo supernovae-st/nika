@@ -301,8 +301,24 @@ these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 2. **Never expose third-party types in public API**. <!-- FCI-015 --> Wrap:
    `pub struct Message { inner: rig::Message }`. Tokio learned this
    with Mio in 0.1 → 0.2.
-3. **Never public fields** <!-- FCI-016 --> — even on `#[non_exhaustive]` structs. Use
-   accessors or builder pattern.
+3. **Public fields require `#[non_exhaustive]`** <!-- FCI-016 --> — a pub field on a
+   struct that lacks `#[non_exhaustive]` lets external code literal-construct it,
+   locking the field set forever (adding a field becomes breaking). Prefer
+   accessors/builder for fields whose *type* may change; pub fields are acceptable
+   on `#[non_exhaustive]` DTOs, which is what the locked Decisions FCI-010
+   (`InferRequest`) and FCI-013 (`CatalogEntry`) do.
+   *Architecture review 2026-06-10*: the original wording ("never public fields,
+   even on `#[non_exhaustive]`") contradicted those higher-authority Decisions and
+   the ~579 pub fields in tree, so it is reconciled to the Decisions. Enforcement is
+   structural, not social: `cargo public-api` (FCI-008) emits the `#[non_exhaustive]`
+   marker and every pub field+type, so adding a field or dropping the marker shows as
+   a surface diff. That diff now covers 15 admitted lib crates (the coverage floor
+   `scripts/ci/public-api-coverage-baseline.txt`, projected into public-api.yml +
+   semver-checks.yml + hygiene vector 38, ADR-090). Known non-`#[non_exhaustive]`
+   value types carried as a deliberate exception: `NikaCode` (a `Copy` registry value
+   const-constructed workspace-wide — adding `#[non_exhaustive]` would forbid the
+   cross-crate `const NIKA_xxx = NikaCode { … }` literals) and `KeyMods`. Their
+   surfaces are locked by the floor, so a field addition is a *tracked* break.
 4. **Never closed numeric enums** <!-- FCI-017 --> — always `#[non_exhaustive]` +
    `#[serde(other)]` for the catch-all variant.
 5. **Newtype every ID** <!-- FCI-018 --> — `ProviderId(SmolStr)`, `WorkflowName(String)`,
@@ -322,7 +338,8 @@ these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 
 1. Returning `Vec<T>` from public APIs. <!-- FCI-024 -->
 2. Exposing third-party types (`pub fn foo() -> rig::Message`). <!-- FCI-025 -->
-3. Public fields on structs, even `#[non_exhaustive]`. <!-- FCI-026 -->
+3. Public fields on a struct that LACKS `#[non_exhaustive]` (locks the field set —
+   see FCI-016; pub fields on `#[non_exhaustive]` DTOs are fine). <!-- FCI-026 -->
 4. Closed enums with literal numeric discriminants. <!-- FCI-027 -->
 5. `pub use` of internal modules — use a curated `prelude` instead. <!-- FCI-028 -->
 6. Hard-coded paths in error messages — use `Path::display()` + structured
@@ -441,7 +458,8 @@ Every crate admitted to nika-diamond workspace passes Gate 12 verification:
 - [ ] All public traits sealed OR open-with-defaults
 - [ ] No `Vec<T>` returns in public APIs (Iterator/IntoIterator instead)
 - [ ] No third-party types in public API
-- [ ] No public fields (accessors only)
+- [ ] Public fields only on `#[non_exhaustive]` structs (FCI-016) — surface-locked
+      by `cargo public-api` for the covered crates
 - [ ] `schema:` on all file formats
 - [ ] `cargo public-api --diff-git-checkouts main HEAD` green
 - [ ] `cargo semver-checks check-release` green
