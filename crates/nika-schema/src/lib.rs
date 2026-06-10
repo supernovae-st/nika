@@ -47,7 +47,7 @@ pub mod types;
 // Re-exports for convenience.
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::SchemaError;
-pub use parser::parse;
+pub use parser::{ParseMode, parse};
 pub use source::{ByteOffset, FileId, LineCol, SourceFile, SourceRegistry, Span, Spanned};
 
 // Type re-exports (§3.16 of crate spec).

@@ -3,84 +3,66 @@
 
 //! Task-list parsing — YAML `tasks:` sequence → `Vec<Spanned<RawTask>>`.
 //!
-//! Round 2e scope extends Round 2d with three optional task-level
-//! fields expressed as plain strings or string lists:
-//!
-//! - `depends_on:` — list of task names this task waits on.
-//! - `condition:` — template expression; the parser stores the raw
-//!   string, the analyzer evaluates it at runtime.
-//! - `for_each:` — iteration source (template expression; same
-//!   deal — stored raw).
-//!
-//! Each task still MUST carry `name` + exactly one verb key (`infer`,
-//! `exec`, `invoke`, `agent`) with its minimum required
-//! field:
-//!
-//! | Verb    | Required field |
-//! |---------|----------------|
-//! | infer   | `prompt`       |
-//! | exec    | `command`      |
-//! | invoke  | `tool` **or** `resource` |
-//! | agent   | `prompt`       |
-//!
-//! `fetch` is NOT a verb — it is the `nika:fetch` builtin reached via
-//! `invoke:` (spec D-2026-05-22-N18 · 4 verbs absolute). A verb is a
-//! distinct native execution model; calling a URL is calling a tool.
-//!
-//! Still deferred to later rounds: `max_retries` (u32, Round 2f),
-//! verb-specific optional fields (system prompt, temperature,
-//! headers, tools, …), and the complex sub-configs (`record`,
-//! `decompose`, `budget`, `limits`, `completion`, `guardrails`).
+//! The canonical v1 task field set is CLOSED (spec `03-dag.md`
+//! §forward-compat) · `id` · `depends_on` · `when` · `for_each` ·
+//! `max_parallel` · `fail_fast` · `retry` · `on_error` · `timeout` ·
+//! `on_finally` · `with` · `output` · plus exactly one verb key.
+
+use std::time::Duration;
 
 use marked_yaml::types::MarkedMappingNode;
 
 use crate::error::SchemaError;
-use crate::raw::{
-    RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction, RawTask,
-};
-use crate::source::{ByteOffset, FileId, Span, Spanned};
+use crate::raw::{RawFinallyTask, RawTask};
+use crate::source::Spanned;
+use crate::types::{BackoffStrategy, OnError, RetryConfig, is_valid_error_code, parse_go_duration};
 
-use super::{CharToByte, extract_scalar, yaml_span_to_span};
+use super::value::node_to_json;
+use super::verbs::{VERB_KEYS, parse_verb};
+use super::{Cx, validate_task_id};
 
-/// The four task verbs. Exhaustiveness of the parser's action
-/// dispatcher is enforced at compile time: every [`Verb`] variant
-/// has exactly one arm in [`build_action`], so adding a fifth verb
-/// cannot silently break parsing.
-#[derive(Clone, Copy, Debug)]
-enum Verb {
-    Infer,
-    Exec,
-    Invoke,
-    Agent,
-}
+/// The canonical task-level keys (verbs handled separately).
+const TASK_KEYS: &[&str] = &[
+    "id",
+    "depends_on",
+    "when",
+    "for_each",
+    "max_parallel",
+    "fail_fast",
+    "retry",
+    "on_error",
+    "timeout",
+    "with",
+    "output",
+    "on_finally",
+];
 
-impl Verb {
-    /// The YAML key that selects this verb (e.g. `Verb::Infer` → `"infer"`).
-    const fn key(self) -> &'static str {
-        match self {
-            Self::Infer => "infer",
-            Self::Exec => "exec",
-            Self::Invoke => "invoke",
-            Self::Agent => "agent",
-        }
-    }
+/// Keys allowed on an `on_finally:` mini-task (spec 03 §`on_finally` ·
+/// `when` + per-cleanup `timeout` + the verb).
+const FINALLY_KEYS: &[&str] = &["when", "timeout"];
 
-    /// All verbs, in deterministic order. Used to scan a task
-    /// mapping for whichever verb key is present.
-    const fn all() -> &'static [Verb] {
-        &[Self::Infer, Self::Exec, Self::Invoke, Self::Agent]
-    }
-}
+/// Keys of a `retry:` block (spec 05 §retry).
+const RETRY_KEYS: &[&str] = &[
+    "max_attempts",
+    "backoff_ms",
+    "backoff_strategy",
+    "backoff_max_ms",
+    "jitter",
+    "on_codes",
+];
+
+/// Keys of an `on_error:` block (spec 05 §`on_error`).
+const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
 
 /// Parse the top-level `tasks:` sequence into `Vec<Spanned<RawTask>>`.
 ///
-/// Returns `Ok(vec![])` when the `tasks:` key is absent. Returns a
+/// Returns `Ok(vec![])` when the `tasks:` key is absent (the analyzer
+/// reports the missing/empty envelope field). Returns a
 /// [`SchemaError::Validation`] if the key is present but the value is
 /// not a YAML sequence, or if any element is not a mapping.
 pub(super) fn parse_tasks(
+    cx: &Cx<'_>,
     workflow: &MarkedMappingNode,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
 ) -> Result<Vec<Spanned<RawTask>>, SchemaError> {
     let Some(node) = workflow.get_node("tasks") else {
         return Ok(Vec::new());
@@ -88,7 +70,7 @@ pub(super) fn parse_tasks(
     let Some(seq) = node.as_sequence() else {
         return Err(SchemaError::Validation {
             message: "`tasks` must be a YAML sequence".to_owned(),
-            span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+            span: cx.span(node.span()),
         });
     };
 
@@ -97,48 +79,56 @@ pub(super) fn parse_tasks(
         let Some(task_map) = item.as_mapping() else {
             return Err(SchemaError::Validation {
                 message: "each entry in `tasks` must be a mapping".to_owned(),
-                span: yaml_span_to_span(file_id, item.span(), char_to_byte),
+                span: cx.span(item.span()),
             });
         };
-        let task = parse_task(task_map, file_id, char_to_byte)?;
-        let span = yaml_span_to_span(file_id, item.span(), char_to_byte)
-            .unwrap_or_else(|| Span::point(file_id, ByteOffset::new(0)));
+        let task = parse_task(cx, task_map)?;
+        let span = cx.span_or_zero(item.span());
         tasks.push(Spanned::new(task, span));
     }
     Ok(tasks)
 }
 
 /// Parse one task mapping.
-fn parse_task(
-    mapping: &MarkedMappingNode,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
-) -> Result<RawTask, SchemaError> {
-    let name = extract_scalar(mapping, "name", file_id, char_to_byte)?.ok_or_else(|| {
-        SchemaError::MissingField {
-            field: "name".to_owned(),
-            span: yaml_span_to_span(file_id, mapping.span(), char_to_byte),
-        }
-    })?;
+fn parse_task(cx: &Cx<'_>, mapping: &MarkedMappingNode) -> Result<RawTask, SchemaError> {
+    let id = cx
+        .opt_scalar(mapping, "id")?
+        .ok_or_else(|| SchemaError::MissingField {
+            field: "id".to_owned(),
+            span: cx.span(mapping.span()),
+        })?;
+    validate_task_id(&id)?;
+    let task_label = id.value.clone();
 
-    let action = parse_action(mapping, file_id, char_to_byte)?;
-    let mut task = RawTask::new(name, action);
-    task.depends_on = parse_string_list(mapping, "depends_on", file_id, char_to_byte)?;
-    task.condition = extract_scalar(mapping, "condition", file_id, char_to_byte)?;
-    task.for_each = extract_scalar(mapping, "for_each", file_id, char_to_byte)?;
+    // Strict-mode unknown-field check · the known set is the closed
+    // task fields + the 4 verb keys.
+    let mut known: Vec<&str> = TASK_KEYS.to_vec();
+    known.extend_from_slice(VERB_KEYS);
+    cx.check_unknown_keys(mapping, &known, &format!("task `{task_label}`"))?;
+
+    let action = parse_verb(cx, mapping, &task_label)?;
+    let mut task = RawTask::new(id, action);
+
+    task.depends_on = parse_string_list(cx, mapping, "depends_on")?;
+    task.when = cx.opt_scalar(mapping, "when")?;
+    task.for_each = cx.opt_scalar(mapping, "for_each")?;
+    task.max_parallel = parse_max_parallel(cx, mapping)?;
+    task.fail_fast = parse_bool_field(cx, mapping, "fail_fast")?;
+    task.retry = parse_retry(cx, mapping)?;
+    task.on_error = parse_on_error(cx, mapping)?;
+    task.timeout = parse_timeout(cx, mapping, "timeout")?;
+    task.with = parse_with(cx, mapping)?;
+    task.output = parse_output_bindings(cx, mapping)?;
+    task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
+
     Ok(task)
 }
 
 /// Extract an optional list of string scalars under `key`.
-///
-/// Returns `Ok(vec![])` when the key is absent. Returns
-/// [`SchemaError::Validation`] if the key is present but is not a
-/// sequence, or if any element is not a scalar string.
-fn parse_string_list(
+pub(super) fn parse_string_list(
+    cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
     key: &str,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
 ) -> Result<Vec<Spanned<String>>, SchemaError> {
     let Some(node) = mapping.get_node(key) else {
         return Ok(Vec::new());
@@ -146,7 +136,7 @@ fn parse_string_list(
     let Some(seq) = node.as_sequence() else {
         return Err(SchemaError::Validation {
             message: format!("`{key}` must be a YAML sequence of strings"),
-            span: yaml_span_to_span(file_id, node.span(), char_to_byte),
+            span: cx.span(node.span()),
         });
     };
     let mut out = Vec::with_capacity(seq.len());
@@ -154,134 +144,416 @@ fn parse_string_list(
         let Some(scalar) = item.as_scalar() else {
             return Err(SchemaError::Validation {
                 message: format!("each entry in `{key}` must be a string"),
-                span: yaml_span_to_span(file_id, item.span(), char_to_byte),
+                span: cx.span(item.span()),
             });
         };
-        let span = yaml_span_to_span(file_id, scalar.span(), char_to_byte)
-            .unwrap_or_else(|| Span::point(file_id, ByteOffset::new(0)));
-        out.push(Spanned::new(scalar.as_str().to_owned(), span));
+        out.push(Spanned::new(
+            scalar.as_str().to_owned(),
+            cx.span_or_zero(scalar.span()),
+        ));
     }
     Ok(out)
 }
 
-/// Detect which of the four verb keys is present and parse it.
-///
-/// Returns [`SchemaError::MissingField`] if no verb key is present,
-/// [`SchemaError::Validation`] if more than one is present
-/// (ambiguous), and variant-specific errors for malformed bodies.
-fn parse_action(
-    task: &MarkedMappingNode,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
-) -> Result<RawAction, SchemaError> {
-    let present: Vec<Verb> = Verb::all()
-        .iter()
-        .copied()
-        .filter(|v| task.get_node(v.key()).is_some())
-        .collect();
-    match present.as_slice() {
-        [] => Err(SchemaError::MissingField {
-            field: "action (one of: infer, exec, invoke, agent)".to_owned(),
-            span: yaml_span_to_span(file_id, task.span(), char_to_byte),
-        }),
-        [verb] => build_action(*verb, task, file_id, char_to_byte),
-        many => {
-            let joined: Vec<&'static str> = many.iter().map(|v| v.key()).collect();
-            Err(SchemaError::Validation {
-                message: format!(
-                    "task has multiple action verbs ({}); exactly one required",
-                    joined.join(", ")
-                ),
-                span: yaml_span_to_span(file_id, task.span(), char_to_byte),
-            })
-        }
-    }
-}
-
-fn build_action(
-    verb: Verb,
-    task: &MarkedMappingNode,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
-) -> Result<RawAction, SchemaError> {
-    let key = verb.key();
-    let body = task
-        .get_mapping(key)
+/// `max_parallel:` — positive integer ≥ 1 (spec 03 §`max_parallel` ·
+/// « **Positive integer** · `1` to `n`. `1` = sequential »).
+fn parse_max_parallel(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<Option<Spanned<u32>>, SchemaError> {
+    let Some(node) = mapping.get_node("max_parallel") else {
+        return Ok(None);
+    };
+    let value = node
+        .as_scalar()
+        .and_then(marked_yaml::types::MarkedScalarNode::as_u32)
         .ok_or_else(|| SchemaError::Validation {
-            message: format!("`{key}` must be a mapping"),
-            span: task
-                .get_node(key)
-                .and_then(|n| yaml_span_to_span(file_id, n.span(), char_to_byte)),
+            message: "`max_parallel` must be a positive integer".to_owned(),
+            span: cx.span(node.span()),
         })?;
-
-    // Exhaustive match over Verb — the compiler refuses to let a
-    // future variant sneak through without a dispatch arm.
-    match verb {
-        Verb::Infer => {
-            let prompt = require_scalar(body, "prompt", file_id, char_to_byte)?;
-            Ok(RawAction::Infer(RawInferAction::new(prompt)))
-        }
-        Verb::Exec => {
-            let command = require_scalar(body, "command", file_id, char_to_byte)?;
-            Ok(RawAction::Exec(RawExecAction::new(command)))
-        }
-        Verb::Invoke => {
-            let tool = extract_scalar(body, "tool", file_id, char_to_byte)?;
-            let resource = extract_scalar(body, "resource", file_id, char_to_byte)?;
-            if tool.is_none() && resource.is_none() {
-                return Err(SchemaError::MissingField {
-                    field: "invoke.tool or invoke.resource".to_owned(),
-                    span: yaml_span_to_span(file_id, body.span(), char_to_byte),
-                });
-            }
-            Ok(RawAction::Invoke(RawInvokeAction::with_target(
-                tool, resource,
-            )))
-        }
-        Verb::Agent => {
-            let prompt = require_scalar(body, "prompt", file_id, char_to_byte)?;
-            Ok(RawAction::Agent(Box::new(RawAgentAction::new(prompt))))
-        }
+    if value == 0 {
+        return Err(SchemaError::Validation {
+            message: "`max_parallel` must be ≥ 1".to_owned(),
+            span: cx.span(node.span()),
+        });
     }
+    Ok(Some(Spanned::new(value, cx.span_or_zero(node.span()))))
 }
 
-/// Extract a required scalar: same as [`extract_scalar`] but produces
-/// [`SchemaError::MissingField`] when the key is absent.
-fn require_scalar(
+/// An optional boolean scalar field (`fail_fast:` · `retry.jitter:`).
+fn parse_bool_field(
+    cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
     key: &str,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
-) -> Result<Spanned<String>, SchemaError> {
-    extract_scalar(mapping, key, file_id, char_to_byte)?.ok_or_else(|| SchemaError::MissingField {
-        field: key.to_owned(),
-        span: yaml_span_to_span(file_id, mapping.span(), char_to_byte),
-    })
+) -> Result<Option<Spanned<bool>>, SchemaError> {
+    let Some(node) = mapping.get_node(key) else {
+        return Ok(None);
+    };
+    let value = node
+        .as_scalar()
+        .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
+        .ok_or_else(|| SchemaError::Validation {
+            message: format!("`{key}` must be a boolean"),
+            span: cx.span(node.span()),
+        })?;
+    Ok(Some(Spanned::new(value, cx.span_or_zero(node.span()))))
+}
+
+/// `timeout:` — a Go-duration STRING scalar (spec 03 §timeout).
+///
+/// A bare YAML number (`timeout: 30`) is ambiguous (ms? s?) and
+/// rejected; the value must carry units. Quoted strings (`"30s"`) are
+/// the canonical form.
+pub(super) fn parse_timeout(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    key: &str,
+) -> Result<Option<Spanned<Duration>>, SchemaError> {
+    let Some(node) = mapping.get_node(key) else {
+        return Ok(None);
+    };
+    let Some(scalar) = node.as_scalar() else {
+        return Err(SchemaError::BadTimeout {
+            reason: "must be a Go-duration string (e.g. \"30s\" · \"5m\" · \"1h30m\")".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let text = scalar.as_str();
+    // Plain (unquoted) scalars that parse as a bare number are the YAML
+    // trap the spec forbids · « `30` unquoted parses as integer ·
+    // ambiguous · forbidden ».
+    if scalar.may_coerce() && (text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok()) {
+        return Err(SchemaError::BadTimeout {
+            reason: format!("bare number `{text}` is ambiguous — use a quoted Go-duration string"),
+            span: cx.span(scalar.span()),
+        });
+    }
+    let duration = parse_go_duration(text).map_err(|e| SchemaError::BadTimeout {
+        reason: e.to_string(),
+        span: cx.span(scalar.span()),
+    })?;
+    Ok(Some(Spanned::new(duration, cx.span_or_zero(scalar.span()))))
+}
+
+/// `retry:` — `{ max_attempts (req ≥1) · backoff_ms · backoff_strategy ·
+/// backoff_max_ms · jitter · on_codes }` (spec 05 §retry).
+fn parse_retry(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<Option<Spanned<RetryConfig>>, SchemaError> {
+    let Some(node) = mapping.get_node("retry") else {
+        return Ok(None);
+    };
+    let Some(retry_map) = node.as_mapping() else {
+        return Err(SchemaError::BadRetry {
+            reason: "`retry` must be a mapping".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    cx.check_unknown_keys(retry_map, RETRY_KEYS, "`retry:`")?;
+
+    let max_attempts = retry_map
+        .get_node("max_attempts")
+        .ok_or_else(|| SchemaError::BadRetry {
+            reason: "`max_attempts` is required".to_owned(),
+            span: cx.span(retry_map.span()),
+        })?;
+    let max_attempts_value = max_attempts
+        .as_scalar()
+        .and_then(marked_yaml::types::MarkedScalarNode::as_u32)
+        .ok_or_else(|| SchemaError::BadRetry {
+            reason: "`max_attempts` must be a positive integer".to_owned(),
+            span: cx.span(max_attempts.span()),
+        })?;
+    if max_attempts_value == 0 {
+        return Err(SchemaError::BadRetry {
+            reason: "`max_attempts` must be ≥ 1 (total attempts including the first try)"
+                .to_owned(),
+            span: cx.span(max_attempts.span()),
+        });
+    }
+
+    let mut config = RetryConfig::new(max_attempts_value);
+
+    if let Some(n) = retry_map.get_node("backoff_ms") {
+        config.backoff_ms = n
+            .as_scalar()
+            .and_then(marked_yaml::types::MarkedScalarNode::as_u64)
+            .ok_or_else(|| SchemaError::BadRetry {
+                reason: "`backoff_ms` must be a non-negative integer".to_owned(),
+                span: cx.span(n.span()),
+            })?;
+    }
+    if let Some(n) = retry_map.get_node("backoff_strategy") {
+        let scalar = n.as_scalar().ok_or_else(|| SchemaError::BadRetry {
+            reason: "`backoff_strategy` must be a scalar".to_owned(),
+            span: cx.span(n.span()),
+        })?;
+        config.backoff_strategy =
+            BackoffStrategy::from_str_opt(scalar.as_str()).ok_or_else(|| {
+                SchemaError::BadRetry {
+                    reason: format!(
+                        "unknown backoff_strategy `{}` (fixed·linear·exponential)",
+                        scalar.as_str()
+                    ),
+                    span: cx.span(scalar.span()),
+                }
+            })?;
+    }
+    if let Some(n) = retry_map.get_node("backoff_max_ms") {
+        config.backoff_max_ms = n
+            .as_scalar()
+            .and_then(marked_yaml::types::MarkedScalarNode::as_u64)
+            .ok_or_else(|| SchemaError::BadRetry {
+                reason: "`backoff_max_ms` must be a non-negative integer".to_owned(),
+                span: cx.span(n.span()),
+            })?;
+    }
+    if let Some(n) = retry_map.get_node("jitter") {
+        config.jitter = n
+            .as_scalar()
+            .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
+            .ok_or_else(|| SchemaError::BadRetry {
+                reason: "`jitter` must be a boolean".to_owned(),
+                span: cx.span(n.span()),
+            })?;
+    }
+    for code in parse_string_list(cx, retry_map, "on_codes")? {
+        // Spec 05 · on_codes lists canonical codes matching
+        // ^NIKA-[A-Z]{2,9}(-[A-Z]{2,9})?-[0-9]{3}$ — not HTTP statuses.
+        if !is_valid_error_code(&code.value) {
+            return Err(SchemaError::BadRetry {
+                reason: format!(
+                    "`on_codes` entry `{}` is not a canonical NIKA-<NS>-<NNN> code",
+                    code.value
+                ),
+                span: Some(code.span),
+            });
+        }
+        config.on_codes.push(code.value);
+    }
+
+    Ok(Some(Spanned::new(config, cx.span_or_zero(node.span()))))
+}
+
+/// `on_error:` — exactly one of `recover` | `skip: true` |
+/// `fail_workflow: true` (spec 05 §`on_error` · mutually exclusive).
+fn parse_on_error(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<Option<Spanned<OnError>>, SchemaError> {
+    let Some(node) = mapping.get_node("on_error") else {
+        return Ok(None);
+    };
+    let Some(on_error_map) = node.as_mapping() else {
+        return Err(SchemaError::BadOnError {
+            reason: "`on_error` must be a mapping".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    cx.check_unknown_keys(on_error_map, ON_ERROR_KEYS, "`on_error:`")?;
+
+    let present: Vec<&str> = ON_ERROR_KEYS
+        .iter()
+        .copied()
+        .filter(|k| on_error_map.get_node(k).is_some())
+        .collect();
+    let mode = match present.as_slice() {
+        [one] => *one,
+        [] => {
+            return Err(SchemaError::BadOnError {
+                reason: "exactly one of `recover`, `skip`, `fail_workflow` required (none found)"
+                    .to_owned(),
+                span: cx.span(on_error_map.span()),
+            });
+        }
+        many => {
+            return Err(SchemaError::BadOnError {
+                reason: format!("fields are mutually exclusive — found {}", many.join(" + ")),
+                span: cx.span(on_error_map.span()),
+            });
+        }
+    };
+
+    let on_error = match mode {
+        "recover" => {
+            let value_node =
+                on_error_map
+                    .get_node("recover")
+                    .ok_or_else(|| SchemaError::BadOnError {
+                        reason: "`recover` value missing".to_owned(),
+                        span: cx.span(on_error_map.span()),
+                    })?;
+            OnError::Recover(Spanned::new(
+                node_to_json(value_node),
+                cx.span_or_zero(value_node.span()),
+            ))
+        }
+        "skip" => {
+            require_true_flag(cx, on_error_map, "skip")?;
+            OnError::Skip
+        }
+        _ => {
+            require_true_flag(cx, on_error_map, "fail_workflow")?;
+            OnError::FailWorkflow
+        }
+    };
+    Ok(Some(Spanned::new(on_error, cx.span_or_zero(node.span()))))
+}
+
+/// `skip:` / `fail_workflow:` carry the literal `true` (spec 05 syntax ·
+/// `skip: true`) — anything else is a shape error.
+fn require_true_flag(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    key: &str,
+) -> Result<(), SchemaError> {
+    let node = mapping
+        .get_node(key)
+        .ok_or_else(|| SchemaError::BadOnError {
+            reason: format!("`{key}` value missing"),
+            span: cx.span(mapping.span()),
+        })?;
+    let is_true = node
+        .as_scalar()
+        .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
+        == Some(true);
+    if is_true {
+        Ok(())
+    } else {
+        Err(SchemaError::BadOnError {
+            reason: format!("`{key}` must be `true` (omit the block for default behavior)"),
+            span: cx.span(node.span()),
+        })
+    }
+}
+
+/// `with:` — task-scope variable injection · key → any YAML value.
+fn parse_with(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<super::SpannedEntries<serde_json::Value>, SchemaError> {
+    let Some(node) = mapping.get_node("with") else {
+        return Ok(Vec::new());
+    };
+    let Some(with_map) = node.as_mapping() else {
+        return Err(SchemaError::Validation {
+            message: "`with` must be a YAML mapping".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let mut out = Vec::with_capacity(with_map.len());
+    for (key, value) in with_map.iter() {
+        out.push((
+            Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span())),
+            Spanned::new(node_to_json(value), cx.span_or_zero(value.span())),
+        ));
+    }
+    Ok(out)
+}
+
+/// `output:` — named jq bindings · key → jq expression string
+/// (spec 04 §output binding).
+fn parse_output_bindings(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<super::SpannedEntries<String>, SchemaError> {
+    let Some(node) = mapping.get_node("output") else {
+        return Ok(Vec::new());
+    };
+    let Some(output_map) = node.as_mapping() else {
+        return Err(SchemaError::Validation {
+            message: "`output` must be a YAML mapping of name → jq expression".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let mut out = Vec::with_capacity(output_map.len());
+    for (key, value) in output_map.iter() {
+        let Some(scalar) = value.as_scalar() else {
+            return Err(SchemaError::Validation {
+                message: format!(
+                    "output binding `{}` must be a jq expression string",
+                    key.as_str()
+                ),
+                span: cx.span(value.span()),
+            });
+        };
+        out.push((
+            Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span())),
+            Spanned::new(scalar.as_str().to_owned(), cx.span_or_zero(scalar.span())),
+        ));
+    }
+    Ok(out)
+}
+
+/// `on_finally:` — a sequence of cleanup mini-tasks (spec 03 §`on_finally`).
+fn parse_on_finally(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    task_label: &str,
+) -> Result<Vec<Spanned<RawFinallyTask>>, SchemaError> {
+    let Some(node) = mapping.get_node("on_finally") else {
+        return Ok(Vec::new());
+    };
+    let Some(seq) = node.as_sequence() else {
+        return Err(SchemaError::Validation {
+            message: "`on_finally` must be a YAML sequence of cleanup tasks".to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    let mut out = Vec::with_capacity(seq.len());
+    for item in seq.iter() {
+        let Some(cleanup_map) = item.as_mapping() else {
+            return Err(SchemaError::Validation {
+                message: "each `on_finally` entry must be a mapping".to_owned(),
+                span: cx.span(item.span()),
+            });
+        };
+        let mut known: Vec<&str> = FINALLY_KEYS.to_vec();
+        known.extend_from_slice(VERB_KEYS);
+        cx.check_unknown_keys(
+            cleanup_map,
+            &known,
+            &format!("on_finally of task `{task_label}`"),
+        )?;
+
+        let action = parse_verb(cx, cleanup_map, &format!("{task_label}.on_finally"))?;
+        let mut finally = RawFinallyTask::new(action);
+        finally.when = cx.opt_scalar(cleanup_map, "when")?;
+        finally.timeout = parse_timeout(cx, cleanup_map, "timeout")?;
+        out.push(Spanned::new(finally, cx.span_or_zero(item.span())));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::error::SchemaError;
-    use crate::parser::parse;
-    use crate::raw::RawAction;
-    use crate::source::FileId;
+    use std::time::Duration;
 
-    fn fid() -> FileId {
-        FileId::new(0)
+    use crate::error::SchemaError;
+    use crate::parser::{ParseMode, parse};
+    use crate::raw::{RawAction, RawWorkflow};
+    use crate::source::FileId;
+    use crate::types::{BackoffStrategy, OnError};
+
+    fn parse_strict(yaml: &str) -> Result<RawWorkflow, SchemaError> {
+        parse(yaml, FileId::new(0), ParseMode::Strict)
+    }
+
+    fn one_task(yaml: &str) -> crate::raw::RawTask {
+        parse_strict(yaml).expect("parse").tasks.remove(0).value
     }
 
     #[test]
     fn parse_minimal_infer_task() {
         let yaml = "\
 tasks:
-  - name: greet
+  - id: greet
     infer:
       prompt: \"Say hello\"
 ";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert_eq!(wf.tasks.len(), 1);
-        let task = &wf.tasks[0].value;
-        assert_eq!(task.name.value, "greet");
+        let task = one_task(yaml);
+        assert_eq!(task.id.value, "greet");
         let RawAction::Infer(ref action) = task.action else {
             panic!("expected Infer");
         };
@@ -289,351 +561,465 @@ tasks:
     }
 
     #[test]
-    fn parse_minimal_exec_task() {
-        let yaml = "\
-tasks:
-  - name: list
-    exec:
-      command: ls -la
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        let RawAction::Exec(ref action) = wf.tasks[0].value.action else {
-            panic!("expected Exec");
-        };
-        assert_eq!(action.command.value, "ls -la");
-    }
-
-    // `fetch` is NOT a verb (spec D-2026-05-22-N18 · 4 verbs absolute) — it
-    // is the `nika:fetch` builtin reached via `invoke:`. A top-level `fetch:`
-    // key must therefore be rejected as "no verb present".
-    #[test]
-    fn fetch_key_is_not_a_verb() {
-        let yaml = "\
-tasks:
-  - name: poll
-    fetch:
-      url: https://api.example.com/v1/status
-";
-        let err = parse(yaml, fid()).expect_err("fetch: is not a verb");
-        let SchemaError::MissingField { field, .. } = err else {
-            panic!("expected MissingField, got {err:?}");
-        };
-        assert!(
-            field.contains("infer, exec, invoke, agent"),
-            "error should list the 4 verbs without fetch, got: {field}"
-        );
-    }
-
-    #[test]
-    fn parse_minimal_invoke_task_with_tool() {
-        let yaml = "\
-tasks:
-  - name: search
-    invoke:
-      tool: web_search
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        let RawAction::Invoke(ref action) = wf.tasks[0].value.action else {
-            panic!("expected Invoke");
-        };
-        assert_eq!(
-            action.tool.as_ref().map(|s| s.value.as_str()),
-            Some("web_search")
-        );
-        assert!(action.resource.is_none());
-    }
-
-    #[test]
-    fn parse_minimal_invoke_task_with_resource() {
-        let yaml = "\
-tasks:
-  - name: read_doc
-    invoke:
-      resource: file:///tmp/readme.md
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        let RawAction::Invoke(ref action) = wf.tasks[0].value.action else {
-            panic!("expected Invoke");
-        };
-        assert_eq!(
-            action.resource.as_ref().map(|s| s.value.as_str()),
-            Some("file:///tmp/readme.md")
-        );
-    }
-
-    #[test]
-    fn parse_minimal_agent_task() {
-        let yaml = "\
-tasks:
-  - name: research
-    agent:
-      prompt: Investigate X
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        let RawAction::Agent(ref action) = wf.tasks[0].value.action else {
-            panic!("expected Agent");
-        };
-        assert_eq!(action.prompt.value, "Investigate X");
-    }
-
-    #[test]
-    fn parse_multiple_tasks() {
-        let yaml = "\
-tasks:
-  - name: step1
-    exec:
-      command: echo one
-  - name: step2
-    infer:
-      prompt: summarize
-  - name: step3
-    exec:
-      command: echo three
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert_eq!(wf.tasks.len(), 3);
-        assert_eq!(wf.tasks[0].value.name.value, "step1");
-        assert_eq!(wf.tasks[1].value.name.value, "step2");
-        assert_eq!(wf.tasks[2].value.name.value, "step3");
-    }
-
-    #[test]
-    fn parse_task_without_name_errors() {
+    fn task_without_id_errors() {
         let yaml = "\
 tasks:
   - exec:
       command: ls
 ";
-        let err = parse(yaml, fid()).expect_err("missing name");
+        let err = parse_strict(yaml).expect_err("missing id");
         assert!(
-            matches!(&err, SchemaError::MissingField { field, .. } if field == "name"),
-            "expected MissingField(name), got {err:?}",
+            matches!(&err, SchemaError::MissingField { field, .. } if field == "id"),
+            "{err:?}"
         );
     }
 
     #[test]
-    fn parse_task_without_action_errors() {
+    fn task_id_not_snake_case_errors() {
+        // Conformance fixture verbs-shape/004 · `my-task` is CEL-unsafe.
         let yaml = "\
 tasks:
-  - name: just_a_name
-";
-        let err = parse(yaml, fid()).expect_err("missing action");
-        assert!(
-            matches!(&err, SchemaError::MissingField { field, .. } if field.contains("action")),
-            "expected MissingField(action, ...), got {err:?}",
-        );
-    }
-
-    #[test]
-    fn parse_task_with_two_verbs_errors() {
-        // A task cannot be both `infer` and `exec` — the analyzer
-        // will never choose silently.
-        let yaml = "\
-tasks:
-  - name: confused
+  - id: my-task
     infer:
-      prompt: hi
+      prompt: \"hi\"
+";
+        let err = parse_strict(yaml).expect_err("kebab id");
+        assert!(matches!(err, SchemaError::BadTaskId { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn task_no_verb_errors() {
+        // Conformance fixture verbs-shape/002.
+        let yaml = "\
+tasks:
+  - id: greet
+    depends_on: []
+";
+        let err = parse_strict(yaml).expect_err("no verb");
+        assert!(
+            matches!(&err, SchemaError::MissingVerb { task, .. } if task == "greet"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn task_two_verbs_errors() {
+        // Conformance fixture verbs-shape/001.
+        let yaml = "\
+tasks:
+  - id: greet
+    infer:
+      prompt: \"hi\"
     exec:
-      command: ls
+      command: \"echo hi\"
 ";
-        let err = parse(yaml, fid()).expect_err("ambiguous verbs");
-        assert!(matches!(err, SchemaError::Validation { .. }));
+        let err = parse_strict(yaml).expect_err("two verbs");
+        let SchemaError::MultipleVerbs { verbs, .. } = err else {
+            panic!("expected MultipleVerbs, got {err:?}");
+        };
+        assert!(verbs.contains("infer") && verbs.contains("exec"));
     }
 
     #[test]
-    fn parse_invoke_without_tool_or_resource_errors() {
-        // Empty invoke body so this test cannot be accidentally
-        // satisfied by Round 2e once optional fields (`mcp`,
-        // `params`, `timeout_ms`) start being parsed. The point is
-        // that at least one of `tool` / `resource` must be present.
+    fn fetch_key_is_not_a_verb() {
+        // Spec D-2026-05-22-N18 · fetch is the `nika:fetch` builtin via
+        // invoke — a top-level `fetch:` key is an unknown field (strict).
         let yaml = "\
 tasks:
-  - name: empty_invoke
-    invoke: {}
+  - id: poll
+    fetch:
+      url: https://api.example.com/v1/status
 ";
-        let err = parse(yaml, fid()).expect_err("invoke needs tool or resource");
-        assert!(matches!(&err, SchemaError::MissingField { .. }));
-    }
-
-    #[test]
-    fn parse_infer_without_prompt_errors() {
-        let yaml = "\
-tasks:
-  - name: no_prompt
-    infer:
-      model: gpt-4o
-";
-        let err = parse(yaml, fid()).expect_err("infer needs prompt");
+        let err = parse_strict(yaml).expect_err("fetch: is not a verb");
         assert!(
-            matches!(&err, SchemaError::MissingField { field, .. } if field == "prompt"),
-            "expected MissingField(prompt), got {err:?}",
+            matches!(&err, SchemaError::UnknownField { field, .. } if field == "fetch"),
+            "{err:?}"
         );
     }
 
     #[test]
-    fn parse_tasks_as_mapping_errors() {
+    fn depends_on_when_for_each() {
         let yaml = "\
 tasks:
-  a: b
+  - id: a
+    exec: { command: echo a }
+  - id: b
+    depends_on: [a]
+    when: ${{ tasks.a.status == 'success' }}
+    for_each: ${{ vars.items }}
+    exec: { command: echo b }
 ";
-        let err = parse(yaml, fid()).expect_err("tasks must be a sequence");
+        let wf = parse_strict(yaml).expect("parse");
+        let b = &wf.tasks[1].value;
+        assert_eq!(b.depends_on.len(), 1);
+        assert_eq!(b.depends_on[0].value, "a");
+        assert_eq!(
+            b.when.as_ref().expect("when").value,
+            "${{ tasks.a.status == 'success' }}"
+        );
+        assert_eq!(
+            b.for_each.as_ref().expect("for_each").value,
+            "${{ vars.items }}"
+        );
+    }
+
+    #[test]
+    fn max_parallel_and_fail_fast() {
+        let yaml = "\
+tasks:
+  - id: scrape_all
+    for_each: ${{ vars.urls }}
+    max_parallel: 5
+    fail_fast: false
+    exec: { command: echo }
+";
+        let task = one_task(yaml);
+        assert_eq!(task.max_parallel.expect("max_parallel").value, 5);
+        assert!(!task.fail_fast.expect("fail_fast").value);
+    }
+
+    #[test]
+    fn max_parallel_zero_errors() {
+        let yaml = "\
+tasks:
+  - id: x
+    max_parallel: 0
+    exec: { command: echo }
+";
+        let err = parse_strict(yaml).expect_err("zero");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("≥ 1")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn timeout_quoted_go_duration() {
+        let yaml = "\
+tasks:
+  - id: t
+    timeout: \"1h30m\"
+    exec: { command: echo }
+";
+        let task = one_task(yaml);
+        assert_eq!(
+            task.timeout.expect("timeout").value,
+            Duration::from_secs(5400)
+        );
+    }
+
+    #[test]
+    fn timeout_bare_number_errors() {
+        // Spec 03 · « `30` unquoted parses as integer · ambiguous ·
+        // forbidden ».
+        let yaml = "\
+tasks:
+  - id: t
+    timeout: 30
+    exec: { command: echo }
+";
+        let err = parse_strict(yaml).expect_err("bare number");
+        assert!(
+            matches!(&err, SchemaError::BadTimeout { reason, .. } if reason.contains("ambiguous")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn timeout_bad_unit_errors() {
+        // Conformance fixture errors/001-timeout-bad-format · "5w".
+        let yaml = "\
+tasks:
+  - id: t
+    timeout: \"5w\"
+    exec: { command: echo }
+";
+        let err = parse_strict(yaml).expect_err("bad unit");
+        assert!(matches!(err, SchemaError::BadTimeout { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn retry_full_block() {
+        // Spec 05 §retry syntax example.
+        let yaml = "\
+tasks:
+  - id: flaky_api
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://flaky.example.com/data\" }
+    retry:
+      max_attempts: 5
+      backoff_ms: 1000
+      backoff_strategy: exponential
+      backoff_max_ms: 30000
+      jitter: true
+      on_codes:
+        - NIKA-BUILTIN-FETCH-001
+        - NIKA-PROVIDER-001
+";
+        let task = one_task(yaml);
+        let retry = task.retry.expect("retry").value;
+        assert_eq!(retry.max_attempts, 5);
+        assert_eq!(retry.backoff_ms, 1000);
+        assert_eq!(retry.backoff_strategy, BackoffStrategy::Exponential);
+        assert_eq!(retry.backoff_max_ms, 30_000);
+        assert!(retry.jitter);
+        assert_eq!(retry.on_codes.len(), 2);
+    }
+
+    #[test]
+    fn retry_defaults_applied() {
+        let yaml = "\
+tasks:
+  - id: t
+    retry: { max_attempts: 3 }
+    exec: { command: echo }
+";
+        let retry = one_task(yaml).retry.expect("retry").value;
+        assert_eq!(retry.max_attempts, 3);
+        assert_eq!(retry.backoff_ms, 1000);
+        assert_eq!(retry.backoff_strategy, BackoffStrategy::Exponential);
+        assert_eq!(retry.backoff_max_ms, 60_000);
+        assert!(retry.jitter, "jitter defaults true");
+    }
+
+    #[test]
+    fn retry_missing_max_attempts_errors() {
+        let yaml = "\
+tasks:
+  - id: t
+    retry: { backoff_ms: 500 }
+    exec: { command: echo }
+";
+        let err = parse_strict(yaml).expect_err("no max_attempts");
+        assert!(
+            matches!(&err, SchemaError::BadRetry { reason, .. } if reason.contains("max_attempts")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn retry_zero_max_attempts_errors() {
+        let yaml = "\
+tasks:
+  - id: t
+    retry: { max_attempts: 0 }
+    exec: { command: echo }
+";
+        let err = parse_strict(yaml).expect_err("zero attempts");
+        assert!(matches!(err, SchemaError::BadRetry { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn retry_bad_on_code_errors() {
+        // Spec 05 · on_codes are canonical codes — not HTTP statuses.
+        let yaml = "\
+tasks:
+  - id: t
+    retry:
+      max_attempts: 2
+      on_codes: [\"503\"]
+    exec: { command: echo }
+";
+        let err = parse_strict(yaml).expect_err("http status");
+        assert!(
+            matches!(&err, SchemaError::BadRetry { reason, .. } if reason.contains("503")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn on_error_recover_ref() {
+        // Spec 05 · recover takes a ${{ }} ref OR a literal.
+        let yaml = "\
+tasks:
+  - id: api_call
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com\" }
+    on_error:
+      recover: ${{ tasks.cached.output }}
+";
+        let task = one_task(yaml);
+        let OnError::Recover(value) = task.on_error.expect("on_error").value else {
+            panic!("expected Recover");
+        };
+        assert_eq!(value.value, "${{ tasks.cached.output }}");
+    }
+
+    #[test]
+    fn on_error_recover_literal() {
+        let yaml = "\
+tasks:
+  - id: get_count
+    invoke: { tool: \"mcp:db/count_users\" }
+    on_error:
+      recover: 0
+";
+        let task = one_task(yaml);
+        let OnError::Recover(value) = task.on_error.expect("on_error").value else {
+            panic!("expected Recover");
+        };
+        assert_eq!(value.value, 0);
+    }
+
+    #[test]
+    fn on_error_skip_and_fail_workflow() {
+        let yaml = "\
+tasks:
+  - id: a
+    exec: { command: echo }
+    on_error: { skip: true }
+  - id: b
+    exec: { command: echo }
+    on_error: { fail_workflow: true }
+";
+        let wf = parse_strict(yaml).expect("parse");
+        assert!(matches!(
+            wf.tasks[0].value.on_error.as_ref().expect("a").value,
+            OnError::Skip
+        ));
+        assert!(matches!(
+            wf.tasks[1].value.on_error.as_ref().expect("b").value,
+            OnError::FailWorkflow
+        ));
+    }
+
+    #[test]
+    fn on_error_two_fields_errors() {
+        // Spec 05 · mutually exclusive · two-or-zero = parse error.
+        let yaml = "\
+tasks:
+  - id: t
+    exec: { command: echo }
+    on_error:
+      skip: true
+      fail_workflow: true
+";
+        let err = parse_strict(yaml).expect_err("two fields");
+        assert!(matches!(err, SchemaError::BadOnError { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn on_error_zero_fields_errors() {
+        let yaml = "\
+tasks:
+  - id: t
+    exec: { command: echo }
+    on_error: {}
+";
+        let err = parse_strict(yaml).expect_err("zero fields");
+        assert!(matches!(err, SchemaError::BadOnError { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn with_values_spanned_json() {
+        let yaml = "\
+tasks:
+  - id: summarize
+    with:
+      content: ${{ tasks.research.output }}
+      style: \"concise\"
+      config:
+        max_words: 100
+    infer: { prompt: \"Summarize\" }
+";
+        let task = one_task(yaml);
+        assert_eq!(task.with.len(), 3);
+        assert_eq!(task.with[0].0.value, "content");
+        assert_eq!(task.with[0].1.value, "${{ tasks.research.output }}");
+        assert_eq!(task.with[2].1.value["max_words"], 100);
+    }
+
+    #[test]
+    fn output_bindings() {
+        let yaml = "\
+tasks:
+  - id: api_call
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/data\" }
+    output:
+      user_count: \".data.users | length\"
+      first_user: \".data.users[0]\"
+";
+        let task = one_task(yaml);
+        assert_eq!(task.output.len(), 2);
+        assert_eq!(task.output[0].0.value, "user_count");
+        assert_eq!(task.output[0].1.value, ".data.users | length");
+    }
+
+    #[test]
+    fn on_finally_mini_tasks() {
+        // Spec 03 §on_finally + example 16.
+        let yaml = "\
+tasks:
+  - id: test
+    timeout: \"5m\"
+    exec:
+      command: \"cargo test\"
+    on_finally:
+      - exec:
+          command: \"rm -rf /tmp/x\"
+      - when: ${{ tasks.test.status == 'failed' }}
+        timeout: \"10s\"
+        invoke:
+          tool: nika:emit
+          args: { event: \"done\" }
+";
+        let task = one_task(yaml);
+        assert_eq!(task.on_finally.len(), 2);
+        assert!(task.on_finally[0].value.when.is_none());
+        let second = &task.on_finally[1].value;
+        assert!(second.when.is_some());
+        assert_eq!(
+            second.timeout.as_ref().expect("timeout").value,
+            Duration::from_secs(10)
+        );
+        assert!(matches!(second.action, RawAction::Invoke(_)));
+    }
+
+    #[test]
+    fn unknown_task_field_strict_errors() {
+        let yaml = "\
+tasks:
+  - id: t
+    condition: \"${{ x }}\"
+    exec: { command: echo }
+";
+        // `condition:` is the BROUILLON-era key — the canonical key is
+        // `when:` (spec 03) · strict mode rejects it.
+        let err = parse_strict(yaml).expect_err("brouillon key");
+        assert!(
+            matches!(&err, SchemaError::UnknownField { field, .. } if field == "condition"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn tasks_as_mapping_errors() {
+        let err = parse_strict("tasks:\n  a: b\n").expect_err("tasks must be a sequence");
         assert!(
             matches!(&err, SchemaError::Validation { message, .. } if message.contains("sequence")),
-            "got {err:?}",
+            "{err:?}"
         );
     }
 
     #[test]
-    fn parse_task_entry_must_be_mapping() {
-        let yaml = "\
-tasks:
-  - just_a_scalar
-";
-        let err = parse(yaml, fid()).expect_err("task must be a mapping");
+    fn task_entry_must_be_mapping() {
+        let err = parse_strict("tasks:\n  - just_a_scalar\n").expect_err("scalar task");
         assert!(matches!(err, SchemaError::Validation { .. }));
-    }
-
-    #[test]
-    fn parse_action_body_must_be_mapping() {
-        // `infer: foo` — infer's body must be a mapping, not a scalar.
-        let yaml = "\
-tasks:
-  - name: bad
-    infer: foo
-";
-        let err = parse(yaml, fid()).expect_err("infer body must be mapping");
-        assert!(matches!(&err, SchemaError::Validation { .. }));
     }
 
     #[test]
     fn parse_preserves_task_span() {
-        // The outer task's Spanned wrapper must carry a non-blank span
-        // so downstream analyzer diagnostics can underline the task.
         let yaml = "\
 tasks:
-  - name: t1
+  - id: t1
     exec:
       command: echo
 ";
-        let wf = parse(yaml, FileId::new(9)).expect("parse");
+        let wf = parse(yaml, FileId::new(9), ParseMode::Strict).expect("parse");
         assert_eq!(wf.tasks[0].span.file, FileId::new(9));
-    }
-
-    // ─── Round 2e: optional task-level fields ──────────────────
-
-    #[test]
-    fn parse_depends_on_multiple_tasks() {
-        let yaml = "\
-tasks:
-  - name: a
-    exec:
-      command: echo a
-  - name: b
-    exec:
-      command: echo b
-  - name: c
-    depends_on:
-      - a
-      - b
-    exec:
-      command: echo c
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        let c = &wf.tasks[2].value;
-        assert_eq!(c.depends_on.len(), 2);
-        assert_eq!(c.depends_on[0].value, "a");
-        assert_eq!(c.depends_on[1].value, "b");
-    }
-
-    #[test]
-    fn parse_depends_on_absent_defaults_to_empty() {
-        let yaml = "\
-tasks:
-  - name: lonely
-    exec:
-      command: ls
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert!(wf.tasks[0].value.depends_on.is_empty());
-    }
-
-    #[test]
-    fn parse_depends_on_preserves_file_id_on_each_entry() {
-        let yaml = "\
-tasks:
-  - name: first
-    exec:
-      command: echo
-  - name: second
-    depends_on:
-      - first
-    exec:
-      command: echo
-";
-        let wf = parse(yaml, FileId::new(3)).expect("parse");
-        let second = &wf.tasks[1].value;
-        assert_eq!(second.depends_on[0].span.file, FileId::new(3));
-    }
-
-    #[test]
-    fn parse_depends_on_as_scalar_errors() {
-        let yaml = "\
-tasks:
-  - name: bad
-    depends_on: some_task
-    exec:
-      command: ls
-";
-        let err = parse(yaml, fid()).expect_err("depends_on must be a sequence");
-        assert!(
-            matches!(&err, SchemaError::Validation { message, .. } if message.contains("sequence")),
-            "got {err:?}",
-        );
-    }
-
-    #[test]
-    fn parse_depends_on_with_non_scalar_element_errors() {
-        let yaml = "\
-tasks:
-  - name: bad
-    depends_on:
-      - name: oops
-    exec:
-      command: ls
-";
-        let err = parse(yaml, fid()).expect_err("element must be a string");
-        assert!(matches!(err, SchemaError::Validation { .. }));
-    }
-
-    #[test]
-    fn parse_condition_and_for_each() {
-        let yaml = "\
-tasks:
-  - name: guarded
-    condition: \"{{ ready }}\"
-    for_each: \"{{ items }}\"
-    exec:
-      command: echo
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        let t = &wf.tasks[0].value;
-        assert_eq!(t.condition.as_ref().unwrap().value, "{{ ready }}");
-        assert_eq!(t.for_each.as_ref().unwrap().value, "{{ items }}");
-    }
-
-    #[test]
-    fn parse_condition_as_mapping_errors() {
-        // Templates are strings — a mapping here is a malformed YAML
-        // expression. Must fail loud so the author sees the typo.
-        let yaml = "\
-tasks:
-  - name: bad
-    condition:
-      key: value
-    exec:
-      command: ls
-";
-        let err = parse(yaml, fid()).expect_err("condition must be a scalar");
-        assert!(matches!(err, SchemaError::Validation { .. }));
     }
 }

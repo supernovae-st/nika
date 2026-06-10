@@ -1,56 +1,100 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! YAML → [`RawWorkflow`] parser.
+//! YAML → [`RawWorkflow`] parser — the canonical v1 language.
 //!
-//! Round 2d scope:
+//! Parses the spec envelope (`nika-spec/spec/01-envelope.md`) ·
+//! `nika:` · `workflow:` · `description:` · `model:` · `vars:` · `env:`
+//! · `secrets:` · `tasks:` · `outputs:` — and the closed task shape of
+//! `03-dag.md` with the 4 verbs of `02-verbs.md`.
 //!
-//! - Top-level workflow scalars (`schema`, `name`, `description`,
-//!   `goal`, `provider`, `model`).
-//! - `tasks:` sequence — each task parsed for `name` + the action
-//!   discriminator + the verb's minimum required field (`prompt` /
-//!   `command` / `url` / `tool|resource` / `prompt`). Optional
-//!   task-level fields (`depends_on`, `condition`, `for_each`,
-//!   `record`, `decompose`, `budget`, `limits`, `completion`,
-//!   `guardrails`, `max_retries`) and optional verb-specific
-//!   fields land in Round 2e.
+//! The parser is **shape-only** · it validates field forms (scalar vs
+//! mapping · closed enums · the Go-duration grammar · exactly-one-verb)
+//! and rejects unknown fields in [`ParseMode::Strict`]. Cross-reference
+//! semantics (cycles · `depends_on` resolution · `${{ }}` namespace
+//! resolution · the `when:` boolean-shape rule) are the analyzer's job.
 //!
-//! Still deferred: `mcp`, `include`, `context`, `inputs`, `logging`,
-//! `orchestrate`, `routing`, `schedule`, `max_duration_secs`.
-//!
-//! Fields that are known but not yet parsed are ignored silently so
-//! that workflows under incremental development still load. Truly
-//! structural failures (bad YAML, wrong root shape, type mismatches
-//! on handled scalars, unsupported `schema:` version, missing task
-//! `name`, missing/ambiguous action verb) produce a [`SchemaError`]
-//! carrying a [`Span`] when one is available.
+//! Presence of `nika:` / `workflow:` / non-empty `tasks:` is ALSO the
+//! analyzer's job (collected errors) — the parser only validates the
+//! fields it sees.
 
+mod envelope;
 mod tasks;
+mod value;
+mod verbs;
 
 use marked_yaml::types::MarkedScalarNode;
-use marked_yaml::{Span as YamlSpan, parse_yaml};
+use marked_yaml::{LoadError, LoaderOptions, Span as YamlSpan, parse_yaml_with_options};
 
 use crate::error::SchemaError;
 use crate::raw::RawWorkflow;
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 use crate::types::SchemaVersion;
 
+/// Forward-compat mode (spec `02-verbs.md` §forward-compat) ·
+///
+/// - [`Strict`](Self::Strict) — REJECT any unknown field anywhere
+///   (top-level · task-level · verb-level). The conformance-test default.
+/// - [`Lenient`](Self::Lenient) — ignore unknown fields (production
+///   default per the spec · « Warn + ignore » · warnings TODO).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ParseMode {
+    /// Reject unknown fields with a clear error (test default).
+    #[default]
+    Strict,
+    /// Ignore unknown fields (production default).
+    Lenient,
+}
+
+/// The canonical top-level envelope keys (spec `01-envelope.md`).
+const TOP_LEVEL_KEYS: &[&str] = &[
+    "nika",
+    "workflow",
+    "description",
+    "model",
+    "vars",
+    "env",
+    "secrets",
+    "tasks",
+    "outputs",
+];
+
 /// Parse a YAML string into a [`RawWorkflow`].
 ///
-/// `file_id` labels the source in downstream diagnostics; it is
-/// woven into every [`Span`] attached to the returned workflow.
+/// `file_id` labels the source in downstream diagnostics; it is woven
+/// into every [`Span`] attached to the returned workflow. `mode` picks
+/// the unknown-field policy.
 ///
 /// # Errors
 ///
-/// Returns a [`SchemaError`] when the YAML is malformed, when the
-/// root node is not a mapping, when a handled field has the wrong
-/// shape (for example `name: [foo]`), or when the `schema:` field
-/// names an unsupported version.
-pub fn parse(yaml: &str, file_id: FileId) -> Result<RawWorkflow, SchemaError> {
-    let node = parse_yaml(file_id.0 as usize, yaml).map_err(|err| SchemaError::YamlSyntax {
-        message: err.to_string(),
-        span: None,
-    })?;
+/// Returns a [`SchemaError`] when the YAML is malformed, carries
+/// duplicate mapping keys, violates a field's shape (closed enum ·
+/// Go-duration · exactly-one-verb · id formats), or — in
+/// [`ParseMode::Strict`] — carries an unknown field.
+pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow, SchemaError> {
+    // YAML 1.2 forbids duplicate mapping keys from silently last-winning
+    // — `error_on_duplicate_keys` turns them into loud errors (covers
+    // vars/env/secrets/outputs/with/output duplicate-key detection).
+    // `prevent_coercion` makes QUOTED scalars non-coercing (only plain
+    // scalars type-coerce) — the YAML 1.2 contract `"42"` is a string.
+    let options = LoaderOptions::default()
+        .error_on_duplicate_keys(true)
+        .prevent_coercion(true);
+    let node =
+        parse_yaml_with_options(file_id.0 as usize, yaml, options).map_err(|err| match err {
+            LoadError::DuplicateKey(inner) => SchemaError::DuplicateKey {
+                message: format!(
+                    "\"{}\" appears twice in the same mapping",
+                    inner.key.as_str()
+                ),
+                span: None,
+            },
+            other => SchemaError::YamlSyntax {
+                message: other.to_string(),
+                span: None,
+            },
+        })?;
 
     // Char-to-byte translation table: marked-yaml reports character
     // (code-point) indices, but `ByteOffset` — and every miette
@@ -63,36 +107,109 @@ pub fn parse(yaml: &str, file_id: FileId) -> Result<RawWorkflow, SchemaError> {
         span: yaml_span_to_span(file_id, node.span(), &char_to_byte),
     })?;
 
+    let cx = Cx {
+        file_id,
+        char_to_byte: &char_to_byte,
+        mode,
+    };
+
+    cx.check_unknown_keys(mapping, TOP_LEVEL_KEYS, "the workflow envelope")?;
+
     let mut workflow = RawWorkflow::new();
 
-    if let Some(scalar) = mapping.get_scalar("schema") {
-        workflow.schema = Some(parse_schema_version(file_id, scalar, &char_to_byte)?);
+    if let Some(scalar) = mapping.get_scalar("nika") {
+        workflow.nika = Some(parse_nika_version(&cx, scalar)?);
     }
-    if let Some(s) = extract_scalar(mapping, "name", file_id, &char_to_byte)? {
-        workflow.name = Some(s);
+    if let Some(s) = extract_scalar(mapping, "workflow", file_id, &char_to_byte)? {
+        validate_workflow_id(&s)?;
+        workflow.workflow = Some(s);
     }
     if let Some(s) = extract_scalar(mapping, "description", file_id, &char_to_byte)? {
         workflow.description = Some(s);
-    }
-    if let Some(s) = extract_scalar(mapping, "goal", file_id, &char_to_byte)? {
-        workflow.goal = Some(s);
-    }
-    if let Some(s) = extract_scalar(mapping, "provider", file_id, &char_to_byte)? {
-        workflow.provider = Some(s);
     }
     if let Some(s) = extract_scalar(mapping, "model", file_id, &char_to_byte)? {
         workflow.model = Some(s);
     }
 
-    workflow.tasks = tasks::parse_tasks(mapping, file_id, &char_to_byte)?;
-
-    // TODO(round-2e): record which known-but-unhandled keys (`mcp`,
-    // `context`, `include`, `inputs`, `logging`, `orchestrate`,
-    // `routing`, `schedule`, `max_duration_secs`) were present so
-    // the Round 3 analyzer can surface a precise "deferred field"
-    // diagnostic instead of treating them as absent.
+    workflow.vars = envelope::parse_vars(&cx, mapping)?;
+    workflow.env = envelope::parse_env(&cx, mapping)?;
+    workflow.secrets = envelope::parse_secrets(&cx, mapping)?;
+    workflow.outputs = envelope::parse_outputs(&cx, mapping)?;
+    workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
 
     Ok(workflow)
+}
+
+// ── Shared parse context ────────────────────────────────────────────
+
+/// A spanned key → spanned value entry list, preserving YAML order
+/// (`env:` · `secrets:` · `with:` · `output:` blocks).
+pub(super) type SpannedEntries<T> = Vec<(Spanned<String>, Spanned<T>)>;
+
+/// Per-parse context threaded through the submodules.
+pub(super) struct Cx<'a> {
+    pub(super) file_id: FileId,
+    pub(super) char_to_byte: &'a CharToByte,
+    pub(super) mode: ParseMode,
+}
+
+impl Cx<'_> {
+    /// Translate a marked-yaml span.
+    pub(super) fn span(&self, span: &YamlSpan) -> Option<Span> {
+        yaml_span_to_span(self.file_id, span, self.char_to_byte)
+    }
+
+    /// Translate a marked-yaml span, falling back to a zero-point span.
+    pub(super) fn span_or_zero(&self, span: &YamlSpan) -> Span {
+        self.span(span)
+            .unwrap_or_else(|| Span::point(self.file_id, ByteOffset::new(0)))
+    }
+
+    /// In [`ParseMode::Strict`] · reject any mapping key outside `known`
+    /// (spec `02-verbs.md` §forward-compat · strict = test default).
+    pub(super) fn check_unknown_keys(
+        &self,
+        mapping: &marked_yaml::types::MarkedMappingNode,
+        known: &[&str],
+        location: &str,
+    ) -> Result<(), SchemaError> {
+        if self.mode == ParseMode::Lenient {
+            return Ok(());
+        }
+        for (key, _) in mapping.iter() {
+            if !known.contains(&key.as_str()) {
+                return Err(SchemaError::UnknownField {
+                    field: key.as_str().to_owned(),
+                    location: location.to_owned(),
+                    span: self.span(key.span()),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Extract an optional string scalar by key.
+    pub(super) fn opt_scalar(
+        &self,
+        mapping: &marked_yaml::types::MarkedMappingNode,
+        key: &str,
+    ) -> Result<Option<Spanned<String>>, SchemaError> {
+        extract_scalar(mapping, key, self.file_id, self.char_to_byte)
+    }
+
+    /// Extract a required string scalar by key.
+    pub(super) fn require_scalar(
+        &self,
+        mapping: &marked_yaml::types::MarkedMappingNode,
+        key: &str,
+        location: &str,
+    ) -> Result<Spanned<String>, SchemaError> {
+        self.opt_scalar(mapping, key)?
+            .ok_or_else(|| SchemaError::MissingField {
+                field: format!("{location}.{key}"),
+                span: self.span(mapping.span()),
+            })
+    }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -175,25 +292,60 @@ pub(super) fn extract_scalar(
     Ok(Some(Spanned::new(scalar.as_str().to_owned(), span)))
 }
 
-/// Parse a `schema:` scalar into [`SchemaVersion`].
-fn parse_schema_version(
-    file_id: FileId,
+/// Parse the `nika:` scalar — exactly `v1` (spec `01-envelope.md` ·
+/// « **Anti-pattern** · do not write `nika: v1.0` · `nika: "1"` · or
+/// `nika: 1.0`. The value is exactly `v1`. »).
+fn parse_nika_version(
+    cx: &Cx<'_>,
     scalar: &MarkedScalarNode,
-    char_to_byte: &CharToByte,
 ) -> Result<Spanned<SchemaVersion>, SchemaError> {
     let raw = scalar.as_str();
-    let span = yaml_span_to_span(file_id, scalar.span(), char_to_byte);
-    let version = match raw {
-        "v1" => SchemaVersion::V1,
-        other => {
-            return Err(SchemaError::UnsupportedVersion {
-                version: other.to_owned(),
-                span,
-            });
-        }
-    };
-    let span = span.unwrap_or_else(|| Span::point(file_id, ByteOffset::new(0)));
-    Ok(Spanned::new(version, span))
+    let span = cx.span(scalar.span());
+    if raw != "v1" {
+        return Err(SchemaError::BadNikaVersion {
+            version: raw.to_owned(),
+            span,
+        });
+    }
+    Ok(Spanned::new(
+        SchemaVersion::V1,
+        span.unwrap_or_else(|| Span::point(cx.file_id, ByteOffset::new(0))),
+    ))
+}
+
+/// Validate `workflow:` against `^[a-z][a-z0-9-]*$` (spec
+/// `01-envelope.md` · kebab-case · « it is a resource name, never
+/// referenced inside an expression »).
+fn validate_workflow_id(id: &Spanned<String>) -> Result<(), SchemaError> {
+    let s = &id.value;
+    let valid = s.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if valid {
+        Ok(())
+    } else {
+        Err(SchemaError::BadWorkflowId {
+            id: s.clone(),
+            span: Some(id.span),
+        })
+    }
+}
+
+/// Validate a task `id:` against `^[a-z][a-z0-9_]*$` (spec `03-dag.md` ·
+/// `snake_case` · CEL-safe · a hyphen would parse as subtraction).
+pub(super) fn validate_task_id(id: &Spanned<String>) -> Result<(), SchemaError> {
+    let s = &id.value;
+    let valid = s.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if valid {
+        Ok(())
+    } else {
+        Err(SchemaError::BadTaskId {
+            id: s.clone(),
+            span: Some(id.span),
+        })
+    }
 }
 
 /// Convert a `marked_yaml::Span` into our span (attached to `file_id`).
@@ -228,127 +380,174 @@ mod tests {
         FileId::new(0)
     }
 
+    fn parse_strict(yaml: &str) -> Result<RawWorkflow, SchemaError> {
+        parse(yaml, fid(), ParseMode::Strict)
+    }
+
+    const MINIMAL: &str = "\
+nika: v1
+workflow: hello
+tasks:
+  - id: greet
+    infer:
+      prompt: \"Say hi\"
+";
+
     #[test]
-    fn parse_minimal_name_only() {
-        let yaml = "name: hello\n";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert_eq!(wf.name.as_ref().map(|s| s.value.as_str()), Some("hello"));
-        assert!(wf.description.is_none());
-        assert!(wf.tasks.is_empty());
+    fn parse_minimal_canonical_envelope() {
+        let wf = parse_strict(MINIMAL).expect("parse");
+        assert_eq!(wf.nika.as_ref().map(|s| s.value), Some(SchemaVersion::V1));
+        assert_eq!(
+            wf.workflow.as_ref().map(|s| s.value.as_str()),
+            Some("hello")
+        );
+        assert_eq!(wf.tasks.len(), 1);
     }
 
     #[test]
     fn parse_all_top_level_scalars() {
         let yaml = "\
-name: my-workflow
+nika: v1
+workflow: my-workflow
 description: A demo
-goal: Do the thing
-provider: openai
-model: gpt-4o
-schema: v1
+model: anthropic/claude-sonnet-4-6
 ";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert_eq!(wf.name.unwrap().value, "my-workflow");
-        assert_eq!(wf.description.unwrap().value, "A demo");
-        assert_eq!(wf.goal.unwrap().value, "Do the thing");
-        assert_eq!(wf.provider.unwrap().value, "openai");
-        assert_eq!(wf.model.unwrap().value, "gpt-4o");
-        assert_eq!(wf.schema.unwrap().value, SchemaVersion::V1);
+        let wf = parse_strict(yaml).expect("parse");
+        assert_eq!(wf.workflow.expect("workflow").value, "my-workflow");
+        assert_eq!(wf.description.expect("description").value, "A demo");
+        assert_eq!(
+            wf.model.expect("model").value,
+            "anthropic/claude-sonnet-4-6"
+        );
+        assert_eq!(wf.nika.expect("nika").value, SchemaVersion::V1);
     }
 
     #[test]
-    fn parse_preserves_span_for_name() {
-        let yaml = "name: hello\n";
-        let wf = parse(yaml, FileId::new(7)).expect("parse");
-        let spanned = wf.name.expect("name present");
-        assert_eq!(spanned.span.file, FileId::new(7));
-        assert!(spanned.span.end >= spanned.span.start);
+    fn parse_bad_nika_version_errors() {
+        // Spec 01 · « do not write `nika: v1.0` · `nika: "1"` · `1.0` ».
+        for bad in ["nika: v1.0\n", "nika: \"1\"\n", "nika: 1.0\n", "nika: v2\n"] {
+            let err = parse_strict(bad).expect_err("bad nika version");
+            assert!(
+                matches!(err, SchemaError::BadNikaVersion { .. }),
+                "{bad:?} → {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_bad_nika_version_carries_span() {
+        let err = parse_strict("nika: v999\n").expect_err("bad version");
+        let SchemaError::BadNikaVersion { version, span } = err else {
+            panic!("expected BadNikaVersion");
+        };
+        assert_eq!(version, "v999");
+        assert!(span.is_some(), "BadNikaVersion must carry its span");
+    }
+
+    #[test]
+    fn parse_bad_workflow_id_errors() {
+        // Spec 01 · « Must match · ^[a-z][a-z0-9-]*$ ».
+        for bad in [
+            "workflow: Bad_Id\n",
+            "workflow: 9lives\n",
+            "workflow: my_flow\n",
+            "workflow: \"\"\n",
+        ] {
+            let err = parse_strict(bad).expect_err("bad workflow id");
+            assert!(
+                matches!(err, SchemaError::BadWorkflowId { .. }),
+                "{bad:?} → {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_good_workflow_ids() {
+        for good in ["hello", "scrape-and-summarize", "a", "a1-b2"] {
+            let yaml = format!("workflow: {good}\n");
+            let wf = parse_strict(&yaml).expect("parse");
+            assert_eq!(wf.workflow.expect("workflow").value, good);
+        }
+    }
+
+    #[test]
+    fn strict_rejects_unknown_top_level_key() {
+        // Conformance fixture envelope/005-unknown-top-level-key.
+        let yaml = "\
+nika: v1
+workflow: hello
+foo: bar
+tasks:
+  - id: greet
+    infer:
+      prompt: \"hi\"
+";
+        let err = parse_strict(yaml).expect_err("unknown key");
+        let SchemaError::UnknownField { field, .. } = err else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        assert_eq!(field, "foo");
+    }
+
+    #[test]
+    fn lenient_ignores_unknown_top_level_key() {
+        let yaml = "\
+nika: v1
+workflow: hello
+foo: bar
+tasks:
+  - id: greet
+    infer:
+      prompt: \"hi\"
+";
+        let wf = parse(yaml, fid(), ParseMode::Lenient).expect("lenient parse");
+        assert_eq!(wf.tasks.len(), 1);
+    }
+
+    #[test]
+    fn duplicate_top_level_keys_error() {
+        // YAML 1.2 · duplicate keys never silently last-win.
+        let err = parse_strict("workflow: first\nworkflow: second\n").expect_err("dup");
+        assert!(matches!(err, SchemaError::DuplicateKey { .. }), "{err:?}");
     }
 
     #[test]
     fn parse_empty_yaml_yields_empty_workflow() {
-        // marked-yaml treats "" as the empty mapping — an empty
-        // workflow is a legal (if useless) schema input, so the
-        // parser returns an all-`None` `RawWorkflow` rather than an
-        // error.
-        let wf = parse("", fid()).expect("empty yaml is legal");
-        assert!(wf.name.is_none());
+        // The PARSER accepts an empty mapping — missing nika/workflow/
+        // tasks are the ANALYZER's collected errors.
+        let wf = parse_strict("").expect("empty yaml is shape-legal");
+        assert!(wf.nika.is_none());
         assert!(wf.tasks.is_empty());
     }
 
     #[test]
     fn parse_sequence_top_level_errors() {
-        // marked-yaml itself rejects non-mapping roots, so the
-        // failure surfaces as `YamlSyntax` rather than our own
-        // `Validation` variant. That's fine — the error message
-        // still points to the root location.
-        let err = parse("- item\n", fid()).expect_err("sequence root must fail");
+        let err = parse_strict("- item\n").expect_err("sequence root must fail");
         assert!(matches!(err, SchemaError::YamlSyntax { .. }));
-        if let SchemaError::YamlSyntax { message, .. } = err {
-            assert!(message.to_lowercase().contains("mapping"));
-        }
     }
 
     #[test]
-    fn parse_name_as_sequence_errors() {
-        let err = parse("name:\n  - foo\n", fid()).expect_err("sequence value");
-        assert!(matches!(err, SchemaError::Validation { .. }));
-        if let SchemaError::Validation { message, .. } = err {
-            assert!(message.contains("`name`"));
-        }
-    }
-
-    #[test]
-    fn parse_description_as_mapping_errors() {
-        let err = parse("description:\n  foo: bar\n", fid()).expect_err("mapping value");
+    fn parse_workflow_as_sequence_errors() {
+        let err = parse_strict("workflow:\n  - foo\n").expect_err("sequence value");
         assert!(matches!(err, SchemaError::Validation { .. }));
     }
 
     #[test]
-    fn parse_unsupported_schema_version_errors() {
-        let err = parse("schema: v999\n", fid()).expect_err("bad version");
-        assert!(matches!(err, SchemaError::UnsupportedVersion { .. }));
-        if let SchemaError::UnsupportedVersion { version, span } = err {
-            assert_eq!(version, "v999");
-            // Span was preserved on the error path — P1 review fix.
-            assert!(span.is_some(), "UnsupportedVersion must carry its span");
-        }
+    fn parse_yaml_syntax_error_maps_to_schema_error() {
+        let err = parse_strict("workflow: [unclosed\n").expect_err("bad yaml");
+        assert!(matches!(err, SchemaError::YamlSyntax { .. }));
     }
 
     #[test]
-    fn parse_non_ascii_value_span_starts_at_correct_byte() {
-        // Regression lock for the char-index → byte-offset fix.
-        // Without the translation table, non-ASCII keys before the
-        // scalar would push the byte start wrong. Put the multi-byte
-        // character in a preceding skipped key so the scalar's
-        // recorded character-index differs from its byte-index.
-        //
-        // YAML: "desc_é: skip\nname: hit\n"
-        //        ↑ 6 bytes header (d e s c _ é = 7 bytes, é = 2)
-        //        → "name" starts at char index 12, byte index 13
-        //          (counts: d,e,s,c,_,é,:,space,s,k,i,p,\n,n)
-        //          Without the table `ByteOffset` would land on the
-        //          wrong `n`.
-        let yaml = "desc_\u{00e9}: skip\nname: hit\n";
-        let wf = parse(yaml, fid()).expect("parse");
-        let spanned = wf.name.expect("name present");
-        // Scalar value "hit" starts after "name: " on line 2.
-        // Byte offset = bytes_before_line_2 + 6 ("name: ").
-        let line1_bytes = "desc_\u{00e9}: skip\n".len();
-        let expected_start = u32::try_from(line1_bytes + 6).unwrap();
-        assert_eq!(
-            spanned.span.start,
-            ByteOffset::new(expected_start),
-            "span start must be byte offset after char→byte translation",
-        );
+    fn parse_file_id_propagates_into_span() {
+        let wf = parse("workflow: x\n", FileId::new(42), ParseMode::Strict).expect("parse");
+        assert_eq!(wf.workflow.expect("workflow").span.file, FileId::new(42));
     }
 
     #[test]
     fn parse_error_span_carries_original_file_id() {
-        // P1 review fix: the `.unwrap_or_default()` path used to
-        // silently drop the caller's `FileId` and return
-        // `FileId(0)`. Assert the error path now preserves it.
-        let err = parse("name:\n  - foo\n", FileId::new(42)).expect_err("seq value");
+        let err = parse("workflow:\n  - foo\n", FileId::new(42), ParseMode::Strict)
+            .expect_err("seq value");
         assert!(
             matches!(
                 &err,
@@ -362,56 +561,17 @@ schema: v1
     }
 
     #[test]
-    fn parse_duplicate_top_level_keys_takes_last() {
-        // marked-yaml / yaml-rust2 treats duplicate mapping keys as
-        // last-wins. Documenting the contract so a future upstream
-        // change can't silently flip it.
-        let wf = parse("name: first\nname: second\n", fid()).expect("parse");
-        assert_eq!(wf.name.unwrap().value, "second");
-    }
-
-    #[test]
-    fn parse_yaml_syntax_error_maps_to_schema_error() {
-        let err = parse("name: [unclosed\n", fid()).expect_err("bad yaml");
-        assert!(matches!(err, SchemaError::YamlSyntax { .. }));
-    }
-
-    #[test]
-    fn parse_ignores_unhandled_fields_for_now() {
-        // Round 2c handled the six top-level scalars; Round 2d
-        // wires `tasks:`. Remaining future-round fields (`mcp`,
-        // `context`, `include`, `inputs`, `logging`, `orchestrate`,
-        // `routing`, `schedule`, `max_duration_secs`) must still not
-        // error — lenient-by-default incremental scaffolding.
-        let yaml = "\
-name: partial
-context:
-  window: 2048
-logging:
-  level: info
-include:
-  - shared.yaml
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert_eq!(wf.name.unwrap().value, "partial");
-        assert!(wf.tasks.is_empty());
-    }
-
-    #[test]
-    fn parse_ignores_unknown_top_level_keys() {
-        // Unknown keys are silently ignored (lenient-by-default) —
-        // strict-mode reporting lands in Round 3 analyzer.
-        let yaml = "\
-name: demo
-unknown_field: whatever
-";
-        let wf = parse(yaml, fid()).expect("parse");
-        assert_eq!(wf.name.unwrap().value, "demo");
-    }
-
-    #[test]
-    fn parse_file_id_propagates_into_span() {
-        let wf = parse("name: x\n", FileId::new(42)).expect("parse");
-        assert_eq!(wf.name.unwrap().span.file, FileId::new(42));
+    fn parse_non_ascii_value_span_starts_at_correct_byte() {
+        // Regression lock for the char-index → byte-offset fix.
+        let yaml = "desc_\u{00e9}: skip\nworkflow: hit\n";
+        let wf = parse(yaml, fid(), ParseMode::Lenient).expect("parse");
+        let spanned = wf.workflow.expect("workflow present");
+        let line1_bytes = "desc_\u{00e9}: skip\n".len();
+        let expected_start = u32::try_from(line1_bytes + 10).expect("fits"); // "workflow: "
+        assert_eq!(
+            spanned.span.start,
+            ByteOffset::new(expected_start),
+            "span start must be byte offset after char→byte translation",
+        );
     }
 }
