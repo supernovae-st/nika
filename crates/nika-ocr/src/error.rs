@@ -5,8 +5,14 @@
 //!
 //! Reserved sub-range **NIKA-1100..1199** per ADR-081 `nika_codes` matrix
 //! (supersedes the stale `io/ocr.rs` doc-comment "NIKA-1020..1039" which
-//! predates ADR-081). `code()` is the grep-anchor for logs + journal;
-//! `is_transient()` lets a caller decide retry vs structural failure.
+//! predates ADR-081). Codes speak the workspace-canonical
+//! [`NikaErrorCode`] trait (`nika_code()` → registry consts
+//! `NIKA_1101..1109` · `Category::Ocr` · B5 error one-voice 2026-06-10
+//! — the crate-local string `code()` accessor was the F8 drift ·
+//! removed per `no-legacy-no-back-compat.md`); `is_transient()` lets a
+//! caller decide retry vs structural failure.
+//!
+//! [`NikaErrorCode`]: nika_kernel::prelude::NikaErrorCode
 //!
 //! NIKA-1100 was the B.2 `BackendNotWired` skeleton placeholder · CLOSED at
 //! B.3 when the `ocrs` backend was wired (per `skeleton-option-a-pattern.md`
@@ -14,8 +20,8 @@
 
 use thiserror::Error;
 
-/// OCR backend errors · NIKA-1101..1109 · `code()` grep-anchor.
-#[derive(Debug, Error)]
+/// OCR backend errors · NIKA-1101..1109 (registry-owned · `Category::Ocr`).
+#[derive(Debug, Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum OcrError {
     /// A `.rten` model file was not found at the configured path.
@@ -84,30 +90,27 @@ pub enum OcrError {
     },
 }
 
-impl OcrError {
-    /// Stable NIKA code for this error (grep-anchor for logs + journal).
-    ///
-    /// NIKA-1101..1109 currently used · NIKA-1100..1199 reserved for
-    /// nika-ocr (ADR-081 · NIKA-1100 = retired B.2 placeholder slot).
-    #[must_use]
-    pub fn code(&self) -> &'static str {
+impl nika_kernel::prelude::NikaErrorCode for OcrError {
+    /// Stable NIKA code (registry-owned · `Category::Ocr` 1100-1199 ·
+    /// NIKA-1100 = retired B.2 placeholder slot).
+    fn nika_code(&self) -> nika_kernel::prelude::NikaCode {
+        use nika_kernel::prelude::codes;
         match self {
-            Self::ModelNotFound { .. } => "NIKA-1101",
-            Self::ModelLoadFailed { .. } => "NIKA-1102",
-            Self::EngineInit { .. } => "NIKA-1103",
-            Self::RegionOutOfBounds { .. } => "NIKA-1104",
-            Self::InvalidFrameFormat { .. } => "NIKA-1105",
-            Self::PrepareInputFailed { .. } => "NIKA-1106",
-            Self::DetectionFailed { .. } => "NIKA-1107",
-            Self::RecognitionFailed { .. } => "NIKA-1108",
-            Self::TaskJoinFailed { .. } => "NIKA-1109",
+            Self::ModelNotFound { .. } => codes::NIKA_1101,
+            Self::ModelLoadFailed { .. } => codes::NIKA_1102,
+            Self::EngineInit { .. } => codes::NIKA_1103,
+            Self::RegionOutOfBounds { .. } => codes::NIKA_1104,
+            Self::InvalidFrameFormat { .. } => codes::NIKA_1105,
+            Self::PrepareInputFailed { .. } => codes::NIKA_1106,
+            Self::DetectionFailed { .. } => codes::NIKA_1107,
+            Self::RecognitionFailed { .. } => codes::NIKA_1108,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1109,
         }
     }
 
     /// True for retryable failures (transient inference / task) · false for
     /// structural ones (not wired · model missing · bad frame · bad region).
-    #[must_use]
-    pub fn is_transient(&self) -> bool {
+    fn is_transient(&self) -> bool {
         matches!(
             self,
             Self::DetectionFailed { .. }
@@ -119,7 +122,7 @@ impl OcrError {
 
 /// Bridge to `std::io::Error` at the `OcrEngine` trait boundary (the trait
 /// returns `std::io::Result`). The rich `OcrError` rides as the boxed source ·
-/// `code()` reaches logs via `Display`.
+/// the NIKA code reaches logs via `Display`.
 impl From<OcrError> for std::io::Error {
     fn from(err: OcrError) -> Self {
         std::io::Error::other(err)
@@ -129,6 +132,7 @@ impl From<OcrError> for std::io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::prelude::{Category, NikaErrorCode, codes};
 
     fn all_variants() -> Vec<OcrError> {
         vec![
@@ -157,20 +161,17 @@ mod tests {
     fn codes_are_unique_and_in_range() {
         let variants = all_variants();
         let n = variants.len();
-        let mut codes: Vec<&str> = variants.iter().map(OcrError::code).collect();
-        codes.sort_unstable();
-        codes.dedup();
-        assert_eq!(codes.len(), n, "all NIKA codes are unique");
+        let mut nums: Vec<u16> = variants.iter().map(|e| e.nika_code().num).collect();
+        nums.sort_unstable();
+        nums.dedup();
+        assert_eq!(nums.len(), n, "all NIKA codes are unique");
         for e in &variants {
-            let num: u32 = e
-                .code()
-                .strip_prefix("NIKA-")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
+            let c = e.nika_code();
+            assert!((1100..=1199).contains(&c.num), "{c} in nika-ocr range");
+            assert_eq!(c.category, Category::Ocr);
             assert!(
-                (1100..=1199).contains(&num),
-                "{} in nika-ocr range",
-                e.code()
+                codes::lookup(&c.to_string()).is_some(),
+                "{c} resolvable via the registry"
             );
         }
     }
@@ -183,7 +184,7 @@ mod tests {
         .into();
         let src = io.into_inner().expect("boxed source");
         let oe = src.downcast::<OcrError>().expect("OcrError source");
-        assert_eq!(oe.code(), "NIKA-1101");
+        assert_eq!(oe.nika_code(), codes::NIKA_1101);
     }
 
     #[test]

@@ -290,6 +290,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use nika_kernel::io::screen::DisplayId;
+    use nika_kernel::prelude::{NikaErrorCode, codes};
     use proptest::prelude::*;
 
     /// Build a well-formed RGBA8 frame of the given dimensions.
@@ -307,7 +308,11 @@ mod tests {
             Path::new("/no/such/recognition.rten"),
         )
         .expect_err("missing model rejected");
-        assert_eq!(err.code(), "NIKA-1101", "absent path is ModelNotFound");
+        assert_eq!(
+            err.nika_code(),
+            codes::NIKA_1101,
+            "absent path is ModelNotFound"
+        );
     }
 
     #[test]
@@ -319,8 +324,8 @@ mod tests {
         let err = OcrBackend::with_models(tmp.path(), Path::new("/no/such/recognition.rten"))
             .expect_err("garbage model rejected");
         assert_eq!(
-            err.code(),
-            "NIKA-1102",
+            err.nika_code(),
+            codes::NIKA_1102,
             "unparseable .rten is ModelLoadFailed"
         );
     }

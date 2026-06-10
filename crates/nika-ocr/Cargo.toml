@@ -17,6 +17,7 @@ adr = ["ADR-003", "ADR-081"]
 
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+miette      = { workspace = true }
 thiserror   = { workspace = true }
 # ocrs = pure-Rust OCR engine (detect → find lines → recognize) · rten = the
 # tensor runtime, used directly for Model::load_file(.rten). tokio `rt` for
