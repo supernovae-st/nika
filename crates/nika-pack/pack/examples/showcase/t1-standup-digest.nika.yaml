@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · engineering / any team
+#
+# Your standup note writes itself — from what you actually committed.
+#
+# Demonstrates ·
+#   - implicit parallelism · `today` + `history` have no deps · they run together
+#   - `nika:date` · timestamps come from a builtin, not the model's imagination
+#   - `exec:` → `infer:` · the bread-and-butter chain (real data in, words out)
+#   - `nika:write` · ALWAYS pass `content:` — a write without content writes nothing
+#
+# Run · nika run examples/showcase/t1-standup-digest.nika.yaml
+nika: v1
+workflow: standup-digest
+description: "Read yesterday's commits, write today's standup note"
+
+model: mock/echo            # deterministic · swap for anthropic/claude-haiku-4-5
+
+tasks:
+  # No deps between these two → the engine runs them in parallel.
+  - id: today
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
+
+  - id: history
+    exec:
+      command: "git log --since=yesterday --oneline --no-merges"
+
+  - id: digest
+    depends_on: [today, history]
+    infer:
+      prompt: |
+        Date · ${{ tasks.today.output }}
+        Commits since yesterday ·
+        ${{ tasks.history.output }}
+
+        Write my standup note · 3 bullets · done / doing / blocked.
+        Plain words · no fluff.
+
+  - id: save
+    depends_on: [digest]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./standup-note.md"
+        content: "${{ tasks.digest.output }}"
+
+outputs:
+  note: ${{ tasks.digest.output }}

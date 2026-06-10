@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · marketing / creators
+#
+# One blog post becomes a tweet thread, a LinkedIn post and a newsletter
+# blurb — three rewrites running IN PARALLEL, merged into one bundle.
+#
+# Demonstrates ·
+#   - the diamond DAG · read → 3 parallel infers → merge
+#   - same source, three voices · prompts are where the craft lives
+#   - `with:` aliasing · short local names keep the merge prompt readable
+#
+# Run · nika run examples/showcase/t1-social-repurpose.nika.yaml
+nika: v1
+workflow: social-repurpose
+description: "One post → thread + LinkedIn + newsletter, in parallel"
+
+model: mock/echo            # swap for mistral/mistral-large or any provider
+
+vars:
+  post_path: "./blog/launch-post.md"
+
+tasks:
+  - id: post
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.post_path }}" }
+
+  # Three rewrites · no deps between them · they run concurrently.
+  - id: thread
+    depends_on: [post]
+    infer:
+      prompt: "Turn this post into a 6-tweet thread · keep the voice · ${{ tasks.post.output }}"
+
+  - id: linkedin
+    depends_on: [post]
+    infer:
+      prompt: "Rewrite this post for LinkedIn · hook first · ${{ tasks.post.output }}"
+
+  - id: newsletter
+    depends_on: [post]
+    infer:
+      prompt: "Write a 3-sentence newsletter blurb for this post · ${{ tasks.post.output }}"
+
+  - id: bundle
+    depends_on: [thread, linkedin, newsletter]
+    with:
+      t: ${{ tasks.thread.output }}
+      l: ${{ tasks.linkedin.output }}
+      n: ${{ tasks.newsletter.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./social-bundle.md"
+        content: |
+          # Social bundle
+
+          ## Thread
+          ${{ with.t }}
+
+          ## LinkedIn
+          ${{ with.l }}
+
+          ## Newsletter
+          ${{ with.n }}
+
+outputs:
+  bundle_path: ${{ tasks.bundle.output }}

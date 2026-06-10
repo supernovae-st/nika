@@ -1,0 +1,17 @@
+[package]
+name          = "nika-pack"
+description   = "The embedded language pack — the spec, schema, examples and templates of the language version this binary speaks. Layer L0 — pure data, zero I/O, zero async."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io.
+
+[dependencies]
+include_dir = "0.7"
+
+[dev-dependencies]
+sha2 = "0.10"

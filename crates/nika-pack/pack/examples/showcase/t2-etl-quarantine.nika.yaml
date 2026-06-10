@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · data engineering
+#
+# The nightly ETL that never dies at row 14,203 · bad batches degrade
+# to a quarantine file instead of killing the pipeline · `on_error:
+# recover:` is the difference between « re-run the whole night » and
+# « fix three rows tomorrow morning ».
+#
+# Demonstrates ·
+#   - `on_error: recover:` · graceful degradation to a fallback value
+#   - `nika:convert` CSV→JSON + `nika:validate` as the schema gate
+#   - jq `group_by` aggregation · stats without a model call
+#   - the quarantine pattern · bad data is DATA, not an exception
+#
+# Run · nika run examples/showcase/t2-etl-quarantine.nika.yaml
+nika: v1
+workflow: etl-quarantine
+description: "CSV batch → schema gate → quarantine the bad · aggregate the good"
+
+vars:
+  batch_csv: "./data/incoming/orders.csv"
+
+tasks:
+  # A deterministic empty fallback · the recover target when parsing dies.
+  - id: empty_batch
+    invoke:
+      tool: "nika:jq"
+      args: { input: [], expression: "." }
+
+  - id: raw
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.batch_csv }}" }
+
+  - id: rows
+    depends_on: [raw]
+    invoke:
+      tool: "nika:convert"
+      args:
+        input: "${{ tasks.raw.output }}"
+        from: csv
+        to: json
+        has_header: true
+    on_error:
+      recover: ${{ tasks.empty_batch.output }}    # malformed CSV → empty batch · pipeline lives
+
+  - id: check
+    depends_on: [rows]
+    invoke:
+      tool: "nika:validate"
+      args:
+        data: "${{ tasks.rows.output }}"
+        format: json
+        schema:
+          type: array
+          items:
+            type: object
+            required: [order_id, amount, currency]
+            properties:
+              order_id: { type: string }
+              amount: { type: string }
+              currency: { type: string, enum: [EUR, USD, GBP] }
+
+  - id: good
+    depends_on: [rows, check]
+    when: ${{ tasks.check.output.valid == true }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ tasks.rows.output }}"
+        expression: 'group_by(.currency) | map({currency: .[0].currency, orders: length, total: (map(.amount | tonumber) | add)})'
+
+  - id: quarantine
+    depends_on: [rows, check]
+    when: ${{ tasks.check.output.valid == false }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./data/quarantine/orders-rejected.json"
+        content: "${{ tasks.check.output.errors }}"
+        create_dirs: true
+
+  - id: report
+    depends_on: [good]
+    when: ${{ size(tasks.good.output) > 0 }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./data/reports/daily-totals.json"
+        content: "${{ tasks.good.output }}"
+        create_dirs: true
+
+outputs:
+  totals:
+    value: ${{ tasks.good.output }}
+    type: array
+    description: "Per-currency order totals · empty when the batch was quarantined"

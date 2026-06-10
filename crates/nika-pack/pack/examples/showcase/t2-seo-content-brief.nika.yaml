@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · SEO / content marketing
+#
+# A competitor's sitemap goes in. A ready-to-write content brief comes
+# out · title, angle, outline, keywords — grounded in what they actually
+# published, not vibes.
+#
+# Demonstrates ·
+#   - `mode: sitemap` then `mode: article` · two fetch extractions chained
+#   - `output:` jq slice · `.urls[:5]` — bind just the top of a list
+#   - CEL indexing · `${{ tasks.map.top[0] }}` reaches into a binding
+#   - `infer.schema:` · the brief is typed, not a blob
+#
+# Run · nika run examples/showcase/t2-seo-content-brief.nika.yaml
+nika: v1
+workflow: seo-content-brief
+description: "Competitor sitemap → top page → gap analysis → typed brief"
+
+model: mock/echo            # swap for openai/gpt-5.2
+
+vars:
+  competitor_sitemap: "https://competitor.example.com/sitemap.xml"
+  topic:
+    type: string
+    required: true
+    description: "The keyword/topic you want to rank for"
+
+tasks:
+  - id: map
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.competitor_sitemap }}"
+        mode: sitemap
+    output:
+      top: ".urls[:5]"
+
+  - id: top_page
+    depends_on: [map]
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ tasks.map.top[0] }}"
+        mode: article
+
+  - id: brief
+    depends_on: [map, top_page]
+    infer:
+      prompt: |
+        Topic to rank for · ${{ vars.topic }}
+        Competitor's top URLs · ${{ tasks.map.top }}
+        Their best page on it ·
+        ${{ tasks.top_page.output }}
+
+        Write a content brief that BEATS this page · find the gaps they
+        missed · angle for search intent.
+      schema:
+        type: object
+        required: [title, angle, outline, keywords]
+        properties:
+          title: { type: string }
+          angle: { type: string }
+          outline: { type: array, items: { type: string } }
+          keywords: { type: array, items: { type: string } }
+
+  - id: save
+    depends_on: [brief]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./briefs/${{ vars.topic }}.json"
+        content: "${{ tasks.brief.output }}"
+        create_dirs: true
+
+outputs:
+  brief:
+    value: ${{ tasks.brief.output }}
+    type: object
+    description: "The typed content brief"

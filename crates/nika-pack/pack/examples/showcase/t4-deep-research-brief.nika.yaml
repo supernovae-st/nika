@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T4 epic · research / consulting / VC
+#
+# Plan → investigate → synthesize · a three-stage research pipeline.
+# A fast model plans the queries, an AGENT works the web under explicit
+# budgets, a thinking model writes the executive brief. Each stage is
+# auditable — the plan, the sources and the findings all land on disk.
+#
+# Demonstrates ·
+#   - plan-then-execute · `infer.schema:` plans · `agent:` executes the plan
+#   - budgets · `max_turns` + `max_tokens_total` — agents have a leash
+#   - `thinking:` · extended reasoning budget for the synthesis stage
+#   - typed `outputs:` · the workflow is CALLABLE — another workflow can
+#     consume {brief, sources} as a contract
+#
+# Run · nika run examples/showcase/t4-deep-research-brief.nika.yaml
+nika: v1
+workflow: deep-research-brief
+description: "plan → budgeted research agent → thinking synthesis → brief on disk"
+
+model: anthropic/claude-sonnet-4-6
+
+vars:
+  topic:
+    type: string
+    required: true
+    description: "What to research"
+
+tasks:
+  - id: plan
+    infer:
+      model: anthropic/claude-haiku-4-5    # planning is a fast-model job
+      prompt: "Break '${{ vars.topic }}' into 4 sharp research queries · no overlap."
+      schema:
+        type: object
+        required: [queries]
+        properties:
+          queries:
+            type: array
+            items: { type: string }
+
+  - id: investigate
+    depends_on: [plan]
+    agent:
+      system: |
+        You are a rigorous researcher. Work the queries one by one ·
+        fetch sources · keep verbatim quotes · note what each source
+        actually supports. Call nika:done when the plan is exhausted.
+      prompt: "Research plan · ${{ tasks.plan.output.queries }}"
+      tools:
+        - "nika:fetch"                 # the web
+        - "nika:write"                 # scratch notes
+        - "nika:done"                  # the loop-completion sentinel
+      max_turns: 25
+      max_tokens_total: 150000
+      schema:
+        type: object
+        required: [findings, sources]
+        properties:
+          findings:
+            type: array
+            items: { type: string }
+          sources:
+            type: array
+            items: { type: string }
+
+  - id: brief
+    depends_on: [investigate]
+    infer:
+      prompt: |
+        Findings · ${{ tasks.investigate.output.findings }}
+        Sources · ${{ tasks.investigate.output.sources }}
+        Write the executive brief · what's true · what's contested ·
+        what it means · what to do. Two pages max.
+      thinking:
+        enabled: true
+        budget_tokens: 8000
+
+  - id: save
+    depends_on: [brief]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./research/${{ vars.topic }}.md"
+        content: "${{ tasks.brief.output }}"
+        create_dirs: true
+
+outputs:
+  brief: ${{ tasks.brief.output }}
+  sources:
+    value: ${{ tasks.investigate.output.sources }}
+    type: array
+    description: "Every source the agent actually used"
