@@ -83,12 +83,16 @@
 
 use std::marker::PhantomData;
 
-use enigo::{Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, NewConError, Settings};
+use enigo::{Button, Coordinate, Direction, Enigo, Keyboard, Mouse, NewConError, Settings};
 pub use nika_kernel::io::input::InputError as Error;
 use nika_kernel::io::input::{
     Authorized, ConsentProof, ConsentState, InputError, KeyCode, KeyMods, MouseButton, Point,
     Unconfirmed,
 };
+
+mod keymap;
+
+use keymap::{ChordPlan, chord_plan};
 
 /// Guard 1 (ADR-081 · MANDATORY) · the ONLY representation typed text may take
 /// in any log / journal / error — **pure** · headless-testable · mutation-killable.
@@ -155,11 +159,17 @@ fn now_ns() -> u64 {
 /// Called inside `spawn_blocking` only: the handle holds `!Send` OS resources
 /// (macOS `CGEventSource`/`CGDisplay`) and lives entirely on one worker.
 fn new_dispatch_enigo() -> Result<Enigo, InputError> {
-    let settings = Settings {
+    Enigo::new(&dispatch_settings()).map_err(|e| map_new_con_error(&e))
+}
+
+/// The dispatch-path enigo settings — PURE (headless-testable): the
+/// security-relevant flag is `open_prompt_to_get_permissions = false`
+/// (silent grant check · an agent loop must never pop an OS dialog).
+fn dispatch_settings() -> Settings {
+    Settings {
         open_prompt_to_get_permissions: false,
         ..Settings::default()
-    };
-    Enigo::new(&settings).map_err(|e| map_new_con_error(&e))
+    }
 }
 
 /// Map enigo's connection error to the kernel's typed [`InputError`]:
@@ -189,113 +199,6 @@ fn map_button(button: MouseButton) -> Result<Button, InputError> {
             reason: "unmapped MouseButton variant (kernel newer than nika-input)".to_owned(),
         }),
     }
-}
-
-/// Map the kernel's 66-variant [`KeyCode`] to an enigo [`Key`].
-///
-/// Letters + digits go through `Key::Unicode` (lowercase base character — the
-/// OS applies Shift from held modifiers). Left/right modifier distinction is
-/// COLLAPSED to enigo's generic ungated keys (`Shift`/`Control`/`Alt`/`Meta`):
-/// the sided variants are platform-gated in enigo 0.6 (verified on the
-/// tarball), so collapsing is what keeps this map cross-platform with zero
-/// `#[cfg]` in this crate.
-///
-/// # Errors
-/// [`InputError::EventPostFailed`] for a kernel `KeyCode` variant newer than
-/// this crate (the kernel enum is `#[non_exhaustive]` — fail closed, never
-/// guess a key).
-fn map_key(key: KeyCode) -> Result<Key, InputError> {
-    use KeyCode as K;
-    Ok(match key {
-        K::A => Key::Unicode('a'),
-        K::B => Key::Unicode('b'),
-        K::C => Key::Unicode('c'),
-        K::D => Key::Unicode('d'),
-        K::E => Key::Unicode('e'),
-        K::F => Key::Unicode('f'),
-        K::G => Key::Unicode('g'),
-        K::H => Key::Unicode('h'),
-        K::I => Key::Unicode('i'),
-        K::J => Key::Unicode('j'),
-        K::K => Key::Unicode('k'),
-        K::L => Key::Unicode('l'),
-        K::M => Key::Unicode('m'),
-        K::N => Key::Unicode('n'),
-        K::O => Key::Unicode('o'),
-        K::P => Key::Unicode('p'),
-        K::Q => Key::Unicode('q'),
-        K::R => Key::Unicode('r'),
-        K::S => Key::Unicode('s'),
-        K::T => Key::Unicode('t'),
-        K::U => Key::Unicode('u'),
-        K::V => Key::Unicode('v'),
-        K::W => Key::Unicode('w'),
-        K::X => Key::Unicode('x'),
-        K::Y => Key::Unicode('y'),
-        K::Z => Key::Unicode('z'),
-        K::D0 => Key::Unicode('0'),
-        K::D1 => Key::Unicode('1'),
-        K::D2 => Key::Unicode('2'),
-        K::D3 => Key::Unicode('3'),
-        K::D4 => Key::Unicode('4'),
-        K::D5 => Key::Unicode('5'),
-        K::D6 => Key::Unicode('6'),
-        K::D7 => Key::Unicode('7'),
-        K::D8 => Key::Unicode('8'),
-        K::D9 => Key::Unicode('9'),
-        K::F1 => Key::F1,
-        K::F2 => Key::F2,
-        K::F3 => Key::F3,
-        K::F4 => Key::F4,
-        K::F5 => Key::F5,
-        K::F6 => Key::F6,
-        K::F7 => Key::F7,
-        K::F8 => Key::F8,
-        K::F9 => Key::F9,
-        K::F10 => Key::F10,
-        K::F11 => Key::F11,
-        K::F12 => Key::F12,
-        K::ArrowUp => Key::UpArrow,
-        K::ArrowDown => Key::DownArrow,
-        K::ArrowLeft => Key::LeftArrow,
-        K::ArrowRight => Key::RightArrow,
-        K::Enter => Key::Return,
-        K::Escape => Key::Escape,
-        K::Tab => Key::Tab,
-        K::Space => Key::Space,
-        K::Backspace => Key::Backspace,
-        K::Delete => Key::Delete,
-        K::LShift | K::RShift => Key::Shift,
-        K::LCtrl | K::RCtrl => Key::Control,
-        K::LAlt | K::RAlt => Key::Alt,
-        K::LCmd | K::RCmd => Key::Meta,
-        // Kernel KeyCode is #[non_exhaustive]: a variant added upstream that
-        // this crate does not know yet MUST fail closed (never guess a key).
-        _ => {
-            return Err(InputError::EventPostFailed {
-                reason: "unmapped KeyCode variant (kernel newer than nika-input)".to_owned(),
-            });
-        }
-    })
-}
-
-/// Expand the kernel's 4-modifier set into enigo keys to hold, in the
-/// canonical field order `cmd · shift · alt · ctrl`.
-fn mods_keys(mods: KeyMods) -> Vec<Key> {
-    let mut held = Vec::with_capacity(4);
-    if mods.cmd {
-        held.push(Key::Meta);
-    }
-    if mods.shift {
-        held.push(Key::Shift);
-    }
-    if mods.alt {
-        held.push(Key::Alt);
-    }
-    if mods.ctrl {
-        held.push(Key::Control);
-    }
-    held
 }
 
 /// Guard 1 (ADR-081) · STRUCTURAL leak prevention for the typed text in
@@ -347,24 +250,23 @@ fn join_error(e: &tokio::task::JoinError) -> InputError {
     }
 }
 
-/// Press `mods`, tap `key`, release `mods` in reverse order — ONE chord on ONE
-/// handle. Releases are attempted even when the tap fails (the first release
+/// Execute a [`ChordPlan`] on ONE handle: press held, tap, release in reverse
+/// order. Releases are attempted even when the tap fails (the first release
 /// error is reported only if the tap itself succeeded); enigo's
 /// `release_keys_when_dropped` (default ON) backstops any modifier still held
-/// when the handle drops.
-fn press_chord(enigo: &mut Enigo, key: KeyCode, mods: KeyMods) -> Result<(), InputError> {
-    let mapped = map_key(key)?;
-    let held = mods_keys(mods);
-    for &m in &held {
+/// when the handle drops. FFI residue (needs a live OS session) — the decision
+/// logic lives in the PURE [`chord_plan`].
+fn press_chord(enigo: &mut Enigo, plan: &ChordPlan) -> Result<(), InputError> {
+    for &m in &plan.held {
         enigo
             .key(m, Direction::Press)
             .map_err(|e| sanitize_text_error(&e))?;
     }
     let tap = enigo
-        .key(mapped, Direction::Click)
+        .key(plan.tap, Direction::Click)
         .map_err(|e| sanitize_text_error(&e));
     let mut release_err = None;
-    for &m in held.iter().rev() {
+    for &m in plan.held.iter().rev() {
         if let Err(e) = enigo.key(m, Direction::Release) {
             release_err.get_or_insert(sanitize_text_error(&e));
         }
@@ -504,9 +406,12 @@ impl nika_kernel::io::input::InputDeviceDyn<Authorized> for EnigoInputDevice<Aut
         proof: &ConsentProof,
     ) -> Result<(), InputError> {
         Self::check_consent(proof)?;
+        // Resolve the chord BEFORE touching any OS API: a fail-closed mapping
+        // error (unknown kernel variant) surfaces without constructing a handle.
+        let plan = chord_plan(key, modifiers)?;
         tokio::task::spawn_blocking(move || {
             let mut enigo = new_dispatch_enigo()?;
-            press_chord(&mut enigo, key, modifiers)
+            press_chord(&mut enigo, &plan)
         })
         .await
         .map_err(|e| join_error(&e))?
@@ -677,35 +582,17 @@ mod tests {
     }
 
     #[test]
-    fn map_key_spot_checks_each_family() {
-        // letters + digits → Unicode (lowercase base char)
-        assert!(matches!(map_key(KeyCode::A), Ok(Key::Unicode('a'))));
-        assert!(matches!(map_key(KeyCode::Z), Ok(Key::Unicode('z'))));
-        assert!(matches!(map_key(KeyCode::D0), Ok(Key::Unicode('0'))));
-        assert!(matches!(map_key(KeyCode::D9), Ok(Key::Unicode('9'))));
-        // named keys
-        assert!(matches!(map_key(KeyCode::F1), Ok(Key::F1)));
-        assert!(matches!(map_key(KeyCode::F12), Ok(Key::F12)));
-        assert!(matches!(map_key(KeyCode::Enter), Ok(Key::Return)));
-        assert!(matches!(map_key(KeyCode::ArrowUp), Ok(Key::UpArrow)));
-        assert!(matches!(map_key(KeyCode::Space), Ok(Key::Space)));
-        // sided modifiers COLLAPSE to the ungated cross-platform keys
-        assert!(matches!(map_key(KeyCode::LShift), Ok(Key::Shift)));
-        assert!(matches!(map_key(KeyCode::RShift), Ok(Key::Shift)));
-        assert!(matches!(map_key(KeyCode::LCmd), Ok(Key::Meta)));
-        assert!(matches!(map_key(KeyCode::RCtrl), Ok(Key::Control)));
+    fn dispatch_settings_never_prompt() {
+        // The security-relevant flag: dispatch-path Enigo construction must
+        // NEVER pop the OS permission dialog (silent check · fail closed).
+        assert!(!dispatch_settings().open_prompt_to_get_permissions);
     }
 
     #[test]
-    fn mods_keys_canonical_order_cmd_shift_alt_ctrl() {
-        assert!(mods_keys(KeyMods::default()).is_empty());
-        let all = mods_keys(KeyMods::new(true, true, true, true));
-        assert!(matches!(
-            all.as_slice(),
-            [Key::Meta, Key::Shift, Key::Alt, Key::Control]
-        ));
-        let cmd_ctrl = mods_keys(KeyMods::new(true, false, false, true));
-        assert!(matches!(cmd_ctrl.as_slice(), [Key::Meta, Key::Control]));
+    fn typed_text_exposes_exactly_the_wrapped_text_to_the_backend() {
+        let t = TypedText("hunter2".to_owned());
+        assert_eq!(t.expose_to_backend(), "hunter2");
+        assert_eq!(TypedText(String::new()).expose_to_backend(), "");
     }
 
     #[test]
@@ -739,18 +626,19 @@ mod tests {
     }
 
     proptest::proptest! {
-        /// Guard-1 invariant under any input: the redacted form leaks none of the
-        /// input's content and is always the count-only shape.
+        /// Guard-1 invariant under ANY input, stated structurally: the redaction
+        /// is a pure function of the code-point COUNT — equal-length inputs
+        /// redact identically, so no byte of the content can survive into the
+        /// output. (A substring non-containment assert would latently flake:
+        /// generated inputs like "red" or "ode" are substrings of the FIXED
+        /// template "<redacted · N code points>" — review-swarm finding.)
         #[test]
-        fn redact_leaks_nothing_proptest(s in ".{0,256}") {
+        fn redact_is_content_independent_proptest(s in ".{0,256}") {
             let red = redact_typed_text(&s);
             proptest::prop_assert!(red.starts_with("<redacted · "));
             proptest::prop_assert!(red.ends_with('>'));
-            // A non-empty, non-whitespace input never appears verbatim.
-            let trimmed = s.trim();
-            if !trimmed.is_empty() && trimmed.len() > 2 {
-                proptest::prop_assert!(!red.contains(trimmed));
-            }
+            let same_len_probe = "x".repeat(s.chars().count());
+            proptest::prop_assert_eq!(red, redact_typed_text(&same_len_probe));
         }
     }
 }
