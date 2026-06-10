@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · legal / compliance
+#
+# A contract review where the contract NEVER leaves the machine · the
+# model is local (ollama), the clause extraction is schema-typed, and a
+# validate + assert pair refuses to ship a memo built on bad data.
+#
+# Demonstrates ·
+#   - sovereignty · `model: ollama/llama3.1` — sensitive docs stay local
+#   - `nika:validate` · re-check the extraction against a stricter schema
+#   - `nika:assert` · the fail-fast guard (vs `when:` · the skip-guard)
+#   - belt-and-braces · schema at infer time + validate + assert downstream
+#
+# Run · nika run examples/showcase/t2-contract-guard.nika.yaml
+nika: v1
+workflow: contract-guard
+description: "Local-model clause extraction → schema gate → risk memo"
+
+model: ollama/llama3.1      # the whole review runs offline · zero cloud
+
+vars:
+  contract_path:
+    type: string
+    required: true
+    description: "Path to the contract (markdown or plain text)"
+
+tasks:
+  - id: contract
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.contract_path }}" }
+
+  - id: clauses
+    depends_on: [contract]
+    infer:
+      prompt: |
+        Extract every risk-bearing clause from this contract ·
+        ${{ tasks.contract.output }}
+        Quote each clause verbatim · classify its risk.
+      schema:
+        type: object
+        required: [clauses]
+        properties:
+          clauses:
+            type: array
+            items:
+              type: object
+              required: [quote, type, risk]
+              properties:
+                quote: { type: string }
+                type: { type: string, enum: [liability, termination, ip, payment, data, other] }
+                risk: { type: string, enum: [low, medium, high] }
+
+  - id: check
+    depends_on: [clauses]
+    invoke:
+      tool: "nika:validate"
+      args:
+        data: "${{ tasks.clauses.output }}"
+        format: json
+        schema:
+          type: object
+          required: [clauses]
+          properties:
+            clauses:
+              type: array
+              minItems: 1
+
+  - id: gate
+    depends_on: [check]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ tasks.check.output.valid == true }}"
+        message: "Clause extraction failed the schema gate — refusing to write the memo"
+
+  - id: memo
+    depends_on: [clauses, gate]
+    infer:
+      prompt: |
+        Write a one-page risk memo from these clauses ·
+        ${{ tasks.clauses.output.clauses }}
+        Order by risk · high first · cite the quoted text.
+
+  - id: save
+    depends_on: [memo]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./legal/risk-memo.md"
+        content: "${{ tasks.memo.output }}"
+        create_dirs: true
+
+outputs:
+  clauses:
+    value: ${{ tasks.clauses.output.clauses }}
+    type: array
+    description: "Typed risk-bearing clauses, verbatim quotes"
+  memo: ${{ tasks.memo.output }}

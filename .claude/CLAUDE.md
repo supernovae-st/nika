@@ -129,13 +129,13 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/s4-nika-fs`                                      |
-| HEAD             | `c7943ab9b` (`c7943ab9bea6a470fabe6f328ec449ccc4c5fe07`)             |
+| branch           | `feat/nika-pack`                                      |
+| HEAD             | `3215bdd4b` (`3215bdd4b650ded677070dab8a1f5c2f1c67ad62`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 24                                              |
-| crates (admitted)| 22 / 42                                   |
+| crates (workspace)| 25                                              |
+| crates (admitted)| 23 / 42                                   |
 | crates (WIP)     | 2 — nika-schema nika-browser                                  |
-| L0               | 6                                              |
+| L0               | 7                                              |
 | L0.5             | 6                                              |
 | L1               | 11                                              |
 | L2               | 0                                              |

@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T3 fan-out · SRE / platform
+#
+# « Did anyone change prod config without telling us? » — answered
+# deterministically. Approved overrides are merged into the baseline
+# (RFC 7396), the live config is diffed against that (RFC 6902), and
+# ONLY unsanctioned drift wakes anyone up. The LLM explains; jq decides.
+#
+# Demonstrates ·
+#   - `nika:json_merge_patch` · RFC 7396 — sanctioned overrides, null deletes
+#   - `nika:json_diff` · RFC 6902 patch — what ACTUALLY changed
+#   - `nika:hash` (blake3) · provenance fingerprint in the alert
+#   - `size(...)` gate + `nika:emit` · machine event for the journal
+#
+# Run · nika run examples/showcase/t3-config-drift-sentinel.nika.yaml
+nika: v1
+workflow: config-drift-sentinel
+description: "live config vs sanctioned baseline → typed drift → explained alert"
+
+model: mock/echo            # swap for anthropic/claude-haiku-4-5 — explain is cheap
+
+vars:
+  config_url: "https://api.internal.example.com/v1/config"
+  baseline_path: "./ops/config-baseline.json"
+  approved_overrides:
+    type: object
+    description: "Sanctioned config overrides (RFC 7396 merge-patch shape)"
+
+secrets:
+  oncall_webhook:
+    source: env
+    key: ONCALL_WEBHOOK_URL
+
+tasks:
+  - id: live
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.config_url }}"
+        mode: jq
+        jq: "."
+    retry:
+      max_attempts: 3
+      backoff_strategy: exponential
+
+  - id: baseline
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ vars.baseline_path }}" }
+
+  - id: expected
+    depends_on: [baseline]
+    invoke:
+      tool: "nika:json_merge_patch"
+      args:
+        target: "${{ tasks.baseline.output }}"
+        patch: "${{ vars.approved_overrides }}"
+
+  - id: drift
+    depends_on: [expected, live]
+    invoke:
+      tool: "nika:json_diff"
+      args:
+        before: "${{ tasks.expected.output }}"
+        after: "${{ tasks.live.output }}"
+
+  - id: fingerprint
+    depends_on: [live]
+    invoke:
+      tool: "nika:hash"
+      args:
+        algo: blake3
+        content: "${{ tasks.live.output }}"
+        encoding: hex
+
+  - id: explain
+    depends_on: [drift]
+    when: ${{ size(tasks.drift.output) > 0 }}
+    infer:
+      prompt: |
+        This RFC 6902 patch is UNSANCTIONED config drift in production ·
+        ${{ tasks.drift.output }}
+        Explain in 3 bullets · what changed · likely blast radius · first check.
+
+  - id: alert
+    depends_on: [explain, drift, fingerprint]
+    when: ${{ size(tasks.drift.output) > 0 }}
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.oncall_webhook }}"
+        message: "Config drift detected · ${{ tasks.explain.output }} · live config blake3 ${{ tasks.fingerprint.output }}"
+        severity: critical
+
+  - id: record
+    depends_on: [drift, fingerprint]
+    invoke:
+      tool: "nika:emit"
+      args:
+        event_type: "config.drift.scan"
+        payload:
+          patch: "${{ tasks.drift.output }}"
+          live_hash: "${{ tasks.fingerprint.output }}"
+
+outputs:
+  drift:
+    value: ${{ tasks.drift.output }}
+    type: array
+    description: "RFC 6902 operations · empty when prod matches the sanctioned state"

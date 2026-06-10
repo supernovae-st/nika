@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T3 fan-out · product / content / i18n
+#
+# Your whole docs folder, translated · glob finds the files, two fan-outs
+# read + translate them in parallel, jq zips paths back to texts, and a
+# final fan-out writes the mirror tree. Zero copy-paste, voice intact.
+#
+# Demonstrates ·
+#   - `nika:glob` · the collection comes from the filesystem at runtime
+#   - chained `for_each` stages · read-all → translate-all → write-all
+#   - `nika:jq` `transpose` · zip two parallel arrays into [{path, text}]
+#   - `${{ item.path }}` · loop-locals are objects too — field access works
+#
+# Run · nika run examples/showcase/t3-localization-factory.nika.yaml
+nika: v1
+workflow: localization-factory
+description: "glob docs → parallel read → parallel translate → mirror tree"
+
+model: mistral/mistral-large    # EU model for EU locales · pick yours
+
+vars:
+  lang: "fr"
+  source_glob: "./docs/**/*.md"
+
+tasks:
+  - id: files
+    invoke:
+      tool: "nika:glob"
+      args:
+        pattern: "${{ vars.source_glob }}"
+        exclude: ["**/node_modules/**"]
+
+  - id: texts
+    depends_on: [files]
+    for_each: ${{ tasks.files.output }}
+    max_parallel: 8
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ item }}" }
+
+  - id: pairs
+    depends_on: [files, texts]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: ["${{ tasks.files.output }}", "${{ tasks.texts.output }}"]
+        expression: "transpose | map({path: .[0], text: .[1]})"
+
+  - id: translated
+    depends_on: [pairs]
+    for_each: ${{ tasks.pairs.output }}
+    max_parallel: 3                    # rate-limit the provider
+    fail_fast: false                   # finish the batch · report stragglers
+    infer:
+      prompt: |
+        Translate to ${{ vars.lang }} · keep markdown structure, code blocks
+        untouched, and the original tone ·
+        ${{ item.text }}
+
+  - id: bundle
+    depends_on: [pairs, translated]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: ["${{ tasks.pairs.output }}", "${{ tasks.translated.output }}"]
+        expression: "transpose | map({path: .[0].path, text: .[1]})"
+
+  - id: mirror
+    depends_on: [bundle]
+    for_each: ${{ tasks.bundle.output }}
+    max_parallel: 8
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./i18n/${{ vars.lang }}/${{ item.path }}"
+        content: "${{ item.text }}"
+        create_dirs: true
+
+outputs:
+  files:
+    value: ${{ tasks.files.output }}
+    type: array
+    description: "Every source file that was mirrored"

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · gate-and-act — check a condition, act only when it holds.
+# The default shape for monitors, alerts and threshold jobs. Often
+# needs ZERO model calls (pattern 1 · deterministic core).
+#
+# Instantiate · copy → fill `# SLOT:` → `nika check` → repair → re-check.
+# Gate semantics (pick the right one · pattern 6) ·
+#   when:        SKIP gate · routing, not failure
+#   nika:assert  FAIL gate · the run is wrong, stop loudly
+#   nika:prompt  HUMAN gate · blocks until a person decides
+nika: v1
+workflow: gate-and-act-template     # SLOT: kebab-case workflow id
+description: "watch a value · act only when the condition holds"   # SLOT
+
+vars:
+  source_url: "https://api.example.com/v1/value"   # SLOT: what to watch
+  threshold: 100                    # SLOT: the trigger condition value
+
+secrets:
+  webhook:
+    source: env
+    key: ALERTS_WEBHOOK_URL         # SLOT: where the act lands
+
+tasks:
+  - id: check
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.source_url }}"
+        mode: jq
+        jq: "."
+    output:
+      value: ".value"               # SLOT: the jq path to the watched field
+
+  - id: act
+    depends_on: [check]
+    when: ${{ tasks.check.value > vars.threshold }}   # SLOT: the CEL condition
+    invoke:
+      tool: "nika:notify"           # SLOT: the action · notify / write / exec
+      args:
+        channel: webhook
+        target: "${{ secrets.webhook }}"
+        message: "Threshold crossed · ${{ tasks.check.value }}"   # SLOT
+        severity: warning
+
+outputs:
+  value: ${{ tasks.check.value }}

@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · engineering / devrel
+#
+# Release day, automated · git history → structured notes → CHANGELOG
+# updated in place → the team pinged. One file, four tasks.
+#
+# Demonstrates ·
+#   - `exec:` with vars · the git range is an input, not a hardcode
+#   - `infer.schema:` · highlights/breaking/body as a typed object
+#   - `nika:edit` · in-place find/replace — the changelog INSERT pattern
+#   - `nika:notify` · webhook ping with fields from the structured output
+#
+# Run · nika run examples/showcase/t2-release-notes.nika.yaml
+nika: v1
+workflow: release-notes
+description: "git log → typed release notes → CHANGELOG insert → team ping"
+
+model: mock/echo            # swap for anthropic/claude-sonnet-4-6
+
+vars:
+  since_tag: "v0.80.0"
+
+secrets:
+  team_webhook:
+    source: env
+    key: TEAM_WEBHOOK_URL
+
+tasks:
+  - id: history
+    exec:
+      command: "git log ${{ vars.since_tag }}..HEAD --oneline --no-merges"
+
+  - id: notes
+    depends_on: [history]
+    infer:
+      prompt: |
+        Write release notes from these commits ·
+        ${{ tasks.history.output }}
+        Tone · plain, direct, no marketing fluff.
+      schema:
+        type: object
+        required: [headline, body]
+        properties:
+          headline: { type: string }
+          breaking: { type: array, items: { type: string } }
+          body: { type: string }
+
+  - id: changelog
+    depends_on: [notes]
+    invoke:
+      tool: "nika:edit"
+      args:
+        path: "./CHANGELOG.md"
+        find: "# Changelog"
+        replace: |
+          # Changelog
+
+          ## ${{ vars.since_tag }}..HEAD · ${{ tasks.notes.output.headline }}
+
+          ${{ tasks.notes.output.body }}
+
+  - id: announce
+    depends_on: [notes, changelog]
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.team_webhook }}"
+        message: "Release notes ready · ${{ tasks.notes.output.headline }}"
+        severity: info
+
+outputs:
+  headline: ${{ tasks.notes.output.headline }}
+  body: ${{ tasks.notes.output.body }}

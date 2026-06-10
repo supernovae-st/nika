@@ -1,0 +1,148 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T4 epic · SRE / on-call
+#
+# The hour after the incident, compressed to minutes · logs, status
+# history and the runbook are gathered in parallel · the timeline is
+# reconstructed as TYPED events · the system is re-checked after a
+# settle window · the postmortem draft lands before the meeting starts.
+#
+# Demonstrates ·
+#   - 3-way parallel gather · exec + fetch (with retry) + read
+#   - `nika:wait` · the settle window before the confirmation re-poll
+#   - `nika:assert` · refuse to write « resolved » while prod still burns
+#   - `on_finally:` · the journal event + the ping fire EVEN IF a step fails
+#
+# Run · nika run examples/showcase/t4-incident-war-room.nika.yaml
+nika: v1
+workflow: incident-war-room
+description: "parallel evidence → typed timeline → settle + recheck → postmortem draft"
+
+model: anthropic/claude-sonnet-4-6
+
+vars:
+  service: "checkout-api"
+  status_url: "https://status.internal.example.com/v1/services/checkout-api"
+  log_window: "90 minutes ago"
+
+secrets:
+  oncall_webhook:
+    source: env
+    key: ONCALL_WEBHOOK_URL
+
+tasks:
+  # ── the gather wave · all three run in parallel ──
+  - id: logs
+    exec:
+      command: "journalctl -u ${{ vars.service }} --since '${{ vars.log_window }}' --no-pager"
+      capture: structured
+
+  - id: status_history
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.status_url }}"
+        mode: jq
+        jq: ".history"
+    retry:
+      max_attempts: 4
+      backoff_strategy: exponential
+      jitter: true
+
+  - id: runbook
+    invoke:
+      tool: "nika:read"
+      args: { path: "./runbooks/${{ vars.service }}.md" }
+
+  # ── reconstruct · typed timeline ──
+  - id: timeline
+    depends_on: [logs, status_history, runbook]
+    infer:
+      prompt: |
+        Service logs ·
+        ${{ tasks.logs.output.stdout }}
+        Status history · ${{ tasks.status_history.output }}
+        Runbook · ${{ tasks.runbook.output }}
+
+        Reconstruct the incident timeline as events.
+      schema:
+        type: object
+        required: [events]
+        properties:
+          events:
+            type: array
+            items:
+              type: object
+              required: [at, what]
+              properties:
+                at: { type: string }
+                what: { type: string }
+                evidence: { type: string }
+
+  # ── settle, then confirm recovery before claiming it ──
+  - id: settle
+    depends_on: [timeline]
+    invoke:
+      tool: "nika:wait"
+      args: { duration: "60s" }
+
+  - id: recheck
+    depends_on: [settle]
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ vars.status_url }}"
+        mode: jq
+        jq: ".current.state"
+
+  - id: confirmed
+    depends_on: [recheck]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ tasks.recheck.output == 'operational' }}"
+        message: "Service is NOT back to operational — postmortem draft blocked"
+
+  # ── the draft · only after recovery is proven ──
+  - id: postmortem
+    depends_on: [timeline, confirmed]
+    infer:
+      prompt: |
+        Timeline · ${{ tasks.timeline.output.events }}
+        Write the postmortem draft · summary · impact · root-cause
+        hypotheses · 3 follow-up actions with owners left blank.
+      thinking:
+        enabled: true
+        budget_tokens: 6000
+
+  - id: save
+    depends_on: [postmortem]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./incidents/${{ vars.service }}-postmortem.md"
+        content: "${{ tasks.postmortem.output }}"
+        create_dirs: true
+    on_finally:                        # ALWAYS fires · success, fail, timeout, cancel
+      - invoke:
+          tool: "nika:emit"
+          args:
+            event_type: "incident.postmortem.drafted"
+            payload:
+              service: "${{ vars.service }}"
+              status: "${{ tasks.save.status }}"
+      - invoke:
+          tool: "nika:notify"
+          args:
+            channel: webhook
+            target: "${{ secrets.oncall_webhook }}"
+            message: "Postmortem draft run finished for ${{ vars.service }} · ${{ tasks.save.status }}"
+            severity: info
+
+outputs:
+  events:
+    value: ${{ tasks.timeline.output.events }}
+    type: array
+    description: "The reconstructed, typed incident timeline"
+  postmortem: ${{ tasks.postmortem.output }}

@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T3 fan-out · HR / recruiting
+#
+# Forty CVs, one rubric, zero cloud · candidate data is PII, so the
+# whole screen runs on a LOCAL model. Every candidate gets the same
+# typed rubric (enums · no vibes), jq ranks deterministically, and the
+# shortlist explains itself.
+#
+# Demonstrates ·
+#   - sovereignty by default · `ollama/…` because CVs are PII
+#   - `nika:glob` → `for_each` · the candidate pool is the filesystem
+#   - one rubric, schema-enforced · enums kill « kinda-strong » ratings
+#   - jq `sort_by` ranking · the ORDER is deterministic, not model mood
+#
+# Run · nika run examples/showcase/t3-resume-screener.nika.yaml
+nika: v1
+workflow: resume-screener
+description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
+
+model: ollama/llama3.1      # PII stays on the machine · the whole screen is offline
+
+vars:
+  role: "Senior Rust engineer"
+  cv_glob: "./hiring/inbox/*.md"
+  shortlist_size: 5
+
+tasks:
+  - id: pool
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "${{ vars.cv_glob }}" }
+
+  - id: screened
+    depends_on: [pool]
+    for_each: ${{ tasks.pool.output }}
+    max_parallel: 2                    # local model · don't thrash the GPU
+    fail_fast: false                   # one unreadable CV must not stop the batch
+    with:
+      cv_path: ${{ item }}
+    infer:
+      prompt: |
+        Role · ${{ vars.role }}
+        Candidate file · ${{ with.cv_path }}
+        Score this candidate against the role. Quote evidence from the
+        CV for every rating — no rating without a quote.
+      schema:
+        type: object
+        required: [file, fit, strengths, concerns]
+        properties:
+          file: { type: string }
+          fit: { type: string, enum: [strong, possible, weak] }
+          years_relevant: { type: integer }
+          strengths: { type: array, items: { type: string } }
+          concerns: { type: array, items: { type: string } }
+
+  - id: ranked
+    depends_on: [screened]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ tasks.screened.output }}"
+        expression: 'map(select(.fit != "weak")) | sort_by(.fit != "strong", -(.years_relevant // 0))'
+
+  - id: shortlist
+    depends_on: [ranked]
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ tasks.ranked.output }}"
+        expression: ".[:${{ vars.shortlist_size }}]"
+
+  - id: brief
+    depends_on: [shortlist]
+    when: ${{ size(tasks.shortlist.output) > 0 }}
+    infer:
+      prompt: |
+        Write the screening brief for these shortlisted candidates ·
+        ${{ tasks.shortlist.output }}
+        One paragraph each · lead with the evidence quotes · end with
+        the suggested interview focus.
+
+  - id: save
+    depends_on: [brief]
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./hiring/shortlist-brief.md"
+        content: "${{ tasks.brief.output }}"
+        create_dirs: true
+
+outputs:
+  shortlist:
+    value: ${{ tasks.shortlist.output }}
+    type: array
+    description: "Ranked candidates · strong first, then by relevant years"

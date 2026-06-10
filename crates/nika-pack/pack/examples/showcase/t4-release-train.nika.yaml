@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T4 epic · devops / release engineering
+#
+# The release train · gates run in parallel, a human signs the
+# departure, the train WAITS until the scheduled window (absolute
+# `until:` — not a sleep), ships, verifies, and the journal gets the
+# full departure record. Time is a first-class citizen here.
+#
+# Demonstrates ·
+#   - `nika:wait` with `until:` · absolute-time hold (vs relative duration)
+#   - `nika:date` `op: diff` · compute how long the gates took
+#   - `nika:prompt` · the conductor's GO is a human decision
+#   - parallel gate wave + `capture: structured` exit-code checks
+#   - `nika:emit` + `on_finally:` · the departure record always lands
+#
+# Run · nika run examples/showcase/t4-release-train.nika.yaml
+nika: v1
+workflow: release-train
+description: "parallel gates → human GO → hold until the window → ship · verify · record"
+
+vars:
+  version:
+    type: string
+    required: true
+    description: "The version to ship (e.g. 1.4.0)"
+  window: "2026-07-28T09:00:00Z"
+
+secrets:
+  team_webhook:
+    source: env
+    key: TEAM_WEBHOOK_URL
+
+tasks:
+  - id: t0
+    invoke:
+      tool: "nika:date"
+      args: { op: now }
+
+  # ── the gate wave · all three run in parallel ──
+  - id: tests
+    exec:
+      command: "cargo test --workspace --quiet"
+      capture: structured
+    timeout: "15m"
+
+  - id: lint
+    exec:
+      command: "cargo clippy --workspace --all-targets -- -D warnings"
+      capture: structured
+    timeout: "10m"
+
+  - id: audit
+    exec:
+      command: "cargo audit"
+      capture: structured
+    timeout: "5m"
+    retry:
+      max_attempts: 2                  # advisory DB fetch can flake
+
+  - id: gates_green
+    depends_on: [tests, lint, audit]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ tasks.tests.output.exit_code == 0 && tasks.lint.output.exit_code == 0 && tasks.audit.output.exit_code == 0 }}"
+        message: "A release gate is RED — the train does not depart"
+
+  - id: gate_time
+    depends_on: [t0, gates_green]
+    invoke:
+      tool: "nika:date"
+      args:
+        op: diff
+        start: "${{ tasks.t0.output }}"
+        end: "now"
+        unit: minutes
+
+  # ── the human signs the departure ──
+  - id: conductor
+    depends_on: [gates_green, gate_time]
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: "Gates GREEN in ${{ tasks.gate_time.output }} min. Ship ${{ vars.version }} in the ${{ vars.window }} window?"
+        default: false
+
+  - id: approved
+    depends_on: [conductor]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ tasks.conductor.output == true }}"
+        message: "Departure not signed — train cancelled"
+
+  # ── hold until the window · absolute time, not a sleep ──
+  - id: hold
+    depends_on: [approved]
+    invoke:
+      tool: "nika:wait"
+      args:
+        until: "${{ vars.window }}"
+        timeout: "48h"
+
+  - id: ship
+    depends_on: [hold]
+    exec:
+      command: "./scripts/release.sh ${{ vars.version }}"
+      capture: structured
+    timeout: "30m"
+
+  - id: verify
+    depends_on: [ship]
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.example.com/v1/version"
+        mode: jq
+        jq: ".version"
+    retry:
+      max_attempts: 5
+      backoff_strategy: exponential
+      backoff_ms: 5000
+
+  - id: live
+    depends_on: [verify]
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ tasks.verify.output == vars.version }}"
+        message: "Prod does not report the shipped version — investigate before announcing"
+    on_finally:                        # the record lands · shipped OR aborted
+      - invoke:
+          tool: "nika:emit"
+          args:
+            event_type: "release.train.departed"
+            payload:
+              version: "${{ vars.version }}"
+              status: "${{ tasks.live.status }}"
+      - invoke:
+          tool: "nika:notify"
+          args:
+            channel: webhook
+            target: "${{ secrets.team_webhook }}"
+            message: "Release train ${{ vars.version }} · ${{ tasks.live.status }}"
+            severity: info
+
+outputs:
+  shipped: ${{ tasks.verify.output }}
