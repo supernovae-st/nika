@@ -10,7 +10,7 @@
     clippy::print_stdout
 )]
 
-//! Thin adapter over [`nika_catalog_codegen`] (D-2026-06-10-N3 · wire-
+//! Thin adapter over [`nika_catalog_codegen`] (D-2026-06-10-N4 · wire-
 //! or-nuke resolved WIRE) · parses `data/*.toml` and emits one `.rs`
 //! file per enabled catalog feature into `$OUT_DIR` for `include!()`
 //! from `src/data/`. All parsing · validation · emission logic lives in

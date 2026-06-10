@@ -50,7 +50,7 @@ capabilities         = ["providers"]  # model_capabilities canonicalises via fin
 builtins-transforms  = []
 
 [build-dependencies]
-# The TOML→Rust generator (unit-tested library · D-2026-06-10-N3 WIRE).
+# The TOML→Rust generator (unit-tested library · D-2026-06-10-N4 WIRE).
 nika-catalog-codegen = { path = "../nika-catalog-codegen", version = "0.80.0" }
 
 [dev-dependencies]

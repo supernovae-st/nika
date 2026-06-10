@@ -13,7 +13,7 @@
 //! L0 (sub-tier 0) — pure transformation, build-time only, zero
 //! `nika-*` dependencies. Never compiled into a runtime binary.
 //!
-//! **Wired (D-2026-06-10-N3 · nika 10/10 B3)** · `nika-catalog`
+//! **Wired (D-2026-06-10-N4 · nika 10/10 B3)** · `nika-catalog`
 //! consumes this crate from its `build.rs` thin adapter
 //! (`[build-dependencies]`). The in-tree twin (~2.5k LOC build.rs +
 //! build/) was deleted after the swap was proven **byte-identical** on
