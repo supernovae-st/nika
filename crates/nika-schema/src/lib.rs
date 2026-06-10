@@ -38,6 +38,7 @@
 
 pub mod codegen;
 pub mod error;
+pub mod expression;
 pub mod parser;
 pub mod raw;
 pub mod source;
