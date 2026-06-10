@@ -238,12 +238,17 @@ impl fmt::Display for WallDuration {
         }
         let sign = if self.nanos.is_negative() { "-" } else { "" };
         if abs >= NS_PER_MS as u64 {
-            let ms = self.nanos / NS_PER_MS;
-            let rem = self.nanos.rem_euclid(NS_PER_MS);
-            if rem == 0 {
-                write!(f, "{ms}ms")
+            // Derive BOTH the whole and the fractional part from `abs` so the sign
+            // is carried once by `sign`. The earlier `rem_euclid` of the SIGNED
+            // nanos paired a euclidean (always-positive) remainder with an abs-based
+            // whole part, which mis-rendered negative sub-ms remainders
+            // (e.g. -1_999_999ns showed "-1.000001ms" instead of "-1.999999ms").
+            let whole = abs / NS_PER_MS as u64;
+            let frac = abs % NS_PER_MS as u64;
+            if frac == 0 {
+                write!(f, "{sign}{whole}ms")
             } else {
-                write!(f, "{sign}{}.{rem:06}ms", abs / NS_PER_MS as u64)
+                write!(f, "{sign}{whole}.{frac:06}ms")
             }
         } else if abs >= NS_PER_US as u64 {
             let us = self.nanos / NS_PER_US;
@@ -315,6 +320,29 @@ mod tests {
     fn wall_duration_display_us_bucket() {
         let d = WallDuration::from_micros(750);
         assert_eq!(d.to_string(), "750us");
+    }
+
+    #[test]
+    fn wall_duration_display_negative_sub_ms_remainder() {
+        // Regression: a negative duration with a non-zero sub-ms remainder must
+        // render the true magnitude. -1_999_999ns is -1.999999ms, NOT "-1.000001ms"
+        // (the bug when the fractional part came from rem_euclid of the signed nanos).
+        assert_eq!(
+            WallDuration::from_nanos(-1_999_999).to_string(),
+            "-1.999999ms"
+        );
+        // Positive counterpart is unchanged.
+        assert_eq!(
+            WallDuration::from_nanos(1_999_999).to_string(),
+            "1.999999ms"
+        );
+        // Exact negative milliseconds carry the sign with no fractional part.
+        assert_eq!(WallDuration::from_nanos(-2_000_000).to_string(), "-2ms");
+        // Smallest negative fractional remainder (1ns over 1ms).
+        assert_eq!(
+            WallDuration::from_nanos(-1_000_001).to_string(),
+            "-1.000001ms"
+        );
     }
 
     #[test]
