@@ -118,9 +118,11 @@ Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
   - 38 parser tests + 100+ across raw/types/guardrails/source/trust/error
   - **PENDING REWRITE** — Phase D nuke + redo with `nika: v1` + `kind: Workflow` + `metadata` + `spec` envelope (per nika-spec · the `kind` discriminator survives, the version-field shape is `nika: v1` not `apiVersion: nika.sh/v1`)
 
-Total: **905 lib tests**, 0 clippy warnings, 0 unwrap in `src/`,
-~30k LOC, 32 providers, 49 capability rules, **35 ADRs** (30 Accepted +
-5 Proposed), **31 hygiene vectors** (28 green / 3 yellow / 0 red).
+Totals: live numbers (lib tests · clippy · LOC · providers · capability
+rules · ADRs · hygiene vectors) are in the AUTO-GENERATED status block
+above (`scripts/refresh-status.sh` · vector 23 parity) — this paragraph
+used to hand-type them and drifted (said 905 tests while the block said
+1267 · the exact class PILLAR 1 forbids).
 
 Phase C: Wave 2 ✅ (L0 types + L0.5 traits), Wave 3 ✅ (stabilization + review swarm).
 Phase D: Session 1 ✅, Session 2a ✅, Session 2b ✅, Session 3 ✅, Session 4A ✅, Session 4B ✅,

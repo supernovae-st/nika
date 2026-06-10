@@ -6,17 +6,22 @@ this repository. This is the public AGENTS counterpart to the
 
 ## Repository snapshot
 
-| Field             | Value                                                  |
-|-------------------|--------------------------------------------------------|
-| Branch            | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
-| HEAD (last docs)  | `393fdefa8`                                            |
-| Workspace         | v0.80.0                                                |
-| Crates (admitted) | 8 / 42 target (+ 2 WIP: `nika-schema`, `nika-screen`)              |
-| Lib tests         | 905 passing, 0 failed                                  |
-| Clippy            | 0 warnings                                             |
-| Hygiene vectors   | 31 total (28 green / 3 yellow / 0 red)                 |
+| Field   | Value |
+|---------|-------|
+| Branch  | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
+| Workspace | v0.80.x · forever-v0.x (no v1.0 target · ADR-002) |
 
-Regenerate with `bash scripts/refresh-status.sh`.
+**Live numbers live in ONE place** — the AUTO-GENERATED block in
+`.claude/CLAUDE.md` (regenerate: `bash scripts/refresh-status.sh` ·
+parity-enforced by hygiene vector 23). This file used to carry a
+hand-typed copy of that table and drifted badly (said 8 crates / 905
+tests while the block said 18 / 1267) — counts are never hand-typed
+here again. Architecture worth knowing on entry: the kernel is 4
+sibling crates (`nika-kernel-{core,ai,runtime,plugin}`) behind the
+`nika-kernel` facade hub (split 2026-06-10 · census forensic at
+`docs/architecture/kernel-split-census-2026-06-10.md`) · errors speak
+the `NikaErrorCode` trait + `nika_error::codes` registry (one-voice ·
+`docs/architecture/error-trait-completeness-2026-06-10.md`).
 
 ## What to read first
 
@@ -70,7 +75,8 @@ bash scripts/refresh-status.sh            # regenerate canonical status block
 ## Code intelligence
 
 Local MCP sidecar is provided by **olympus**. Configured at user scope
-in `~/.claude.json`, binary at `olympus/src-tauri/binaries/olympus-*`.
+in `~/.claude.json` (private monorepo · binary built from the olympus
+OS workspace — path is machine-local, not committed here).
 Exposes three tools: `olympus_query`, `olympus_impact`, `olympus_context`.
 
 Never commit `nika/engine/.mcp.json` — this engine is a PUBLIC submodule.
