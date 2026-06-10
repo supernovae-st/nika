@@ -250,7 +250,8 @@ pub trait BrowserAutomation: Send + Sync {
     /// (the page lifecycle continues server-side · subsequent `dom_
     /// snapshot` will observe whichever state landed first). `url` is
     /// an RFC 3986 absolute URI string · L1 impls validate format and
-    /// return `std::io::ErrorKind::InvalidInput` on malformed input.
+    /// return [`BrowserError::NavigationFailed`] (NIKA-1402) on malformed
+    /// input.
     async fn navigate(&self, session: &BrowserSession, url: &str) -> Result<(), BrowserError>;
 
     /// Capture a snapshot of the current DOM tree.
@@ -265,8 +266,8 @@ pub trait BrowserAutomation: Send + Sync {
     ///
     /// CANCEL SAFETY: best-effort · CDP `Input.dispatchMouseEvent` may
     /// have already fired by the time the future is dropped · L1 impls
-    /// document the race window. Returns `std::io::ErrorKind::NotFound`
-    /// when the selector matches no element.
+    /// document the race window. Returns [`BrowserError::SelectorFailed`]
+    /// (NIKA-1404) when the selector matches no element.
     async fn click_selector(&self, session: &BrowserSession, sel: &str)
     -> Result<(), BrowserError>;
 
