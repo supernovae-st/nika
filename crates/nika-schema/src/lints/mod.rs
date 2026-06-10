@@ -11,6 +11,6 @@
 //! v0.1 ships ONE rule set · [`one_obvious_way`] — the 7 control-flow
 //! preference rules the spec marks « normative for linters ».
 
-mod one_obvious_way;
+mod preference_rules;
 
-pub use one_obvious_way::{Lint, one_obvious_way};
+pub use preference_rules::{Lint, one_obvious_way};
