@@ -3,7 +3,9 @@
 
 //! `nika-a11y` · accessibility-tree-query L1 effect crate (M2.3).
 //!
-//! Implements the L0.5 `nika_kernel::io::a11y::AccessibilityTree` trait —
+//! Implements the L0.5 `nika_kernel::io::a11y::AccessibilityTreeDyn` trait
+//! (the `Send` variant — the local `AccessibilityTree` arrives via the
+//! kernel's one-way blanket impl) —
 //! `snapshot` + `find` + `resolve_ref` — exposing the active window's
 //! accessibility tree as `AxNode` records (id · role · label · value · bbox ·
 //! children · attributes). The OS query is delegated to the safe **`accessibility`**

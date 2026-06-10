@@ -3,7 +3,9 @@
 
 //! `nika-ocr` · OCR text-extraction L1 effect crate (M2.2).
 //!
-//! Implements the L0.5 `nika_kernel::io::ocr::OcrEngine` trait — `read` +
+//! Implements the L0.5 `nika_kernel::io::ocr::OcrEngineDyn` trait (the `Send`
+//! variant — the local `OcrEngine` arrives via the kernel's one-way blanket
+//! impl) — `read` +
 //! `read_region` — extracting `TextRegion` records (text · bbox · confidence ·
 //! BCP-47 language) from a captured RGBA8 `Frame`. The OCR inference is
 //! delegated to the **pure-Rust `ocrs`** backend (`rten` runtime · no C system

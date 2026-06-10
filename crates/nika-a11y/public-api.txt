@@ -9,7 +9,7 @@ impl core::default::Default for nika_a11y::AxBackend
 pub fn nika_a11y::AxBackend::default() -> nika_a11y::AxBackend
 impl core::fmt::Debug for nika_a11y::AxBackend
 pub fn nika_a11y::AxBackend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel_core::io::a11y::AccessibilityTree for nika_a11y::AxBackend
+impl nika_kernel_core::io::a11y::AccessibilityTreeDyn for nika_a11y::AxBackend
 pub async fn nika_a11y::AxBackend::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
 pub async fn nika_a11y::AxBackend::resolve_ref(&self, ref_id: &str) -> core::result::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
 pub async fn nika_a11y::AxBackend::snapshot(&self) -> core::result::Result<nika_kernel_core::io::a11y::AxNode, nika_kernel_core::io::a11y::A11yError>
@@ -32,3 +32,7 @@ impl<T> core::convert::From<T> for nika_a11y::AxBackend
 pub fn nika_a11y::AxBackend::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_a11y::AxBackend where T: 'static
 pub fn nika_a11y::AxBackend::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::a11y::AccessibilityTree for nika_a11y::AxBackend where TraitVariantBlanketType: nika_kernel_core::io::a11y::AccessibilityTreeDyn
+pub async fn nika_a11y::AxBackend::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
+pub async fn nika_a11y::AxBackend::resolve_ref(&self, ref_id: &str) -> core::result::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
+pub async fn nika_a11y::AxBackend::snapshot(&self) -> core::result::Result<nika_kernel_core::io::a11y::AxNode, nika_kernel_core::io::a11y::A11yError>

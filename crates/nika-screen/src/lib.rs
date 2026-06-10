@@ -3,7 +3,9 @@
 
 //! `nika-screen` — screen-capture L1 effect crate.
 //!
-//! Implements the L0.5 [`nika_kernel::io::screen::ScreenCapture`] trait
+//! Implements the L0.5 [`nika_kernel::io::screen::ScreenCaptureDyn`] trait
+//! (the `Send` variant — the local `ScreenCapture` arrives via the kernel's
+//! one-way blanket impl)
 //! (display enumeration · full-display + sub-region capture · continuous
 //! frame stream) on macOS / Linux / Windows. The **first computer-use L1
 //! effect crate** (Phase 2 M2.1).

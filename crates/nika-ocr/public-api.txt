@@ -9,7 +9,7 @@ impl core::clone::Clone for nika_ocr::OcrBackend
 pub fn nika_ocr::OcrBackend::clone(&self) -> nika_ocr::OcrBackend
 impl core::fmt::Debug for nika_ocr::OcrBackend
 pub fn nika_ocr::OcrBackend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel_core::io::ocr::OcrEngine for nika_ocr::OcrBackend
+impl nika_kernel_core::io::ocr::OcrEngineDyn for nika_ocr::OcrBackend
 pub async fn nika_ocr::OcrBackend::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
 pub async fn nika_ocr::OcrBackend::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
 impl<D> owo_colors::OwoColorize for nika_ocr::OcrBackend
@@ -45,3 +45,6 @@ pub unsafe fn nika_ocr::OcrBackend::init(init: <T as crossbeam_epoch::atomic::Po
 impl<T> either::into_either::IntoEither for nika_ocr::OcrBackend
 impl<T> nika_error::traits::AsAny for nika_ocr::OcrBackend where T: 'static
 pub fn nika_ocr::OcrBackend::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::ocr::OcrEngine for nika_ocr::OcrBackend where TraitVariantBlanketType: nika_kernel_core::io::ocr::OcrEngineDyn
+pub async fn nika_ocr::OcrBackend::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
+pub async fn nika_ocr::OcrBackend::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>

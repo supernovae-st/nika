@@ -29,7 +29,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use nika_kernel::io::ocr::{OcrEngine, TextRegion};
+use nika_kernel::io::ocr::{OcrEngineDyn, TextRegion};
 use nika_kernel::io::screen::{Frame, Rect};
 use ocrs::{ImageSource, OcrEngine as OcrsEngine, OcrEngineParams, TextItem};
 use rten::Model;
@@ -251,7 +251,10 @@ fn validate_region(region: Rect, frame_w: u32, frame_h: u32) -> Result<(u32, u32
     Ok((rx, ry))
 }
 
-impl OcrEngine for OcrBackend {
+// The SEND variant is the impl target — the kernel's one-way blanket impl
+// derives the local `OcrEngine` from it (never the reverse). Bodies are Send:
+// ocrs inference runs in `spawn_blocking`.
+impl OcrEngineDyn for OcrBackend {
     async fn read(&self, frame: &Frame) -> Result<Vec<TextRegion>, OcrError> {
         validate_frame(frame)?; // pure · NIKA-1105 before any inference
         let rgb = rgba_to_rgb(frame.pixels.as_ref());

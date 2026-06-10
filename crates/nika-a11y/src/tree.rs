@@ -24,7 +24,7 @@
 
 use std::sync::Mutex;
 
-use nika_kernel::io::a11y::{AccessibilityTree, AxNode, AxQuery, AxRole};
+use nika_kernel::io::a11y::{AccessibilityTreeDyn, AxNode, AxQuery, AxRole};
 
 use crate::error::A11yError;
 
@@ -481,7 +481,10 @@ fn collect_matches(node: &AxNode, query: &AxQuery, depth: u16, out: &mut Vec<AxN
     }
 }
 
-impl AccessibilityTree for AxBackend {
+// The SEND variant is the impl target — the kernel's one-way blanket impl
+// derives the local `AccessibilityTree` from it (never the reverse). Bodies
+// are Send: the AXUIElement walk runs in `spawn_blocking`.
+impl AccessibilityTreeDyn for AxBackend {
     async fn snapshot(&self) -> Result<AxNode, A11yError> {
         // Guard 3 redaction is applied inside redacted_snapshot · no secure
         // value ever leaves the crate.

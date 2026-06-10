@@ -30,7 +30,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use futures_core::Stream;
-use nika_kernel::io::screen::{DisplayId, DisplayInfo, Frame, FrameStream, Rect, ScreenCapture};
+use nika_kernel::io::screen::{DisplayId, DisplayInfo, Frame, FrameStream, Rect, ScreenCaptureDyn};
 use xcap::Monitor;
 use xcap::image::RgbaImage;
 
@@ -82,7 +82,11 @@ impl ScreenBackend {
     }
 }
 
-impl ScreenCapture for ScreenBackend {
+// The SEND variant is the impl target — the kernel's one-way blanket impl
+// derives the local `ScreenCapture` from it (never the reverse), so
+// `T: ScreenCaptureDyn` consumers (the documented downstream bound) and
+// `tokio::spawn` both work. Bodies are Send: xcap runs in `spawn_blocking`.
+impl ScreenCaptureDyn for ScreenBackend {
     async fn list_displays(&self) -> Result<Vec<DisplayInfo>, ScreenError> {
         let infos = tokio::task::spawn_blocking(list_displays_sync)
             .await
