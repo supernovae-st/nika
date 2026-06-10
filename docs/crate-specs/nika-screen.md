@@ -120,6 +120,13 @@ pub enum ScreenError { /* BackendNotWired(1000) .. BackendInit(1009) */ }
 
 ### 5.1 Gate 5 mutation exemption (ADR-003 Rule 2 · OS-FFI adapter)
 
+<!-- GATE5-EXEMPT: 5 -->
+<!-- ^ SSOT for scripts/ci/check-mutation-floor.sh BUDGET mode (reproducible).
+     5 OS-FFI survivors — the irreducible `xcap` OS-call paths reachable only
+     with a real display + macOS TCC screen-recording grant (the 2 #[ignore]
+     real-capture tests), enumerated below. 100 % of headless-reachable logic
+     (ConsentGate/LedIndicator guards 6+7 + pure validate_region) is killed. -->
+
 `nika-screen` is a thin OS-FFI adapter (`xcap`). 5 mutants are **exempt** —
 they live on the irreducible OS-call paths reachable only with a real display
 + OS screen-recording permission (macOS TCC), exercised by the 2 `#[ignore]`
