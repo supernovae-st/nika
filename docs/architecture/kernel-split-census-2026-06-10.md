@@ -17,8 +17,8 @@
 | **nika-kernel-core** | `io/` (a11y · blob · browser · clock · fs · http · input · ocr · process · screen) + `infra/` (audit · billing · event_sink · id_gen · metrics · secret · trace) + `cancel` + `sealed` + `types` | AccessibilityTree · BlobStore · BrowserAutomation · Clock · Fs · FsList · FsMeta · FsRead · FsWrite · HttpClient · HttpGet · HttpPost · ConsentState · InputDevice · OcrEngine · ShellCancel · ShellExecutor · ShellRun · ScreenCapture · AuditSink · BillingSink · EventSink · IdGenerator · MetricsExporter · SecretResolver · TracerProvider · Sealed | **27** |
 | **nika-kernel-ai** | `context` · `genai` · `memory` · `provider` · `vision` (flattened from `ai/`) | ContextCompressor · EmbeddingProvider · MemoryForget · MemoryLifecycle · MemoryRecall · MemoryRemember · MemoryStore · Provider · ProviderEmbed · ProviderInfer · ProviderMeta · ProviderStream · ProviderVision · VisionModel | **14** |
 | **nika-kernel-plugin** | `sandbox` · `wasm` (flattened from `plugin/`) | Sandbox · PluginEnv · PluginFs · PluginHttp · WasmPluginHost · WasmPluginLifecycle | **6** |
-| **nika-kernel-runtime** | `agent` · `tool_executor` (flattened from `runtime/`) + `checkpoint` | ToolBatch · ToolExecute · ToolExecutor (+ agent/checkpoint type surfaces · 0 traits) | **3** |
-| **nika-kernel** (hub) | `errors` (the cross-domain `NikaErrorCode` aggregate) + `lib.rs` facade + `prelude` | — (re-exports everything) | **0** |
+| **nika-kernel-runtime** | `agent` · `tool_executor` (flattened from `runtime/`) — `checkpoint` shim corrected → hub (pure re-export of `nika_error::checkpoint` types · a facade concern) | ToolBatch · ToolExecute · ToolExecutor (+ agent/checkpoint type surfaces · 0 traits) | **3** |
+| **nika-kernel** (hub) | `errors` (range registry + re-exports) + `checkpoint` shim + `lib.rs` facade + `prelude` | — (re-exports everything) | **0** |
 
 **27 + 14 + 6 + 3 = 50.** ✓ census exact.
 

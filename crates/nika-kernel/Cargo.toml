@@ -20,6 +20,7 @@ workspace = true
 nika-error       = { path = "../nika-error", version = "0.80.0" }
 nika-kernel-ai   = { path = "../nika-kernel-ai", version = "0.80.0" }
 nika-kernel-core = { path = "../nika-kernel-core", version = "0.80.0" }
+nika-kernel-runtime = { path = "../nika-kernel-runtime", version = "0.80.0" }
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }

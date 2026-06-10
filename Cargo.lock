@@ -2084,6 +2084,7 @@ dependencies = [
  "nika-error",
  "nika-kernel-ai",
  "nika-kernel-core",
+ "nika-kernel-runtime",
  "proptest",
  "rstest",
  "serde",
@@ -2143,6 +2144,18 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "nika-kernel-runtime"
+version = "0.80.0"
+dependencies = [
+ "miette",
+ "nika-error",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "trait-variant",
 ]
 
 [[package]]

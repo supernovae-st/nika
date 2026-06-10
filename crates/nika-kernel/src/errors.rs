@@ -30,44 +30,14 @@
 // stays a valid path.
 pub use nika_kernel_ai::errors::*;
 pub use nika_kernel_core::errors::*;
+pub use nika_kernel_runtime::errors::*;
 
 use nika_error::prelude::*;
 
 use crate::plugin::WasmPluginError;
 use crate::sandbox::SandboxError;
-use crate::tool_executor::ToolExecError;
 
 // ─── Error code constants ────────────────────────────────────────────
-
-// MCP/tools: 230–279
-/// Tool not found.
-pub const NIKA_230: NikaCode = NikaCode {
-    num: 230,
-    category: Category::Mcp,
-    severity: Severity::Error,
-    slug: "tool-not-found",
-};
-/// Tool timeout.
-pub const NIKA_231: NikaCode = NikaCode {
-    num: 231,
-    category: Category::Mcp,
-    severity: Severity::Error,
-    slug: "tool-timeout",
-};
-/// Tool execution failed.
-pub const NIKA_232: NikaCode = NikaCode {
-    num: 232,
-    category: Category::Mcp,
-    severity: Severity::Error,
-    slug: "tool-exec-failed",
-};
-/// Tool not available.
-pub const NIKA_233: NikaCode = NikaCode {
-    num: 233,
-    category: Category::Mcp,
-    severity: Severity::Error,
-    slug: "tool-not-available",
-};
 
 // Memory: 600–649 codes live in `nika_error::codes` (NIKA_601..604 wired
 // Diamond W2.1). The kernel-local NIKA_600..603 placeholders were DRIFT
@@ -76,17 +46,6 @@ pub const NIKA_233: NikaCode = NikaCode {
 // directly · MemoryError impl is in ai/memory.rs.
 
 // ─── NikaErrorCode implementations ──────────────────────────────────
-
-impl NikaErrorCode for ToolExecError {
-    fn nika_code(&self) -> NikaCode {
-        match self {
-            Self::NotFound { .. } => NIKA_230,
-            Self::Timeout { .. } => NIKA_231,
-            Self::ExecutionFailed { .. } => NIKA_232,
-            Self::NotAvailable { .. } => NIKA_233,
-        }
-    }
-}
 
 // MemoryError NikaErrorCode impl lives in ai/memory.rs co-located with the
 // enum definition · maps to NIKA_601..604 per Diamond W2.2 (plan §2 v1.1
@@ -108,14 +67,6 @@ impl NikaErrorCode for SandboxError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn tool_exec_error_codes_in_range() {
-        let err = ToolExecError::NotFound { name: "x".into() };
-        let code = err.nika_code();
-        assert!(code.num >= 230 && code.num <= 279, "tool code {}", code.num);
-        assert_eq!(code.category, Category::Mcp);
-    }
 
     #[test]
     fn wasm_plugin_error_code_in_range() {

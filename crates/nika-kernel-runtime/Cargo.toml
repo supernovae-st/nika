@@ -1,0 +1,22 @@
+[package]
+name         = "nika-kernel-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish      = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
+description  = "Runtime sibling of the split kernel — tool execution + agent loop trait contracts — L0.5"
+
+[lints]
+workspace = true
+
+[dependencies]
+nika-error    = { path = "../nika-error", version = "0.80.0" }
+trait-variant = { workspace = true }
+thiserror     = { workspace = true }
+miette        = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
