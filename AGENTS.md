@@ -35,6 +35,13 @@ the `NikaErrorCode` trait + `nika_error::codes` registry (one-voice ·
 7. `docs/architecture/VISION_2040_intelligence-layer.md` — the long-horizon
    direction (LSP, workflow generator, agent-comprehension, Connectome, Nika-OS).
 
+**Writing a `.nika.yaml` workflow?** That is a LANGUAGE task, not an
+engine task — follow the deterministic protocol in the spec repo:
+instantiate a template (`nika-spec/templates/` · 6 valid skeletons),
+fill the SLOT lines, validate, repair from the error. Protocol:
+`nika-spec/AGENTS.md` §Writing a workflow ·
+https://docs.nika.sh/guides/agent-authoring.
+
 ## Hard rules (non-negotiable)
 
 - `brouillon` branch is **read-only** (legacy v0.79.3 reference). Access legacy code via `git show brouillon:path` only. Never `git checkout brouillon`.
