@@ -1,35 +1,39 @@
 #!/usr/bin/env bash
-# Vector 3: src LOC vs MEMORY.md (< 2% drift = yellow, > 2% = red).
-set -u
-MEMORY="$HOME/.claude/projects/-Users-thibaut-dev-supernovae-hq/memory/MEMORY.md"
+# Vector 3: workspace src LOC — live, derived report.
+#
+# History: this vector used to compare live src LOC against a number
+# hand-recorded in MEMORY.md (« Total engine src LOC: ~13.5k »). That was
+# the exact drift class the crate-spec-metrics ratchet kills: gating a
+# fully-derivable number against hand-typed prose — and worse, via a STALE
+# MEMORY.md path (`-Users-thibaut-dev-supernovae-hq`, pre repo-move) that
+# never resolved, so the vector sat permanently YELLOW (« cannot determine
+# LOC »). LOC is derivable; there is no second source to drift against.
+#
+# Now: report the live total (sum of per-crate src from the projector,
+# the single LOC method) — GREEN/informational. The per-crate 15k cap is
+# vector 24, the per-file 1500 cap is vector 12; this vector is the
+# at-a-glance workspace total, always honest because always derived.
+#
+# Exit codes: 0 GREEN (reported) · 2 RED (projector unavailable).
+set -uo pipefail
 
-# shellcheck disable=SC2038  # .rs filenames are ASCII-only, no need for -print0
-actual="$(find crates -path '*/src/*.rs' -not -path '*/target/*' 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')"
-recorded="$(grep -oE 'Total engine src LOC: ~?[0-9.,]+k?' "$MEMORY" 2>/dev/null | head -1 | grep -oE '[0-9.,]+k?' | head -1)"
-# Handle "~13.5k" → 13500
-if [[ "$recorded" == *k ]]; then
-  recorded=$(awk -v n="${recorded%k}" 'BEGIN{print int(n * 1000)}')
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT" || exit 2
+
+METRICS="scripts/crate-metrics.sh"
+if [ ! -x "$METRICS" ]; then
+  echo "RED: $METRICS missing (LOC projector is the source of truth)"
+  exit 2
 fi
 
-if [ -z "$recorded" ] || [ -z "$actual" ]; then
-  echo "cannot determine LOC"
-  exit 1
+# Sum per-crate src LOC from the projector (one method · same numbers the
+# crate-spec anchors + the per-crate cap vectors speak).
+total="$(bash "$METRICS" --json | grep -oE '"src_loc":[0-9]+' | grep -oE '[0-9]+' | awk '{s += $1} END {print s + 0}')"
+
+if [ -z "$total" ] || [ "$total" -le 0 ] 2>/dev/null; then
+  echo "RED: projector returned no LOC"
+  exit 2
 fi
 
-drift_pct=$(awk -v a="$actual" -v r="$recorded" 'BEGIN{if(r==0){print 100}else{d=(a-r)/r*100;if(d<0)d=-d;printf "%.1f",d}}')
-drift_cmp=$(awk -v d="$drift_pct" 'BEGIN{if(d>5){print "red"}else if(d>1){print "yellow"}else{print "green"}}')
-
-case "$drift_cmp" in
-  green)
-    echo "OK ($actual LOC)"
-    exit 0
-    ;;
-  yellow)
-    echo "drift ${drift_pct}%: MEMORY=$recorded actual=$actual"
-    exit 1
-    ;;
-  red)
-    echo "drift ${drift_pct}%: MEMORY=$recorded actual=$actual"
-    exit 2
-    ;;
-esac
+echo "OK (${total} workspace src LOC · live · scripts/crate-metrics.sh)"
+exit 0

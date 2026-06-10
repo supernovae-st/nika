@@ -126,7 +126,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/s4-nika-fs`                                      |
+| branch           | `main`                                      |
 | HEAD             | `f76e397cd` (`f76e397cd314e0fe597058bb58447fceed50a557`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 21                                              |

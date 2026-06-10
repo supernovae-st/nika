@@ -63,8 +63,10 @@ L4_COUNT=$(count_layer "L4")
 # canonical 12 gates · mutation + Rule-2 OS-FFI/model/AXUIElement-walk
 # exemptions + Foreman-direct 3-lens review per PE-5.1). Refine when a
 # per-crate admission ledger lands (Phase B vector 27 candidate).
-WIP_CRATES="nika-schema"
-WIP_COUNT=$(echo "$WIP_CRATES" | tr ',' '\n' | wc -l | tr -d ' ')
+# WIP list DERIVED from the projector (single source · [workspace.metadata.diamond]
+# wip = [...] in Cargo.toml) — no re-hardcoded list (per crate-spec-metrics ratchet).
+WIP_CRATES="$(bash scripts/crate-metrics.sh --wip | xargs)"
+WIP_COUNT=$(bash scripts/crate-metrics.sh --wip | grep -c .)
 ADMITTED_COUNT=$((WORKSPACE_MEMBERS - WIP_COUNT))
 
 # ── tests ──────────────────────────────────────────────────────────

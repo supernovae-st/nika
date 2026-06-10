@@ -32,6 +32,12 @@ homepage     = "https://supernovae.studio"
 # ─────────────────────────────────────────────────────────────────────────────
 
 [workspace.metadata.diamond]
+# WIP crates: in the workspace but pre-admission (no complete 12-gate table
+# yet). SINGLE SOURCE for the admitted-vs-WIP split — scripts/crate-metrics.sh
+# is the projector that reads this; refresh-status.sh + check-crate-specs.sh
+# query the projector (never re-hardcode the list). When a crate is admitted,
+# remove it from this array — one edit, here, period.
+wip = ["nika-schema"]
 layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"

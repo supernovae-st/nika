@@ -24,10 +24,14 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 2
 
-# WIP crates (in the workspace but pre-admission) — kept in sync with
-# scripts/refresh-status.sh WIP_CRATES. Metrics still compute; the spec
-# parity gate skips them (no admission spec table yet).
-WIP_CRATES="nika-schema"
+# WIP crates — DERIVED from the single source: [workspace.metadata.diamond]
+# wip = [...] in Cargo.toml. No hardcoded list here; refresh-status.sh +
+# check-crate-specs.sh query this projector instead of re-declaring it.
+wip_crates() {
+  grep -E '^wip = \[' Cargo.toml 2>/dev/null \
+    | grep -oE '"[^"]+"' | tr -d '"' | tr '\n' ' '
+}
+WIP_CRATES="$(wip_crates)"
 
 # ── derivation helpers (pure · all from the code) ────────────────────
 
@@ -110,8 +114,13 @@ emit_json() {
   printf ']\n'
 }
 
+emit_admitted() { admitted_crates; }
+emit_wip() { echo "$WIP_CRATES" | tr ' ' '\n' | grep -v '^$' || true; }
+
 case "${1:-}" in
   --json) emit_json ;;
+  --admitted) emit_admitted ;;
+  --wip) emit_wip ;;
   --loc)
     [ -n "${2:-}" ] || {
       echo "usage: --loc <crate>" >&2
