@@ -25,9 +25,39 @@ rs_all_files() {
 package_manifests() {
   git ls-files '*Cargo.toml' 'Cargo.toml' \
     | while read -r m; do
-        [ "$m" = "Cargo.toml" ] && continue
-        grep -q '^\[package\]' "$m" 2>/dev/null && printf '%s\n' "$m"
-      done || true
+      [ "$m" = "Cargo.toml" ] && continue
+      grep -q '^\[package\]' "$m" 2>/dev/null && printf '%s\n' "$m"
+    done || true
+}
+
+# Print the workspace member crate names (one per line, sorted, e.g. nika-error).
+# Single source of truth — DO NOT re-parse Cargo.toml `members` in a gate; call
+# this. Primary path is `cargo metadata --no-deps` (canonical + robust: it can't
+# be fooled by array formatting and it correctly honours the `exclude` list).
+# Fallback is an awk scan of the `members = [...]` array for hosts without
+# cargo/python (some minimal CI images). Both yield the same 18 today (verified).
+# Run from the workspace root (callers cd to ENGINE_ROOT first).
+workspace_members() {
+  if command -v cargo >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    local out
+    out="$(cargo metadata --format-version 1 --no-deps --offline 2>/dev/null \
+      | python3 -c 'import sys, json
+try:
+    d = json.load(sys.stdin)
+    print("\n".join(p["name"] for p in d["packages"]))
+except Exception:
+    pass' 2>/dev/null | sort -u)"
+    if [ -n "$out" ]; then
+      printf '%s\n' "$out"
+      return 0
+    fi
+  fi
+  # Fallback: awk the members array (cargo/python unavailable or metadata failed).
+  awk '
+    /^members[[:space:]]*=/ { grab = 1 }
+    grab { line = line $0 }
+    grab && /\]/ { print line; grab = 0 }
+  ' Cargo.toml | grep -oE 'crates/nika-[a-z0-9-]+' | sed 's#crates/##' | sort -u
 }
 
 # Read a .rs file from stdin or path, emit the same number of lines but blank

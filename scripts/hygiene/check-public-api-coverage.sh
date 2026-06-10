@@ -30,6 +30,9 @@ set -uo pipefail
 ENGINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ENGINE_ROOT" || exit 2
 
+# shellcheck source=scripts/ci/_lib.sh
+. "$ENGINE_ROOT/scripts/ci/_lib.sh"
+
 FLOOR="scripts/ci/public-api-coverage-baseline.txt"
 [ -f "$FLOOR" ] || {
   echo "coverage baseline missing: $FLOOR"
@@ -37,11 +40,7 @@ FLOOR="scripts/ci/public-api-coverage-baseline.txt"
 }
 
 # admitted crates with a lib target (src/lib.rs) — the should-be-covered set.
-members="$(awk '
-  /^members[[:space:]]*=/ { grab=1 }
-  grab { line = line $0 }
-  grab && /\]/ { print line; grab=0 }
-' Cargo.toml | grep -oE 'crates/nika-[a-z0-9-]+' | sed 's#crates/##' | sort -u)"
+members="$(workspace_members)"
 
 lib_crates=""
 while IFS= read -r c; do

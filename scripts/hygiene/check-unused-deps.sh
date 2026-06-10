@@ -19,17 +19,16 @@ set -uo pipefail
 ENGINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ENGINE_ROOT" || exit 2
 
+# shellcheck source=scripts/ci/_lib.sh
+. "$ENGINE_ROOT/scripts/ci/_lib.sh"
+
 if ! command -v cargo-machete >/dev/null 2>&1; then
   echo "cargo-machete not installed (run: cargo install cargo-machete)"
   exit 2
 fi
 
 # Workspace members only (basenames), to filter out excluded legacy crates.
-members="$(awk '
-  /^members[[:space:]]*=/ { grab=1 }
-  grab { line = line $0 }
-  grab && /\]/ { print line; grab=0 }
-' Cargo.toml | grep -oE 'crates/nika-[a-z0-9-]+' | sed 's#crates/##' | sort -u)"
+members="$(workspace_members)"
 
 out="$(cargo machete 2>&1)"
 status=$?

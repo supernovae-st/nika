@@ -31,6 +31,9 @@ set -uo pipefail
 ENGINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ENGINE_ROOT" || exit 2
 
+# shellcheck source=scripts/ci/_lib.sh
+. "$ENGINE_ROOT/scripts/ci/_lib.sh"
+
 ADR="docs/adr/adr-081-l1-effect-crate-guard-contract.md"
 MANIFEST="scripts/ci/adr-081-guard-manifest.tsv"
 
@@ -45,11 +48,7 @@ MANIFEST="scripts/ci/adr-081-guard-manifest.tsv"
 
 # --- workspace members (the `members = [...]` array, NOT `exclude`) ----------
 # Extract crate basenames from the members array line(s).
-members="$(awk '
-  /^members[[:space:]]*=/ { grab=1 }
-  grab { line = line $0 }
-  grab && /\]/ { print line; grab=0 }
-' Cargo.toml | grep -oE 'crates/nika-[a-z0-9-]+' | sed 's#crates/##' | sort -u)"
+members="$(workspace_members)"
 
 is_member() { printf '%s\n' "$members" | grep -qx "$1"; }
 

@@ -43,11 +43,7 @@ is_allowlisted() {
 }
 
 # workspace members (basenames).
-members="$(awk '
-  /^members[[:space:]]*=/ { grab=1 }
-  grab { line = line $0 }
-  grab && /\]/ { print line; grab=0 }
-' Cargo.toml | grep -oE 'crates/nika-[a-z0-9-]+' | sed 's#crates/##' | sort -u)"
+members="$(workspace_members)"
 
 # Does crate <c> impl NikaErrorCode for enum <e> (anywhere in its src)?
 impls_trait() {
