@@ -6,6 +6,16 @@ on:
       - 'crates/**/src/**'
       - 'crates/**/Cargo.toml'
       - 'Cargo.toml'
+  # Also run on direct pushes to non-main branches. The Diamond rebuild commits
+  # straight to its feature branch, so a PR-only trigger let the committed
+  # baselines drift silently (caught only when a PR finally opened). main stays
+  # PR-gated, so it is excluded to avoid a redundant re-run after merge.
+  push:
+    branches-ignore: ['main']
+    paths:
+      - 'crates/**/src/**'
+      - 'crates/**/Cargo.toml'
+      - 'Cargo.toml'
 
 permissions:
   contents: read
