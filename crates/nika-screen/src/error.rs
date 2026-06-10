@@ -3,11 +3,14 @@
 
 //! Screen-capture errors — NIKA-1000..1099 reserved range (computer-use L1).
 //!
-//! Codes are exposed via the crate-local [`ScreenError::code`] accessor.
-//! Central `nika-error` `Category` integration (the `nika-schema` pattern)
-//! is a deferred follow-up — it would add a `Category` variant to the L0
-//! `nika-error` crate, outside the M2.1 B.2 scope-lock. The NIKA-1000..1099
-//! range is reserved per ADR-081 + `forward-compat-invariants.md`.
+//! Codes are exposed via the workspace-canonical [`NikaErrorCode`] trait
+//! (`nika_code()` → `nika_error::codes::NIKA_1000..1009` · `Category::Screen`
+//! · B5 error one-voice 2026-06-10 — the crate-local string `code()`
+//! accessor was the F8 drift · removed per `no-legacy-no-back-compat.md`).
+//! The NIKA-1000..1099 range is reserved per ADR-081 +
+//! `forward-compat-invariants.md`.
+//!
+//! [`NikaErrorCode`]: nika_kernel::prelude::NikaErrorCode
 //!
 //! At the `ScreenCapture` trait boundary the kernel returns `std::io::Result`,
 //! so [`ScreenError`] converts into [`std::io::Error`] via [`From`] — the rich
@@ -95,33 +98,27 @@ pub enum ScreenError {
     },
 }
 
-impl ScreenError {
-    /// Stable NIKA code for this error (grep-anchor for logs + journal).
-    ///
-    /// NIKA-1000..1009 currently used · NIKA-1000..1099 reserved for
-    /// nika-screen (ADR-081).
-    #[must_use]
-    pub fn code(&self) -> &'static str {
+impl nika_kernel::prelude::NikaErrorCode for ScreenError {
+    /// Stable NIKA code (registry-owned · `Category::Screen` 1000-1099).
+    fn nika_code(&self) -> nika_kernel::prelude::NikaCode {
+        use nika_kernel::prelude::codes;
         match self {
-            Self::BackendNotWired => "NIKA-1000",
-            Self::DisplayNotFound { .. } => "NIKA-1001",
-            Self::NoDisplaysFound => "NIKA-1002",
-            Self::CaptureFailed { .. } => "NIKA-1003",
-            Self::RegionOutOfBounds { .. } => "NIKA-1004",
-            Self::InvalidFrameFormat { .. } => "NIKA-1005",
-            Self::ConsentDenied => "NIKA-1006",
-            Self::ConsentRevoked => "NIKA-1007",
-            Self::IndicatorUnavailable { .. } => "NIKA-1008",
-            Self::BackendInit { .. } => "NIKA-1009",
+            Self::BackendNotWired => codes::NIKA_1000,
+            Self::DisplayNotFound { .. } => codes::NIKA_1001,
+            Self::NoDisplaysFound => codes::NIKA_1002,
+            Self::CaptureFailed { .. } => codes::NIKA_1003,
+            Self::RegionOutOfBounds { .. } => codes::NIKA_1004,
+            Self::InvalidFrameFormat { .. } => codes::NIKA_1005,
+            Self::ConsentDenied => codes::NIKA_1006,
+            Self::ConsentRevoked => codes::NIKA_1007,
+            Self::IndicatorUnavailable { .. } => codes::NIKA_1008,
+            Self::BackendInit { .. } => codes::NIKA_1009,
         }
     }
 
-    /// Whether the error is transient — safe to retry with backoff.
-    ///
-    /// Capture/init failures may be transient (device contention · GPU busy);
-    /// consent + region + format errors are structural (retry won't help).
-    #[must_use]
-    pub fn is_transient(&self) -> bool {
+    /// Capture/init failures may be transient (device contention · GPU
+    /// busy); consent + region + format errors are structural.
+    fn is_transient(&self) -> bool {
         matches!(self, Self::CaptureFailed { .. } | Self::BackendInit { .. })
     }
 }
@@ -138,12 +135,11 @@ impl From<ScreenError> for std::io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::prelude::{NikaErrorCode, codes};
     use std::collections::BTreeSet;
 
-    /// Every variant has a distinct NIKA code in the 1000..1009 range.
-    #[test]
-    fn codes_are_unique_and_in_range() {
-        let errs = [
+    fn all_variants() -> [ScreenError; 10] {
+        [
             ScreenError::BackendNotWired,
             ScreenError::DisplayNotFound { id: 0 },
             ScreenError::NoDisplaysFound,
@@ -161,17 +157,41 @@ mod tests {
             ScreenError::ConsentRevoked,
             ScreenError::IndicatorUnavailable { reason: "x".into() },
             ScreenError::BackendInit { reason: "x".into() },
-        ];
-        let codes: BTreeSet<&str> = errs.iter().map(ScreenError::code).collect();
-        assert_eq!(codes.len(), errs.len(), "all codes distinct");
-        for c in &codes {
-            let n: u32 = c
-                .strip_prefix("NIKA-")
-                .expect("NIKA- prefix")
-                .parse()
-                .expect("number");
-            assert!((1000..=1099).contains(&n), "{c} in reserved range");
+        ]
+    }
+
+    /// Every variant maps to a distinct REGISTRY code in the reserved
+    /// range · `Category::Screen` (one-voice · B5).
+    #[test]
+    fn nika_codes_unique_in_range_and_registered() {
+        let errs = all_variants();
+        let nums: BTreeSet<u16> = errs.iter().map(|e| e.nika_code().num).collect();
+        assert_eq!(nums.len(), errs.len(), "all codes distinct");
+        for e in &errs {
+            let c = e.nika_code();
+            assert!((1000..=1099).contains(&c.num), "{c} in reserved range");
+            assert_eq!(c.category, nika_kernel::prelude::Category::Screen);
+            assert!(
+                codes::lookup(&c.to_string()).is_some(),
+                "{c} resolvable via the registry"
+            );
         }
+    }
+
+    /// Pinned wire codes — the grep-anchor contract survives the trait
+    /// migration byte-for-byte (`Display` of `NikaCode` == old string codes).
+    #[test]
+    fn wire_codes_pinned() {
+        assert_eq!(ScreenError::ConsentDenied.nika_code(), codes::NIKA_1006);
+        assert_eq!(ScreenError::ConsentRevoked.nika_code(), codes::NIKA_1007);
+        assert_eq!(
+            ScreenError::ConsentDenied.nika_code().to_string(),
+            "NIKA-1006"
+        );
+        assert_eq!(
+            ScreenError::BackendNotWired.nika_code().to_string(),
+            "NIKA-1000"
+        );
     }
 
     /// Transient classification — capture/init retryable, the rest structural.
@@ -189,6 +209,14 @@ mod tests {
         assert!(!ScreenError::DisplayNotFound { id: 3 }.is_transient());
     }
 
+    /// Distinct codes hash to distinct fingerprints (R4 · default impl).
+    #[test]
+    fn fingerprints_distinct_per_code() {
+        let errs = all_variants();
+        let fps: BTreeSet<u64> = errs.iter().map(NikaErrorCode::fingerprint).collect();
+        assert_eq!(fps.len(), errs.len());
+    }
+
     /// `Display` carries the human message; conversion to `io::Error` preserves
     /// the source so callers can downcast back to `ScreenError`.
     #[test]
@@ -201,6 +229,6 @@ mod tests {
         let back = src
             .downcast::<ScreenError>()
             .expect("downcast to ScreenError");
-        assert_eq!(back.code(), "NIKA-1001");
+        assert_eq!(back.nika_code(), codes::NIKA_1001);
     }
 }

@@ -169,6 +169,7 @@ impl Drop for LedScope {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::prelude::{NikaErrorCode, codes};
     use proptest::prelude::*;
 
     /// Guard 7 happy path · an explicit grant allows capture.
@@ -186,11 +187,14 @@ mod tests {
         let gate = ConsentGate::new();
         assert_eq!(gate.status(), Consent::Unknown, "default is fail-closed");
         assert_eq!(
-            gate.check().expect_err("unknown denies").code(),
-            "NIKA-1006"
+            gate.check().expect_err("unknown denies").nika_code(),
+            codes::NIKA_1006
         );
         gate.deny();
-        assert_eq!(gate.check().expect_err("denied denies").code(), "NIKA-1006");
+        assert_eq!(
+            gate.check().expect_err("denied denies").nika_code(),
+            codes::NIKA_1006
+        );
     }
 
     /// Guard 7 revoke-mid-session (cancel) path · revoked → NIKA-1007.
@@ -202,8 +206,8 @@ mod tests {
         gate.revoke();
         assert_eq!(gate.status(), Consent::Revoked);
         assert_eq!(
-            gate.check().expect_err("revoked denies").code(),
-            "NIKA-1007"
+            gate.check().expect_err("revoked denies").nika_code(),
+            codes::NIKA_1007
         );
     }
 
@@ -292,10 +296,10 @@ mod tests {
             match last {
                 Consent::Granted => prop_assert!(gate.check().is_ok()),
                 Consent::Revoked => {
-                    prop_assert_eq!(gate.check().expect_err("revoked").code(), "NIKA-1007");
+                    prop_assert_eq!(gate.check().expect_err("revoked").nika_code(), codes::NIKA_1007);
                 }
                 _ => {
-                    prop_assert_eq!(gate.check().expect_err("denied").code(), "NIKA-1006");
+                    prop_assert_eq!(gate.check().expect_err("denied").nika_code(), codes::NIKA_1006);
                 }
             }
         }

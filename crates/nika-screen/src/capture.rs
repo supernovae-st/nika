@@ -331,6 +331,7 @@ impl Stream for FrameRx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::prelude::{NikaErrorCode, codes};
 
     /// B.3 closure proof · `list_displays` no longer returns the B.2
     /// `BackendNotWired` skeleton. On a host with displays it enumerates
@@ -349,8 +350,8 @@ mod tests {
                 let src = e.into_inner().expect("boxed source");
                 let se = src.downcast::<ScreenError>().expect("ScreenError source");
                 assert_ne!(
-                    se.code(),
-                    "NIKA-1000",
+                    se.nika_code(),
+                    codes::NIKA_1000,
                     "B.3 CLOSES the list_displays skeleton"
                 );
             }
@@ -369,8 +370,8 @@ mod tests {
             let src = e.into_inner().expect("boxed source");
             let se = src.downcast::<ScreenError>().expect("ScreenError source");
             assert_ne!(
-                se.code(),
-                "NIKA-1000",
+                se.nika_code(),
+                codes::NIKA_1000,
                 "B.4 CLOSES the capture_stream skeleton"
             );
         }
@@ -391,8 +392,8 @@ mod tests {
             .downcast::<ScreenError>()
             .expect("ScreenError source");
         assert_eq!(
-            se.code(),
-            "NIKA-1006",
+            se.nika_code(),
+            codes::NIKA_1006,
             "guard 7 · consent denied fail-closed"
         );
         assert!(!backend.led_is_engaged(), "guard 6 · LED off when denied");
@@ -414,7 +415,11 @@ mod tests {
             .expect("boxed source")
             .downcast::<ScreenError>()
             .expect("ScreenError source");
-        assert_eq!(se.code(), "NIKA-1007", "guard 7 · consent revoked");
+        assert_eq!(
+            se.nika_code(),
+            codes::NIKA_1007,
+            "guard 7 · consent revoked"
+        );
     }
 
     /// Real continuous-capture smoke test — requires a connected display AND
@@ -518,11 +523,15 @@ mod tests {
                 .downcast::<ScreenError>()
                 .expect("ScreenError source");
             assert_ne!(
-                se.code(),
-                "NIKA-1006",
+                se.nika_code(),
+                codes::NIKA_1006,
                 "grant_consent must pass the gate, not deny"
             );
-            assert_ne!(se.code(), "NIKA-1007", "consent was granted, not revoked");
+            assert_ne!(
+                se.nika_code(),
+                codes::NIKA_1007,
+                "consent was granted, not revoked"
+            );
         }
     }
 
