@@ -36,6 +36,7 @@
     )
 )]
 
+pub mod analyzer;
 pub mod codegen;
 pub mod error;
 pub mod expression;
@@ -46,6 +47,7 @@ pub mod trust;
 pub mod types;
 
 // Re-exports for convenience.
+pub use analyzer::{AnalyzedWorkflow, analyze};
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::SchemaError;
 pub use parser::{ParseMode, parse};
