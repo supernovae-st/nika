@@ -64,8 +64,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/s4-nika-fs`                                      |
-| HEAD             | `aa51f00da` (`aa51f00da36c13ab91e63e9a283c7bba4cf094d1`)             |
+| branch           | `main`                                      |
+| HEAD             | `7c258d83f` (`7c258d83f7cdc44c4bed5c740074246538948d61`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 23                                              |
 | crates (admitted)| 21 / 42                                   |
