@@ -49,13 +49,34 @@ plus the per-file sha tests turn a stale or tampered snapshot into a red
 ## 4. Tests (integrity = the contract)
 
 - `every_manifest_entry_resolves_and_hashes_clean` — re-hashes the LEAN text
-  of all 33 workflows against the manifest's `sha256_16` (the same bytes the
-  docs and the website render · the Rust `lean()` ports the projector's).
+  of all 33 hashed files (27 workflows + 6 templates) against the manifest's
+  `sha256_16` (the same bytes docs and website render · the Rust `lean()`
+  ports the projector's, including the one-trailing-newline invariant).
+- `manifest_and_embedded_sets_are_bijective` — entry count must equal
+  embedded workflows + templates · drift in either direction fails.
+- Known gap (accepted) · non-manifest pack files (`spec/*.md` · `stdlib/*.md`
+  · `canon.yaml` · `QUICKSTART.md` · the schema) are content-asserted but not
+  hash-pinned — the manifest only hashes workflows/templates by design; a
+  future spec-side manifest extension would close it at the source.
 - `surface_counts_hold` — 6 templates · ≥27 examples · ≥12 doc pages ·
   schema/canon/quickstart non-empty.
 - `lean_strips_the_banner_and_nothing_else`.
 
-## 5. Dependencies
+## 5. Gate exemptions (per ADR-003 · documented justification)
 
-`include_dir 0.7` (runtime · widely used · build-time embedding only) ·
-`sha2 0.10` (dev-only · the integrity hash). Nothing else.
+- **Gate 6 PROPERTY · exempt** — pure compile-time data accessors · no
+  parser/encoding/security surface · `lean()` is covered by directed tests
+  including the newline-normalization invariant · property fuzzing would
+  exercise `include_dir`'s lookup, not our logic.
+- **Gate 7 BENCHMARKS · exempt** — no hot path (CLI cold-read surface).
+- **Gate 9 CANARY · exempt** — data-only crate · no executable workflow
+  path of its own · the embedded examples ARE conformance-gated spec-side
+  on every spec push.
+- **Gate 10 PARITY · exempt** — new surface · no legacy equivalent in
+  brouillon to golden-test against.
+
+## 6. Dependencies
+
+`include_dir` (workspace-pinned 0.7 · build-time embedding) · `sha2`
+(workspace-pinned 0.10 · dev-only integrity hash). `[lints] workspace =
+true` — the full deny-set applies. Nothing else.

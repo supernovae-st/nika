@@ -11,7 +11,10 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io.
 
 [dependencies]
-include_dir = "0.7"
+include_dir = { workspace = true }
 
 [dev-dependencies]
-sha2 = "0.10"
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

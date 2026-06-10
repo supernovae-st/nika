@@ -10,6 +10,10 @@
 set -euo pipefail
 
 CRATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -n "${CRATE_DIR}" && -f "${CRATE_DIR}/Cargo.toml" ]] || {
+  echo "CRATE_DIR resolution failed" >&2
+  exit 2
+}
 SPEC="${1:-${CRATE_DIR}/../../../spec}"
 DEST="${CRATE_DIR}/pack"
 

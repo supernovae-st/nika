@@ -130,6 +130,10 @@ pub fn template_names() -> Vec<String> {
 }
 
 /// A spec or stdlib page by path (`spec/02-verbs.md` · `stdlib/builtins-v0.1.md`).
+///
+/// Lookups are literal keys into the compile-time snapshot — only paths
+/// listed by [`doc_paths`] resolve; anything else (including traversal
+/// attempts) returns `None`. There is no filesystem at runtime.
 #[must_use]
 pub fn doc(path: &str) -> Option<&'static str> {
     file_str(path)
@@ -153,9 +157,10 @@ pub fn doc_paths() -> Vec<String> {
 }
 
 /// The lean text of a workflow — everything from the `nika:` envelope
-/// line down. This is the exact byte range the pack manifest hashes and
-/// every public surface (docs · website) renders; the Rust port of the
-/// spec projector's `lean()`.
+/// line down, with trailing newlines trimmed. The manifest hash is
+/// `sha256(lean + "\n")` — one canonical trailing newline, mirroring the
+/// spec projector's python `lean()` (which keeps exactly one). Every
+/// public surface (docs · website) renders this same range.
 #[must_use]
 pub fn lean(yaml_text: &str) -> &str {
     for (offset, line) in yaml_text.split_inclusive('\n').scan(0usize, |acc, l| {
