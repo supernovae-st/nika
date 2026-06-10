@@ -30,19 +30,23 @@
 
 use std::time::{Duration, Instant, SystemTime};
 
-use nika_kernel::Clock;
+use nika_kernel::clock::ClockDyn;
 
 /// Production clock backed by `std::time` (monotonic + wall) and
 /// `tokio::time::sleep` (async). Zero-size — no allocation, no state,
 /// trivially `Copy`/`Default`.
 ///
-/// Satisfies both [`nika_kernel::Clock`] and the generated
-/// `nika_kernel::ClockDyn` (object-safe `Send` variant) via the
-/// `trait_variant` blanket impl, so `&dyn ClockDyn` fan-out works.
+/// Implements the `ClockDyn` trait-variant companion (the `Send`-future
+/// form), so the base [`nika_kernel::Clock`] arrives via the
+/// `trait_variant` blanket impl AND `sleep` futures are `Send` —
+/// consumers may `tokio::spawn` clock work. (`ClockDyn` is a generic
+/// bound, not a dyn-dispatch surface: RPITIT is not object-safe; fan
+/// out via `Arc<SystemClock>`, not `Arc<dyn _>` — same pattern as
+/// `nika-fs`.)
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemClock;
 
-impl Clock for SystemClock {
+impl ClockDyn for SystemClock {
     fn now(&self) -> Instant {
         Instant::now()
     }
