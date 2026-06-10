@@ -11,6 +11,9 @@ pub mod action;
 pub mod task;
 pub mod workflow;
 
-pub use action::{RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction};
-pub use task::RawTask;
+pub use action::{
+    RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction, Thinking,
+    VisionInput,
+};
+pub use task::{RawFinallyTask, RawTask};
 pub use workflow::RawWorkflow;
