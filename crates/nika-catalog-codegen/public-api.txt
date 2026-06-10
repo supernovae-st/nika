@@ -1,0 +1,470 @@
+pub mod nika_catalog_codegen
+#[non_exhaustive] pub enum nika_catalog_codegen::CodegenError
+pub nika_catalog_codegen::CodegenError::EnvVar
+pub nika_catalog_codegen::CodegenError::EnvVar::name: &'static str
+pub nika_catalog_codegen::CodegenError::EnvVar::source: std::env::VarError
+pub nika_catalog_codegen::CodegenError::ForeignKey
+pub nika_catalog_codegen::CodegenError::ForeignKey::context: alloc::string::String
+pub nika_catalog_codegen::CodegenError::ForeignKey::reason: alloc::string::String
+pub nika_catalog_codegen::CodegenError::Io
+pub nika_catalog_codegen::CodegenError::Io::path: std::path::PathBuf
+pub nika_catalog_codegen::CodegenError::Io::source: std::io::error::Error
+pub nika_catalog_codegen::CodegenError::SchemaMismatch
+pub nika_catalog_codegen::CodegenError::SchemaMismatch::expected: &'static str
+pub nika_catalog_codegen::CodegenError::SchemaMismatch::got: alloc::string::String
+pub nika_catalog_codegen::CodegenError::SchemaMismatch::path: std::path::PathBuf
+pub nika_catalog_codegen::CodegenError::SchemaValidation
+pub nika_catalog_codegen::CodegenError::SchemaValidation::context: alloc::string::String
+pub nika_catalog_codegen::CodegenError::SchemaValidation::reason: alloc::string::String
+pub nika_catalog_codegen::CodegenError::TomlParse
+pub nika_catalog_codegen::CodegenError::TomlParse::path: std::path::PathBuf
+pub nika_catalog_codegen::CodegenError::TomlParse::source: toml::de::error::Error
+impl nika_catalog_codegen::CodegenError
+pub fn nika_catalog_codegen::CodegenError::foreign_key(context: impl core::convert::Into<alloc::string::String>, reason: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_catalog_codegen::CodegenError::schema_validation(context: impl core::convert::Into<alloc::string::String>, reason: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::error::Error for nika_catalog_codegen::CodegenError
+pub fn nika_catalog_codegen::CodegenError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_catalog_codegen::CodegenError
+pub fn nika_catalog_codegen::CodegenError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_catalog_codegen::CodegenError
+pub fn nika_catalog_codegen::CodegenError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::CodegenError where U: core::convert::From<T>
+pub fn nika_catalog_codegen::CodegenError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::CodegenError where U: core::convert::Into<T>
+pub type nika_catalog_codegen::CodegenError::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::CodegenError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::CodegenError where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::CodegenError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::CodegenError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_catalog_codegen::CodegenError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_catalog_codegen::CodegenError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_catalog_codegen::CodegenError where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::CodegenError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::CodegenError where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::CodegenError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::CodegenError where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::CodegenError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::CodegenError
+pub fn nika_catalog_codegen::CodegenError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_catalog_codegen::EmbeddingEntry
+pub nika_catalog_codegen::EmbeddingEntry::description: alloc::string::String
+pub nika_catalog_codegen::EmbeddingEntry::dimensions: u32
+pub nika_catalog_codegen::EmbeddingEntry::extra_tags: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::EmbeddingEntry::id: alloc::string::String
+pub nika_catalog_codegen::EmbeddingEntry::input_per_million: f64
+pub nika_catalog_codegen::EmbeddingEntry::max_input_tokens: u32
+pub nika_catalog_codegen::EmbeddingEntry::model: alloc::string::String
+pub nika_catalog_codegen::EmbeddingEntry::normalized_by_default: bool
+pub nika_catalog_codegen::EmbeddingEntry::provider: alloc::string::String
+pub nika_catalog_codegen::EmbeddingEntry::similarity: alloc::string::String
+pub nika_catalog_codegen::EmbeddingEntry::tags: alloc::vec::Vec<alloc::string::String>
+impl core::fmt::Debug for nika_catalog_codegen::EmbeddingEntry
+pub fn nika_catalog_codegen::EmbeddingEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::EmbeddingEntry
+pub fn nika_catalog_codegen::EmbeddingEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::EmbeddingEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::EmbeddingEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::EmbeddingEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::EmbeddingEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::EmbeddingEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::EmbeddingEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::EmbeddingEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::EmbeddingEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::EmbeddingEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::EmbeddingEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::EmbeddingEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EmbeddingEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::EmbeddingEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EmbeddingEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::EmbeddingEntry
+pub fn nika_catalog_codegen::EmbeddingEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::EmbeddingEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::EmbeddingsFile
+pub nika_catalog_codegen::EmbeddingsFile::embeddings: alloc::vec::Vec<nika_catalog_codegen::EmbeddingEntry>
+pub nika_catalog_codegen::EmbeddingsFile::schema: alloc::string::String
+impl core::fmt::Debug for nika_catalog_codegen::EmbeddingsFile
+pub fn nika_catalog_codegen::EmbeddingsFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::EmbeddingsFile
+pub fn nika_catalog_codegen::EmbeddingsFile::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::EmbeddingsFile where U: core::convert::From<T>
+pub fn nika_catalog_codegen::EmbeddingsFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::EmbeddingsFile where U: core::convert::Into<T>
+pub type nika_catalog_codegen::EmbeddingsFile::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::EmbeddingsFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::EmbeddingsFile where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::EmbeddingsFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::EmbeddingsFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::EmbeddingsFile where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::EmbeddingsFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::EmbeddingsFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EmbeddingsFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::EmbeddingsFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EmbeddingsFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::EmbeddingsFile
+pub fn nika_catalog_codegen::EmbeddingsFile::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::EmbeddingsFile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::Emitted
+pub nika_catalog_codegen::Emitted::files: alloc::vec::Vec<std::path::PathBuf>
+pub nika_catalog_codegen::Emitted::rerun_paths: alloc::vec::Vec<std::path::PathBuf>
+impl nika_catalog_codegen::Emitted
+pub fn nika_catalog_codegen::Emitted::new() -> Self
+impl core::clone::Clone for nika_catalog_codegen::Emitted
+pub fn nika_catalog_codegen::Emitted::clone(&self) -> nika_catalog_codegen::Emitted
+impl core::default::Default for nika_catalog_codegen::Emitted
+pub fn nika_catalog_codegen::Emitted::default() -> nika_catalog_codegen::Emitted
+impl core::fmt::Debug for nika_catalog_codegen::Emitted
+pub fn nika_catalog_codegen::Emitted::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::Emitted where U: core::convert::From<T>
+pub fn nika_catalog_codegen::Emitted::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::Emitted where U: core::convert::Into<T>
+pub type nika_catalog_codegen::Emitted::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::Emitted::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::Emitted where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::Emitted::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::Emitted::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog_codegen::Emitted where T: core::clone::Clone
+pub type nika_catalog_codegen::Emitted::Owned = T
+pub fn nika_catalog_codegen::Emitted::clone_into(&self, target: &mut T)
+pub fn nika_catalog_codegen::Emitted::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog_codegen::Emitted where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::Emitted::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::Emitted where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::Emitted::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::Emitted where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::Emitted::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog_codegen::Emitted where T: core::clone::Clone
+pub unsafe fn nika_catalog_codegen::Emitted::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog_codegen::Emitted
+pub fn nika_catalog_codegen::Emitted::from(t: T) -> T
+#[non_exhaustive] pub struct nika_catalog_codegen::EnvVarEntry
+pub nika_catalog_codegen::EnvVarEntry::description: alloc::string::String
+pub nika_catalog_codegen::EnvVarEntry::is_secret: bool
+pub nika_catalog_codegen::EnvVarEntry::key_prefixes: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::EnvVarEntry::name: alloc::string::String
+pub nika_catalog_codegen::EnvVarEntry::required: bool
+impl core::fmt::Debug for nika_catalog_codegen::EnvVarEntry
+pub fn nika_catalog_codegen::EnvVarEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::EnvVarEntry
+pub fn nika_catalog_codegen::EnvVarEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::EnvVarEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::EnvVarEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::EnvVarEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::EnvVarEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::EnvVarEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::EnvVarEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::EnvVarEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::EnvVarEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::EnvVarEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::EnvVarEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::EnvVarEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EnvVarEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::EnvVarEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::EnvVarEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::EnvVarEntry
+pub fn nika_catalog_codegen::EnvVarEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::EnvVarEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::FeatureSet
+pub nika_catalog_codegen::FeatureSet::capabilities: bool
+pub nika_catalog_codegen::FeatureSet::embeddings: bool
+pub nika_catalog_codegen::FeatureSet::mcp: bool
+pub nika_catalog_codegen::FeatureSet::pricing: bool
+pub nika_catalog_codegen::FeatureSet::providers: bool
+impl nika_catalog_codegen::FeatureSet
+pub fn nika_catalog_codegen::FeatureSet::all() -> Self
+pub fn nika_catalog_codegen::FeatureSet::from_env() -> Self
+pub fn nika_catalog_codegen::FeatureSet::new() -> Self
+impl core::clone::Clone for nika_catalog_codegen::FeatureSet
+pub fn nika_catalog_codegen::FeatureSet::clone(&self) -> nika_catalog_codegen::FeatureSet
+impl core::default::Default for nika_catalog_codegen::FeatureSet
+pub fn nika_catalog_codegen::FeatureSet::default() -> nika_catalog_codegen::FeatureSet
+impl core::fmt::Debug for nika_catalog_codegen::FeatureSet
+pub fn nika_catalog_codegen::FeatureSet::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog_codegen::FeatureSet
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::FeatureSet where U: core::convert::From<T>
+pub fn nika_catalog_codegen::FeatureSet::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::FeatureSet where U: core::convert::Into<T>
+pub type nika_catalog_codegen::FeatureSet::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::FeatureSet::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::FeatureSet where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::FeatureSet::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::FeatureSet::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog_codegen::FeatureSet where T: core::clone::Clone
+pub type nika_catalog_codegen::FeatureSet::Owned = T
+pub fn nika_catalog_codegen::FeatureSet::clone_into(&self, target: &mut T)
+pub fn nika_catalog_codegen::FeatureSet::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog_codegen::FeatureSet where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::FeatureSet::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::FeatureSet where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::FeatureSet::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::FeatureSet where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::FeatureSet::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog_codegen::FeatureSet where T: core::clone::Clone
+pub unsafe fn nika_catalog_codegen::FeatureSet::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog_codegen::FeatureSet
+pub fn nika_catalog_codegen::FeatureSet::from(t: T) -> T
+#[non_exhaustive] pub struct nika_catalog_codegen::LlmProvidersFile
+pub nika_catalog_codegen::LlmProvidersFile::providers: alloc::vec::Vec<nika_catalog_codegen::ProviderEntry>
+pub nika_catalog_codegen::LlmProvidersFile::schema: alloc::string::String
+impl core::fmt::Debug for nika_catalog_codegen::LlmProvidersFile
+pub fn nika_catalog_codegen::LlmProvidersFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::LlmProvidersFile
+pub fn nika_catalog_codegen::LlmProvidersFile::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::LlmProvidersFile where U: core::convert::From<T>
+pub fn nika_catalog_codegen::LlmProvidersFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::LlmProvidersFile where U: core::convert::Into<T>
+pub type nika_catalog_codegen::LlmProvidersFile::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::LlmProvidersFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::LlmProvidersFile where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::LlmProvidersFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::LlmProvidersFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::LlmProvidersFile where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::LlmProvidersFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::LlmProvidersFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::LlmProvidersFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::LlmProvidersFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::LlmProvidersFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::LlmProvidersFile
+pub fn nika_catalog_codegen::LlmProvidersFile::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::LlmProvidersFile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::McpServerEntry
+pub nika_catalog_codegen::McpServerEntry::aliases: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::McpServerEntry::category: alloc::string::String
+pub nika_catalog_codegen::McpServerEntry::description: alloc::string::String
+pub nika_catalog_codegen::McpServerEntry::env_vars: alloc::vec::Vec<nika_catalog_codegen::EnvVarEntry>
+pub nika_catalog_codegen::McpServerEntry::extra_tags: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::McpServerEntry::homepage: core::option::Option<alloc::string::String>
+pub nika_catalog_codegen::McpServerEntry::id: alloc::string::String
+pub nika_catalog_codegen::McpServerEntry::last_verified: alloc::string::String
+pub nika_catalog_codegen::McpServerEntry::packages: alloc::vec::Vec<nika_catalog_codegen::PackageEntry>
+pub nika_catalog_codegen::McpServerEntry::pricing: alloc::string::String
+pub nika_catalog_codegen::McpServerEntry::remotes: alloc::vec::Vec<nika_catalog_codegen::RemoteEntry>
+pub nika_catalog_codegen::McpServerEntry::tags: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::McpServerEntry::title: alloc::string::String
+impl core::fmt::Debug for nika_catalog_codegen::McpServerEntry
+pub fn nika_catalog_codegen::McpServerEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::McpServerEntry
+pub fn nika_catalog_codegen::McpServerEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::McpServerEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::McpServerEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::McpServerEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::McpServerEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::McpServerEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::McpServerEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::McpServerEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::McpServerEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::McpServerEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::McpServerEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::McpServerEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::McpServerEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::McpServerEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::McpServerEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::McpServerEntry
+pub fn nika_catalog_codegen::McpServerEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::McpServerEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::McpServersFile
+pub nika_catalog_codegen::McpServersFile::schema: alloc::string::String
+pub nika_catalog_codegen::McpServersFile::servers: alloc::vec::Vec<nika_catalog_codegen::McpServerEntry>
+impl core::fmt::Debug for nika_catalog_codegen::McpServersFile
+pub fn nika_catalog_codegen::McpServersFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::McpServersFile
+pub fn nika_catalog_codegen::McpServersFile::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::McpServersFile where U: core::convert::From<T>
+pub fn nika_catalog_codegen::McpServersFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::McpServersFile where U: core::convert::Into<T>
+pub type nika_catalog_codegen::McpServersFile::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::McpServersFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::McpServersFile where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::McpServersFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::McpServersFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::McpServersFile where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::McpServersFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::McpServersFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::McpServersFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::McpServersFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::McpServersFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::McpServersFile
+pub fn nika_catalog_codegen::McpServersFile::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::McpServersFile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::PackageEntry
+pub nika_catalog_codegen::PackageEntry::identifier: alloc::string::String
+pub nika_catalog_codegen::PackageEntry::registry_type: alloc::string::String
+pub nika_catalog_codegen::PackageEntry::runner: core::option::Option<alloc::string::String>
+pub nika_catalog_codegen::PackageEntry::transport: alloc::string::String
+pub nika_catalog_codegen::PackageEntry::version: core::option::Option<alloc::string::String>
+impl core::fmt::Debug for nika_catalog_codegen::PackageEntry
+pub fn nika_catalog_codegen::PackageEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::PackageEntry
+pub fn nika_catalog_codegen::PackageEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::PackageEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::PackageEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::PackageEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::PackageEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::PackageEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::PackageEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::PackageEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::PackageEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::PackageEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::PackageEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::PackageEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PackageEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::PackageEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PackageEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::PackageEntry
+pub fn nika_catalog_codegen::PackageEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PackageEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::PricingEntry
+pub nika_catalog_codegen::PricingEntry::cache_read_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::cache_write_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::image_per_million: core::option::Option<f64>
+pub nika_catalog_codegen::PricingEntry::input_per_million: f64
+pub nika_catalog_codegen::PricingEntry::model_pattern: alloc::string::String
+pub nika_catalog_codegen::PricingEntry::output_per_million: f64
+pub nika_catalog_codegen::PricingEntry::provider: alloc::string::String
+pub nika_catalog_codegen::PricingEntry::reasoning_tokens_per_million: core::option::Option<f64>
+impl core::fmt::Debug for nika_catalog_codegen::PricingEntry
+pub fn nika_catalog_codegen::PricingEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::PricingEntry
+pub fn nika_catalog_codegen::PricingEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::PricingEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::PricingEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::PricingEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::PricingEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::PricingEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::PricingEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::PricingEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::PricingEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::PricingEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::PricingEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::PricingEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::PricingEntry
+pub fn nika_catalog_codegen::PricingEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PricingEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::PricingFile
+pub nika_catalog_codegen::PricingFile::rules: alloc::vec::Vec<nika_catalog_codegen::PricingEntry>
+pub nika_catalog_codegen::PricingFile::schema: alloc::string::String
+impl core::fmt::Debug for nika_catalog_codegen::PricingFile
+pub fn nika_catalog_codegen::PricingFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::PricingFile
+pub fn nika_catalog_codegen::PricingFile::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::PricingFile where U: core::convert::From<T>
+pub fn nika_catalog_codegen::PricingFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::PricingFile where U: core::convert::Into<T>
+pub type nika_catalog_codegen::PricingFile::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::PricingFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::PricingFile where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::PricingFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::PricingFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::PricingFile where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::PricingFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::PricingFile where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::PricingFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::PricingFile
+pub fn nika_catalog_codegen::PricingFile::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::PricingFile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::ProviderEntry
+pub nika_catalog_codegen::ProviderEntry::aliases: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::ProviderEntry::api_dialect: core::option::Option<alloc::string::String>
+pub nika_catalog_codegen::ProviderEntry::cheap_model: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::default_model: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::description: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::env_var: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::extra_tags: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::ProviderEntry::id: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::key_prefixes: alloc::vec::Vec<alloc::string::String>
+pub nika_catalog_codegen::ProviderEntry::models: alloc::vec::Vec<nika_catalog_codegen::ProviderModelEntry>
+pub nika_catalog_codegen::ProviderEntry::name: alloc::string::String
+pub nika_catalog_codegen::ProviderEntry::requires_key: bool
+pub nika_catalog_codegen::ProviderEntry::tags: alloc::vec::Vec<alloc::string::String>
+impl core::fmt::Debug for nika_catalog_codegen::ProviderEntry
+pub fn nika_catalog_codegen::ProviderEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::ProviderEntry
+pub fn nika_catalog_codegen::ProviderEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::ProviderEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::ProviderEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::ProviderEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::ProviderEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::ProviderEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::ProviderEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::ProviderEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::ProviderEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::ProviderEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::ProviderEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::ProviderEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::ProviderEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::ProviderEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::ProviderEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::ProviderEntry
+pub fn nika_catalog_codegen::ProviderEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::ProviderEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::ProviderModelEntry
+pub nika_catalog_codegen::ProviderModelEntry::context_window_tokens: u32
+pub nika_catalog_codegen::ProviderModelEntry::id: alloc::string::String
+pub nika_catalog_codegen::ProviderModelEntry::max_output_tokens: u32
+pub nika_catalog_codegen::ProviderModelEntry::model: alloc::string::String
+impl core::fmt::Debug for nika_catalog_codegen::ProviderModelEntry
+pub fn nika_catalog_codegen::ProviderModelEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::ProviderModelEntry
+pub fn nika_catalog_codegen::ProviderModelEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::ProviderModelEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::ProviderModelEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::ProviderModelEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::ProviderModelEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::ProviderModelEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::ProviderModelEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::ProviderModelEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::ProviderModelEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::ProviderModelEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::ProviderModelEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::ProviderModelEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::ProviderModelEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::ProviderModelEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::ProviderModelEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::ProviderModelEntry
+pub fn nika_catalog_codegen::ProviderModelEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::ProviderModelEntry where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_catalog_codegen::RemoteEntry
+pub nika_catalog_codegen::RemoteEntry::auth: alloc::string::String
+pub nika_catalog_codegen::RemoteEntry::transport: alloc::string::String
+pub nika_catalog_codegen::RemoteEntry::url: alloc::string::String
+impl core::fmt::Debug for nika_catalog_codegen::RemoteEntry
+pub fn nika_catalog_codegen::RemoteEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_catalog_codegen::RemoteEntry
+pub fn nika_catalog_codegen::RemoteEntry::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_catalog_codegen::RemoteEntry where U: core::convert::From<T>
+pub fn nika_catalog_codegen::RemoteEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog_codegen::RemoteEntry where U: core::convert::Into<T>
+pub type nika_catalog_codegen::RemoteEntry::Error = core::convert::Infallible
+pub fn nika_catalog_codegen::RemoteEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog_codegen::RemoteEntry where U: core::convert::TryFrom<T>
+pub type nika_catalog_codegen::RemoteEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog_codegen::RemoteEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_catalog_codegen::RemoteEntry where T: 'static + ?core::marker::Sized
+pub fn nika_catalog_codegen::RemoteEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog_codegen::RemoteEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::RemoteEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog_codegen::RemoteEntry where T: ?core::marker::Sized
+pub fn nika_catalog_codegen::RemoteEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_catalog_codegen::RemoteEntry
+pub fn nika_catalog_codegen::RemoteEntry::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::RemoteEntry where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_catalog_codegen::CAPABILITIES_SCHEMA: &str
+pub const nika_catalog_codegen::EMBEDDINGS_SCHEMA: &str
+pub const nika_catalog_codegen::LLM_PROVIDERS_SCHEMA: &str
+pub const nika_catalog_codegen::MCP_SERVERS_SCHEMA: &str
+pub const nika_catalog_codegen::PRICING_SCHEMA: &str
+pub const nika_catalog_codegen::TAG_VARIANT_COUNT: usize
+pub fn nika_catalog_codegen::codegen_capabilities(toml_bytes: &[u8], providers: &[nika_catalog_codegen::ProviderEntry]) -> core::result::Result<alloc::string::String, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::codegen_embeddings(toml_bytes: &[u8], providers: &[nika_catalog_codegen::ProviderEntry]) -> core::result::Result<alloc::string::String, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::codegen_mcp_servers(toml_bytes: &[u8]) -> core::result::Result<alloc::string::String, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::codegen_pricing(toml_bytes: &[u8]) -> core::result::Result<alloc::string::String, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::codegen_providers(toml_bytes: &[u8]) -> core::result::Result<alloc::string::String, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::generate(data_dir: &std::path::Path, out_dir: &std::path::Path, features: nika_catalog_codegen::FeatureSet) -> core::result::Result<nika_catalog_codegen::Emitted, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::parse_embeddings_bytes(raw: &[u8], path: &std::path::Path, providers: &[nika_catalog_codegen::ProviderEntry]) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::EmbeddingEntry>, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::parse_llm_providers_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::ProviderEntry>, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::parse_mcp_servers_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::McpServerEntry>, nika_catalog_codegen::CodegenError>
+pub fn nika_catalog_codegen::parse_pricing_bytes(raw: &[u8], path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_catalog_codegen::PricingEntry>, nika_catalog_codegen::CodegenError>

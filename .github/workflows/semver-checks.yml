@@ -19,14 +19,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-semver-checks
         run: cargo install --locked cargo-semver-checks
-      - name: check every admitted lib crate
-        # Foundation crates are publish=false (ADR-022), so this step
-        # degrades breaking-change hits to warnings (informational
-        # visibility, not blocking). Pairs with public-api.yml: that one
-        # surfaces drift; this one classifies it as breaking vs additive.
+      - name: check every covered lib crate
+        # The crate list is PROJECTED from the coverage floor (ADR-090: one SSOT,
+        # three consumers — this job, public-api.yml, and hygiene vector 38). Reads
+        # a repo-tracked file only (no untrusted github.event.* input).
+        # Foundation crates are publish=false (ADR-022), so this step degrades
+        # breaking-change hits to warnings (informational visibility, not blocking).
+        # Pairs with public-api.yml: that one surfaces drift; this one classifies it
+        # as breaking vs additive.
         run: |
           set -euo pipefail
-          for crate in nika-types nika-error nika-catalog nika-kernel nika-kernel-mock; do
+          crates=$(grep -vE '^[[:space:]]*#' scripts/ci/public-api-coverage-baseline.txt | grep -E '^nika-')
+          for crate in $crates; do
             cargo semver-checks check-release -p "$crate" || \
               echo "::warning::$crate has breaking changes (publish=false, informational)"
           done

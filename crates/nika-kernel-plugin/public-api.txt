@@ -1,0 +1,291 @@
+pub mod nika_kernel_plugin
+pub mod nika_kernel_plugin::errors
+pub mod nika_kernel_plugin::sandbox
+#[non_exhaustive] pub enum nika_kernel_plugin::sandbox::Capability
+pub nika_kernel_plugin::sandbox::Capability::EnvRead
+pub nika_kernel_plugin::sandbox::Capability::EnvRead::key: alloc::string::String
+pub nika_kernel_plugin::sandbox::Capability::FsRead
+pub nika_kernel_plugin::sandbox::Capability::FsRead::path: alloc::string::String
+pub nika_kernel_plugin::sandbox::Capability::FsWrite
+pub nika_kernel_plugin::sandbox::Capability::FsWrite::path: alloc::string::String
+pub nika_kernel_plugin::sandbox::Capability::Network
+pub nika_kernel_plugin::sandbox::Capability::Network::host: alloc::string::String
+pub nika_kernel_plugin::sandbox::Capability::Network::port: core::option::Option<u16>
+pub nika_kernel_plugin::sandbox::Capability::ProcessSpawn
+impl nika_kernel_plugin::sandbox::Capability
+pub fn nika_kernel_plugin::sandbox::Capability::env_read(key: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_plugin::sandbox::Capability::fs_read(path: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_plugin::sandbox::Capability::fs_write(path: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_plugin::sandbox::Capability::network(host: impl core::convert::Into<alloc::string::String>, port: core::option::Option<u16>) -> Self
+impl core::clone::Clone for nika_kernel_plugin::sandbox::Capability
+pub fn nika_kernel_plugin::sandbox::Capability::clone(&self) -> nika_kernel_plugin::sandbox::Capability
+impl core::cmp::Eq for nika_kernel_plugin::sandbox::Capability
+impl core::cmp::PartialEq for nika_kernel_plugin::sandbox::Capability
+pub fn nika_kernel_plugin::sandbox::Capability::eq(&self, other: &nika_kernel_plugin::sandbox::Capability) -> bool
+impl core::fmt::Debug for nika_kernel_plugin::sandbox::Capability
+pub fn nika_kernel_plugin::sandbox::Capability::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_plugin::sandbox::Capability
+impl<D> owo_colors::OwoColorize for nika_kernel_plugin::sandbox::Capability
+impl<T, U> core::convert::Into<U> for nika_kernel_plugin::sandbox::Capability where U: core::convert::From<T>
+pub fn nika_kernel_plugin::sandbox::Capability::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_plugin::sandbox::Capability where U: core::convert::Into<T>
+pub type nika_kernel_plugin::sandbox::Capability::Error = core::convert::Infallible
+pub fn nika_kernel_plugin::sandbox::Capability::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_plugin::sandbox::Capability where U: core::convert::TryFrom<T>
+pub type nika_kernel_plugin::sandbox::Capability::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_plugin::sandbox::Capability::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_plugin::sandbox::Capability where T: core::clone::Clone
+pub type nika_kernel_plugin::sandbox::Capability::Owned = T
+pub fn nika_kernel_plugin::sandbox::Capability::clone_into(&self, target: &mut T)
+pub fn nika_kernel_plugin::sandbox::Capability::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_plugin::sandbox::Capability where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::Capability::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_plugin::sandbox::Capability where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::Capability::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_plugin::sandbox::Capability where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::Capability::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_plugin::sandbox::Capability where T: core::clone::Clone
+pub unsafe fn nika_kernel_plugin::sandbox::Capability::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_plugin::sandbox::Capability
+pub fn nika_kernel_plugin::sandbox::Capability::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_plugin::sandbox::Capability where T: 'static
+pub fn nika_kernel_plugin::sandbox::Capability::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_plugin::sandbox::DenialKind
+pub nika_kernel_plugin::sandbox::DenialKind::EnvKeyNotAllowlisted
+pub nika_kernel_plugin::sandbox::DenialKind::FsReadNotGranted
+pub nika_kernel_plugin::sandbox::DenialKind::FsWriteNotGranted
+pub nika_kernel_plugin::sandbox::DenialKind::NetworkHostNotAllowlisted
+pub nika_kernel_plugin::sandbox::DenialKind::ProcessSpawnDisabled
+pub nika_kernel_plugin::sandbox::DenialKind::Unknown
+impl core::clone::Clone for nika_kernel_plugin::sandbox::DenialKind
+pub fn nika_kernel_plugin::sandbox::DenialKind::clone(&self) -> nika_kernel_plugin::sandbox::DenialKind
+impl core::cmp::Eq for nika_kernel_plugin::sandbox::DenialKind
+impl core::cmp::PartialEq for nika_kernel_plugin::sandbox::DenialKind
+pub fn nika_kernel_plugin::sandbox::DenialKind::eq(&self, other: &nika_kernel_plugin::sandbox::DenialKind) -> bool
+impl core::fmt::Debug for nika_kernel_plugin::sandbox::DenialKind
+pub fn nika_kernel_plugin::sandbox::DenialKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_plugin::sandbox::DenialKind
+pub fn nika_kernel_plugin::sandbox::DenialKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_plugin::sandbox::DenialKind
+impl<D> owo_colors::OwoColorize for nika_kernel_plugin::sandbox::DenialKind
+impl<T, U> core::convert::Into<U> for nika_kernel_plugin::sandbox::DenialKind where U: core::convert::From<T>
+pub fn nika_kernel_plugin::sandbox::DenialKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_plugin::sandbox::DenialKind where U: core::convert::Into<T>
+pub type nika_kernel_plugin::sandbox::DenialKind::Error = core::convert::Infallible
+pub fn nika_kernel_plugin::sandbox::DenialKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_plugin::sandbox::DenialKind where U: core::convert::TryFrom<T>
+pub type nika_kernel_plugin::sandbox::DenialKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_plugin::sandbox::DenialKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_plugin::sandbox::DenialKind where T: core::clone::Clone
+pub type nika_kernel_plugin::sandbox::DenialKind::Owned = T
+pub fn nika_kernel_plugin::sandbox::DenialKind::clone_into(&self, target: &mut T)
+pub fn nika_kernel_plugin::sandbox::DenialKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_kernel_plugin::sandbox::DenialKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::DenialKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_plugin::sandbox::DenialKind where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::DenialKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_plugin::sandbox::DenialKind where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::DenialKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_plugin::sandbox::DenialKind where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::DenialKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_plugin::sandbox::DenialKind where T: core::clone::Clone
+pub unsafe fn nika_kernel_plugin::sandbox::DenialKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_plugin::sandbox::DenialKind
+pub fn nika_kernel_plugin::sandbox::DenialKind::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_plugin::sandbox::DenialKind where T: 'static
+pub fn nika_kernel_plugin::sandbox::DenialKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_plugin::sandbox::SandboxError
+pub nika_kernel_plugin::sandbox::SandboxError::CapabilityDenied
+pub nika_kernel_plugin::sandbox::SandboxError::CapabilityDenied::kind: nika_kernel_plugin::sandbox::DenialKind
+pub nika_kernel_plugin::sandbox::SandboxError::SetupFailed
+pub nika_kernel_plugin::sandbox::SandboxError::SetupFailed::reason: alloc::string::String
+pub nika_kernel_plugin::sandbox::SandboxError::Unavailable
+pub nika_kernel_plugin::sandbox::SandboxError::Unavailable::reason: alloc::string::String
+impl core::error::Error for nika_kernel_plugin::sandbox::SandboxError
+impl core::fmt::Debug for nika_kernel_plugin::sandbox::SandboxError
+pub fn nika_kernel_plugin::sandbox::SandboxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_plugin::sandbox::SandboxError
+pub fn nika_kernel_plugin::sandbox::SandboxError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_plugin::sandbox::SandboxError
+impl nika_error::traits::NikaErrorCode for nika_kernel_plugin::sandbox::SandboxError
+pub fn nika_kernel_plugin::sandbox::SandboxError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_plugin::sandbox::SandboxError
+impl<T, U> core::convert::Into<U> for nika_kernel_plugin::sandbox::SandboxError where U: core::convert::From<T>
+pub fn nika_kernel_plugin::sandbox::SandboxError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_plugin::sandbox::SandboxError where U: core::convert::Into<T>
+pub type nika_kernel_plugin::sandbox::SandboxError::Error = core::convert::Infallible
+pub fn nika_kernel_plugin::sandbox::SandboxError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_plugin::sandbox::SandboxError where U: core::convert::TryFrom<T>
+pub type nika_kernel_plugin::sandbox::SandboxError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_plugin::sandbox::SandboxError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_plugin::sandbox::SandboxError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::SandboxError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_plugin::sandbox::SandboxError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::SandboxError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_plugin::sandbox::SandboxError where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::SandboxError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_plugin::sandbox::SandboxError where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::sandbox::SandboxError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_plugin::sandbox::SandboxError
+pub fn nika_kernel_plugin::sandbox::SandboxError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_plugin::sandbox::SandboxError where T: 'static
+pub fn nika_kernel_plugin::sandbox::SandboxError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_plugin::sandbox::Sandbox: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_plugin::sandbox::Sandbox::check_capability(&self, cap: &nika_kernel_plugin::sandbox::Capability) -> core::result::Result<bool, nika_kernel_plugin::sandbox::SandboxError>
+pub async fn nika_kernel_plugin::sandbox::Sandbox::enter(&self) -> core::result::Result<(), nika_kernel_plugin::sandbox::SandboxError>
+impl<TraitVariantBlanketType: nika_kernel_plugin::sandbox::SandboxDyn> nika_kernel_plugin::sandbox::Sandbox for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::check_capability(&self, cap: &nika_kernel_plugin::sandbox::Capability) -> core::result::Result<bool, nika_kernel_plugin::sandbox::SandboxError>
+pub async fn TraitVariantBlanketType::enter(&self) -> core::result::Result<(), nika_kernel_plugin::sandbox::SandboxError>
+pub trait nika_kernel_plugin::sandbox::SandboxDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_plugin::sandbox::SandboxDyn::check_capability(&self, cap: &nika_kernel_plugin::sandbox::Capability) -> impl core::future::future::Future<Output = core::result::Result<bool, nika_kernel_plugin::sandbox::SandboxError>> + core::marker::Send
+pub fn nika_kernel_plugin::sandbox::SandboxDyn::enter(&self) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_plugin::sandbox::SandboxError>> + core::marker::Send
+#[non_exhaustive] pub enum nika_kernel_plugin::TrapKind
+pub nika_kernel_plugin::TrapKind::IndirectCallTypeMismatch
+pub nika_kernel_plugin::TrapKind::IntegerDivisionByZero
+pub nika_kernel_plugin::TrapKind::Interrupted
+pub nika_kernel_plugin::TrapKind::InvalidConversionToInteger
+pub nika_kernel_plugin::TrapKind::MemoryOutOfBounds
+pub nika_kernel_plugin::TrapKind::StackOverflow
+pub nika_kernel_plugin::TrapKind::TableOutOfBounds
+pub nika_kernel_plugin::TrapKind::Unreachable
+impl core::clone::Clone for nika_kernel_plugin::TrapKind
+pub fn nika_kernel_plugin::TrapKind::clone(&self) -> nika_kernel_plugin::TrapKind
+impl core::cmp::Eq for nika_kernel_plugin::TrapKind
+impl core::cmp::PartialEq for nika_kernel_plugin::TrapKind
+pub fn nika_kernel_plugin::TrapKind::eq(&self, other: &nika_kernel_plugin::TrapKind) -> bool
+impl core::fmt::Debug for nika_kernel_plugin::TrapKind
+pub fn nika_kernel_plugin::TrapKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_plugin::TrapKind
+pub fn nika_kernel_plugin::TrapKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_plugin::TrapKind
+pub fn nika_kernel_plugin::TrapKind::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_plugin::TrapKind
+impl core::marker::StructuralPartialEq for nika_kernel_plugin::TrapKind
+impl<D> owo_colors::OwoColorize for nika_kernel_plugin::TrapKind
+impl<T, U> core::convert::Into<U> for nika_kernel_plugin::TrapKind where U: core::convert::From<T>
+pub fn nika_kernel_plugin::TrapKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_plugin::TrapKind where U: core::convert::Into<T>
+pub type nika_kernel_plugin::TrapKind::Error = core::convert::Infallible
+pub fn nika_kernel_plugin::TrapKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_plugin::TrapKind where U: core::convert::TryFrom<T>
+pub type nika_kernel_plugin::TrapKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_plugin::TrapKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_plugin::TrapKind where T: core::clone::Clone
+pub type nika_kernel_plugin::TrapKind::Owned = T
+pub fn nika_kernel_plugin::TrapKind::clone_into(&self, target: &mut T)
+pub fn nika_kernel_plugin::TrapKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_kernel_plugin::TrapKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_plugin::TrapKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_plugin::TrapKind where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_plugin::TrapKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_plugin::TrapKind where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::TrapKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_plugin::TrapKind where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::TrapKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_plugin::TrapKind where T: core::clone::Clone
+pub unsafe fn nika_kernel_plugin::TrapKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_plugin::TrapKind
+pub fn nika_kernel_plugin::TrapKind::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_plugin::TrapKind where T: 'static
+pub fn nika_kernel_plugin::TrapKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_plugin::WasmPluginError
+pub nika_kernel_plugin::WasmPluginError::ExecutionFailed
+pub nika_kernel_plugin::WasmPluginError::ExecutionFailed::reason: alloc::string::String
+pub nika_kernel_plugin::WasmPluginError::NotFound
+pub nika_kernel_plugin::WasmPluginError::NotFound::name: alloc::string::String
+pub nika_kernel_plugin::WasmPluginError::OutOfFuel
+pub nika_kernel_plugin::WasmPluginError::OutOfFuel::budget: u64
+pub nika_kernel_plugin::WasmPluginError::OutOfFuel::consumed: u64
+pub nika_kernel_plugin::WasmPluginError::SandboxViolation
+pub nika_kernel_plugin::WasmPluginError::SandboxViolation::kind: nika_kernel_plugin::sandbox::DenialKind
+pub nika_kernel_plugin::WasmPluginError::Timeout
+pub nika_kernel_plugin::WasmPluginError::Timeout::timeout_ms: u64
+pub nika_kernel_plugin::WasmPluginError::Trap
+pub nika_kernel_plugin::WasmPluginError::Trap::kind: nika_kernel_plugin::TrapKind
+impl core::error::Error for nika_kernel_plugin::WasmPluginError
+impl core::fmt::Debug for nika_kernel_plugin::WasmPluginError
+pub fn nika_kernel_plugin::WasmPluginError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_plugin::WasmPluginError
+pub fn nika_kernel_plugin::WasmPluginError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_plugin::WasmPluginError
+impl nika_error::traits::NikaErrorCode for nika_kernel_plugin::WasmPluginError
+pub fn nika_kernel_plugin::WasmPluginError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_plugin::WasmPluginError
+impl<T, U> core::convert::Into<U> for nika_kernel_plugin::WasmPluginError where U: core::convert::From<T>
+pub fn nika_kernel_plugin::WasmPluginError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_plugin::WasmPluginError where U: core::convert::Into<T>
+pub type nika_kernel_plugin::WasmPluginError::Error = core::convert::Infallible
+pub fn nika_kernel_plugin::WasmPluginError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_plugin::WasmPluginError where U: core::convert::TryFrom<T>
+pub type nika_kernel_plugin::WasmPluginError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_plugin::WasmPluginError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_plugin::WasmPluginError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_plugin::WasmPluginError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_plugin::WasmPluginError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_plugin::WasmPluginError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_plugin::WasmPluginError where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::WasmPluginError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_plugin::WasmPluginError where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::WasmPluginError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_plugin::WasmPluginError
+pub fn nika_kernel_plugin::WasmPluginError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_plugin::WasmPluginError where T: 'static
+pub fn nika_kernel_plugin::WasmPluginError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_plugin::PluginCallContext
+pub nika_kernel_plugin::PluginCallContext::cancel: alloc::sync::Arc<nika_types::cancel::CancelCtx>
+pub nika_kernel_plugin::PluginCallContext::fuel_budget: core::option::Option<u64>
+pub nika_kernel_plugin::PluginCallContext::input_trust: nika_types::trust::TrustLevel
+pub nika_kernel_plugin::PluginCallContext::trust: nika_types::trust::TrustLevel
+pub nika_kernel_plugin::PluginCallContext::wall_timeout_ms: core::option::Option<u64>
+impl nika_kernel_plugin::PluginCallContext
+pub fn nika_kernel_plugin::PluginCallContext::new(cancel: alloc::sync::Arc<nika_types::cancel::CancelCtx>) -> Self
+pub fn nika_kernel_plugin::PluginCallContext::with_trust(cancel: alloc::sync::Arc<nika_types::cancel::CancelCtx>, input_trust: nika_types::trust::TrustLevel, output_trust: nika_types::trust::TrustLevel) -> Self
+impl core::clone::Clone for nika_kernel_plugin::PluginCallContext
+pub fn nika_kernel_plugin::PluginCallContext::clone(&self) -> nika_kernel_plugin::PluginCallContext
+impl core::fmt::Debug for nika_kernel_plugin::PluginCallContext
+pub fn nika_kernel_plugin::PluginCallContext::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_plugin::PluginCallContext
+impl<T, U> core::convert::Into<U> for nika_kernel_plugin::PluginCallContext where U: core::convert::From<T>
+pub fn nika_kernel_plugin::PluginCallContext::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_plugin::PluginCallContext where U: core::convert::Into<T>
+pub type nika_kernel_plugin::PluginCallContext::Error = core::convert::Infallible
+pub fn nika_kernel_plugin::PluginCallContext::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_plugin::PluginCallContext where U: core::convert::TryFrom<T>
+pub type nika_kernel_plugin::PluginCallContext::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_plugin::PluginCallContext::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_plugin::PluginCallContext where T: core::clone::Clone
+pub type nika_kernel_plugin::PluginCallContext::Owned = T
+pub fn nika_kernel_plugin::PluginCallContext::clone_into(&self, target: &mut T)
+pub fn nika_kernel_plugin::PluginCallContext::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_plugin::PluginCallContext where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_plugin::PluginCallContext::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_plugin::PluginCallContext where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::PluginCallContext::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_plugin::PluginCallContext where T: ?core::marker::Sized
+pub fn nika_kernel_plugin::PluginCallContext::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_plugin::PluginCallContext where T: core::clone::Clone
+pub unsafe fn nika_kernel_plugin::PluginCallContext::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_plugin::PluginCallContext
+pub fn nika_kernel_plugin::PluginCallContext::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_plugin::PluginCallContext where T: 'static
+pub fn nika_kernel_plugin::PluginCallContext::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_plugin::PluginEnv: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_plugin::PluginEnv::env_get(&self, key: &str) -> core::result::Result<core::option::Option<alloc::string::String>, nika_kernel_plugin::WasmPluginError>
+impl<TraitVariantBlanketType: nika_kernel_plugin::wasm::PluginEnvDyn> nika_kernel_plugin::PluginEnv for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::env_get(&self, key: &str) -> core::result::Result<core::option::Option<alloc::string::String>, nika_kernel_plugin::WasmPluginError>
+pub trait nika_kernel_plugin::PluginFs: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_plugin::PluginFs::read_sandboxed(&self, path: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel_plugin::WasmPluginError>
+pub trait nika_kernel_plugin::PluginHttp: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_plugin::PluginHttp::fetch_sandboxed(&self, url: &str) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel_plugin::WasmPluginError>
+pub trait nika_kernel_plugin::WasmPluginHost: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_plugin::WasmPluginHost::call_plugin(&self, plugin_name: &str, input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel_plugin::WasmPluginError>
+impl<TraitVariantBlanketType: nika_kernel_plugin::wasm::WasmPluginHostDyn> nika_kernel_plugin::WasmPluginHost for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::call_plugin(&self, plugin_name: &str, input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel_plugin::WasmPluginError>
+pub trait nika_kernel_plugin::WasmPluginLifecycle: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_plugin::WasmPluginLifecycle::list_plugins(&self) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_kernel_plugin::WasmPluginError>
+pub async fn nika_kernel_plugin::WasmPluginLifecycle::load_plugin(&self, name: &str, bytes: &[u8]) -> core::result::Result<(), nika_kernel_plugin::WasmPluginError>
+pub async fn nika_kernel_plugin::WasmPluginLifecycle::unload_plugin(&self, name: &str) -> core::result::Result<(), nika_kernel_plugin::WasmPluginError>
+impl<TraitVariantBlanketType: nika_kernel_plugin::wasm::WasmPluginLifecycleDyn> nika_kernel_plugin::WasmPluginLifecycle for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::list_plugins(&self) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_kernel_plugin::WasmPluginError>
+pub async fn TraitVariantBlanketType::load_plugin(&self, name: &str, bytes: &[u8]) -> core::result::Result<(), nika_kernel_plugin::WasmPluginError>
+pub async fn TraitVariantBlanketType::unload_plugin(&self, name: &str) -> core::result::Result<(), nika_kernel_plugin::WasmPluginError>

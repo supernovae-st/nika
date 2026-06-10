@@ -1,0 +1,74 @@
+pub mod nika_bm25
+#[non_exhaustive] pub struct nika_bm25::BmIndex
+impl nika_bm25::BmIndex
+pub fn nika_bm25::BmIndex::add_document(&mut self, id: u32, text: &str)
+pub fn nika_bm25::BmIndex::doc_count(&self) -> usize
+pub fn nika_bm25::BmIndex::finalize(&mut self)
+pub fn nika_bm25::BmIndex::is_finalized(&self) -> bool
+pub fn nika_bm25::BmIndex::new(params: nika_bm25::BmParams) -> Self
+impl nika_bm25::BmIndex
+pub fn nika_bm25::BmIndex::score(&self, query: &str, doc_id: u32) -> core::option::Option<f64>
+pub fn nika_bm25::BmIndex::top_k(&self, query: &str, k: usize) -> alloc::vec::Vec<(u32, f64)>
+impl core::clone::Clone for nika_bm25::BmIndex
+pub fn nika_bm25::BmIndex::clone(&self) -> nika_bm25::BmIndex
+impl core::fmt::Debug for nika_bm25::BmIndex
+pub fn nika_bm25::BmIndex::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_bm25::BmIndex where U: core::convert::From<T>
+pub fn nika_bm25::BmIndex::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_bm25::BmIndex where U: core::convert::Into<T>
+pub type nika_bm25::BmIndex::Error = core::convert::Infallible
+pub fn nika_bm25::BmIndex::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_bm25::BmIndex where U: core::convert::TryFrom<T>
+pub type nika_bm25::BmIndex::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_bm25::BmIndex::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_bm25::BmIndex where T: core::clone::Clone
+pub type nika_bm25::BmIndex::Owned = T
+pub fn nika_bm25::BmIndex::clone_into(&self, target: &mut T)
+pub fn nika_bm25::BmIndex::to_owned(&self) -> T
+impl<T> core::any::Any for nika_bm25::BmIndex where T: 'static + ?core::marker::Sized
+pub fn nika_bm25::BmIndex::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_bm25::BmIndex where T: ?core::marker::Sized
+pub fn nika_bm25::BmIndex::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_bm25::BmIndex where T: ?core::marker::Sized
+pub fn nika_bm25::BmIndex::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_bm25::BmIndex where T: core::clone::Clone
+pub unsafe fn nika_bm25::BmIndex::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_bm25::BmIndex
+pub fn nika_bm25::BmIndex::from(t: T) -> T
+#[non_exhaustive] pub struct nika_bm25::BmParams
+pub nika_bm25::BmParams::b: f64
+pub nika_bm25::BmParams::delta: core::option::Option<f64>
+pub nika_bm25::BmParams::k1: f64
+impl nika_bm25::BmParams
+pub const fn nika_bm25::BmParams::new(k1: f64, b: f64) -> Self
+pub const fn nika_bm25::BmParams::with_delta(k1: f64, b: f64, delta: f64) -> Self
+impl core::clone::Clone for nika_bm25::BmParams
+pub fn nika_bm25::BmParams::clone(&self) -> nika_bm25::BmParams
+impl core::default::Default for nika_bm25::BmParams
+pub fn nika_bm25::BmParams::default() -> Self
+impl core::fmt::Debug for nika_bm25::BmParams
+pub fn nika_bm25::BmParams::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_bm25::BmParams
+impl<T, U> core::convert::Into<U> for nika_bm25::BmParams where U: core::convert::From<T>
+pub fn nika_bm25::BmParams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_bm25::BmParams where U: core::convert::Into<T>
+pub type nika_bm25::BmParams::Error = core::convert::Infallible
+pub fn nika_bm25::BmParams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_bm25::BmParams where U: core::convert::TryFrom<T>
+pub type nika_bm25::BmParams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_bm25::BmParams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_bm25::BmParams where T: core::clone::Clone
+pub type nika_bm25::BmParams::Owned = T
+pub fn nika_bm25::BmParams::clone_into(&self, target: &mut T)
+pub fn nika_bm25::BmParams::to_owned(&self) -> T
+impl<T> core::any::Any for nika_bm25::BmParams where T: 'static + ?core::marker::Sized
+pub fn nika_bm25::BmParams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_bm25::BmParams where T: ?core::marker::Sized
+pub fn nika_bm25::BmParams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_bm25::BmParams where T: ?core::marker::Sized
+pub fn nika_bm25::BmParams::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_bm25::BmParams where T: core::clone::Clone
+pub unsafe fn nika_bm25::BmParams::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_bm25::BmParams
+pub fn nika_bm25::BmParams::from(t: T) -> T
+pub fn nika_bm25::tokenize_text(text: &str) -> alloc::vec::Vec<alloc::string::String>

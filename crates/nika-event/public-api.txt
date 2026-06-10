@@ -1,0 +1,681 @@
+pub mod nika_event
+pub mod nika_event::emitter
+pub struct nika_event::emitter::InMemoryEmitter
+impl nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::bounded(capacity: usize) -> Self
+pub fn nika_event::emitter::InMemoryEmitter::drain(&self) -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_event::emitter::InMemoryEmitter::is_empty(&self) -> bool
+pub fn nika_event::emitter::InMemoryEmitter::len(&self) -> usize
+pub fn nika_event::emitter::InMemoryEmitter::unbounded() -> Self
+impl core::default::Default for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::default() -> nika_event::emitter::InMemoryEmitter
+impl core::fmt::Debug for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl<D> owo_colors::OwoColorize for nika_event::emitter::InMemoryEmitter
+impl<T, U> core::convert::Into<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::From<T>
+pub fn nika_event::emitter::InMemoryEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::Into<T>
+pub type nika_event::emitter::InMemoryEmitter::Error = core::convert::Infallible
+pub fn nika_event::emitter::InMemoryEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::TryFrom<T>
+pub type nika_event::emitter::InMemoryEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::emitter::InMemoryEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_event::emitter::InMemoryEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::emitter::InMemoryEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::emitter::InMemoryEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::emitter::InMemoryEmitter where T: 'static
+pub fn nika_event::emitter::InMemoryEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_event::emitter::NoOpEmitter
+impl core::clone::Clone for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::clone(&self) -> nika_event::emitter::NoOpEmitter
+impl core::default::Default for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::default() -> nika_event::emitter::NoOpEmitter
+impl core::fmt::Debug for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_event::emitter::NoOpEmitter
+impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl<D> owo_colors::OwoColorize for nika_event::emitter::NoOpEmitter
+impl<T, U> core::convert::Into<U> for nika_event::emitter::NoOpEmitter where U: core::convert::From<T>
+pub fn nika_event::emitter::NoOpEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::emitter::NoOpEmitter where U: core::convert::Into<T>
+pub type nika_event::emitter::NoOpEmitter::Error = core::convert::Infallible
+pub fn nika_event::emitter::NoOpEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::emitter::NoOpEmitter where U: core::convert::TryFrom<T>
+pub type nika_event::emitter::NoOpEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::emitter::NoOpEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::emitter::NoOpEmitter where T: core::clone::Clone
+pub type nika_event::emitter::NoOpEmitter::Owned = T
+pub fn nika_event::emitter::NoOpEmitter::clone_into(&self, target: &mut T)
+pub fn nika_event::emitter::NoOpEmitter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::emitter::NoOpEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::emitter::NoOpEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::emitter::NoOpEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::emitter::NoOpEmitter where T: core::clone::Clone
+pub unsafe fn nika_event::emitter::NoOpEmitter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::emitter::NoOpEmitter where T: 'static
+pub fn nika_event::emitter::NoOpEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_event::emitter::Emitter: core::marker::Send + core::marker::Sync
+pub fn nika_event::emitter::Emitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+pub mod nika_event::error
+#[non_exhaustive] pub enum nika_event::error::EventError
+pub nika_event::error::EventError::BufferFull
+pub nika_event::error::EventError::BufferFull::capacity: usize
+pub nika_event::error::EventError::LockPoisoned
+pub nika_event::error::EventError::SerializationFailed
+pub nika_event::error::EventError::SerializationFailed::detail: alloc::string::String
+impl nika_event::error::EventError
+pub fn nika_event::error::EventError::code(&self) -> nika_error::codes::NikaCode
+impl core::error::Error for nika_event::error::EventError
+impl core::fmt::Debug for nika_event::error::EventError
+pub fn nika_event::error::EventError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_event::error::EventError
+pub fn nika_event::error::EventError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_event::error::EventError
+pub fn nika_event::error::EventError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_event::error::EventError
+pub fn nika_event::error::EventError::is_transient(&self) -> bool
+pub fn nika_event::error::EventError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_event::error::EventError
+impl<T, U> core::convert::Into<U> for nika_event::error::EventError where U: core::convert::From<T>
+pub fn nika_event::error::EventError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::error::EventError where U: core::convert::Into<T>
+pub type nika_event::error::EventError::Error = core::convert::Infallible
+pub fn nika_event::error::EventError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::error::EventError where U: core::convert::TryFrom<T>
+pub type nika_event::error::EventError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::error::EventError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_event::error::EventError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_event::error::EventError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_event::error::EventError where T: 'static + ?core::marker::Sized
+pub fn nika_event::error::EventError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::error::EventError where T: ?core::marker::Sized
+pub fn nika_event::error::EventError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::error::EventError where T: ?core::marker::Sized
+pub fn nika_event::error::EventError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::error::EventError
+pub fn nika_event::error::EventError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
+pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_event::error::NIKA_420: nika_error::codes::NikaCode
+pub const nika_event::error::NIKA_421: nika_error::codes::NikaCode
+pub const nika_event::error::NIKA_422: nika_error::codes::NikaCode
+pub mod nika_event::event
+#[non_exhaustive] pub struct nika_event::event::Event
+pub nika_event::event::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
+pub nika_event::event::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
+pub nika_event::event::Event::id: nika_types::id::EventId
+pub nika_event::event::Event::kind: nika_event::kind::EventKind
+pub nika_event::event::Event::run: core::option::Option<nika_types::id::RunId>
+pub nika_event::event::Event::timestamp: nika_types::timestamp::Timestamp
+impl nika_event::event::Event
+pub const fn nika_event::event::Event::is_terminal(&self) -> bool
+pub fn nika_event::event::Event::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: nika_event::kind::EventKind) -> Self
+pub fn nika_event::event::Event::with_correlation(self, correlation: nika_types::id::CorrelationId) -> Self
+pub fn nika_event::event::Event::with_field(self, field: nika_types::resource::KeyValue) -> Self
+pub fn nika_event::event::Event::with_fields(self, fields: alloc::vec::Vec<nika_types::resource::KeyValue>) -> Self
+pub fn nika_event::event::Event::with_run(self, run: nika_types::id::RunId) -> Self
+impl core::clone::Clone for nika_event::event::Event
+pub fn nika_event::event::Event::clone(&self) -> nika_event::event::Event
+impl core::cmp::PartialEq for nika_event::event::Event
+pub fn nika_event::event::Event::eq(&self, other: &nika_event::event::Event) -> bool
+impl core::fmt::Debug for nika_event::event::Event
+pub fn nika_event::event::Event::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_event::event::Event
+impl serde_core::ser::Serialize for nika_event::event::Event
+pub fn nika_event::event::Event::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::event::Event
+pub fn nika_event::event::Event::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::event::Event
+impl<T, U> core::convert::Into<U> for nika_event::event::Event where U: core::convert::From<T>
+pub fn nika_event::event::Event::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::event::Event where U: core::convert::Into<T>
+pub type nika_event::event::Event::Error = core::convert::Infallible
+pub fn nika_event::event::Event::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::event::Event where U: core::convert::TryFrom<T>
+pub type nika_event::event::Event::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::event::Event::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::event::Event where T: core::clone::Clone
+pub type nika_event::event::Event::Owned = T
+pub fn nika_event::event::Event::clone_into(&self, target: &mut T)
+pub fn nika_event::event::Event::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::event::Event where T: 'static + ?core::marker::Sized
+pub fn nika_event::event::Event::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::event::Event where T: ?core::marker::Sized
+pub fn nika_event::event::Event::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::event::Event where T: ?core::marker::Sized
+pub fn nika_event::event::Event::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::event::Event where T: core::clone::Clone
+pub unsafe fn nika_event::event::Event::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::event::Event
+pub fn nika_event::event::Event::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
+pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_event::kind
+#[non_exhaustive] pub enum nika_event::kind::EventKind
+pub nika_event::kind::EventKind::CheckpointWritten
+pub nika_event::kind::EventKind::TaskCompleted
+pub nika_event::kind::EventKind::TaskFailed
+pub nika_event::kind::EventKind::TaskScheduled
+pub nika_event::kind::EventKind::TaskSkipped
+pub nika_event::kind::EventKind::TaskStarted
+pub nika_event::kind::EventKind::ToolInvoked
+pub nika_event::kind::EventKind::VerbInvoked
+pub nika_event::kind::EventKind::WorkflowCompleted
+pub nika_event::kind::EventKind::WorkflowFailed
+pub nika_event::kind::EventKind::WorkflowStarted
+impl nika_event::kind::EventKind
+pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
+pub const fn nika_event::kind::EventKind::is_failure(&self) -> bool
+pub const fn nika_event::kind::EventKind::is_terminal(&self) -> bool
+impl core::clone::Clone for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::clone(&self) -> nika_event::kind::EventKind
+impl core::cmp::Eq for nika_event::kind::EventKind
+impl core::cmp::PartialEq for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::eq(&self, other: &nika_event::kind::EventKind) -> bool
+impl core::fmt::Debug for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_event::kind::EventKind
+impl core::marker::StructuralPartialEq for nika_event::kind::EventKind
+impl serde_core::ser::Serialize for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::kind::EventKind
+impl<T, U> core::convert::Into<U> for nika_event::kind::EventKind where U: core::convert::From<T>
+pub fn nika_event::kind::EventKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::kind::EventKind where U: core::convert::Into<T>
+pub type nika_event::kind::EventKind::Error = core::convert::Infallible
+pub fn nika_event::kind::EventKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::kind::EventKind where U: core::convert::TryFrom<T>
+pub type nika_event::kind::EventKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::kind::EventKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::kind::EventKind where T: core::clone::Clone
+pub type nika_event::kind::EventKind::Owned = T
+pub fn nika_event::kind::EventKind::clone_into(&self, target: &mut T)
+pub fn nika_event::kind::EventKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_event::kind::EventKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_event::kind::EventKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_event::kind::EventKind where T: 'static + ?core::marker::Sized
+pub fn nika_event::kind::EventKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::kind::EventKind where T: ?core::marker::Sized
+pub fn nika_event::kind::EventKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::kind::EventKind where T: ?core::marker::Sized
+pub fn nika_event::kind::EventKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::kind::EventKind where T: core::clone::Clone
+pub unsafe fn nika_event::kind::EventKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'static
+pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_event::prelude
+#[non_exhaustive] pub enum nika_event::prelude::EventError
+pub nika_event::prelude::EventError::BufferFull
+pub nika_event::prelude::EventError::BufferFull::capacity: usize
+pub nika_event::prelude::EventError::LockPoisoned
+pub nika_event::prelude::EventError::SerializationFailed
+pub nika_event::prelude::EventError::SerializationFailed::detail: alloc::string::String
+impl nika_event::error::EventError
+pub fn nika_event::error::EventError::code(&self) -> nika_error::codes::NikaCode
+impl core::error::Error for nika_event::error::EventError
+impl core::fmt::Debug for nika_event::error::EventError
+pub fn nika_event::error::EventError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_event::error::EventError
+pub fn nika_event::error::EventError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_event::error::EventError
+pub fn nika_event::error::EventError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_event::error::EventError
+pub fn nika_event::error::EventError::is_transient(&self) -> bool
+pub fn nika_event::error::EventError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_event::error::EventError
+impl<T, U> core::convert::Into<U> for nika_event::error::EventError where U: core::convert::From<T>
+pub fn nika_event::error::EventError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::error::EventError where U: core::convert::Into<T>
+pub type nika_event::error::EventError::Error = core::convert::Infallible
+pub fn nika_event::error::EventError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::error::EventError where U: core::convert::TryFrom<T>
+pub type nika_event::error::EventError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::error::EventError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_event::error::EventError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_event::error::EventError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_event::error::EventError where T: 'static + ?core::marker::Sized
+pub fn nika_event::error::EventError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::error::EventError where T: ?core::marker::Sized
+pub fn nika_event::error::EventError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::error::EventError where T: ?core::marker::Sized
+pub fn nika_event::error::EventError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::error::EventError
+pub fn nika_event::error::EventError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
+pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_event::prelude::EventKind
+pub nika_event::prelude::EventKind::CheckpointWritten
+pub nika_event::prelude::EventKind::TaskCompleted
+pub nika_event::prelude::EventKind::TaskFailed
+pub nika_event::prelude::EventKind::TaskScheduled
+pub nika_event::prelude::EventKind::TaskSkipped
+pub nika_event::prelude::EventKind::TaskStarted
+pub nika_event::prelude::EventKind::ToolInvoked
+pub nika_event::prelude::EventKind::VerbInvoked
+pub nika_event::prelude::EventKind::WorkflowCompleted
+pub nika_event::prelude::EventKind::WorkflowFailed
+pub nika_event::prelude::EventKind::WorkflowStarted
+impl nika_event::kind::EventKind
+pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
+pub const fn nika_event::kind::EventKind::is_failure(&self) -> bool
+pub const fn nika_event::kind::EventKind::is_terminal(&self) -> bool
+impl core::clone::Clone for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::clone(&self) -> nika_event::kind::EventKind
+impl core::cmp::Eq for nika_event::kind::EventKind
+impl core::cmp::PartialEq for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::eq(&self, other: &nika_event::kind::EventKind) -> bool
+impl core::fmt::Debug for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_event::kind::EventKind
+impl core::marker::StructuralPartialEq for nika_event::kind::EventKind
+impl serde_core::ser::Serialize for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::kind::EventKind
+impl<T, U> core::convert::Into<U> for nika_event::kind::EventKind where U: core::convert::From<T>
+pub fn nika_event::kind::EventKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::kind::EventKind where U: core::convert::Into<T>
+pub type nika_event::kind::EventKind::Error = core::convert::Infallible
+pub fn nika_event::kind::EventKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::kind::EventKind where U: core::convert::TryFrom<T>
+pub type nika_event::kind::EventKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::kind::EventKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::kind::EventKind where T: core::clone::Clone
+pub type nika_event::kind::EventKind::Owned = T
+pub fn nika_event::kind::EventKind::clone_into(&self, target: &mut T)
+pub fn nika_event::kind::EventKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_event::kind::EventKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_event::kind::EventKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_event::kind::EventKind where T: 'static + ?core::marker::Sized
+pub fn nika_event::kind::EventKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::kind::EventKind where T: ?core::marker::Sized
+pub fn nika_event::kind::EventKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::kind::EventKind where T: ?core::marker::Sized
+pub fn nika_event::kind::EventKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::kind::EventKind where T: core::clone::Clone
+pub unsafe fn nika_event::kind::EventKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'static
+pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_event::prelude::Event
+pub nika_event::prelude::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
+pub nika_event::prelude::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
+pub nika_event::prelude::Event::id: nika_types::id::EventId
+pub nika_event::prelude::Event::kind: nika_event::kind::EventKind
+pub nika_event::prelude::Event::run: core::option::Option<nika_types::id::RunId>
+pub nika_event::prelude::Event::timestamp: nika_types::timestamp::Timestamp
+impl nika_event::event::Event
+pub const fn nika_event::event::Event::is_terminal(&self) -> bool
+pub fn nika_event::event::Event::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: nika_event::kind::EventKind) -> Self
+pub fn nika_event::event::Event::with_correlation(self, correlation: nika_types::id::CorrelationId) -> Self
+pub fn nika_event::event::Event::with_field(self, field: nika_types::resource::KeyValue) -> Self
+pub fn nika_event::event::Event::with_fields(self, fields: alloc::vec::Vec<nika_types::resource::KeyValue>) -> Self
+pub fn nika_event::event::Event::with_run(self, run: nika_types::id::RunId) -> Self
+impl core::clone::Clone for nika_event::event::Event
+pub fn nika_event::event::Event::clone(&self) -> nika_event::event::Event
+impl core::cmp::PartialEq for nika_event::event::Event
+pub fn nika_event::event::Event::eq(&self, other: &nika_event::event::Event) -> bool
+impl core::fmt::Debug for nika_event::event::Event
+pub fn nika_event::event::Event::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_event::event::Event
+impl serde_core::ser::Serialize for nika_event::event::Event
+pub fn nika_event::event::Event::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::event::Event
+pub fn nika_event::event::Event::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::event::Event
+impl<T, U> core::convert::Into<U> for nika_event::event::Event where U: core::convert::From<T>
+pub fn nika_event::event::Event::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::event::Event where U: core::convert::Into<T>
+pub type nika_event::event::Event::Error = core::convert::Infallible
+pub fn nika_event::event::Event::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::event::Event where U: core::convert::TryFrom<T>
+pub type nika_event::event::Event::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::event::Event::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::event::Event where T: core::clone::Clone
+pub type nika_event::event::Event::Owned = T
+pub fn nika_event::event::Event::clone_into(&self, target: &mut T)
+pub fn nika_event::event::Event::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::event::Event where T: 'static + ?core::marker::Sized
+pub fn nika_event::event::Event::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::event::Event where T: ?core::marker::Sized
+pub fn nika_event::event::Event::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::event::Event where T: ?core::marker::Sized
+pub fn nika_event::event::Event::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::event::Event where T: core::clone::Clone
+pub unsafe fn nika_event::event::Event::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::event::Event
+pub fn nika_event::event::Event::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
+pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_event::prelude::InMemoryEmitter
+impl nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::bounded(capacity: usize) -> Self
+pub fn nika_event::emitter::InMemoryEmitter::drain(&self) -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_event::emitter::InMemoryEmitter::is_empty(&self) -> bool
+pub fn nika_event::emitter::InMemoryEmitter::len(&self) -> usize
+pub fn nika_event::emitter::InMemoryEmitter::unbounded() -> Self
+impl core::default::Default for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::default() -> nika_event::emitter::InMemoryEmitter
+impl core::fmt::Debug for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl<D> owo_colors::OwoColorize for nika_event::emitter::InMemoryEmitter
+impl<T, U> core::convert::Into<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::From<T>
+pub fn nika_event::emitter::InMemoryEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::Into<T>
+pub type nika_event::emitter::InMemoryEmitter::Error = core::convert::Infallible
+pub fn nika_event::emitter::InMemoryEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::TryFrom<T>
+pub type nika_event::emitter::InMemoryEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::emitter::InMemoryEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_event::emitter::InMemoryEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::emitter::InMemoryEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::emitter::InMemoryEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::emitter::InMemoryEmitter where T: 'static
+pub fn nika_event::emitter::InMemoryEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_event::prelude::NoOpEmitter
+impl core::clone::Clone for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::clone(&self) -> nika_event::emitter::NoOpEmitter
+impl core::default::Default for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::default() -> nika_event::emitter::NoOpEmitter
+impl core::fmt::Debug for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_event::emitter::NoOpEmitter
+impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl<D> owo_colors::OwoColorize for nika_event::emitter::NoOpEmitter
+impl<T, U> core::convert::Into<U> for nika_event::emitter::NoOpEmitter where U: core::convert::From<T>
+pub fn nika_event::emitter::NoOpEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::emitter::NoOpEmitter where U: core::convert::Into<T>
+pub type nika_event::emitter::NoOpEmitter::Error = core::convert::Infallible
+pub fn nika_event::emitter::NoOpEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::emitter::NoOpEmitter where U: core::convert::TryFrom<T>
+pub type nika_event::emitter::NoOpEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::emitter::NoOpEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::emitter::NoOpEmitter where T: core::clone::Clone
+pub type nika_event::emitter::NoOpEmitter::Owned = T
+pub fn nika_event::emitter::NoOpEmitter::clone_into(&self, target: &mut T)
+pub fn nika_event::emitter::NoOpEmitter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::emitter::NoOpEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::emitter::NoOpEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::emitter::NoOpEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::emitter::NoOpEmitter where T: core::clone::Clone
+pub unsafe fn nika_event::emitter::NoOpEmitter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::emitter::NoOpEmitter where T: 'static
+pub fn nika_event::emitter::NoOpEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_event::prelude::Emitter: core::marker::Send + core::marker::Sync
+pub fn nika_event::prelude::Emitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+#[non_exhaustive] pub enum nika_event::EventError
+pub nika_event::EventError::BufferFull
+pub nika_event::EventError::BufferFull::capacity: usize
+pub nika_event::EventError::LockPoisoned
+pub nika_event::EventError::SerializationFailed
+pub nika_event::EventError::SerializationFailed::detail: alloc::string::String
+impl nika_event::error::EventError
+pub fn nika_event::error::EventError::code(&self) -> nika_error::codes::NikaCode
+impl core::error::Error for nika_event::error::EventError
+impl core::fmt::Debug for nika_event::error::EventError
+pub fn nika_event::error::EventError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_event::error::EventError
+pub fn nika_event::error::EventError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_event::error::EventError
+pub fn nika_event::error::EventError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_event::error::EventError
+pub fn nika_event::error::EventError::is_transient(&self) -> bool
+pub fn nika_event::error::EventError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_event::error::EventError
+impl<T, U> core::convert::Into<U> for nika_event::error::EventError where U: core::convert::From<T>
+pub fn nika_event::error::EventError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::error::EventError where U: core::convert::Into<T>
+pub type nika_event::error::EventError::Error = core::convert::Infallible
+pub fn nika_event::error::EventError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::error::EventError where U: core::convert::TryFrom<T>
+pub type nika_event::error::EventError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::error::EventError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_event::error::EventError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_event::error::EventError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_event::error::EventError where T: 'static + ?core::marker::Sized
+pub fn nika_event::error::EventError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::error::EventError where T: ?core::marker::Sized
+pub fn nika_event::error::EventError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::error::EventError where T: ?core::marker::Sized
+pub fn nika_event::error::EventError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::error::EventError
+pub fn nika_event::error::EventError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'static
+pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_event::EventKind
+pub nika_event::EventKind::CheckpointWritten
+pub nika_event::EventKind::TaskCompleted
+pub nika_event::EventKind::TaskFailed
+pub nika_event::EventKind::TaskScheduled
+pub nika_event::EventKind::TaskSkipped
+pub nika_event::EventKind::TaskStarted
+pub nika_event::EventKind::ToolInvoked
+pub nika_event::EventKind::VerbInvoked
+pub nika_event::EventKind::WorkflowCompleted
+pub nika_event::EventKind::WorkflowFailed
+pub nika_event::EventKind::WorkflowStarted
+impl nika_event::kind::EventKind
+pub const fn nika_event::kind::EventKind::as_str(&self) -> &'static str
+pub const fn nika_event::kind::EventKind::is_failure(&self) -> bool
+pub const fn nika_event::kind::EventKind::is_terminal(&self) -> bool
+impl core::clone::Clone for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::clone(&self) -> nika_event::kind::EventKind
+impl core::cmp::Eq for nika_event::kind::EventKind
+impl core::cmp::PartialEq for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::eq(&self, other: &nika_event::kind::EventKind) -> bool
+impl core::fmt::Debug for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_event::kind::EventKind
+impl core::marker::StructuralPartialEq for nika_event::kind::EventKind
+impl serde_core::ser::Serialize for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::kind::EventKind
+impl<T, U> core::convert::Into<U> for nika_event::kind::EventKind where U: core::convert::From<T>
+pub fn nika_event::kind::EventKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::kind::EventKind where U: core::convert::Into<T>
+pub type nika_event::kind::EventKind::Error = core::convert::Infallible
+pub fn nika_event::kind::EventKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::kind::EventKind where U: core::convert::TryFrom<T>
+pub type nika_event::kind::EventKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::kind::EventKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::kind::EventKind where T: core::clone::Clone
+pub type nika_event::kind::EventKind::Owned = T
+pub fn nika_event::kind::EventKind::clone_into(&self, target: &mut T)
+pub fn nika_event::kind::EventKind::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_event::kind::EventKind where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_event::kind::EventKind::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_event::kind::EventKind where T: 'static + ?core::marker::Sized
+pub fn nika_event::kind::EventKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::kind::EventKind where T: ?core::marker::Sized
+pub fn nika_event::kind::EventKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::kind::EventKind where T: ?core::marker::Sized
+pub fn nika_event::kind::EventKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::kind::EventKind where T: core::clone::Clone
+pub unsafe fn nika_event::kind::EventKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::kind::EventKind
+pub fn nika_event::kind::EventKind::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::kind::EventKind where T: 'static
+pub fn nika_event::kind::EventKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::kind::EventKind where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_event::Event
+pub nika_event::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
+pub nika_event::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
+pub nika_event::Event::id: nika_types::id::EventId
+pub nika_event::Event::kind: nika_event::kind::EventKind
+pub nika_event::Event::run: core::option::Option<nika_types::id::RunId>
+pub nika_event::Event::timestamp: nika_types::timestamp::Timestamp
+impl nika_event::event::Event
+pub const fn nika_event::event::Event::is_terminal(&self) -> bool
+pub fn nika_event::event::Event::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: nika_event::kind::EventKind) -> Self
+pub fn nika_event::event::Event::with_correlation(self, correlation: nika_types::id::CorrelationId) -> Self
+pub fn nika_event::event::Event::with_field(self, field: nika_types::resource::KeyValue) -> Self
+pub fn nika_event::event::Event::with_fields(self, fields: alloc::vec::Vec<nika_types::resource::KeyValue>) -> Self
+pub fn nika_event::event::Event::with_run(self, run: nika_types::id::RunId) -> Self
+impl core::clone::Clone for nika_event::event::Event
+pub fn nika_event::event::Event::clone(&self) -> nika_event::event::Event
+impl core::cmp::PartialEq for nika_event::event::Event
+pub fn nika_event::event::Event::eq(&self, other: &nika_event::event::Event) -> bool
+impl core::fmt::Debug for nika_event::event::Event
+pub fn nika_event::event::Event::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_event::event::Event
+impl serde_core::ser::Serialize for nika_event::event::Event
+pub fn nika_event::event::Event::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::event::Event
+pub fn nika_event::event::Event::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::event::Event
+impl<T, U> core::convert::Into<U> for nika_event::event::Event where U: core::convert::From<T>
+pub fn nika_event::event::Event::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::event::Event where U: core::convert::Into<T>
+pub type nika_event::event::Event::Error = core::convert::Infallible
+pub fn nika_event::event::Event::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::event::Event where U: core::convert::TryFrom<T>
+pub type nika_event::event::Event::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::event::Event::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::event::Event where T: core::clone::Clone
+pub type nika_event::event::Event::Owned = T
+pub fn nika_event::event::Event::clone_into(&self, target: &mut T)
+pub fn nika_event::event::Event::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::event::Event where T: 'static + ?core::marker::Sized
+pub fn nika_event::event::Event::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::event::Event where T: ?core::marker::Sized
+pub fn nika_event::event::Event::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::event::Event where T: ?core::marker::Sized
+pub fn nika_event::event::Event::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::event::Event where T: core::clone::Clone
+pub unsafe fn nika_event::event::Event::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::event::Event
+pub fn nika_event::event::Event::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::event::Event where T: 'static
+pub fn nika_event::event::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::event::Event where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_event::InMemoryEmitter
+impl nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::bounded(capacity: usize) -> Self
+pub fn nika_event::emitter::InMemoryEmitter::drain(&self) -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_event::emitter::InMemoryEmitter::is_empty(&self) -> bool
+pub fn nika_event::emitter::InMemoryEmitter::len(&self) -> usize
+pub fn nika_event::emitter::InMemoryEmitter::unbounded() -> Self
+impl core::default::Default for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::default() -> nika_event::emitter::InMemoryEmitter
+impl core::fmt::Debug for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl<D> owo_colors::OwoColorize for nika_event::emitter::InMemoryEmitter
+impl<T, U> core::convert::Into<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::From<T>
+pub fn nika_event::emitter::InMemoryEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::Into<T>
+pub type nika_event::emitter::InMemoryEmitter::Error = core::convert::Infallible
+pub fn nika_event::emitter::InMemoryEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::emitter::InMemoryEmitter where U: core::convert::TryFrom<T>
+pub type nika_event::emitter::InMemoryEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::emitter::InMemoryEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_event::emitter::InMemoryEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::emitter::InMemoryEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::emitter::InMemoryEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::InMemoryEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::emitter::InMemoryEmitter where T: 'static
+pub fn nika_event::emitter::InMemoryEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_event::NoOpEmitter
+impl core::clone::Clone for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::clone(&self) -> nika_event::emitter::NoOpEmitter
+impl core::default::Default for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::default() -> nika_event::emitter::NoOpEmitter
+impl core::fmt::Debug for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_event::emitter::NoOpEmitter
+impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl<D> owo_colors::OwoColorize for nika_event::emitter::NoOpEmitter
+impl<T, U> core::convert::Into<U> for nika_event::emitter::NoOpEmitter where U: core::convert::From<T>
+pub fn nika_event::emitter::NoOpEmitter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::emitter::NoOpEmitter where U: core::convert::Into<T>
+pub type nika_event::emitter::NoOpEmitter::Error = core::convert::Infallible
+pub fn nika_event::emitter::NoOpEmitter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::emitter::NoOpEmitter where U: core::convert::TryFrom<T>
+pub type nika_event::emitter::NoOpEmitter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::emitter::NoOpEmitter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::emitter::NoOpEmitter where T: core::clone::Clone
+pub type nika_event::emitter::NoOpEmitter::Owned = T
+pub fn nika_event::emitter::NoOpEmitter::clone_into(&self, target: &mut T)
+pub fn nika_event::emitter::NoOpEmitter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::emitter::NoOpEmitter where T: 'static + ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::emitter::NoOpEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::emitter::NoOpEmitter where T: ?core::marker::Sized
+pub fn nika_event::emitter::NoOpEmitter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::emitter::NoOpEmitter where T: core::clone::Clone
+pub unsafe fn nika_event::emitter::NoOpEmitter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::emitter::NoOpEmitter where T: 'static
+pub fn nika_event::emitter::NoOpEmitter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_event::Emitter: core::marker::Send + core::marker::Sync
+pub fn nika_event::Emitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl nika_event::emitter::Emitter for nika_event::emitter::InMemoryEmitter
+pub fn nika_event::emitter::InMemoryEmitter::emit(&self, event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>
+impl nika_event::emitter::Emitter for nika_event::emitter::NoOpEmitter
+pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::Event) -> core::result::Result<(), nika_event::error::EventError>

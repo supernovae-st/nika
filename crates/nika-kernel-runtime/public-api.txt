@@ -1,0 +1,432 @@
+pub mod nika_kernel_runtime
+pub mod nika_kernel_runtime::agent
+pub use nika_kernel_runtime::agent::CompressionPolicy
+#[non_exhaustive] pub enum nika_kernel_runtime::agent::AgentStopReason
+pub nika_kernel_runtime::agent::AgentStopReason::Completed
+pub nika_kernel_runtime::agent::AgentStopReason::CostLimit
+pub nika_kernel_runtime::agent::AgentStopReason::DurationLimit
+pub nika_kernel_runtime::agent::AgentStopReason::ExplicitCompletion
+pub nika_kernel_runtime::agent::AgentStopReason::Failed
+pub nika_kernel_runtime::agent::AgentStopReason::TokensLimit
+pub nika_kernel_runtime::agent::AgentStopReason::TurnsLimit
+impl core::clone::Clone for nika_kernel_runtime::agent::AgentStopReason
+pub fn nika_kernel_runtime::agent::AgentStopReason::clone(&self) -> nika_kernel_runtime::agent::AgentStopReason
+impl core::cmp::Eq for nika_kernel_runtime::agent::AgentStopReason
+impl core::cmp::PartialEq for nika_kernel_runtime::agent::AgentStopReason
+pub fn nika_kernel_runtime::agent::AgentStopReason::eq(&self, other: &nika_kernel_runtime::agent::AgentStopReason) -> bool
+impl core::fmt::Debug for nika_kernel_runtime::agent::AgentStopReason
+pub fn nika_kernel_runtime::agent::AgentStopReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_runtime::agent::AgentStopReason
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::agent::AgentStopReason
+impl serde_core::ser::Serialize for nika_kernel_runtime::agent::AgentStopReason
+pub fn nika_kernel_runtime::agent::AgentStopReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_runtime::agent::AgentStopReason
+pub fn nika_kernel_runtime::agent::AgentStopReason::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::agent::AgentStopReason
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::agent::AgentStopReason where U: core::convert::From<T>
+pub fn nika_kernel_runtime::agent::AgentStopReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::agent::AgentStopReason where U: core::convert::Into<T>
+pub type nika_kernel_runtime::agent::AgentStopReason::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::agent::AgentStopReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::agent::AgentStopReason where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::agent::AgentStopReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::agent::AgentStopReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::agent::AgentStopReason where T: core::clone::Clone
+pub type nika_kernel_runtime::agent::AgentStopReason::Owned = T
+pub fn nika_kernel_runtime::agent::AgentStopReason::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::agent::AgentStopReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::agent::AgentStopReason where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentStopReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::agent::AgentStopReason where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentStopReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::agent::AgentStopReason where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentStopReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::agent::AgentStopReason where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::agent::AgentStopReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::agent::AgentStopReason
+pub fn nika_kernel_runtime::agent::AgentStopReason::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::agent::AgentStopReason where T: 'static
+pub fn nika_kernel_runtime::agent::AgentStopReason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_runtime::agent::AgentStopReason where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_runtime::agent::PlanningStrategy
+pub nika_kernel_runtime::agent::PlanningStrategy::ReWoo
+pub nika_kernel_runtime::agent::PlanningStrategy::React
+impl core::clone::Clone for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::clone(&self) -> nika_kernel_runtime::agent::PlanningStrategy
+impl core::cmp::Eq for nika_kernel_runtime::agent::PlanningStrategy
+impl core::cmp::PartialEq for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::eq(&self, other: &nika_kernel_runtime::agent::PlanningStrategy) -> bool
+impl core::default::Default for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::default() -> nika_kernel_runtime::agent::PlanningStrategy
+impl core::fmt::Debug for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_runtime::agent::PlanningStrategy
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::agent::PlanningStrategy
+impl serde_core::ser::Serialize for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::agent::PlanningStrategy
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::agent::PlanningStrategy where U: core::convert::From<T>
+pub fn nika_kernel_runtime::agent::PlanningStrategy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::agent::PlanningStrategy where U: core::convert::Into<T>
+pub type nika_kernel_runtime::agent::PlanningStrategy::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::agent::PlanningStrategy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::agent::PlanningStrategy where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::agent::PlanningStrategy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::agent::PlanningStrategy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::agent::PlanningStrategy where T: core::clone::Clone
+pub type nika_kernel_runtime::agent::PlanningStrategy::Owned = T
+pub fn nika_kernel_runtime::agent::PlanningStrategy::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::agent::PlanningStrategy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::agent::PlanningStrategy where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::PlanningStrategy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::agent::PlanningStrategy where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::PlanningStrategy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::agent::PlanningStrategy where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::PlanningStrategy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::agent::PlanningStrategy where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::agent::PlanningStrategy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::agent::PlanningStrategy
+pub fn nika_kernel_runtime::agent::PlanningStrategy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::agent::PlanningStrategy where T: 'static
+pub fn nika_kernel_runtime::agent::PlanningStrategy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_runtime::agent::PlanningStrategy where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_runtime::agent::ToolErrorPolicy
+pub nika_kernel_runtime::agent::ToolErrorPolicy::FailFast
+pub nika_kernel_runtime::agent::ToolErrorPolicy::ReportToLlm
+pub nika_kernel_runtime::agent::ToolErrorPolicy::RetryTransient
+pub nika_kernel_runtime::agent::ToolErrorPolicy::RetryTransient::max: u32
+impl core::clone::Clone for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::clone(&self) -> nika_kernel_runtime::agent::ToolErrorPolicy
+impl core::cmp::Eq for nika_kernel_runtime::agent::ToolErrorPolicy
+impl core::cmp::PartialEq for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::eq(&self, other: &nika_kernel_runtime::agent::ToolErrorPolicy) -> bool
+impl core::default::Default for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::default() -> nika_kernel_runtime::agent::ToolErrorPolicy
+impl core::fmt::Debug for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::agent::ToolErrorPolicy
+impl serde_core::ser::Serialize for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::agent::ToolErrorPolicy
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::agent::ToolErrorPolicy where U: core::convert::From<T>
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::agent::ToolErrorPolicy where U: core::convert::Into<T>
+pub type nika_kernel_runtime::agent::ToolErrorPolicy::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::agent::ToolErrorPolicy where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::agent::ToolErrorPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::agent::ToolErrorPolicy where T: core::clone::Clone
+pub type nika_kernel_runtime::agent::ToolErrorPolicy::Owned = T
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::agent::ToolErrorPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::agent::ToolErrorPolicy where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::agent::ToolErrorPolicy where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::agent::ToolErrorPolicy where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::agent::ToolErrorPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::agent::ToolErrorPolicy
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::agent::ToolErrorPolicy where T: 'static
+pub fn nika_kernel_runtime::agent::ToolErrorPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_runtime::agent::ToolErrorPolicy where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_runtime::agent::AgentLoopConfig
+pub nika_kernel_runtime::agent::AgentLoopConfig::compression: core::option::Option<nika_types::compression::CompressionPolicy>
+pub nika_kernel_runtime::agent::AgentLoopConfig::inject_records: alloc::vec::Vec<nika_types::checkpoint::ToolCallRecord>
+pub nika_kernel_runtime::agent::AgentLoopConfig::max_turns: u32
+pub nika_kernel_runtime::agent::AgentLoopConfig::parallel_tools: bool
+pub nika_kernel_runtime::agent::AgentLoopConfig::planning: nika_kernel_runtime::agent::PlanningStrategy
+pub nika_kernel_runtime::agent::AgentLoopConfig::reflection: core::option::Option<nika_kernel_runtime::agent::ReflectionConfig>
+pub nika_kernel_runtime::agent::AgentLoopConfig::session_id: core::option::Option<alloc::string::String>
+pub nika_kernel_runtime::agent::AgentLoopConfig::tool_error_policy: nika_kernel_runtime::agent::ToolErrorPolicy
+impl nika_kernel_runtime::agent::AgentLoopConfig
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::new(max_turns: u32) -> Self
+impl core::clone::Clone for nika_kernel_runtime::agent::AgentLoopConfig
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::clone(&self) -> nika_kernel_runtime::agent::AgentLoopConfig
+impl core::fmt::Debug for nika_kernel_runtime::agent::AgentLoopConfig
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::agent::AgentLoopConfig
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::agent::AgentLoopConfig where U: core::convert::From<T>
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::agent::AgentLoopConfig where U: core::convert::Into<T>
+pub type nika_kernel_runtime::agent::AgentLoopConfig::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::agent::AgentLoopConfig where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::agent::AgentLoopConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::agent::AgentLoopConfig where T: core::clone::Clone
+pub type nika_kernel_runtime::agent::AgentLoopConfig::Owned = T
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::agent::AgentLoopConfig where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::agent::AgentLoopConfig where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::agent::AgentLoopConfig where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::agent::AgentLoopConfig where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::agent::AgentLoopConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::agent::AgentLoopConfig
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::agent::AgentLoopConfig where T: 'static
+pub fn nika_kernel_runtime::agent::AgentLoopConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_runtime::agent::AgentOutcome
+pub nika_kernel_runtime::agent::AgentOutcome::checkpoint: core::option::Option<nika_types::checkpoint::AgentCheckpoint>
+pub nika_kernel_runtime::agent::AgentOutcome::cost: core::option::Option<nika_types::cost::Cost>
+pub nika_kernel_runtime::agent::AgentOutcome::cost_usd: core::option::Option<f64>
+pub nika_kernel_runtime::agent::AgentOutcome::output: alloc::string::String
+pub nika_kernel_runtime::agent::AgentOutcome::stop_reason: nika_kernel_runtime::agent::AgentStopReason
+pub nika_kernel_runtime::agent::AgentOutcome::total_tokens: u64
+pub nika_kernel_runtime::agent::AgentOutcome::turns: u32
+impl nika_kernel_runtime::agent::AgentOutcome
+pub fn nika_kernel_runtime::agent::AgentOutcome::new(output: impl core::convert::Into<alloc::string::String>, stop_reason: nika_kernel_runtime::agent::AgentStopReason, turns: u32, total_tokens: u64) -> Self
+impl core::clone::Clone for nika_kernel_runtime::agent::AgentOutcome
+pub fn nika_kernel_runtime::agent::AgentOutcome::clone(&self) -> nika_kernel_runtime::agent::AgentOutcome
+impl core::fmt::Debug for nika_kernel_runtime::agent::AgentOutcome
+pub fn nika_kernel_runtime::agent::AgentOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::agent::AgentOutcome
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::agent::AgentOutcome where U: core::convert::From<T>
+pub fn nika_kernel_runtime::agent::AgentOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::agent::AgentOutcome where U: core::convert::Into<T>
+pub type nika_kernel_runtime::agent::AgentOutcome::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::agent::AgentOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::agent::AgentOutcome where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::agent::AgentOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::agent::AgentOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::agent::AgentOutcome where T: core::clone::Clone
+pub type nika_kernel_runtime::agent::AgentOutcome::Owned = T
+pub fn nika_kernel_runtime::agent::AgentOutcome::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::agent::AgentOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::agent::AgentOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::agent::AgentOutcome where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::agent::AgentOutcome where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::AgentOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::agent::AgentOutcome where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::agent::AgentOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::agent::AgentOutcome
+pub fn nika_kernel_runtime::agent::AgentOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::agent::AgentOutcome where T: 'static
+pub fn nika_kernel_runtime::agent::AgentOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_runtime::agent::ReflectionConfig
+pub nika_kernel_runtime::agent::ReflectionConfig::enabled: bool
+pub nika_kernel_runtime::agent::ReflectionConfig::max_retries: u32
+pub nika_kernel_runtime::agent::ReflectionConfig::threshold: f32
+impl nika_kernel_runtime::agent::ReflectionConfig
+pub fn nika_kernel_runtime::agent::ReflectionConfig::new(threshold: f32, max_retries: u32) -> Self
+impl core::clone::Clone for nika_kernel_runtime::agent::ReflectionConfig
+pub fn nika_kernel_runtime::agent::ReflectionConfig::clone(&self) -> nika_kernel_runtime::agent::ReflectionConfig
+impl core::fmt::Debug for nika_kernel_runtime::agent::ReflectionConfig
+pub fn nika_kernel_runtime::agent::ReflectionConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::agent::ReflectionConfig
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::agent::ReflectionConfig where U: core::convert::From<T>
+pub fn nika_kernel_runtime::agent::ReflectionConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::agent::ReflectionConfig where U: core::convert::Into<T>
+pub type nika_kernel_runtime::agent::ReflectionConfig::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::agent::ReflectionConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::agent::ReflectionConfig where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::agent::ReflectionConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::agent::ReflectionConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::agent::ReflectionConfig where T: core::clone::Clone
+pub type nika_kernel_runtime::agent::ReflectionConfig::Owned = T
+pub fn nika_kernel_runtime::agent::ReflectionConfig::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::agent::ReflectionConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::agent::ReflectionConfig where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::ReflectionConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::agent::ReflectionConfig where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::ReflectionConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::agent::ReflectionConfig where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::agent::ReflectionConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::agent::ReflectionConfig where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::agent::ReflectionConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::agent::ReflectionConfig
+pub fn nika_kernel_runtime::agent::ReflectionConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::agent::ReflectionConfig where T: 'static
+pub fn nika_kernel_runtime::agent::ReflectionConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub mod nika_kernel_runtime::errors
+pub const nika_kernel_runtime::errors::NIKA_230: nika_error::codes::NikaCode
+pub const nika_kernel_runtime::errors::NIKA_231: nika_error::codes::NikaCode
+pub const nika_kernel_runtime::errors::NIKA_232: nika_error::codes::NikaCode
+pub const nika_kernel_runtime::errors::NIKA_233: nika_error::codes::NikaCode
+pub mod nika_kernel_runtime::tool_executor
+#[non_exhaustive] pub enum nika_kernel_runtime::tool_executor::ToolExecError
+pub nika_kernel_runtime::tool_executor::ToolExecError::ExecutionFailed
+pub nika_kernel_runtime::tool_executor::ToolExecError::ExecutionFailed::name: alloc::string::String
+pub nika_kernel_runtime::tool_executor::ToolExecError::ExecutionFailed::reason: alloc::string::String
+pub nika_kernel_runtime::tool_executor::ToolExecError::NotAvailable
+pub nika_kernel_runtime::tool_executor::ToolExecError::NotAvailable::reason: alloc::string::String
+pub nika_kernel_runtime::tool_executor::ToolExecError::NotFound
+pub nika_kernel_runtime::tool_executor::ToolExecError::NotFound::name: alloc::string::String
+pub nika_kernel_runtime::tool_executor::ToolExecError::Timeout
+pub nika_kernel_runtime::tool_executor::ToolExecError::Timeout::duration_ms: u64
+pub nika_kernel_runtime::tool_executor::ToolExecError::Timeout::name: alloc::string::String
+impl core::error::Error for nika_kernel_runtime::tool_executor::ToolExecError
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolExecError
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_runtime::tool_executor::ToolExecError
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_runtime::tool_executor::ToolExecError
+impl nika_error::traits::NikaErrorCode for nika_kernel_runtime::tool_executor::ToolExecError
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::ToolExecError
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::ToolExecError where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::ToolExecError where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::ToolExecError::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::ToolExecError where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::ToolExecError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_runtime::tool_executor::ToolExecError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::ToolExecError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::ToolExecError where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::ToolExecError where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolExecError
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolExecError where T: 'static
+pub fn nika_kernel_runtime::tool_executor::ToolExecError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolCall
+pub nika_kernel_runtime::tool_executor::ToolCall::id: nika_kernel_runtime::tool_executor::ToolCallId
+pub nika_kernel_runtime::tool_executor::ToolCall::input: serde_json::value::Value
+pub nika_kernel_runtime::tool_executor::ToolCall::name: alloc::string::String
+impl nika_kernel_runtime::tool_executor::ToolCall
+pub fn nika_kernel_runtime::tool_executor::ToolCall::new(id: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, input: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolCall
+pub fn nika_kernel_runtime::tool_executor::ToolCall::clone(&self) -> nika_kernel_runtime::tool_executor::ToolCall
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolCall
+pub fn nika_kernel_runtime::tool_executor::ToolCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::ToolCall
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::ToolCall where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::ToolCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::ToolCall where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::ToolCall::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::ToolCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::ToolCall where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::ToolCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::ToolCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::tool_executor::ToolCall where T: core::clone::Clone
+pub type nika_kernel_runtime::tool_executor::ToolCall::Owned = T
+pub fn nika_kernel_runtime::tool_executor::ToolCall::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::tool_executor::ToolCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::ToolCall where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::ToolCall where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::ToolCall where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::tool_executor::ToolCall where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::tool_executor::ToolCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolCall
+pub fn nika_kernel_runtime::tool_executor::ToolCall::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolCall where T: 'static
+pub fn nika_kernel_runtime::tool_executor::ToolCall::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolCallId
+impl nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::as_str(&self) -> &str
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::new(id: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::clone(&self) -> nika_kernel_runtime::tool_executor::ToolCallId
+impl core::cmp::Eq for nika_kernel_runtime::tool_executor::ToolCallId
+impl core::cmp::PartialEq for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::eq(&self, other: &nika_kernel_runtime::tool_executor::ToolCallId) -> bool
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::tool_executor::ToolCallId
+impl serde_core::ser::Serialize for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::ToolCallId
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::ToolCallId where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::ToolCallId where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::ToolCallId::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::ToolCallId where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::ToolCallId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::tool_executor::ToolCallId where T: core::clone::Clone
+pub type nika_kernel_runtime::tool_executor::ToolCallId::Owned = T
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_kernel_runtime::tool_executor::ToolCallId where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::ToolCallId where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::ToolCallId where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::ToolCallId where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::tool_executor::ToolCallId where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::tool_executor::ToolCallId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolCallId
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolCallId where T: 'static
+pub fn nika_kernel_runtime::tool_executor::ToolCallId::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_runtime::tool_executor::ToolCallId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolResult
+pub nika_kernel_runtime::tool_executor::ToolResult::content: alloc::string::String
+pub nika_kernel_runtime::tool_executor::ToolResult::is_error: bool
+pub nika_kernel_runtime::tool_executor::ToolResult::tool_use_id: nika_kernel_runtime::tool_executor::ToolCallId
+impl nika_kernel_runtime::tool_executor::ToolResult
+pub fn nika_kernel_runtime::tool_executor::ToolResult::error(tool_use_id: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_runtime::tool_executor::ToolResult::success(tool_use_id: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolResult
+pub fn nika_kernel_runtime::tool_executor::ToolResult::clone(&self) -> nika_kernel_runtime::tool_executor::ToolResult
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolResult
+pub fn nika_kernel_runtime::tool_executor::ToolResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::ToolResult
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::ToolResult where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::ToolResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::ToolResult where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::ToolResult::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::ToolResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::ToolResult where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::ToolResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::ToolResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::tool_executor::ToolResult where T: core::clone::Clone
+pub type nika_kernel_runtime::tool_executor::ToolResult::Owned = T
+pub fn nika_kernel_runtime::tool_executor::ToolResult::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::tool_executor::ToolResult::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::ToolResult where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::ToolResult where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::ToolResult where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::tool_executor::ToolResult where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::tool_executor::ToolResult::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolResult
+pub fn nika_kernel_runtime::tool_executor::ToolResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolResult where T: 'static
+pub fn nika_kernel_runtime::tool_executor::ToolResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_runtime::tool_executor::ToolBatch: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_runtime::tool_executor::ToolBatch::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn> nika_kernel_runtime::tool_executor::ToolBatch for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+pub trait nika_kernel_runtime::tool_executor::ToolBatchDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_runtime::tool_executor::ToolBatchDyn::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> impl core::future::future::Future<Output = alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>> + core::marker::Send
+pub trait nika_kernel_runtime::tool_executor::ToolExecute: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_runtime::tool_executor::ToolExecute::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+impl<TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn> nika_kernel_runtime::tool_executor::ToolExecute for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+pub trait nika_kernel_runtime::tool_executor::ToolExecuteDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_runtime::tool_executor::ToolExecuteDyn::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>> + core::marker::Send
+pub trait nika_kernel_runtime::tool_executor::ToolExecutor: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
+impl<T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch> nika_kernel_runtime::tool_executor::ToolExecutor for T

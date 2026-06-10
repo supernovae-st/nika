@@ -20,14 +20,20 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
         run: cargo install --locked cargo-public-api
-      - name: diff each admitted lib crate
-        # nika-catalog-verify is binary-only (no lib target) — skip.
-        # Foundation crates are publish=false (ADR-022); snapshots live
-        # in-repo to enforce Gate 12 (FCI) locally and in CI.
+      - name: diff each covered lib crate
+        # The crate list is PROJECTED from the coverage floor (ADR-090: one SSOT,
+        # three consumers — this job, semver-checks.yml, and hygiene vector 38).
+        # Add a crate to scripts/ci/public-api-coverage-baseline.txt + commit its
+        # public-api.txt, and all three pick it up. No hardcoded parallel list.
+        # Reads a repo-tracked file only (no untrusted github.event.* input).
+        # nika-catalog-verify is binary-only (no lib target) so it is never floored.
+        # Foundation crates are publish=false (ADR-022); snapshots live in-repo to
+        # enforce Gate 12 (FCI) locally and in CI.
         run: |
           set -euo pipefail
           fail=0
-          for crate in nika-types nika-error nika-catalog nika-kernel nika-kernel-mock; do
+          crates=$(grep -vE '^[[:space:]]*#' scripts/ci/public-api-coverage-baseline.txt | grep -E '^nika-')
+          for crate in $crates; do
             actual=$(cargo public-api -p "$crate" --all-features --omit auto-trait-impls)
             expected=$(cat "crates/$crate/public-api.txt")
             if [ "$actual" != "$expected" ]; then

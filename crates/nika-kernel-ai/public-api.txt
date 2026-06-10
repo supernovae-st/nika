@@ -1,0 +1,1218 @@
+pub mod nika_kernel_ai
+pub mod nika_kernel_ai::context
+#[non_exhaustive] pub struct nika_kernel_ai::context::CompressedContext
+pub nika_kernel_ai::context::CompressedContext::messages_compressed: u32
+pub nika_kernel_ai::context::CompressedContext::summary: alloc::string::String
+pub nika_kernel_ai::context::CompressedContext::tokens_after: u64
+pub nika_kernel_ai::context::CompressedContext::tokens_before: u64
+impl nika_kernel_ai::context::CompressedContext
+pub fn nika_kernel_ai::context::CompressedContext::new(summary: impl core::convert::Into<alloc::string::String>, messages_compressed: u32, tokens_before: u64, tokens_after: u64) -> Self
+impl core::clone::Clone for nika_kernel_ai::context::CompressedContext
+pub fn nika_kernel_ai::context::CompressedContext::clone(&self) -> nika_kernel_ai::context::CompressedContext
+impl core::fmt::Debug for nika_kernel_ai::context::CompressedContext
+pub fn nika_kernel_ai::context::CompressedContext::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::context::CompressedContext
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::context::CompressedContext where U: core::convert::From<T>
+pub fn nika_kernel_ai::context::CompressedContext::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::context::CompressedContext where U: core::convert::Into<T>
+pub type nika_kernel_ai::context::CompressedContext::Error = core::convert::Infallible
+pub fn nika_kernel_ai::context::CompressedContext::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::context::CompressedContext where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::context::CompressedContext::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::context::CompressedContext::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::context::CompressedContext where T: core::clone::Clone
+pub type nika_kernel_ai::context::CompressedContext::Owned = T
+pub fn nika_kernel_ai::context::CompressedContext::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::context::CompressedContext::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::context::CompressedContext where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::context::CompressedContext::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::context::CompressedContext where T: ?core::marker::Sized
+pub fn nika_kernel_ai::context::CompressedContext::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::context::CompressedContext where T: ?core::marker::Sized
+pub fn nika_kernel_ai::context::CompressedContext::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::context::CompressedContext where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::context::CompressedContext::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::context::CompressedContext
+pub fn nika_kernel_ai::context::CompressedContext::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::context::CompressedContext where T: 'static
+pub fn nika_kernel_ai::context::CompressedContext::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_ai::context::ContextCompressor: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::context::ContextCompressor::compress(&self, messages: &[nika_types::checkpoint::CheckpointMessage], policy: &nika_types::compression::CompressionPolicy) -> core::option::Option<nika_kernel_ai::context::CompressedContext>
+impl<TraitVariantBlanketType: nika_kernel_ai::context::ContextCompressorDyn> nika_kernel_ai::context::ContextCompressor for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::compress(&self, messages: &[nika_types::checkpoint::CheckpointMessage], policy: &nika_types::compression::CompressionPolicy) -> core::option::Option<nika_kernel_ai::context::CompressedContext>
+pub trait nika_kernel_ai::context::ContextCompressorDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::context::ContextCompressorDyn::compress(&self, messages: &[nika_types::checkpoint::CheckpointMessage], policy: &nika_types::compression::CompressionPolicy) -> impl core::future::future::Future<Output = core::option::Option<nika_kernel_ai::context::CompressedContext>> + core::marker::Send
+pub mod nika_kernel_ai::errors
+pub const nika_kernel_ai::errors::NIKA_330: nika_error::codes::NikaCode
+pub const nika_kernel_ai::errors::NIKA_331: nika_error::codes::NikaCode
+pub const nika_kernel_ai::errors::NIKA_332: nika_error::codes::NikaCode
+pub const nika_kernel_ai::errors::NIKA_333: nika_error::codes::NikaCode
+pub const nika_kernel_ai::errors::NIKA_339: nika_error::codes::NikaCode
+pub mod nika_kernel_ai::genai
+#[non_exhaustive] pub enum nika_kernel_ai::genai::GenAiOperation
+pub nika_kernel_ai::genai::GenAiOperation::AudioSynthesis
+pub nika_kernel_ai::genai::GenAiOperation::AudioTranscription
+pub nika_kernel_ai::genai::GenAiOperation::Chat
+pub nika_kernel_ai::genai::GenAiOperation::Embedding
+pub nika_kernel_ai::genai::GenAiOperation::ImageGeneration
+pub nika_kernel_ai::genai::GenAiOperation::TextCompletion
+impl core::clone::Clone for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::clone(&self) -> nika_kernel_ai::genai::GenAiOperation
+impl core::cmp::Eq for nika_kernel_ai::genai::GenAiOperation
+impl core::cmp::PartialEq for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::eq(&self, other: &nika_kernel_ai::genai::GenAiOperation) -> bool
+impl core::default::Default for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::default() -> nika_kernel_ai::genai::GenAiOperation
+impl core::fmt::Debug for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_ai::genai::GenAiOperation
+impl core::marker::StructuralPartialEq for nika_kernel_ai::genai::GenAiOperation
+impl serde_core::ser::Serialize for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::genai::GenAiOperation
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::genai::GenAiOperation where U: core::convert::From<T>
+pub fn nika_kernel_ai::genai::GenAiOperation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::genai::GenAiOperation where U: core::convert::Into<T>
+pub type nika_kernel_ai::genai::GenAiOperation::Error = core::convert::Infallible
+pub fn nika_kernel_ai::genai::GenAiOperation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::genai::GenAiOperation where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::genai::GenAiOperation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::genai::GenAiOperation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::genai::GenAiOperation where T: core::clone::Clone
+pub type nika_kernel_ai::genai::GenAiOperation::Owned = T
+pub fn nika_kernel_ai::genai::GenAiOperation::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::genai::GenAiOperation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::genai::GenAiOperation where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiOperation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::genai::GenAiOperation where T: ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiOperation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::genai::GenAiOperation where T: ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiOperation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::genai::GenAiOperation where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::genai::GenAiOperation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::genai::GenAiOperation
+pub fn nika_kernel_ai::genai::GenAiOperation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::genai::GenAiOperation where T: 'static
+pub fn nika_kernel_ai::genai::GenAiOperation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::genai::GenAiOperation where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_ai::genai::GenAiSystem
+pub nika_kernel_ai::genai::GenAiSystem::Anthropic
+pub nika_kernel_ai::genai::GenAiSystem::Cohere
+pub nika_kernel_ai::genai::GenAiSystem::Custom
+pub nika_kernel_ai::genai::GenAiSystem::DeepSeek
+pub nika_kernel_ai::genai::GenAiSystem::Google
+pub nika_kernel_ai::genai::GenAiSystem::LocalNative
+pub nika_kernel_ai::genai::GenAiSystem::Meta
+pub nika_kernel_ai::genai::GenAiSystem::Mistral
+pub nika_kernel_ai::genai::GenAiSystem::OpenAi
+pub nika_kernel_ai::genai::GenAiSystem::OpenAiCompatible
+pub nika_kernel_ai::genai::GenAiSystem::Unknown
+pub nika_kernel_ai::genai::GenAiSystem::Xai
+impl core::clone::Clone for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::clone(&self) -> nika_kernel_ai::genai::GenAiSystem
+impl core::cmp::Eq for nika_kernel_ai::genai::GenAiSystem
+impl core::cmp::PartialEq for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::eq(&self, other: &nika_kernel_ai::genai::GenAiSystem) -> bool
+impl core::default::Default for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::default() -> nika_kernel_ai::genai::GenAiSystem
+impl core::fmt::Debug for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_ai::genai::GenAiSystem
+impl core::marker::StructuralPartialEq for nika_kernel_ai::genai::GenAiSystem
+impl serde_core::ser::Serialize for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::genai::GenAiSystem
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::genai::GenAiSystem where U: core::convert::From<T>
+pub fn nika_kernel_ai::genai::GenAiSystem::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::genai::GenAiSystem where U: core::convert::Into<T>
+pub type nika_kernel_ai::genai::GenAiSystem::Error = core::convert::Infallible
+pub fn nika_kernel_ai::genai::GenAiSystem::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::genai::GenAiSystem where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::genai::GenAiSystem::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::genai::GenAiSystem::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::genai::GenAiSystem where T: core::clone::Clone
+pub type nika_kernel_ai::genai::GenAiSystem::Owned = T
+pub fn nika_kernel_ai::genai::GenAiSystem::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::genai::GenAiSystem::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::genai::GenAiSystem where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiSystem::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::genai::GenAiSystem where T: ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiSystem::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::genai::GenAiSystem where T: ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiSystem::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::genai::GenAiSystem where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::genai::GenAiSystem::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::genai::GenAiSystem
+pub fn nika_kernel_ai::genai::GenAiSystem::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::genai::GenAiSystem where T: 'static
+pub fn nika_kernel_ai::genai::GenAiSystem::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::genai::GenAiSystem where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::genai::GenAiAttrs
+pub nika_kernel_ai::genai::GenAiAttrs::agent_id: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::genai::GenAiAttrs::agent_name: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::genai::GenAiAttrs::conversation_id: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::genai::GenAiAttrs::encoding_formats: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_ai::genai::GenAiAttrs::operation: nika_kernel_ai::genai::GenAiOperation
+pub nika_kernel_ai::genai::GenAiAttrs::response_id: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::genai::GenAiAttrs::response_model: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::genai::GenAiAttrs::system: nika_kernel_ai::genai::GenAiSystem
+impl nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::new() -> Self
+impl core::clone::Clone for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::clone(&self) -> nika_kernel_ai::genai::GenAiAttrs
+impl core::cmp::Eq for nika_kernel_ai::genai::GenAiAttrs
+impl core::cmp::PartialEq for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::eq(&self, other: &nika_kernel_ai::genai::GenAiAttrs) -> bool
+impl core::default::Default for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::default() -> nika_kernel_ai::genai::GenAiAttrs
+impl core::fmt::Debug for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::genai::GenAiAttrs
+impl serde_core::ser::Serialize for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::genai::GenAiAttrs
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::genai::GenAiAttrs where U: core::convert::From<T>
+pub fn nika_kernel_ai::genai::GenAiAttrs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::genai::GenAiAttrs where U: core::convert::Into<T>
+pub type nika_kernel_ai::genai::GenAiAttrs::Error = core::convert::Infallible
+pub fn nika_kernel_ai::genai::GenAiAttrs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::genai::GenAiAttrs where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::genai::GenAiAttrs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::genai::GenAiAttrs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::genai::GenAiAttrs where T: core::clone::Clone
+pub type nika_kernel_ai::genai::GenAiAttrs::Owned = T
+pub fn nika_kernel_ai::genai::GenAiAttrs::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::genai::GenAiAttrs::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::genai::GenAiAttrs where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiAttrs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::genai::GenAiAttrs where T: ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiAttrs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::genai::GenAiAttrs where T: ?core::marker::Sized
+pub fn nika_kernel_ai::genai::GenAiAttrs::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::genai::GenAiAttrs where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::genai::GenAiAttrs::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::genai::GenAiAttrs
+pub fn nika_kernel_ai::genai::GenAiAttrs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::genai::GenAiAttrs where T: 'static
+pub fn nika_kernel_ai::genai::GenAiAttrs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::genai::GenAiAttrs where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_kernel_ai::memory
+pub use nika_kernel_ai::memory::MemoryDirective
+pub use nika_kernel_ai::memory::MemoryFrameRef
+pub use nika_kernel_ai::memory::MemoryId
+pub use nika_kernel_ai::memory::MemoryLevel
+#[non_exhaustive] pub enum nika_kernel_ai::memory::MemoryError
+pub nika_kernel_ai::memory::MemoryError::EmbeddingFailed
+pub nika_kernel_ai::memory::MemoryError::EmbeddingFailed::reason: alloc::string::String
+pub nika_kernel_ai::memory::MemoryError::NotFound
+pub nika_kernel_ai::memory::MemoryError::NotFound::id: nika_types::memory::MemoryId
+pub nika_kernel_ai::memory::MemoryError::Storage
+pub nika_kernel_ai::memory::MemoryError::Storage::reason: alloc::string::String
+pub nika_kernel_ai::memory::MemoryError::Unavailable
+pub nika_kernel_ai::memory::MemoryError::Unavailable::reason: alloc::string::String
+impl core::error::Error for nika_kernel_ai::memory::MemoryError
+impl core::fmt::Debug for nika_kernel_ai::memory::MemoryError
+pub fn nika_kernel_ai::memory::MemoryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_ai::memory::MemoryError
+pub fn nika_kernel_ai::memory::MemoryError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_ai::memory::MemoryError
+pub fn nika_kernel_ai::memory::MemoryError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_kernel_ai::memory::MemoryError
+pub fn nika_kernel_ai::memory::MemoryError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::memory::MemoryError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::MemoryError
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::MemoryError where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::MemoryError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::MemoryError where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::MemoryError::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::MemoryError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::MemoryError where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::MemoryError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::MemoryError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_ai::memory::MemoryError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_ai::memory::MemoryError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::MemoryError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::MemoryError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::MemoryError
+pub fn nika_kernel_ai::memory::MemoryError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::MemoryError where T: 'static
+pub fn nika_kernel_ai::memory::MemoryError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::ConsolidationReport
+pub nika_kernel_ai::memory::ConsolidationReport::completed: bool
+pub nika_kernel_ai::memory::ConsolidationReport::frames_processed: u64
+pub nika_kernel_ai::memory::ConsolidationReport::summaries_emitted: u64
+impl nika_kernel_ai::memory::ConsolidationReport
+pub fn nika_kernel_ai::memory::ConsolidationReport::empty() -> Self
+impl core::clone::Clone for nika_kernel_ai::memory::ConsolidationReport
+pub fn nika_kernel_ai::memory::ConsolidationReport::clone(&self) -> nika_kernel_ai::memory::ConsolidationReport
+impl core::default::Default for nika_kernel_ai::memory::ConsolidationReport
+pub fn nika_kernel_ai::memory::ConsolidationReport::default() -> nika_kernel_ai::memory::ConsolidationReport
+impl core::fmt::Debug for nika_kernel_ai::memory::ConsolidationReport
+pub fn nika_kernel_ai::memory::ConsolidationReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::ConsolidationReport
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::ConsolidationReport where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::ConsolidationReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::ConsolidationReport where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::ConsolidationReport::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::ConsolidationReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::ConsolidationReport where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::ConsolidationReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::ConsolidationReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::ConsolidationReport where T: core::clone::Clone
+pub type nika_kernel_ai::memory::ConsolidationReport::Owned = T
+pub fn nika_kernel_ai::memory::ConsolidationReport::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::ConsolidationReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::ConsolidationReport where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::ConsolidationReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::ConsolidationReport where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::ConsolidationReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::ConsolidationReport where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::ConsolidationReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::ConsolidationReport where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::ConsolidationReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::ConsolidationReport
+pub fn nika_kernel_ai::memory::ConsolidationReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::ConsolidationReport where T: 'static
+pub fn nika_kernel_ai::memory::ConsolidationReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::ConsolidationScope
+pub nika_kernel_ai::memory::ConsolidationScope::level: core::option::Option<nika_types::memory::MemoryLevel>
+pub nika_kernel_ai::memory::ConsolidationScope::run: core::option::Option<nika_types::id::RunId>
+pub nika_kernel_ai::memory::ConsolidationScope::tenant: core::option::Option<nika_types::id::TenantId>
+impl core::clone::Clone for nika_kernel_ai::memory::ConsolidationScope
+pub fn nika_kernel_ai::memory::ConsolidationScope::clone(&self) -> nika_kernel_ai::memory::ConsolidationScope
+impl core::default::Default for nika_kernel_ai::memory::ConsolidationScope
+pub fn nika_kernel_ai::memory::ConsolidationScope::default() -> nika_kernel_ai::memory::ConsolidationScope
+impl core::fmt::Debug for nika_kernel_ai::memory::ConsolidationScope
+pub fn nika_kernel_ai::memory::ConsolidationScope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::ConsolidationScope
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::ConsolidationScope where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::ConsolidationScope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::ConsolidationScope where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::ConsolidationScope::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::ConsolidationScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::ConsolidationScope where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::ConsolidationScope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::ConsolidationScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::ConsolidationScope where T: core::clone::Clone
+pub type nika_kernel_ai::memory::ConsolidationScope::Owned = T
+pub fn nika_kernel_ai::memory::ConsolidationScope::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::ConsolidationScope::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::ConsolidationScope where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::ConsolidationScope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::ConsolidationScope where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::ConsolidationScope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::ConsolidationScope where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::ConsolidationScope::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::ConsolidationScope where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::ConsolidationScope::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::ConsolidationScope
+pub fn nika_kernel_ai::memory::ConsolidationScope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::ConsolidationScope where T: 'static
+pub fn nika_kernel_ai::memory::ConsolidationScope::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::MemoryFrame
+pub nika_kernel_ai::memory::MemoryFrame::cipher: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::memory::MemoryFrame::content: alloc::string::String
+pub nika_kernel_ai::memory::MemoryFrame::level: nika_types::memory::MemoryLevel
+pub nika_kernel_ai::memory::MemoryFrame::metadata: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_ai::memory::MemoryFrame::observed_at: core::option::Option<u64>
+pub nika_kernel_ai::memory::MemoryFrame::provenance: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::memory::MemoryFrame::redactions: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_kernel_ai::memory::MemoryFrame::retention: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::memory::MemoryFrame::source: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::memory::MemoryFrame::tags: alloc::vec::Vec<alloc::string::String>
+impl nika_kernel_ai::memory::MemoryFrame
+pub fn nika_kernel_ai::memory::MemoryFrame::new(content: impl core::convert::Into<alloc::string::String>, level: nika_types::memory::MemoryLevel) -> Self
+impl core::clone::Clone for nika_kernel_ai::memory::MemoryFrame
+pub fn nika_kernel_ai::memory::MemoryFrame::clone(&self) -> nika_kernel_ai::memory::MemoryFrame
+impl core::fmt::Debug for nika_kernel_ai::memory::MemoryFrame
+pub fn nika_kernel_ai::memory::MemoryFrame::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::MemoryFrame
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::MemoryFrame where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::MemoryFrame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::MemoryFrame where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::MemoryFrame::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::MemoryFrame::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::MemoryFrame where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::MemoryFrame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::MemoryFrame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::MemoryFrame where T: core::clone::Clone
+pub type nika_kernel_ai::memory::MemoryFrame::Owned = T
+pub fn nika_kernel_ai::memory::MemoryFrame::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::MemoryFrame::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::MemoryFrame where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryFrame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::MemoryFrame where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryFrame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::MemoryFrame where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryFrame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::MemoryFrame where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::MemoryFrame::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::MemoryFrame
+pub fn nika_kernel_ai::memory::MemoryFrame::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::MemoryFrame where T: 'static
+pub fn nika_kernel_ai::memory::MemoryFrame::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::MemoryHit
+pub nika_kernel_ai::memory::MemoryHit::content: alloc::string::String
+pub nika_kernel_ai::memory::MemoryHit::id: nika_types::memory::MemoryId
+pub nika_kernel_ai::memory::MemoryHit::level: nika_types::memory::MemoryLevel
+pub nika_kernel_ai::memory::MemoryHit::metadata: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_ai::memory::MemoryHit::observed_at: core::option::Option<u64>
+pub nika_kernel_ai::memory::MemoryHit::score: f32
+pub nika_kernel_ai::memory::MemoryHit::source: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::memory::MemoryHit::tags: alloc::vec::Vec<alloc::string::String>
+impl nika_kernel_ai::memory::MemoryHit
+pub fn nika_kernel_ai::memory::MemoryHit::new(id: nika_types::memory::MemoryId, content: impl core::convert::Into<alloc::string::String>, level: nika_types::memory::MemoryLevel, score: f32) -> Self
+impl core::clone::Clone for nika_kernel_ai::memory::MemoryHit
+pub fn nika_kernel_ai::memory::MemoryHit::clone(&self) -> nika_kernel_ai::memory::MemoryHit
+impl core::fmt::Debug for nika_kernel_ai::memory::MemoryHit
+pub fn nika_kernel_ai::memory::MemoryHit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::MemoryHit
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::MemoryHit where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::MemoryHit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::MemoryHit where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::MemoryHit::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::MemoryHit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::MemoryHit where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::MemoryHit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::MemoryHit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::MemoryHit where T: core::clone::Clone
+pub type nika_kernel_ai::memory::MemoryHit::Owned = T
+pub fn nika_kernel_ai::memory::MemoryHit::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::MemoryHit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::MemoryHit where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryHit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::MemoryHit where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryHit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::MemoryHit where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::MemoryHit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::MemoryHit where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::MemoryHit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::MemoryHit
+pub fn nika_kernel_ai::memory::MemoryHit::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::MemoryHit where T: 'static
+pub fn nika_kernel_ai::memory::MemoryHit::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::PrunePolicy
+pub nika_kernel_ai::memory::PrunePolicy::dry_run: bool
+pub nika_kernel_ai::memory::PrunePolicy::max_age_secs: core::option::Option<u64>
+pub nika_kernel_ai::memory::PrunePolicy::min_retention: core::option::Option<f32>
+pub nika_kernel_ai::memory::PrunePolicy::tenant: core::option::Option<nika_types::id::TenantId>
+impl core::clone::Clone for nika_kernel_ai::memory::PrunePolicy
+pub fn nika_kernel_ai::memory::PrunePolicy::clone(&self) -> nika_kernel_ai::memory::PrunePolicy
+impl core::default::Default for nika_kernel_ai::memory::PrunePolicy
+pub fn nika_kernel_ai::memory::PrunePolicy::default() -> nika_kernel_ai::memory::PrunePolicy
+impl core::fmt::Debug for nika_kernel_ai::memory::PrunePolicy
+pub fn nika_kernel_ai::memory::PrunePolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::PrunePolicy
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::PrunePolicy where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::PrunePolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::PrunePolicy where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::PrunePolicy::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::PrunePolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::PrunePolicy where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::PrunePolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::PrunePolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::PrunePolicy where T: core::clone::Clone
+pub type nika_kernel_ai::memory::PrunePolicy::Owned = T
+pub fn nika_kernel_ai::memory::PrunePolicy::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::PrunePolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::PrunePolicy where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::PrunePolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::PrunePolicy where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::PrunePolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::PrunePolicy where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::PrunePolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::PrunePolicy where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::PrunePolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::PrunePolicy
+pub fn nika_kernel_ai::memory::PrunePolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::PrunePolicy where T: 'static
+pub fn nika_kernel_ai::memory::PrunePolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::PruneReport
+pub nika_kernel_ai::memory::PruneReport::completed: bool
+pub nika_kernel_ai::memory::PruneReport::frames_matched: u64
+pub nika_kernel_ai::memory::PruneReport::frames_pruned: u64
+impl nika_kernel_ai::memory::PruneReport
+pub fn nika_kernel_ai::memory::PruneReport::empty() -> Self
+impl core::clone::Clone for nika_kernel_ai::memory::PruneReport
+pub fn nika_kernel_ai::memory::PruneReport::clone(&self) -> nika_kernel_ai::memory::PruneReport
+impl core::default::Default for nika_kernel_ai::memory::PruneReport
+pub fn nika_kernel_ai::memory::PruneReport::default() -> nika_kernel_ai::memory::PruneReport
+impl core::fmt::Debug for nika_kernel_ai::memory::PruneReport
+pub fn nika_kernel_ai::memory::PruneReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::PruneReport
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::PruneReport where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::PruneReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::PruneReport where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::PruneReport::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::PruneReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::PruneReport where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::PruneReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::PruneReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::PruneReport where T: core::clone::Clone
+pub type nika_kernel_ai::memory::PruneReport::Owned = T
+pub fn nika_kernel_ai::memory::PruneReport::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::PruneReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::PruneReport where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::PruneReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::PruneReport where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::PruneReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::PruneReport where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::PruneReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::PruneReport where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::PruneReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::PruneReport
+pub fn nika_kernel_ai::memory::PruneReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::PruneReport where T: 'static
+pub fn nika_kernel_ai::memory::PruneReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::memory::RecallQuery
+pub nika_kernel_ai::memory::RecallQuery::levels: core::option::Option<alloc::vec::Vec<nika_types::memory::MemoryLevel>>
+pub nika_kernel_ai::memory::RecallQuery::limit: core::option::Option<usize>
+pub nika_kernel_ai::memory::RecallQuery::min_score: core::option::Option<f32>
+pub nika_kernel_ai::memory::RecallQuery::observed_after: core::option::Option<u64>
+pub nika_kernel_ai::memory::RecallQuery::observed_before: core::option::Option<u64>
+pub nika_kernel_ai::memory::RecallQuery::tags: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_kernel_ai::memory::RecallQuery::tenant: nika_types::id::TenantId
+pub nika_kernel_ai::memory::RecallQuery::text: alloc::string::String
+impl nika_kernel_ai::memory::RecallQuery
+pub fn nika_kernel_ai::memory::RecallQuery::new(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_ai::memory::RecallQuery::scoped(tenant: nika_types::id::TenantId, text: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_ai::memory::RecallQuery
+pub fn nika_kernel_ai::memory::RecallQuery::clone(&self) -> nika_kernel_ai::memory::RecallQuery
+impl core::fmt::Debug for nika_kernel_ai::memory::RecallQuery
+pub fn nika_kernel_ai::memory::RecallQuery::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::memory::RecallQuery
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::memory::RecallQuery where U: core::convert::From<T>
+pub fn nika_kernel_ai::memory::RecallQuery::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::memory::RecallQuery where U: core::convert::Into<T>
+pub type nika_kernel_ai::memory::RecallQuery::Error = core::convert::Infallible
+pub fn nika_kernel_ai::memory::RecallQuery::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::memory::RecallQuery where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::memory::RecallQuery::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::memory::RecallQuery::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::memory::RecallQuery where T: core::clone::Clone
+pub type nika_kernel_ai::memory::RecallQuery::Owned = T
+pub fn nika_kernel_ai::memory::RecallQuery::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::memory::RecallQuery::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::memory::RecallQuery where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::memory::RecallQuery::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::memory::RecallQuery where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::RecallQuery::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::memory::RecallQuery where T: ?core::marker::Sized
+pub fn nika_kernel_ai::memory::RecallQuery::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::memory::RecallQuery where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::memory::RecallQuery::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::memory::RecallQuery
+pub fn nika_kernel_ai::memory::RecallQuery::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::memory::RecallQuery where T: 'static
+pub fn nika_kernel_ai::memory::RecallQuery::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_ai::memory::EmbeddingProvider: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_ai::memory::EmbeddingProvider::dimension(&self) -> usize
+pub async fn nika_kernel_ai::memory::EmbeddingProvider::embed(&self, text: &str) -> core::result::Result<alloc::vec::Vec<f32>, nika_kernel_ai::memory::MemoryError>
+impl<TraitVariantBlanketType: nika_kernel_ai::memory::EmbeddingProviderDyn> nika_kernel_ai::memory::EmbeddingProvider for TraitVariantBlanketType
+pub fn TraitVariantBlanketType::dimension(&self) -> usize
+pub async fn TraitVariantBlanketType::embed(&self, text: &str) -> core::result::Result<alloc::vec::Vec<f32>, nika_kernel_ai::memory::MemoryError>
+pub trait nika_kernel_ai::memory::EmbeddingProviderDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::memory::EmbeddingProviderDyn::dimension(&self) -> usize
+pub fn nika_kernel_ai::memory::EmbeddingProviderDyn::embed(&self, text: &str) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<f32>, nika_kernel_ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel_ai::memory::MemoryForget: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_ai::memory::MemoryForget::forget(&self, id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel_ai::memory::MemoryError>
+impl<TraitVariantBlanketType: nika_kernel_ai::memory::MemoryForgetDyn> nika_kernel_ai::memory::MemoryForget for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::forget(&self, id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel_ai::memory::MemoryError>
+pub trait nika_kernel_ai::memory::MemoryForgetDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_ai::memory::MemoryForgetDyn::forget(&self, id: nika_types::memory::MemoryId) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel_ai::memory::MemoryLifecycle: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_ai::memory::MemoryLifecycle::consolidate(&self, _scope: nika_kernel_ai::memory::ConsolidationScope) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::memory::ConsolidationReport, nika_kernel_ai::memory::MemoryError>> + core::marker::Send
+pub fn nika_kernel_ai::memory::MemoryLifecycle::prune(&self, _policy: nika_kernel_ai::memory::PrunePolicy) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::memory::PruneReport, nika_kernel_ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel_ai::memory::MemoryRecall: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_ai::memory::MemoryRecall::recall(&self, query: nika_kernel_ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::memory::MemoryHit>, nika_kernel_ai::memory::MemoryError>
+impl<TraitVariantBlanketType: nika_kernel_ai::memory::MemoryRecallDyn> nika_kernel_ai::memory::MemoryRecall for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::recall(&self, query: nika_kernel_ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::memory::MemoryHit>, nika_kernel_ai::memory::MemoryError>
+pub trait nika_kernel_ai::memory::MemoryRecallDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_ai::memory::MemoryRecallDyn::recall(&self, query: nika_kernel_ai::memory::RecallQuery) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_ai::memory::MemoryHit>, nika_kernel_ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel_ai::memory::MemoryRemember: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_ai::memory::MemoryRemember::remember(&self, frame: nika_kernel_ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel_ai::memory::MemoryError>
+impl<TraitVariantBlanketType: nika_kernel_ai::memory::MemoryRememberDyn> nika_kernel_ai::memory::MemoryRemember for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::remember(&self, frame: nika_kernel_ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel_ai::memory::MemoryError>
+pub trait nika_kernel_ai::memory::MemoryRememberDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_ai::memory::MemoryRememberDyn::remember(&self, frame: nika_kernel_ai::memory::MemoryFrame) -> impl core::future::future::Future<Output = core::result::Result<nika_types::memory::MemoryId, nika_kernel_ai::memory::MemoryError>> + core::marker::Send
+pub trait nika_kernel_ai::memory::MemoryStore: nika_kernel_ai::memory::MemoryRemember + nika_kernel_ai::memory::MemoryRecall + nika_kernel_ai::memory::MemoryForget
+impl<T: nika_kernel_ai::memory::MemoryRemember + nika_kernel_ai::memory::MemoryRecall + nika_kernel_ai::memory::MemoryForget> nika_kernel_ai::memory::MemoryStore for T
+pub async fn nika_kernel_ai::memory::embed_batch_sequential(provider: &impl nika_kernel_ai::memory::EmbeddingProvider + ?core::marker::Sized, texts: &[&str]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f32>>, nika_kernel_ai::memory::MemoryError>
+pub mod nika_kernel_ai::provider
+pub use nika_kernel_ai::provider::Role
+pub use nika_kernel_ai::provider::TokenUsage
+#[non_exhaustive] pub enum nika_kernel_ai::provider::ContentBlock
+pub nika_kernel_ai::provider::ContentBlock::Image
+pub nika_kernel_ai::provider::ContentBlock::Image::detail: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::provider::ContentBlock::Image::source: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::Text
+pub nika_kernel_ai::provider::ContentBlock::Text::text: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::Thinking
+pub nika_kernel_ai::provider::ContentBlock::Thinking::text: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::ToolResult
+pub nika_kernel_ai::provider::ContentBlock::ToolResult::content: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::ToolResult::is_error: bool
+pub nika_kernel_ai::provider::ContentBlock::ToolResult::tool_use_id: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::ToolUse
+pub nika_kernel_ai::provider::ContentBlock::ToolUse::id: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::ToolUse::input: serde_json::value::Value
+pub nika_kernel_ai::provider::ContentBlock::ToolUse::name: alloc::string::String
+impl core::clone::Clone for nika_kernel_ai::provider::ContentBlock
+pub fn nika_kernel_ai::provider::ContentBlock::clone(&self) -> nika_kernel_ai::provider::ContentBlock
+impl core::fmt::Debug for nika_kernel_ai::provider::ContentBlock
+pub fn nika_kernel_ai::provider::ContentBlock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::ContentBlock
+pub fn nika_kernel_ai::provider::ContentBlock::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::ContentBlock
+pub fn nika_kernel_ai::provider::ContentBlock::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ContentBlock
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ContentBlock where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ContentBlock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ContentBlock where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ContentBlock::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ContentBlock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ContentBlock where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ContentBlock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ContentBlock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ContentBlock where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ContentBlock::Owned = T
+pub fn nika_kernel_ai::provider::ContentBlock::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ContentBlock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ContentBlock where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ContentBlock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ContentBlock where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ContentBlock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ContentBlock where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ContentBlock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ContentBlock where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ContentBlock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ContentBlock
+pub fn nika_kernel_ai::provider::ContentBlock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ContentBlock where T: 'static
+pub fn nika_kernel_ai::provider::ContentBlock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ContentBlock where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_ai::provider::InferEvent
+pub nika_kernel_ai::provider::InferEvent::Delta
+pub nika_kernel_ai::provider::InferEvent::Delta::text: alloc::string::String
+pub nika_kernel_ai::provider::InferEvent::Done
+pub nika_kernel_ai::provider::InferEvent::Done::finish_reason_raw: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::provider::InferEvent::Done::request_id: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::provider::InferEvent::Done::stop_reason: nika_kernel_ai::provider::StopReason
+pub nika_kernel_ai::provider::InferEvent::Thinking
+pub nika_kernel_ai::provider::InferEvent::Thinking::text: alloc::string::String
+pub nika_kernel_ai::provider::InferEvent::ToolUseDelta
+pub nika_kernel_ai::provider::InferEvent::ToolUseDelta::id: alloc::string::String
+pub nika_kernel_ai::provider::InferEvent::ToolUseDelta::partial_json: alloc::string::String
+pub nika_kernel_ai::provider::InferEvent::ToolUseStart
+pub nika_kernel_ai::provider::InferEvent::ToolUseStart::id: alloc::string::String
+pub nika_kernel_ai::provider::InferEvent::ToolUseStart::name: alloc::string::String
+pub nika_kernel_ai::provider::InferEvent::Usage(nika_types::token_usage::TokenUsage)
+impl core::clone::Clone for nika_kernel_ai::provider::InferEvent
+pub fn nika_kernel_ai::provider::InferEvent::clone(&self) -> nika_kernel_ai::provider::InferEvent
+impl core::fmt::Debug for nika_kernel_ai::provider::InferEvent
+pub fn nika_kernel_ai::provider::InferEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::InferEvent
+pub fn nika_kernel_ai::provider::InferEvent::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::InferEvent
+pub fn nika_kernel_ai::provider::InferEvent::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::InferEvent
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::InferEvent where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::InferEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::InferEvent where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::InferEvent::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::InferEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::InferEvent where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::InferEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::InferEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::InferEvent where T: core::clone::Clone
+pub type nika_kernel_ai::provider::InferEvent::Owned = T
+pub fn nika_kernel_ai::provider::InferEvent::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::InferEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::InferEvent where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::InferEvent where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::InferEvent where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::InferEvent where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::InferEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::InferEvent
+pub fn nika_kernel_ai::provider::InferEvent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::InferEvent where T: 'static
+pub fn nika_kernel_ai::provider::InferEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::InferEvent where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_ai::provider::ProviderError
+pub nika_kernel_ai::provider::ProviderError::Api
+pub nika_kernel_ai::provider::ProviderError::Api::message: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::Api::status: u16
+pub nika_kernel_ai::provider::ProviderError::AuthFailed
+pub nika_kernel_ai::provider::ProviderError::AuthFailed::reason: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::ModelNotFound
+pub nika_kernel_ai::provider::ProviderError::ModelNotFound::model: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::Other
+pub nika_kernel_ai::provider::ProviderError::Other::reason: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::RateLimited
+pub nika_kernel_ai::provider::ProviderError::RateLimited::retry_after_ms: core::option::Option<u64>
+impl nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::is_transient(&self) -> bool
+impl core::error::Error for nika_kernel_ai::provider::ProviderError
+impl core::fmt::Debug for nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_ai::provider::ProviderError
+impl nika_error::traits::NikaErrorCode for nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ProviderError
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ProviderError where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ProviderError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ProviderError where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ProviderError::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ProviderError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ProviderError where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ProviderError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ProviderError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_ai::provider::ProviderError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_ai::provider::ProviderError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ProviderError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ProviderError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ProviderError where T: 'static
+pub fn nika_kernel_ai::provider::ProviderError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_ai::provider::ResponseFormat
+pub nika_kernel_ai::provider::ResponseFormat::Json
+pub nika_kernel_ai::provider::ResponseFormat::JsonSchema(serde_json::value::Value)
+pub nika_kernel_ai::provider::ResponseFormat::Text
+impl core::clone::Clone for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::clone(&self) -> nika_kernel_ai::provider::ResponseFormat
+impl core::cmp::Eq for nika_kernel_ai::provider::ResponseFormat
+impl core::cmp::PartialEq for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::eq(&self, other: &nika_kernel_ai::provider::ResponseFormat) -> bool
+impl core::default::Default for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::default() -> nika_kernel_ai::provider::ResponseFormat
+impl core::fmt::Debug for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::provider::ResponseFormat
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ResponseFormat
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ResponseFormat where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ResponseFormat::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ResponseFormat where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ResponseFormat::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ResponseFormat::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ResponseFormat where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ResponseFormat::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ResponseFormat::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ResponseFormat where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ResponseFormat::Owned = T
+pub fn nika_kernel_ai::provider::ResponseFormat::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ResponseFormat::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ResponseFormat where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ResponseFormat::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ResponseFormat where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ResponseFormat::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ResponseFormat where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ResponseFormat::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ResponseFormat where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ResponseFormat::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ResponseFormat
+pub fn nika_kernel_ai::provider::ResponseFormat::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ResponseFormat where T: 'static
+pub fn nika_kernel_ai::provider::ResponseFormat::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ResponseFormat where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_ai::provider::StopReason
+pub nika_kernel_ai::provider::StopReason::ContentFilter
+pub nika_kernel_ai::provider::StopReason::EndTurn
+pub nika_kernel_ai::provider::StopReason::MaxTokens
+pub nika_kernel_ai::provider::StopReason::StopSequence
+pub nika_kernel_ai::provider::StopReason::ToolUse
+pub nika_kernel_ai::provider::StopReason::Unknown(alloc::string::String)
+impl core::clone::Clone for nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::clone(&self) -> nika_kernel_ai::provider::StopReason
+impl core::cmp::Eq for nika_kernel_ai::provider::StopReason
+impl core::cmp::PartialEq for nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::eq(&self, other: &nika_kernel_ai::provider::StopReason) -> bool
+impl core::fmt::Debug for nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::provider::StopReason
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::StopReason
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::StopReason where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::StopReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::StopReason where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::StopReason::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::StopReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::StopReason where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::StopReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::StopReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::StopReason where T: core::clone::Clone
+pub type nika_kernel_ai::provider::StopReason::Owned = T
+pub fn nika_kernel_ai::provider::StopReason::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::StopReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::StopReason where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::StopReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::StopReason where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::StopReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::StopReason where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::StopReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::StopReason where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::StopReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::StopReason where T: 'static
+pub fn nika_kernel_ai::provider::StopReason::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::StopReason where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_ai::provider::ToolChoice
+pub nika_kernel_ai::provider::ToolChoice::Auto
+pub nika_kernel_ai::provider::ToolChoice::None
+pub nika_kernel_ai::provider::ToolChoice::Required
+pub nika_kernel_ai::provider::ToolChoice::Specific(alloc::string::String)
+impl core::clone::Clone for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::clone(&self) -> nika_kernel_ai::provider::ToolChoice
+impl core::cmp::Eq for nika_kernel_ai::provider::ToolChoice
+impl core::cmp::PartialEq for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::eq(&self, other: &nika_kernel_ai::provider::ToolChoice) -> bool
+impl core::default::Default for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::default() -> nika_kernel_ai::provider::ToolChoice
+impl core::fmt::Debug for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::provider::ToolChoice
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ToolChoice
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ToolChoice where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ToolChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ToolChoice where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ToolChoice::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ToolChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ToolChoice where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ToolChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ToolChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ToolChoice where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ToolChoice::Owned = T
+pub fn nika_kernel_ai::provider::ToolChoice::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ToolChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ToolChoice where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ToolChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ToolChoice where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ToolChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ToolChoice where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ToolChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ToolChoice where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ToolChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ToolChoice
+pub fn nika_kernel_ai::provider::ToolChoice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ToolChoice where T: 'static
+pub fn nika_kernel_ai::provider::ToolChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ToolChoice where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::provider::InferRequest
+pub nika_kernel_ai::provider::InferRequest::baggage: core::option::Option<nika_types::baggage::Baggage>
+pub nika_kernel_ai::provider::InferRequest::budget: core::option::Option<nika_types::budget::BudgetDirective>
+pub nika_kernel_ai::provider::InferRequest::cancel: core::option::Option<nika_types::cancel::CancelCtx>
+pub nika_kernel_ai::provider::InferRequest::extra: nika_kernel_ai::provider::ProviderExtras
+pub nika_kernel_ai::provider::InferRequest::gen_ai: nika_kernel_ai::genai::GenAiAttrs
+pub nika_kernel_ai::provider::InferRequest::max_tokens: core::option::Option<u32>
+pub nika_kernel_ai::provider::InferRequest::memory: core::option::Option<nika_types::memory::MemoryDirective>
+pub nika_kernel_ai::provider::InferRequest::messages: alloc::vec::Vec<nika_kernel_ai::provider::Message>
+pub nika_kernel_ai::provider::InferRequest::model: alloc::string::String
+pub nika_kernel_ai::provider::InferRequest::replay_seed: core::option::Option<u64>
+pub nika_kernel_ai::provider::InferRequest::response_format: nika_kernel_ai::provider::ResponseFormat
+pub nika_kernel_ai::provider::InferRequest::stop_sequences: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_ai::provider::InferRequest::temperature: core::option::Option<f32>
+pub nika_kernel_ai::provider::InferRequest::tenant: core::option::Option<nika_types::id::TenantId>
+pub nika_kernel_ai::provider::InferRequest::thinking_budget: core::option::Option<u32>
+pub nika_kernel_ai::provider::InferRequest::tool_choice: nika_kernel_ai::provider::ToolChoice
+pub nika_kernel_ai::provider::InferRequest::tools: alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+impl nika_kernel_ai::provider::InferRequest
+pub fn nika_kernel_ai::provider::InferRequest::new(model: impl core::convert::Into<alloc::string::String>, messages: alloc::vec::Vec<nika_kernel_ai::provider::Message>) -> Self
+impl core::clone::Clone for nika_kernel_ai::provider::InferRequest
+pub fn nika_kernel_ai::provider::InferRequest::clone(&self) -> nika_kernel_ai::provider::InferRequest
+impl core::fmt::Debug for nika_kernel_ai::provider::InferRequest
+pub fn nika_kernel_ai::provider::InferRequest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::InferRequest
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::InferRequest where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::InferRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::InferRequest where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::InferRequest::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::InferRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::InferRequest where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::InferRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::InferRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::InferRequest where T: core::clone::Clone
+pub type nika_kernel_ai::provider::InferRequest::Owned = T
+pub fn nika_kernel_ai::provider::InferRequest::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::InferRequest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::InferRequest where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::InferRequest where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::InferRequest where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::InferRequest where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::InferRequest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::InferRequest
+pub fn nika_kernel_ai::provider::InferRequest::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::InferRequest where T: 'static
+pub fn nika_kernel_ai::provider::InferRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::provider::InferResponse
+pub nika_kernel_ai::provider::InferResponse::cached_tokens: core::option::Option<u32>
+pub nika_kernel_ai::provider::InferResponse::content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>
+pub nika_kernel_ai::provider::InferResponse::cost: core::option::Option<nika_types::cost::Cost>
+pub nika_kernel_ai::provider::InferResponse::cost_usd: core::option::Option<f64>
+pub nika_kernel_ai::provider::InferResponse::finish_reason_raw: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::provider::InferResponse::gen_ai: nika_kernel_ai::genai::GenAiAttrs
+pub nika_kernel_ai::provider::InferResponse::memory_frames: alloc::vec::Vec<nika_types::memory::MemoryFrameRef>
+pub nika_kernel_ai::provider::InferResponse::request_id: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::provider::InferResponse::span_id: core::option::Option<nika_types::id::SpanId>
+pub nika_kernel_ai::provider::InferResponse::stop_reason: nika_kernel_ai::provider::StopReason
+pub nika_kernel_ai::provider::InferResponse::trace_id: core::option::Option<nika_types::id::TraceId>
+pub nika_kernel_ai::provider::InferResponse::trust_level: core::option::Option<nika_types::trust::TrustLevel>
+pub nika_kernel_ai::provider::InferResponse::ttft_ms: core::option::Option<u64>
+pub nika_kernel_ai::provider::InferResponse::usage: nika_types::token_usage::TokenUsage
+impl nika_kernel_ai::provider::InferResponse
+pub fn nika_kernel_ai::provider::InferResponse::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, usage: nika_types::token_usage::TokenUsage, stop_reason: nika_kernel_ai::provider::StopReason) -> Self
+impl core::clone::Clone for nika_kernel_ai::provider::InferResponse
+pub fn nika_kernel_ai::provider::InferResponse::clone(&self) -> nika_kernel_ai::provider::InferResponse
+impl core::fmt::Debug for nika_kernel_ai::provider::InferResponse
+pub fn nika_kernel_ai::provider::InferResponse::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::InferResponse
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::InferResponse where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::InferResponse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::InferResponse where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::InferResponse::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::InferResponse::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::InferResponse where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::InferResponse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::InferResponse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::InferResponse where T: core::clone::Clone
+pub type nika_kernel_ai::provider::InferResponse::Owned = T
+pub fn nika_kernel_ai::provider::InferResponse::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::InferResponse::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::InferResponse where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferResponse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::InferResponse where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferResponse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::InferResponse where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::InferResponse::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::InferResponse where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::InferResponse::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::InferResponse
+pub fn nika_kernel_ai::provider::InferResponse::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::InferResponse where T: 'static
+pub fn nika_kernel_ai::provider::InferResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::provider::Message
+pub nika_kernel_ai::provider::Message::content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>
+pub nika_kernel_ai::provider::Message::role: nika_types::role::Role
+impl nika_kernel_ai::provider::Message
+pub fn nika_kernel_ai::provider::Message::new(role: nika_types::role::Role, content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>) -> Self
+pub fn nika_kernel_ai::provider::Message::text(role: nika_types::role::Role, text: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_ai::provider::Message
+pub fn nika_kernel_ai::provider::Message::clone(&self) -> nika_kernel_ai::provider::Message
+impl core::fmt::Debug for nika_kernel_ai::provider::Message
+pub fn nika_kernel_ai::provider::Message::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::Message
+pub fn nika_kernel_ai::provider::Message::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::Message
+pub fn nika_kernel_ai::provider::Message::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::Message
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::Message where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::Message::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::Message where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::Message::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::Message::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::Message where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::Message::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::Message::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::Message where T: core::clone::Clone
+pub type nika_kernel_ai::provider::Message::Owned = T
+pub fn nika_kernel_ai::provider::Message::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::Message::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::Message where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::Message::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::Message where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::Message::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::Message where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::Message::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::Message where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::Message::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::Message
+pub fn nika_kernel_ai::provider::Message::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::Message where T: 'static
+pub fn nika_kernel_ai::provider::Message::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::Message where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::provider::ProviderExtras
+pub nika_kernel_ai::provider::ProviderExtras::params: serde_json::map::Map<alloc::string::String, serde_json::value::Value>
+impl nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::new() -> Self
+impl core::clone::Clone for nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::clone(&self) -> nika_kernel_ai::provider::ProviderExtras
+impl core::default::Default for nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::default() -> nika_kernel_ai::provider::ProviderExtras
+impl core::fmt::Debug for nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ProviderExtras
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ProviderExtras where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ProviderExtras::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ProviderExtras where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ProviderExtras::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ProviderExtras::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ProviderExtras where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ProviderExtras::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ProviderExtras::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ProviderExtras where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ProviderExtras::Owned = T
+pub fn nika_kernel_ai::provider::ProviderExtras::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ProviderExtras::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ProviderExtras where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderExtras::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ProviderExtras where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderExtras::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ProviderExtras where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderExtras::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ProviderExtras where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ProviderExtras::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ProviderExtras
+pub fn nika_kernel_ai::provider::ProviderExtras::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ProviderExtras where T: 'static
+pub fn nika_kernel_ai::provider::ProviderExtras::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ProviderExtras where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::provider::ToolDef
+pub nika_kernel_ai::provider::ToolDef::description: alloc::string::String
+pub nika_kernel_ai::provider::ToolDef::name: alloc::string::String
+pub nika_kernel_ai::provider::ToolDef::parameters: serde_json::value::Value
+impl nika_kernel_ai::provider::ToolDef
+pub fn nika_kernel_ai::provider::ToolDef::new(name: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>, parameters: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_kernel_ai::provider::ToolDef
+pub fn nika_kernel_ai::provider::ToolDef::clone(&self) -> nika_kernel_ai::provider::ToolDef
+impl core::fmt::Debug for nika_kernel_ai::provider::ToolDef
+pub fn nika_kernel_ai::provider::ToolDef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_ai::provider::ToolDef
+pub fn nika_kernel_ai::provider::ToolDef::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::provider::ToolDef
+pub fn nika_kernel_ai::provider::ToolDef::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ToolDef
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ToolDef where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ToolDef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ToolDef where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ToolDef::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ToolDef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ToolDef where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ToolDef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ToolDef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ToolDef where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ToolDef::Owned = T
+pub fn nika_kernel_ai::provider::ToolDef::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ToolDef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ToolDef where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ToolDef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ToolDef where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ToolDef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ToolDef where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ToolDef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ToolDef where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ToolDef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ToolDef
+pub fn nika_kernel_ai::provider::ToolDef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ToolDef where T: 'static
+pub fn nika_kernel_ai::provider::ToolDef::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ToolDef where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_ai::provider::Provider: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
+impl<T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed> nika_kernel_ai::provider::Provider for T
+pub trait nika_kernel_ai::provider::ProviderEmbed: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::provider::ProviderEmbed::embed(&self, input: &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f32>>, nika_kernel_ai::provider::ProviderError>
+impl<TraitVariantBlanketType: nika_kernel_ai::provider::ProviderEmbedDyn> nika_kernel_ai::provider::ProviderEmbed for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::embed(&self, input: &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f32>>, nika_kernel_ai::provider::ProviderError>
+pub trait nika_kernel_ai::provider::ProviderEmbedDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::provider::ProviderEmbedDyn::embed(&self, input: &[alloc::string::String]) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f32>>, nika_kernel_ai::provider::ProviderError>> + core::marker::Send
+pub trait nika_kernel_ai::provider::ProviderInfer: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::provider::ProviderInfer::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn> nika_kernel_ai::provider::ProviderInfer for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub trait nika_kernel_ai::provider::ProviderInferDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::provider::ProviderInferDyn::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>> + core::marker::Send
+pub trait nika_kernel_ai::provider::ProviderMeta: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_ai::provider::ProviderMeta::name(&self) -> &str
+pub fn nika_kernel_ai::provider::ProviderMeta::supports_response_format(&self) -> bool
+pub trait nika_kernel_ai::provider::ProviderStream: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::provider::ProviderStream::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
+impl<TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn> nika_kernel_ai::provider::ProviderStream for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
+pub trait nika_kernel_ai::provider::ProviderStreamDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::provider::ProviderStreamDyn::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>> + core::marker::Send
+pub trait nika_kernel_ai::provider::ProviderVision: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_ai::provider::ProviderVision::supports_vision(&self) -> bool
+pub type nika_kernel_ai::provider::InferEventStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>
+pub mod nika_kernel_ai::vision
+#[non_exhaustive] pub struct nika_kernel_ai::vision::BoundingBox
+pub nika_kernel_ai::vision::BoundingBox::confidence: f32
+pub nika_kernel_ai::vision::BoundingBox::height: f32
+pub nika_kernel_ai::vision::BoundingBox::width: f32
+pub nika_kernel_ai::vision::BoundingBox::x: f32
+pub nika_kernel_ai::vision::BoundingBox::y: f32
+impl nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::new(x: f32, y: f32, width: f32, height: f32, confidence: f32) -> Self
+impl core::clone::Clone for nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::clone(&self) -> nika_kernel_ai::vision::BoundingBox
+impl core::cmp::PartialEq for nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::eq(&self, other: &nika_kernel_ai::vision::BoundingBox) -> bool
+impl core::convert::From<&nika_kernel_ai::vision::BoundingBox> for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::from(bb: &nika_kernel_ai::vision::BoundingBox) -> Self
+impl core::fmt::Debug for nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::vision::BoundingBox
+impl serde_core::ser::Serialize for nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::vision::BoundingBox
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::vision::BoundingBox where U: core::convert::From<T>
+pub fn nika_kernel_ai::vision::BoundingBox::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::vision::BoundingBox where U: core::convert::Into<T>
+pub type nika_kernel_ai::vision::BoundingBox::Error = core::convert::Infallible
+pub fn nika_kernel_ai::vision::BoundingBox::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::vision::BoundingBox where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::vision::BoundingBox::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::vision::BoundingBox::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::vision::BoundingBox where T: core::clone::Clone
+pub type nika_kernel_ai::vision::BoundingBox::Owned = T
+pub fn nika_kernel_ai::vision::BoundingBox::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::vision::BoundingBox::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::vision::BoundingBox where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::vision::BoundingBox::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::vision::BoundingBox where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::BoundingBox::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::vision::BoundingBox where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::BoundingBox::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::vision::BoundingBox where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::vision::BoundingBox::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::vision::BoundingBox
+pub fn nika_kernel_ai::vision::BoundingBox::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::vision::BoundingBox where T: 'static
+pub fn nika_kernel_ai::vision::BoundingBox::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::vision::BoundingBox where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::vision::DetectedObject
+pub nika_kernel_ai::vision::DetectedObject::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_ai::vision::DetectedObject::bbox: nika_kernel_ai::vision::BoundingBox
+pub nika_kernel_ai::vision::DetectedObject::label: alloc::string::String
+impl nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::new(label: alloc::string::String, bbox: nika_kernel_ai::vision::BoundingBox, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::clone(&self) -> nika_kernel_ai::vision::DetectedObject
+impl core::cmp::PartialEq for nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::eq(&self, other: &nika_kernel_ai::vision::DetectedObject) -> bool
+impl core::fmt::Debug for nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::vision::DetectedObject
+impl serde_core::ser::Serialize for nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::vision::DetectedObject
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::vision::DetectedObject where U: core::convert::From<T>
+pub fn nika_kernel_ai::vision::DetectedObject::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::vision::DetectedObject where U: core::convert::Into<T>
+pub type nika_kernel_ai::vision::DetectedObject::Error = core::convert::Infallible
+pub fn nika_kernel_ai::vision::DetectedObject::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::vision::DetectedObject where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::vision::DetectedObject::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::vision::DetectedObject::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::vision::DetectedObject where T: core::clone::Clone
+pub type nika_kernel_ai::vision::DetectedObject::Owned = T
+pub fn nika_kernel_ai::vision::DetectedObject::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::vision::DetectedObject::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::vision::DetectedObject where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::vision::DetectedObject::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::vision::DetectedObject where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::DetectedObject::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::vision::DetectedObject where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::DetectedObject::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::vision::DetectedObject where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::vision::DetectedObject::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::vision::DetectedObject
+pub fn nika_kernel_ai::vision::DetectedObject::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::vision::DetectedObject where T: 'static
+pub fn nika_kernel_ai::vision::DetectedObject::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::vision::DetectedObject where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::vision::VisionResponse
+pub nika_kernel_ai::vision::VisionResponse::description: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::vision::VisionResponse::objects: alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>
+pub nika_kernel_ai::vision::VisionResponse::text_regions: alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>
+impl nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::new(description: core::option::Option<alloc::string::String>, objects: alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>, text_regions: alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>) -> Self
+impl core::clone::Clone for nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::clone(&self) -> nika_kernel_ai::vision::VisionResponse
+impl core::cmp::PartialEq for nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::eq(&self, other: &nika_kernel_ai::vision::VisionResponse) -> bool
+impl core::fmt::Debug for nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::vision::VisionResponse
+impl serde_core::ser::Serialize for nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::vision::VisionResponse
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::vision::VisionResponse where U: core::convert::From<T>
+pub fn nika_kernel_ai::vision::VisionResponse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::vision::VisionResponse where U: core::convert::Into<T>
+pub type nika_kernel_ai::vision::VisionResponse::Error = core::convert::Infallible
+pub fn nika_kernel_ai::vision::VisionResponse::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::vision::VisionResponse where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::vision::VisionResponse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::vision::VisionResponse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::vision::VisionResponse where T: core::clone::Clone
+pub type nika_kernel_ai::vision::VisionResponse::Owned = T
+pub fn nika_kernel_ai::vision::VisionResponse::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::vision::VisionResponse::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::vision::VisionResponse where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionResponse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::vision::VisionResponse where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionResponse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::vision::VisionResponse where T: ?core::marker::Sized
+pub fn nika_kernel_ai::vision::VisionResponse::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::vision::VisionResponse where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::vision::VisionResponse::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::vision::VisionResponse
+pub fn nika_kernel_ai::vision::VisionResponse::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::vision::VisionResponse where T: 'static
+pub fn nika_kernel_ai::vision::VisionResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::vision::VisionResponse where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_ai::vision::VisionModel: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::vision::VisionModel::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> std::io::error::Result<nika_kernel_ai::vision::VisionResponse>
+pub async fn nika_kernel_ai::vision::VisionModel::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>>
+pub async fn nika_kernel_ai::vision::VisionModel::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>>
+impl<TraitVariantBlanketType: nika_kernel_ai::vision::VisionModelDyn> nika_kernel_ai::vision::VisionModel for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> std::io::error::Result<nika_kernel_ai::vision::VisionResponse>
+pub async fn TraitVariantBlanketType::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>>
+pub async fn TraitVariantBlanketType::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>>
+pub trait nika_kernel_ai::vision::VisionModelDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::vision::VisionModelDyn::describe(&self, frame: &nika_kernel_core::io::screen::Frame, prompt: &str) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_ai::vision::VisionResponse>> + core::marker::Send
+pub fn nika_kernel_ai::vision::VisionModelDyn::detect(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::DetectedObject>>> + core::marker::Send
+pub fn nika_kernel_ai::vision::VisionModelDyn::locate(&self, frame: &nika_kernel_core::io::screen::Frame, target: &str) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_ai::vision::BoundingBox>>> + core::marker::Send

@@ -1,0 +1,38 @@
+pub mod nika_clock
+pub struct nika_clock::SystemClock
+impl core::clone::Clone for nika_clock::SystemClock
+pub fn nika_clock::SystemClock::clone(&self) -> nika_clock::SystemClock
+impl core::default::Default for nika_clock::SystemClock
+pub fn nika_clock::SystemClock::default() -> nika_clock::SystemClock
+impl core::fmt::Debug for nika_clock::SystemClock
+pub fn nika_clock::SystemClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_clock::SystemClock
+impl nika_kernel_core::io::clock::Clock for nika_clock::SystemClock
+pub fn nika_clock::SystemClock::now(&self) -> std::time::Instant
+pub async fn nika_clock::SystemClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_clock::SystemClock::system_now(&self) -> std::time::SystemTime
+impl<D> owo_colors::OwoColorize for nika_clock::SystemClock
+impl<T, U> core::convert::Into<U> for nika_clock::SystemClock where U: core::convert::From<T>
+pub fn nika_clock::SystemClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_clock::SystemClock where U: core::convert::Into<T>
+pub type nika_clock::SystemClock::Error = core::convert::Infallible
+pub fn nika_clock::SystemClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_clock::SystemClock where U: core::convert::TryFrom<T>
+pub type nika_clock::SystemClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_clock::SystemClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_clock::SystemClock where T: core::clone::Clone
+pub type nika_clock::SystemClock::Owned = T
+pub fn nika_clock::SystemClock::clone_into(&self, target: &mut T)
+pub fn nika_clock::SystemClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_clock::SystemClock where T: 'static + ?core::marker::Sized
+pub fn nika_clock::SystemClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_clock::SystemClock where T: ?core::marker::Sized
+pub fn nika_clock::SystemClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_clock::SystemClock where T: ?core::marker::Sized
+pub fn nika_clock::SystemClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_clock::SystemClock where T: core::clone::Clone
+pub unsafe fn nika_clock::SystemClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_clock::SystemClock
+pub fn nika_clock::SystemClock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_clock::SystemClock where T: 'static
+pub fn nika_clock::SystemClock::as_any(&self) -> &(dyn core::any::Any + 'static)

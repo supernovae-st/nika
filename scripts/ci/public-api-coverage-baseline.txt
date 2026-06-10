@@ -11,9 +11,37 @@
 #
 # Generate a baseline:  cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt
 #
-# Enforced by scripts/hygiene/check-public-api-coverage.sh (vector 38).
+# Enforced by scripts/hygiene/check-public-api-coverage.sh (vector 38) AND projected
+# into .github/workflows/public-api.yml (surface diff) + semver-checks.yml (breaking-
+# vs-additive). ONE source of truth → three consumers (ADR-090). Add a crate here +
+# commit its public-api.txt, and all three pick it up.
+#
+# Two classes of admitted lib crate are deliberately NOT floored:
+#   - WIP crates — their public surface churns by design, so locking it only
+#     generates CI noise (regen chore per edit) with nothing stable to protect.
+#     Floored at admission. Hold-out: nika-schema.
+#   - Platform-divergent surfaces — the baseline is generated on the developer host
+#     (macOS) but CI diffs it on ubuntu. A crate whose PUBLIC surface differs by OS
+#     can't be locked with one cross-platform snapshot. nika-screen's surface carries
+#     macOS-only `objc2::…::AutoreleaseSafe` blanket impls (via xcap's objc2 dep) that
+#     don't exist on linux; `--omit auto-trait-impls` doesn't strip them. To cover it,
+#     generate the baseline on linux (CI-side) OR add `--omit blanket-impls` to ALL
+#     consumers + regen every baseline. Until then: hold-out.
+# (a11y/ocr also use OS-specific deps but keep them PRIVATE — their public surface is
+#  neutral, verified by a platform-symbol sweep, so they ARE floored.)
 nika-types
 nika-error
 nika-catalog
 nika-kernel
 nika-kernel-mock
+# --- 2026-06-10: the platform-neutral admitted lib crates (L0 / L0.5 / L1) ---
+nika-a11y
+nika-bm25
+nika-catalog-codegen
+nika-clock
+nika-event
+nika-kernel-ai
+nika-kernel-core
+nika-kernel-plugin
+nika-kernel-runtime
+nika-ocr

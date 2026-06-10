@@ -1,0 +1,1972 @@
+pub mod nika_kernel_core
+pub mod nika_kernel_core::cancel
+pub use nika_kernel_core::cancel::CancelCtx
+pub mod nika_kernel_core::errors
+pub const nika_kernel_core::errors::NIKA_050: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_051: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_052: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_053: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_059: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_100: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_101: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_102: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_140: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_141: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_142: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_143: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_144: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_149: nika_error::codes::NikaCode
+pub mod nika_kernel_core::infra
+pub mod nika_kernel_core::infra::audit
+#[non_exhaustive] pub enum nika_kernel_core::infra::audit::AuditRecord
+pub nika_kernel_core::infra::audit::AuditRecord::BudgetExhausted
+pub nika_kernel_core::infra::audit::AuditRecord::BudgetExhausted::cap: u64
+pub nika_kernel_core::infra::audit::AuditRecord::BudgetExhausted::dimension: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::BudgetExhausted::observed: u64
+pub nika_kernel_core::infra::audit::AuditRecord::BudgetExhausted::tenant_id: nika_types::id::TenantId
+pub nika_kernel_core::infra::audit::AuditRecord::CanaryLeaked
+pub nika_kernel_core::infra::audit::AuditRecord::CanaryLeaked::canary_id: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::CanaryLeaked::tenant_id: nika_types::id::TenantId
+pub nika_kernel_core::infra::audit::AuditRecord::CapabilityOverride
+pub nika_kernel_core::infra::audit::AuditRecord::CapabilityOverride::capability: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::CapabilityOverride::reason: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::CapabilityOverride::tenant_id: nika_types::id::TenantId
+pub nika_kernel_core::infra::audit::AuditRecord::Extension
+pub nika_kernel_core::infra::audit::AuditRecord::Extension::name: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::Extension::ns: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::Extension::payload: serde_json::value::Value
+pub nika_kernel_core::infra::audit::AuditRecord::KeyUsed
+pub nika_kernel_core::infra::audit::AuditRecord::KeyUsed::key_id: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::KeyUsed::tenant_id: nika_types::id::TenantId
+pub nika_kernel_core::infra::audit::AuditRecord::PolicyDenied
+pub nika_kernel_core::infra::audit::AuditRecord::PolicyDenied::rule_id: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::PolicyDenied::target: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::PolicyDenied::tenant_id: nika_types::id::TenantId
+pub nika_kernel_core::infra::audit::AuditRecord::SecretRedacted
+pub nika_kernel_core::infra::audit::AuditRecord::SecretRedacted::location: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::SecretRedacted::tenant_id: nika_types::id::TenantId
+pub nika_kernel_core::infra::audit::AuditRecord::TaintViolation
+pub nika_kernel_core::infra::audit::AuditRecord::TaintViolation::path: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditRecord::TaintViolation::severity: nika_kernel_core::infra::audit::Severity
+pub nika_kernel_core::infra::audit::AuditRecord::TaintViolation::tenant_id: nika_types::id::TenantId
+impl nika_kernel_core::infra::audit::AuditRecord
+pub fn nika_kernel_core::infra::audit::AuditRecord::budget_exhausted(tenant_id: impl core::convert::Into<alloc::string::String>, dimension: impl core::convert::Into<alloc::string::String>, cap: u64, observed: u64) -> Self
+pub fn nika_kernel_core::infra::audit::AuditRecord::canary_leaked(tenant_id: impl core::convert::Into<alloc::string::String>, canary_id: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_core::infra::audit::AuditRecord::capability_override(tenant_id: impl core::convert::Into<alloc::string::String>, capability: impl core::convert::Into<alloc::string::String>, reason: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_core::infra::audit::AuditRecord::extension(ns: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, payload: serde_json::value::Value) -> Self
+pub fn nika_kernel_core::infra::audit::AuditRecord::taint_violation(tenant_id: impl core::convert::Into<alloc::string::String>, path: impl core::convert::Into<alloc::string::String>, severity: nika_kernel_core::infra::audit::Severity) -> Self
+impl core::clone::Clone for nika_kernel_core::infra::audit::AuditRecord
+pub fn nika_kernel_core::infra::audit::AuditRecord::clone(&self) -> nika_kernel_core::infra::audit::AuditRecord
+impl core::fmt::Debug for nika_kernel_core::infra::audit::AuditRecord
+pub fn nika_kernel_core::infra::audit::AuditRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_core::infra::audit::AuditRecord
+pub fn nika_kernel_core::infra::audit::AuditRecord::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::infra::audit::AuditRecord
+pub fn nika_kernel_core::infra::audit::AuditRecord::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::audit::AuditRecord
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::audit::AuditRecord where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::audit::AuditRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::audit::AuditRecord where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::audit::AuditRecord::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::audit::AuditRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::audit::AuditRecord where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::audit::AuditRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::audit::AuditRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::infra::audit::AuditRecord where T: core::clone::Clone
+pub type nika_kernel_core::infra::audit::AuditRecord::Owned = T
+pub fn nika_kernel_core::infra::audit::AuditRecord::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::infra::audit::AuditRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::infra::audit::AuditRecord where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::audit::AuditRecord where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::audit::AuditRecord where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::infra::audit::AuditRecord where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::infra::audit::AuditRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::infra::audit::AuditRecord
+pub fn nika_kernel_core::infra::audit::AuditRecord::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::audit::AuditRecord where T: 'static
+pub fn nika_kernel_core::infra::audit::AuditRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::infra::audit::AuditRecord where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_core::infra::audit::AuditSinkError
+pub nika_kernel_core::infra::audit::AuditSinkError::NotConfigured
+pub nika_kernel_core::infra::audit::AuditSinkError::NotConfigured::reason: alloc::string::String
+pub nika_kernel_core::infra::audit::AuditSinkError::PersistFailed
+pub nika_kernel_core::infra::audit::AuditSinkError::PersistFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::infra::audit::AuditSinkError
+impl core::fmt::Debug for nika_kernel_core::infra::audit::AuditSinkError
+pub fn nika_kernel_core::infra::audit::AuditSinkError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::infra::audit::AuditSinkError
+pub fn nika_kernel_core::infra::audit::AuditSinkError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::infra::audit::AuditSinkError
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::audit::AuditSinkError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::audit::AuditSinkError where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::audit::AuditSinkError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::audit::AuditSinkError where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::audit::AuditSinkError::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::audit::AuditSinkError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::audit::AuditSinkError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::audit::AuditSinkError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::audit::AuditSinkError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::infra::audit::AuditSinkError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditSinkError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::infra::audit::AuditSinkError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditSinkError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::audit::AuditSinkError where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditSinkError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::audit::AuditSinkError where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::AuditSinkError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::infra::audit::AuditSinkError
+pub fn nika_kernel_core::infra::audit::AuditSinkError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::audit::AuditSinkError where T: 'static
+pub fn nika_kernel_core::infra::audit::AuditSinkError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_core::infra::audit::Severity
+pub nika_kernel_core::infra::audit::Severity::Critical
+pub nika_kernel_core::infra::audit::Severity::Info
+pub nika_kernel_core::infra::audit::Severity::Warn
+impl core::clone::Clone for nika_kernel_core::infra::audit::Severity
+pub fn nika_kernel_core::infra::audit::Severity::clone(&self) -> nika_kernel_core::infra::audit::Severity
+impl core::cmp::Eq for nika_kernel_core::infra::audit::Severity
+impl core::cmp::PartialEq for nika_kernel_core::infra::audit::Severity
+pub fn nika_kernel_core::infra::audit::Severity::eq(&self, other: &nika_kernel_core::infra::audit::Severity) -> bool
+impl core::fmt::Debug for nika_kernel_core::infra::audit::Severity
+pub fn nika_kernel_core::infra::audit::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_core::infra::audit::Severity
+impl core::marker::StructuralPartialEq for nika_kernel_core::infra::audit::Severity
+impl serde_core::ser::Serialize for nika_kernel_core::infra::audit::Severity
+pub fn nika_kernel_core::infra::audit::Severity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::infra::audit::Severity
+pub fn nika_kernel_core::infra::audit::Severity::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::audit::Severity
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::audit::Severity where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::audit::Severity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::audit::Severity where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::audit::Severity::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::audit::Severity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::audit::Severity where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::audit::Severity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::audit::Severity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::infra::audit::Severity where T: core::clone::Clone
+pub type nika_kernel_core::infra::audit::Severity::Owned = T
+pub fn nika_kernel_core::infra::audit::Severity::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::infra::audit::Severity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::infra::audit::Severity where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::Severity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::audit::Severity where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::Severity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::audit::Severity where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::audit::Severity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::infra::audit::Severity where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::infra::audit::Severity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::infra::audit::Severity
+pub fn nika_kernel_core::infra::audit::Severity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::audit::Severity where T: 'static
+pub fn nika_kernel_core::infra::audit::Severity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::infra::audit::Severity where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::infra::audit::AuditSink: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_core::infra::audit::AuditSink::audit(&self, record: nika_kernel_core::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>
+impl<TraitVariantBlanketType: nika_kernel_core::infra::audit::AuditSinkDyn> nika_kernel_core::infra::audit::AuditSink for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::audit(&self, record: nika_kernel_core::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>
+pub trait nika_kernel_core::infra::audit::AuditSinkDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_core::infra::audit::AuditSinkDyn::audit(&self, record: nika_kernel_core::infra::audit::AuditRecord) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>> + core::marker::Send
+pub mod nika_kernel_core::infra::billing
+pub trait nika_kernel_core::infra::billing::BillingSink: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_core::infra::billing::BillingSink::record(&self, cost: nika_types::cost::Cost, usage: &nika_types::token_usage::TokenUsage, provider: &nika_types::id::ProviderId, model: &nika_types::id::ModelId) -> core::result::Result<(), nika_error::nika_error::NikaError>
+impl<TraitVariantBlanketType: nika_kernel_core::infra::billing::BillingSinkDyn> nika_kernel_core::infra::billing::BillingSink for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::record(&self, cost: nika_types::cost::Cost, usage: &nika_types::token_usage::TokenUsage, provider: &nika_types::id::ProviderId, model: &nika_types::id::ModelId) -> core::result::Result<(), nika_error::nika_error::NikaError>
+pub trait nika_kernel_core::infra::billing::BillingSinkDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_core::infra::billing::BillingSinkDyn::record(&self, cost: nika_types::cost::Cost, usage: &nika_types::token_usage::TokenUsage, provider: &nika_types::id::ProviderId, model: &nika_types::id::ModelId) -> impl core::future::future::Future<Output = core::result::Result<(), nika_error::nika_error::NikaError>> + core::marker::Send
+pub mod nika_kernel_core::infra::event_sink
+#[non_exhaustive] pub struct nika_kernel_core::infra::event_sink::Event
+pub nika_kernel_core::infra::event_sink::Event::id: nika_types::id::EventId
+pub nika_kernel_core::infra::event_sink::Event::kind: alloc::string::String
+pub nika_kernel_core::infra::event_sink::Event::payload: serde_json::value::Value
+pub nika_kernel_core::infra::event_sink::Event::run_id: nika_types::id::RunId
+pub nika_kernel_core::infra::event_sink::Event::timestamp_ms: u64
+pub nika_kernel_core::infra::event_sink::Event::trace_id: core::option::Option<nika_types::id::TraceId>
+impl nika_kernel_core::infra::event_sink::Event
+pub fn nika_kernel_core::infra::event_sink::Event::new(id: nika_types::id::EventId, run_id: nika_types::id::RunId, kind: impl core::convert::Into<alloc::string::String>, timestamp_ms: u64, payload: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_kernel_core::infra::event_sink::Event
+pub fn nika_kernel_core::infra::event_sink::Event::clone(&self) -> nika_kernel_core::infra::event_sink::Event
+impl core::fmt::Debug for nika_kernel_core::infra::event_sink::Event
+pub fn nika_kernel_core::infra::event_sink::Event::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_kernel_core::infra::event_sink::Event
+pub fn nika_kernel_core::infra::event_sink::Event::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::infra::event_sink::Event
+pub fn nika_kernel_core::infra::event_sink::Event::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::event_sink::Event
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::event_sink::Event where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::event_sink::Event::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::event_sink::Event where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::event_sink::Event::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::event_sink::Event::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::event_sink::Event where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::event_sink::Event::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::event_sink::Event::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::infra::event_sink::Event where T: core::clone::Clone
+pub type nika_kernel_core::infra::event_sink::Event::Owned = T
+pub fn nika_kernel_core::infra::event_sink::Event::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::infra::event_sink::Event::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::infra::event_sink::Event where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::event_sink::Event::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::event_sink::Event where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::event_sink::Event::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::event_sink::Event where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::event_sink::Event::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::infra::event_sink::Event where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::infra::event_sink::Event::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::infra::event_sink::Event
+pub fn nika_kernel_core::infra::event_sink::Event::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::event_sink::Event where T: 'static
+pub fn nika_kernel_core::infra::event_sink::Event::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::infra::event_sink::Event where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::infra::event_sink::EventSink: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_core::infra::event_sink::EventSink::emit(&self, event: nika_kernel_core::infra::event_sink::Event) -> core::result::Result<(), nika_error::nika_error::NikaError>
+impl<TraitVariantBlanketType: nika_kernel_core::infra::event_sink::EventSinkDyn> nika_kernel_core::infra::event_sink::EventSink for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::emit(&self, event: nika_kernel_core::infra::event_sink::Event) -> core::result::Result<(), nika_error::nika_error::NikaError>
+pub trait nika_kernel_core::infra::event_sink::EventSinkDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_core::infra::event_sink::EventSinkDyn::emit(&self, event: nika_kernel_core::infra::event_sink::Event) -> impl core::future::future::Future<Output = core::result::Result<(), nika_error::nika_error::NikaError>> + core::marker::Send
+pub mod nika_kernel_core::infra::id_gen
+pub trait nika_kernel_core::infra::id_gen::IdGenerator: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_core::infra::id_gen::IdGenerator::new_event_id(&self) -> nika_types::id::EventId
+pub fn nika_kernel_core::infra::id_gen::IdGenerator::new_run_id(&self) -> nika_types::id::RunId
+pub fn nika_kernel_core::infra::id_gen::IdGenerator::new_span_id(&self) -> nika_types::id::SpanId
+pub fn nika_kernel_core::infra::id_gen::IdGenerator::new_trace_id(&self) -> nika_types::id::TraceId
+pub mod nika_kernel_core::infra::metrics
+pub trait nika_kernel_core::infra::metrics::MetricsExporter: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_core::infra::metrics::MetricsExporter::counter(&self, name: &str, value: u64, tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub fn nika_kernel_core::infra::metrics::MetricsExporter::gauge(&self, name: &str, value: f64, tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub fn nika_kernel_core::infra::metrics::MetricsExporter::histogram(&self, name: &str, value: f64, tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub type nika_kernel_core::infra::metrics::MetricTag = (alloc::string::String, alloc::string::String)
+pub mod nika_kernel_core::infra::secret
+pub struct nika_kernel_core::infra::secret::Secret(_)
+impl nika_kernel_core::infra::secret::Secret
+pub fn nika_kernel_core::infra::secret::Secret::expose(&self) -> &str
+pub fn nika_kernel_core::infra::secret::Secret::new(value: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::infra::secret::Secret
+pub fn nika_kernel_core::infra::secret::Secret::clone(&self) -> Self
+impl core::fmt::Debug for nika_kernel_core::infra::secret::Secret
+pub fn nika_kernel_core::infra::secret::Secret::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::secret::Secret
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::secret::Secret where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::secret::Secret::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::secret::Secret where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::secret::Secret::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::secret::Secret::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::secret::Secret where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::secret::Secret::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::secret::Secret::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::infra::secret::Secret where T: core::clone::Clone
+pub type nika_kernel_core::infra::secret::Secret::Owned = T
+pub fn nika_kernel_core::infra::secret::Secret::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::infra::secret::Secret::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::infra::secret::Secret where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::Secret::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::secret::Secret where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::Secret::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::secret::Secret where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::Secret::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::infra::secret::Secret where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::infra::secret::Secret::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::infra::secret::Secret
+pub fn nika_kernel_core::infra::secret::Secret::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::secret::Secret where T: 'static
+pub fn nika_kernel_core::infra::secret::Secret::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::infra::secret::SecretRef
+pub nika_kernel_core::infra::secret::SecretRef::reference: alloc::string::String
+impl nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::new(reference: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::clone(&self) -> nika_kernel_core::infra::secret::SecretRef
+impl core::cmp::Eq for nika_kernel_core::infra::secret::SecretRef
+impl core::cmp::PartialEq for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::eq(&self, other: &nika_kernel_core::infra::secret::SecretRef) -> bool
+impl core::fmt::Debug for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_kernel_core::infra::secret::SecretRef
+impl serde_core::ser::Serialize for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::secret::SecretRef
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::secret::SecretRef where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::secret::SecretRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::secret::SecretRef where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::secret::SecretRef::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::secret::SecretRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::secret::SecretRef where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::secret::SecretRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::secret::SecretRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::infra::secret::SecretRef where T: core::clone::Clone
+pub type nika_kernel_core::infra::secret::SecretRef::Owned = T
+pub fn nika_kernel_core::infra::secret::SecretRef::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::infra::secret::SecretRef::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_kernel_core::infra::secret::SecretRef where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::SecretRef::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::infra::secret::SecretRef where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::SecretRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::secret::SecretRef where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::SecretRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::secret::SecretRef where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::secret::SecretRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::infra::secret::SecretRef where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::infra::secret::SecretRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::infra::secret::SecretRef
+pub fn nika_kernel_core::infra::secret::SecretRef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::secret::SecretRef where T: 'static
+pub fn nika_kernel_core::infra::secret::SecretRef::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::infra::secret::SecretRef where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::infra::secret::SecretResolver: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed
+pub async fn nika_kernel_core::infra::secret::SecretResolver::resolve(&self, secret: &nika_kernel_core::infra::secret::SecretRef) -> core::result::Result<nika_kernel_core::infra::secret::Secret, nika_error::nika_error::NikaError>
+impl<TraitVariantBlanketType: nika_kernel_core::infra::secret::SecretResolverDyn> nika_kernel_core::infra::secret::SecretResolver for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::resolve(&self, secret: &nika_kernel_core::infra::secret::SecretRef) -> core::result::Result<nika_kernel_core::infra::secret::Secret, nika_error::nika_error::NikaError>
+pub trait nika_kernel_core::infra::secret::SecretResolverDyn: core::marker::Send + core::marker::Sync + nika_kernel_core::sealed::Sealed + core::marker::Send
+pub fn nika_kernel_core::infra::secret::SecretResolverDyn::resolve(&self, secret: &nika_kernel_core::infra::secret::SecretRef) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::infra::secret::Secret, nika_error::nika_error::NikaError>> + core::marker::Send
+pub mod nika_kernel_core::infra::trace
+#[non_exhaustive] pub struct nika_kernel_core::infra::trace::SpanGuard
+pub nika_kernel_core::infra::trace::SpanGuard::links: alloc::vec::Vec<nika_kernel_core::infra::trace::SpanRef>
+pub nika_kernel_core::infra::trace::SpanGuard::parent_span_id: core::option::Option<nika_types::id::SpanId>
+pub nika_kernel_core::infra::trace::SpanGuard::span_id: nika_types::id::SpanId
+pub nika_kernel_core::infra::trace::SpanGuard::trace_id: nika_types::id::TraceId
+impl nika_kernel_core::infra::trace::SpanGuard
+pub fn nika_kernel_core::infra::trace::SpanGuard::child_of(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: nika_types::id::SpanId) -> Self
+pub fn nika_kernel_core::infra::trace::SpanGuard::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+pub fn nika_kernel_core::infra::trace::SpanGuard::with_links(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId, parent_span_id: core::option::Option<nika_types::id::SpanId>, links: alloc::vec::Vec<nika_kernel_core::infra::trace::SpanRef>) -> Self
+impl core::fmt::Debug for nika_kernel_core::infra::trace::SpanGuard
+pub fn nika_kernel_core::infra::trace::SpanGuard::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::trace::SpanGuard
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::trace::SpanGuard where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::trace::SpanGuard::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::trace::SpanGuard where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::trace::SpanGuard::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::trace::SpanGuard::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::trace::SpanGuard where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::trace::SpanGuard::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::trace::SpanGuard::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_kernel_core::infra::trace::SpanGuard where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::trace::SpanGuard::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::trace::SpanGuard where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::trace::SpanGuard::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::trace::SpanGuard where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::trace::SpanGuard::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::infra::trace::SpanGuard
+pub fn nika_kernel_core::infra::trace::SpanGuard::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::trace::SpanGuard where T: 'static
+pub fn nika_kernel_core::infra::trace::SpanGuard::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::infra::trace::SpanRef
+pub nika_kernel_core::infra::trace::SpanRef::span_id: nika_types::id::SpanId
+pub nika_kernel_core::infra::trace::SpanRef::trace_id: nika_types::id::TraceId
+impl nika_kernel_core::infra::trace::SpanRef
+pub const fn nika_kernel_core::infra::trace::SpanRef::new(trace_id: nika_types::id::TraceId, span_id: nika_types::id::SpanId) -> Self
+impl core::clone::Clone for nika_kernel_core::infra::trace::SpanRef
+pub fn nika_kernel_core::infra::trace::SpanRef::clone(&self) -> nika_kernel_core::infra::trace::SpanRef
+impl core::cmp::Eq for nika_kernel_core::infra::trace::SpanRef
+impl core::cmp::PartialEq for nika_kernel_core::infra::trace::SpanRef
+pub fn nika_kernel_core::infra::trace::SpanRef::eq(&self, other: &nika_kernel_core::infra::trace::SpanRef) -> bool
+impl core::fmt::Debug for nika_kernel_core::infra::trace::SpanRef
+pub fn nika_kernel_core::infra::trace::SpanRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::infra::trace::SpanRef
+pub fn nika_kernel_core::infra::trace::SpanRef::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::infra::trace::SpanRef
+impl core::marker::StructuralPartialEq for nika_kernel_core::infra::trace::SpanRef
+impl<D> owo_colors::OwoColorize for nika_kernel_core::infra::trace::SpanRef
+impl<T, U> core::convert::Into<U> for nika_kernel_core::infra::trace::SpanRef where U: core::convert::From<T>
+pub fn nika_kernel_core::infra::trace::SpanRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::infra::trace::SpanRef where U: core::convert::Into<T>
+pub type nika_kernel_core::infra::trace::SpanRef::Error = core::convert::Infallible
+pub fn nika_kernel_core::infra::trace::SpanRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::infra::trace::SpanRef where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::infra::trace::SpanRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::infra::trace::SpanRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::infra::trace::SpanRef where T: core::clone::Clone
+pub type nika_kernel_core::infra::trace::SpanRef::Owned = T
+pub fn nika_kernel_core::infra::trace::SpanRef::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::infra::trace::SpanRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::infra::trace::SpanRef where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::infra::trace::SpanRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::infra::trace::SpanRef where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::trace::SpanRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::infra::trace::SpanRef where T: ?core::marker::Sized
+pub fn nika_kernel_core::infra::trace::SpanRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::infra::trace::SpanRef where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::infra::trace::SpanRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::infra::trace::SpanRef
+pub fn nika_kernel_core::infra::trace::SpanRef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::infra::trace::SpanRef where T: 'static
+pub fn nika_kernel_core::infra::trace::SpanRef::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_core::infra::trace::TracerProvider: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_core::infra::trace::TracerProvider::extract(&self, headers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<nika_types::id::TraceId>
+pub fn nika_kernel_core::infra::trace::TracerProvider::inject(&self, headers: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub fn nika_kernel_core::infra::trace::TracerProvider::start_child_span(&self, trace_id: nika_types::id::TraceId, parent_span_id: core::option::Option<nika_types::id::SpanId>, name: &str) -> nika_kernel_core::infra::trace::SpanGuard
+pub fn nika_kernel_core::infra::trace::TracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, name: &str) -> nika_kernel_core::infra::trace::SpanGuard
+pub mod nika_kernel_core::io
+pub mod nika_kernel_core::io::a11y
+#[non_exhaustive] pub enum nika_kernel_core::io::a11y::AxRole
+pub nika_kernel_core::io::a11y::AxRole::Button
+pub nika_kernel_core::io::a11y::AxRole::Form
+pub nika_kernel_core::io::a11y::AxRole::Group
+pub nika_kernel_core::io::a11y::AxRole::Heading
+pub nika_kernel_core::io::a11y::AxRole::Image
+pub nika_kernel_core::io::a11y::AxRole::Link
+pub nika_kernel_core::io::a11y::AxRole::List
+pub nika_kernel_core::io::a11y::AxRole::ListItem
+pub nika_kernel_core::io::a11y::AxRole::Menu
+pub nika_kernel_core::io::a11y::AxRole::StaticText
+pub nika_kernel_core::io::a11y::AxRole::TextField
+pub nika_kernel_core::io::a11y::AxRole::Unknown
+pub nika_kernel_core::io::a11y::AxRole::Window
+impl core::clone::Clone for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::clone(&self) -> nika_kernel_core::io::a11y::AxRole
+impl core::cmp::Eq for nika_kernel_core::io::a11y::AxRole
+impl core::cmp::PartialEq for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::eq(&self, other: &nika_kernel_core::io::a11y::AxRole) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::a11y::AxRole
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::a11y::AxRole
+impl serde_core::ser::Serialize for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::a11y::AxRole
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::a11y::AxRole where U: core::convert::From<T>
+pub fn nika_kernel_core::io::a11y::AxRole::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::a11y::AxRole where U: core::convert::Into<T>
+pub type nika_kernel_core::io::a11y::AxRole::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::a11y::AxRole::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::a11y::AxRole where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::a11y::AxRole::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::a11y::AxRole::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::a11y::AxRole where T: core::clone::Clone
+pub type nika_kernel_core::io::a11y::AxRole::Owned = T
+pub fn nika_kernel_core::io::a11y::AxRole::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::a11y::AxRole::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::a11y::AxRole where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxRole::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::a11y::AxRole where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxRole::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::a11y::AxRole where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxRole::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::a11y::AxRole where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::a11y::AxRole::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::a11y::AxRole
+pub fn nika_kernel_core::io::a11y::AxRole::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::a11y::AxRole where T: 'static
+pub fn nika_kernel_core::io::a11y::AxRole::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::a11y::AxRole where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::a11y::AxNode
+pub nika_kernel_core::io::a11y::AxNode::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_core::io::a11y::AxNode::bbox: core::option::Option<nika_kernel_core::io::screen::Rect>
+pub nika_kernel_core::io::a11y::AxNode::children: alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>
+pub nika_kernel_core::io::a11y::AxNode::id: alloc::string::String
+pub nika_kernel_core::io::a11y::AxNode::label: core::option::Option<alloc::string::String>
+pub nika_kernel_core::io::a11y::AxNode::role: nika_kernel_core::io::a11y::AxRole
+pub nika_kernel_core::io::a11y::AxNode::value: core::option::Option<alloc::string::String>
+impl nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::new(id: alloc::string::String, role: nika_kernel_core::io::a11y::AxRole, label: core::option::Option<alloc::string::String>, value: core::option::Option<alloc::string::String>, bbox: core::option::Option<nika_kernel_core::io::screen::Rect>, children: alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::clone(&self) -> nika_kernel_core::io::a11y::AxNode
+impl core::cmp::Eq for nika_kernel_core::io::a11y::AxNode
+impl core::cmp::PartialEq for nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::eq(&self, other: &nika_kernel_core::io::a11y::AxNode) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::a11y::AxNode
+impl serde_core::ser::Serialize for nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::a11y::AxNode
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::a11y::AxNode where U: core::convert::From<T>
+pub fn nika_kernel_core::io::a11y::AxNode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::a11y::AxNode where U: core::convert::Into<T>
+pub type nika_kernel_core::io::a11y::AxNode::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::a11y::AxNode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::a11y::AxNode where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::a11y::AxNode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::a11y::AxNode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::a11y::AxNode where T: core::clone::Clone
+pub type nika_kernel_core::io::a11y::AxNode::Owned = T
+pub fn nika_kernel_core::io::a11y::AxNode::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::a11y::AxNode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::a11y::AxNode where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxNode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::a11y::AxNode where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxNode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::a11y::AxNode where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxNode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::a11y::AxNode where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::a11y::AxNode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::a11y::AxNode
+pub fn nika_kernel_core::io::a11y::AxNode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::a11y::AxNode where T: 'static
+pub fn nika_kernel_core::io::a11y::AxNode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::a11y::AxNode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::a11y::AxQuery
+pub nika_kernel_core::io::a11y::AxQuery::label_contains: core::option::Option<alloc::string::String>
+pub nika_kernel_core::io::a11y::AxQuery::max_depth: core::option::Option<u16>
+pub nika_kernel_core::io::a11y::AxQuery::role: core::option::Option<nika_kernel_core::io::a11y::AxRole>
+pub nika_kernel_core::io::a11y::AxQuery::value_contains: core::option::Option<alloc::string::String>
+impl nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::new(role: core::option::Option<nika_kernel_core::io::a11y::AxRole>, label_contains: core::option::Option<alloc::string::String>, value_contains: core::option::Option<alloc::string::String>, max_depth: core::option::Option<u16>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::clone(&self) -> nika_kernel_core::io::a11y::AxQuery
+impl core::cmp::Eq for nika_kernel_core::io::a11y::AxQuery
+impl core::cmp::PartialEq for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::eq(&self, other: &nika_kernel_core::io::a11y::AxQuery) -> bool
+impl core::default::Default for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::default() -> nika_kernel_core::io::a11y::AxQuery
+impl core::fmt::Debug for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::a11y::AxQuery
+impl serde_core::ser::Serialize for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::a11y::AxQuery
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::a11y::AxQuery where U: core::convert::From<T>
+pub fn nika_kernel_core::io::a11y::AxQuery::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::a11y::AxQuery where U: core::convert::Into<T>
+pub type nika_kernel_core::io::a11y::AxQuery::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::a11y::AxQuery::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::a11y::AxQuery where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::a11y::AxQuery::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::a11y::AxQuery::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::a11y::AxQuery where T: core::clone::Clone
+pub type nika_kernel_core::io::a11y::AxQuery::Owned = T
+pub fn nika_kernel_core::io::a11y::AxQuery::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::a11y::AxQuery::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::a11y::AxQuery where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxQuery::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::a11y::AxQuery where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxQuery::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::a11y::AxQuery where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::AxQuery::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::a11y::AxQuery where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::a11y::AxQuery::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::a11y::AxQuery
+pub fn nika_kernel_core::io::a11y::AxQuery::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::a11y::AxQuery where T: 'static
+pub fn nika_kernel_core::io::a11y::AxQuery::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::a11y::AxQuery where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::io::a11y::AccessibilityTree: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::a11y::AccessibilityTree::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>>
+pub async fn nika_kernel_core::io::a11y::AccessibilityTree::resolve_ref(&self, ref_id: &str) -> std::io::error::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>>
+pub async fn nika_kernel_core::io::a11y::AccessibilityTree::snapshot(&self) -> std::io::error::Result<nika_kernel_core::io::a11y::AxNode>
+impl<TraitVariantBlanketType: nika_kernel_core::io::a11y::AccessibilityTreeDyn> nika_kernel_core::io::a11y::AccessibilityTree for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>>
+pub async fn TraitVariantBlanketType::resolve_ref(&self, ref_id: &str) -> std::io::error::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>>
+pub async fn TraitVariantBlanketType::snapshot(&self) -> std::io::error::Result<nika_kernel_core::io::a11y::AxNode>
+pub trait nika_kernel_core::io::a11y::AccessibilityTreeDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>>> + core::marker::Send
+pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::resolve_ref(&self, ref_id: &str) -> impl core::future::future::Future<Output = std::io::error::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>>> + core::marker::Send
+pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::snapshot(&self) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::a11y::AxNode>> + core::marker::Send
+pub mod nika_kernel_core::io::blob
+#[non_exhaustive] pub enum nika_kernel_core::io::blob::BlobError
+pub nika_kernel_core::io::blob::BlobError::Io
+pub nika_kernel_core::io::blob::BlobError::Io::reason: alloc::string::String
+pub nika_kernel_core::io::blob::BlobError::NotFound
+pub nika_kernel_core::io::blob::BlobError::NotFound::hash: alloc::string::String
+pub nika_kernel_core::io::blob::BlobError::TooLarge
+pub nika_kernel_core::io::blob::BlobError::TooLarge::max: u64
+pub nika_kernel_core::io::blob::BlobError::TooLarge::size: u64
+impl core::error::Error for nika_kernel_core::io::blob::BlobError
+impl core::fmt::Debug for nika_kernel_core::io::blob::BlobError
+pub fn nika_kernel_core::io::blob::BlobError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::blob::BlobError
+pub fn nika_kernel_core::io::blob::BlobError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::blob::BlobError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::blob::BlobError
+pub fn nika_kernel_core::io::blob::BlobError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::blob::BlobError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::blob::BlobError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::blob::BlobError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::blob::BlobError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::blob::BlobError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::blob::BlobError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::blob::BlobError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::blob::BlobError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::blob::BlobError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::blob::BlobError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::blob::BlobError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::blob::BlobError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::blob::BlobError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::blob::BlobError
+pub fn nika_kernel_core::io::blob::BlobError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::blob::BlobError where T: 'static
+pub fn nika_kernel_core::io::blob::BlobError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::blob::BlobMetadata
+pub nika_kernel_core::io::blob::BlobMetadata::hash: alloc::string::String
+pub nika_kernel_core::io::blob::BlobMetadata::mime_type: alloc::string::String
+pub nika_kernel_core::io::blob::BlobMetadata::size: u64
+impl nika_kernel_core::io::blob::BlobMetadata
+pub fn nika_kernel_core::io::blob::BlobMetadata::new(hash: impl core::convert::Into<alloc::string::String>, mime_type: impl core::convert::Into<alloc::string::String>, size: u64) -> Self
+impl core::clone::Clone for nika_kernel_core::io::blob::BlobMetadata
+pub fn nika_kernel_core::io::blob::BlobMetadata::clone(&self) -> nika_kernel_core::io::blob::BlobMetadata
+impl core::cmp::Eq for nika_kernel_core::io::blob::BlobMetadata
+impl core::cmp::PartialEq for nika_kernel_core::io::blob::BlobMetadata
+pub fn nika_kernel_core::io::blob::BlobMetadata::eq(&self, other: &nika_kernel_core::io::blob::BlobMetadata) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::blob::BlobMetadata
+pub fn nika_kernel_core::io::blob::BlobMetadata::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::blob::BlobMetadata
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::blob::BlobMetadata
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::blob::BlobMetadata where U: core::convert::From<T>
+pub fn nika_kernel_core::io::blob::BlobMetadata::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::blob::BlobMetadata where U: core::convert::Into<T>
+pub type nika_kernel_core::io::blob::BlobMetadata::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::blob::BlobMetadata::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::blob::BlobMetadata where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::blob::BlobMetadata::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::blob::BlobMetadata::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::blob::BlobMetadata where T: core::clone::Clone
+pub type nika_kernel_core::io::blob::BlobMetadata::Owned = T
+pub fn nika_kernel_core::io::blob::BlobMetadata::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::blob::BlobMetadata::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::blob::BlobMetadata where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobMetadata::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::blob::BlobMetadata where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobMetadata::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::blob::BlobMetadata where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::blob::BlobMetadata::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::blob::BlobMetadata where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::blob::BlobMetadata::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::blob::BlobMetadata
+pub fn nika_kernel_core::io::blob::BlobMetadata::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::blob::BlobMetadata where T: 'static
+pub fn nika_kernel_core::io::blob::BlobMetadata::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_core::io::blob::BlobStore: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::blob::BlobStore::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_core::io::blob::BlobStore::exists(&self, hash: &str) -> bool
+pub async fn nika_kernel_core::io::blob::BlobStore::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_core::io::blob::BlobStore::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_core::io::blob::BlobStore::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+impl<TraitVariantBlanketType: nika_kernel_core::io::blob::BlobStoreDyn> nika_kernel_core::io::blob::BlobStore for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn TraitVariantBlanketType::exists(&self, hash: &str) -> bool
+pub async fn TraitVariantBlanketType::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn TraitVariantBlanketType::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn TraitVariantBlanketType::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub trait nika_kernel_core::io::blob::BlobStoreDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::blob::BlobStoreDyn::delete(&self, hash: &str) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::blob::BlobError>> + core::marker::Send
+pub fn nika_kernel_core::io::blob::BlobStoreDyn::exists(&self, hash: &str) -> impl core::future::future::Future<Output = bool> + core::marker::Send
+pub fn nika_kernel_core::io::blob::BlobStoreDyn::get(&self, hash: &str) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>> + core::marker::Send
+pub fn nika_kernel_core::io::blob::BlobStoreDyn::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>> + core::marker::Send
+pub fn nika_kernel_core::io::blob::BlobStoreDyn::stat(&self, hash: &str) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>> + core::marker::Send
+pub mod nika_kernel_core::io::browser
+#[non_exhaustive] pub struct nika_kernel_core::io::browser::BrowserProfile
+pub nika_kernel_core::io::browser::BrowserProfile::headless: bool
+pub nika_kernel_core::io::browser::BrowserProfile::user_data_dir: core::option::Option<std::path::PathBuf>
+pub nika_kernel_core::io::browser::BrowserProfile::viewport: core::option::Option<(u32, u32)>
+impl nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::new(user_data_dir: core::option::Option<std::path::PathBuf>, headless: bool, viewport: core::option::Option<(u32, u32)>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::clone(&self) -> nika_kernel_core::io::browser::BrowserProfile
+impl core::cmp::Eq for nika_kernel_core::io::browser::BrowserProfile
+impl core::cmp::PartialEq for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::eq(&self, other: &nika_kernel_core::io::browser::BrowserProfile) -> bool
+impl core::default::Default for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::default() -> nika_kernel_core::io::browser::BrowserProfile
+impl core::fmt::Debug for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::browser::BrowserProfile
+impl serde_core::ser::Serialize for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::browser::BrowserProfile
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::browser::BrowserProfile where U: core::convert::From<T>
+pub fn nika_kernel_core::io::browser::BrowserProfile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::browser::BrowserProfile where U: core::convert::Into<T>
+pub type nika_kernel_core::io::browser::BrowserProfile::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::browser::BrowserProfile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::browser::BrowserProfile where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::browser::BrowserProfile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::browser::BrowserProfile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::browser::BrowserProfile where T: core::clone::Clone
+pub type nika_kernel_core::io::browser::BrowserProfile::Owned = T
+pub fn nika_kernel_core::io::browser::BrowserProfile::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::browser::BrowserProfile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::browser::BrowserProfile where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserProfile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::browser::BrowserProfile where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserProfile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::browser::BrowserProfile where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserProfile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::browser::BrowserProfile where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::browser::BrowserProfile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::browser::BrowserProfile
+pub fn nika_kernel_core::io::browser::BrowserProfile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::browser::BrowserProfile where T: 'static
+pub fn nika_kernel_core::io::browser::BrowserProfile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::browser::BrowserProfile where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::browser::BrowserSession
+pub nika_kernel_core::io::browser::BrowserSession::id: alloc::string::String
+pub nika_kernel_core::io::browser::BrowserSession::url: core::option::Option<alloc::string::String>
+impl nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::new(id: alloc::string::String, url: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::clone(&self) -> nika_kernel_core::io::browser::BrowserSession
+impl core::cmp::Eq for nika_kernel_core::io::browser::BrowserSession
+impl core::cmp::PartialEq for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::eq(&self, other: &nika_kernel_core::io::browser::BrowserSession) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::browser::BrowserSession
+impl serde_core::ser::Serialize for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::browser::BrowserSession
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::browser::BrowserSession where U: core::convert::From<T>
+pub fn nika_kernel_core::io::browser::BrowserSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::browser::BrowserSession where U: core::convert::Into<T>
+pub type nika_kernel_core::io::browser::BrowserSession::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::browser::BrowserSession::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::browser::BrowserSession where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::browser::BrowserSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::browser::BrowserSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::browser::BrowserSession where T: core::clone::Clone
+pub type nika_kernel_core::io::browser::BrowserSession::Owned = T
+pub fn nika_kernel_core::io::browser::BrowserSession::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::browser::BrowserSession::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::browser::BrowserSession where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::browser::BrowserSession where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::browser::BrowserSession where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::browser::BrowserSession where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::browser::BrowserSession::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::browser::BrowserSession
+pub fn nika_kernel_core::io::browser::BrowserSession::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::browser::BrowserSession where T: 'static
+pub fn nika_kernel_core::io::browser::BrowserSession::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::browser::BrowserSession where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::browser::DomNode
+pub nika_kernel_core::io::browser::DomNode::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_core::io::browser::DomNode::bbox: core::option::Option<nika_kernel_core::io::screen::Rect>
+pub nika_kernel_core::io::browser::DomNode::children: alloc::vec::Vec<nika_kernel_core::io::browser::DomNode>
+pub nika_kernel_core::io::browser::DomNode::tag: alloc::string::String
+impl nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::new(tag: alloc::string::String, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, children: alloc::vec::Vec<nika_kernel_core::io::browser::DomNode>, bbox: core::option::Option<nika_kernel_core::io::screen::Rect>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::clone(&self) -> nika_kernel_core::io::browser::DomNode
+impl core::cmp::Eq for nika_kernel_core::io::browser::DomNode
+impl core::cmp::PartialEq for nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::eq(&self, other: &nika_kernel_core::io::browser::DomNode) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::browser::DomNode
+impl serde_core::ser::Serialize for nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::browser::DomNode
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::browser::DomNode where U: core::convert::From<T>
+pub fn nika_kernel_core::io::browser::DomNode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::browser::DomNode where U: core::convert::Into<T>
+pub type nika_kernel_core::io::browser::DomNode::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::browser::DomNode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::browser::DomNode where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::browser::DomNode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::browser::DomNode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::browser::DomNode where T: core::clone::Clone
+pub type nika_kernel_core::io::browser::DomNode::Owned = T
+pub fn nika_kernel_core::io::browser::DomNode::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::browser::DomNode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::browser::DomNode where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::DomNode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::browser::DomNode where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::DomNode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::browser::DomNode where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::DomNode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::browser::DomNode where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::browser::DomNode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::browser::DomNode
+pub fn nika_kernel_core::io::browser::DomNode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::browser::DomNode where T: 'static
+pub fn nika_kernel_core::io::browser::DomNode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::browser::DomNode where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::io::browser::BrowserAutomation: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> std::io::error::Result<()>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::browser::DomNode>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> std::io::error::Result<nika_kernel_core::io::browser::BrowserSession>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> std::io::error::Result<()>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+impl<TraitVariantBlanketType: nika_kernel_core::io::browser::BrowserAutomationDyn> nika_kernel_core::io::browser::BrowserAutomation for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> std::io::error::Result<()>
+pub async fn TraitVariantBlanketType::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::browser::DomNode>
+pub async fn TraitVariantBlanketType::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> std::io::error::Result<nika_kernel_core::io::browser::BrowserSession>
+pub async fn TraitVariantBlanketType::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> std::io::error::Result<()>
+pub async fn TraitVariantBlanketType::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub trait nika_kernel_core::io::browser::BrowserAutomationDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::browser::DomNode>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::browser::BrowserSession>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send
+pub mod nika_kernel_core::io::clock
+pub trait nika_kernel_core::io::clock::Clock: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_core::io::clock::Clock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_kernel_core::io::clock::Clock::now(&self) -> std::time::Instant
+pub async fn nika_kernel_core::io::clock::Clock::sleep(&self, duration: core::time::Duration)
+pub fn nika_kernel_core::io::clock::Clock::system_now(&self) -> std::time::SystemTime
+impl<TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn> nika_kernel_core::io::clock::Clock for TraitVariantBlanketType
+pub fn TraitVariantBlanketType::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn TraitVariantBlanketType::now(&self) -> std::time::Instant
+pub async fn TraitVariantBlanketType::sleep(&self, duration: core::time::Duration)
+pub fn TraitVariantBlanketType::system_now(&self) -> std::time::SystemTime
+pub trait nika_kernel_core::io::clock::ClockDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::clock::ClockDyn::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_kernel_core::io::clock::ClockDyn::now(&self) -> std::time::Instant
+pub fn nika_kernel_core::io::clock::ClockDyn::sleep(&self, duration: core::time::Duration) -> impl core::future::future::Future<Output = ()> + core::marker::Send
+pub fn nika_kernel_core::io::clock::ClockDyn::system_now(&self) -> std::time::SystemTime
+pub mod nika_kernel_core::io::fs
+#[non_exhaustive] pub struct nika_kernel_core::io::fs::FileMetadata
+pub nika_kernel_core::io::fs::FileMetadata::is_dir: bool
+pub nika_kernel_core::io::fs::FileMetadata::is_file: bool
+pub nika_kernel_core::io::fs::FileMetadata::len: u64
+impl nika_kernel_core::io::fs::FileMetadata
+pub fn nika_kernel_core::io::fs::FileMetadata::new(len: u64, is_file: bool, is_dir: bool) -> Self
+impl core::clone::Clone for nika_kernel_core::io::fs::FileMetadata
+pub fn nika_kernel_core::io::fs::FileMetadata::clone(&self) -> nika_kernel_core::io::fs::FileMetadata
+impl core::cmp::Eq for nika_kernel_core::io::fs::FileMetadata
+impl core::cmp::PartialEq for nika_kernel_core::io::fs::FileMetadata
+pub fn nika_kernel_core::io::fs::FileMetadata::eq(&self, other: &nika_kernel_core::io::fs::FileMetadata) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::fs::FileMetadata
+pub fn nika_kernel_core::io::fs::FileMetadata::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::fs::FileMetadata
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::fs::FileMetadata
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::fs::FileMetadata where U: core::convert::From<T>
+pub fn nika_kernel_core::io::fs::FileMetadata::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::fs::FileMetadata where U: core::convert::Into<T>
+pub type nika_kernel_core::io::fs::FileMetadata::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::fs::FileMetadata::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::fs::FileMetadata where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::fs::FileMetadata::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::fs::FileMetadata::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::fs::FileMetadata where T: core::clone::Clone
+pub type nika_kernel_core::io::fs::FileMetadata::Owned = T
+pub fn nika_kernel_core::io::fs::FileMetadata::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::fs::FileMetadata::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::fs::FileMetadata where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FileMetadata::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::fs::FileMetadata where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FileMetadata::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::fs::FileMetadata where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FileMetadata::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::fs::FileMetadata where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::fs::FileMetadata::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::fs::FileMetadata
+pub fn nika_kernel_core::io::fs::FileMetadata::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::fs::FileMetadata where T: 'static
+pub fn nika_kernel_core::io::fs::FileMetadata::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_core::io::fs::Fs: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
+impl<T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList> nika_kernel_core::io::fs::Fs for T
+pub trait nika_kernel_core::io::fs::FsList: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::fs::FsList::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub async fn nika_kernel_core::io::fs::FsList::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsListDyn> nika_kernel_core::io::fs::FsList for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub async fn TraitVariantBlanketType::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub trait nika_kernel_core::io::fs::FsListDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsListDyn::glob(&self, root: &std::path::Path, pattern: &str) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsListDyn::list_dir(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>> + core::marker::Send
+pub trait nika_kernel_core::io::fs::FsMeta: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::fs::FsMeta::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsMetaDyn> nika_kernel_core::io::fs::FsMeta for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+pub trait nika_kernel_core::io::fs::FsMetaDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsMetaDyn::metadata(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>> + core::marker::Send
+pub trait nika_kernel_core::io::fs::FsRead: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::fs::FsRead::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
+pub async fn nika_kernel_core::io::fs::FsRead::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_kernel_core::io::fs::FsRead::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
+pub async fn nika_kernel_core::io::fs::FsRead::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
+impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn> nika_kernel_core::io::fs::FsRead for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
+pub async fn TraitVariantBlanketType::exists(&self, path: &std::path::Path) -> bool
+pub async fn TraitVariantBlanketType::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
+pub async fn TraitVariantBlanketType::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
+pub trait nika_kernel_core::io::fs::FsReadDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::canonicalize(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<std::path::PathBuf>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::exists(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = bool> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::read(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<bytes::bytes::Bytes>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::read_to_string(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::string::String>> + core::marker::Send
+pub trait nika_kernel_core::io::fs::FsWrite: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::fs::FsWrite::create_dir_all(&self, path: &std::path::Path) -> std::io::error::Result<()>
+pub async fn nika_kernel_core::io::fs::FsWrite::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
+pub async fn nika_kernel_core::io::fs::FsWrite::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
+impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn> nika_kernel_core::io::fs::FsWrite for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::create_dir_all(&self, path: &std::path::Path) -> std::io::error::Result<()>
+pub async fn TraitVariantBlanketType::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
+pub async fn TraitVariantBlanketType::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
+pub trait nika_kernel_core::io::fs::FsWriteDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::create_dir_all(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::remove_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::write(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
+pub mod nika_kernel_core::io::http
+#[non_exhaustive] pub enum nika_kernel_core::io::http::HttpError
+pub nika_kernel_core::io::http::HttpError::Connection
+pub nika_kernel_core::io::http::HttpError::Connection::reason: alloc::string::String
+pub nika_kernel_core::io::http::HttpError::Other
+pub nika_kernel_core::io::http::HttpError::Other::reason: alloc::string::String
+pub nika_kernel_core::io::http::HttpError::SsrfBlocked
+pub nika_kernel_core::io::http::HttpError::SsrfBlocked::url: alloc::string::String
+pub nika_kernel_core::io::http::HttpError::Timeout
+pub nika_kernel_core::io::http::HttpError::Timeout::duration_ms: u64
+pub nika_kernel_core::io::http::HttpError::TooLarge
+pub nika_kernel_core::io::http::HttpError::TooLarge::max: u64
+pub nika_kernel_core::io::http::HttpError::TooLarge::size: u64
+pub nika_kernel_core::io::http::HttpError::Unsupported
+pub nika_kernel_core::io::http::HttpError::Unsupported::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::io::http::HttpError
+impl core::fmt::Debug for nika_kernel_core::io::http::HttpError
+pub fn nika_kernel_core::io::http::HttpError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::http::HttpError
+pub fn nika_kernel_core::io::http::HttpError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::http::HttpError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::http::HttpError
+pub fn nika_kernel_core::io::http::HttpError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::http::HttpError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::http::HttpError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::http::HttpError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::http::HttpError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::http::HttpError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::http::HttpError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::http::HttpError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::http::HttpError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::http::HttpError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::http::HttpError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::http::HttpError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::http::HttpError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::http::HttpError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::http::HttpError
+pub fn nika_kernel_core::io::http::HttpError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::http::HttpError where T: 'static
+pub fn nika_kernel_core::io::http::HttpError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_core::io::http::HttpMethod
+pub nika_kernel_core::io::http::HttpMethod::Delete
+pub nika_kernel_core::io::http::HttpMethod::Get
+pub nika_kernel_core::io::http::HttpMethod::Head
+pub nika_kernel_core::io::http::HttpMethod::Options
+pub nika_kernel_core::io::http::HttpMethod::Patch
+pub nika_kernel_core::io::http::HttpMethod::Post
+pub nika_kernel_core::io::http::HttpMethod::Put
+impl core::clone::Clone for nika_kernel_core::io::http::HttpMethod
+pub fn nika_kernel_core::io::http::HttpMethod::clone(&self) -> nika_kernel_core::io::http::HttpMethod
+impl core::cmp::Eq for nika_kernel_core::io::http::HttpMethod
+impl core::cmp::PartialEq for nika_kernel_core::io::http::HttpMethod
+pub fn nika_kernel_core::io::http::HttpMethod::eq(&self, other: &nika_kernel_core::io::http::HttpMethod) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::http::HttpMethod
+pub fn nika_kernel_core::io::http::HttpMethod::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::http::HttpMethod
+pub fn nika_kernel_core::io::http::HttpMethod::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::http::HttpMethod
+pub fn nika_kernel_core::io::http::HttpMethod::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::http::HttpMethod
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::http::HttpMethod
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::http::HttpMethod
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::http::HttpMethod where U: core::convert::From<T>
+pub fn nika_kernel_core::io::http::HttpMethod::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::http::HttpMethod where U: core::convert::Into<T>
+pub type nika_kernel_core::io::http::HttpMethod::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::http::HttpMethod::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::http::HttpMethod where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::http::HttpMethod::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::http::HttpMethod::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::http::HttpMethod where T: core::clone::Clone
+pub type nika_kernel_core::io::http::HttpMethod::Owned = T
+pub fn nika_kernel_core::io::http::HttpMethod::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::http::HttpMethod::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_kernel_core::io::http::HttpMethod where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpMethod::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::http::HttpMethod where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpMethod::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::http::HttpMethod where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpMethod::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::http::HttpMethod where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpMethod::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::http::HttpMethod where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::http::HttpMethod::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::http::HttpMethod
+pub fn nika_kernel_core::io::http::HttpMethod::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::http::HttpMethod where T: 'static
+pub fn nika_kernel_core::io::http::HttpMethod::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::http::HttpRequest
+pub nika_kernel_core::io::http::HttpRequest::body: core::option::Option<bytes::bytes::Bytes>
+pub nika_kernel_core::io::http::HttpRequest::follow_redirects: bool
+pub nika_kernel_core::io::http::HttpRequest::headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_core::io::http::HttpRequest::method: nika_kernel_core::io::http::HttpMethod
+pub nika_kernel_core::io::http::HttpRequest::timeout: core::option::Option<core::time::Duration>
+pub nika_kernel_core::io::http::HttpRequest::url: alloc::string::String
+impl nika_kernel_core::io::http::HttpRequest
+pub fn nika_kernel_core::io::http::HttpRequest::get(url: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_core::io::http::HttpRequest::post(url: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::http::HttpRequest
+pub fn nika_kernel_core::io::http::HttpRequest::clone(&self) -> nika_kernel_core::io::http::HttpRequest
+impl core::fmt::Debug for nika_kernel_core::io::http::HttpRequest
+pub fn nika_kernel_core::io::http::HttpRequest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::http::HttpRequest
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::http::HttpRequest where U: core::convert::From<T>
+pub fn nika_kernel_core::io::http::HttpRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::http::HttpRequest where U: core::convert::Into<T>
+pub type nika_kernel_core::io::http::HttpRequest::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::http::HttpRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::http::HttpRequest where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::http::HttpRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::http::HttpRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::http::HttpRequest where T: core::clone::Clone
+pub type nika_kernel_core::io::http::HttpRequest::Owned = T
+pub fn nika_kernel_core::io::http::HttpRequest::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::http::HttpRequest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::http::HttpRequest where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::http::HttpRequest where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::http::HttpRequest where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::http::HttpRequest where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::http::HttpRequest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::http::HttpRequest
+pub fn nika_kernel_core::io::http::HttpRequest::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::http::HttpRequest where T: 'static
+pub fn nika_kernel_core::io::http::HttpRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::http::HttpResponse
+pub nika_kernel_core::io::http::HttpResponse::body: bytes::bytes::Bytes
+pub nika_kernel_core::io::http::HttpResponse::final_url: alloc::string::String
+pub nika_kernel_core::io::http::HttpResponse::headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_core::io::http::HttpResponse::status: u16
+impl nika_kernel_core::io::http::HttpResponse
+pub fn nika_kernel_core::io::http::HttpResponse::new(status: u16, headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, body: bytes::bytes::Bytes, final_url: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::http::HttpResponse
+pub fn nika_kernel_core::io::http::HttpResponse::clone(&self) -> nika_kernel_core::io::http::HttpResponse
+impl core::fmt::Debug for nika_kernel_core::io::http::HttpResponse
+pub fn nika_kernel_core::io::http::HttpResponse::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::http::HttpResponse
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::http::HttpResponse where U: core::convert::From<T>
+pub fn nika_kernel_core::io::http::HttpResponse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::http::HttpResponse where U: core::convert::Into<T>
+pub type nika_kernel_core::io::http::HttpResponse::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::http::HttpResponse::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::http::HttpResponse where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::http::HttpResponse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::http::HttpResponse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::http::HttpResponse where T: core::clone::Clone
+pub type nika_kernel_core::io::http::HttpResponse::Owned = T
+pub fn nika_kernel_core::io::http::HttpResponse::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::http::HttpResponse::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::http::HttpResponse where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpResponse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::http::HttpResponse where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpResponse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::http::HttpResponse where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpResponse::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::http::HttpResponse where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::http::HttpResponse::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::http::HttpResponse
+pub fn nika_kernel_core::io::http::HttpResponse::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::http::HttpResponse where T: 'static
+pub fn nika_kernel_core::io::http::HttpResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::http::HttpStreamResponse
+pub nika_kernel_core::io::http::HttpStreamResponse::body: core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::http::HttpError>> + core::marker::Send)>>
+pub nika_kernel_core::io::http::HttpStreamResponse::content_length: core::option::Option<u64>
+pub nika_kernel_core::io::http::HttpStreamResponse::final_url: alloc::string::String
+pub nika_kernel_core::io::http::HttpStreamResponse::headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_core::io::http::HttpStreamResponse::status: u16
+impl nika_kernel_core::io::http::HttpStreamResponse
+pub fn nika_kernel_core::io::http::HttpStreamResponse::new(status: u16, headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, final_url: impl core::convert::Into<alloc::string::String>, content_length: core::option::Option<u64>, body: core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::http::HttpError>> + core::marker::Send)>>) -> Self
+impl core::fmt::Debug for nika_kernel_core::io::http::HttpStreamResponse
+pub fn nika_kernel_core::io::http::HttpStreamResponse::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::http::HttpStreamResponse
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::http::HttpStreamResponse where U: core::convert::From<T>
+pub fn nika_kernel_core::io::http::HttpStreamResponse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::http::HttpStreamResponse where U: core::convert::Into<T>
+pub type nika_kernel_core::io::http::HttpStreamResponse::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::http::HttpStreamResponse::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::http::HttpStreamResponse where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::http::HttpStreamResponse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::http::HttpStreamResponse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_kernel_core::io::http::HttpStreamResponse where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpStreamResponse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::http::HttpStreamResponse where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpStreamResponse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::http::HttpStreamResponse where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::http::HttpStreamResponse::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::http::HttpStreamResponse
+pub fn nika_kernel_core::io::http::HttpStreamResponse::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::http::HttpStreamResponse where T: 'static
+pub fn nika_kernel_core::io::http::HttpStreamResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_core::io::http::HttpClient: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
+impl<T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost> nika_kernel_core::io::http::HttpClient for T
+pub trait nika_kernel_core::io::http::HttpGet: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::http::HttpGet::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl<TraitVariantBlanketType: nika_kernel_core::io::http::HttpGetDyn> nika_kernel_core::io::http::HttpGet for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub trait nika_kernel_core::io::http::HttpGetDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::http::HttpGetDyn::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
+pub trait nika_kernel_core::io::http::HttpPost: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::http::HttpPost::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_kernel_core::io::http::HttpPost::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+impl<TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn> nika_kernel_core::io::http::HttpPost for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn TraitVariantBlanketType::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub trait nika_kernel_core::io::http::HttpPostDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::http::HttpPostDyn::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
+pub fn nika_kernel_core::io::http::HttpPostDyn::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
+pub mod nika_kernel_core::io::input
+#[non_exhaustive] pub enum nika_kernel_core::io::input::KeyCode
+pub nika_kernel_core::io::input::KeyCode::A
+pub nika_kernel_core::io::input::KeyCode::ArrowDown
+pub nika_kernel_core::io::input::KeyCode::ArrowLeft
+pub nika_kernel_core::io::input::KeyCode::ArrowRight
+pub nika_kernel_core::io::input::KeyCode::ArrowUp
+pub nika_kernel_core::io::input::KeyCode::B
+pub nika_kernel_core::io::input::KeyCode::Backspace
+pub nika_kernel_core::io::input::KeyCode::C
+pub nika_kernel_core::io::input::KeyCode::D
+pub nika_kernel_core::io::input::KeyCode::D0
+pub nika_kernel_core::io::input::KeyCode::D1
+pub nika_kernel_core::io::input::KeyCode::D2
+pub nika_kernel_core::io::input::KeyCode::D3
+pub nika_kernel_core::io::input::KeyCode::D4
+pub nika_kernel_core::io::input::KeyCode::D5
+pub nika_kernel_core::io::input::KeyCode::D6
+pub nika_kernel_core::io::input::KeyCode::D7
+pub nika_kernel_core::io::input::KeyCode::D8
+pub nika_kernel_core::io::input::KeyCode::D9
+pub nika_kernel_core::io::input::KeyCode::Delete
+pub nika_kernel_core::io::input::KeyCode::E
+pub nika_kernel_core::io::input::KeyCode::Enter
+pub nika_kernel_core::io::input::KeyCode::Escape
+pub nika_kernel_core::io::input::KeyCode::F
+pub nika_kernel_core::io::input::KeyCode::F1
+pub nika_kernel_core::io::input::KeyCode::F10
+pub nika_kernel_core::io::input::KeyCode::F11
+pub nika_kernel_core::io::input::KeyCode::F12
+pub nika_kernel_core::io::input::KeyCode::F2
+pub nika_kernel_core::io::input::KeyCode::F3
+pub nika_kernel_core::io::input::KeyCode::F4
+pub nika_kernel_core::io::input::KeyCode::F5
+pub nika_kernel_core::io::input::KeyCode::F6
+pub nika_kernel_core::io::input::KeyCode::F7
+pub nika_kernel_core::io::input::KeyCode::F8
+pub nika_kernel_core::io::input::KeyCode::F9
+pub nika_kernel_core::io::input::KeyCode::G
+pub nika_kernel_core::io::input::KeyCode::H
+pub nika_kernel_core::io::input::KeyCode::I
+pub nika_kernel_core::io::input::KeyCode::J
+pub nika_kernel_core::io::input::KeyCode::K
+pub nika_kernel_core::io::input::KeyCode::L
+pub nika_kernel_core::io::input::KeyCode::LAlt
+pub nika_kernel_core::io::input::KeyCode::LCmd
+pub nika_kernel_core::io::input::KeyCode::LCtrl
+pub nika_kernel_core::io::input::KeyCode::LShift
+pub nika_kernel_core::io::input::KeyCode::M
+pub nika_kernel_core::io::input::KeyCode::N
+pub nika_kernel_core::io::input::KeyCode::O
+pub nika_kernel_core::io::input::KeyCode::P
+pub nika_kernel_core::io::input::KeyCode::Q
+pub nika_kernel_core::io::input::KeyCode::R
+pub nika_kernel_core::io::input::KeyCode::RAlt
+pub nika_kernel_core::io::input::KeyCode::RCmd
+pub nika_kernel_core::io::input::KeyCode::RCtrl
+pub nika_kernel_core::io::input::KeyCode::RShift
+pub nika_kernel_core::io::input::KeyCode::S
+pub nika_kernel_core::io::input::KeyCode::Space
+pub nika_kernel_core::io::input::KeyCode::T
+pub nika_kernel_core::io::input::KeyCode::Tab
+pub nika_kernel_core::io::input::KeyCode::U
+pub nika_kernel_core::io::input::KeyCode::V
+pub nika_kernel_core::io::input::KeyCode::W
+pub nika_kernel_core::io::input::KeyCode::X
+pub nika_kernel_core::io::input::KeyCode::Y
+pub nika_kernel_core::io::input::KeyCode::Z
+impl core::clone::Clone for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::clone(&self) -> nika_kernel_core::io::input::KeyCode
+impl core::cmp::Eq for nika_kernel_core::io::input::KeyCode
+impl core::cmp::PartialEq for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::eq(&self, other: &nika_kernel_core::io::input::KeyCode) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::KeyCode
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::KeyCode
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::KeyCode
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::KeyCode where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::KeyCode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::KeyCode where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::KeyCode::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::KeyCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::KeyCode where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::KeyCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::KeyCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::KeyCode where T: core::clone::Clone
+pub type nika_kernel_core::io::input::KeyCode::Owned = T
+pub fn nika_kernel_core::io::input::KeyCode::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::KeyCode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::KeyCode where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::KeyCode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::KeyCode where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::KeyCode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::KeyCode where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::KeyCode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::KeyCode where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::KeyCode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::KeyCode
+pub fn nika_kernel_core::io::input::KeyCode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::KeyCode where T: 'static
+pub fn nika_kernel_core::io::input::KeyCode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::KeyCode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_core::io::input::MouseButton
+pub nika_kernel_core::io::input::MouseButton::Left
+pub nika_kernel_core::io::input::MouseButton::Middle
+pub nika_kernel_core::io::input::MouseButton::Right
+impl core::clone::Clone for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::clone(&self) -> nika_kernel_core::io::input::MouseButton
+impl core::cmp::Eq for nika_kernel_core::io::input::MouseButton
+impl core::cmp::PartialEq for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::eq(&self, other: &nika_kernel_core::io::input::MouseButton) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::MouseButton
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::MouseButton
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::MouseButton
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::MouseButton where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::MouseButton::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::MouseButton where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::MouseButton::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::MouseButton::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::MouseButton where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::MouseButton::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::MouseButton::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::MouseButton where T: core::clone::Clone
+pub type nika_kernel_core::io::input::MouseButton::Owned = T
+pub fn nika_kernel_core::io::input::MouseButton::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::MouseButton::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::MouseButton where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::MouseButton::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::MouseButton where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::MouseButton::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::MouseButton where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::MouseButton::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::MouseButton where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::MouseButton::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::MouseButton
+pub fn nika_kernel_core::io::input::MouseButton::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::MouseButton where T: 'static
+pub fn nika_kernel_core::io::input::MouseButton::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::MouseButton where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::input::Authorized
+impl core::clone::Clone for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::clone(&self) -> nika_kernel_core::io::input::Authorized
+impl core::cmp::Eq for nika_kernel_core::io::input::Authorized
+impl core::cmp::PartialEq for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::eq(&self, other: &nika_kernel_core::io::input::Authorized) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::Authorized
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::Authorized
+impl nika_kernel_core::io::input::ConsentState for nika_kernel_core::io::input::Authorized
+pub type nika_kernel_core::io::input::Authorized::Granted = nika_kernel_core::io::input::ConsentProof
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::Authorized
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::Authorized where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::Authorized::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::Authorized where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::Authorized::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::Authorized::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::Authorized where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::Authorized::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::Authorized::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::Authorized where T: core::clone::Clone
+pub type nika_kernel_core::io::input::Authorized::Owned = T
+pub fn nika_kernel_core::io::input::Authorized::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::Authorized::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::Authorized where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Authorized::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::Authorized where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Authorized::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::Authorized where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Authorized::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::Authorized where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::Authorized::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::Authorized
+pub fn nika_kernel_core::io::input::Authorized::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::Authorized where T: 'static
+pub fn nika_kernel_core::io::input::Authorized::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::Authorized where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::input::ConsentProof
+pub nika_kernel_core::io::input::ConsentProof::granted_at_ns: u64
+pub nika_kernel_core::io::input::ConsentProof::ttl_ns: u64
+impl nika_kernel_core::io::input::ConsentProof
+pub const fn nika_kernel_core::io::input::ConsentProof::new(granted_at_ns: u64, ttl_ns: u64) -> Self
+impl core::clone::Clone for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::clone(&self) -> nika_kernel_core::io::input::ConsentProof
+impl core::cmp::Eq for nika_kernel_core::io::input::ConsentProof
+impl core::cmp::PartialEq for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::eq(&self, other: &nika_kernel_core::io::input::ConsentProof) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::ConsentProof
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::ConsentProof
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::ConsentProof
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::ConsentProof where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::ConsentProof::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::ConsentProof where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::ConsentProof::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::ConsentProof::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::ConsentProof where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::ConsentProof::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::ConsentProof::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::ConsentProof where T: core::clone::Clone
+pub type nika_kernel_core::io::input::ConsentProof::Owned = T
+pub fn nika_kernel_core::io::input::ConsentProof::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::ConsentProof::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::ConsentProof where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::ConsentProof::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::ConsentProof where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::ConsentProof::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::ConsentProof where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::ConsentProof::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::ConsentProof where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::ConsentProof::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::ConsentProof
+pub fn nika_kernel_core::io::input::ConsentProof::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::ConsentProof where T: 'static
+pub fn nika_kernel_core::io::input::ConsentProof::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::ConsentProof where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::input::KeyMods
+pub nika_kernel_core::io::input::KeyMods::alt: bool
+pub nika_kernel_core::io::input::KeyMods::cmd: bool
+pub nika_kernel_core::io::input::KeyMods::ctrl: bool
+pub nika_kernel_core::io::input::KeyMods::shift: bool
+impl nika_kernel_core::io::input::KeyMods
+pub const fn nika_kernel_core::io::input::KeyMods::new(cmd: bool, shift: bool, alt: bool, ctrl: bool) -> Self
+impl core::clone::Clone for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::clone(&self) -> nika_kernel_core::io::input::KeyMods
+impl core::cmp::Eq for nika_kernel_core::io::input::KeyMods
+impl core::cmp::PartialEq for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::eq(&self, other: &nika_kernel_core::io::input::KeyMods) -> bool
+impl core::default::Default for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::default() -> nika_kernel_core::io::input::KeyMods
+impl core::fmt::Debug for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::KeyMods
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::KeyMods
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::KeyMods
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::KeyMods where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::KeyMods::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::KeyMods where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::KeyMods::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::KeyMods::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::KeyMods where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::KeyMods::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::KeyMods::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::KeyMods where T: core::clone::Clone
+pub type nika_kernel_core::io::input::KeyMods::Owned = T
+pub fn nika_kernel_core::io::input::KeyMods::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::KeyMods::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::KeyMods where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::KeyMods::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::KeyMods where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::KeyMods::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::KeyMods where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::KeyMods::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::KeyMods where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::KeyMods::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::KeyMods
+pub fn nika_kernel_core::io::input::KeyMods::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::KeyMods where T: 'static
+pub fn nika_kernel_core::io::input::KeyMods::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::KeyMods where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::input::Point
+pub nika_kernel_core::io::input::Point::x: i32
+pub nika_kernel_core::io::input::Point::y: i32
+impl nika_kernel_core::io::input::Point
+pub const fn nika_kernel_core::io::input::Point::new(x: i32, y: i32) -> Self
+impl core::clone::Clone for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::clone(&self) -> nika_kernel_core::io::input::Point
+impl core::cmp::Eq for nika_kernel_core::io::input::Point
+impl core::cmp::PartialEq for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::eq(&self, other: &nika_kernel_core::io::input::Point) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::Point
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::Point
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::Point
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::Point where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::Point::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::Point where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::Point::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::Point::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::Point where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::Point::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::Point::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::Point where T: core::clone::Clone
+pub type nika_kernel_core::io::input::Point::Owned = T
+pub fn nika_kernel_core::io::input::Point::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::Point::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::Point where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Point::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::Point where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Point::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::Point where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Point::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::Point where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::Point::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::Point
+pub fn nika_kernel_core::io::input::Point::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::Point where T: 'static
+pub fn nika_kernel_core::io::input::Point::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::Point where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::input::Unconfirmed
+impl core::clone::Clone for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::clone(&self) -> nika_kernel_core::io::input::Unconfirmed
+impl core::cmp::Eq for nika_kernel_core::io::input::Unconfirmed
+impl core::cmp::PartialEq for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::eq(&self, other: &nika_kernel_core::io::input::Unconfirmed) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::input::Unconfirmed
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::input::Unconfirmed
+impl nika_kernel_core::io::input::ConsentState for nika_kernel_core::io::input::Unconfirmed
+pub type nika_kernel_core::io::input::Unconfirmed::Granted = core::convert::Infallible
+impl serde_core::ser::Serialize for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::Unconfirmed
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::Unconfirmed where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::Unconfirmed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::Unconfirmed where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::Unconfirmed::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::Unconfirmed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::Unconfirmed where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::Unconfirmed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::Unconfirmed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::input::Unconfirmed where T: core::clone::Clone
+pub type nika_kernel_core::io::input::Unconfirmed::Owned = T
+pub fn nika_kernel_core::io::input::Unconfirmed::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::input::Unconfirmed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::input::Unconfirmed where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Unconfirmed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::Unconfirmed where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Unconfirmed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::Unconfirmed where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::Unconfirmed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::input::Unconfirmed where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::input::Unconfirmed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::Unconfirmed
+pub fn nika_kernel_core::io::input::Unconfirmed::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::Unconfirmed where T: 'static
+pub fn nika_kernel_core::io::input::Unconfirmed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::input::Unconfirmed where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::io::input::ConsentState
+pub type nika_kernel_core::io::input::ConsentState::Granted: core::marker::Send + core::marker::Sync
+impl nika_kernel_core::io::input::ConsentState for nika_kernel_core::io::input::Authorized
+pub type nika_kernel_core::io::input::Authorized::Granted = nika_kernel_core::io::input::ConsentProof
+impl nika_kernel_core::io::input::ConsentState for nika_kernel_core::io::input::Unconfirmed
+pub type nika_kernel_core::io::input::Unconfirmed::Granted = core::convert::Infallible
+pub trait nika_kernel_core::io::input::InputDevice<S: nika_kernel_core::io::input::ConsentState>: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::input::InputDevice::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+impl<S: nika_kernel_core::io::input::ConsentState, TraitVariantBlanketType: nika_kernel_core::io::input::InputDeviceDyn<S>> nika_kernel_core::io::input::InputDevice<S> for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub trait nika_kernel_core::io::input::InputDeviceDyn<S: nika_kernel_core::io::input::ConsentState>: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::input::InputDeviceDyn::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub mod nika_kernel_core::io::ocr
+#[non_exhaustive] pub struct nika_kernel_core::io::ocr::TextRegion
+pub nika_kernel_core::io::ocr::TextRegion::bbox: nika_kernel_core::io::screen::Rect
+pub nika_kernel_core::io::ocr::TextRegion::confidence: f32
+pub nika_kernel_core::io::ocr::TextRegion::language: core::option::Option<alloc::string::String>
+pub nika_kernel_core::io::ocr::TextRegion::text: alloc::string::String
+impl nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::new(text: alloc::string::String, bbox: nika_kernel_core::io::screen::Rect, confidence: f32, language: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::clone(&self) -> nika_kernel_core::io::ocr::TextRegion
+impl core::cmp::PartialEq for nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::eq(&self, other: &nika_kernel_core::io::ocr::TextRegion) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::ocr::TextRegion
+impl serde_core::ser::Serialize for nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::ocr::TextRegion
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::ocr::TextRegion where U: core::convert::From<T>
+pub fn nika_kernel_core::io::ocr::TextRegion::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::ocr::TextRegion where U: core::convert::Into<T>
+pub type nika_kernel_core::io::ocr::TextRegion::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::ocr::TextRegion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::ocr::TextRegion where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::ocr::TextRegion::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::ocr::TextRegion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::ocr::TextRegion where T: core::clone::Clone
+pub type nika_kernel_core::io::ocr::TextRegion::Owned = T
+pub fn nika_kernel_core::io::ocr::TextRegion::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::ocr::TextRegion::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::ocr::TextRegion where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::TextRegion::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::ocr::TextRegion where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::TextRegion::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::ocr::TextRegion where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::TextRegion::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::ocr::TextRegion where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::ocr::TextRegion::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::ocr::TextRegion
+pub fn nika_kernel_core::io::ocr::TextRegion::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::ocr::TextRegion where T: 'static
+pub fn nika_kernel_core::io::ocr::TextRegion::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::ocr::TextRegion where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::io::ocr::OcrEngine: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::ocr::OcrEngine::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+pub async fn nika_kernel_core::io::ocr::OcrEngine::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+impl<TraitVariantBlanketType: nika_kernel_core::io::ocr::OcrEngineDyn> nika_kernel_core::io::ocr::OcrEngine for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+pub async fn TraitVariantBlanketType::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+pub trait nika_kernel_core::io::ocr::OcrEngineDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>> + core::marker::Send
+pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>> + core::marker::Send
+pub mod nika_kernel_core::io::process
+#[non_exhaustive] pub enum nika_kernel_core::io::process::ShellError
+pub nika_kernel_core::io::process::ShellError::Blocked
+pub nika_kernel_core::io::process::ShellError::Blocked::reason: alloc::string::String
+pub nika_kernel_core::io::process::ShellError::Cancelled
+pub nika_kernel_core::io::process::ShellError::Cancelled::id: alloc::string::String
+pub nika_kernel_core::io::process::ShellError::NotFound
+pub nika_kernel_core::io::process::ShellError::NotFound::program: alloc::string::String
+pub nika_kernel_core::io::process::ShellError::Other
+pub nika_kernel_core::io::process::ShellError::Other::reason: alloc::string::String
+pub nika_kernel_core::io::process::ShellError::Timeout
+pub nika_kernel_core::io::process::ShellError::Timeout::duration_ms: u64
+impl core::error::Error for nika_kernel_core::io::process::ShellError
+impl core::fmt::Debug for nika_kernel_core::io::process::ShellError
+pub fn nika_kernel_core::io::process::ShellError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::process::ShellError
+pub fn nika_kernel_core::io::process::ShellError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::process::ShellError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::process::ShellError
+pub fn nika_kernel_core::io::process::ShellError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::process::ShellError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::process::ShellError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::process::ShellError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::process::ShellError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::process::ShellError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::process::ShellError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::process::ShellError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::process::ShellError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::process::ShellError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::process::ShellError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::process::ShellError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::process::ShellError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::process::ShellError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellError
+pub fn nika_kernel_core::io::process::ShellError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellError where T: 'static
+pub fn nika_kernel_core::io::process::ShellError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::process::ShellCommand
+pub nika_kernel_core::io::process::ShellCommand::args: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_core::io::process::ShellCommand::cwd: core::option::Option<std::path::PathBuf>
+pub nika_kernel_core::io::process::ShellCommand::env: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_kernel_core::io::process::ShellCommand::env_remove: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_core::io::process::ShellCommand::pre_validated: bool
+pub nika_kernel_core::io::process::ShellCommand::program: alloc::string::String
+pub nika_kernel_core::io::process::ShellCommand::shell: bool
+pub nika_kernel_core::io::process::ShellCommand::stdin: core::option::Option<alloc::string::String>
+pub nika_kernel_core::io::process::ShellCommand::timeout: core::option::Option<core::time::Duration>
+impl nika_kernel_core::io::process::ShellCommand
+pub fn nika_kernel_core::io::process::ShellCommand::arg(self, arg: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_core::io::process::ShellCommand::new(program: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::process::ShellCommand
+pub fn nika_kernel_core::io::process::ShellCommand::clone(&self) -> nika_kernel_core::io::process::ShellCommand
+impl core::fmt::Debug for nika_kernel_core::io::process::ShellCommand
+pub fn nika_kernel_core::io::process::ShellCommand::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::process::ShellCommand
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::process::ShellCommand where U: core::convert::From<T>
+pub fn nika_kernel_core::io::process::ShellCommand::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::process::ShellCommand where U: core::convert::Into<T>
+pub type nika_kernel_core::io::process::ShellCommand::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::process::ShellCommand::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::process::ShellCommand where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::process::ShellCommand::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::process::ShellCommand::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::process::ShellCommand where T: core::clone::Clone
+pub type nika_kernel_core::io::process::ShellCommand::Owned = T
+pub fn nika_kernel_core::io::process::ShellCommand::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::process::ShellCommand::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::process::ShellCommand where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellCommand::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::process::ShellCommand where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellCommand::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::process::ShellCommand where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellCommand::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::process::ShellCommand where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::process::ShellCommand::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellCommand
+pub fn nika_kernel_core::io::process::ShellCommand::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellCommand where T: 'static
+pub fn nika_kernel_core::io::process::ShellCommand::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::process::ShellResult
+pub nika_kernel_core::io::process::ShellResult::duration: core::time::Duration
+pub nika_kernel_core::io::process::ShellResult::status: i32
+pub nika_kernel_core::io::process::ShellResult::stderr: alloc::string::String
+pub nika_kernel_core::io::process::ShellResult::stdout: alloc::string::String
+impl nika_kernel_core::io::process::ShellResult
+pub fn nika_kernel_core::io::process::ShellResult::new(status: i32, stdout: impl core::convert::Into<alloc::string::String>, stderr: impl core::convert::Into<alloc::string::String>, duration: core::time::Duration) -> Self
+pub fn nika_kernel_core::io::process::ShellResult::success(&self) -> bool
+impl core::clone::Clone for nika_kernel_core::io::process::ShellResult
+pub fn nika_kernel_core::io::process::ShellResult::clone(&self) -> nika_kernel_core::io::process::ShellResult
+impl core::fmt::Debug for nika_kernel_core::io::process::ShellResult
+pub fn nika_kernel_core::io::process::ShellResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::process::ShellResult
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::process::ShellResult where U: core::convert::From<T>
+pub fn nika_kernel_core::io::process::ShellResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::process::ShellResult where U: core::convert::Into<T>
+pub type nika_kernel_core::io::process::ShellResult::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::process::ShellResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::process::ShellResult where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::process::ShellResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::process::ShellResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::process::ShellResult where T: core::clone::Clone
+pub type nika_kernel_core::io::process::ShellResult::Owned = T
+pub fn nika_kernel_core::io::process::ShellResult::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::process::ShellResult::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::process::ShellResult where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::process::ShellResult where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::process::ShellResult where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::process::ShellResult where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::process::ShellResult::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellResult
+pub fn nika_kernel_core::io::process::ShellResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellResult where T: 'static
+pub fn nika_kernel_core::io::process::ShellResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_core::io::process::ShellCancel: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::process::ShellCancel::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl<TraitVariantBlanketType: nika_kernel_core::io::process::ShellCancelDyn> nika_kernel_core::io::process::ShellCancel for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+pub trait nika_kernel_core::io::process::ShellCancelDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::process::ShellCancelDyn::cancel(&self, id: &str) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::process::ShellError>> + core::marker::Send
+pub trait nika_kernel_core::io::process::ShellExecutor: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel
+impl<T: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel> nika_kernel_core::io::process::ShellExecutor for T
+pub trait nika_kernel_core::io::process::ShellRun: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::process::ShellRun::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+impl<TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn> nika_kernel_core::io::process::ShellRun for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+pub trait nika_kernel_core::io::process::ShellRunDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::process::ShellRunDyn::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>> + core::marker::Send
+pub mod nika_kernel_core::io::screen
+#[non_exhaustive] pub struct nika_kernel_core::io::screen::DisplayId(pub u32)
+impl nika_kernel_core::io::screen::DisplayId
+pub const fn nika_kernel_core::io::screen::DisplayId::new(id: u32) -> Self
+impl core::clone::Clone for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::clone(&self) -> nika_kernel_core::io::screen::DisplayId
+impl core::cmp::Eq for nika_kernel_core::io::screen::DisplayId
+impl core::cmp::Ord for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::cmp(&self, other: &nika_kernel_core::io::screen::DisplayId) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::eq(&self, other: &nika_kernel_core::io::screen::DisplayId) -> bool
+impl core::cmp::PartialOrd for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::partial_cmp(&self, other: &nika_kernel_core::io::screen::DisplayId) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_core::io::screen::DisplayId
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::screen::DisplayId
+impl serde_core::ser::Serialize for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::screen::DisplayId
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::screen::DisplayId where U: core::convert::From<T>
+pub fn nika_kernel_core::io::screen::DisplayId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::screen::DisplayId where U: core::convert::Into<T>
+pub type nika_kernel_core::io::screen::DisplayId::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::screen::DisplayId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::screen::DisplayId where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::screen::DisplayId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::screen::DisplayId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::screen::DisplayId where T: core::clone::Clone
+pub type nika_kernel_core::io::screen::DisplayId::Owned = T
+pub fn nika_kernel_core::io::screen::DisplayId::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::screen::DisplayId::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::screen::DisplayId where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::DisplayId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::screen::DisplayId where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::DisplayId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::screen::DisplayId where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::DisplayId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::screen::DisplayId where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::screen::DisplayId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::screen::DisplayId
+pub fn nika_kernel_core::io::screen::DisplayId::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::screen::DisplayId where T: 'static
+pub fn nika_kernel_core::io::screen::DisplayId::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::screen::DisplayId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::screen::DisplayInfo
+pub nika_kernel_core::io::screen::DisplayInfo::height: u32
+pub nika_kernel_core::io::screen::DisplayInfo::id: nika_kernel_core::io::screen::DisplayId
+pub nika_kernel_core::io::screen::DisplayInfo::is_primary: bool
+pub nika_kernel_core::io::screen::DisplayInfo::name: alloc::string::String
+pub nika_kernel_core::io::screen::DisplayInfo::scale_factor: f32
+pub nika_kernel_core::io::screen::DisplayInfo::width: u32
+impl nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::new(id: nika_kernel_core::io::screen::DisplayId, name: alloc::string::String, width: u32, height: u32, scale_factor: f32, is_primary: bool) -> Self
+impl core::clone::Clone for nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::clone(&self) -> nika_kernel_core::io::screen::DisplayInfo
+impl core::cmp::PartialEq for nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::eq(&self, other: &nika_kernel_core::io::screen::DisplayInfo) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::screen::DisplayInfo
+impl serde_core::ser::Serialize for nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::screen::DisplayInfo
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::screen::DisplayInfo where U: core::convert::From<T>
+pub fn nika_kernel_core::io::screen::DisplayInfo::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::screen::DisplayInfo where U: core::convert::Into<T>
+pub type nika_kernel_core::io::screen::DisplayInfo::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::screen::DisplayInfo::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::screen::DisplayInfo where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::screen::DisplayInfo::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::screen::DisplayInfo::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::screen::DisplayInfo where T: core::clone::Clone
+pub type nika_kernel_core::io::screen::DisplayInfo::Owned = T
+pub fn nika_kernel_core::io::screen::DisplayInfo::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::screen::DisplayInfo::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::screen::DisplayInfo where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::DisplayInfo::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::screen::DisplayInfo where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::DisplayInfo::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::screen::DisplayInfo where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::DisplayInfo::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::screen::DisplayInfo where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::screen::DisplayInfo::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::screen::DisplayInfo
+pub fn nika_kernel_core::io::screen::DisplayInfo::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::screen::DisplayInfo where T: 'static
+pub fn nika_kernel_core::io::screen::DisplayInfo::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::screen::DisplayInfo where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::screen::Frame
+pub nika_kernel_core::io::screen::Frame::captured_at_ns: u64
+pub nika_kernel_core::io::screen::Frame::display_id: nika_kernel_core::io::screen::DisplayId
+pub nika_kernel_core::io::screen::Frame::height: u32
+pub nika_kernel_core::io::screen::Frame::pixels: bytes::bytes::Bytes
+pub nika_kernel_core::io::screen::Frame::scale_factor: f32
+pub nika_kernel_core::io::screen::Frame::width: u32
+impl nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::new(width: u32, height: u32, scale_factor: f32, pixels: bytes::bytes::Bytes, display_id: nika_kernel_core::io::screen::DisplayId, captured_at_ns: u64) -> Self
+impl core::clone::Clone for nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::clone(&self) -> nika_kernel_core::io::screen::Frame
+impl core::cmp::PartialEq for nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::eq(&self, other: &nika_kernel_core::io::screen::Frame) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::screen::Frame
+impl serde_core::ser::Serialize for nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::screen::Frame
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::screen::Frame where U: core::convert::From<T>
+pub fn nika_kernel_core::io::screen::Frame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::screen::Frame where U: core::convert::Into<T>
+pub type nika_kernel_core::io::screen::Frame::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::screen::Frame::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::screen::Frame where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::screen::Frame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::screen::Frame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::screen::Frame where T: core::clone::Clone
+pub type nika_kernel_core::io::screen::Frame::Owned = T
+pub fn nika_kernel_core::io::screen::Frame::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::screen::Frame::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::screen::Frame where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::Frame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::screen::Frame where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::Frame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::screen::Frame where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::Frame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::screen::Frame where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::screen::Frame::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::screen::Frame
+pub fn nika_kernel_core::io::screen::Frame::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::screen::Frame where T: 'static
+pub fn nika_kernel_core::io::screen::Frame::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::screen::Frame where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_core::io::screen::Rect
+pub nika_kernel_core::io::screen::Rect::height: u32
+pub nika_kernel_core::io::screen::Rect::width: u32
+pub nika_kernel_core::io::screen::Rect::x: i32
+pub nika_kernel_core::io::screen::Rect::y: i32
+impl nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::new(x: i32, y: i32, width: u32, height: u32) -> Self
+impl core::clone::Clone for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::clone(&self) -> nika_kernel_core::io::screen::Rect
+impl core::cmp::Eq for nika_kernel_core::io::screen::Rect
+impl core::cmp::PartialEq for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::eq(&self, other: &nika_kernel_core::io::screen::Rect) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_core::io::screen::Rect
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::screen::Rect
+impl serde_core::ser::Serialize for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::screen::Rect
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::screen::Rect where U: core::convert::From<T>
+pub fn nika_kernel_core::io::screen::Rect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::screen::Rect where U: core::convert::Into<T>
+pub type nika_kernel_core::io::screen::Rect::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::screen::Rect::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::screen::Rect where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::screen::Rect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::screen::Rect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::screen::Rect where T: core::clone::Clone
+pub type nika_kernel_core::io::screen::Rect::Owned = T
+pub fn nika_kernel_core::io::screen::Rect::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::screen::Rect::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::screen::Rect where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::Rect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::screen::Rect where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::Rect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::screen::Rect where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::Rect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::screen::Rect where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::screen::Rect::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::screen::Rect
+pub fn nika_kernel_core::io::screen::Rect::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::screen::Rect where T: 'static
+pub fn nika_kernel_core::io::screen::Rect::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::screen::Rect where T: for<'de> serde_core::de::Deserialize<'de>
+pub trait nika_kernel_core::io::screen::ScreenCapture: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::FrameStream>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::list_displays(&self) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>>
+impl<TraitVariantBlanketType: nika_kernel_core::io::screen::ScreenCaptureDyn> nika_kernel_core::io::screen::ScreenCapture for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub async fn TraitVariantBlanketType::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub async fn TraitVariantBlanketType::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::FrameStream>
+pub async fn TraitVariantBlanketType::list_displays(&self) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>>
+pub trait nika_kernel_core::io::screen::ScreenCaptureDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::FrameStream>> + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::list_displays(&self) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>>> + core::marker::Send
+pub type nika_kernel_core::io::screen::FrameStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send)>>
+pub mod nika_kernel_core::sealed
+pub trait nika_kernel_core::sealed::Sealed
+pub mod nika_kernel_core::types
+pub use nika_kernel_core::types::TaskId
+#[non_exhaustive] pub struct nika_kernel_core::types::WorkflowMeta
+pub nika_kernel_core::types::WorkflowMeta::description: core::option::Option<alloc::string::String>
+pub nika_kernel_core::types::WorkflowMeta::name: alloc::string::String
+pub nika_kernel_core::types::WorkflowMeta::version: core::option::Option<alloc::string::String>
+impl nika_kernel_core::types::WorkflowMeta
+pub fn nika_kernel_core::types::WorkflowMeta::new(name: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::types::WorkflowMeta
+pub fn nika_kernel_core::types::WorkflowMeta::clone(&self) -> nika_kernel_core::types::WorkflowMeta
+impl core::cmp::Eq for nika_kernel_core::types::WorkflowMeta
+impl core::cmp::PartialEq for nika_kernel_core::types::WorkflowMeta
+pub fn nika_kernel_core::types::WorkflowMeta::eq(&self, other: &nika_kernel_core::types::WorkflowMeta) -> bool
+impl core::fmt::Debug for nika_kernel_core::types::WorkflowMeta
+pub fn nika_kernel_core::types::WorkflowMeta::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_core::types::WorkflowMeta
+impl<D> owo_colors::OwoColorize for nika_kernel_core::types::WorkflowMeta
+impl<T, U> core::convert::Into<U> for nika_kernel_core::types::WorkflowMeta where U: core::convert::From<T>
+pub fn nika_kernel_core::types::WorkflowMeta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::types::WorkflowMeta where U: core::convert::Into<T>
+pub type nika_kernel_core::types::WorkflowMeta::Error = core::convert::Infallible
+pub fn nika_kernel_core::types::WorkflowMeta::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::types::WorkflowMeta where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::types::WorkflowMeta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::types::WorkflowMeta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::types::WorkflowMeta where T: core::clone::Clone
+pub type nika_kernel_core::types::WorkflowMeta::Owned = T
+pub fn nika_kernel_core::types::WorkflowMeta::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::types::WorkflowMeta::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::types::WorkflowMeta where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::types::WorkflowMeta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::types::WorkflowMeta where T: ?core::marker::Sized
+pub fn nika_kernel_core::types::WorkflowMeta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::types::WorkflowMeta where T: ?core::marker::Sized
+pub fn nika_kernel_core::types::WorkflowMeta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::types::WorkflowMeta where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::types::WorkflowMeta::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::types::WorkflowMeta
+pub fn nika_kernel_core::types::WorkflowMeta::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::types::WorkflowMeta where T: 'static
+pub fn nika_kernel_core::types::WorkflowMeta::as_any(&self) -> &(dyn core::any::Any + 'static)
