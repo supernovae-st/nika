@@ -4,19 +4,22 @@ pub use nika_input::Error
 impl nika_input::EnigoInputDevice<nika_kernel_core::io::input::Unconfirmed>
 pub fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Unconfirmed>::new() -> core::result::Result<Self, nika_kernel_core::io::input::InputError>
 pub fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Unconfirmed>::request_consent(self, ttl_ns: u64) -> core::result::Result<(nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>, nika_kernel_core::io::input::ConsentProof), nika_kernel_core::io::input::InputError>
-impl nika_kernel_core::io::input::InputDevice<nika_kernel_core::io::input::Authorized> for nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>
-pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::click(&self, _button: nika_kernel_core::io::input::MouseButton, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
-pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::key_press(&self, _key: nika_kernel_core::io::input::KeyCode, _modifiers: nika_kernel_core::io::input::KeyMods, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
-pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::move_cursor(&self, _to: nika_kernel_core::io::input::Point, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
-pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::type_text(&self, _text: &str, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+impl nika_kernel_core::io::input::InputDeviceDyn<nika_kernel_core::io::input::Authorized> for nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::type_text(&self, text: &str, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
 impl<S: core::clone::Clone + nika_kernel_core::io::input::ConsentState> core::clone::Clone for nika_input::EnigoInputDevice<S>
 pub fn nika_input::EnigoInputDevice<S>::clone(&self) -> nika_input::EnigoInputDevice<S>
-impl<S: core::default::Default + nika_kernel_core::io::input::ConsentState> core::default::Default for nika_input::EnigoInputDevice<S>
-pub fn nika_input::EnigoInputDevice<S>::default() -> nika_input::EnigoInputDevice<S>
 impl<S: core::fmt::Debug + nika_kernel_core::io::input::ConsentState> core::fmt::Debug for nika_input::EnigoInputDevice<S>
 pub fn nika_input::EnigoInputDevice<S>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<S: core::marker::Copy + nika_kernel_core::io::input::ConsentState> core::marker::Copy for nika_input::EnigoInputDevice<S>
 impl<D> owo_colors::OwoColorize for nika_input::EnigoInputDevice<S>
+impl<S, TraitVariantBlanketType> nika_kernel_core::io::input::InputDevice<S> for nika_input::EnigoInputDevice<S> where S: nika_kernel_core::io::input::ConsentState, TraitVariantBlanketType: nika_kernel_core::io::input::InputDeviceDyn<S>
+pub async fn nika_input::EnigoInputDevice<S>::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_input::EnigoInputDevice<S>::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_input::EnigoInputDevice<S>::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_input::EnigoInputDevice<S>::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
 impl<T, U> core::convert::Into<U> for nika_input::EnigoInputDevice<S> where U: core::convert::From<T>
 pub fn nika_input::EnigoInputDevice<S>::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_input::EnigoInputDevice<S> where U: core::convert::Into<T>
@@ -41,5 +44,6 @@ impl<T> core::convert::From<T> for nika_input::EnigoInputDevice<S>
 pub fn nika_input::EnigoInputDevice<S>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_input::EnigoInputDevice<S> where T: 'static
 pub fn nika_input::EnigoInputDevice<S>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> objc2::rc::autorelease::AutoreleaseSafe for nika_input::EnigoInputDevice<S> where T: ?core::marker::Sized
 pub fn nika_input::consent_valid(proof: &nika_kernel_core::io::input::ConsentProof, now_ns: u64) -> bool
 pub fn nika_input::redact_typed_text(text: &str) -> alloc::string::String

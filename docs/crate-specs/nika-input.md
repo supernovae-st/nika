@@ -50,36 +50,46 @@ block Gate 2.
 ```rust
 //! `nika-input` · synthetic pointer + keyboard L1 effect crate (write-side).
 
-/// Synthetic-input backend (cross-platform via `enigo`). Posts events in
-/// `spawn_blocking` (the OS event APIs are synchronous) and is generic over the
-/// consent type-state — only `InputDevice<Authorized>` exposes the mutating methods.
+/// Synthetic-input backend (cross-platform via `enigo`). ZERO-SIZE: the `Enigo`
+/// handle is constructed PER CALL inside `spawn_blocking` (it holds `!Send` OS
+/// resources and takes `&mut self` — worker-local, never stored). Generic over
+/// the consent type-state — only `EnigoInputDevice<Authorized>` exposes the
+/// mutating methods. Deliberately NOT `Default` (an `Authorized` device must
+/// only come from `request_consent` — review-swarm finding, Guard-2 landmine).
+#[derive(Debug, Clone, Copy)]   // no Default
 #[non_exhaustive]
-pub struct EnigoInputDevice<S: ConsentState> { /* enigo handle | PhantomData<S> */ }
+pub struct EnigoInputDevice<S: ConsentState> { /* PhantomData<S> */ }
 
 impl EnigoInputDevice<Unconfirmed> {
     /// Construct an un-consented device. Mutating methods are un-callable
-    /// (`S::Granted = Infallible`) until consent is acquired.
+    /// (`S::Granted = Infallible`) until consent is acquired. Hermetic (no OS API).
     pub fn new() -> Result<Self, InputError>;
 
-    /// Acquire OS consent (per-OS entitlement/permission trust check — macOS
-    /// Accessibility+Input-Monitoring · Linux input-group/uinput · Windows
-    /// UIAccess) and transition to `Authorized`. Errors NIKA-1301 if the
-    /// process lacks the grant. Returns the proof + the authorized device.
+    /// Mint the FLOW token (TTL stamped on the process-MONOTONIC clock) and
+    /// transition to `Authorized`. Touches no OS API (hermetic — tests never
+    /// prompt). The real capability barrier is the OS grant (macOS
+    /// Accessibility+Input-Monitoring · Linux uinput/display session · Windows
+    /// UIAccess), verified SILENTLY at every dispatch (never pops a dialog
+    /// from inside an agent loop) → NIKA-1301 ConsentDenied there.
     pub fn request_consent(self, ttl_ns: u64) -> Result<(EnigoInputDevice<Authorized>, ConsentProof), InputError>;
 }
 
-impl nika_kernel::io::input::InputDevice<Authorized> for EnigoInputDevice<Authorized> {
-    async fn move_cursor(&self, to: Point, proof: &ConsentProof) -> io::Result<()>;
-    async fn click(&self, button: MouseButton, proof: &ConsentProof) -> io::Result<()>;
-    async fn type_text(&self, text: &str, proof: &ConsentProof) -> io::Result<()>;
-    async fn key_press(&self, key: KeyCode, modifiers: KeyMods, proof: &ConsentProof) -> io::Result<()>;
+// The SEND variant is the impl target (kernel one-way blanket impl derives the
+// local `InputDevice` from it — never the reverse). Pattern A (FCI-023bis):
+// every method returns the kernel's typed `InputError`, NEVER io::Result.
+impl nika_kernel::io::input::InputDeviceDyn<Authorized> for EnigoInputDevice<Authorized> {
+    async fn move_cursor(&self, to: Point, proof: &ConsentProof) -> Result<(), InputError>;
+    async fn click(&self, button: MouseButton, proof: &ConsentProof) -> Result<(), InputError>;
+    async fn type_text(&self, text: &str, proof: &ConsentProof) -> Result<(), InputError>;
+    async fn key_press(&self, key: KeyCode, modifiers: KeyMods, proof: &ConsentProof) -> Result<(), InputError>;
 }
 
-/// Errors · NIKA-1301..13NN · #[non_exhaustive] + code() + is_transient().
-/// NIKA-1300 reserved (B.2 skeleton placeholder slot · retired at B.3 like
-/// nika-a11y NIKA-1200).
-#[non_exhaustive]
-pub enum InputError { /* ConsentDenied(1301) · ConsentExpired(1302) · EventPostFailed(13NN) · BackendUnavailable(13NN) · TaskJoinFailed(13NN) */ }
+// Errors: the kernel-owned `nika_kernel::io::input::InputError` (Pattern A ·
+// FCI-023bis · NO crate-local enum, NO thiserror dep — the L1 re-exports it as
+// `nika_input::Error`). Codes are kernel-owned constants in nika_error::codes:
+// ConsentDenied(1301) · ConsentExpired(1302) · EventPostFailed(1303) ·
+// BackendUnavailable(1304) · TaskJoinFailed(1305). NIKA-1300 was never minted
+// (no placeholder phase — the kernel enum landed typed at M1).
 ```
 
 The `InputError` enum **never carries raw typed text** (Guard 1 · §5). Its
@@ -87,9 +97,11 @@ The `InputError` enum **never carries raw typed text** (Guard 1 · §5). Its
 
 ## 3. Layer discipline
 
-- **L1 effect** — implements one L0.5 trait (`InputDevice<S>`). Depends only on
+- **L1 effect** — implements one L0.5 trait (`InputDeviceDyn<S>` · the Send
+  variant · local trait via the kernel blanket impl). Depends only on
   `nika-kernel` (L0.5) + permissive externals (`enigo` cross-platform · `tokio`
-  rt for `spawn_blocking` · `thiserror`).
+  rt for `spawn_blocking`). NO `thiserror` (Pattern A / FCI-023bis: the error
+  enum is kernel-owned · re-exported).
 - `tokio` layer-legal at L1 (deny.toml wrappers allowlist · add `nika-input`) ·
   `spawn_blocking` only (sync `enigo` calls · worker-local).
 - Zero `nika-*` cross-deps beyond `nika-kernel`. No upward imports.
@@ -162,7 +174,7 @@ enforcement is two-layered:
    nika-input is the impl that honours it (does **not** add a bypass).
 2. **Runtime (the `ttl_ns` re-check).** Every dispatch re-checks
    `now - proof.granted_at_ns <= proof.ttl_ns` (`ttl_ns == 0` = infinite).
-   Stale proof returns `std::io::ErrorKind::PermissionDenied` → `InputError::
+   Stale proof returns the typed `InputError::
    ConsentExpired` (NIKA-1302). This is a **pure** predicate:
 
 ```rust
@@ -180,15 +192,19 @@ Invariant #27).
 
 - **B.1** spec (this file) · backend research done · Option A recommended,
   decision OPEN (§4) pending confirm.
-- **B.2** crate skeleton + `InputError` NIKA-1300..13NN + `EnigoInputDevice<S>`
-  type-state skeleton + the **two pure guards** (`redact_typed_text` /
-  `consent_valid`) + headless tests. Both mandatory guards headless-complete at
-  B.2 (the security cores ship before any FFI).
+- **B.2** ✅ SHIPPED `95fcf4002` — crate skeleton + the kernel-owned typed
+  `InputError` (NIKA-1301..1305 · Pattern A · no placeholder code was ever
+  minted) + `EnigoInputDevice<S>` type-state skeleton + the **two pure guards**
+  (`redact_typed_text` / `consent_valid`) + headless tests. Both mandatory
+  guards headless-complete at B.2 (the security cores ship before any FFI).
 - **B.3** `enigo` cross-platform backend wired (API primary-source verified
-  first) · `move_cursor`/`click`/`type_text`/`key_press` inside `spawn_blocking`
-  · `KeyCode`(66) → `enigo::Key` map · `KeyMods` → enigo modifier presses · no
-  per-OS `#[cfg]` split (enigo resolves macOS/Linux/Windows internally) · retire
-  the NIKA-1300 placeholder.
+  on the 0.6.1 tarball) · `move_cursor`/`click`/`type_text`/`key_press` inside
+  `spawn_blocking` (per-call handle · worker-local) · `KeyCode`(66) →
+  `enigo::Key` map (fail-closed on unknown variants) · `KeyMods` → press/tap/
+  release chord · no per-OS `#[cfg]` split (enigo resolves macOS/Linux/Windows
+  internally) · 3-lens review-swarm findings folded in (InputDeviceDyn Send
+  variant · no Default derive · monotonic fail-closed consent clock ·
+  `TypedText` un-formattable wrapper · static text-path error reasons).
 - **B.4** mutation (`cargo mutants -p nika-input -- --lib`) → ≥90 % of the
   headless surface (both pure guards + keycode map + error surface) + Rule-2
   exemption for the enigo-post FFI residue (§7.1) + ADR-003 canonical 12-gate

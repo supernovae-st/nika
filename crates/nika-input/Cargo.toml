@@ -23,9 +23,12 @@ nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
 # tokio `rt` for spawn_blocking (the synchronous `enigo` calls run off the async
 # runtime · worker-local · kernel CANCEL SAFETY contract · same as nika-a11y).
 tokio       = { workspace = true, features = ["rt"] }
-# B.3: enigo = cross-platform synthetic input (macOS/Linux/Windows · MIT ·
-# encapsulates the per-OS unsafe FFI → nika-input stays `unsafe_code = forbid`).
-# Added when the enigo backend is wired (B.3) — B.2 ships the pure security core.
+# B.3 backend: enigo = cross-platform synthetic input (macOS/Linux/Windows ·
+# MIT · encapsulates the per-OS unsafe FFI → nika-input stays
+# `unsafe_code = forbid`) · API primary-source verified on the 0.6.1 tarball
+# (Keyboard::text/key · Mouse::button/move_mouse · ungated cross-platform
+# Key set · Settings.open_prompt_to_get_permissions · NewConError::NoPermission).
+enigo       = { workspace = true }
 
 [dev-dependencies]
 # #[tokio::test] for the async InputDevice methods · proptest pins the pure
