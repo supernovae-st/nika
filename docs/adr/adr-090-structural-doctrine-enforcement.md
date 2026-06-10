@@ -97,15 +97,15 @@ Each gate carries an **orphan/parity check** so its projected SSOT can't rot
 ## Evidence
 
 - `scripts/hygiene/check-all.sh` — 34 live vectors (34-37 added this arc)
-- `scripts/hygiene/README.md` — vector catalog 34-37
+- `scripts/hygiene/README.md` — vector catalog 34-38
 - `docs/adr/adr-003-12-gate-admission.md` — amendment recording the Gate-5 +
   ADR-081 closure
 - `docs/architecture/error-trait-completeness-2026-06-10.md` — the error
   one-voice SSOT
 - `docs/adr/adr-081-l1-effect-crate-guard-contract.md` — the guard ownership
   matrix
-- `scripts/ci/{adr-081-guard-manifest.tsv,error-one-voice-allowlist.tsv}` — the
-  projected bindings/allowlists
+- `scripts/ci/adr-081-guard-manifest.tsv` — the projected guard bindings
+- `scripts/ci/error-one-voice-allowlist.tsv` — the projected error-voice allowlist
 
 ## Alternatives considered
 
