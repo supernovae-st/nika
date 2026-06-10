@@ -10,9 +10,9 @@ pub fn nika_kernel_mock::audit::FailingAuditSink::default() -> nika_kernel_mock:
 impl core::fmt::Debug for nika_kernel_mock::audit::FailingAuditSink
 pub fn nika_kernel_mock::audit::FailingAuditSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_kernel_mock::audit::FailingAuditSink
-impl nika_kernel::infra::audit::AuditSink for nika_kernel_mock::audit::FailingAuditSink
-pub async fn nika_kernel_mock::audit::FailingAuditSink::audit(&self, _record: nika_kernel::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel::infra::audit::AuditSinkError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::audit::FailingAuditSink
+impl nika_kernel_core::infra::audit::AuditSink for nika_kernel_mock::audit::FailingAuditSink
+pub async fn nika_kernel_mock::audit::FailingAuditSink::audit(&self, _record: nika_kernel_core::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::audit::FailingAuditSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::audit::FailingAuditSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::audit::FailingAuditSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::audit::FailingAuditSink::into(self) -> U
@@ -48,9 +48,9 @@ pub fn nika_kernel_mock::audit::NullAuditSink::default() -> nika_kernel_mock::au
 impl core::fmt::Debug for nika_kernel_mock::audit::NullAuditSink
 pub fn nika_kernel_mock::audit::NullAuditSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_kernel_mock::audit::NullAuditSink
-impl nika_kernel::infra::audit::AuditSink for nika_kernel_mock::audit::NullAuditSink
-pub async fn nika_kernel_mock::audit::NullAuditSink::audit(&self, _record: nika_kernel::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel::infra::audit::AuditSinkError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::audit::NullAuditSink
+impl nika_kernel_core::infra::audit::AuditSink for nika_kernel_mock::audit::NullAuditSink
+pub async fn nika_kernel_mock::audit::NullAuditSink::audit(&self, _record: nika_kernel_core::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::audit::NullAuditSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::audit::NullAuditSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::audit::NullAuditSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::audit::NullAuditSink::into(self) -> U
@@ -86,9 +86,9 @@ impl core::default::Default for nika_kernel_mock::billing::NullBillingSink
 pub fn nika_kernel_mock::billing::NullBillingSink::default() -> nika_kernel_mock::billing::NullBillingSink
 impl core::fmt::Debug for nika_kernel_mock::billing::NullBillingSink
 pub fn nika_kernel_mock::billing::NullBillingSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::billing::BillingSink for nika_kernel_mock::billing::NullBillingSink
+impl nika_kernel_core::infra::billing::BillingSink for nika_kernel_mock::billing::NullBillingSink
 pub async fn nika_kernel_mock::billing::NullBillingSink::record(&self, _cost: nika_types::cost::Cost, _usage: &nika_types::token_usage::TokenUsage, _provider: &nika_types::id::ProviderId, _model: &nika_types::id::ModelId) -> core::result::Result<(), nika_error::nika_error::NikaError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::billing::NullBillingSink
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::billing::NullBillingSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::billing::NullBillingSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::billing::NullBillingSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::billing::NullBillingSink::into(self) -> U
@@ -125,12 +125,12 @@ impl core::clone::Clone for nika_kernel_mock::blob::MockBlob
 pub fn nika_kernel_mock::blob::MockBlob::clone(&self) -> nika_kernel_mock::blob::MockBlob
 impl core::default::Default for nika_kernel_mock::blob::MockBlob
 pub fn nika_kernel_mock::blob::MockBlob::default() -> nika_kernel_mock::blob::MockBlob
-impl nika_kernel::io::blob::BlobStore for nika_kernel_mock::blob::MockBlob
-pub async fn nika_kernel_mock::blob::MockBlob::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel::io::blob::BlobError>
+impl nika_kernel_core::io::blob::BlobStore for nika_kernel_mock::blob::MockBlob
+pub async fn nika_kernel_mock::blob::MockBlob::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
 pub async fn nika_kernel_mock::blob::MockBlob::exists(&self, hash: &str) -> bool
-pub async fn nika_kernel_mock::blob::MockBlob::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel::io::blob::BlobError>
-pub async fn nika_kernel_mock::blob::MockBlob::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel::io::blob::BlobMetadata, nika_kernel::io::blob::BlobError>
-pub async fn nika_kernel_mock::blob::MockBlob::stat(&self, hash: &str) -> core::result::Result<nika_kernel::io::blob::BlobMetadata, nika_kernel::io::blob::BlobError>
+pub async fn nika_kernel_mock::blob::MockBlob::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_mock::blob::MockBlob::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_mock::blob::MockBlob::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::blob::MockBlob
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::blob::MockBlob where U: core::convert::From<T>
 pub fn nika_kernel_mock::blob::MockBlob::into(self) -> U
@@ -166,7 +166,7 @@ impl core::clone::Clone for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::clone(&self) -> nika_kernel_mock::clock::MockClock
 impl core::default::Default for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::default() -> Self
-impl nika_kernel::io::clock::Clock for nika_kernel_mock::clock::MockClock
+impl nika_kernel_core::io::clock::Clock for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::now(&self) -> std::time::Instant
 pub async fn nika_kernel_mock::clock::MockClock::sleep(&self, _duration: core::time::Duration)
 pub fn nika_kernel_mock::clock::MockClock::system_now(&self) -> std::time::SystemTime
@@ -205,8 +205,8 @@ impl core::default::Default for nika_kernel_mock::compressor::NullContextCompres
 pub fn nika_kernel_mock::compressor::NullContextCompressor::default() -> nika_kernel_mock::compressor::NullContextCompressor
 impl core::fmt::Debug for nika_kernel_mock::compressor::NullContextCompressor
 pub fn nika_kernel_mock::compressor::NullContextCompressor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::ai::context::ContextCompressor for nika_kernel_mock::compressor::NullContextCompressor
-pub async fn nika_kernel_mock::compressor::NullContextCompressor::compress(&self, _messages: &[nika_types::checkpoint::CheckpointMessage], _policy: &nika_types::compression::CompressionPolicy) -> core::option::Option<nika_kernel::ai::context::CompressedContext>
+impl nika_kernel_ai::context::ContextCompressor for nika_kernel_mock::compressor::NullContextCompressor
+pub async fn nika_kernel_mock::compressor::NullContextCompressor::compress(&self, _messages: &[nika_types::checkpoint::CheckpointMessage], _policy: &nika_types::compression::CompressionPolicy) -> core::option::Option<nika_kernel_ai::context::CompressedContext>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::compressor::NullContextCompressor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::compressor::NullContextCompressor where U: core::convert::From<T>
 pub fn nika_kernel_mock::compressor::NullContextCompressor::into(self) -> U
@@ -242,9 +242,9 @@ impl core::default::Default for nika_kernel_mock::event_sink::NullEventSink
 pub fn nika_kernel_mock::event_sink::NullEventSink::default() -> nika_kernel_mock::event_sink::NullEventSink
 impl core::fmt::Debug for nika_kernel_mock::event_sink::NullEventSink
 pub fn nika_kernel_mock::event_sink::NullEventSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::event_sink::EventSink for nika_kernel_mock::event_sink::NullEventSink
-pub async fn nika_kernel_mock::event_sink::NullEventSink::emit(&self, _event: nika_kernel::infra::event_sink::Event) -> core::result::Result<(), nika_error::nika_error::NikaError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::event_sink::NullEventSink
+impl nika_kernel_core::infra::event_sink::EventSink for nika_kernel_mock::event_sink::NullEventSink
+pub async fn nika_kernel_mock::event_sink::NullEventSink::emit(&self, _event: nika_kernel_core::infra::event_sink::Event) -> core::result::Result<(), nika_error::nika_error::NikaError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::event_sink::NullEventSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::event_sink::NullEventSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::event_sink::NullEventSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::event_sink::NullEventSink::into(self) -> U
@@ -283,17 +283,17 @@ impl core::clone::Clone for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::clone(&self) -> nika_kernel_mock::filesystem::MockFs
 impl core::default::Default for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::default() -> nika_kernel_mock::filesystem::MockFs
-impl nika_kernel::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
 pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
-impl nika_kernel::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel::io::fs::FileMetadata>
-impl nika_kernel::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
+pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+impl nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
 pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
-impl nika_kernel::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> std::io::error::Result<()>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
@@ -322,24 +322,24 @@ impl<T> core::convert::From<T> for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::filesystem::MockFs where T: 'static
 pub fn nika_kernel_mock::filesystem::MockFs::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::io::fs::Fs for nika_kernel_mock::filesystem::MockFs where T: nika_kernel::io::fs::FsRead + nika_kernel::io::fs::FsWrite + nika_kernel::io::fs::FsMeta + nika_kernel::io::fs::FsList
+impl<T> nika_kernel_core::io::fs::Fs for nika_kernel_mock::filesystem::MockFs where T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
 pub mod nika_kernel_mock::http
 #[non_exhaustive] pub struct nika_kernel_mock::http::MockHttp
 impl nika_kernel_mock::http::MockHttp
-pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel::io::http::HttpError) -> Self
+pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel_core::io::http::HttpError) -> Self
 pub fn nika_kernel_mock::http::MockHttp::enqueue_ok(self, status: u16, body: impl core::convert::Into<bytes::bytes::Bytes>) -> Self
 pub fn nika_kernel_mock::http::MockHttp::new() -> Self
 pub fn nika_kernel_mock::http::MockHttp::remaining(&self) -> usize
-pub fn nika_kernel_mock::http::MockHttp::sent_requests(&self) -> alloc::vec::Vec<nika_kernel::io::http::HttpRequest>
+pub fn nika_kernel_mock::http::MockHttp::sent_requests(&self) -> alloc::vec::Vec<nika_kernel_core::io::http::HttpRequest>
 impl core::clone::Clone for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::clone(&self) -> nika_kernel_mock::http::MockHttp
 impl core::default::Default for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::default() -> nika_kernel_mock::http::MockHttp
-impl nika_kernel::io::http::HttpGet for nika_kernel_mock::http::MockHttp
-pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel::io::http::HttpRequest) -> core::result::Result<nika_kernel::io::http::HttpResponse, nika_kernel::io::http::HttpError>
-impl nika_kernel::io::http::HttpPost for nika_kernel_mock::http::MockHttp
-pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel::io::http::HttpRequest) -> core::result::Result<nika_kernel::io::http::HttpResponse, nika_kernel::io::http::HttpError>
-pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel::io::http::HttpRequest) -> core::result::Result<nika_kernel::io::http::HttpStreamResponse, nika_kernel::io::http::HttpError>
+impl nika_kernel_core::io::http::HttpGet for nika_kernel_mock::http::MockHttp
+pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp
+pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::http::MockHttp
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::http::MockHttp where U: core::convert::From<T>
 pub fn nika_kernel_mock::http::MockHttp::into(self) -> U
@@ -365,7 +365,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::http::MockHttp where T: 'static
 pub fn nika_kernel_mock::http::MockHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::io::http::HttpClient for nika_kernel_mock::http::MockHttp where T: nika_kernel::io::http::HttpGet + nika_kernel::io::http::HttpPost
+impl<T> nika_kernel_core::io::http::HttpClient for nika_kernel_mock::http::MockHttp where T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
 pub mod nika_kernel_mock::id_gen
 #[non_exhaustive] pub struct nika_kernel_mock::id_gen::SequentialIdGenerator
 impl nika_kernel_mock::id_gen::SequentialIdGenerator
@@ -374,7 +374,7 @@ impl core::default::Default for nika_kernel_mock::id_gen::SequentialIdGenerator
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::default() -> nika_kernel_mock::id_gen::SequentialIdGenerator
 impl core::fmt::Debug for nika_kernel_mock::id_gen::SequentialIdGenerator
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::id_gen::IdGenerator for nika_kernel_mock::id_gen::SequentialIdGenerator
+impl nika_kernel_core::infra::id_gen::IdGenerator for nika_kernel_mock::id_gen::SequentialIdGenerator
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::new_event_id(&self) -> nika_types::id::EventId
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::new_run_id(&self) -> nika_types::id::RunId
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::new_span_id(&self) -> nika_types::id::SpanId
@@ -407,9 +407,9 @@ impl core::clone::Clone for nika_kernel_mock::memory::NullEmbeddingProvider
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::clone(&self) -> nika_kernel_mock::memory::NullEmbeddingProvider
 impl core::fmt::Debug for nika_kernel_mock::memory::NullEmbeddingProvider
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::ai::memory::EmbeddingProvider for nika_kernel_mock::memory::NullEmbeddingProvider
+impl nika_kernel_ai::memory::EmbeddingProvider for nika_kernel_mock::memory::NullEmbeddingProvider
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::dimension(&self) -> usize
-pub async fn nika_kernel_mock::memory::NullEmbeddingProvider::embed(&self, _text: &str) -> core::result::Result<alloc::vec::Vec<f32>, nika_kernel::ai::memory::MemoryError>
+pub async fn nika_kernel_mock::memory::NullEmbeddingProvider::embed(&self, _text: &str) -> core::result::Result<alloc::vec::Vec<f32>, nika_kernel_ai::memory::MemoryError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::memory::NullEmbeddingProvider
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::memory::NullEmbeddingProvider where U: core::convert::From<T>
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::into(self) -> U
@@ -444,12 +444,13 @@ impl core::default::Default for nika_kernel_mock::memory::NullMemoryStore
 pub fn nika_kernel_mock::memory::NullMemoryStore::default() -> nika_kernel_mock::memory::NullMemoryStore
 impl core::fmt::Debug for nika_kernel_mock::memory::NullMemoryStore
 pub fn nika_kernel_mock::memory::NullMemoryStore::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::ai::memory::MemoryForget for nika_kernel_mock::memory::NullMemoryStore
-pub async fn nika_kernel_mock::memory::NullMemoryStore::forget(&self, _id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel::ai::memory::MemoryError>
-impl nika_kernel::ai::memory::MemoryRecall for nika_kernel_mock::memory::NullMemoryStore
-pub async fn nika_kernel_mock::memory::NullMemoryStore::recall(&self, _query: nika_kernel::ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel::ai::memory::MemoryHit>, nika_kernel::ai::memory::MemoryError>
-impl nika_kernel::ai::memory::MemoryRemember for nika_kernel_mock::memory::NullMemoryStore
-pub async fn nika_kernel_mock::memory::NullMemoryStore::remember(&self, _frame: nika_kernel::ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel::ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryForget for nika_kernel_mock::memory::NullMemoryStore
+pub async fn nika_kernel_mock::memory::NullMemoryStore::forget(&self, _id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryRecall for nika_kernel_mock::memory::NullMemoryStore
+pub async fn nika_kernel_mock::memory::NullMemoryStore::recall(&self, _query: nika_kernel_ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::memory::MemoryHit>, nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryRemember for nika_kernel_mock::memory::NullMemoryStore
+pub async fn nika_kernel_mock::memory::NullMemoryStore::remember(&self, _frame: nika_kernel_ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::memory::NullMemoryStore
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::memory::NullMemoryStore
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::memory::NullMemoryStore where U: core::convert::From<T>
 pub fn nika_kernel_mock::memory::NullMemoryStore::into(self) -> U
@@ -475,7 +476,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::memory::NullMemoryStore
 pub fn nika_kernel_mock::memory::NullMemoryStore::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::memory::NullMemoryStore where T: 'static
 pub fn nika_kernel_mock::memory::NullMemoryStore::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::ai::memory::MemoryStore for nika_kernel_mock::memory::NullMemoryStore where T: nika_kernel::ai::memory::MemoryRemember + nika_kernel::ai::memory::MemoryRecall + nika_kernel::ai::memory::MemoryForget
+impl<T> nika_kernel_ai::memory::MemoryStore for nika_kernel_mock::memory::NullMemoryStore where T: nika_kernel_ai::memory::MemoryRemember + nika_kernel_ai::memory::MemoryRecall + nika_kernel_ai::memory::MemoryForget
 pub mod nika_kernel_mock::metrics
 #[non_exhaustive] pub struct nika_kernel_mock::metrics::NullMetricsExporter
 impl nika_kernel_mock::metrics::NullMetricsExporter
@@ -486,10 +487,10 @@ impl core::default::Default for nika_kernel_mock::metrics::NullMetricsExporter
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::default() -> nika_kernel_mock::metrics::NullMetricsExporter
 impl core::fmt::Debug for nika_kernel_mock::metrics::NullMetricsExporter
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::metrics::MetricsExporter for nika_kernel_mock::metrics::NullMetricsExporter
-pub fn nika_kernel_mock::metrics::NullMetricsExporter::counter(&self, _name: &str, _value: u64, _tags: &[nika_kernel::infra::metrics::MetricTag])
-pub fn nika_kernel_mock::metrics::NullMetricsExporter::gauge(&self, _name: &str, _value: f64, _tags: &[nika_kernel::infra::metrics::MetricTag])
-pub fn nika_kernel_mock::metrics::NullMetricsExporter::histogram(&self, _name: &str, _value: f64, _tags: &[nika_kernel::infra::metrics::MetricTag])
+impl nika_kernel_core::infra::metrics::MetricsExporter for nika_kernel_mock::metrics::NullMetricsExporter
+pub fn nika_kernel_mock::metrics::NullMetricsExporter::counter(&self, _name: &str, _value: u64, _tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub fn nika_kernel_mock::metrics::NullMetricsExporter::gauge(&self, _name: &str, _value: f64, _tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub fn nika_kernel_mock::metrics::NullMetricsExporter::histogram(&self, _name: &str, _value: f64, _tags: &[nika_kernel_core::infra::metrics::MetricTag])
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::metrics::NullMetricsExporter
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::metrics::NullMetricsExporter where U: core::convert::From<T>
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::into(self) -> U
@@ -525,8 +526,8 @@ impl core::default::Default for nika_kernel_mock::plugin::NullPluginEnv
 pub fn nika_kernel_mock::plugin::NullPluginEnv::default() -> nika_kernel_mock::plugin::NullPluginEnv
 impl core::fmt::Debug for nika_kernel_mock::plugin::NullPluginEnv
 pub fn nika_kernel_mock::plugin::NullPluginEnv::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::wasm::PluginEnv for nika_kernel_mock::plugin::NullPluginEnv
-pub async fn nika_kernel_mock::plugin::NullPluginEnv::env_get(&self, _key: &str) -> core::result::Result<core::option::Option<alloc::string::String>, nika_kernel::plugin::wasm::WasmPluginError>
+impl nika_kernel_plugin::wasm::PluginEnv for nika_kernel_mock::plugin::NullPluginEnv
+pub async fn nika_kernel_mock::plugin::NullPluginEnv::env_get(&self, _key: &str) -> core::result::Result<core::option::Option<alloc::string::String>, nika_kernel_plugin::wasm::WasmPluginError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::plugin::NullPluginEnv
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::plugin::NullPluginEnv where U: core::convert::From<T>
 pub fn nika_kernel_mock::plugin::NullPluginEnv::into(self) -> U
@@ -561,8 +562,8 @@ impl core::default::Default for nika_kernel_mock::plugin::NullWasmPluginHost
 pub fn nika_kernel_mock::plugin::NullWasmPluginHost::default() -> nika_kernel_mock::plugin::NullWasmPluginHost
 impl core::fmt::Debug for nika_kernel_mock::plugin::NullWasmPluginHost
 pub fn nika_kernel_mock::plugin::NullWasmPluginHost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::wasm::WasmPluginHost for nika_kernel_mock::plugin::NullWasmPluginHost
-pub async fn nika_kernel_mock::plugin::NullWasmPluginHost::call_plugin(&self, plugin_name: &str, _input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel::plugin::wasm::WasmPluginError>
+impl nika_kernel_plugin::wasm::WasmPluginHost for nika_kernel_mock::plugin::NullWasmPluginHost
+pub async fn nika_kernel_mock::plugin::NullWasmPluginHost::call_plugin(&self, plugin_name: &str, _input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel_plugin::wasm::WasmPluginError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::plugin::NullWasmPluginHost
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::plugin::NullWasmPluginHost where U: core::convert::From<T>
 pub fn nika_kernel_mock::plugin::NullWasmPluginHost::into(self) -> U
@@ -597,10 +598,10 @@ impl core::default::Default for nika_kernel_mock::plugin::NullWasmPluginLifecycl
 pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::default() -> nika_kernel_mock::plugin::NullWasmPluginLifecycle
 impl core::fmt::Debug for nika_kernel_mock::plugin::NullWasmPluginLifecycle
 pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::wasm::WasmPluginLifecycle for nika_kernel_mock::plugin::NullWasmPluginLifecycle
-pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::list_plugins(&self) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_kernel::plugin::wasm::WasmPluginError>
-pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::load_plugin(&self, name: &str, _bytes: &[u8]) -> core::result::Result<(), nika_kernel::plugin::wasm::WasmPluginError>
-pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::unload_plugin(&self, name: &str) -> core::result::Result<(), nika_kernel::plugin::wasm::WasmPluginError>
+impl nika_kernel_plugin::wasm::WasmPluginLifecycle for nika_kernel_mock::plugin::NullWasmPluginLifecycle
+pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::list_plugins(&self) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_kernel_plugin::wasm::WasmPluginError>
+pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::load_plugin(&self, name: &str, _bytes: &[u8]) -> core::result::Result<(), nika_kernel_plugin::wasm::WasmPluginError>
+pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::unload_plugin(&self, name: &str) -> core::result::Result<(), nika_kernel_plugin::wasm::WasmPluginError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::plugin::NullWasmPluginLifecycle
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::plugin::NullWasmPluginLifecycle where U: core::convert::From<T>
 pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::into(self) -> U
@@ -629,9 +630,9 @@ pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::as_any(&self) -> &(dyn
 pub mod nika_kernel_mock::provider
 #[non_exhaustive] pub struct nika_kernel_mock::provider::MockProvider
 impl nika_kernel_mock::provider::MockProvider
-pub fn nika_kernel_mock::provider::MockProvider::captured_requests(&self) -> alloc::vec::Vec<nika_kernel::ai::provider::InferRequest>
-pub fn nika_kernel_mock::provider::MockProvider::enqueue_error(self, error: nika_kernel::ai::provider::ProviderError) -> Self
-pub fn nika_kernel_mock::provider::MockProvider::enqueue_response(self, response: nika_kernel::ai::provider::InferResponse) -> Self
+pub fn nika_kernel_mock::provider::MockProvider::captured_requests(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::InferRequest>
+pub fn nika_kernel_mock::provider::MockProvider::enqueue_error(self, error: nika_kernel_ai::provider::ProviderError) -> Self
+pub fn nika_kernel_mock::provider::MockProvider::enqueue_response(self, response: nika_kernel_ai::provider::InferResponse) -> Self
 pub fn nika_kernel_mock::provider::MockProvider::enqueue_text(self, text: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_mock::provider::MockProvider::new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn nika_kernel_mock::provider::MockProvider::with_response_format_support(self, enabled: bool) -> Self
@@ -639,14 +640,14 @@ impl core::clone::Clone for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::clone(&self) -> nika_kernel_mock::provider::MockProvider
 impl core::default::Default for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::default() -> Self
-impl nika_kernel::ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider
-pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel::ai::provider::InferRequest) -> core::result::Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
-impl nika_kernel::ai::provider::ProviderMeta for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider
+pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl nika_kernel_ai::provider::ProviderMeta for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::name(&self) -> &str
 pub fn nika_kernel_mock::provider::MockProvider::supports_response_format(&self) -> bool
-impl nika_kernel::ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider
-pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel::ai::provider::InferRequest) -> core::result::Result<nika_kernel::ai::provider::InferEventStream, nika_kernel::ai::provider::ProviderError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider
+pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::provider::MockProvider
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::provider::MockProvider
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::provider::MockProvider where U: core::convert::From<T>
 pub fn nika_kernel_mock::provider::MockProvider::into(self) -> U
@@ -672,7 +673,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::provider::MockProvider where T: 'static
 pub fn nika_kernel_mock::provider::MockProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::ai::provider::Provider for nika_kernel_mock::provider::MockProvider where T: nika_kernel::ai::provider::ProviderInfer + nika_kernel::ai::provider::ProviderStream + nika_kernel::ai::provider::ProviderMeta + nika_kernel::sealed::Sealed
+impl<T> nika_kernel_ai::provider::Provider for nika_kernel_mock::provider::MockProvider where T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
 pub mod nika_kernel_mock::sandbox
 #[non_exhaustive] pub struct nika_kernel_mock::sandbox::NullSandbox
 impl nika_kernel_mock::sandbox::NullSandbox
@@ -683,9 +684,9 @@ impl core::default::Default for nika_kernel_mock::sandbox::NullSandbox
 pub fn nika_kernel_mock::sandbox::NullSandbox::default() -> nika_kernel_mock::sandbox::NullSandbox
 impl core::fmt::Debug for nika_kernel_mock::sandbox::NullSandbox
 pub fn nika_kernel_mock::sandbox::NullSandbox::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::sandbox::Sandbox for nika_kernel_mock::sandbox::NullSandbox
-pub async fn nika_kernel_mock::sandbox::NullSandbox::check_capability(&self, _cap: &nika_kernel::plugin::sandbox::Capability) -> core::result::Result<bool, nika_kernel::plugin::sandbox::SandboxError>
-pub async fn nika_kernel_mock::sandbox::NullSandbox::enter(&self) -> core::result::Result<(), nika_kernel::plugin::sandbox::SandboxError>
+impl nika_kernel_plugin::sandbox::Sandbox for nika_kernel_mock::sandbox::NullSandbox
+pub async fn nika_kernel_mock::sandbox::NullSandbox::check_capability(&self, _cap: &nika_kernel_plugin::sandbox::Capability) -> core::result::Result<bool, nika_kernel_plugin::sandbox::SandboxError>
+pub async fn nika_kernel_mock::sandbox::NullSandbox::enter(&self) -> core::result::Result<(), nika_kernel_plugin::sandbox::SandboxError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::sandbox::NullSandbox
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::sandbox::NullSandbox where U: core::convert::From<T>
 pub fn nika_kernel_mock::sandbox::NullSandbox::into(self) -> U
@@ -721,9 +722,9 @@ impl core::default::Default for nika_kernel_mock::secret::NullSecretResolver
 pub fn nika_kernel_mock::secret::NullSecretResolver::default() -> nika_kernel_mock::secret::NullSecretResolver
 impl core::fmt::Debug for nika_kernel_mock::secret::NullSecretResolver
 pub fn nika_kernel_mock::secret::NullSecretResolver::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::secret::SecretResolver for nika_kernel_mock::secret::NullSecretResolver
-pub async fn nika_kernel_mock::secret::NullSecretResolver::resolve(&self, secret: &nika_kernel::infra::secret::SecretRef) -> core::result::Result<nika_kernel::infra::secret::Secret, nika_error::nika_error::NikaError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::secret::NullSecretResolver
+impl nika_kernel_core::infra::secret::SecretResolver for nika_kernel_mock::secret::NullSecretResolver
+pub async fn nika_kernel_mock::secret::NullSecretResolver::resolve(&self, secret: &nika_kernel_core::infra::secret::SecretRef) -> core::result::Result<nika_kernel_core::infra::secret::Secret, nika_error::nika_error::NikaError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::secret::NullSecretResolver
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::secret::NullSecretResolver
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::secret::NullSecretResolver where U: core::convert::From<T>
 pub fn nika_kernel_mock::secret::NullSecretResolver::into(self) -> U
@@ -752,19 +753,19 @@ pub fn nika_kernel_mock::secret::NullSecretResolver::as_any(&self) -> &(dyn core
 pub mod nika_kernel_mock::shell
 #[non_exhaustive] pub struct nika_kernel_mock::shell::MockShell
 impl nika_kernel_mock::shell::MockShell
-pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel::io::process::ShellError) -> Self
+pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel_core::io::process::ShellError) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_fail(self, status: i32, stderr: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_ok(self, stdout: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_kernel_mock::shell::MockShell::executed_commands(&self) -> alloc::vec::Vec<nika_kernel::io::process::ShellCommand>
+pub fn nika_kernel_mock::shell::MockShell::executed_commands(&self) -> alloc::vec::Vec<nika_kernel_core::io::process::ShellCommand>
 pub fn nika_kernel_mock::shell::MockShell::new() -> Self
 impl core::clone::Clone for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::clone(&self) -> nika_kernel_mock::shell::MockShell
 impl core::default::Default for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::default() -> nika_kernel_mock::shell::MockShell
-impl nika_kernel::io::process::ShellCancel for nika_kernel_mock::shell::MockShell
-pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel::io::process::ShellError>
-impl nika_kernel::io::process::ShellRun for nika_kernel_mock::shell::MockShell
-pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel::io::process::ShellCommand) -> core::result::Result<nika_kernel::io::process::ShellResult, nika_kernel::io::process::ShellError>
+impl nika_kernel_core::io::process::ShellCancel for nika_kernel_mock::shell::MockShell
+pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl nika_kernel_core::io::process::ShellRun for nika_kernel_mock::shell::MockShell
+pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::shell::MockShell
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::shell::MockShell where U: core::convert::From<T>
 pub fn nika_kernel_mock::shell::MockShell::into(self) -> U
@@ -790,22 +791,22 @@ impl<T> core::convert::From<T> for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::shell::MockShell where T: 'static
 pub fn nika_kernel_mock::shell::MockShell::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::io::process::ShellExecutor for nika_kernel_mock::shell::MockShell where T: nika_kernel::io::process::ShellRun + nika_kernel::io::process::ShellCancel
+impl<T> nika_kernel_core::io::process::ShellExecutor for nika_kernel_mock::shell::MockShell where T: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel
 pub mod nika_kernel_mock::tool_executor
 #[non_exhaustive] pub struct nika_kernel_mock::tool_executor::MockToolExecutor
 impl nika_kernel_mock::tool_executor::MockToolExecutor
-pub fn nika_kernel_mock::tool_executor::MockToolExecutor::captured_calls(&self) -> alloc::vec::Vec<nika_kernel::runtime::tool_executor::ToolCall>
-pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_err(self, error: nika_kernel::runtime::tool_executor::ToolExecError) -> Self
-pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_ok(self, result: nika_kernel::runtime::tool_executor::ToolResult) -> Self
+pub fn nika_kernel_mock::tool_executor::MockToolExecutor::captured_calls(&self) -> alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>
+pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_err(self, error: nika_kernel_runtime::tool_executor::ToolExecError) -> Self
+pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_ok(self, result: nika_kernel_runtime::tool_executor::ToolResult) -> Self
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::new() -> Self
 impl core::clone::Clone for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::clone(&self) -> nika_kernel_mock::tool_executor::MockToolExecutor
 impl core::default::Default for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::default() -> nika_kernel_mock::tool_executor::MockToolExecutor
-impl nika_kernel::runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor
-pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel::runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>>
-impl nika_kernel::runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor
-pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel::runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>
+impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::MockToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::MockToolExecutor where U: core::convert::From<T>
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::into(self) -> U
@@ -831,7 +832,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::tool_executor::MockToolExec
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::MockToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::MockToolExecutor where T: nika_kernel::runtime::tool_executor::ToolExecute + nika_kernel::runtime::tool_executor::ToolBatch
+impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::MockToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
 #[non_exhaustive] pub struct nika_kernel_mock::tool_executor::NullToolExecutor
 impl nika_kernel_mock::tool_executor::NullToolExecutor
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::new() -> Self
@@ -841,10 +842,10 @@ impl core::default::Default for nika_kernel_mock::tool_executor::NullToolExecuto
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::default() -> nika_kernel_mock::tool_executor::NullToolExecutor
 impl core::fmt::Debug for nika_kernel_mock::tool_executor::NullToolExecutor
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor
-pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel::runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>>
-impl nika_kernel::runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor
-pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel::runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>
+impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::NullToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::NullToolExecutor where U: core::convert::From<T>
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::into(self) -> U
@@ -870,7 +871,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::tool_executor::NullToolExec
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::NullToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::NullToolExecutor where T: nika_kernel::runtime::tool_executor::ToolExecute + nika_kernel::runtime::tool_executor::ToolBatch
+impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::NullToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
 pub mod nika_kernel_mock::trace
 #[non_exhaustive] pub struct nika_kernel_mock::trace::NullTracerProvider
 impl nika_kernel_mock::trace::NullTracerProvider
@@ -881,10 +882,10 @@ impl core::default::Default for nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::default() -> nika_kernel_mock::trace::NullTracerProvider
 impl core::fmt::Debug for nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::trace::TracerProvider for nika_kernel_mock::trace::NullTracerProvider
+impl nika_kernel_core::infra::trace::TracerProvider for nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::extract(&self, _headers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<nika_types::id::TraceId>
 pub fn nika_kernel_mock::trace::NullTracerProvider::inject(&self, _headers: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
-pub fn nika_kernel_mock::trace::NullTracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, _name: &str) -> nika_kernel::infra::trace::SpanGuard
+pub fn nika_kernel_mock::trace::NullTracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, _name: &str) -> nika_kernel_core::infra::trace::SpanGuard
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::trace::NullTracerProvider
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::trace::NullTracerProvider where U: core::convert::From<T>
 pub fn nika_kernel_mock::trace::NullTracerProvider::into(self) -> U
@@ -920,9 +921,9 @@ pub fn nika_kernel_mock::audit::FailingAuditSink::default() -> nika_kernel_mock:
 impl core::fmt::Debug for nika_kernel_mock::audit::FailingAuditSink
 pub fn nika_kernel_mock::audit::FailingAuditSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_kernel_mock::audit::FailingAuditSink
-impl nika_kernel::infra::audit::AuditSink for nika_kernel_mock::audit::FailingAuditSink
-pub async fn nika_kernel_mock::audit::FailingAuditSink::audit(&self, _record: nika_kernel::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel::infra::audit::AuditSinkError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::audit::FailingAuditSink
+impl nika_kernel_core::infra::audit::AuditSink for nika_kernel_mock::audit::FailingAuditSink
+pub async fn nika_kernel_mock::audit::FailingAuditSink::audit(&self, _record: nika_kernel_core::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::audit::FailingAuditSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::audit::FailingAuditSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::audit::FailingAuditSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::audit::FailingAuditSink::into(self) -> U
@@ -958,12 +959,12 @@ impl core::clone::Clone for nika_kernel_mock::blob::MockBlob
 pub fn nika_kernel_mock::blob::MockBlob::clone(&self) -> nika_kernel_mock::blob::MockBlob
 impl core::default::Default for nika_kernel_mock::blob::MockBlob
 pub fn nika_kernel_mock::blob::MockBlob::default() -> nika_kernel_mock::blob::MockBlob
-impl nika_kernel::io::blob::BlobStore for nika_kernel_mock::blob::MockBlob
-pub async fn nika_kernel_mock::blob::MockBlob::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel::io::blob::BlobError>
+impl nika_kernel_core::io::blob::BlobStore for nika_kernel_mock::blob::MockBlob
+pub async fn nika_kernel_mock::blob::MockBlob::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
 pub async fn nika_kernel_mock::blob::MockBlob::exists(&self, hash: &str) -> bool
-pub async fn nika_kernel_mock::blob::MockBlob::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel::io::blob::BlobError>
-pub async fn nika_kernel_mock::blob::MockBlob::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel::io::blob::BlobMetadata, nika_kernel::io::blob::BlobError>
-pub async fn nika_kernel_mock::blob::MockBlob::stat(&self, hash: &str) -> core::result::Result<nika_kernel::io::blob::BlobMetadata, nika_kernel::io::blob::BlobError>
+pub async fn nika_kernel_mock::blob::MockBlob::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_mock::blob::MockBlob::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_kernel_mock::blob::MockBlob::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::blob::MockBlob
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::blob::MockBlob where U: core::convert::From<T>
 pub fn nika_kernel_mock::blob::MockBlob::into(self) -> U
@@ -998,7 +999,7 @@ impl core::clone::Clone for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::clone(&self) -> nika_kernel_mock::clock::MockClock
 impl core::default::Default for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::default() -> Self
-impl nika_kernel::io::clock::Clock for nika_kernel_mock::clock::MockClock
+impl nika_kernel_core::io::clock::Clock for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::now(&self) -> std::time::Instant
 pub async fn nika_kernel_mock::clock::MockClock::sleep(&self, _duration: core::time::Duration)
 pub fn nika_kernel_mock::clock::MockClock::system_now(&self) -> std::time::SystemTime
@@ -1039,17 +1040,17 @@ impl core::clone::Clone for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::clone(&self) -> nika_kernel_mock::filesystem::MockFs
 impl core::default::Default for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::default() -> nika_kernel_mock::filesystem::MockFs
-impl nika_kernel::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
 pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
-impl nika_kernel::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel::io::fs::FileMetadata>
-impl nika_kernel::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
+pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+impl nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
 pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
-impl nika_kernel::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> std::io::error::Result<()>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
@@ -1078,23 +1079,23 @@ impl<T> core::convert::From<T> for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::filesystem::MockFs where T: 'static
 pub fn nika_kernel_mock::filesystem::MockFs::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::io::fs::Fs for nika_kernel_mock::filesystem::MockFs where T: nika_kernel::io::fs::FsRead + nika_kernel::io::fs::FsWrite + nika_kernel::io::fs::FsMeta + nika_kernel::io::fs::FsList
+impl<T> nika_kernel_core::io::fs::Fs for nika_kernel_mock::filesystem::MockFs where T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
 #[non_exhaustive] pub struct nika_kernel_mock::MockHttp
 impl nika_kernel_mock::http::MockHttp
-pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel::io::http::HttpError) -> Self
+pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel_core::io::http::HttpError) -> Self
 pub fn nika_kernel_mock::http::MockHttp::enqueue_ok(self, status: u16, body: impl core::convert::Into<bytes::bytes::Bytes>) -> Self
 pub fn nika_kernel_mock::http::MockHttp::new() -> Self
 pub fn nika_kernel_mock::http::MockHttp::remaining(&self) -> usize
-pub fn nika_kernel_mock::http::MockHttp::sent_requests(&self) -> alloc::vec::Vec<nika_kernel::io::http::HttpRequest>
+pub fn nika_kernel_mock::http::MockHttp::sent_requests(&self) -> alloc::vec::Vec<nika_kernel_core::io::http::HttpRequest>
 impl core::clone::Clone for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::clone(&self) -> nika_kernel_mock::http::MockHttp
 impl core::default::Default for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::default() -> nika_kernel_mock::http::MockHttp
-impl nika_kernel::io::http::HttpGet for nika_kernel_mock::http::MockHttp
-pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel::io::http::HttpRequest) -> core::result::Result<nika_kernel::io::http::HttpResponse, nika_kernel::io::http::HttpError>
-impl nika_kernel::io::http::HttpPost for nika_kernel_mock::http::MockHttp
-pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel::io::http::HttpRequest) -> core::result::Result<nika_kernel::io::http::HttpResponse, nika_kernel::io::http::HttpError>
-pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel::io::http::HttpRequest) -> core::result::Result<nika_kernel::io::http::HttpStreamResponse, nika_kernel::io::http::HttpError>
+impl nika_kernel_core::io::http::HttpGet for nika_kernel_mock::http::MockHttp
+pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp
+pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::http::MockHttp
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::http::MockHttp where U: core::convert::From<T>
 pub fn nika_kernel_mock::http::MockHttp::into(self) -> U
@@ -1120,12 +1121,12 @@ impl<T> core::convert::From<T> for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::http::MockHttp where T: 'static
 pub fn nika_kernel_mock::http::MockHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::io::http::HttpClient for nika_kernel_mock::http::MockHttp where T: nika_kernel::io::http::HttpGet + nika_kernel::io::http::HttpPost
+impl<T> nika_kernel_core::io::http::HttpClient for nika_kernel_mock::http::MockHttp where T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
 #[non_exhaustive] pub struct nika_kernel_mock::MockProvider
 impl nika_kernel_mock::provider::MockProvider
-pub fn nika_kernel_mock::provider::MockProvider::captured_requests(&self) -> alloc::vec::Vec<nika_kernel::ai::provider::InferRequest>
-pub fn nika_kernel_mock::provider::MockProvider::enqueue_error(self, error: nika_kernel::ai::provider::ProviderError) -> Self
-pub fn nika_kernel_mock::provider::MockProvider::enqueue_response(self, response: nika_kernel::ai::provider::InferResponse) -> Self
+pub fn nika_kernel_mock::provider::MockProvider::captured_requests(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::InferRequest>
+pub fn nika_kernel_mock::provider::MockProvider::enqueue_error(self, error: nika_kernel_ai::provider::ProviderError) -> Self
+pub fn nika_kernel_mock::provider::MockProvider::enqueue_response(self, response: nika_kernel_ai::provider::InferResponse) -> Self
 pub fn nika_kernel_mock::provider::MockProvider::enqueue_text(self, text: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_mock::provider::MockProvider::new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn nika_kernel_mock::provider::MockProvider::with_response_format_support(self, enabled: bool) -> Self
@@ -1133,14 +1134,14 @@ impl core::clone::Clone for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::clone(&self) -> nika_kernel_mock::provider::MockProvider
 impl core::default::Default for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::default() -> Self
-impl nika_kernel::ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider
-pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel::ai::provider::InferRequest) -> core::result::Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
-impl nika_kernel::ai::provider::ProviderMeta for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderInfer for nika_kernel_mock::provider::MockProvider
+pub async fn nika_kernel_mock::provider::MockProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl nika_kernel_ai::provider::ProviderMeta for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::name(&self) -> &str
 pub fn nika_kernel_mock::provider::MockProvider::supports_response_format(&self) -> bool
-impl nika_kernel::ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider
-pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel::ai::provider::InferRequest) -> core::result::Result<nika_kernel::ai::provider::InferEventStream, nika_kernel::ai::provider::ProviderError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::provider::MockProvider
+impl nika_kernel_ai::provider::ProviderStream for nika_kernel_mock::provider::MockProvider
+pub async fn nika_kernel_mock::provider::MockProvider::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::provider::MockProvider
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::provider::MockProvider
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::provider::MockProvider where U: core::convert::From<T>
 pub fn nika_kernel_mock::provider::MockProvider::into(self) -> U
@@ -1166,22 +1167,22 @@ impl<T> core::convert::From<T> for nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::provider::MockProvider where T: 'static
 pub fn nika_kernel_mock::provider::MockProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::ai::provider::Provider for nika_kernel_mock::provider::MockProvider where T: nika_kernel::ai::provider::ProviderInfer + nika_kernel::ai::provider::ProviderStream + nika_kernel::ai::provider::ProviderMeta + nika_kernel::sealed::Sealed
+impl<T> nika_kernel_ai::provider::Provider for nika_kernel_mock::provider::MockProvider where T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
 #[non_exhaustive] pub struct nika_kernel_mock::MockShell
 impl nika_kernel_mock::shell::MockShell
-pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel::io::process::ShellError) -> Self
+pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel_core::io::process::ShellError) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_fail(self, status: i32, stderr: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_ok(self, stdout: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_kernel_mock::shell::MockShell::executed_commands(&self) -> alloc::vec::Vec<nika_kernel::io::process::ShellCommand>
+pub fn nika_kernel_mock::shell::MockShell::executed_commands(&self) -> alloc::vec::Vec<nika_kernel_core::io::process::ShellCommand>
 pub fn nika_kernel_mock::shell::MockShell::new() -> Self
 impl core::clone::Clone for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::clone(&self) -> nika_kernel_mock::shell::MockShell
 impl core::default::Default for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::default() -> nika_kernel_mock::shell::MockShell
-impl nika_kernel::io::process::ShellCancel for nika_kernel_mock::shell::MockShell
-pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel::io::process::ShellError>
-impl nika_kernel::io::process::ShellRun for nika_kernel_mock::shell::MockShell
-pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel::io::process::ShellCommand) -> core::result::Result<nika_kernel::io::process::ShellResult, nika_kernel::io::process::ShellError>
+impl nika_kernel_core::io::process::ShellCancel for nika_kernel_mock::shell::MockShell
+pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl nika_kernel_core::io::process::ShellRun for nika_kernel_mock::shell::MockShell
+pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::shell::MockShell
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::shell::MockShell where U: core::convert::From<T>
 pub fn nika_kernel_mock::shell::MockShell::into(self) -> U
@@ -1207,21 +1208,21 @@ impl<T> core::convert::From<T> for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::shell::MockShell where T: 'static
 pub fn nika_kernel_mock::shell::MockShell::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::io::process::ShellExecutor for nika_kernel_mock::shell::MockShell where T: nika_kernel::io::process::ShellRun + nika_kernel::io::process::ShellCancel
+impl<T> nika_kernel_core::io::process::ShellExecutor for nika_kernel_mock::shell::MockShell where T: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel
 #[non_exhaustive] pub struct nika_kernel_mock::MockToolExecutor
 impl nika_kernel_mock::tool_executor::MockToolExecutor
-pub fn nika_kernel_mock::tool_executor::MockToolExecutor::captured_calls(&self) -> alloc::vec::Vec<nika_kernel::runtime::tool_executor::ToolCall>
-pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_err(self, error: nika_kernel::runtime::tool_executor::ToolExecError) -> Self
-pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_ok(self, result: nika_kernel::runtime::tool_executor::ToolResult) -> Self
+pub fn nika_kernel_mock::tool_executor::MockToolExecutor::captured_calls(&self) -> alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>
+pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_err(self, error: nika_kernel_runtime::tool_executor::ToolExecError) -> Self
+pub fn nika_kernel_mock::tool_executor::MockToolExecutor::enqueue_ok(self, result: nika_kernel_runtime::tool_executor::ToolResult) -> Self
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::new() -> Self
 impl core::clone::Clone for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::clone(&self) -> nika_kernel_mock::tool_executor::MockToolExecutor
 impl core::default::Default for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::default() -> nika_kernel_mock::tool_executor::MockToolExecutor
-impl nika_kernel::runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor
-pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel::runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>>
-impl nika_kernel::runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor
-pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel::runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>
+impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::MockToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::MockToolExecutor where U: core::convert::From<T>
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::into(self) -> U
@@ -1247,7 +1248,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::tool_executor::MockToolExec
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::MockToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::MockToolExecutor where T: nika_kernel::runtime::tool_executor::ToolExecute + nika_kernel::runtime::tool_executor::ToolBatch
+impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::MockToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
 #[non_exhaustive] pub struct nika_kernel_mock::NullAuditSink
 impl nika_kernel_mock::audit::NullAuditSink
 pub const fn nika_kernel_mock::audit::NullAuditSink::new() -> Self
@@ -1258,9 +1259,9 @@ pub fn nika_kernel_mock::audit::NullAuditSink::default() -> nika_kernel_mock::au
 impl core::fmt::Debug for nika_kernel_mock::audit::NullAuditSink
 pub fn nika_kernel_mock::audit::NullAuditSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_kernel_mock::audit::NullAuditSink
-impl nika_kernel::infra::audit::AuditSink for nika_kernel_mock::audit::NullAuditSink
-pub async fn nika_kernel_mock::audit::NullAuditSink::audit(&self, _record: nika_kernel::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel::infra::audit::AuditSinkError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::audit::NullAuditSink
+impl nika_kernel_core::infra::audit::AuditSink for nika_kernel_mock::audit::NullAuditSink
+pub async fn nika_kernel_mock::audit::NullAuditSink::audit(&self, _record: nika_kernel_core::infra::audit::AuditRecord) -> core::result::Result<(), nika_kernel_core::infra::audit::AuditSinkError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::audit::NullAuditSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::audit::NullAuditSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::audit::NullAuditSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::audit::NullAuditSink::into(self) -> U
@@ -1295,9 +1296,9 @@ impl core::default::Default for nika_kernel_mock::billing::NullBillingSink
 pub fn nika_kernel_mock::billing::NullBillingSink::default() -> nika_kernel_mock::billing::NullBillingSink
 impl core::fmt::Debug for nika_kernel_mock::billing::NullBillingSink
 pub fn nika_kernel_mock::billing::NullBillingSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::billing::BillingSink for nika_kernel_mock::billing::NullBillingSink
+impl nika_kernel_core::infra::billing::BillingSink for nika_kernel_mock::billing::NullBillingSink
 pub async fn nika_kernel_mock::billing::NullBillingSink::record(&self, _cost: nika_types::cost::Cost, _usage: &nika_types::token_usage::TokenUsage, _provider: &nika_types::id::ProviderId, _model: &nika_types::id::ModelId) -> core::result::Result<(), nika_error::nika_error::NikaError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::billing::NullBillingSink
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::billing::NullBillingSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::billing::NullBillingSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::billing::NullBillingSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::billing::NullBillingSink::into(self) -> U
@@ -1332,8 +1333,8 @@ impl core::default::Default for nika_kernel_mock::compressor::NullContextCompres
 pub fn nika_kernel_mock::compressor::NullContextCompressor::default() -> nika_kernel_mock::compressor::NullContextCompressor
 impl core::fmt::Debug for nika_kernel_mock::compressor::NullContextCompressor
 pub fn nika_kernel_mock::compressor::NullContextCompressor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::ai::context::ContextCompressor for nika_kernel_mock::compressor::NullContextCompressor
-pub async fn nika_kernel_mock::compressor::NullContextCompressor::compress(&self, _messages: &[nika_types::checkpoint::CheckpointMessage], _policy: &nika_types::compression::CompressionPolicy) -> core::option::Option<nika_kernel::ai::context::CompressedContext>
+impl nika_kernel_ai::context::ContextCompressor for nika_kernel_mock::compressor::NullContextCompressor
+pub async fn nika_kernel_mock::compressor::NullContextCompressor::compress(&self, _messages: &[nika_types::checkpoint::CheckpointMessage], _policy: &nika_types::compression::CompressionPolicy) -> core::option::Option<nika_kernel_ai::context::CompressedContext>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::compressor::NullContextCompressor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::compressor::NullContextCompressor where U: core::convert::From<T>
 pub fn nika_kernel_mock::compressor::NullContextCompressor::into(self) -> U
@@ -1366,9 +1367,9 @@ impl core::clone::Clone for nika_kernel_mock::memory::NullEmbeddingProvider
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::clone(&self) -> nika_kernel_mock::memory::NullEmbeddingProvider
 impl core::fmt::Debug for nika_kernel_mock::memory::NullEmbeddingProvider
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::ai::memory::EmbeddingProvider for nika_kernel_mock::memory::NullEmbeddingProvider
+impl nika_kernel_ai::memory::EmbeddingProvider for nika_kernel_mock::memory::NullEmbeddingProvider
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::dimension(&self) -> usize
-pub async fn nika_kernel_mock::memory::NullEmbeddingProvider::embed(&self, _text: &str) -> core::result::Result<alloc::vec::Vec<f32>, nika_kernel::ai::memory::MemoryError>
+pub async fn nika_kernel_mock::memory::NullEmbeddingProvider::embed(&self, _text: &str) -> core::result::Result<alloc::vec::Vec<f32>, nika_kernel_ai::memory::MemoryError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::memory::NullEmbeddingProvider
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::memory::NullEmbeddingProvider where U: core::convert::From<T>
 pub fn nika_kernel_mock::memory::NullEmbeddingProvider::into(self) -> U
@@ -1403,9 +1404,9 @@ impl core::default::Default for nika_kernel_mock::event_sink::NullEventSink
 pub fn nika_kernel_mock::event_sink::NullEventSink::default() -> nika_kernel_mock::event_sink::NullEventSink
 impl core::fmt::Debug for nika_kernel_mock::event_sink::NullEventSink
 pub fn nika_kernel_mock::event_sink::NullEventSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::event_sink::EventSink for nika_kernel_mock::event_sink::NullEventSink
-pub async fn nika_kernel_mock::event_sink::NullEventSink::emit(&self, _event: nika_kernel::infra::event_sink::Event) -> core::result::Result<(), nika_error::nika_error::NikaError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::event_sink::NullEventSink
+impl nika_kernel_core::infra::event_sink::EventSink for nika_kernel_mock::event_sink::NullEventSink
+pub async fn nika_kernel_mock::event_sink::NullEventSink::emit(&self, _event: nika_kernel_core::infra::event_sink::Event) -> core::result::Result<(), nika_error::nika_error::NikaError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::event_sink::NullEventSink
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::event_sink::NullEventSink
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::event_sink::NullEventSink where U: core::convert::From<T>
 pub fn nika_kernel_mock::event_sink::NullEventSink::into(self) -> U
@@ -1440,12 +1441,13 @@ impl core::default::Default for nika_kernel_mock::memory::NullMemoryStore
 pub fn nika_kernel_mock::memory::NullMemoryStore::default() -> nika_kernel_mock::memory::NullMemoryStore
 impl core::fmt::Debug for nika_kernel_mock::memory::NullMemoryStore
 pub fn nika_kernel_mock::memory::NullMemoryStore::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::ai::memory::MemoryForget for nika_kernel_mock::memory::NullMemoryStore
-pub async fn nika_kernel_mock::memory::NullMemoryStore::forget(&self, _id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel::ai::memory::MemoryError>
-impl nika_kernel::ai::memory::MemoryRecall for nika_kernel_mock::memory::NullMemoryStore
-pub async fn nika_kernel_mock::memory::NullMemoryStore::recall(&self, _query: nika_kernel::ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel::ai::memory::MemoryHit>, nika_kernel::ai::memory::MemoryError>
-impl nika_kernel::ai::memory::MemoryRemember for nika_kernel_mock::memory::NullMemoryStore
-pub async fn nika_kernel_mock::memory::NullMemoryStore::remember(&self, _frame: nika_kernel::ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel::ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryForget for nika_kernel_mock::memory::NullMemoryStore
+pub async fn nika_kernel_mock::memory::NullMemoryStore::forget(&self, _id: nika_types::memory::MemoryId) -> core::result::Result<(), nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryRecall for nika_kernel_mock::memory::NullMemoryStore
+pub async fn nika_kernel_mock::memory::NullMemoryStore::recall(&self, _query: nika_kernel_ai::memory::RecallQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::memory::MemoryHit>, nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_ai::memory::MemoryRemember for nika_kernel_mock::memory::NullMemoryStore
+pub async fn nika_kernel_mock::memory::NullMemoryStore::remember(&self, _frame: nika_kernel_ai::memory::MemoryFrame) -> core::result::Result<nika_types::memory::MemoryId, nika_kernel_ai::memory::MemoryError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::memory::NullMemoryStore
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::memory::NullMemoryStore
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::memory::NullMemoryStore where U: core::convert::From<T>
 pub fn nika_kernel_mock::memory::NullMemoryStore::into(self) -> U
@@ -1471,7 +1473,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::memory::NullMemoryStore
 pub fn nika_kernel_mock::memory::NullMemoryStore::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::memory::NullMemoryStore where T: 'static
 pub fn nika_kernel_mock::memory::NullMemoryStore::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::ai::memory::MemoryStore for nika_kernel_mock::memory::NullMemoryStore where T: nika_kernel::ai::memory::MemoryRemember + nika_kernel::ai::memory::MemoryRecall + nika_kernel::ai::memory::MemoryForget
+impl<T> nika_kernel_ai::memory::MemoryStore for nika_kernel_mock::memory::NullMemoryStore where T: nika_kernel_ai::memory::MemoryRemember + nika_kernel_ai::memory::MemoryRecall + nika_kernel_ai::memory::MemoryForget
 #[non_exhaustive] pub struct nika_kernel_mock::NullMetricsExporter
 impl nika_kernel_mock::metrics::NullMetricsExporter
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::new() -> Self
@@ -1481,10 +1483,10 @@ impl core::default::Default for nika_kernel_mock::metrics::NullMetricsExporter
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::default() -> nika_kernel_mock::metrics::NullMetricsExporter
 impl core::fmt::Debug for nika_kernel_mock::metrics::NullMetricsExporter
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::metrics::MetricsExporter for nika_kernel_mock::metrics::NullMetricsExporter
-pub fn nika_kernel_mock::metrics::NullMetricsExporter::counter(&self, _name: &str, _value: u64, _tags: &[nika_kernel::infra::metrics::MetricTag])
-pub fn nika_kernel_mock::metrics::NullMetricsExporter::gauge(&self, _name: &str, _value: f64, _tags: &[nika_kernel::infra::metrics::MetricTag])
-pub fn nika_kernel_mock::metrics::NullMetricsExporter::histogram(&self, _name: &str, _value: f64, _tags: &[nika_kernel::infra::metrics::MetricTag])
+impl nika_kernel_core::infra::metrics::MetricsExporter for nika_kernel_mock::metrics::NullMetricsExporter
+pub fn nika_kernel_mock::metrics::NullMetricsExporter::counter(&self, _name: &str, _value: u64, _tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub fn nika_kernel_mock::metrics::NullMetricsExporter::gauge(&self, _name: &str, _value: f64, _tags: &[nika_kernel_core::infra::metrics::MetricTag])
+pub fn nika_kernel_mock::metrics::NullMetricsExporter::histogram(&self, _name: &str, _value: f64, _tags: &[nika_kernel_core::infra::metrics::MetricTag])
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::metrics::NullMetricsExporter
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::metrics::NullMetricsExporter where U: core::convert::From<T>
 pub fn nika_kernel_mock::metrics::NullMetricsExporter::into(self) -> U
@@ -1519,8 +1521,8 @@ impl core::default::Default for nika_kernel_mock::plugin::NullPluginEnv
 pub fn nika_kernel_mock::plugin::NullPluginEnv::default() -> nika_kernel_mock::plugin::NullPluginEnv
 impl core::fmt::Debug for nika_kernel_mock::plugin::NullPluginEnv
 pub fn nika_kernel_mock::plugin::NullPluginEnv::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::wasm::PluginEnv for nika_kernel_mock::plugin::NullPluginEnv
-pub async fn nika_kernel_mock::plugin::NullPluginEnv::env_get(&self, _key: &str) -> core::result::Result<core::option::Option<alloc::string::String>, nika_kernel::plugin::wasm::WasmPluginError>
+impl nika_kernel_plugin::wasm::PluginEnv for nika_kernel_mock::plugin::NullPluginEnv
+pub async fn nika_kernel_mock::plugin::NullPluginEnv::env_get(&self, _key: &str) -> core::result::Result<core::option::Option<alloc::string::String>, nika_kernel_plugin::wasm::WasmPluginError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::plugin::NullPluginEnv
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::plugin::NullPluginEnv where U: core::convert::From<T>
 pub fn nika_kernel_mock::plugin::NullPluginEnv::into(self) -> U
@@ -1555,9 +1557,9 @@ impl core::default::Default for nika_kernel_mock::sandbox::NullSandbox
 pub fn nika_kernel_mock::sandbox::NullSandbox::default() -> nika_kernel_mock::sandbox::NullSandbox
 impl core::fmt::Debug for nika_kernel_mock::sandbox::NullSandbox
 pub fn nika_kernel_mock::sandbox::NullSandbox::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::sandbox::Sandbox for nika_kernel_mock::sandbox::NullSandbox
-pub async fn nika_kernel_mock::sandbox::NullSandbox::check_capability(&self, _cap: &nika_kernel::plugin::sandbox::Capability) -> core::result::Result<bool, nika_kernel::plugin::sandbox::SandboxError>
-pub async fn nika_kernel_mock::sandbox::NullSandbox::enter(&self) -> core::result::Result<(), nika_kernel::plugin::sandbox::SandboxError>
+impl nika_kernel_plugin::sandbox::Sandbox for nika_kernel_mock::sandbox::NullSandbox
+pub async fn nika_kernel_mock::sandbox::NullSandbox::check_capability(&self, _cap: &nika_kernel_plugin::sandbox::Capability) -> core::result::Result<bool, nika_kernel_plugin::sandbox::SandboxError>
+pub async fn nika_kernel_mock::sandbox::NullSandbox::enter(&self) -> core::result::Result<(), nika_kernel_plugin::sandbox::SandboxError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::sandbox::NullSandbox
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::sandbox::NullSandbox where U: core::convert::From<T>
 pub fn nika_kernel_mock::sandbox::NullSandbox::into(self) -> U
@@ -1592,9 +1594,9 @@ impl core::default::Default for nika_kernel_mock::secret::NullSecretResolver
 pub fn nika_kernel_mock::secret::NullSecretResolver::default() -> nika_kernel_mock::secret::NullSecretResolver
 impl core::fmt::Debug for nika_kernel_mock::secret::NullSecretResolver
 pub fn nika_kernel_mock::secret::NullSecretResolver::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::secret::SecretResolver for nika_kernel_mock::secret::NullSecretResolver
-pub async fn nika_kernel_mock::secret::NullSecretResolver::resolve(&self, secret: &nika_kernel::infra::secret::SecretRef) -> core::result::Result<nika_kernel::infra::secret::Secret, nika_error::nika_error::NikaError>
-impl nika_kernel::sealed::Sealed for nika_kernel_mock::secret::NullSecretResolver
+impl nika_kernel_core::infra::secret::SecretResolver for nika_kernel_mock::secret::NullSecretResolver
+pub async fn nika_kernel_mock::secret::NullSecretResolver::resolve(&self, secret: &nika_kernel_core::infra::secret::SecretRef) -> core::result::Result<nika_kernel_core::infra::secret::Secret, nika_error::nika_error::NikaError>
+impl nika_kernel_core::sealed::Sealed for nika_kernel_mock::secret::NullSecretResolver
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::secret::NullSecretResolver
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::secret::NullSecretResolver where U: core::convert::From<T>
 pub fn nika_kernel_mock::secret::NullSecretResolver::into(self) -> U
@@ -1629,10 +1631,10 @@ impl core::default::Default for nika_kernel_mock::tool_executor::NullToolExecuto
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::default() -> nika_kernel_mock::tool_executor::NullToolExecutor
 impl core::fmt::Debug for nika_kernel_mock::tool_executor::NullToolExecutor
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor
-pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel::runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>>
-impl nika_kernel::runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor
-pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel::runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel::runtime::tool_executor::ToolResult, nika_kernel::runtime::tool_executor::ToolExecError>
+impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::NullToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::NullToolExecutor where U: core::convert::From<T>
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::into(self) -> U
@@ -1658,7 +1660,7 @@ impl<T> core::convert::From<T> for nika_kernel_mock::tool_executor::NullToolExec
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::NullToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> nika_kernel::runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::NullToolExecutor where T: nika_kernel::runtime::tool_executor::ToolExecute + nika_kernel::runtime::tool_executor::ToolBatch
+impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::NullToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
 #[non_exhaustive] pub struct nika_kernel_mock::NullTracerProvider
 impl nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::new() -> Self
@@ -1668,10 +1670,10 @@ impl core::default::Default for nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::default() -> nika_kernel_mock::trace::NullTracerProvider
 impl core::fmt::Debug for nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::trace::TracerProvider for nika_kernel_mock::trace::NullTracerProvider
+impl nika_kernel_core::infra::trace::TracerProvider for nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::extract(&self, _headers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<nika_types::id::TraceId>
 pub fn nika_kernel_mock::trace::NullTracerProvider::inject(&self, _headers: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
-pub fn nika_kernel_mock::trace::NullTracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, _name: &str) -> nika_kernel::infra::trace::SpanGuard
+pub fn nika_kernel_mock::trace::NullTracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, _name: &str) -> nika_kernel_core::infra::trace::SpanGuard
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::trace::NullTracerProvider
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::trace::NullTracerProvider where U: core::convert::From<T>
 pub fn nika_kernel_mock::trace::NullTracerProvider::into(self) -> U
@@ -1706,8 +1708,8 @@ impl core::default::Default for nika_kernel_mock::plugin::NullWasmPluginHost
 pub fn nika_kernel_mock::plugin::NullWasmPluginHost::default() -> nika_kernel_mock::plugin::NullWasmPluginHost
 impl core::fmt::Debug for nika_kernel_mock::plugin::NullWasmPluginHost
 pub fn nika_kernel_mock::plugin::NullWasmPluginHost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::wasm::WasmPluginHost for nika_kernel_mock::plugin::NullWasmPluginHost
-pub async fn nika_kernel_mock::plugin::NullWasmPluginHost::call_plugin(&self, plugin_name: &str, _input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel::plugin::wasm::WasmPluginError>
+impl nika_kernel_plugin::wasm::WasmPluginHost for nika_kernel_mock::plugin::NullWasmPluginHost
+pub async fn nika_kernel_mock::plugin::NullWasmPluginHost::call_plugin(&self, plugin_name: &str, _input: &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, nika_kernel_plugin::wasm::WasmPluginError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::plugin::NullWasmPluginHost
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::plugin::NullWasmPluginHost where U: core::convert::From<T>
 pub fn nika_kernel_mock::plugin::NullWasmPluginHost::into(self) -> U
@@ -1742,10 +1744,10 @@ impl core::default::Default for nika_kernel_mock::plugin::NullWasmPluginLifecycl
 pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::default() -> nika_kernel_mock::plugin::NullWasmPluginLifecycle
 impl core::fmt::Debug for nika_kernel_mock::plugin::NullWasmPluginLifecycle
 pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::plugin::wasm::WasmPluginLifecycle for nika_kernel_mock::plugin::NullWasmPluginLifecycle
-pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::list_plugins(&self) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_kernel::plugin::wasm::WasmPluginError>
-pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::load_plugin(&self, name: &str, _bytes: &[u8]) -> core::result::Result<(), nika_kernel::plugin::wasm::WasmPluginError>
-pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::unload_plugin(&self, name: &str) -> core::result::Result<(), nika_kernel::plugin::wasm::WasmPluginError>
+impl nika_kernel_plugin::wasm::WasmPluginLifecycle for nika_kernel_mock::plugin::NullWasmPluginLifecycle
+pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::list_plugins(&self) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_kernel_plugin::wasm::WasmPluginError>
+pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::load_plugin(&self, name: &str, _bytes: &[u8]) -> core::result::Result<(), nika_kernel_plugin::wasm::WasmPluginError>
+pub async fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::unload_plugin(&self, name: &str) -> core::result::Result<(), nika_kernel_plugin::wasm::WasmPluginError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::plugin::NullWasmPluginLifecycle
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::plugin::NullWasmPluginLifecycle where U: core::convert::From<T>
 pub fn nika_kernel_mock::plugin::NullWasmPluginLifecycle::into(self) -> U
@@ -1778,7 +1780,7 @@ impl core::default::Default for nika_kernel_mock::id_gen::SequentialIdGenerator
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::default() -> nika_kernel_mock::id_gen::SequentialIdGenerator
 impl core::fmt::Debug for nika_kernel_mock::id_gen::SequentialIdGenerator
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel::infra::id_gen::IdGenerator for nika_kernel_mock::id_gen::SequentialIdGenerator
+impl nika_kernel_core::infra::id_gen::IdGenerator for nika_kernel_mock::id_gen::SequentialIdGenerator
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::new_event_id(&self) -> nika_types::id::EventId
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::new_run_id(&self) -> nika_types::id::RunId
 pub fn nika_kernel_mock::id_gen::SequentialIdGenerator::new_span_id(&self) -> nika_types::id::SpanId

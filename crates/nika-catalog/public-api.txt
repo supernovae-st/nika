@@ -1,16 +1,11 @@
 pub mod nika_catalog
 pub mod nika_catalog::builtin
 #[non_exhaustive] pub enum nika_catalog::builtin::BuiltinCategory
-pub nika_catalog::builtin::BuiltinCategory::Agent
 pub nika_catalog::builtin::BuiltinCategory::Core
-pub nika_catalog::builtin::BuiltinCategory::CostRecords
 pub nika_catalog::builtin::BuiltinCategory::Data
-pub nika_catalog::builtin::BuiltinCategory::DataSprint2
 pub nika_catalog::builtin::BuiltinCategory::File
 pub nika_catalog::builtin::BuiltinCategory::Introspection
-pub nika_catalog::builtin::BuiltinCategory::MediaAlwaysOn
-pub nika_catalog::builtin::BuiltinCategory::MediaCore
-pub nika_catalog::builtin::BuiltinCategory::MediaOptIn
+pub nika_catalog::builtin::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory
@@ -2269,16 +2264,11 @@ pub fn nika_catalog::transform::TransformDef::as_any(&self) -> &(dyn core::any::
 pub mod nika_catalog::types
 pub mod nika_catalog::types::builtin
 #[non_exhaustive] pub enum nika_catalog::types::builtin::BuiltinCategory
-pub nika_catalog::types::builtin::BuiltinCategory::Agent
 pub nika_catalog::types::builtin::BuiltinCategory::Core
-pub nika_catalog::types::builtin::BuiltinCategory::CostRecords
 pub nika_catalog::types::builtin::BuiltinCategory::Data
-pub nika_catalog::types::builtin::BuiltinCategory::DataSprint2
 pub nika_catalog::types::builtin::BuiltinCategory::File
 pub nika_catalog::types::builtin::BuiltinCategory::Introspection
-pub nika_catalog::types::builtin::BuiltinCategory::MediaAlwaysOn
-pub nika_catalog::types::builtin::BuiltinCategory::MediaCore
-pub nika_catalog::types::builtin::BuiltinCategory::MediaOptIn
+pub nika_catalog::types::builtin::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory
@@ -4414,16 +4404,11 @@ impl<T> nika_error::traits::AsAny for nika_catalog::distribution::AuthMode where
 pub fn nika_catalog::distribution::AuthMode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::distribution::AuthMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_catalog::types::BuiltinCategory
-pub nika_catalog::types::BuiltinCategory::Agent
 pub nika_catalog::types::BuiltinCategory::Core
-pub nika_catalog::types::BuiltinCategory::CostRecords
 pub nika_catalog::types::BuiltinCategory::Data
-pub nika_catalog::types::BuiltinCategory::DataSprint2
 pub nika_catalog::types::BuiltinCategory::File
 pub nika_catalog::types::BuiltinCategory::Introspection
-pub nika_catalog::types::BuiltinCategory::MediaAlwaysOn
-pub nika_catalog::types::BuiltinCategory::MediaCore
-pub nika_catalog::types::BuiltinCategory::MediaOptIn
+pub nika_catalog::types::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory
@@ -6377,16 +6362,11 @@ impl<T> nika_error::traits::AsAny for nika_catalog::distribution::AuthMode where
 pub fn nika_catalog::distribution::AuthMode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::distribution::AuthMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_catalog::BuiltinCategory
-pub nika_catalog::BuiltinCategory::Agent
 pub nika_catalog::BuiltinCategory::Core
-pub nika_catalog::BuiltinCategory::CostRecords
 pub nika_catalog::BuiltinCategory::Data
-pub nika_catalog::BuiltinCategory::DataSprint2
 pub nika_catalog::BuiltinCategory::File
 pub nika_catalog::BuiltinCategory::Introspection
-pub nika_catalog::BuiltinCategory::MediaAlwaysOn
-pub nika_catalog::BuiltinCategory::MediaCore
-pub nika_catalog::BuiltinCategory::MediaOptIn
+pub nika_catalog::BuiltinCategory::Network
 impl core::clone::Clone for nika_catalog::builtin::BuiltinCategory
 pub fn nika_catalog::builtin::BuiltinCategory::clone(&self) -> nika_catalog::builtin::BuiltinCategory
 impl core::cmp::Eq for nika_catalog::builtin::BuiltinCategory

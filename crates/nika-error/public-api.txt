@@ -19,6 +19,8 @@ pub mod nika_error::codes
 pub mod nika_error::codes
 #[non_exhaustive] pub enum nika_error::codes::Category
 #[non_exhaustive] pub enum nika_error::codes::Category
+pub nika_error::codes::Category::A11y
+pub nika_error::codes::Category::A11y
 pub nika_error::codes::Category::Auth
 pub nika_error::codes::Category::Auth
 pub nika_error::codes::Category::Binding
@@ -35,6 +37,8 @@ pub nika_error::codes::Category::Memory
 pub nika_error::codes::Category::Memory
 pub nika_error::codes::Category::Observability
 pub nika_error::codes::Category::Observability
+pub nika_error::codes::Category::Ocr
+pub nika_error::codes::Category::Ocr
 pub nika_error::codes::Category::Provider
 pub nika_error::codes::Category::Provider
 pub nika_error::codes::Category::Runtime
@@ -43,6 +47,8 @@ pub nika_error::codes::Category::Sandbox
 pub nika_error::codes::Category::Sandbox
 pub nika_error::codes::Category::Schema
 pub nika_error::codes::Category::Schema
+pub nika_error::codes::Category::Screen
+pub nika_error::codes::Category::Screen
 pub nika_error::codes::Category::Shell
 pub nika_error::codes::Category::Shell
 pub nika_error::codes::Category::Verb
@@ -339,8 +345,66 @@ pub const nika_error::codes::NIKA_014: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_014: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_015: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_015: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1000: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1000: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1001: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1001: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1002: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1002: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1003: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1003: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1004: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1004: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1005: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1005: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1006: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1006: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1007: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1007: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1008: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1008: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1009: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1009: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1101: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1101: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1102: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1102: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1103: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1103: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1104: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1104: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1105: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1105: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1106: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1106: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1107: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1107: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1108: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1108: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1109: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1109: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1201: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1201: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1202: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1202: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1203: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1203: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1204: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1204: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1205: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1205: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1206: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1206: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_600: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_601: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_601: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_602: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_602: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_603: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_603: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_604: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_604: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_700: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_700: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_750: nika_error::codes::NikaCode
@@ -447,6 +511,7 @@ pub mod nika_error::prelude
 pub use nika_error::prelude::<<nika_types::prelude::*>>
 pub mod nika_error::prelude::codes
 #[non_exhaustive] pub enum nika_error::prelude::codes::Category
+pub nika_error::prelude::codes::Category::A11y
 pub nika_error::prelude::codes::Category::Auth
 pub nika_error::prelude::codes::Category::Binding
 pub nika_error::prelude::codes::Category::Core
@@ -455,10 +520,12 @@ pub nika_error::prelude::codes::Category::Http
 pub nika_error::prelude::codes::Category::Mcp
 pub nika_error::prelude::codes::Category::Memory
 pub nika_error::prelude::codes::Category::Observability
+pub nika_error::prelude::codes::Category::Ocr
 pub nika_error::prelude::codes::Category::Provider
 pub nika_error::prelude::codes::Category::Runtime
 pub nika_error::prelude::codes::Category::Sandbox
 pub nika_error::prelude::codes::Category::Schema
+pub nika_error::prelude::codes::Category::Screen
 pub nika_error::prelude::codes::Category::Shell
 pub nika_error::prelude::codes::Category::Verb
 pub nika_error::prelude::codes::Category::WasmPlugin
@@ -607,7 +674,36 @@ pub const nika_error::prelude::codes::NIKA_012: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_013: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_014: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_015: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1000: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1001: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1002: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1003: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1004: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1005: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1006: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1007: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1008: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1009: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1101: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1102: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1103: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1104: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1105: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1106: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1107: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1108: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1109: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1201: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1202: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1203: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1204: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1205: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1206: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_600: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_601: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_602: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_603: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_604: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_700: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_750: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_800: nika_error::codes::NikaCode
@@ -615,6 +711,7 @@ pub const nika_error::prelude::codes::NIKA_999: nika_error::codes::NikaCode
 pub fn nika_error::prelude::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
 pub fn nika_error::prelude::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
 #[non_exhaustive] pub enum nika_error::prelude::Category
+pub nika_error::prelude::Category::A11y
 pub nika_error::prelude::Category::Auth
 pub nika_error::prelude::Category::Binding
 pub nika_error::prelude::Category::Core
@@ -623,10 +720,12 @@ pub nika_error::prelude::Category::Http
 pub nika_error::prelude::Category::Mcp
 pub nika_error::prelude::Category::Memory
 pub nika_error::prelude::Category::Observability
+pub nika_error::prelude::Category::Ocr
 pub nika_error::prelude::Category::Provider
 pub nika_error::prelude::Category::Runtime
 pub nika_error::prelude::Category::Sandbox
 pub nika_error::prelude::Category::Schema
+pub nika_error::prelude::Category::Screen
 pub nika_error::prelude::Category::Shell
 pub nika_error::prelude::Category::Verb
 pub nika_error::prelude::Category::WasmPlugin
@@ -875,6 +974,7 @@ pub fn nika_error::core_error::CoreError::fingerprint(&self) -> u64
 pub fn nika_error::core_error::CoreError::is_transient(&self) -> bool
 pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes::NikaCode
 #[non_exhaustive] pub enum nika_error::Category
+pub nika_error::Category::A11y
 pub nika_error::Category::Auth
 pub nika_error::Category::Binding
 pub nika_error::Category::Core
@@ -883,10 +983,12 @@ pub nika_error::Category::Http
 pub nika_error::Category::Mcp
 pub nika_error::Category::Memory
 pub nika_error::Category::Observability
+pub nika_error::Category::Ocr
 pub nika_error::Category::Provider
 pub nika_error::Category::Runtime
 pub nika_error::Category::Sandbox
 pub nika_error::Category::Schema
+pub nika_error::Category::Screen
 pub nika_error::Category::Shell
 pub nika_error::Category::Verb
 pub nika_error::Category::WasmPlugin
