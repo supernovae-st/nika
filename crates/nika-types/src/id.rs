@@ -526,6 +526,26 @@ mod tests {
     }
 
     #[test]
+    fn tenant_default_is_the_named_default_not_struct_default() {
+        // `default_tenant()` must return the conventional "default" tenant, not
+        // whatever `Default::default()` yields (kills the `-> Default::default()`
+        // mutant, which would silently swap the value).
+        assert_eq!(TenantId::default_tenant(), TenantId::new("default"));
+        assert_eq!(TenantId::default_tenant().value, TenantId::DEFAULT_VALUE);
+    }
+
+    #[test]
+    fn trace_and_span_is_nil_false_for_non_nil() {
+        // is_nil() must be FALSE for a non-zero id (kills `is_nil -> true`).
+        let t = TraceId::new([1u8; 16]);
+        assert!(!t.is_nil());
+        assert!(TraceId::new([0u8; 16]).is_nil());
+        let s = SpanId::new([1u8; 8]);
+        assert!(!s.is_nil());
+        assert!(SpanId::new([0u8; 8]).is_nil());
+    }
+
+    #[test]
     fn provider_id_new() {
         let id = ProviderId::new("anthropic");
         assert_eq!(id.to_string(), "anthropic");

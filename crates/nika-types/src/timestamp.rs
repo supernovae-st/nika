@@ -380,6 +380,67 @@ mod tests {
     }
 
     #[test]
+    fn wall_duration_from_micros_millis_exact_and_accessors() {
+        // Exact, non-multiple values pin the `* NS_PER_X` math AND the as_*
+        // accessors (a `/ → %` or `/ → *` mutation, or a const-return mutant,
+        // yields a different number here).
+        let d = WallDuration::from_micros(1_234);
+        assert_eq!(d.as_nanos(), 1_234 * NS_PER_US);
+        assert_eq!(d.as_micros(), 1_234);
+        // as_micros truncates toward zero on a sub-micro remainder.
+        assert_eq!(WallDuration::from_nanos(5_678_900).as_micros(), 5_678);
+        let m = WallDuration::from_millis(42);
+        assert_eq!(m.as_nanos(), 42 * NS_PER_MS);
+        assert_eq!(m.as_micros(), 42_000);
+    }
+
+    #[test]
+    fn wall_duration_saturating_constructors_stay_positive_at_u64_max() {
+        // The saturation guard (`micros > max`) and the cap value (`i64::MAX /
+        // NS_PER_X`) must both be right: a `> → ==` mutation would keep u64::MAX
+        // and the `as i64` cast would WRAP to a negative; a `/ → %` mutation
+        // would shrink the cap to a tiny remainder. Either makes this fail.
+        // `>= i64::MAX - NS_PER_X` proves the result both stayed positive (a
+        // `> → ==` wrap would be negative) AND saturated near the ceiling (a
+        // `/ → %` shrunk cap would be tiny).
+        let micros_sat = WallDuration::from_micros(u64::MAX).as_nanos();
+        assert!(
+            micros_sat >= i64::MAX - NS_PER_US,
+            "from_micros must saturate, got {micros_sat}"
+        );
+        let millis_sat = WallDuration::from_millis(u64::MAX).as_nanos();
+        assert!(
+            millis_sat >= i64::MAX - NS_PER_MS,
+            "from_millis must saturate, got {millis_sat}"
+        );
+        let seconds_sat = WallDuration::from_secs(u64::MAX).as_nanos();
+        assert!(
+            seconds_sat >= i64::MAX - NS_PER_SEC,
+            "from_secs must saturate, got {seconds_sat}"
+        );
+    }
+
+    #[test]
+    fn civil_from_days_known_dates() {
+        // Pin Hinnant's algorithm against a table of known (days-since-epoch →
+        // Y-M-D) values spanning leap days, year/month boundaries, and the
+        // pre-1970 negative branch — exercises the era/yoe/mp/`mp<10` paths so
+        // an intermediate arithmetic mutation diverges on at least one row.
+        let cases: &[(i64, (i64, u8, u8))] = &[
+            (0, (1970, 1, 1)),       // epoch
+            (-1, (1969, 12, 31)),    // day before epoch (negative branch)
+            (59, (1970, 3, 1)),      // just past Feb in a non-leap year
+            (11_016, (2000, 2, 29)), // leap day 2000
+            (19_723, (2024, 1, 1)),  // year boundary
+            (20_089, (2025, 1, 1)),  // next year boundary
+            (20_560, (2026, 4, 17)), // a mid-year date (mp >= 10 path)
+        ];
+        for &(days, expected) in cases {
+            assert_eq!(civil_from_days(days), expected, "civil_from_days({days})");
+        }
+    }
+
+    #[test]
     fn wall_duration_saturation_preserves_i64_range() {
         // from_secs(u64::MAX) must not overflow.
         let d = WallDuration::from_secs(u64::MAX);

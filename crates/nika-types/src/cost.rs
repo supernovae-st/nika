@@ -170,6 +170,9 @@ mod tests {
         let c = Cost::zero();
         assert!(c.is_zero());
         assert_eq!(c.nano_usd, 0);
+        // A non-zero cost must report is_zero() == false (kills `is_zero -> true`).
+        assert!(!Cost::new(1).is_zero());
+        assert!(!Cost::from_micro_usd(-1).is_zero());
     }
 
     #[test]

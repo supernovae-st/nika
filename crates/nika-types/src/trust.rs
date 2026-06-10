@@ -139,6 +139,34 @@ mod tests {
     }
 
     #[test]
+    fn from_str_maps_every_named_level() {
+        // Each named arm must map to its specific level (deleting any arm would
+        // make that string fall through to the numeric parse → Err, killing the
+        // `delete match arm` mutants). Case-insensitive.
+        use core::str::FromStr;
+        assert_eq!(TrustLevel::from_str("system").unwrap(), TrustLevel::SYSTEM);
+        assert_eq!(
+            TrustLevel::from_str("elevated").unwrap(),
+            TrustLevel::ELEVATED
+        );
+        assert_eq!(
+            TrustLevel::from_str("TRUSTED").unwrap(),
+            TrustLevel::TRUSTED
+        );
+        assert_eq!(
+            TrustLevel::from_str("untrusted").unwrap(),
+            TrustLevel::UNTRUSTED
+        );
+        assert_eq!(
+            TrustLevel::from_str("Sandboxed").unwrap(),
+            TrustLevel::SANDBOXED
+        );
+        // Numeric fallback still works; garbage errors.
+        assert_eq!(TrustLevel::from_str("150").unwrap(), TrustLevel::TRUSTED);
+        assert!(TrustLevel::from_str("nonsense").is_err());
+    }
+
+    #[test]
     fn is_at_least() {
         assert!(TrustLevel::SYSTEM.is_at_least(TrustLevel::ELEVATED));
         assert!(TrustLevel::TRUSTED.is_at_least(TrustLevel::TRUSTED));

@@ -330,6 +330,14 @@ mod tests {
     }
 
     #[test]
+    fn memory_id_uuid_returns_constructed_value() {
+        // uuid() must return the wrapped UUID, not Default::default() (nil).
+        let u = Uuid::from_u128(0xABCD);
+        assert_eq!(MemoryId::new(u).uuid(), u);
+        assert_ne!(MemoryId::new(u).uuid(), Uuid::nil());
+    }
+
+    #[test]
     fn memory_id_nil() {
         let id = MemoryId::nil();
         assert_eq!(id.uuid, Uuid::nil());
@@ -501,6 +509,14 @@ mod tests {
     fn score_new_and_get() {
         let s = Score::new(1.234);
         assert!((s.get() - 1.234).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn score_display_six_decimals() {
+        // Pins the Display impl to its exact `{:.6}` form (kills the
+        // `-> Ok(Default::default())` mutant, which would emit nothing).
+        assert_eq!(Score::new(1.234).to_string(), "1.234000");
+        assert_eq!(Score::zero().to_string(), "0.000000");
     }
 
     #[test]
