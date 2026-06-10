@@ -59,10 +59,8 @@
 // ─── Sibling facade (kernel 4-way split · census 2026-06-10) ────────
 pub use nika_kernel_ai as ai;
 pub use nika_kernel_core::{cancel, infra, io, sealed, types};
+pub use nika_kernel_plugin as plugin;
 pub use nika_kernel_runtime as runtime;
-
-// ─── Group modules (not yet split out) ──────────────────────────────
-pub mod plugin;
 
 // ─── Hub-resident root modules ──────────────────────────────────────
 pub mod checkpoint;

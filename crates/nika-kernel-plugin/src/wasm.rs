@@ -9,9 +9,9 @@
 
 use std::sync::Arc;
 
-use crate::cancel::CancelCtx;
 use crate::sandbox::DenialKind;
 use nika_error::trust::TrustLevel;
+use nika_kernel_core::cancel::CancelCtx;
 
 /// Host-side WASM plugin execution.
 ///
