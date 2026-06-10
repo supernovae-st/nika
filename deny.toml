@@ -55,7 +55,8 @@ wrappers = [
   "nika-screen",           # L1 effect crate (M2.1): tokio dev-dep for #[tokio::test] async ScreenCapture tests · B.4 wires mpsc stream worker + CancellationToken reaping
   "nika-ocr",              # L1 effect crate (M2.2): tokio dev-dep for #[tokio::test] async OcrEngine tests · B.3 wires spawn_blocking ocrs inference (sync engine off the runtime · CANCEL SAFETY contract)
   "nika-a11y",             # L1 effect crate (M2.3): tokio dev-dep for #[tokio::test] async AccessibilityTree tests · B.3 wires spawn_blocking AXUIElement walk (sync !Send handle worker-local · CANCEL SAFETY contract)
-  "nika-clock",            # L1 time effect: tokio::time::sleep is the production async impl of nika-kernel Clock::sleep (the ONLY production tokio site) · 12-gate admitted 74a8ff483
+  "nika-clock",            # L1 time effect: tokio::time::sleep is the production async impl of nika-kernel Clock::sleep · 12-gate admitted 74a8ff483
+  "nika-fs",               # L1 filesystem effect: tokio::fs is the production impl of the kernel fs *Dyn family (atomic temp+rename write) · announce-ladder s4 · 12-gate admitted (D-2026-06-10-N6)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
   "tower", "tokio-util", "tokio-rustls",

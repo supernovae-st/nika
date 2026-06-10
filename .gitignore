@@ -38,7 +38,7 @@ Cargo.lock.bak
 /crates/nika-engine/
 /crates/nika-exec-runner/
 /crates/nika-extract/
-/crates/nika-fs/
+# /crates/nika-fs/           -- ADMITTED slice s4 (D-2026-06-10-N6)
 /crates/nika-http/
 /crates/nika-init/
 # /crates/nika-kernel/       -- ADMITTED Step 3

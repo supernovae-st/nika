@@ -65,18 +65,18 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `27bf36d78` (`27bf36d788ab0b77fff52af579b565363a124ca9`)             |
+| HEAD             | `a6c87bf81` (`a6c87bf8129ba276ae518803f950b2a689706de6`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 18                                              |
-| crates (admitted)| 17 / 42                                   |
+| crates (workspace)| 19                                              |
+| crates (admitted)| 18 / 42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
 | L0.5             | 6                                              |
-| L1               | 5                                              |
+| L1               | 6                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1263 passed, 0 failed                              |
+| lib tests        | 1271 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation, **8 crates admitted** + **2 WIP** in workspace
