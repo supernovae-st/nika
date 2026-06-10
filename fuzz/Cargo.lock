@@ -475,12 +475,22 @@ name = "nika-catalog"
 version = "0.80.0"
 dependencies = [
  "miette",
+ "nika-catalog-codegen",
  "nika-error",
  "phf",
+ "serde",
+ "strsim",
+ "thiserror",
+ "unicase",
+]
+
+[[package]]
+name = "nika-catalog-codegen"
+version = "0.80.0"
+dependencies = [
  "phf_codegen",
  "phf_shared",
  "serde",
- "strsim",
  "thiserror",
  "toml",
  "unicase",

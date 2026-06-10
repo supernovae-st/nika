@@ -35,7 +35,7 @@ follow_ups:
 
 Wave 4A R4 (commit `368820e42`, 2026-04-17) extends the WASM plugin stubs
 shipped under ADR-020 with three additive reservations in
-`crates/nika-kernel/src/plugin/wasm.rs`:
+`crates/nika-kernel-plugin/src/wasm.rs`:
 
 1. `WasmPluginError::OutOfFuel { fuel_consumed }` — fuel-based cancellation
    variant, complementing the wall-clock `Timeout` variant.

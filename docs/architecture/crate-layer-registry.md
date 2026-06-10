@@ -66,24 +66,20 @@ Given a crate `nika-<role>`, ask these questions in order:
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲ (every upper-layer depends down only)
 ╭─ L0.5  (trait defs + companions, async OK) ──────────────────────────────╮
-│ nika-kernel               40 ISP traits, sealed supertrait               │
-│                           pub mod prelude re-exporting                   │
-│                           nika-error::prelude::* — L2+ verb crates       │
-│                           depend on nika-kernel only for all foundation  │
-│                           types + trait contracts                         │
+│ nika-kernel               facade + range-registry HUB (split 2026-06-10) │
+│                           re-exports every sibling path + pub mod        │
+│                           prelude re-exporting nika-error::prelude::* —  │
+│                           L2+ verb crates depend on nika-kernel only     │
 │ nika-kernel-mock          [axes: none]  1:1 mirror, pure-memory mocks    │
 │                                                                          │
-│ Split into 4 sibling crates when kernel > 10k LOC OR traits > 50:        │
-│   ⚠ TRIGGER STATUS (2026-06-10 review) · 50 pub traits == the trigger ·  │
-│   8.0k src LOC (headroom). The NEXT trait admission FIRES the split —    │
-│   pre-plan it BEFORE L2 verb admission (which adds kernel traits).       │
-│   Sequence · (1) freeze trait census · (2) partition per the 4 buckets   │
-│   below · (3) kernel becomes the prelude/re-export hub (zero break for   │
-│   downstream `use nika_kernel::prelude::*`) · (4) Gate-12 per sibling.   │
-│   nika-kernel-core        Clock + Fs + Http + Process + Blob + Shell     │
-│   nika-kernel-ai          Provider* + Memory* + Embedding + Compressor   │
-│   nika-kernel-runtime     ToolExecutor + Agent + Checkpoint + Context    │
-│   nika-kernel-plugin      WasmPluginHost + Sandbox (telemetry dropped)   │
+│ ✅ 4-way split EXECUTED 2026-06-10 (trigger hit · 50 pub traits) ·       │
+│   census kernel-split-census-2026-06-10.md is the freeze · the facade    │
+│   preserves every historical path (zero downstream break) · per-type    │
+│   NikaErrorCode impls live with their types (orphan rule) ·             │
+│   nika-kernel-core        io 19 traits + infra 7 + cancel/sealed/types  │
+│   nika-kernel-ai          Provider* + Memory* + Vision + Compressor (14)│
+│   nika-kernel-runtime     ToolExecutor traits (3) + agent type surfaces │
+│   nika-kernel-plugin      WasmPluginHost + Sandbox (6 · ADR-020 open)   │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L1  (effect impls, async) ───────────────────────────────────────────────╮
@@ -144,7 +140,7 @@ flags. They obey the same 12-gate admission as any other crate.
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
 | L0 | Pure types, lookup tables, sync-only APIs (6 in workspace · 3 planned) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-event` · *planned (not yet admitted)* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
-| L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel`, `nika-kernel-mock` |
+| L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel` (facade hub), `nika-kernel-core`, `nika-kernel-ai`, `nika-kernel-runtime`, `nika-kernel-plugin`, `nika-kernel-mock` |
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +screen-capture from M2.1) | L0, L0.5 | `nika-fs`, `nika-http-client`, `nika-process`, `nika-git`, `nika-keys-*`, `nika-memory-oxigraph`, `nika-bm25` (admission target W3 · ADR-038), `nika-pck-registry`, `nika-pck-store`, `nika-<provider>-*`, `nika-catalog-sync`, `nika-screen` (M2.1 · 1st computer-use L1 · ADR-081 guards 6+7) |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1 | `nika-pck`, `nika-verb-*`, `nika-policy`, `nika-memory`, `nika-observability`, `nika-builtin-{github,cloud,workspace}` |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
@@ -234,15 +230,18 @@ source trees, fails on any match.
 7. **Runtime imports in L0.** `tokio::spawn` in `nika-error` is a layer
    violation even if it compiles. The `no-async-in-L0` checker catches it.
 
-## Reserved kernel split (threshold-gated)
+## Kernel split (EXECUTED 2026-06-10)
 
-`nika-kernel` currently ships as one L0.5 crate (4,868 LOC, 40 traits).
-Per ADR-006, it splits when either total LOC exceeds 10k OR pub trait
-count exceeds 50. Currently well below both thresholds.
-
-The split is documented in the L0 architecture map above. The split is
-additive — downstream imports change from `nika_kernel::X` to
-`nika_kernel_core::X` behind a facade re-export in `nika-kernel`.
+The ADR-006 threshold (`LOC > 10k OR traits > 50`) was HIT at 50 pub
+traits — the 4-way split executed per the locked sequence
+(`docs/architecture/kernel-split-census-2026-06-10.md` is the census
+freeze + bucket map). The split was additive as designed — `nika-kernel`
+is now the facade + NIKA-NNN range-registry hub re-exporting every
+sibling path (`nika_kernel::io::…` · `nika_kernel::Provider` · the flat
+re-exports) · zero downstream import changed. Per-type `NikaErrorCode`
+impls + constants moved into the sibling owning each type (orphan rule ·
+discovered at execution · census amended in place). New kernel traits
+land directly in their bucket sibling.
 
 ## See also
 

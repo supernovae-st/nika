@@ -79,7 +79,7 @@ Read full spec in `docs/adr/adr-003-12-gate-admission.md` + `docs/architecture/f
 ## 📐 Architecture invariants
 
 - L0 crates : zero I/O, zero async, ≤15k LOC
-- L0.5 crates : traits only (nika-kernel, nika-kernel-mock)
+- L0.5 crates : traits only (nika-kernel facade hub + core/ai/runtime/plugin siblings, nika-kernel-mock)
 - L1 effect crates : 1 trait impl each (clock/fs/http/blob/process/etc.)
 - L2 domain crates : verb-*, service crates, memory stubs
 - L3 orchestration : runtime + daemon
@@ -115,24 +115,24 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `a3ec54ee8` (`a3ec54ee8b6538586511bf12c9394647e3cd8eb6`)             |
+| HEAD             | `27bf36d78` (`27bf36d788ab0b77fff52af579b565363a124ca9`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 14                                              |
-| crates (admitted)| 13 / 42                                   |
+| crates (workspace)| 18                                              |
+| crates (admitted)| 17 / 42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
-| L0.5             | 2                                              |
+| L0.5             | 6                                              |
 | L1               | 5                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1170 passed, 0 failed                              |
+| lib tests        | 1263 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
 - L0 admitted: nika-types, nika-error, nika-catalog. WIP: nika-schema (parser scaffolding).
-- L0.5 admitted: nika-kernel (with prelude hub, Q7), nika-kernel-mock.
+- L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
 - L4 admitted: nika-catalog-verify.
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.

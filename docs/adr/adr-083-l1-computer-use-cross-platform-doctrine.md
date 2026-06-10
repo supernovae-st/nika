@@ -123,7 +123,7 @@ tracked separately (private roadmap).
 - `docs/crate-specs/nika-input.md` §4 (backend DECISION POINT · resolved here)
 - `docs/crate-specs/nika-a11y.md` §4 (macOS-first disposition · amended here)
 - `docs/adr/adr-081-l1-effect-crate-guard-contract.md` (guard contract · backend-agnostic)
-- `crates/nika-kernel/src/io/input.rs` (the trait names macOS CGEvent · Windows SendInput · Linux uinput — superseded for `nika-input` by the cross-platform `enigo` choice; the per-OS APIs remain the fallback model the trait doc describes)
+- `crates/nika-kernel-core/src/io/input.rs` (the trait names macOS CGEvent · Windows SendInput · Linux uinput — superseded for `nika-input` by the cross-platform `enigo` choice; the per-OS APIs remain the fallback model the trait doc describes)
 - v0.81 first-publish scope (binary engine + language · the 4 verbs + DAG + providers + MCP server) · sequencing context for the §Sequencing note (private roadmap · not cited from this public repo)
 
 ## Update log

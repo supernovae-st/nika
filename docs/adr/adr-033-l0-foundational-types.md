@@ -40,7 +40,7 @@ that L1 effect crates and L2 verb crates will need.
 The kernel currently leaks several types that should live one layer
 below it.
 
-**TokenUsage** (`crates/nika-kernel/src/ai/provider.rs:247-256`) has 4 fields:
+**TokenUsage** (`crates/nika-kernel-ai/src/provider.rs:247-256`) has 4 fields:
 
 ```rust
 #[non_exhaustive]
@@ -62,17 +62,17 @@ This is missing several axes that real providers already bill for:
 - `video_tokens` — Gemini 1.5 Pro video.
 - `tool_use_tokens` — some providers bill tool definitions separately.
 
-**MemoryId** (`crates/nika-kernel/src/ai/memory.rs:21-22`) is `MemoryId(u128)`
+**MemoryId** (`crates/nika-kernel-ai/src/memory.rs:21-22`) is `MemoryId(u128)`
 with `Display` as `mem-{hex32}`. The `u128` is opaque random; not
 time-sortable. Memory queries that want chronological ordering need
 a separate timestamp.
 
-**TaskId** (`crates/nika-kernel/src/types.rs`) is `TaskId(String)` —
+**TaskId** (`crates/nika-kernel-core/src/types.rs`) is `TaskId(String)` —
 a bare string wrapper, no validation, no time ordering, no parse
 guarantee.
 
 **Cost** is currently `cost_usd: Option<f64>` on `InferResponse`
-(`crates/nika-kernel/src/ai/provider.rs:307`). Floating-point accumulation
+(`crates/nika-kernel-ai/src/provider.rs:307`). Floating-point accumulation
 across thousands of API calls drifts; we cannot ship billing on f64.
 
 **TrustLevel** is referenced by Shield error codes
@@ -218,12 +218,12 @@ to its dep list (S1-C lands the dep).
 
 ## Evidence / Affected code
 
-- `crates/nika-kernel/src/ai/provider.rs:247-256` — current 4-field
+- `crates/nika-kernel-ai/src/provider.rs:247-256` — current 4-field
   TokenUsage.
-- `crates/nika-kernel/src/ai/provider.rs:307` — current
+- `crates/nika-kernel-ai/src/provider.rs:307` — current
   `cost_usd: Option<f64>`.
-- `crates/nika-kernel/src/ai/memory.rs:21-22` — current `MemoryId(u128)`.
-- `crates/nika-kernel/src/types.rs` — current `TaskId(String)`.
+- `crates/nika-kernel-ai/src/memory.rs:21-22` — current `MemoryId(u128)`.
+- `crates/nika-kernel-core/src/types.rs` — current `TaskId(String)`.
 - `crates/nika-error/src/codes.rs` — Shield NIKA-380..389 (TrustLevel
   consumers).
 - `docs/architecture/forward-compat-invariants.md` — Pattern 2

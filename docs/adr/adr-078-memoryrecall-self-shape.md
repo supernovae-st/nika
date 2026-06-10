@@ -25,7 +25,7 @@ follow_ups: ["nika-memory W10 RecallPool concrete struct", "potential MemoryReca
 
 ## Context
 
-`crates/nika-kernel/src/ai/memory.rs:244-250` defines the canonical L0.5 trait:
+`crates/nika-kernel-ai/src/memory.rs:244-250` defines the canonical L0.5 trait:
 
 ```rust
 #[trait_variant::make(MemoryRecallDyn: Send)]

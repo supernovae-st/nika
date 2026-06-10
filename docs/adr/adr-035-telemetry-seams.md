@@ -34,7 +34,7 @@ follow_ups:
 ## Context
 
 Wave 4B #1 (commit `861f09bc9`, 2026-04-17) extends the kernel telemetry
-types at `crates/nika-kernel/src/infra/trace.rs` with two additive
+types at `crates/nika-kernel-core/src/infra/trace.rs` with two additive
 reservations:
 
 1. `SpanGuard.parent_span_id: Option<SpanId>` — explicit parent link so

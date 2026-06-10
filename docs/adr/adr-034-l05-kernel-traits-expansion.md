@@ -59,10 +59,10 @@ Existing patterns to mirror (verified):
 
 - All async kernel traits use `#[trait_variant::make(XxxDyn: Send)]`
   for object-safe `Dyn` companions (e.g.,
-  `crates/nika-kernel/src/io/clock.rs:27`,
-  `crates/nika-kernel/src/ai/context.rs:48`,
-  `crates/nika-kernel/src/ai/provider.rs:444`,
-  `crates/nika-kernel/src/ai/memory.rs:268`).
+  `crates/nika-kernel-core/src/io/clock.rs:27`,
+  `crates/nika-kernel-ai/src/context.rs:48`,
+  `crates/nika-kernel-ai/src/provider.rs:444`,
+  `crates/nika-kernel-ai/src/memory.rs:268`).
 - All public types are `#[non_exhaustive]` per ADR-007.
 - All public structs have a `pub fn new()` constructor per INV-019.
 - All async traits require `Send + Sync`.
@@ -229,7 +229,7 @@ Mock: `NullBillingSink` (no-op for tests that don't care),
 ### 7. `MemoryUpdate` sub-trait + `MemoryStore` evolution (deferred)
 
 The existing `MemoryStore` blanket
-(`crates/nika-kernel/src/ai/memory.rs:289-290`) is
+(`crates/nika-kernel-ai/src/memory.rs:289-290`) is
 `MemoryRemember + MemoryRecall + MemoryForget`. Cortex (v0.95) needs
 an `update()` operation (patch a memory frame in place). Plan:
 
@@ -261,7 +261,7 @@ not stable; we will land this at v0.95 with concrete pattern
 ### Sealing pattern (lands in S1-C)
 
 ```rust
-// crates/nika-kernel/src/sealed.rs
+// crates/nika-kernel-core/src/sealed.rs
 mod sealed {
     pub trait Sealed {}
 }
@@ -313,21 +313,21 @@ traits stay open.
 
 - `crates/nika-kernel/src/lib.rs:48-66` — current module list (S1-B
   state: 17 modules).
-- `crates/nika-kernel/src/io/clock.rs:27` — `trait_variant::make` pattern.
-- `crates/nika-kernel/src/ai/context.rs:48` — `trait_variant::make`
+- `crates/nika-kernel-core/src/io/clock.rs:27` — `trait_variant::make` pattern.
+- `crates/nika-kernel-ai/src/context.rs:48` — `trait_variant::make`
   pattern.
-- `crates/nika-kernel/src/ai/provider.rs:444-454` — `Provider` trait
+- `crates/nika-kernel-ai/src/provider.rs:444-454` — `Provider` trait
   family (will gain `: sealed::Sealed` in S1-C).
-- `crates/nika-kernel/src/ai/memory.rs:289-290` — current `MemoryStore`
+- `crates/nika-kernel-ai/src/memory.rs:289-290` — current `MemoryStore`
   blanket (will gain `MemoryUpdate` at v0.95).
 - Telemetry traits: unified ObservabilitySink stub (S1-B, kernel src file
   later deleted) was dropped per Q12 rev.3 (2026-04-16) before any v0.100
   split; replacement lives in-tree at
-  `crates/nika-kernel/src/infra/metrics.rs` (`MetricsExporter`),
-  `crates/nika-kernel/src/infra/trace.rs` (`TracerProvider`),
-  `crates/nika-kernel/src/infra/audit.rs` (`AuditSink`),
-  `crates/nika-kernel/src/infra/event_sink.rs` (`EventSink`), and
-  `crates/nika-kernel/src/infra/billing.rs` (`BillingSink`).
+  `crates/nika-kernel-core/src/infra/metrics.rs` (`MetricsExporter`),
+  `crates/nika-kernel-core/src/infra/trace.rs` (`TracerProvider`),
+  `crates/nika-kernel-core/src/infra/audit.rs` (`AuditSink`),
+  `crates/nika-kernel-core/src/infra/event_sink.rs` (`EventSink`), and
+  `crates/nika-kernel-core/src/infra/billing.rs` (`BillingSink`).
 - `crates/nika-kernel-mock/src/lib.rs` — mock module list (mirrors
   every kernel trait).
 - ADR-006 — v0.80 trait set, **not superseded**.

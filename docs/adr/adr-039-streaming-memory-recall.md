@@ -27,7 +27,7 @@ follow_ups:
 ## Context
 
 Today `MemoryRecall::recall() -> Result<Vec<MemoryHit>, MemoryError>` materializes
-the full candidate set per ranker (per `crates/nika-kernel/src/ai/memory.rs:248-250`).
+the full candidate set per ranker (per `crates/nika-kernel-ai/src/memory.rs:248-250`).
 For Reciprocal Rank Fusion (W4 · `nika-rrf` admission) the L2 orchestrator wants to
 fuse top-K across N rankers without realizing all candidates from each.
 
@@ -90,7 +90,7 @@ emits top-K without realizing the full candidate set.
 - Sealed pattern (ADR-014) survives · default impl in trait body · external impls remain blocked.
 
 ## Evidence
-- `crates/nika-kernel/src/ai/memory.rs:218-260` — current trait surface
+- `crates/nika-kernel-ai/src/memory.rs:218-260` — current trait surface
 - ADR-038 — W3 nika-bm25 (consumer of this trait)
 - ADR-040 — Cargo feature matrix (rrf feature consumes stream)
 - Agent 1 rust-architect memo 2026-05-11 §5 — Option D rationale

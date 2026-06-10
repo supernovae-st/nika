@@ -34,7 +34,7 @@ follow_ups:
 
 ## Context
 
-The Diamond memory subsystem architecture (locked separately in private studio doctrine and surfaced publicly via `crates/nika-kernel/src/ai/memory.rs:1-413`) ships as 1 L2 orchestrator (`nika-memory`) + 8 L1 satellites — `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc` ★. Each satellite is independently admissible via the 12-gate ceremony (ADR-003) and publishable standalone on crates.io as a SuperNovae contribution to the Rust RDF/ML ecosystem.
+The Diamond memory subsystem architecture (locked separately in private studio doctrine and surfaced publicly via `crates/nika-kernel-ai/src/memory.rs:1-413`) ships as 1 L2 orchestrator (`nika-memory`) + 8 L1 satellites — `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc` ★. Each satellite is independently admissible via the 12-gate ceremony (ADR-003) and publishable standalone on crates.io as a SuperNovae contribution to the Rust RDF/ML ecosystem.
 
 Per Diamond Phase 1 entry plan §3 (W3 wave) `nika-bm25` is the **simplest L1 satellite to admit first** because :
 
@@ -43,7 +43,7 @@ Per Diamond Phase 1 entry plan §3 (W3 wave) `nika-bm25` is the **simplest L1 sa
 - It is testable in isolation against toy corpora · no `nika-kernel` plumbing needed yet
 - It proves the satellite-admission flow before tackling the harder satellites (`nika-hnsw` needs an empirical embedding distribution · `nika-autodesc` is the moat differentiator · both should land later)
 
-Per Phase 1 entry plan §2 the kernel-side memory trait surface (`MemoryRemember` / `MemoryRecall` / `MemoryForget` / `MemoryStore` blanket / `MemoryLifecycle` standalone) is already shipped at `crates/nika-kernel/src/ai/memory.rs` (607 LOC · `trait_variant::make` pattern per FCI-001 Decision A1). The kernel-side `MemoryError` enum maps to NIKA_601..604 per Diamond W2.1 + W2.2. `nika-bm25` will :
+Per Phase 1 entry plan §2 the kernel-side memory trait surface (`MemoryRemember` / `MemoryRecall` / `MemoryForget` / `MemoryStore` blanket / `MemoryLifecycle` standalone) is already shipped at `crates/nika-kernel-ai/src/memory.rs` (607 LOC · `trait_variant::make` pattern per FCI-001 Decision A1). The kernel-side `MemoryError` enum maps to NIKA_601..604 per Diamond W2.1 + W2.2. `nika-bm25` will :
 
 - Implement `MemoryRecall` (lexical-scoring branch · alongside semantic HNSW)
 - Reserve its own NIKA-620..629 sub-range within the Memory 600-649 category (per Phase 1 entry plan §2 architect Q2 sub-allocation lock)
@@ -118,13 +118,13 @@ Plus the mandatory pattern gates per `nika/engine/.claude/CLAUDE.md` ·
 
 Per `dx/.claude/rules/steal-pattern.md` §"Step 0 — Consumer-signal gate" (Wave 10 of the DS federation discipline · adopted as a general anti-speculative-port pattern), Tier B/C steal-pattern ports require ≥1 consumer signal before status flips Proposed → Accepted. ADR-038 is an **internal Diamond admission**, not a Tier B/C steal-pattern port, but the same anti-speculative discipline applies ·
 
-- **Locked decision** · the Diamond memory architecture (private studio doctrine + public trait surface at `crates/nika-kernel/src/ai/memory.rs`) lists `nika-bm25` as one of the 8 mandatory L1 memory satellites · ✅ satisfies « locked decision » in §Step 0
+- **Locked decision** · the Diamond memory architecture (private studio doctrine + public trait surface at `crates/nika-kernel-ai/src/memory.rs`) lists `nika-bm25` as one of the 8 mandatory L1 memory satellites · ✅ satisfies « locked decision » in §Step 0
 - **Scheduled launch** · Phase 1 entry plan §3 schedules `nika-bm25` as W3 admission with ~7h focused effort · ✅ satisfies « scheduled launch »
 - **Consumer ticket** · `nika-memory` L2 orchestrator (deferred to W11+) requires both lexical and semantic recall paths · BM25 IS the lexical half · the orchestrator is the consumer-of-record once it ships
 
 ## Evidence / Affected code
 
-- `crates/nika-kernel/src/ai/memory.rs:218-223` — `MemoryRecall` trait definition that `nika-bm25` will implement
+- `crates/nika-kernel-ai/src/memory.rs:218-223` — `MemoryRecall` trait definition that `nika-bm25` will implement
 - `crates/nika-error/src/codes.rs:208-275` — NIKA_600 placeholder + NIKA_601..604 active + NIKA-620..629 reserved for this crate
 - W3 admission plan in the SuperNovae monorepo `dx/.claude/plans/active/sprint/` (private DX surface · not engine-bound)
 - Commit anchor pre-W3 · `git log --oneline -1` on `main` at admission time will land in the W3 closeout commit body

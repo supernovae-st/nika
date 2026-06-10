@@ -429,7 +429,7 @@ Today's pattern · sync `Drop` + explicit `shutdown()` is canonical
 `Self: Sync` bound · empirically measurable interior-mutability tax at
 1M+ BGE-M3 cosine calls/sec hot path.
 
-Current state · `crates/nika-kernel/src/ai/memory.rs:249` uses `&self` ·
+Current state · `crates/nika-kernel-ai/src/memory.rs:249` uses `&self` ·
 forces every L1 satellite impl into `Mutex/RwLock` for LRU cache + stats
 counters + connection pools.
 

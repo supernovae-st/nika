@@ -112,7 +112,7 @@ let hits = store.recall(&query).await?;            // OK · Ready impl
 - Pattern proven in 2026 Rust ecosystem (axum routers · tower stacks · per Perplexity citations) · not novel · battle-tested idiom.
 
 ## Evidence
-- `crates/nika-kernel/src/ai/memory.rs:374-407` — current trait composition (untyped state)
+- `crates/nika-kernel-ai/src/memory.rs:374-407` — current trait composition (untyped state)
 - ADR-006 — atomic ISP traits (orchestrator composes)
 - ADR-012 — typestate runtime (precedent · same pattern at runtime level)
 - ADR-040 — Cargo feature matrix (orchestrator features compose into Ready state)

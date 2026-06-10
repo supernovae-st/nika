@@ -198,9 +198,9 @@ ADR-022 is the citation — nothing to edit inside ADR-022.
     sub-block describing the split crate names.
   - Same registry lines 226-234 "## Reserved kernel split (threshold-gated)"
     — entire section is superseded.
-  - Kernel module header comments at `crates/nika-kernel/src/ai/mod.rs:6`,
-    `crates/nika-kernel/src/plugin/mod.rs:6`,
-    `crates/nika-kernel/src/runtime/mod.rs:6` say `Future sub-crate:
+  - Kernel module header comments at `crates/nika-kernel-ai/src/mod.rs:6`,
+    `crates/nika-kernel-plugin/src/mod.rs:6`,
+    `crates/nika-kernel-runtime/src/mod.rs:6` say `Future sub-crate:
     nika-kernel-* (when kernel exceeds 10k LOC or 50 traits)`. Task brief
     forbids `src/` edits — these are **not** touched in this PR; flag as
     a Phase D follow-up.

@@ -25,7 +25,7 @@ follow_ups: ["macro caps! ergonomic layer", "MemRecall/MemRemember axes reserved
 
 ## Context
 
-`crates/nika-kernel/src/plugin/sandbox.rs:19-92` already ships the runtime `Sandbox` trait + `Capability` enum (5 axes: `FsRead`, `FsWrite`, `Network`, `ProcessSpawn`, `EnvRead`). Today's check is purely runtime — `Sandbox::check_capability(&Capability)` returns `Result<(), SandboxError>` — which means call sites like `effects::http::fetch(url)` cannot be **structurally refused at compile time** when the caller lacks the `Network` capability.
+`crates/nika-kernel-plugin/src/sandbox.rs:19-92` already ships the runtime `Sandbox` trait + `Capability` enum (5 axes: `FsRead`, `FsWrite`, `Network`, `ProcessSpawn`, `EnvRead`). Today's check is purely runtime — `Sandbox::check_capability(&Capability)` returns `Result<(), SandboxError>` — which means call sites like `effects::http::fetch(url)` cannot be **structurally refused at compile time** when the caller lacks the `Network` capability.
 
 Per Anthropic public-eng effect-system literature + Karpathy AI-2027 capability-bound discipline + Kokotajlo AI-2027 paper · compile-time refusal is the load-bearing property for sandboxing the 150M+ MCP server downloads (cf ADR-080 CVE-2026-04). The Anthropic position « SDK consumers must sandbox by construction » requires compile-time enforcement, not just runtime defense.
 

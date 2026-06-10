@@ -73,11 +73,11 @@ proven by the untouched workspace building green at each split commit.
 ## Step tracker
 
 1. ✅ Census freeze (this document)
-2. `nika-kernel-core` admission
-3. `nika-kernel-ai` admission
-4. `nika-kernel-runtime` admission
-5. `nika-kernel-plugin` admission
-6. Hub facade + registry/docs cascade
+2. ✅ `nika-kernel-core` admission
+3. ✅ `nika-kernel-ai` admission
+4. ✅ `nika-kernel-runtime` admission
+5. ✅ `nika-kernel-plugin` admission
+6. ✅ Hub facade + registry/docs cascade
 7. R3 narrow preludes for future L2 deps — DEFERRED until the first L2
    verb crate lands (it declares which narrow prelude it needs ·
    speculative preludes violate LOCK-031 spirit)
