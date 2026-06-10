@@ -17,6 +17,7 @@ adr = ["ADR-003", "ADR-081", "ADR-083"]
 
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+miette      = { workspace = true }
 thiserror   = { workspace = true }
 # tokio `rt` for spawn_blocking (the !Send AXUIElement walk runs off the async
 # runtime · worker-local · kernel CANCEL SAFETY contract). Cross-platform.

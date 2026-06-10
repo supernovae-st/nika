@@ -6,8 +6,14 @@
 //! Reserved sub-range **NIKA-1200..1299** per ADR-081 `nika_codes` matrix
 //! (supersedes the stale `io/a11y.rs` doc-comment "NIKA-1060..1079" which
 //! predates ADR-081 · same reconciliation as nika-ocr NIKA-1100..1199).
-//! `code()` is the grep-anchor for logs + journal; `is_transient()` lets a
-//! caller decide retry vs structural failure.
+//! Codes speak the workspace-canonical [`NikaErrorCode`] trait
+//! (`nika_code()` → registry consts `NIKA_1201..1206` · `Category::A11y`
+//! · B5 error one-voice 2026-06-10 — the crate-local string `code()`
+//! accessor was the F8 drift · removed per
+//! `no-legacy-no-back-compat.md`); `is_transient()` lets a caller decide
+//! retry vs structural failure.
+//!
+//! [`NikaErrorCode`]: nika_kernel::prelude::NikaErrorCode
 //!
 //! NIKA-1200 was the B.2 `BackendNotWired` skeleton placeholder · CLOSED at
 //! B.3 when the macOS `AXUIElement` walk was wired (per
@@ -15,8 +21,9 @@
 
 use thiserror::Error;
 
-/// Accessibility backend errors · NIKA-1201..1206 · `code()` grep-anchor.
-#[derive(Debug, Error)]
+/// Accessibility backend errors · NIKA-1201..1206 (registry-owned ·
+/// `Category::A11y`).
+#[derive(Debug, Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum A11yError {
     /// The process lacks the OS accessibility grant (macOS Accessibility
@@ -50,27 +57,24 @@ pub enum A11yError {
     },
 }
 
-impl A11yError {
-    /// Stable NIKA code for this error (grep-anchor for logs + journal).
-    ///
-    /// NIKA-1201..1206 currently used · NIKA-1200..1299 reserved for
-    /// nika-a11y (ADR-081 · NIKA-1200 = retired B.2 placeholder slot).
-    #[must_use]
-    pub fn code(&self) -> &'static str {
+impl nika_kernel::prelude::NikaErrorCode for A11yError {
+    /// Stable NIKA code (registry-owned · `Category::A11y` 1200-1299 ·
+    /// NIKA-1200 = retired B.2 placeholder slot).
+    fn nika_code(&self) -> nika_kernel::prelude::NikaCode {
+        use nika_kernel::prelude::codes;
         match self {
-            Self::PermissionDenied => "NIKA-1201",
-            Self::NoFocusedApplication => "NIKA-1202",
-            Self::AttributeError { .. } => "NIKA-1203",
-            Self::TreeWalkFailed { .. } => "NIKA-1204",
-            Self::BackendUnavailable => "NIKA-1205",
-            Self::TaskJoinFailed { .. } => "NIKA-1206",
+            Self::PermissionDenied => codes::NIKA_1201,
+            Self::NoFocusedApplication => codes::NIKA_1202,
+            Self::AttributeError { .. } => codes::NIKA_1203,
+            Self::TreeWalkFailed { .. } => codes::NIKA_1204,
+            Self::BackendUnavailable => codes::NIKA_1205,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1206,
         }
     }
 
-    /// True for retryable failures (transient attribute / walk / task) · false
-    /// for structural ones (not wired · permission · no app · no backend).
-    #[must_use]
-    pub fn is_transient(&self) -> bool {
+    /// Attribute/walk/join failures may be transient (focus churn · app
+    /// teardown mid-walk) · permission + backend absence are structural.
+    fn is_transient(&self) -> bool {
         matches!(
             self,
             Self::AttributeError { .. } | Self::TreeWalkFailed { .. } | Self::TaskJoinFailed { .. }
@@ -80,7 +84,7 @@ impl A11yError {
 
 /// Bridge to `std::io::Error` at the `AccessibilityTree` trait boundary (the
 /// trait returns `std::io::Result`). The rich `A11yError` rides as the boxed
-/// source · `code()` reaches logs via `Display`.
+/// source · the NIKA code reaches logs via `Display`.
 impl From<A11yError> for std::io::Error {
     fn from(err: A11yError) -> Self {
         std::io::Error::other(err)
@@ -90,6 +94,7 @@ impl From<A11yError> for std::io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::prelude::{Category, NikaErrorCode, codes};
 
     fn all_variants() -> Vec<A11yError> {
         vec![
@@ -106,20 +111,17 @@ mod tests {
     fn codes_are_unique_and_in_range() {
         let variants = all_variants();
         let n = variants.len();
-        let mut codes: Vec<&str> = variants.iter().map(A11yError::code).collect();
-        codes.sort_unstable();
-        codes.dedup();
-        assert_eq!(codes.len(), n, "all NIKA codes are unique");
+        let mut nums: Vec<u16> = variants.iter().map(|e| e.nika_code().num).collect();
+        nums.sort_unstable();
+        nums.dedup();
+        assert_eq!(nums.len(), n, "all NIKA codes are unique");
         for e in &variants {
-            let num: u32 = e
-                .code()
-                .strip_prefix("NIKA-")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
+            let c = e.nika_code();
+            assert!((1200..=1299).contains(&c.num), "{c} in nika-a11y range");
+            assert_eq!(c.category, Category::A11y);
             assert!(
-                (1200..=1299).contains(&num),
-                "{} in nika-a11y range",
-                e.code()
+                codes::lookup(&c.to_string()).is_some(),
+                "{c} resolvable via the registry"
             );
         }
     }
@@ -129,7 +131,7 @@ mod tests {
         let io: std::io::Error = A11yError::PermissionDenied.into();
         let src = io.into_inner().expect("boxed source");
         let ae = src.downcast::<A11yError>().expect("A11yError source");
-        assert_eq!(ae.code(), "NIKA-1201");
+        assert_eq!(ae.nika_code(), codes::NIKA_1201);
     }
 
     #[test]
