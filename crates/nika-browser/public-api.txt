@@ -1,0 +1,83 @@
+pub mod nika_browser
+pub use nika_browser::Error
+#[non_exhaustive] pub struct nika_browser::ChromiumBrowser
+impl nika_browser::ChromiumBrowser
+pub fn nika_browser::ChromiumBrowser::new() -> core::result::Result<Self, nika_kernel_core::io::browser::BrowserError>
+pub fn nika_browser::ChromiumBrowser::set_click_expectation(&self, session: &nika_kernel_core::io::browser::BrowserSession, expectation: nika_browser::SelectorExpectation) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+impl core::fmt::Debug for nika_browser::ChromiumBrowser
+pub fn nika_browser::ChromiumBrowser::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::browser::BrowserAutomationDyn for nika_browser::ChromiumBrowser
+pub async fn nika_browser::ChromiumBrowser::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, _sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::dom_snapshot(&self, _session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::launch(&self, _profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::navigate(&self, _session: &nika_kernel_core::io::browser::BrowserSession, _url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::screenshot(&self, _session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
+impl<D> owo_colors::OwoColorize for nika_browser::ChromiumBrowser
+impl<T, U> core::convert::Into<U> for nika_browser::ChromiumBrowser where U: core::convert::From<T>
+pub fn nika_browser::ChromiumBrowser::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_browser::ChromiumBrowser where U: core::convert::Into<T>
+pub type nika_browser::ChromiumBrowser::Error = core::convert::Infallible
+pub fn nika_browser::ChromiumBrowser::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_browser::ChromiumBrowser where U: core::convert::TryFrom<T>
+pub type nika_browser::ChromiumBrowser::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_browser::ChromiumBrowser::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_browser::ChromiumBrowser where T: 'static + ?core::marker::Sized
+pub fn nika_browser::ChromiumBrowser::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_browser::ChromiumBrowser where T: ?core::marker::Sized
+pub fn nika_browser::ChromiumBrowser::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_browser::ChromiumBrowser where T: ?core::marker::Sized
+pub fn nika_browser::ChromiumBrowser::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_browser::ChromiumBrowser
+pub fn nika_browser::ChromiumBrowser::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_browser::ChromiumBrowser where T: 'static
+pub fn nika_browser::ChromiumBrowser::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::browser::BrowserAutomation for nika_browser::ChromiumBrowser where TraitVariantBlanketType: nika_kernel_core::io::browser::BrowserAutomationDyn
+pub async fn nika_browser::ChromiumBrowser::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_browser::ChromiumBrowser::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
+#[non_exhaustive] pub struct nika_browser::SelectorExpectation
+pub nika_browser::SelectorExpectation::attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_browser::SelectorExpectation::tag: alloc::string::String
+impl nika_browser::SelectorExpectation
+pub fn nika_browser::SelectorExpectation::new(tag: alloc::string::String, attributes: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+impl core::clone::Clone for nika_browser::SelectorExpectation
+pub fn nika_browser::SelectorExpectation::clone(&self) -> nika_browser::SelectorExpectation
+impl core::cmp::Eq for nika_browser::SelectorExpectation
+impl core::cmp::PartialEq for nika_browser::SelectorExpectation
+pub fn nika_browser::SelectorExpectation::eq(&self, other: &nika_browser::SelectorExpectation) -> bool
+impl core::default::Default for nika_browser::SelectorExpectation
+pub fn nika_browser::SelectorExpectation::default() -> nika_browser::SelectorExpectation
+impl core::fmt::Debug for nika_browser::SelectorExpectation
+pub fn nika_browser::SelectorExpectation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_browser::SelectorExpectation
+impl<D> owo_colors::OwoColorize for nika_browser::SelectorExpectation
+impl<T, U> core::convert::Into<U> for nika_browser::SelectorExpectation where U: core::convert::From<T>
+pub fn nika_browser::SelectorExpectation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_browser::SelectorExpectation where U: core::convert::Into<T>
+pub type nika_browser::SelectorExpectation::Error = core::convert::Infallible
+pub fn nika_browser::SelectorExpectation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_browser::SelectorExpectation where U: core::convert::TryFrom<T>
+pub type nika_browser::SelectorExpectation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_browser::SelectorExpectation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_browser::SelectorExpectation where T: core::clone::Clone
+pub type nika_browser::SelectorExpectation::Owned = T
+pub fn nika_browser::SelectorExpectation::clone_into(&self, target: &mut T)
+pub fn nika_browser::SelectorExpectation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_browser::SelectorExpectation where T: 'static + ?core::marker::Sized
+pub fn nika_browser::SelectorExpectation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_browser::SelectorExpectation where T: ?core::marker::Sized
+pub fn nika_browser::SelectorExpectation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_browser::SelectorExpectation where T: ?core::marker::Sized
+pub fn nika_browser::SelectorExpectation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_browser::SelectorExpectation where T: core::clone::Clone
+pub unsafe fn nika_browser::SelectorExpectation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_browser::SelectorExpectation
+pub fn nika_browser::SelectorExpectation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_browser::SelectorExpectation where T: 'static
+pub fn nika_browser::SelectorExpectation::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_browser::MAX_DOM_DEPTH: u16
+pub fn nika_browser::dom_depth(node: &nika_kernel_core::io::browser::DomNode) -> u32
+pub fn nika_browser::is_visible(node: &nika_kernel_core::io::browser::DomNode) -> bool
+pub fn nika_browser::verify_selector_target(resolved: &nika_kernel_core::io::browser::DomNode, expectation: &nika_browser::SelectorExpectation) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>

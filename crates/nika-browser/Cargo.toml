@@ -1,0 +1,40 @@
+[package]
+name          = "nika-browser"
+description   = "Browser-automation L1 effect crate — implements the nika-kernel BrowserAutomationDyn trait (launch + navigate + dom_snapshot + click_selector + screenshot) via the cross-platform `chromiumoxide` CDP backend (macOS/Linux/Windows · ADR-083). Fifth computer-use L1 · M2.5. Owns ADR-081 Guard 5 (selector clickjacking · MANDATORY · pure verify-before-click core)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# Gate 2 (ADR linked) · ADR-081 = 7 L1 security guards forever; nika-browser OWNS
+# Guard 5 (selector clickjacking · MANDATORY · verify selector points to expected
+# DOM shape before ANY click · fail closed, never click a guess).
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-081", "ADR-083"]
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+# BrowserError + DTOs live in nika-kernel-core (Pattern A · FCI-023bis) —
+# nika-browser re-exports the error; no thiserror/miette dep here.
+# tokio `rt` for the per-session CDP Handler task (B.3 · chromiumoxide is
+# async-native — NO spawn_blocking, contrast the sync-backend M2 crates).
+tokio       = { workspace = true, features = ["rt"] }
+# B.3 backend: chromiumoxide = CDP browser automation (macOS/Linux/Windows ·
+# MIT OR Apache-2.0 · tokio-runtime · kill_on_drop(true) built-in per
+# Invariant #11 · 0 unsafe in src) · API tarball-verified on 0.9.1
+# (Browser::launch · Page::{goto,find_element,screenshot} · Element::click).
+# The `fetcher` feature stays OFF (sovereignty: never silently download a
+# browser binary — the user installs their own Chrome/Chromium/Edge).
+
+[dev-dependencies]
+# #[tokio::test] for the async BrowserAutomationDyn methods · proptest pins
+# the pure Guard-5 core (verify_selector_target mismatch ⇒ never clicks).
+tokio    = { workspace = true, features = ["macros", "rt"] }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

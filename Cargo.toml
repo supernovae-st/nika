@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -37,7 +37,7 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-schema"]
+wip = ["nika-schema", "nika-browser"]
 layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"
@@ -85,6 +85,10 @@ layers.nika-a11y = "L1"
 # implements kernel io::input InputDeviceDyn · enigo cross-platform backend ·
 # ADR-081 Guards 1+2 MANDATORY · NIKA-1300..1399.
 layers.nika-input = "L1"
+# nika-browser · M2.5 fifth computer-use L1 effect crate · CDP web arm ·
+# implements kernel io::browser BrowserAutomationDyn · chromiumoxide backend (B.3) ·
+# ADR-081 Guard 5 MANDATORY (selector clickjacking) · NIKA-1400..1499.
+layers.nika-browser = "L1"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-layer banned external deps (runtime-binding crates forbidden at layers

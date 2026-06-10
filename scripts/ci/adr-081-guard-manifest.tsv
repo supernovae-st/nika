@@ -25,3 +25,4 @@
 7	nika-screen	struct ConsentGate	fn consent_gate_grant_allows
 1	nika-input	fn redact_typed_text	fn redact_is_a_pure_function_of_length_only
 2	nika-input	fn consent_valid	fn all_four_methods_reject_an_expired_proof_before_any_backend
+5	nika-browser	fn verify_selector_target	fn guard5_rejects_tag_swap

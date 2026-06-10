@@ -53,3 +53,5 @@ nika-exec-runner
 # --- 2026-06-10: M2.4 write-side computer-use · public contract frozen at B.2
 # (the enigo backend lands at B.3 as an INTERNAL impl · surface stays stable) ---
 nika-input
+# --- 2026-06-11: M2.5 web arm · Guard-5 pure core public, CDP internal at B.3 ---
+nika-browser

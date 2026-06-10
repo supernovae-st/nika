@@ -2105,6 +2105,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-browser"
+version = "0.80.0"
+dependencies = [
+ "nika-kernel",
+ "proptest",
+ "tokio",
+]
+
+[[package]]
 name = "nika-catalog"
 version = "0.80.0"
 dependencies = [
