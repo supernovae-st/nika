@@ -65,6 +65,9 @@ wrappers = [
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
   "tower", "tokio-util", "tokio-rustls",
+  # Transitive consumers via chromiumoxide (nika-browser's CDP backend · M2.5):
+  # the CDP WebSocket rides async-tungstenite/tokio · tower-http via its reqwest
+  "chromiumoxide", "async-tungstenite", "tower-http",
 ]
 
 [[bans.deny]]
@@ -72,6 +75,7 @@ name     = "reqwest"
 wrappers = [
   "nika-catalog-verify",   # L4 binary: HTTP probes for catalog drift detection
   "nika-http",             # L1 http effect: THE production HttpGet/HttpPost impl (SSRF static + DNS-resolve + per-hop redirect re-check · response size cap) · announce-ladder s5
+  "chromiumoxide",         # transitive: nika-browser's CDP backend uses reqwest for its WebSocket debug-URL bootstrap (NOT the fetcher — that feature stays OFF) · scoped to the lib, never a nika-* direct dep
 ]
 
 # hyper is not explicitly banned — it's always transitive via reqwest,
