@@ -139,6 +139,51 @@ impl FsMeta for MockFs {
     }
 }
 
+/// Match a glob `pattern` against a `/`-separated `path` that has already been
+/// made relative to the glob root — **pure**. Standard subset (gitignore/POSIX):
+/// - `?` matches exactly one non-`/` character,
+/// - `*` matches any run (incl. empty) of non-`/` chars WITHIN one segment,
+/// - `**` matches any run of whole path segments (incl. zero).
+///
+/// So `*.rs` matches `foo.rs` but NOT `a/foo.rs`, while `**/*.rs` matches both.
+/// This is the contract the real `nika-fs` glob must satisfy. The mock used to
+/// do a bare `contains(pattern)` substring test, which silently returned the
+/// wrong set (`"*.rs"` is never a substring of `/x/foo.rs`, so it matched
+/// nothing) and gave consumers false confidence.
+fn glob_match(pattern: &str, path: &str) -> bool {
+    let pat: Vec<&str> = pattern.split('/').collect();
+    let txt: Vec<&str> = path.split('/').collect();
+    match_segments(&pat, &txt)
+}
+
+/// Match glob pattern-segments against path-segments. `**` consumes zero or more
+/// whole segments (with backtracking). **Pure**.
+fn match_segments(pat: &[&str], txt: &[&str]) -> bool {
+    match pat.split_first() {
+        None => txt.is_empty(),
+        Some((&"**", rest)) => (0..=txt.len()).any(|skip| match_segments(rest, &txt[skip..])),
+        Some((&seg, rest)) => {
+            !txt.is_empty()
+                && segment_match(seg.as_bytes(), txt[0].as_bytes())
+                && match_segments(rest, &txt[1..])
+        }
+    }
+}
+
+/// Match ONE path segment against one pattern segment (`*`/`?`, no `/`) with `*`
+/// backtracking. **Pure**.
+fn segment_match(pat: &[u8], txt: &[u8]) -> bool {
+    match pat.split_first() {
+        None => txt.is_empty(),
+        // `*` matches zero chars (advance pattern) OR one char (advance text).
+        Some((&b'*', rest)) => {
+            segment_match(rest, txt) || (!txt.is_empty() && segment_match(pat, &txt[1..]))
+        }
+        Some((&b'?', rest)) => !txt.is_empty() && segment_match(rest, &txt[1..]),
+        Some((&c, rest)) => txt.first() == Some(&c) && segment_match(rest, &txt[1..]),
+    }
+}
+
 impl FsList for MockFs {
     async fn list_dir(&self, path: &Path) -> std::io::Result<Vec<PathBuf>> {
         let guard = self.files.read();
@@ -153,9 +198,15 @@ impl FsList for MockFs {
 
     async fn glob(&self, root: &Path, pattern: &str) -> std::io::Result<Vec<PathBuf>> {
         let guard = self.files.read();
+        let root_prefix = format!("{}/", root.display());
         let entries: Vec<PathBuf> = guard
             .keys()
-            .filter(|k| k.starts_with(root) && k.to_string_lossy().contains(pattern))
+            .filter(|k| {
+                // Glob-match the path RELATIVE to `root` (the pattern is relative).
+                k.to_string_lossy()
+                    .strip_prefix(&root_prefix)
+                    .is_some_and(|rel| glob_match(pattern, rel))
+            })
             .cloned()
             .collect();
         Ok(entries)
@@ -293,9 +344,68 @@ mod tests {
             .with_file("/root/foo.rs", "fn main() {}")
             .with_file("/root/bar.rs", "fn bar() {}")
             .with_file("/root/readme.md", "# Hello");
-        let matches = fs.glob(Path::new("/root"), ".rs").await.unwrap();
-        assert!(!matches.is_empty());
+        // `*.rs` matches the two top-level .rs files, not the .md.
+        let matches = fs.glob(Path::new("/root"), "*.rs").await.unwrap();
         assert_eq!(matches.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn glob_star_is_single_segment_double_star_is_recursive() {
+        let fs = MockFs::new()
+            .with_file("/root/top.rs", "")
+            .with_file("/root/a/mid.rs", "")
+            .with_file("/root/a/b/deep.rs", "")
+            .with_file("/root/a/note.md", "");
+        // `*.rs` is ONE segment — only the top-level file.
+        let top = fs.glob(Path::new("/root"), "*.rs").await.unwrap();
+        assert_eq!(top.len(), 1, "*.rs must NOT descend into subdirs");
+        // `**/*.rs` is recursive — all three .rs files, no .md.
+        let all = fs.glob(Path::new("/root"), "**/*.rs").await.unwrap();
+        assert_eq!(all.len(), 3, "**/*.rs must match every nested .rs");
+        // A nested-dir pattern.
+        let mid = fs.glob(Path::new("/root"), "a/*.rs").await.unwrap();
+        assert_eq!(mid.len(), 1, "a/*.rs matches only /root/a/mid.rs");
+    }
+
+    #[tokio::test]
+    async fn glob_substring_trap_is_gone() {
+        // The old `contains()` impl would have returned this file for the
+        // substring `oo` and for the literal `foo` regardless of extension.
+        // Real glob: a bare literal must match the WHOLE segment, and `*` is
+        // required for partial matches.
+        let fs = MockFs::new().with_file("/root/foo.rs", "");
+        // bare substring no longer matches (would under the old bug).
+        assert!(fs.glob(Path::new("/root"), "oo").await.unwrap().is_empty());
+        assert!(fs.glob(Path::new("/root"), "foo").await.unwrap().is_empty());
+        // proper patterns do match.
+        assert_eq!(
+            fs.glob(Path::new("/root"), "foo.rs").await.unwrap().len(),
+            1
+        );
+        assert_eq!(fs.glob(Path::new("/root"), "f*.rs").await.unwrap().len(), 1);
+        assert_eq!(
+            fs.glob(Path::new("/root"), "fo?.rs").await.unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn glob_match_unit_cases() {
+        // segment-scoped `*`
+        assert!(glob_match("*.rs", "foo.rs"));
+        assert!(!glob_match("*.rs", "a/foo.rs"));
+        // recursive `**`
+        assert!(glob_match("**/*.rs", "foo.rs"));
+        assert!(glob_match("**/*.rs", "a/b/foo.rs"));
+        assert!(!glob_match("**/*.rs", "a/foo.md"));
+        // `?` single char
+        assert!(glob_match("fo?.rs", "foo.rs"));
+        assert!(!glob_match("fo?.rs", "fooo.rs"));
+        // literal whole-segment (no substring)
+        assert!(glob_match("foo.rs", "foo.rs"));
+        assert!(!glob_match("foo", "foo.rs"));
+        // `**` matches zero segments
+        assert!(glob_match("**/foo.rs", "foo.rs"));
     }
 
     /// Verify blanket Fs trait is satisfied.
