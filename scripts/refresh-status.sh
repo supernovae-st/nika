@@ -52,6 +52,7 @@ count_layer() {
 L0_COUNT=$(count_layer "L0")
 L05_COUNT=$(count_layer "L0\\.5")
 L1_COUNT=$(count_layer "L1")
+L15_COUNT=$(count_layer "L1\\.5")
 L2_COUNT=$(count_layer "L2")
 L3_COUNT=$(count_layer "L3")
 L4_COUNT=$(count_layer "L4")
@@ -99,6 +100,7 @@ cat <<EOF
 | L0               | $L0_COUNT                                              |
 | L0.5             | $L05_COUNT                                              |
 | L1               | $L1_COUNT                                              |
+| L1.5             | $L15_COUNT                                              |
 | L2               | $L2_COUNT                                              |
 | L3               | $L3_COUNT                                              |
 | L4               | $L4_COUNT                                              |
