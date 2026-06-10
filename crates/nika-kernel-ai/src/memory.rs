@@ -236,10 +236,10 @@ impl nika_error::traits::NikaErrorCode for MemoryError {
 
 /// Store a memory frame.
 ///
-/// Sealed via [`crate::sealed::Sealed`] per ADR-078 (opt-in soft seal ·
-/// L1 satellite impls add `impl crate::sealed::Sealed for MySatellite {}`).
+/// Sealed via [`nika_kernel_core::sealed::Sealed`] per ADR-078 (opt-in soft seal ·
+/// L1 satellite impls add `impl nika_kernel_core::sealed::Sealed for MySatellite {}`).
 #[trait_variant::make(MemoryRememberDyn: Send)]
-pub trait MemoryRemember: Send + Sync + crate::sealed::Sealed {
+pub trait MemoryRemember: Send + Sync + nika_kernel_core::sealed::Sealed {
     /// Store a memory frame and return its identifier.
     ///
     /// CANCEL SAFETY: cancel-safe if impl uses atomic insert (single DB
@@ -251,7 +251,7 @@ pub trait MemoryRemember: Send + Sync + crate::sealed::Sealed {
 
 /// Recall memories by similarity.
 ///
-/// Sealed via [`crate::sealed::Sealed`] per ADR-078 Option D · the L0.5
+/// Sealed via [`nika_kernel_core::sealed::Sealed`] per ADR-078 Option D · the L0.5
 /// satellite contract keeps `&self + Send + Sync` (zero W3 cascade). The
 /// L2 orchestrator pool (`nika-memory::RecallPool`, W10) owns `&mut self`
 /// access internally — Restate stateful-vs-stateless split.
@@ -263,7 +263,7 @@ pub trait MemoryRemember: Send + Sync + crate::sealed::Sealed {
 /// flipping the trait to `&mut self` per Ryhl 2026 « Sync bound nobody
 /// asked for »).
 #[trait_variant::make(MemoryRecallDyn: Send)]
-pub trait MemoryRecall: Send + Sync + crate::sealed::Sealed {
+pub trait MemoryRecall: Send + Sync + nika_kernel_core::sealed::Sealed {
     /// Search memories and return ranked results.
     ///
     /// CANCEL SAFETY: cancel-safe — read-only similarity search.
@@ -272,9 +272,9 @@ pub trait MemoryRecall: Send + Sync + crate::sealed::Sealed {
 
 /// Forget a memory by its identifier.
 ///
-/// Sealed via [`crate::sealed::Sealed`] per ADR-078.
+/// Sealed via [`nika_kernel_core::sealed::Sealed`] per ADR-078.
 #[trait_variant::make(MemoryForgetDyn: Send)]
-pub trait MemoryForget: Send + Sync + crate::sealed::Sealed {
+pub trait MemoryForget: Send + Sync + nika_kernel_core::sealed::Sealed {
     /// Remove a memory from the store.
     ///
     /// CANCEL SAFETY: cancel-safe — idempotent delete. Retrying on a

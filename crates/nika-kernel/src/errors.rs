@@ -28,14 +28,12 @@
 // Core-owned constants + impls moved to `nika-kernel-core` with their
 // types (orphan rule) · re-exported so `nika_kernel::errors::NIKA_050`
 // stays a valid path.
+pub use nika_kernel_ai::errors::*;
 pub use nika_kernel_core::errors::*;
 
 use nika_error::prelude::*;
 
-#[cfg(test)]
-use crate::memory::MemoryError;
 use crate::plugin::WasmPluginError;
-use crate::provider::ProviderError;
 use crate::sandbox::SandboxError;
 use crate::tool_executor::ToolExecError;
 
@@ -71,43 +69,6 @@ pub const NIKA_233: NikaCode = NikaCode {
     slug: "tool-not-available",
 };
 
-// Provider: 330–379 (moved from 380-429 2026-05-11 · Shield slot free)
-/// Provider API error.
-pub const NIKA_330: NikaCode = NikaCode {
-    num: 330,
-    category: Category::Provider,
-    severity: Severity::Error,
-    slug: "provider-api",
-};
-/// Model not found.
-pub const NIKA_331: NikaCode = NikaCode {
-    num: 331,
-    category: Category::Provider,
-    severity: Severity::Error,
-    slug: "provider-model-not-found",
-};
-/// Rate limited.
-pub const NIKA_332: NikaCode = NikaCode {
-    num: 332,
-    category: Category::Provider,
-    severity: Severity::Error,
-    slug: "provider-rate-limited",
-};
-/// Authentication failed.
-pub const NIKA_333: NikaCode = NikaCode {
-    num: 333,
-    category: Category::Provider,
-    severity: Severity::Error,
-    slug: "provider-auth-failed",
-};
-/// Provider other.
-pub const NIKA_339: NikaCode = NikaCode {
-    num: 339,
-    category: Category::Provider,
-    severity: Severity::Error,
-    slug: "provider-other",
-};
-
 // Memory: 600–649 codes live in `nika_error::codes` (NIKA_601..604 wired
 // Diamond W2.1). The kernel-local NIKA_600..603 placeholders were DRIFT
 // (off-by-one + duplicate slug surface) and removed per Diamond W2.2 /
@@ -124,29 +85,6 @@ impl NikaErrorCode for ToolExecError {
             Self::ExecutionFailed { .. } => NIKA_232,
             Self::NotAvailable { .. } => NIKA_233,
         }
-    }
-}
-
-impl NikaErrorCode for ProviderError {
-    fn nika_code(&self) -> NikaCode {
-        match self {
-            Self::Api { .. } => NIKA_330,
-            Self::ModelNotFound { .. } => NIKA_331,
-            Self::RateLimited { .. } => NIKA_332,
-            Self::AuthFailed { .. } => NIKA_333,
-            Self::Other { .. } => NIKA_339,
-        }
-    }
-
-    fn is_transient(&self) -> bool {
-        matches!(
-            self,
-            Self::RateLimited { .. }
-                | Self::Api {
-                    status: 500..=599,
-                    ..
-                }
-        )
     }
 }
 
@@ -177,74 +115,6 @@ mod tests {
         let code = err.nika_code();
         assert!(code.num >= 230 && code.num <= 279, "tool code {}", code.num);
         assert_eq!(code.category, Category::Mcp);
-    }
-
-    #[test]
-    fn provider_error_codes_in_range() {
-        let err = ProviderError::ModelNotFound { model: "x".into() };
-        let code = err.nika_code();
-        assert!(
-            code.num >= 330 && code.num <= 379,
-            "provider code {}",
-            code.num
-        );
-        assert_eq!(code.category, Category::Provider);
-    }
-
-    #[test]
-    fn memory_error_codes_in_range() {
-        let err = MemoryError::Unavailable { reason: "x".into() };
-        let code = err.nika_code();
-        assert!(
-            code.num >= 600 && code.num <= 649,
-            "memory code {}",
-            code.num
-        );
-        assert_eq!(code.category, Category::Memory);
-    }
-
-    #[test]
-    fn provider_rate_limited_is_transient() {
-        let err = ProviderError::RateLimited {
-            retry_after_ms: None,
-        };
-        assert!(NikaErrorCode::is_transient(&err));
-    }
-
-    #[test]
-    fn provider_auth_not_transient() {
-        let err = ProviderError::AuthFailed {
-            reason: "bad key".into(),
-        };
-        assert!(!NikaErrorCode::is_transient(&err));
-    }
-
-    #[test]
-    fn all_provider_variants_have_codes() {
-        let _ = ProviderError::Api {
-            status: 500,
-            message: "".into(),
-        }
-        .nika_code();
-        let _ = ProviderError::ModelNotFound { model: "".into() }.nika_code();
-        let _ = ProviderError::RateLimited {
-            retry_after_ms: None,
-        }
-        .nika_code();
-        let _ = ProviderError::AuthFailed { reason: "".into() }.nika_code();
-        let _ = ProviderError::Other { reason: "".into() }.nika_code();
-    }
-
-    #[test]
-    fn all_memory_variants_have_codes() {
-        use crate::memory::MemoryId;
-        let _ = MemoryError::Unavailable { reason: "".into() }.nika_code();
-        let _ = MemoryError::NotFound {
-            id: MemoryId::nil(),
-        }
-        .nika_code();
-        let _ = MemoryError::EmbeddingFailed { reason: "".into() }.nika_code();
-        let _ = MemoryError::Storage { reason: "".into() }.nika_code();
     }
 
     #[test]

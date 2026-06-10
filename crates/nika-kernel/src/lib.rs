@@ -23,8 +23,9 @@
 //! - **runtime** — agent loop, tool execution
 //! - **plugin** — WASM host, sandboxing
 //!
-//! The cross-domain `NikaErrorCode` aggregate ([`errors`]) stays HERE —
-//! it is the one surface spanning every sibling.
+//! The cross-domain NIKA-NNN range REGISTRY ([`errors`]) stays HERE —
+//! per-type `NikaErrorCode` impls live in their sibling (orphan rule) ·
+//! the hub re-exports every constant so historical paths survive.
 //!
 //! # Trait Hierarchy
 //!
@@ -56,10 +57,10 @@
 )]
 
 // ─── Sibling facade (kernel 4-way split · census 2026-06-10) ────────
+pub use nika_kernel_ai as ai;
 pub use nika_kernel_core::{cancel, infra, io, sealed, types};
 
 // ─── Group modules (not yet split out) ──────────────────────────────
-pub mod ai;
 pub mod plugin;
 pub mod runtime;
 

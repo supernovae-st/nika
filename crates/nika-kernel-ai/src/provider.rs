@@ -222,7 +222,7 @@ pub struct InferRequest {
     pub replay_seed: Option<u64>,
     /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl;
     /// default is `GenAiSystem::Unknown` + `GenAiOperation::Chat`.
-    pub gen_ai: crate::ai::genai::GenAiAttrs,
+    pub gen_ai: crate::genai::GenAiAttrs,
 }
 
 impl InferRequest {
@@ -246,7 +246,7 @@ impl InferRequest {
             baggage: None,
             tenant: None,
             replay_seed: None,
-            gen_ai: crate::ai::genai::GenAiAttrs::new(),
+            gen_ai: crate::genai::GenAiAttrs::new(),
         }
     }
 }
@@ -314,7 +314,7 @@ pub struct InferResponse {
     /// Trust level of this response (T3:A — trust is a property of the data).
     pub trust_level: Option<nika_error::trust::TrustLevel>,
     /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl.
-    pub gen_ai: crate::ai::genai::GenAiAttrs,
+    pub gen_ai: crate::genai::GenAiAttrs,
 }
 
 impl InferResponse {
@@ -336,7 +336,7 @@ impl InferResponse {
             trace_id: None,
             span_id: None,
             trust_level: None,
-            gen_ai: crate::ai::genai::GenAiAttrs::new(),
+            gen_ai: crate::genai::GenAiAttrs::new(),
         }
     }
 }
@@ -493,10 +493,16 @@ pub trait ProviderMeta: Send + Sync {
 /// Sealed: external crates can implement the individual sub-traits
 /// (`ProviderInfer`, `ProviderStream`, `ProviderMeta`) but NOT the
 /// combined `Provider` trait. Workspace-controlled providers and mocks
-/// opt in by also impl-ing `crate::sealed::Sealed`. This lets us add
+/// opt in by also impl-ing `nika_kernel_core::sealed::Sealed`. This lets us add
 /// methods to `Provider` in future versions without a semver break.
-pub trait Provider: ProviderInfer + ProviderStream + ProviderMeta + crate::sealed::Sealed {}
-impl<T: ProviderInfer + ProviderStream + ProviderMeta + crate::sealed::Sealed> Provider for T {}
+pub trait Provider:
+    ProviderInfer + ProviderStream + ProviderMeta + nika_kernel_core::sealed::Sealed
+{
+}
+impl<T: ProviderInfer + ProviderStream + ProviderMeta + nika_kernel_core::sealed::Sealed> Provider
+    for T
+{
+}
 
 /// Embedding generation (opt-in, not part of Provider).
 #[trait_variant::make(ProviderEmbedDyn: Send)]
@@ -656,7 +662,7 @@ mod tests {
     /// Verify blanket super-trait: implementing all 3 atomics gives Provider for free.
     struct DummyProvider;
 
-    impl crate::sealed::Sealed for DummyProvider {}
+    impl nika_kernel_core::sealed::Sealed for DummyProvider {}
 
     impl ProviderInfer for DummyProvider {
         async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {

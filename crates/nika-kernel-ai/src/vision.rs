@@ -41,8 +41,8 @@
 //! layer diff semantics + integration test assertions (cohérent M1.2
 //! `TextRegion::confidence: f32` precedent).
 
-use crate::io::ocr::TextRegion;
-use crate::io::screen::Frame;
+use nika_kernel_core::io::ocr::TextRegion;
+use nika_kernel_core::io::screen::Frame;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -113,7 +113,7 @@ impl BoundingBox {
 /// is pixel-integer. Per Invariant #19 spirit · this conversion is
 /// surfaced as `From<&BoundingBox>` not `From<BoundingBox>` so the
 /// vision response retains ownership for downstream consumers.
-impl From<&BoundingBox> for crate::io::screen::Rect {
+impl From<&BoundingBox> for nika_kernel_core::io::screen::Rect {
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
@@ -305,8 +305,8 @@ pub trait VisionModel: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::screen::{DisplayId, Rect};
     use bytes::Bytes;
+    use nika_kernel_core::io::screen::{DisplayId, Rect};
 
     fn synthetic_frame() -> Frame {
         Frame::new(
