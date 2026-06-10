@@ -38,7 +38,7 @@ ADR-081 guard contract · error one-voice via `NikaErrorCode` +
 `docs/architecture/kernel-split-census-2026-06-10.md`). Next: M2.4
 `nika-input` (synthetic input · ADR-081 Guards 1+2 password-redaction +
 ConsentProof-TTL · MANDATORY). Announce-ladder slice runs in parallel
-(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob ADMITTED 2026-06-10 · next s7 exec-runner. NO live counts in this paragraph — crate ·
+(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http + s6 nika-blob + s7 nika-exec-runner ADMITTED 2026-06-10 · next s8 nika-policy (design LOCKED · impl gated on kernel-migration) then s8.5 providers → s9 verb-infer. NO live counts in this paragraph — crate ·
 test · provider · capability-rule numbers live ONLY in the auto-generated
 block below (`scripts/refresh-status.sh` · vector 23 parity-enforced ·
 hand-typed counts here are the drift class that said 14 crates while the
@@ -126,8 +126,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/s4-nika-fs`                                      |
-| HEAD             | `aa51f00da` (`aa51f00da36c13ab91e63e9a283c7bba4cf094d1`)             |
+| branch           | `main`                                      |
+| HEAD             | `7c258d83f` (`7c258d83f7cdc44c4bed5c740074246538948d61`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 23                                              |
 | crates (admitted)| 21 / 42                                   |
