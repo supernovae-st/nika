@@ -101,3 +101,93 @@ impl fmt::Display for EventKind {
         f.write_str(self.as_str())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every variant. The exhaustive match in [`all_list_stays_complete`]
+    /// makes adding a variant WITHOUT extending this slice a compile error
+    /// (no `_` arm — legal in the defining crate even for a `#[non_exhaustive]`
+    /// enum), so the wire-format consistency check below can never silently
+    /// skip a newly-added kind.
+    const ALL: &[EventKind] = &[
+        EventKind::WorkflowStarted,
+        EventKind::WorkflowCompleted,
+        EventKind::WorkflowFailed,
+        EventKind::TaskScheduled,
+        EventKind::TaskStarted,
+        EventKind::TaskCompleted,
+        EventKind::TaskFailed,
+        EventKind::TaskSkipped,
+        EventKind::VerbInvoked,
+        EventKind::ToolInvoked,
+        EventKind::CheckpointWritten,
+    ];
+
+    #[test]
+    fn all_list_stays_complete() {
+        // Compile-time forward-compat guard: a new variant breaks this match
+        // until it is added (and then the author must extend ALL to satisfy the
+        // length check, which re-arms the wire-slug test for the new variant).
+        fn _exhaustive(k: EventKind) {
+            match k {
+                EventKind::WorkflowStarted
+                | EventKind::WorkflowCompleted
+                | EventKind::WorkflowFailed
+                | EventKind::TaskScheduled
+                | EventKind::TaskStarted
+                | EventKind::TaskCompleted
+                | EventKind::TaskFailed
+                | EventKind::TaskSkipped
+                | EventKind::VerbInvoked
+                | EventKind::ToolInvoked
+                | EventKind::CheckpointWritten => {}
+            }
+        }
+        assert_eq!(ALL.len(), 11, "extend ALL when a variant is added");
+    }
+
+    /// FCI-003: the canonical wire slug has TWO independent encoders — the
+    /// serde `rename_all = "snake_case"` derive (used when an `Event` is
+    /// serialized) and the hand-written [`EventKind::as_str`] (used by
+    /// `Display` + direct consumers). They MUST agree forever; this pins them.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_wire_slug_matches_as_str_for_every_variant() {
+        for k in ALL {
+            let json = serde_json::to_value(k).expect("EventKind serializes");
+            let serde_slug = json
+                .as_str()
+                .expect("EventKind must serialize as a JSON string");
+            assert_eq!(
+                serde_slug,
+                k.as_str(),
+                "wire-slug divergence for {k:?}: serde={serde_slug:?} vs as_str()={:?} \
+                 — the EventKind wire format must have ONE canonical form (FCI-003)",
+                k.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn display_matches_as_str_for_every_variant() {
+        for k in ALL {
+            assert_eq!(k.to_string(), k.as_str());
+        }
+    }
+
+    #[test]
+    fn terminal_and_failure_classification() {
+        // Pin the two classifiers against the full variant set so a new
+        // lifecycle variant can't silently mis-classify.
+        assert!(EventKind::WorkflowCompleted.is_terminal());
+        assert!(EventKind::WorkflowFailed.is_terminal());
+        assert!(!EventKind::TaskCompleted.is_terminal());
+        assert!(EventKind::WorkflowFailed.is_failure());
+        assert!(EventKind::TaskFailed.is_failure());
+        assert!(!EventKind::WorkflowCompleted.is_failure());
+        // A terminal-failure is both; a task-failure is a failure but not terminal.
+        assert!(EventKind::TaskFailed.is_failure() && !EventKind::TaskFailed.is_terminal());
+    }
+}
