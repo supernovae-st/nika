@@ -2300,10 +2300,8 @@ version = "0.80.0"
 dependencies = [
  "bytes",
  "futures-core",
- "miette",
  "nika-kernel",
  "proptest",
- "thiserror 2.0.18",
  "tokio",
  "xcap",
 ]

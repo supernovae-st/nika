@@ -16,6 +16,7 @@ use crate::io::blob::BlobError;
 use crate::io::fs::FsError;
 use crate::io::http::HttpError;
 use crate::io::process::ShellError;
+use crate::io::screen::ScreenError;
 
 // ─── Error code constants ────────────────────────────────────────────
 
@@ -193,6 +194,32 @@ impl NikaErrorCode for FsError {
             Self::InvalidData { .. } => NIKA_113,
             Self::Io { .. } => NIKA_119,
         }
+    }
+}
+
+// Screen capture: 1000–1099 (Category::Screen · codes in nika_error::codes ·
+// reserved per ADR-081 computer-use · enum in `crate::io::screen`).
+impl NikaErrorCode for ScreenError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::BackendNotWired => codes::NIKA_1000,
+            Self::DisplayNotFound { .. } => codes::NIKA_1001,
+            Self::NoDisplaysFound => codes::NIKA_1002,
+            Self::CaptureFailed { .. } => codes::NIKA_1003,
+            Self::RegionOutOfBounds { .. } => codes::NIKA_1004,
+            Self::InvalidFrameFormat { .. } => codes::NIKA_1005,
+            Self::ConsentDenied => codes::NIKA_1006,
+            Self::ConsentRevoked => codes::NIKA_1007,
+            Self::IndicatorUnavailable { .. } => codes::NIKA_1008,
+            Self::BackendInit { .. } => codes::NIKA_1009,
+        }
+    }
+
+    /// Capture/init failures may be transient (device contention · GPU busy);
+    /// consent + region + format errors are structural.
+    fn is_transient(&self) -> bool {
+        matches!(self, Self::CaptureFailed { .. } | Self::BackendInit { .. })
     }
 }
 

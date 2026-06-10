@@ -183,12 +183,91 @@ impl Frame {
     }
 }
 
+/// Screen-capture errors — the typed boundary of the `ScreenCapture` trait
+/// (Pattern A · FCI-023bis). `#[non_exhaustive]` per FCI-002; `NikaErrorCode`
+/// impl + reserved range (`Category::Screen` · NIKA-1000..1099) live in
+/// `crate::errors`. Moved here from `nika-screen` 2026-06-10 so the typed NIKA
+/// taxonomy survives the trait boundary instead of being erased by `io::Error`.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum ScreenError {
+    /// Capture backend not yet wired — skeleton placeholder.
+    #[error("screen-capture backend not wired (skeleton · pending xcap impl)")]
+    BackendNotWired,
+
+    /// Requested display id was not found among the connected displays.
+    #[error("display not found: id {id}")]
+    DisplayNotFound {
+        /// The display identifier that did not resolve.
+        id: u32,
+    },
+
+    /// No displays are connected / enumerable.
+    #[error("no displays found")]
+    NoDisplaysFound,
+
+    /// The OS capture call failed.
+    #[error("capture failed: {reason}")]
+    CaptureFailed {
+        /// Human-readable cause from the OS backend.
+        reason: String,
+    },
+
+    /// The requested sub-region falls outside the display bounds.
+    #[error(
+        "region out of bounds: {width}x{height} at ({x},{y}) exceeds display {display_w}x{display_h}"
+    )]
+    RegionOutOfBounds {
+        /// Region x offset (physical px · top-left origin).
+        x: i32,
+        /// Region y offset.
+        y: i32,
+        /// Region width.
+        width: u32,
+        /// Region height.
+        height: u32,
+        /// Display width.
+        display_w: u32,
+        /// Display height.
+        display_h: u32,
+    },
+
+    /// The captured frame had an unexpected pixel format / size.
+    #[error("invalid frame format: {reason}")]
+    InvalidFrameFormat {
+        /// Why the frame was rejected.
+        reason: String,
+    },
+
+    /// Capture was attempted without (or after losing) user consent.
+    #[error("screen-capture consent denied")]
+    ConsentDenied,
+
+    /// Consent was revoked mid-capture — the active stream is torn down.
+    #[error("screen-capture consent revoked mid-capture")]
+    ConsentRevoked,
+
+    /// The capture-LED indicator could not be engaged (guard 6).
+    #[error("capture indicator unavailable: {reason}")]
+    IndicatorUnavailable {
+        /// Why the indicator could not be engaged.
+        reason: String,
+    },
+
+    /// The capture backend failed to initialize.
+    #[error("capture backend init failed: {reason}")]
+    BackendInit {
+        /// Why initialization failed.
+        reason: String,
+    },
+}
+
 /// Continuous frame stream — boxed `dyn Stream` of capture results.
 ///
 /// Boxed because `dyn Stream` is the only object-safe way to return an
 /// async iterator from a trait method — the canonical kernel streaming idiom,
 /// cohérent `ai::provider::InferEventStream` and the `io::http` body stream.
-/// Single allocation per capture session. Items are `std::io::Result<Frame>`
+/// Single allocation per capture session. Items are `Result<Frame, ScreenError>`
 /// so a transient per-frame capture error surfaces to the consumer WITHOUT
 /// tearing down the whole stream — the L1 impl decides whether to continue.
 ///
@@ -196,7 +275,7 @@ impl Frame {
 /// kernel is layer-banned from `tokio-stream` per `Cargo.toml` `layer-bans`,
 /// and `futures-core` is the workspace-canonical Stream trait already in
 /// `ai::provider` + `io::http`.
-pub type FrameStream = Pin<Box<dyn Stream<Item = std::io::Result<Frame>> + Send>>;
+pub type FrameStream = Pin<Box<dyn Stream<Item = Result<Frame, ScreenError>> + Send>>;
 
 /// Screen-capture capability — async trait over a single display.
 ///
@@ -218,7 +297,7 @@ pub trait ScreenCapture: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only OS query · no side
     /// effects). Drop semantics · the future abandons the syscall.
-    async fn list_displays(&self) -> std::io::Result<Vec<DisplayInfo>>;
+    async fn list_displays(&self) -> Result<Vec<DisplayInfo>, ScreenError>;
 
     /// Capture a full-display frame.
     ///
@@ -227,20 +306,20 @@ pub trait ScreenCapture: Send + Sync {
     /// token shim so a dropped future surrenders the worker promptly.
     /// Partial frame data MUST NOT leak to a caller on cancel (L1 impl
     /// invariant · enforced by integration tests at Phase 3 M3).
-    async fn capture_full(&self, display: DisplayId) -> std::io::Result<Frame>;
+    async fn capture_full(&self, display: DisplayId) -> Result<Frame, ScreenError>;
 
     /// Capture a sub-region of a display.
     ///
     /// CANCEL SAFETY: same contract as `capture_full` · partial regional
     /// reads MUST NOT surface partial frames. `region` coordinates are
     /// physical-pixel relative to the display origin (top-left).
-    async fn capture_region(&self, display: DisplayId, region: Rect) -> std::io::Result<Frame>;
+    async fn capture_region(&self, display: DisplayId, region: Rect) -> Result<Frame, ScreenError>;
 
     /// Stream frames continuously from a display until the stream is dropped.
     ///
     /// Establishing the capture session is `async` (may await OS grant /
     /// device handshake) and returns a [`FrameStream`]; each polled item is a
-    /// `std::io::Result<Frame>` so a transient per-frame error surfaces without
+    /// `Result<Frame, ScreenError>` so a transient per-frame error surfaces without
     /// ending the stream. Mirrors the canonical `ai::provider::infer_stream`
     /// idiom (`async fn` → `Result<BoxedStream, _>`).
     ///
@@ -250,7 +329,7 @@ pub trait ScreenCapture: Send + Sync {
     /// surface to the consumer on cancel (L1 impl invariant · enforced by
     /// integration tests at Phase 3 M3). Setup errors (e.g. display gone)
     /// return `Err` before any frame is produced.
-    async fn capture_stream(&self, display: DisplayId) -> std::io::Result<FrameStream>;
+    async fn capture_stream(&self, display: DisplayId) -> Result<FrameStream, ScreenError>;
 }
 
 #[cfg(test)]
@@ -385,25 +464,28 @@ mod tests {
         struct TestCapture;
 
         impl ScreenCapture for TestCapture {
-            async fn list_displays(&self) -> std::io::Result<Vec<DisplayInfo>> {
+            async fn list_displays(&self) -> Result<Vec<DisplayInfo>, ScreenError> {
                 Ok(vec![])
             }
-            async fn capture_full(&self, _display: DisplayId) -> std::io::Result<Frame> {
+            async fn capture_full(&self, _display: DisplayId) -> Result<Frame, ScreenError> {
                 Ok(Frame::new(0, 0, 1.0, Bytes::new(), DisplayId(0), 0))
             }
             async fn capture_region(
                 &self,
                 _display: DisplayId,
                 _region: Rect,
-            ) -> std::io::Result<Frame> {
+            ) -> Result<Frame, ScreenError> {
                 Ok(Frame::new(0, 0, 1.0, Bytes::new(), DisplayId(0), 0))
             }
-            async fn capture_stream(&self, _display: DisplayId) -> std::io::Result<FrameStream> {
+            async fn capture_stream(
+                &self,
+                _display: DisplayId,
+            ) -> Result<FrameStream, ScreenError> {
                 // Hand-rolled empty stream · no `futures-util` dep needed
                 // (mirrors the `ai::provider` test mock).
                 struct EmptyFrames;
                 impl Stream for EmptyFrames {
-                    type Item = std::io::Result<Frame>;
+                    type Item = Result<Frame, ScreenError>;
                     fn poll_next(
                         self: Pin<&mut Self>,
                         _cx: &mut Context<'_>,

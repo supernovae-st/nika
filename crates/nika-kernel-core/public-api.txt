@@ -1773,6 +1773,58 @@ pub async fn TraitVariantBlanketType::run(&self, command: nika_kernel_core::io::
 pub trait nika_kernel_core::io::process::ShellRunDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel_core::io::process::ShellRunDyn::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>> + core::marker::Send
 pub mod nika_kernel_core::io::screen
+#[non_exhaustive] pub enum nika_kernel_core::io::screen::ScreenError
+pub nika_kernel_core::io::screen::ScreenError::BackendInit
+pub nika_kernel_core::io::screen::ScreenError::BackendInit::reason: alloc::string::String
+pub nika_kernel_core::io::screen::ScreenError::BackendNotWired
+pub nika_kernel_core::io::screen::ScreenError::CaptureFailed
+pub nika_kernel_core::io::screen::ScreenError::CaptureFailed::reason: alloc::string::String
+pub nika_kernel_core::io::screen::ScreenError::ConsentDenied
+pub nika_kernel_core::io::screen::ScreenError::ConsentRevoked
+pub nika_kernel_core::io::screen::ScreenError::DisplayNotFound
+pub nika_kernel_core::io::screen::ScreenError::DisplayNotFound::id: u32
+pub nika_kernel_core::io::screen::ScreenError::IndicatorUnavailable
+pub nika_kernel_core::io::screen::ScreenError::IndicatorUnavailable::reason: alloc::string::String
+pub nika_kernel_core::io::screen::ScreenError::InvalidFrameFormat
+pub nika_kernel_core::io::screen::ScreenError::InvalidFrameFormat::reason: alloc::string::String
+pub nika_kernel_core::io::screen::ScreenError::NoDisplaysFound
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds::display_h: u32
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds::display_w: u32
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds::height: u32
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds::width: u32
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds::x: i32
+pub nika_kernel_core::io::screen::ScreenError::RegionOutOfBounds::y: i32
+impl core::error::Error for nika_kernel_core::io::screen::ScreenError
+impl core::fmt::Debug for nika_kernel_core::io::screen::ScreenError
+pub fn nika_kernel_core::io::screen::ScreenError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::screen::ScreenError
+pub fn nika_kernel_core::io::screen::ScreenError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::screen::ScreenError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::screen::ScreenError
+pub fn nika_kernel_core::io::screen::ScreenError::is_transient(&self) -> bool
+pub fn nika_kernel_core::io::screen::ScreenError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::screen::ScreenError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::screen::ScreenError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::screen::ScreenError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::screen::ScreenError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::screen::ScreenError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::screen::ScreenError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::screen::ScreenError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::screen::ScreenError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::screen::ScreenError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::screen::ScreenError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::ScreenError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::screen::ScreenError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::ScreenError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::screen::ScreenError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::ScreenError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::screen::ScreenError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::screen::ScreenError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::screen::ScreenError
+pub fn nika_kernel_core::io::screen::ScreenError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::screen::ScreenError where T: 'static
+pub fn nika_kernel_core::io::screen::ScreenError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::screen::DisplayId(pub u32)
 impl nika_kernel_core::io::screen::DisplayId
 pub const fn nika_kernel_core::io::screen::DisplayId::new(id: u32) -> Self
@@ -1960,21 +2012,21 @@ impl<T> nika_error::traits::AsAny for nika_kernel_core::io::screen::Rect where T
 pub fn nika_kernel_core::io::screen::Rect::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::screen::Rect where T: for<'de> serde_core::de::Deserialize<'de>
 pub trait nika_kernel_core::io::screen::ScreenCapture: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
-pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
-pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::FrameStream>
-pub async fn nika_kernel_core::io::screen::ScreenCapture::list_displays(&self) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::FrameStream, nika_kernel_core::io::screen::ScreenError>
+pub async fn nika_kernel_core::io::screen::ScreenCapture::list_displays(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::screen::ScreenCaptureDyn> nika_kernel_core::io::screen::ScreenCapture for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
-pub async fn TraitVariantBlanketType::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
-pub async fn TraitVariantBlanketType::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> std::io::error::Result<nika_kernel_core::io::screen::FrameStream>
-pub async fn TraitVariantBlanketType::list_displays(&self) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>>
+pub async fn TraitVariantBlanketType::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn TraitVariantBlanketType::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>
+pub async fn TraitVariantBlanketType::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> core::result::Result<nika_kernel_core::io::screen::FrameStream, nika_kernel_core::io::screen::ScreenError>
+pub async fn TraitVariantBlanketType::list_displays(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>
 pub trait nika_kernel_core::io::screen::ScreenCaptureDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send
-pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send
-pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::FrameStream>> + core::marker::Send
-pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::list_displays(&self) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>>> + core::marker::Send
-pub type nika_kernel_core::io::screen::FrameStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send)>>
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_full(&self, display: nika_kernel_core::io::screen::DisplayId) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_region(&self, display: nika_kernel_core::io::screen::DisplayId, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::capture_stream(&self, display: nika_kernel_core::io::screen::DisplayId) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::screen::FrameStream, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send
+pub fn nika_kernel_core::io::screen::ScreenCaptureDyn::list_displays(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_core::io::screen::DisplayInfo>, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send
+pub type nika_kernel_core::io::screen::FrameStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::screen::ScreenError>> + core::marker::Send)>>
 pub mod nika_kernel_core::sealed
 pub trait nika_kernel_core::sealed::Sealed
 pub mod nika_kernel_core::types

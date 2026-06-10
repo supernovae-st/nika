@@ -108,6 +108,7 @@ pub use nika_kernel::WasmPluginLifecycle
 pub use nika_kernel::WorkflowMeta
 pub use nika_kernel::agent
 pub use nika_kernel::ai
+pub use nika_kernel::audio
 pub use nika_kernel::audit
 pub use nika_kernel::billing
 pub use nika_kernel::blob

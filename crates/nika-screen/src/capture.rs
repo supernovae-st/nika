@@ -83,14 +83,14 @@ impl ScreenBackend {
 }
 
 impl ScreenCapture for ScreenBackend {
-    async fn list_displays(&self) -> std::io::Result<Vec<DisplayInfo>> {
+    async fn list_displays(&self) -> Result<Vec<DisplayInfo>, ScreenError> {
         let infos = tokio::task::spawn_blocking(list_displays_sync)
             .await
             .map_err(|e| join_err(&e))??;
         Ok(infos)
     }
 
-    async fn capture_full(&self, display: DisplayId) -> std::io::Result<Frame> {
+    async fn capture_full(&self, display: DisplayId) -> Result<Frame, ScreenError> {
         self.consent.check()?; // guard 7 · fail-closed (before any OS call)
         let _led = LedIndicator::engage(&self.led); // guard 6 · RAII · off on drop
         let frame = tokio::task::spawn_blocking(move || capture_full_sync(display))
@@ -99,7 +99,7 @@ impl ScreenCapture for ScreenBackend {
         Ok(frame)
     }
 
-    async fn capture_region(&self, display: DisplayId, region: Rect) -> std::io::Result<Frame> {
+    async fn capture_region(&self, display: DisplayId, region: Rect) -> Result<Frame, ScreenError> {
         self.consent.check()?; // guard 7 · fail-closed (before any OS call)
         let _led = LedIndicator::engage(&self.led); // guard 6 · RAII · off on drop
         let frame = tokio::task::spawn_blocking(move || capture_region_sync(display, region))
@@ -108,7 +108,7 @@ impl ScreenCapture for ScreenBackend {
         Ok(frame)
     }
 
-    async fn capture_stream(&self, display: DisplayId) -> std::io::Result<FrameStream> {
+    async fn capture_stream(&self, display: DisplayId) -> Result<FrameStream, ScreenError> {
         self.consent.check()?; // guard 7 · fail-closed (re-checked per frame below)
 
         // Fail fast · verify the display exists before spawning the worker
@@ -118,7 +118,7 @@ impl ScreenCapture for ScreenBackend {
             .map_err(|e| join_err(&e))??;
 
         // Bounded channel · backpressure paces the worker to the consumer.
-        let (tx, rx) = tokio::sync::mpsc::channel::<std::io::Result<Frame>>(STREAM_BUFFER);
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Frame, ScreenError>>(STREAM_BUFFER);
 
         // Long-lived capture worker on the tokio blocking pool (the sanctioned
         // tokio-first primitive · holds one pool slot for the stream's lifetime).
@@ -289,7 +289,7 @@ fn stream_worker(
     display: DisplayId,
     consent: &Arc<ConsentGate>,
     led: &Arc<LedIndicator>,
-    tx: &tokio::sync::mpsc::Sender<std::io::Result<Frame>>,
+    tx: &tokio::sync::mpsc::Sender<Result<Frame, ScreenError>>,
 ) {
     // Guard 6 · the indicator stays lit for the whole stream (the scope drops
     // when this loop exits → disengage).
@@ -298,10 +298,10 @@ fn stream_worker(
         // Guard 7 · per-frame consent re-check · a mid-stream revoke surfaces
         // ConsentRevoked then tears the stream down.
         if let Err(e) = consent.check() {
-            let _ = tx.blocking_send(Err(std::io::Error::from(e)));
+            let _ = tx.blocking_send(Err(e));
             break;
         }
-        let item = capture_full_sync(display).map_err(std::io::Error::from);
+        let item = capture_full_sync(display);
         if tx.blocking_send(item).is_err() {
             break;
         }
@@ -316,11 +316,11 @@ fn stream_worker(
 /// cancellation token needed). `futures_core::Stream` keeps this consistent
 /// with the kernel `FrameStream` type alias.
 struct FrameRx {
-    rx: tokio::sync::mpsc::Receiver<std::io::Result<Frame>>,
+    rx: tokio::sync::mpsc::Receiver<Result<Frame, ScreenError>>,
 }
 
 impl Stream for FrameRx {
-    type Item = std::io::Result<Frame>;
+    type Item = Result<Frame, ScreenError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // `FrameRx` is `Unpin` (Receiver is Unpin) · safe to project via get_mut.
@@ -347,8 +347,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                let src = e.into_inner().expect("boxed source");
-                let se = src.downcast::<ScreenError>().expect("ScreenError source");
+                let se = &e;
                 assert_ne!(
                     se.nika_code(),
                     codes::NIKA_1000,
@@ -367,8 +366,7 @@ mod tests {
         let backend = ScreenBackend::new();
         backend.grant_consent(); // guard 7 · exercise the capture path, not the gate
         if let Err(e) = backend.capture_stream(DisplayId::new(0)).await {
-            let src = e.into_inner().expect("boxed source");
-            let se = src.downcast::<ScreenError>().expect("ScreenError source");
+            let se = &e;
             assert_ne!(
                 se.nika_code(),
                 codes::NIKA_1000,
@@ -386,11 +384,7 @@ mod tests {
             .capture_full(DisplayId::new(0))
             .await
             .expect_err("fail-closed denies capture");
-        let se = io
-            .into_inner()
-            .expect("boxed source")
-            .downcast::<ScreenError>()
-            .expect("ScreenError source");
+        let se = &io;
         assert_eq!(
             se.nika_code(),
             codes::NIKA_1006,
@@ -410,11 +404,7 @@ mod tests {
             .capture_full(DisplayId::new(0))
             .await
             .expect_err("revoked consent denies capture");
-        let se = io
-            .into_inner()
-            .expect("boxed source")
-            .downcast::<ScreenError>()
-            .expect("ScreenError source");
+        let se = &io;
         assert_eq!(
             se.nika_code(),
             codes::NIKA_1007,
@@ -482,7 +472,7 @@ mod tests {
     /// channel plumbing is exercised directly without an OS capture.
     #[tokio::test]
     async fn frame_rx_yields_then_ends_on_close() {
-        let (tx, rx) = tokio::sync::mpsc::channel::<std::io::Result<Frame>>(STREAM_BUFFER);
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Frame, ScreenError>>(STREAM_BUFFER);
         let mut stream = FrameRx { rx };
         let frame = Frame::new(
             4,
@@ -517,11 +507,7 @@ mod tests {
         let backend = ScreenBackend::new();
         backend.grant_consent();
         if let Err(io) = backend.capture_full(DisplayId::new(0)).await {
-            let se = io
-                .into_inner()
-                .expect("boxed source")
-                .downcast::<ScreenError>()
-                .expect("ScreenError source");
+            let se = &io;
             assert_ne!(
                 se.nika_code(),
                 codes::NIKA_1006,
