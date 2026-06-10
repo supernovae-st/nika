@@ -5,7 +5,7 @@
 | Status | **L1 admission target** (Phase-B slice step 6 · announce ladder per D-2026-06-10-N6 cascade) |
 | Layer | L1 — effect crate · the only production site touching the blob filesystem |
 | Design | `DiskBlobStore` impl of the L0.5 `nika_kernel::blob::BlobStore` trait via the `BlobStoreDyn` (`Send`) companion · blake3 CAS |
-| LOC budget | ≤420 src (actual ~387 · grew with up-front hash validation + the swarm-hardening tests) · well under the 1500/file + 15k/crate caps |
+| LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-blob` |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.80.0`) |
 | License | `AGPL-3.0-or-later` |
@@ -90,7 +90,7 @@ partial content hashes differently.
 |---|---|---|
 | 1 SPEC | ✅ | this file |
 | 2 TDD | ✅ | `tests/blob_contract.rs` authored first · RED (todo! skeleton) → GREEN |
-| 3 IMPL | ✅ | ~393 LOC src · zero unwrap/expect in src (grep-verified) |
+| 3 IMPL | ✅ | ~393 LOC src (live · `scripts/crate-metrics.sh nika-blob`) · zero unwrap/expect in src |
 | 4 CLIPPY 0 | ✅ | `cargo clippy --workspace --all-targets -- -D warnings` GREEN |
 | 5 MUTATION ≥90% | ✅ | `cargo mutants -p nika-blob` · 38 mutants · **33 caught / 33 viable = 100%** (5 unviable). Survivors killed across the arc: the `500*1024*1024` cap arithmetic (→ `max_size()` accessor + exact-value test) · the two stat sidecar guards `!s.trim().is_empty()` + `e.kind()==NotFound` (→ empty-sidecar + dir-sidecar boundary tests) |
 | 6 PROPERTY | ✅ | put→get roundtrip on arbitrary 1..2048-byte payloads · cross-store hash determinism (48 cases) |

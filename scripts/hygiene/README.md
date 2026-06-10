@@ -31,7 +31,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 3 | `check-loc.sh` | src LOC drift (> 2% = yellow, > 5% = red) |
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
 | 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
-| 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` |
+| 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` · live-anchored `~NNN LOC src (live · …)` numbers stay within ±15% of `scripts/crate-metrics.sh` (no hardcoded drift) |
 | 7 | *(killed 2026-04-17)* | was `check-linear.sh` — no-op stub without `LINEAR_API_KEY`, misleading green. Linear integration lives in its own MCP, not hygiene |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
 | 9 | `check-org-readme.sh` | Org profile README mentions all 6 canonical repos |
