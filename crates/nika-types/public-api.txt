@@ -339,11 +339,11 @@ pub fn nika_types::cost::Cost::checked_add(self, rhs: Self) -> core::option::Opt
 pub fn nika_types::cost::Cost::checked_sub(self, rhs: Self) -> core::option::Option<Self>
 pub fn nika_types::cost::Cost::from_micro_usd(micro: i64) -> Self
 pub fn nika_types::cost::Cost::from_milli_usd(milli: i64) -> Self
-pub fn nika_types::cost::Cost::is_zero(&self) -> bool
-pub fn nika_types::cost::Cost::new(nano_usd: i128) -> Self
+pub const fn nika_types::cost::Cost::is_zero(&self) -> bool
+pub const fn nika_types::cost::Cost::new(nano_usd: i128) -> Self
 pub fn nika_types::cost::Cost::saturating_mul(self, factor: u64) -> Self
 pub fn nika_types::cost::Cost::to_usd_f64(self) -> f64
-pub fn nika_types::cost::Cost::zero() -> Self
+pub const fn nika_types::cost::Cost::zero() -> Self
 impl core::clone::Clone for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::clone(&self) -> nika_types::cost::Cost
 impl core::cmp::Eq for nika_types::cost::Cost
@@ -1228,6 +1228,56 @@ pub unsafe fn nika_types::memory::MemoryLevel::clone_to_uninit(&self, dest: *mut
 impl<T> core::convert::From<T> for nika_types::memory::MemoryLevel
 pub fn nika_types::memory::MemoryLevel::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::memory::MemoryLevel where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::memory::DocId(pub u32)
+impl nika_types::memory::DocId
+pub const fn nika_types::memory::DocId::get(self) -> u32
+pub const fn nika_types::memory::DocId::new(id: u32) -> Self
+impl core::clone::Clone for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::clone(&self) -> nika_types::memory::DocId
+impl core::cmp::Eq for nika_types::memory::DocId
+impl core::cmp::Ord for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::cmp(&self, other: &nika_types::memory::DocId) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::eq(&self, other: &nika_types::memory::DocId) -> bool
+impl core::cmp::PartialOrd for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::partial_cmp(&self, other: &nika_types::memory::DocId) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::memory::DocId
+impl core::marker::StructuralPartialEq for nika_types::memory::DocId
+impl serde_core::ser::Serialize for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::memory::DocId where U: core::convert::From<T>
+pub fn nika_types::memory::DocId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::memory::DocId where U: core::convert::Into<T>
+pub type nika_types::memory::DocId::Error = core::convert::Infallible
+pub fn nika_types::memory::DocId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::memory::DocId where U: core::convert::TryFrom<T>
+pub type nika_types::memory::DocId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::memory::DocId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::memory::DocId where T: core::clone::Clone
+pub type nika_types::memory::DocId::Owned = T
+pub fn nika_types::memory::DocId::clone_into(&self, target: &mut T)
+pub fn nika_types::memory::DocId::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::memory::DocId where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::memory::DocId::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::memory::DocId where T: 'static + ?core::marker::Sized
+pub fn nika_types::memory::DocId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::memory::DocId where T: ?core::marker::Sized
+pub fn nika_types::memory::DocId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::memory::DocId where T: ?core::marker::Sized
+pub fn nika_types::memory::DocId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::memory::DocId where T: core::clone::Clone
+pub unsafe fn nika_types::memory::DocId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::memory::DocId
+pub fn nika_types::memory::DocId::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::memory::DocId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::memory::MemoryFrameRef
 pub nika_types::memory::MemoryFrameRef::id: nika_types::memory::MemoryId
 pub nika_types::memory::MemoryFrameRef::level: nika_types::memory::MemoryLevel
@@ -1315,6 +1365,93 @@ pub unsafe fn nika_types::memory::MemoryId::clone_to_uninit(&self, dest: *mut u8
 impl<T> core::convert::From<T> for nika_types::memory::MemoryId
 pub fn nika_types::memory::MemoryId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::memory::MemoryId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::memory::RankedDoc
+pub nika_types::memory::RankedDoc::id: nika_types::memory::DocId
+pub nika_types::memory::RankedDoc::score: nika_types::memory::Score
+impl nika_types::memory::RankedDoc
+pub const fn nika_types::memory::RankedDoc::new(id: nika_types::memory::DocId, score: nika_types::memory::Score) -> Self
+impl core::clone::Clone for nika_types::memory::RankedDoc
+pub fn nika_types::memory::RankedDoc::clone(&self) -> nika_types::memory::RankedDoc
+impl core::cmp::PartialEq for nika_types::memory::RankedDoc
+pub fn nika_types::memory::RankedDoc::eq(&self, other: &nika_types::memory::RankedDoc) -> bool
+impl core::fmt::Debug for nika_types::memory::RankedDoc
+pub fn nika_types::memory::RankedDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::memory::RankedDoc
+impl core::marker::StructuralPartialEq for nika_types::memory::RankedDoc
+impl serde_core::ser::Serialize for nika_types::memory::RankedDoc
+pub fn nika_types::memory::RankedDoc::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::memory::RankedDoc
+pub fn nika_types::memory::RankedDoc::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::memory::RankedDoc where U: core::convert::From<T>
+pub fn nika_types::memory::RankedDoc::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::memory::RankedDoc where U: core::convert::Into<T>
+pub type nika_types::memory::RankedDoc::Error = core::convert::Infallible
+pub fn nika_types::memory::RankedDoc::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::memory::RankedDoc where U: core::convert::TryFrom<T>
+pub type nika_types::memory::RankedDoc::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::memory::RankedDoc::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::memory::RankedDoc where T: core::clone::Clone
+pub type nika_types::memory::RankedDoc::Owned = T
+pub fn nika_types::memory::RankedDoc::clone_into(&self, target: &mut T)
+pub fn nika_types::memory::RankedDoc::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::memory::RankedDoc where T: 'static + ?core::marker::Sized
+pub fn nika_types::memory::RankedDoc::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::memory::RankedDoc where T: ?core::marker::Sized
+pub fn nika_types::memory::RankedDoc::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::memory::RankedDoc where T: ?core::marker::Sized
+pub fn nika_types::memory::RankedDoc::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::memory::RankedDoc where T: core::clone::Clone
+pub unsafe fn nika_types::memory::RankedDoc::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::memory::RankedDoc
+pub fn nika_types::memory::RankedDoc::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::memory::RankedDoc where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::memory::Score(pub f64)
+impl nika_types::memory::Score
+pub const fn nika_types::memory::Score::get(self) -> f64
+pub fn nika_types::memory::Score::is_finite(self) -> bool
+pub const fn nika_types::memory::Score::new(value: f64) -> Self
+pub const fn nika_types::memory::Score::zero() -> Self
+impl core::clone::Clone for nika_types::memory::Score
+pub fn nika_types::memory::Score::clone(&self) -> nika_types::memory::Score
+impl core::cmp::PartialEq for nika_types::memory::Score
+pub fn nika_types::memory::Score::eq(&self, other: &nika_types::memory::Score) -> bool
+impl core::cmp::PartialOrd for nika_types::memory::Score
+pub fn nika_types::memory::Score::partial_cmp(&self, other: &nika_types::memory::Score) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::memory::Score
+pub fn nika_types::memory::Score::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::memory::Score
+pub fn nika_types::memory::Score::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::memory::Score
+impl core::marker::StructuralPartialEq for nika_types::memory::Score
+impl serde_core::ser::Serialize for nika_types::memory::Score
+pub fn nika_types::memory::Score::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::memory::Score
+pub fn nika_types::memory::Score::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::memory::Score where U: core::convert::From<T>
+pub fn nika_types::memory::Score::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::memory::Score where U: core::convert::Into<T>
+pub type nika_types::memory::Score::Error = core::convert::Infallible
+pub fn nika_types::memory::Score::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::memory::Score where U: core::convert::TryFrom<T>
+pub type nika_types::memory::Score::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::memory::Score::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::memory::Score where T: core::clone::Clone
+pub type nika_types::memory::Score::Owned = T
+pub fn nika_types::memory::Score::clone_into(&self, target: &mut T)
+pub fn nika_types::memory::Score::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::memory::Score where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::memory::Score::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::memory::Score where T: 'static + ?core::marker::Sized
+pub fn nika_types::memory::Score::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::memory::Score where T: ?core::marker::Sized
+pub fn nika_types::memory::Score::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::memory::Score where T: ?core::marker::Sized
+pub fn nika_types::memory::Score::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::memory::Score where T: core::clone::Clone
+pub unsafe fn nika_types::memory::Score::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::memory::Score
+pub fn nika_types::memory::Score::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::memory::Score where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::prelude
 #[non_exhaustive] pub enum nika_types::prelude::BudgetDirective
 pub nika_types::prelude::BudgetDirective::Cost
@@ -2061,11 +2198,11 @@ pub fn nika_types::cost::Cost::checked_add(self, rhs: Self) -> core::option::Opt
 pub fn nika_types::cost::Cost::checked_sub(self, rhs: Self) -> core::option::Option<Self>
 pub fn nika_types::cost::Cost::from_micro_usd(micro: i64) -> Self
 pub fn nika_types::cost::Cost::from_milli_usd(milli: i64) -> Self
-pub fn nika_types::cost::Cost::is_zero(&self) -> bool
-pub fn nika_types::cost::Cost::new(nano_usd: i128) -> Self
+pub const fn nika_types::cost::Cost::is_zero(&self) -> bool
+pub const fn nika_types::cost::Cost::new(nano_usd: i128) -> Self
 pub fn nika_types::cost::Cost::saturating_mul(self, factor: u64) -> Self
 pub fn nika_types::cost::Cost::to_usd_f64(self) -> f64
-pub fn nika_types::cost::Cost::zero() -> Self
+pub const fn nika_types::cost::Cost::zero() -> Self
 impl core::clone::Clone for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::clone(&self) -> nika_types::cost::Cost
 impl core::cmp::Eq for nika_types::cost::Cost
@@ -3014,10 +3151,10 @@ pub const nika_types::trust::TrustLevel::SANDBOXED: Self
 pub const nika_types::trust::TrustLevel::SYSTEM: Self
 pub const nika_types::trust::TrustLevel::TRUSTED: Self
 pub const nika_types::trust::TrustLevel::UNTRUSTED: Self
-pub fn nika_types::trust::TrustLevel::is_at_least(&self, min: Self) -> bool
+pub const fn nika_types::trust::TrustLevel::is_at_least(&self, min: Self) -> bool
 pub fn nika_types::trust::TrustLevel::join(self, other: Self) -> Self
 pub fn nika_types::trust::TrustLevel::meet(self, other: Self) -> Self
-pub fn nika_types::trust::TrustLevel::new(level: u8) -> Self
+pub const fn nika_types::trust::TrustLevel::new(level: u8) -> Self
 impl core::clone::Clone for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::clone(&self) -> nika_types::trust::TrustLevel
 impl core::cmp::Eq for nika_types::trust::TrustLevel
@@ -3756,10 +3893,10 @@ pub const nika_types::trust::TrustLevel::SANDBOXED: Self
 pub const nika_types::trust::TrustLevel::SYSTEM: Self
 pub const nika_types::trust::TrustLevel::TRUSTED: Self
 pub const nika_types::trust::TrustLevel::UNTRUSTED: Self
-pub fn nika_types::trust::TrustLevel::is_at_least(&self, min: Self) -> bool
+pub const fn nika_types::trust::TrustLevel::is_at_least(&self, min: Self) -> bool
 pub fn nika_types::trust::TrustLevel::join(self, other: Self) -> Self
 pub fn nika_types::trust::TrustLevel::meet(self, other: Self) -> Self
-pub fn nika_types::trust::TrustLevel::new(level: u8) -> Self
+pub const fn nika_types::trust::TrustLevel::new(level: u8) -> Self
 impl core::clone::Clone for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::clone(&self) -> nika_types::trust::TrustLevel
 impl core::cmp::Eq for nika_types::trust::TrustLevel
@@ -4554,11 +4691,11 @@ pub fn nika_types::cost::Cost::checked_add(self, rhs: Self) -> core::option::Opt
 pub fn nika_types::cost::Cost::checked_sub(self, rhs: Self) -> core::option::Option<Self>
 pub fn nika_types::cost::Cost::from_micro_usd(micro: i64) -> Self
 pub fn nika_types::cost::Cost::from_milli_usd(milli: i64) -> Self
-pub fn nika_types::cost::Cost::is_zero(&self) -> bool
-pub fn nika_types::cost::Cost::new(nano_usd: i128) -> Self
+pub const fn nika_types::cost::Cost::is_zero(&self) -> bool
+pub const fn nika_types::cost::Cost::new(nano_usd: i128) -> Self
 pub fn nika_types::cost::Cost::saturating_mul(self, factor: u64) -> Self
 pub fn nika_types::cost::Cost::to_usd_f64(self) -> f64
-pub fn nika_types::cost::Cost::zero() -> Self
+pub const fn nika_types::cost::Cost::zero() -> Self
 impl core::clone::Clone for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::clone(&self) -> nika_types::cost::Cost
 impl core::cmp::Eq for nika_types::cost::Cost
@@ -5507,10 +5644,10 @@ pub const nika_types::trust::TrustLevel::SANDBOXED: Self
 pub const nika_types::trust::TrustLevel::SYSTEM: Self
 pub const nika_types::trust::TrustLevel::TRUSTED: Self
 pub const nika_types::trust::TrustLevel::UNTRUSTED: Self
-pub fn nika_types::trust::TrustLevel::is_at_least(&self, min: Self) -> bool
+pub const fn nika_types::trust::TrustLevel::is_at_least(&self, min: Self) -> bool
 pub fn nika_types::trust::TrustLevel::join(self, other: Self) -> Self
 pub fn nika_types::trust::TrustLevel::meet(self, other: Self) -> Self
-pub fn nika_types::trust::TrustLevel::new(level: u8) -> Self
+pub const fn nika_types::trust::TrustLevel::new(level: u8) -> Self
 impl core::clone::Clone for nika_types::trust::TrustLevel
 pub fn nika_types::trust::TrustLevel::clone(&self) -> nika_types::trust::TrustLevel
 impl core::cmp::Eq for nika_types::trust::TrustLevel
