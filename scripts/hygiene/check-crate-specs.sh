@@ -24,18 +24,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 2
 
 METRICS="scripts/crate-metrics.sh"
-WIP_CRATES="nika-schema"
 TOLERANCE_PCT=15
 
 missing=""
 stale=""
 
-for cargo in crates/*/Cargo.toml; do
-  [ -f "$cargo" ] || continue
-  crate="$(basename "$(dirname "$cargo")")"
-  case " $WIP_CRATES " in *" $crate "*) continue ;; esac
-  [ -d "crates/${crate}/src" ] || continue
-
+# Admitted-crate list comes from the projector (single source · derives the
+# WIP split from [workspace.metadata.diamond] wip = [...] in Cargo.toml).
+while read -r crate; do
+  [ -n "$crate" ] || continue
   spec="docs/crate-specs/${crate}.md"
   if [ ! -f "$spec" ]; then
     missing="${missing}${crate} "
@@ -60,7 +57,7 @@ for cargo in crates/*/Cargo.toml; do
   if [ "$drift_pct" -gt "$TOLERANCE_PCT" ]; then
     stale="${stale}${crate}(spec ~${stated} vs live ${live} = ${drift_pct}% off) "
   fi
-done
+done < <(bash "$METRICS" --admitted)
 
 rc=0
 if [ -n "$missing" ]; then
