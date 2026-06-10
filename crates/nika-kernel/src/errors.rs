@@ -13,7 +13,7 @@
 //!
 //! Error code ranges:
 //! - 050–099: Shell/exec (`ShellError`) — `nika-kernel-core`
-//! - 100–139: File/IO (`BlobError`) — `nika-kernel-core`
+//! - 100–139: File/IO — blob 100–109 (`BlobError`) · fs 110–119 (`FsError`) — `nika-kernel-core`
 //! - 140–189: Http/network (`HttpError`) — `nika-kernel-core`
 //! - 230–279: MCP/tools (`ToolExecError`) — `nika-kernel-runtime`
 //! - 330–379: Provider (`ProviderError`) — `nika-kernel-ai` (moved from

@@ -7,12 +7,13 @@
 //! Core-owned ranges (the full cross-domain registry stays in the hub
 //! `nika-kernel/src/errors.rs` module doc):
 //! - 050–099: Shell/exec (`ShellError`)
-//! - 100–139: File/IO (`BlobError`)
+//! - 100–139: File/IO — blob 100–109 (`BlobError`) · fs 110–119 (`FsError`)
 //! - 140–189: Http/network (`HttpError`)
 
 use nika_error::prelude::*;
 
 use crate::io::blob::BlobError;
+use crate::io::fs::FsError;
 use crate::io::http::HttpError;
 use crate::io::process::ShellError;
 
@@ -76,6 +77,43 @@ pub const NIKA_102: NikaCode = NikaCode {
     category: Category::FileIo,
     severity: Severity::Error,
     slug: "blob-too-large",
+};
+
+// File/IO (fs): 110–119 (sibling sub-range of FileIo, distinct from blob 100–109)
+/// Filesystem path not found.
+pub const NIKA_110: NikaCode = NikaCode {
+    num: 110,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-not-found",
+};
+/// Filesystem permission denied.
+pub const NIKA_111: NikaCode = NikaCode {
+    num: 111,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-permission-denied",
+};
+/// Filesystem path already exists.
+pub const NIKA_112: NikaCode = NikaCode {
+    num: 112,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-already-exists",
+};
+/// Filesystem invalid data (non-UTF-8 read, bad glob pattern).
+pub const NIKA_113: NikaCode = NikaCode {
+    num: 113,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-invalid-data",
+};
+/// Filesystem other I/O error.
+pub const NIKA_119: NikaCode = NikaCode {
+    num: 119,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-io",
 };
 
 // Http/network: 140–189
@@ -146,6 +184,18 @@ impl NikaErrorCode for BlobError {
     }
 }
 
+impl NikaErrorCode for FsError {
+    fn nika_code(&self) -> NikaCode {
+        match self {
+            Self::NotFound { .. } => NIKA_110,
+            Self::PermissionDenied { .. } => NIKA_111,
+            Self::AlreadyExists { .. } => NIKA_112,
+            Self::InvalidData { .. } => NIKA_113,
+            Self::Io { .. } => NIKA_119,
+        }
+    }
+}
+
 impl NikaErrorCode for HttpError {
     fn nika_code(&self) -> NikaCode {
         match self {
@@ -179,6 +229,67 @@ mod tests {
         let code = err.nika_code();
         assert!(code.num >= 100 && code.num <= 139, "blob code {}", code.num);
         assert_eq!(code.category, Category::FileIo);
+    }
+
+    #[test]
+    fn fs_error_codes_in_range() {
+        let err = FsError::NotFound { path: "x".into() };
+        let code = err.nika_code();
+        assert!(
+            code.num >= 110 && code.num <= 119,
+            "fs code {} must be in the 110-119 sub-range",
+            code.num
+        );
+        assert_eq!(code.category, Category::FileIo);
+    }
+
+    #[test]
+    fn all_fs_variants_have_codes() {
+        let _ = FsError::NotFound {
+            path: String::new(),
+        }
+        .nika_code();
+        let _ = FsError::PermissionDenied {
+            path: String::new(),
+        }
+        .nika_code();
+        let _ = FsError::AlreadyExists {
+            path: String::new(),
+        }
+        .nika_code();
+        let _ = FsError::InvalidData {
+            path: String::new(),
+            reason: String::new(),
+        }
+        .nika_code();
+        let _ = FsError::Io {
+            reason: String::new(),
+        }
+        .nika_code();
+    }
+
+    #[test]
+    fn fs_from_io_maps_error_kinds() {
+        use std::io::{Error, ErrorKind};
+        use std::path::Path;
+        let p = Path::new("/tmp/x");
+        assert!(matches!(
+            FsError::from_io(&Error::from(ErrorKind::NotFound), p),
+            FsError::NotFound { .. }
+        ));
+        assert!(matches!(
+            FsError::from_io(&Error::from(ErrorKind::PermissionDenied), p),
+            FsError::PermissionDenied { .. }
+        ));
+        assert!(matches!(
+            FsError::from_io(&Error::from(ErrorKind::AlreadyExists), p),
+            FsError::AlreadyExists { .. }
+        ));
+        // An unmapped kind falls through to Io.
+        assert!(matches!(
+            FsError::from_io(&Error::from(ErrorKind::Other), p),
+            FsError::Io { .. }
+        ));
     }
 
     #[test]

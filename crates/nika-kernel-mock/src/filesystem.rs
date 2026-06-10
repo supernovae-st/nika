@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use parking_lot::RwLock;
 
-use nika_kernel::fs::{FileMetadata, FsList, FsMeta, FsRead, FsWrite};
+use nika_kernel::fs::{FileMetadata, FsError, FsList, FsMeta, FsRead, FsWrite};
 
 /// In-memory filesystem for tests.
 ///
@@ -62,23 +62,25 @@ impl MockFs {
 }
 
 impl FsRead for MockFs {
-    async fn read(&self, path: &Path) -> std::io::Result<Bytes> {
+    async fn read(&self, path: &Path) -> Result<Bytes, FsError> {
         let guard = self.files.read();
         guard
             .get(path)
             .map(|v| Bytes::copy_from_slice(v))
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::NotFound, format!("{}", path.display()))
+            .ok_or_else(|| FsError::NotFound {
+                path: path.display().to_string(),
             })
     }
 
-    async fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+    async fn read_to_string(&self, path: &Path) -> Result<String, FsError> {
         let guard = self.files.read();
-        let data = guard.get(path).ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::NotFound, format!("{}", path.display()))
+        let data = guard.get(path).ok_or_else(|| FsError::NotFound {
+            path: path.display().to_string(),
         })?;
-        String::from_utf8(data.clone())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
+        String::from_utf8(data.clone()).map_err(|e| FsError::InvalidData {
+            path: path.display().to_string(),
+            reason: e.to_string(),
+        })
     }
 
     async fn exists(&self, path: &Path) -> bool {
@@ -93,33 +95,37 @@ impl FsRead for MockFs {
             .any(|k| k.to_string_lossy().starts_with(&prefix))
     }
 
-    async fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf> {
+    async fn canonicalize(&self, path: &Path) -> Result<PathBuf, FsError> {
         Ok(path.to_path_buf())
     }
 }
 
 impl FsWrite for MockFs {
-    async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
         self.files
             .write()
             .insert(path.to_path_buf(), contents.to_vec());
         Ok(())
     }
 
-    async fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+    async fn create_dir_all(&self, _path: &Path) -> Result<(), FsError> {
         // Directories are implicit in the in-memory store.
         Ok(())
     }
 
-    async fn remove_file(&self, path: &Path) -> std::io::Result<()> {
-        self.files.write().remove(path).map(|_| ()).ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::NotFound, format!("{}", path.display()))
-        })
+    async fn remove_file(&self, path: &Path) -> Result<(), FsError> {
+        self.files
+            .write()
+            .remove(path)
+            .map(|_| ())
+            .ok_or_else(|| FsError::NotFound {
+                path: path.display().to_string(),
+            })
     }
 }
 
 impl FsMeta for MockFs {
-    async fn metadata(&self, path: &Path) -> std::io::Result<FileMetadata> {
+    async fn metadata(&self, path: &Path) -> Result<FileMetadata, FsError> {
         let guard = self.files.read();
         if let Some(data) = guard.get(path) {
             return Ok(FileMetadata::new(data.len() as u64, true, false));
@@ -132,10 +138,9 @@ impl FsMeta for MockFs {
         {
             return Ok(FileMetadata::new(0, false, true));
         }
-        Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("{}", path.display()),
-        ))
+        Err(FsError::NotFound {
+            path: path.display().to_string(),
+        })
     }
 }
 
@@ -185,7 +190,7 @@ fn segment_match(pat: &[u8], txt: &[u8]) -> bool {
 }
 
 impl FsList for MockFs {
-    async fn list_dir(&self, path: &Path) -> std::io::Result<Vec<PathBuf>> {
+    async fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, FsError> {
         let guard = self.files.read();
         let prefix = format!("{}/", path.display());
         let entries: Vec<PathBuf> = guard
@@ -196,7 +201,7 @@ impl FsList for MockFs {
         Ok(entries)
     }
 
-    async fn glob(&self, root: &Path, pattern: &str) -> std::io::Result<Vec<PathBuf>> {
+    async fn glob(&self, root: &Path, pattern: &str) -> Result<Vec<PathBuf>, FsError> {
         let guard = self.files.read();
         let root_prefix = format!("{}/", root.display());
         let entries: Vec<PathBuf> = guard

@@ -34,6 +34,78 @@ impl FileMetadata {
     }
 }
 
+/// Filesystem errors — the typed taxonomy the `Fs*` traits return.
+///
+/// Carries the NIKA `FileIo` code range (110–119, sibling of `BlobError`'s
+/// 100–102) via `NikaErrorCode` in `crate::errors`. The traits return this
+/// instead of `std::io::Result` so the typed Nika error survives the contract
+/// boundary (forward-compat: a `std::io::Error` return would discard the code +
+/// freeze the un-typed surface once an `Fs` impl is admitted). Mirror the
+/// `BlobError`/`ShellError` pattern.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum FsError {
+    /// Path does not exist.
+    #[error("path not found: {path}")]
+    NotFound {
+        /// The path that was not found.
+        path: String,
+    },
+
+    /// Permission denied for the path.
+    #[error("permission denied: {path}")]
+    PermissionDenied {
+        /// The path access was denied for.
+        path: String,
+    },
+
+    /// Path already exists (e.g. an exclusive create).
+    #[error("path already exists: {path}")]
+    AlreadyExists {
+        /// The path that already exists.
+        path: String,
+    },
+
+    /// Content was not valid for the operation (e.g. non-UTF-8 in
+    /// `read_to_string`, or an invalid glob pattern).
+    #[error("invalid data for {path}: {reason}")]
+    InvalidData {
+        /// The path (or pattern) involved.
+        path: String,
+        /// What was invalid.
+        reason: String,
+    },
+
+    /// Any other I/O failure.
+    #[error("filesystem I/O error: {reason}")]
+    Io {
+        /// Description of the I/O failure.
+        reason: String,
+    },
+}
+
+impl FsError {
+    /// Map a `std::io::Error` (with the path the caller operated on) into the
+    /// typed taxonomy. The real L1 `Fs` impl wraps `tokio::fs`/`std::fs` calls
+    /// with this: `… .map_err(|e| FsError::from_io(&e, path))`.
+    #[must_use]
+    pub fn from_io(err: &std::io::Error, path: &Path) -> Self {
+        let p = path.display().to_string();
+        match err.kind() {
+            std::io::ErrorKind::NotFound => Self::NotFound { path: p },
+            std::io::ErrorKind::PermissionDenied => Self::PermissionDenied { path: p },
+            std::io::ErrorKind::AlreadyExists => Self::AlreadyExists { path: p },
+            std::io::ErrorKind::InvalidData => Self::InvalidData {
+                path: p,
+                reason: err.to_string(),
+            },
+            _ => Self::Io {
+                reason: err.to_string(),
+            },
+        }
+    }
+}
+
 /// Read-only filesystem operations.
 ///
 /// CANCEL SAFETY: every read method is cancel-safe. Read ops have no
@@ -43,12 +115,12 @@ pub trait FsRead: Send + Sync {
     /// Read a file's entire contents as bytes.
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
-    async fn read(&self, path: &Path) -> std::io::Result<Bytes>;
+    async fn read(&self, path: &Path) -> Result<Bytes, FsError>;
 
     /// Read a file's entire contents as a UTF-8 string.
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
-    async fn read_to_string(&self, path: &Path) -> std::io::Result<String>;
+    async fn read_to_string(&self, path: &Path) -> Result<String, FsError>;
 
     /// Check whether a path exists.
     ///
@@ -58,7 +130,7 @@ pub trait FsRead: Send + Sync {
     /// Canonicalize a path (resolve symlinks and relative components).
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
-    async fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf>;
+    async fn canonicalize(&self, path: &Path) -> Result<PathBuf, FsError>;
 }
 
 /// Write filesystem operations.
@@ -74,18 +146,18 @@ pub trait FsWrite: Send + Sync {
     ///
     /// CANCEL SAFETY: NOT cancel-safe unless impl uses atomic
     /// temp-file + rename. Partial writes possible.
-    async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()>;
+    async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError>;
 
     /// Create a directory and all parent directories.
     ///
     /// CANCEL SAFETY: partial cancel-safe — each mkdir is atomic, but
     /// a drop mid-chain may leave a partial prefix. Idempotent retry OK.
-    async fn create_dir_all(&self, path: &Path) -> std::io::Result<()>;
+    async fn create_dir_all(&self, path: &Path) -> Result<(), FsError>;
 
     /// Remove a file.
     ///
     /// CANCEL SAFETY: cancel-safe — single unlink syscall.
-    async fn remove_file(&self, path: &Path) -> std::io::Result<()>;
+    async fn remove_file(&self, path: &Path) -> Result<(), FsError>;
 }
 
 /// Filesystem metadata operations.
@@ -96,7 +168,7 @@ pub trait FsMeta: Send + Sync {
     /// Get metadata for a path.
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
-    async fn metadata(&self, path: &Path) -> std::io::Result<FileMetadata>;
+    async fn metadata(&self, path: &Path) -> Result<FileMetadata, FsError>;
 }
 
 /// Filesystem listing operations.
@@ -107,12 +179,12 @@ pub trait FsList: Send + Sync {
     /// List entries in a directory.
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
-    async fn list_dir(&self, path: &Path) -> std::io::Result<Vec<PathBuf>>;
+    async fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, FsError>;
 
     /// Find files matching a glob pattern relative to a root directory.
     ///
     /// CANCEL SAFETY: cancel-safe (read-only directory walk).
-    async fn glob(&self, root: &Path, pattern: &str) -> std::io::Result<Vec<PathBuf>>;
+    async fn glob(&self, root: &Path, pattern: &str) -> Result<Vec<PathBuf>, FsError>;
 }
 
 /// Full filesystem access — blanket super-trait.
@@ -151,43 +223,43 @@ mod tests {
     struct DummyFs;
 
     impl FsRead for DummyFs {
-        async fn read(&self, _: &Path) -> std::io::Result<Bytes> {
+        async fn read(&self, _: &Path) -> Result<Bytes, FsError> {
             Ok(Bytes::new())
         }
-        async fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+        async fn read_to_string(&self, _: &Path) -> Result<String, FsError> {
             Ok(String::new())
         }
         async fn exists(&self, _: &Path) -> bool {
             false
         }
-        async fn canonicalize(&self, path: &Path) -> std::io::Result<PathBuf> {
+        async fn canonicalize(&self, path: &Path) -> Result<PathBuf, FsError> {
             Ok(path.to_path_buf())
         }
     }
 
     impl FsWrite for DummyFs {
-        async fn write(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+        async fn write(&self, _: &Path, _: &[u8]) -> Result<(), FsError> {
             Ok(())
         }
-        async fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+        async fn create_dir_all(&self, _: &Path) -> Result<(), FsError> {
             Ok(())
         }
-        async fn remove_file(&self, _: &Path) -> std::io::Result<()> {
+        async fn remove_file(&self, _: &Path) -> Result<(), FsError> {
             Ok(())
         }
     }
 
     impl FsMeta for DummyFs {
-        async fn metadata(&self, _: &Path) -> std::io::Result<FileMetadata> {
+        async fn metadata(&self, _: &Path) -> Result<FileMetadata, FsError> {
             Ok(FileMetadata::new(0, false, false))
         }
     }
 
     impl FsList for DummyFs {
-        async fn list_dir(&self, _: &Path) -> std::io::Result<Vec<PathBuf>> {
+        async fn list_dir(&self, _: &Path) -> Result<Vec<PathBuf>, FsError> {
             Ok(vec![])
         }
-        async fn glob(&self, _: &Path, _: &str) -> std::io::Result<Vec<PathBuf>> {
+        async fn glob(&self, _: &Path, _: &str) -> Result<Vec<PathBuf>, FsError> {
             Ok(vec![])
         }
     }

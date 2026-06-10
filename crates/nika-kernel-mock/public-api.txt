@@ -284,19 +284,19 @@ pub fn nika_kernel_mock::filesystem::MockFs::clone(&self) -> nika_kernel_mock::f
 impl core::default::Default for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::default() -> nika_kernel_mock::filesystem::MockFs
 impl nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
-pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
+pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
-pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
-pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
+pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
+pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::filesystem::MockFs
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::filesystem::MockFs where U: core::convert::From<T>
 pub fn nika_kernel_mock::filesystem::MockFs::into(self) -> U
@@ -1041,19 +1041,19 @@ pub fn nika_kernel_mock::filesystem::MockFs::clone(&self) -> nika_kernel_mock::f
 impl core::default::Default for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::default() -> nika_kernel_mock::filesystem::MockFs
 impl nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
-pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
+pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
-pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
-pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
+pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
-pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
+pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::filesystem::MockFs
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::filesystem::MockFs where U: core::convert::From<T>
 pub fn nika_kernel_mock::filesystem::MockFs::into(self) -> U

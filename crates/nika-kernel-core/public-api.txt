@@ -10,6 +10,11 @@ pub const nika_kernel_core::errors::NIKA_059: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_100: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_101: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_102: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_110: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_111: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_112: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_113: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_119: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_140: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_141: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_142: nika_error::codes::NikaCode
@@ -835,6 +840,49 @@ pub fn nika_kernel_core::io::clock::ClockDyn::now(&self) -> std::time::Instant
 pub fn nika_kernel_core::io::clock::ClockDyn::sleep(&self, duration: core::time::Duration) -> impl core::future::future::Future<Output = ()> + core::marker::Send
 pub fn nika_kernel_core::io::clock::ClockDyn::system_now(&self) -> std::time::SystemTime
 pub mod nika_kernel_core::io::fs
+#[non_exhaustive] pub enum nika_kernel_core::io::fs::FsError
+pub nika_kernel_core::io::fs::FsError::AlreadyExists
+pub nika_kernel_core::io::fs::FsError::AlreadyExists::path: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::InvalidData
+pub nika_kernel_core::io::fs::FsError::InvalidData::path: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::InvalidData::reason: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::Io
+pub nika_kernel_core::io::fs::FsError::Io::reason: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::NotFound
+pub nika_kernel_core::io::fs::FsError::NotFound::path: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::PermissionDenied
+pub nika_kernel_core::io::fs::FsError::PermissionDenied::path: alloc::string::String
+impl nika_kernel_core::io::fs::FsError
+pub fn nika_kernel_core::io::fs::FsError::from_io(err: &std::io::error::Error, path: &std::path::Path) -> Self
+impl core::error::Error for nika_kernel_core::io::fs::FsError
+impl core::fmt::Debug for nika_kernel_core::io::fs::FsError
+pub fn nika_kernel_core::io::fs::FsError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::fs::FsError
+pub fn nika_kernel_core::io::fs::FsError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::fs::FsError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::fs::FsError
+pub fn nika_kernel_core::io::fs::FsError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::fs::FsError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::fs::FsError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::fs::FsError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::fs::FsError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::fs::FsError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::fs::FsError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::fs::FsError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::fs::FsError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::fs::FsError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::fs::FsError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FsError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::fs::FsError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FsError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::fs::FsError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FsError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::fs::FsError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FsError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::fs::FsError
+pub fn nika_kernel_core::io::fs::FsError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::fs::FsError where T: 'static
+pub fn nika_kernel_core::io::fs::FsError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::fs::FileMetadata
 pub nika_kernel_core::io::fs::FileMetadata::is_dir: bool
 pub nika_kernel_core::io::fs::FileMetadata::is_file: bool
@@ -877,47 +925,47 @@ pub fn nika_kernel_core::io::fs::FileMetadata::as_any(&self) -> &(dyn core::any:
 pub trait nika_kernel_core::io::fs::Fs: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
 impl<T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList> nika_kernel_core::io::fs::Fs for T
 pub trait nika_kernel_core::io::fs::FsList: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::fs::FsList::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
-pub async fn nika_kernel_core::io::fs::FsList::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub async fn nika_kernel_core::io::fs::FsList::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_core::io::fs::FsList::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsListDyn> nika_kernel_core::io::fs::FsList for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::glob(&self, root: &std::path::Path, pattern: &str) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
-pub async fn TraitVariantBlanketType::list_dir(&self, path: &std::path::Path) -> std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>
+pub async fn TraitVariantBlanketType::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn TraitVariantBlanketType::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
 pub trait nika_kernel_core::io::fs::FsListDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsListDyn::glob(&self, root: &std::path::Path, pattern: &str) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>> + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsListDyn::list_dir(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<std::path::PathBuf>>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsListDyn::glob(&self, root: &std::path::Path, pattern: &str) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsListDyn::list_dir(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub trait nika_kernel_core::io::fs::FsMeta: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::fs::FsMeta::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+pub async fn nika_kernel_core::io::fs::FsMeta::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsMetaDyn> nika_kernel_core::io::fs::FsMeta for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::metadata(&self, path: &std::path::Path) -> std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>
+pub async fn TraitVariantBlanketType::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
 pub trait nika_kernel_core::io::fs::FsMetaDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsMetaDyn::metadata(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::fs::FileMetadata>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsMetaDyn::metadata(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub trait nika_kernel_core::io::fs::FsRead: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::fs::FsRead::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
+pub async fn nika_kernel_core::io::fs::FsRead::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_core::io::fs::FsRead::exists(&self, path: &std::path::Path) -> bool
-pub async fn nika_kernel_core::io::fs::FsRead::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
-pub async fn nika_kernel_core::io::fs::FsRead::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
+pub async fn nika_kernel_core::io::fs::FsRead::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_core::io::fs::FsRead::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn> nika_kernel_core::io::fs::FsRead for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::canonicalize(&self, path: &std::path::Path) -> std::io::error::Result<std::path::PathBuf>
+pub async fn TraitVariantBlanketType::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn TraitVariantBlanketType::exists(&self, path: &std::path::Path) -> bool
-pub async fn TraitVariantBlanketType::read(&self, path: &std::path::Path) -> std::io::error::Result<bytes::bytes::Bytes>
-pub async fn TraitVariantBlanketType::read_to_string(&self, path: &std::path::Path) -> std::io::error::Result<alloc::string::String>
+pub async fn TraitVariantBlanketType::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn TraitVariantBlanketType::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 pub trait nika_kernel_core::io::fs::FsReadDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsReadDyn::canonicalize(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<std::path::PathBuf>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::canonicalize(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsReadDyn::exists(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = bool> + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsReadDyn::read(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<bytes::bytes::Bytes>> + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsReadDyn::read_to_string(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::string::String>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::read(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::read_to_string(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub trait nika_kernel_core::io::fs::FsWrite: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::fs::FsWrite::create_dir_all(&self, path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn nika_kernel_core::io::fs::FsWrite::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn nika_kernel_core::io::fs::FsWrite::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
+pub async fn nika_kernel_core::io::fs::FsWrite::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_core::io::fs::FsWrite::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_core::io::fs::FsWrite::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn> nika_kernel_core::io::fs::FsWrite for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::create_dir_all(&self, path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn TraitVariantBlanketType::remove_file(&self, path: &std::path::Path) -> std::io::error::Result<()>
-pub async fn TraitVariantBlanketType::write(&self, path: &std::path::Path, contents: &[u8]) -> std::io::error::Result<()>
+pub async fn TraitVariantBlanketType::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn TraitVariantBlanketType::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn TraitVariantBlanketType::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub trait nika_kernel_core::io::fs::FsWriteDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsWriteDyn::create_dir_all(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsWriteDyn::remove_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
-pub fn nika_kernel_core::io::fs::FsWriteDyn::write(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::create_dir_all(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::remove_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::write(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub mod nika_kernel_core::io::http
 #[non_exhaustive] pub enum nika_kernel_core::io::http::HttpError
 pub nika_kernel_core::io::http::HttpError::Connection
