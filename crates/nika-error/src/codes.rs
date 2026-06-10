@@ -54,13 +54,16 @@ impl<'de> serde::Deserialize<'de> for NikaCode {
 
 /// Functional category for error grouping and routing.
 ///
-/// Numeric ranges are a convention (not enforced at type level):
+/// Numeric ranges are a convention (not enforced at type level). The
+/// authoritative allocation lives in `nika-kernel::errors` (the hub):
 /// Core 001-049, Shell 050-099, `FileIo` 100-139, Http 140-189,
-/// Auth 190-229, Mcp 230-279, Schema 280-329, Binding 330-379,
-/// Provider 380-429, Verb 430-479, Runtime 480-529,
-/// Memory 600-649, `WasmPlugin` 700-749, Sandbox 750-799,
-/// Observability 800-819, Screen 1000-1099, Ocr 1100-1199,
-/// A11y 1200-1299 (M2 computer-use L1 ranges per ADR-081).
+/// Auth 190-229, Mcp 230-279, Schema 280-329, Provider 330-379,
+/// Shield 380-429 (reserved · crate not yet admitted), Verb 430-479,
+/// Runtime 480-529, Memory 600-649, `WasmPlugin` 700-749,
+/// Sandbox 750-799, Observability 800-819, Screen 1000-1099,
+/// Ocr 1100-1199, A11y 1200-1299 (M2 computer-use L1 ranges per ADR-081).
+/// `Binding` is a reserved category variant with no allocated range yet
+/// (its original 330-379 slot was reassigned to Provider on 2026-05-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
@@ -557,8 +560,14 @@ pub fn code_help(code: NikaCode) -> &'static str {
         230..=279 => {
             "MCP tool call failed. Check tool name, parameters, and MCP server availability."
         }
+        280..=329 => {
+            "Schema/workflow validation failed. Check the `.nika.yaml` envelope, task ids, verbs, and field values against the spec."
+        }
+        330..=379 => {
+            "AI provider error. Check the model name, API credentials, rate limits, and provider connectivity."
+        }
         380..=429 => {
-            "Provider or Shield security error. Check API credentials, trust levels, and capability grants."
+            "Shield security policy blocked the operation. Check trust levels, capability grants, and injection/canary guards."
         }
         601 => {
             "Memory store unavailable. Verify the configured backend (Oxigraph / RocksDB / runtime) is initialised and reachable."
@@ -718,6 +727,38 @@ mod tests {
             slug: "unknown",
         };
         assert!(code_help(unknown).contains("Unknown"));
+    }
+
+    #[test]
+    fn code_help_covers_cross_crate_ranges() {
+        // Schema (280-329), Provider (330-379) and the reserved Shield range
+        // (380-429) carry help via NUMERIC-RANGE arms — `code_help` switches on
+        // `code.num` only, so the `category` field below is immaterial (Shield
+        // is not even a Category variant yet, its crate is unadmitted). These
+        // codes live in sibling crates so they are NOT in `ALL`; the range arms
+        // are the only coverage. Regression: Provider moved 380-429 → 330-379,
+        // which left Schema + Provider falling through to "Unknown error code".
+        let probe = |num: u16| NikaCode {
+            num,
+            category: Category::Core,
+            severity: Severity::Error,
+            slug: "probe",
+        };
+        let schema = code_help(probe(299));
+        assert!(
+            schema.contains("Schema") && !schema.contains("Unknown"),
+            "{schema}"
+        );
+        let provider = code_help(probe(330));
+        assert!(
+            provider.contains("provider") && !provider.contains("Unknown"),
+            "{provider}"
+        );
+        let shield = code_help(probe(380));
+        assert!(
+            shield.contains("Shield") && !shield.contains("Unknown"),
+            "{shield}"
+        );
     }
 
     #[test]
