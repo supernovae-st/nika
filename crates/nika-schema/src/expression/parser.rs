@@ -63,7 +63,7 @@ impl Parser {
         token
     }
 
-    fn expect(&mut self, kind: &TokenKind, expected: &str) -> Result<(), ExprError> {
+    fn expect_token(&mut self, kind: &TokenKind, expected: &str) -> Result<(), ExprError> {
         if self.peek_kind() == kind {
             self.advance();
             Ok(())
@@ -158,7 +158,10 @@ impl Parser {
                             });
                         }
                         self.advance(); // (
-                        self.expect(&TokenKind::RParen, "`)` — `x.size()` takes no arguments")?;
+                        self.expect_token(
+                            &TokenKind::RParen,
+                            "`)` — `x.size()` takes no arguments",
+                        )?;
                         base = Expr::SizeMethod(Box::new(base));
                     } else {
                         base = Expr::Member {
@@ -170,7 +173,7 @@ impl Parser {
                 TokenKind::LBracket => {
                     self.advance();
                     let index = self.or_expr()?;
-                    self.expect(&TokenKind::RBracket, "`]`")?;
+                    self.expect_token(&TokenKind::RBracket, "`]`")?;
                     base = Expr::Index {
                         base: Box::new(base),
                         index: Box::new(index),
@@ -202,7 +205,7 @@ impl Parser {
                     }
                     self.advance(); // (
                     let arg = self.or_expr()?;
-                    self.expect(
+                    self.expect_token(
                         &TokenKind::RParen,
                         "`)` — `size(x)` takes exactly 1 argument",
                     )?;
@@ -213,7 +216,7 @@ impl Parser {
             }
             TokenKind::LParen => {
                 let inner = self.or_expr()?;
-                self.expect(&TokenKind::RParen, "`)`")?;
+                self.expect_token(&TokenKind::RParen, "`)`")?;
                 Ok(inner)
             }
             TokenKind::LBracket => {
@@ -228,7 +231,7 @@ impl Parser {
                         }
                     }
                 }
-                self.expect(&TokenKind::RBracket, "`]`")?;
+                self.expect_token(&TokenKind::RBracket, "`]`")?;
                 Ok(Expr::List(items))
             }
             other => Err(ExprError::UnexpectedToken {
