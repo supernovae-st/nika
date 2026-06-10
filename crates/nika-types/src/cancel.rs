@@ -36,7 +36,7 @@ use loom::sync::atomic::{AtomicBool, Ordering};
 /// # Examples
 ///
 /// ```rust
-/// use nika_error::cancel::CancelCtx;
+/// use nika_types::cancel::CancelCtx;
 ///
 /// let ctx = CancelCtx::new();
 /// let clone = ctx.clone();

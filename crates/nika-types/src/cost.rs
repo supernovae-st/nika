@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 /// Formats as `"$X.XXXXXX"` (6 decimal places, micro-USD resolution).
 ///
 /// ```
-/// use nika_error::cost::Cost;
+/// use nika_types::cost::Cost;
 /// let c = Cost::from_micro_usd(1_500_000); // $1.50
 /// assert_eq!(c.to_string(), "$1.500000");
 /// ```
