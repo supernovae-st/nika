@@ -100,7 +100,9 @@ Nika is built in the open.
 
 The **language** — the `nika: v1` envelope and its four verbs — is stable and
 won't break. The **engine** is a strict, modular Rust workspace under active
-development; its first complete public release tags as `v0.90`. Until then, the
+development; the first usable ship tags as `v0.81` (language v0.1 + a
+vertical slice · summer 2026) and the first complete release as `v0.90`.
+Until then, the
 code, the [spec](https://github.com/supernovae-st/nika-spec), and the
 [example workflows](examples/) are all readable, and development happens on
 `main` in the open.
@@ -117,8 +119,8 @@ cargo test --workspace --lib
 
 End-user install (Homebrew tap · `cargo install nika` · `curl | sh`) is
 documented at
-[docs.nika.sh/getting-started](https://docs.nika.sh/getting-started) when
-`v0.90` tags.
+[docs.nika.sh/getting-started/installation](https://docs.nika.sh/getting-started/installation)
+as milestones tag.
 
 ## Documentation
 

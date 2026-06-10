@@ -109,7 +109,7 @@ error codes, builtin names) uses explicit namespaces. Core Nika reserves
 **Locked namespaces**:
 - **pck types**: `workflow` / `skill` / `agent` / `provider` / `mcp` /
   `eval` / `recipe` / `shield` / `lints` (9 core) + `x-*` community
-- **builtins**: `nika:tool` core + `server::tool` MCP-namespaced
+- **builtins**: `nika:tool` core + `mcp:server/tool` MCP-namespaced
 - **EventKind**: core variants + `Extension { ns, name, payload }` escape hatch
 - **Skill targets**: `claude-code`, `cursor`, `windsurf`, `zed` (4 IDEs) +
   future additions
