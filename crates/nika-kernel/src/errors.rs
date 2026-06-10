@@ -39,6 +39,16 @@
 //!   `errors.rs` · constant `nika_error::codes::NIKA_750`
 //! - 800–819: Observability range (reserved for v0.100 `OTel` adapter; no
 //!   kernel type maps to it today — `ObservabilitySink` was dropped per Q12)
+//! - 1000–1099: Screen capture (`ScreenError`) — `nika-kernel-core` `io/screen`
+//!   (constants in `nika_error::codes::NIKA_1000..1009` · ADR-081 computer-use)
+//! - 1100–1199: OCR (`OcrError`) — `nika-kernel-core` `io/ocr`
+//!   (constants in `nika_error::codes::NIKA_1101..1109`)
+//! - 1200–1299: Accessibility (`A11yError`) — `nika-kernel-core` `io/a11y`
+//!   (constants in `nika_error::codes::NIKA_1201..1206`)
+//! - 1300–1399: Synthetic input (`InputError`) — `nika-kernel-core` `io/input`
+//!   (constants in `nika_error::codes::NIKA_1301..1305` · M2.4 nika-input)
+//! - 1400–1499: Browser automation (`BrowserError`) — `nika-kernel-core`
+//!   `io/browser` (constants in `nika_error::codes::NIKA_1401..1406`)
 
 pub use nika_kernel_ai::errors::*;
 pub use nika_kernel_core::errors::*;

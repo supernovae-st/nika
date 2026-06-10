@@ -9,6 +9,15 @@
 //! - 050–099: Shell/exec (`ShellError`)
 //! - 100–139: File/IO — blob 100–109 (`BlobError`) · fs 110–119 (`FsError`)
 //! - 140–189: Http/network (`HttpError`)
+//! - 1000–1099: Screen capture (`ScreenError`) — `io/screen` · ADR-081
+//! - 1100–1199: OCR (`OcrError`) — `io/ocr`
+//! - 1200–1299: Accessibility (`A11yError`) — `io/a11y`
+//! - 1300–1399: Synthetic input (`InputError`) — `io/input` · M2.4
+//! - 1400–1499: Browser automation (`BrowserError`) — `io/browser`
+//!
+//! The 1000–1499 computer-use error enums live in their `io/*` module (the
+//! typed boundary · Pattern A · FCI-023bis); the `NikaErrorCode` impls live
+//! here; the code constants live in `nika_error::codes`.
 
 use nika_error::prelude::*;
 
