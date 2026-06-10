@@ -116,6 +116,7 @@ fn assemble_node(
     title: Option<String>,
     value: Option<String>,
     subrole: Option<String>,
+    subrole_read_failed: bool,
     children: Vec<AxNode>,
 ) -> AxNode {
     use std::collections::BTreeMap;
@@ -125,6 +126,14 @@ fn assemble_node(
     let mut attributes = BTreeMap::new();
     if let Some(sub) = subrole.filter(|s| !s.is_empty()) {
         attributes.insert("AXSubrole".to_string(), sub);
+    } else if subrole_read_failed && value.as_ref().is_some_and(|v| !v.is_empty()) {
+        // Guard 3 fail-CLOSED (ADR-081): the secure-marker (AXSubrole) read ERRORED
+        // on a node that carries content (e.g. focus churn / app teardown mid-walk).
+        // We cannot PROVE this is not a secure field, so mark it secure — redaction
+        // then drops the value rather than risk leaking a password whose subrole
+        // read happened to fail. A successful read of a non-secure subrole does NOT
+        // trip this (we proved it safe); an empty-value node is not over-redacted.
+        attributes.insert("secure".to_string(), "true".to_string());
     }
     AxNode::new(id, role, label, value, None, children, attributes)
 }
@@ -176,7 +185,11 @@ fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32, depth: u16) 
         .ok()
         .and_then(|v| v.downcast::<CFString>())
         .map(|s| s.to_string());
-    let subrole = elem.subrole().ok().map(|s| s.to_string());
+    // Keep the subrole read RESULT, not just `.ok()` — assemble_node fails closed
+    // (Guard 3) when the secure-marker read errors on a node that has a value.
+    let subrole_result = elem.subrole();
+    let subrole_read_failed = subrole_result.is_err();
+    let subrole = subrole_result.ok().map(|s| s.to_string());
 
     let children = if depth >= MAX_WALK_DEPTH {
         Vec::new() // truncate below the cap · keep this node, drop the subtree
@@ -190,7 +203,15 @@ fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32, depth: u16) 
             .unwrap_or_default()
     };
 
-    assemble_node(id, &role_str, title, value, subrole, children)
+    assemble_node(
+        id,
+        &role_str,
+        title,
+        value,
+        subrole,
+        subrole_read_failed,
+        children,
+    )
 }
 
 /// Build the raw (un-redacted) accessibility tree via the per-OS backend.
@@ -325,8 +346,15 @@ fn build_node_atspi<'a>(
         let id = format!("@e{counter}");
 
         // One role read · derive both the AxRole and the secure marker from it.
-        let raw_role = proxy.get_role().await.ok();
-        let secure = matches!(raw_role, Some(atspi::Role::PasswordText));
+        // Guard 3 fail-CLOSED (ADR-081): on AT-SPI the `PasswordText` ROLE is the
+        // sole secrecy signal, so a FAILED role read cannot prove the node is not a
+        // password field — treat read-failure as secure. (value is None at v1, so
+        // this only sets the marker today, but it ships the correct posture the
+        // instant Text-interface value reads land.)
+        let role_result = proxy.get_role().await;
+        let role_read_failed = role_result.is_err();
+        let raw_role = role_result.ok();
+        let secure = matches!(raw_role, Some(atspi::Role::PasswordText)) || role_read_failed;
         let role = raw_role.map_or(AxRole::Unknown, atspi_role_to_ax);
         let label = proxy.name().await.ok().filter(|s| !s.is_empty());
 
@@ -387,10 +415,14 @@ fn is_secure_field(node: &AxNode) -> bool {
 /// it leaves the crate (B.3) so passwords never reach a caller. The redacted
 /// `value` is set to `None` (NOT a masked string · zero leak).
 fn redact_secure_fields(node: AxNode) -> AxNode {
-    let value = if is_secure_field(&node) {
-        None
+    // For a secure field drop BOTH `value` and `label`. `value` is the typed
+    // secret; `label` is cleared defense-in-depth — some toolkits mirror the field
+    // content into the accessible name/title, so the redaction must be complete by
+    // construction, not reliant on every backend never doing that.
+    let (value, label) = if is_secure_field(&node) {
+        (None, None)
     } else {
-        node.value
+        (node.value, node.label)
     };
     let children = node
         .children
@@ -400,7 +432,7 @@ fn redact_secure_fields(node: AxNode) -> AxNode {
     AxNode::new(
         node.id,
         node.role,
-        node.label,
+        label,
         value,
         node.bbox,
         children,
@@ -557,6 +589,47 @@ mod tests {
         let plain = leaf("@e2", AxRole::TextField, Some("visible"), &[]);
         let kept = redact_secure_fields(plain);
         assert_eq!(kept.value.as_deref(), Some("visible"), "plain value kept");
+    }
+
+    #[test]
+    fn redact_clears_label_too_for_secure_node() {
+        // Defense-in-depth (Guard 3): a secure node's `label` is cleared as well as
+        // its `value`, in case a backend mirrors the secret into the accessible
+        // name. A plain node keeps both.
+        let mut attrs = BTreeMap::new();
+        attrs.insert("secure".to_string(), "true".to_string());
+        let secure = AxNode::new(
+            "@e1".to_string(),
+            AxRole::TextField,
+            Some("hunter2-as-name".to_string()), // label mirrors the secret
+            Some("hunter2".to_string()),
+            None,
+            vec![],
+            attrs,
+        );
+        let redacted = redact_secure_fields(secure);
+        assert_eq!(redacted.value, None, "secure value stripped");
+        assert_eq!(
+            redacted.label, None,
+            "secure label stripped (defense-in-depth)"
+        );
+
+        let plain = leaf("@e2", AxRole::StaticText, Some("v"), &[]);
+        let plain = AxNode::new(
+            plain.id,
+            plain.role,
+            Some("Visible Label".to_string()),
+            plain.value,
+            plain.bbox,
+            plain.children,
+            plain.attributes,
+        );
+        let kept = redact_secure_fields(plain);
+        assert_eq!(
+            kept.label.as_deref(),
+            Some("Visible Label"),
+            "plain label kept"
+        );
     }
 
     #[test]
@@ -725,13 +798,14 @@ mod tests {
 
     #[test]
     fn assemble_node_maps_role_filters_empty_and_records_subrole() {
-        // Non-empty title + non-empty secure subrole.
+        // Non-empty title + non-empty secure subrole (read succeeded).
         let n = assemble_node(
             "@e1".into(),
             "AXTextField",
             Some("Password".into()),
             Some("hunter2".into()),
             Some("AXSecureTextField".into()),
+            false,
             vec![],
         );
         assert_eq!(n.role, AxRole::TextField);
@@ -743,13 +817,14 @@ mod tests {
         );
         assert!(is_secure_field(&n), "assembled secure field trips Guard 3");
 
-        // Empty title + empty subrole are dropped (NOT recorded).
+        // Empty title + empty subrole are dropped (NOT recorded · read succeeded).
         let m = assemble_node(
             "@e2".into(),
             "AXUnknownThing",
             Some(String::new()),
             None,
             Some(String::new()),
+            false,
             vec![],
         );
         assert_eq!(m.role, AxRole::Unknown);
@@ -758,9 +833,73 @@ mod tests {
             !m.attributes.contains_key("AXSubrole"),
             "empty subrole ⇒ no attribute"
         );
-        // None subrole ⇒ no attribute.
-        let p = assemble_node("@e3".into(), "AXGroup", None, None, None, vec![]);
+        // None subrole, read succeeded ⇒ no attribute (proven non-secure).
+        let p = assemble_node("@e3".into(), "AXGroup", None, None, None, false, vec![]);
         assert!(!p.attributes.contains_key("AXSubrole"));
+    }
+
+    // --- assemble_node Guard 3 fail-closed (subrole read ERRORED) ---
+
+    #[test]
+    fn assemble_node_fail_closed_marks_secure_when_subrole_read_failed_with_value() {
+        // subrole read errored (None + read_failed) but the node HAS a value:
+        // we cannot prove it is non-secure, so it must be marked secure.
+        let n = assemble_node(
+            "@e1".into(),
+            "AXTextField",
+            Some("Email".into()),
+            Some("hunter2".into()),
+            None, // subrole unreadable
+            true, // ...because the read ERRORED
+            vec![],
+        );
+        assert!(
+            is_secure_field(&n),
+            "fail-closed: unreadable subrole + value ⇒ secure"
+        );
+        // ...and redaction then drops the value (no leak).
+        let redacted = redact_secure_fields(n);
+        assert_eq!(redacted.value, None, "fail-closed value is redacted");
+    }
+
+    #[test]
+    fn assemble_node_no_overredact_when_read_failed_but_no_value() {
+        // subrole read errored but the node has NO content: nothing to protect,
+        // so do NOT over-redact (mark) it.
+        let n = assemble_node(
+            "@e1".into(),
+            "AXGroup",
+            Some("Container".into()),
+            None, // no value
+            None,
+            true, // read errored
+            vec![],
+        );
+        assert!(
+            !is_secure_field(&n),
+            "no value ⇒ nothing to protect ⇒ not over-redacted"
+        );
+    }
+
+    #[test]
+    fn assemble_node_proven_nonsecure_is_not_marked_even_with_value() {
+        // subrole read SUCCEEDED and returned a non-secure subrole: we proved it
+        // is safe, so a value must pass through (read_failed = false).
+        let n = assemble_node(
+            "@e1".into(),
+            "AXTextField",
+            None,
+            Some("public-handle".into()),
+            Some("AXSearchField".into()),
+            false,
+            vec![],
+        );
+        assert!(
+            !is_secure_field(&n),
+            "proven-non-secure subrole ⇒ value kept"
+        );
+        let kept = redact_secure_fields(n);
+        assert_eq!(kept.value.as_deref(), Some("public-handle"));
     }
 
     // --- resolve_ref on a fresh backend (empty cache · headless · NIKA-N/A) ---
