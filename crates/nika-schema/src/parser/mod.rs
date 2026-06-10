@@ -231,6 +231,15 @@ impl CharToByte {
         // Guard against pathological inputs that would overflow u32.
         // 4 GB of YAML is not a workflow, it's a denial-of-service
         // attempt — fail loud rather than silently clamp.
+        //
+        // SECURITY NOTE (pre-admission · see crate-spec §11 untrusted-input
+        // resource bounds): this u32::MAX limit is a SPAN-CORRECTNESS bound,
+        // NOT a DoS bound. Before `nika serve` exposes the parser to untrusted
+        // workflows, lower this to a workflow-realistic byte cap (marked-yaml
+        // allocates the whole node tree up-front) AND add a YAML-value
+        // nesting-depth cap (value::node_to_json recurses unbounded) + a
+        // task-count cap (parser::tasks). marked-yaml 0.8 does not expand
+        // anchors/aliases, so the billion-laughs vector is already closed.
         if source.len() > u32::MAX as usize {
             return Err(SchemaError::YamlSyntax {
                 message: format!(

@@ -786,6 +786,19 @@ custom providers).
 | Guardrails serde complexity | Low | Custom Deserialize already isolated in `guardrails/serde_impl.rs` |
 | Circular imports between analyzer and types | Low | Solved by 1-crate design — modules, not crates |
 | extract_json security (adversarial input) | Medium | Proptest 5,000 cases + fuzzing target in `fuzz/` (Phase 5) |
+| **Untrusted-input DoS · oversized workflow** | **High** (once `nika serve` is wired) | The `CharToByte::new` guard (`parser/mod.rs`) rejects > `u32::MAX` bytes, but that is a SPAN-CORRECTNESS bound (4 GB), not a DoS bound — `marked-yaml` allocates the entire node tree up-front. **Pre-admission gate**: lower to a workflow-realistic byte cap (≈16 MB) before the parser sees untrusted input. |
+| **Untrusted-input DoS · deep YAML nesting** | **High** (`nika serve`) | `value::node_to_json` recurses on `Sequence`/`Mapping` with no depth bound → a deeply-nested value overflows the stack. **Pre-admission gate**: enforce a nesting-depth cap (the parse-time analog of the spec's run-recursion depth cap in `08-out-of-scope.md` §Depth cap, which is a distinct *runtime* guard). |
+| **Untrusted-input DoS · unbounded task count** | Medium (`nika serve`) | `parser::tasks::parse_tasks` iterates the `tasks:` sequence with no count cap (output `Vec` + downstream DAG scale with it). **Pre-admission gate**: add a `MAX_TASKS` bound. |
+| Billion-laughs (YAML anchor/alias expansion) | — | **Already mitigated** by the lib choice: `marked-yaml` 0.8 does not expand anchors/aliases (config-subset YAML). No action needed; documented so the mitigation isn't lost on a future YAML-lib swap. |
+
+> **Pre-admission security gate (untrusted-input resource bounds).** Before
+> `nika-schema` is wired behind `nika serve` (untrusted workflow input), the
+> three caps above (byte-size · nesting-depth · task-count) MUST be enforced at
+> the parse boundary, each with a regression test. They are NOT Gate-12 blockers
+> for L2/L3 internal-only use, but they ARE blockers for the public-serve
+> surface. Tracked here so the requirement is explicit at admission (the limit
+> *values* are a design decision deferred to that point). The inline
+> `SECURITY NOTE` in `parser/mod.rs` `CharToByte::new` cross-links this row.
 
 ---
 
