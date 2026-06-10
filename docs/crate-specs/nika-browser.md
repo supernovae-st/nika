@@ -126,13 +126,17 @@ never click a guess.
 ## 6. Batch plan (per M2 precedent)
 
 - **B.1** this spec · backend research RESOLVED (chromiumoxide tarball-verified).
-- **B.2** crate skeleton + Guard-5 pure core (`verify_selector_target` +
-  `SelectorExpectation` + DomNode mapper + URL validation) + headless tests.
-  The security core ships before any CDP wiring (the nika-input precedent).
-- **B.3** chromiumoxide backend wired: launch (kill_on_drop + Handler task) ·
-  navigate · dom_snapshot (depth-capped mapper) · click_selector (Guard 5
-  path) · screenshot (PNG→RGBA8 Frame). `#[ignore]` smoke test against a
-  local chromium.
+- **B.2** ✅ SHIPPED `eb6f07e0d` — crate skeleton + Guard-5 pure core
+  (`verify_selector_target` + `SelectorExpectation`) + headless tests. The
+  security core shipped before any CDP wiring (the nika-input precedent).
+- **B.3** ✅ SHIPPED — chromiumoxide backend wired: launch (kill_on_drop +
+  one owned Handler task per session) · navigate (pure RFC-3986 http/https
+  gate BEFORE session lookup) · dom_snapshot (depth-capped pure mapper —
+  the cap protects DomNode's own recursive derive glue, not just the
+  mapper) · click_selector (Guard-5: exactly-one match + stable
+  double-resolve on backend_node_id + live-bbox visibility + expectation
+  pins) · screenshot (PNG→RGBA8 Frame · pure decode). Real-chromium
+  `#[ignore]` smoke PASSES (launch/snapshot/screenshot/guard-5 refusals).
 - **B.4** mutation ≥90 % headless + Rule-2 CDP-residue exemption + 3-lens
   review swarm + 12-gate close + admission.
 
@@ -162,4 +166,6 @@ Guard 5 is THE mandatory guard (§5b). Additional posture:
   text length-capped — a hostile page cannot OOM the agent (the nika-a11y
   `MAX_WALK_DEPTH` precedent).
 - The chromium child is always `kill_on_drop` — no orphan browsers (#11).
-- Headless by default; headful is an explicit `BrowserProfile` opt-in.
+- Headless follows the kernel `BrowserProfile` DTO (its `Default` is
+  headful-VISIBLE — the transparency posture, consistent with the Guard-6
+  LED-visibility spirit); agent callers opt INTO headless explicitly.
