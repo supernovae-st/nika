@@ -1,0 +1,44 @@
+pub mod nika_exec_runner
+pub struct nika_exec_runner::TokioShell
+impl nika_exec_runner::TokioShell
+pub fn nika_exec_runner::TokioShell::new() -> Self
+impl core::clone::Clone for nika_exec_runner::TokioShell
+pub fn nika_exec_runner::TokioShell::clone(&self) -> nika_exec_runner::TokioShell
+impl core::default::Default for nika_exec_runner::TokioShell
+pub fn nika_exec_runner::TokioShell::default() -> nika_exec_runner::TokioShell
+impl core::fmt::Debug for nika_exec_runner::TokioShell
+pub fn nika_exec_runner::TokioShell::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::process::ShellCancelDyn for nika_exec_runner::TokioShell
+pub async fn nika_exec_runner::TokioShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl nika_kernel_core::io::process::ShellRunDyn for nika_exec_runner::TokioShell
+pub async fn nika_exec_runner::TokioShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+impl<D> owo_colors::OwoColorize for nika_exec_runner::TokioShell
+impl<T, U> core::convert::Into<U> for nika_exec_runner::TokioShell where U: core::convert::From<T>
+pub fn nika_exec_runner::TokioShell::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::TokioShell where U: core::convert::Into<T>
+pub type nika_exec_runner::TokioShell::Error = core::convert::Infallible
+pub fn nika_exec_runner::TokioShell::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::TokioShell where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::TokioShell::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::TokioShell::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_exec_runner::TokioShell where T: core::clone::Clone
+pub type nika_exec_runner::TokioShell::Owned = T
+pub fn nika_exec_runner::TokioShell::clone_into(&self, target: &mut T)
+pub fn nika_exec_runner::TokioShell::to_owned(&self) -> T
+impl<T> core::any::Any for nika_exec_runner::TokioShell where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::TokioShell::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::TokioShell where T: ?core::marker::Sized
+pub fn nika_exec_runner::TokioShell::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::TokioShell where T: ?core::marker::Sized
+pub fn nika_exec_runner::TokioShell::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_exec_runner::TokioShell where T: core::clone::Clone
+pub unsafe fn nika_exec_runner::TokioShell::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_exec_runner::TokioShell
+pub fn nika_exec_runner::TokioShell::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::TokioShell where T: 'static
+pub fn nika_exec_runner::TokioShell::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> nika_kernel_core::io::process::ShellExecutor for nika_exec_runner::TokioShell where T: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellCancel for nika_exec_runner::TokioShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellCancelDyn
+pub async fn nika_exec_runner::TokioShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_exec_runner::TokioShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
+pub async fn nika_exec_runner::TokioShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>

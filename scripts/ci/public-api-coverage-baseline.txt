@@ -49,3 +49,4 @@ nika-ocr
 nika-fs
 nika-http
 nika-blob
+nika-exec-runner
