@@ -45,3 +45,7 @@ nika-kernel-core
 nika-kernel-plugin
 nika-kernel-runtime
 nika-ocr
+# --- 2026-06-10: the L1 effect crates admitted on main (fs reworked to FsError) ---
+nika-fs
+nika-http
+nika-blob

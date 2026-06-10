@@ -1,0 +1,137 @@
+pub mod nika_http
+#[non_exhaustive] pub enum nika_http::SsrfMode
+pub nika_http::SsrfMode::Disabled
+pub nika_http::SsrfMode::Enforce
+impl core::clone::Clone for nika_http::SsrfMode
+pub fn nika_http::SsrfMode::clone(&self) -> nika_http::SsrfMode
+impl core::cmp::Eq for nika_http::SsrfMode
+impl core::cmp::PartialEq for nika_http::SsrfMode
+pub fn nika_http::SsrfMode::eq(&self, other: &nika_http::SsrfMode) -> bool
+impl core::default::Default for nika_http::SsrfMode
+pub fn nika_http::SsrfMode::default() -> nika_http::SsrfMode
+impl core::fmt::Debug for nika_http::SsrfMode
+pub fn nika_http::SsrfMode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_http::SsrfMode
+impl core::marker::StructuralPartialEq for nika_http::SsrfMode
+impl<D> owo_colors::OwoColorize for nika_http::SsrfMode
+impl<T, U> core::convert::Into<U> for nika_http::SsrfMode where U: core::convert::From<T>
+pub fn nika_http::SsrfMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_http::SsrfMode where U: core::convert::Into<T>
+pub type nika_http::SsrfMode::Error = core::convert::Infallible
+pub fn nika_http::SsrfMode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_http::SsrfMode where U: core::convert::TryFrom<T>
+pub type nika_http::SsrfMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_http::SsrfMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_http::SsrfMode where T: core::clone::Clone
+pub type nika_http::SsrfMode::Owned = T
+pub fn nika_http::SsrfMode::clone_into(&self, target: &mut T)
+pub fn nika_http::SsrfMode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_http::SsrfMode where T: 'static + ?core::marker::Sized
+pub fn nika_http::SsrfMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_http::SsrfMode where T: ?core::marker::Sized
+pub fn nika_http::SsrfMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_http::SsrfMode where T: ?core::marker::Sized
+pub fn nika_http::SsrfMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_http::SsrfMode where T: core::clone::Clone
+pub unsafe fn nika_http::SsrfMode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_http::SsrfMode
+pub fn nika_http::SsrfMode::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_http::SsrfMode where T: 'static
+pub fn nika_http::SsrfMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_http::SsrfMode where T: ?core::marker::Sized
+pub fn nika_http::SsrfMode::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_http::SsrfMode::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_http::SsrfMode
+impl<T> tracing::instrument::WithSubscriber for nika_http::SsrfMode
+#[non_exhaustive] pub struct nika_http::HttpConfig
+pub nika_http::HttpConfig::max_redirects: u8
+pub nika_http::HttpConfig::max_response_bytes: u64
+pub nika_http::HttpConfig::ssrf: nika_http::SsrfMode
+pub nika_http::HttpConfig::timeout: core::time::Duration
+impl nika_http::HttpConfig
+pub fn nika_http::HttpConfig::new() -> Self
+impl core::clone::Clone for nika_http::HttpConfig
+pub fn nika_http::HttpConfig::clone(&self) -> nika_http::HttpConfig
+impl core::default::Default for nika_http::HttpConfig
+pub fn nika_http::HttpConfig::default() -> Self
+impl core::fmt::Debug for nika_http::HttpConfig
+pub fn nika_http::HttpConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_http::HttpConfig
+impl<T, U> core::convert::Into<U> for nika_http::HttpConfig where U: core::convert::From<T>
+pub fn nika_http::HttpConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_http::HttpConfig where U: core::convert::Into<T>
+pub type nika_http::HttpConfig::Error = core::convert::Infallible
+pub fn nika_http::HttpConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_http::HttpConfig where U: core::convert::TryFrom<T>
+pub type nika_http::HttpConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_http::HttpConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_http::HttpConfig where T: core::clone::Clone
+pub type nika_http::HttpConfig::Owned = T
+pub fn nika_http::HttpConfig::clone_into(&self, target: &mut T)
+pub fn nika_http::HttpConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_http::HttpConfig where T: 'static + ?core::marker::Sized
+pub fn nika_http::HttpConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_http::HttpConfig where T: ?core::marker::Sized
+pub fn nika_http::HttpConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_http::HttpConfig where T: ?core::marker::Sized
+pub fn nika_http::HttpConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_http::HttpConfig where T: core::clone::Clone
+pub unsafe fn nika_http::HttpConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_http::HttpConfig
+pub fn nika_http::HttpConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_http::HttpConfig where T: 'static
+pub fn nika_http::HttpConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_http::HttpConfig where T: ?core::marker::Sized
+pub fn nika_http::HttpConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_http::HttpConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_http::HttpConfig
+impl<T> tracing::instrument::WithSubscriber for nika_http::HttpConfig
+pub struct nika_http::ReqwestHttp
+impl nika_http::ReqwestHttp
+pub fn nika_http::ReqwestHttp::new() -> core::result::Result<Self, nika_kernel_core::io::http::HttpError>
+pub fn nika_http::ReqwestHttp::with_config(config: nika_http::HttpConfig) -> core::result::Result<Self, nika_kernel_core::io::http::HttpError>
+impl core::clone::Clone for nika_http::ReqwestHttp
+pub fn nika_http::ReqwestHttp::clone(&self) -> nika_http::ReqwestHttp
+impl core::fmt::Debug for nika_http::ReqwestHttp
+pub fn nika_http::ReqwestHttp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::http::HttpGetDyn for nika_http::ReqwestHttp
+pub async fn nika_http::ReqwestHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl nika_kernel_core::io::http::HttpPostDyn for nika_http::ReqwestHttp
+pub async fn nika_http::ReqwestHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_http::ReqwestHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+impl<D> owo_colors::OwoColorize for nika_http::ReqwestHttp
+impl<T, U> core::convert::Into<U> for nika_http::ReqwestHttp where U: core::convert::From<T>
+pub fn nika_http::ReqwestHttp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_http::ReqwestHttp where U: core::convert::Into<T>
+pub type nika_http::ReqwestHttp::Error = core::convert::Infallible
+pub fn nika_http::ReqwestHttp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_http::ReqwestHttp where U: core::convert::TryFrom<T>
+pub type nika_http::ReqwestHttp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_http::ReqwestHttp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_http::ReqwestHttp where T: core::clone::Clone
+pub type nika_http::ReqwestHttp::Owned = T
+pub fn nika_http::ReqwestHttp::clone_into(&self, target: &mut T)
+pub fn nika_http::ReqwestHttp::to_owned(&self) -> T
+impl<T> core::any::Any for nika_http::ReqwestHttp where T: 'static + ?core::marker::Sized
+pub fn nika_http::ReqwestHttp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_http::ReqwestHttp where T: ?core::marker::Sized
+pub fn nika_http::ReqwestHttp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_http::ReqwestHttp where T: ?core::marker::Sized
+pub fn nika_http::ReqwestHttp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_http::ReqwestHttp where T: core::clone::Clone
+pub unsafe fn nika_http::ReqwestHttp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_http::ReqwestHttp
+pub fn nika_http::ReqwestHttp::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_http::ReqwestHttp where T: 'static
+pub fn nika_http::ReqwestHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> nika_kernel_core::io::http::HttpClient for nika_http::ReqwestHttp where T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_http::ReqwestHttp where T: ?core::marker::Sized
+pub fn nika_http::ReqwestHttp::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_http::ReqwestHttp::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_http::ReqwestHttp
+impl<T> tracing::instrument::WithSubscriber for nika_http::ReqwestHttp
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpGet for nika_http::ReqwestHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpGetDyn
+pub async fn nika_http::ReqwestHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_http::ReqwestHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
+pub async fn nika_http::ReqwestHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_http::ReqwestHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>

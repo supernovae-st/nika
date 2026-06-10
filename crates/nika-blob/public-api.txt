@@ -1,0 +1,48 @@
+pub mod nika_blob
+pub struct nika_blob::DiskBlobStore
+impl nika_blob::DiskBlobStore
+pub fn nika_blob::DiskBlobStore::max_size(&self) -> u64
+pub fn nika_blob::DiskBlobStore::new(root: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_blob::DiskBlobStore::root(&self) -> &std::path::Path
+pub fn nika_blob::DiskBlobStore::with_max_size(root: impl core::convert::Into<std::path::PathBuf>, max_size: u64) -> Self
+impl core::clone::Clone for nika_blob::DiskBlobStore
+pub fn nika_blob::DiskBlobStore::clone(&self) -> nika_blob::DiskBlobStore
+impl core::fmt::Debug for nika_blob::DiskBlobStore
+pub fn nika_blob::DiskBlobStore::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::blob::BlobStoreDyn for nika_blob::DiskBlobStore
+pub async fn nika_blob::DiskBlobStore::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::DiskBlobStore::exists(&self, hash: &str) -> bool
+pub async fn nika_blob::DiskBlobStore::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::DiskBlobStore::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::DiskBlobStore::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+impl<D> owo_colors::OwoColorize for nika_blob::DiskBlobStore
+impl<T, U> core::convert::Into<U> for nika_blob::DiskBlobStore where U: core::convert::From<T>
+pub fn nika_blob::DiskBlobStore::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_blob::DiskBlobStore where U: core::convert::Into<T>
+pub type nika_blob::DiskBlobStore::Error = core::convert::Infallible
+pub fn nika_blob::DiskBlobStore::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_blob::DiskBlobStore where U: core::convert::TryFrom<T>
+pub type nika_blob::DiskBlobStore::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_blob::DiskBlobStore::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_blob::DiskBlobStore where T: core::clone::Clone
+pub type nika_blob::DiskBlobStore::Owned = T
+pub fn nika_blob::DiskBlobStore::clone_into(&self, target: &mut T)
+pub fn nika_blob::DiskBlobStore::to_owned(&self) -> T
+impl<T> core::any::Any for nika_blob::DiskBlobStore where T: 'static + ?core::marker::Sized
+pub fn nika_blob::DiskBlobStore::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_blob::DiskBlobStore where T: ?core::marker::Sized
+pub fn nika_blob::DiskBlobStore::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_blob::DiskBlobStore where T: ?core::marker::Sized
+pub fn nika_blob::DiskBlobStore::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_blob::DiskBlobStore where T: core::clone::Clone
+pub unsafe fn nika_blob::DiskBlobStore::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_blob::DiskBlobStore
+pub fn nika_blob::DiskBlobStore::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_blob::DiskBlobStore where T: 'static
+pub fn nika_blob::DiskBlobStore::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::blob::BlobStore for nika_blob::DiskBlobStore where TraitVariantBlanketType: nika_kernel_core::io::blob::BlobStoreDyn
+pub async fn nika_blob::DiskBlobStore::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::DiskBlobStore::exists(&self, hash: &str) -> bool
+pub async fn nika_blob::DiskBlobStore::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::DiskBlobStore::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::DiskBlobStore::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>

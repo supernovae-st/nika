@@ -1,0 +1,63 @@
+pub mod nika_fs
+pub struct nika_fs::TokioFs
+impl core::clone::Clone for nika_fs::TokioFs
+pub fn nika_fs::TokioFs::clone(&self) -> nika_fs::TokioFs
+impl core::default::Default for nika_fs::TokioFs
+pub fn nika_fs::TokioFs::default() -> nika_fs::TokioFs
+impl core::fmt::Debug for nika_fs::TokioFs
+pub fn nika_fs::TokioFs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fs::TokioFs
+impl nika_kernel_core::io::fs::FsListDyn for nika_fs::TokioFs
+pub async fn nika_fs::TokioFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+impl nika_kernel_core::io::fs::FsMetaDyn for nika_fs::TokioFs
+pub async fn nika_fs::TokioFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
+impl nika_kernel_core::io::fs::FsReadDyn for nika_fs::TokioFs
+pub async fn nika_fs::TokioFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_fs::TokioFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
+impl nika_kernel_core::io::fs::FsWriteDyn for nika_fs::TokioFs
+pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+impl<D> owo_colors::OwoColorize for nika_fs::TokioFs
+impl<T, U> core::convert::Into<U> for nika_fs::TokioFs where U: core::convert::From<T>
+pub fn nika_fs::TokioFs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::TokioFs where U: core::convert::Into<T>
+pub type nika_fs::TokioFs::Error = core::convert::Infallible
+pub fn nika_fs::TokioFs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::TokioFs where U: core::convert::TryFrom<T>
+pub type nika_fs::TokioFs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::TokioFs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::TokioFs where T: core::clone::Clone
+pub type nika_fs::TokioFs::Owned = T
+pub fn nika_fs::TokioFs::clone_into(&self, target: &mut T)
+pub fn nika_fs::TokioFs::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fs::TokioFs where T: 'static + ?core::marker::Sized
+pub fn nika_fs::TokioFs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::TokioFs where T: ?core::marker::Sized
+pub fn nika_fs::TokioFs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::TokioFs where T: ?core::marker::Sized
+pub fn nika_fs::TokioFs::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::TokioFs where T: core::clone::Clone
+pub unsafe fn nika_fs::TokioFs::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::TokioFs
+pub fn nika_fs::TokioFs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::TokioFs where T: 'static
+pub fn nika_fs::TokioFs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> nika_kernel_core::io::fs::Fs for nika_fs::TokioFs where T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsList for nika_fs::TokioFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsListDyn
+pub async fn nika_fs::TokioFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsMeta for nika_fs::TokioFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsMetaDyn
+pub async fn nika_fs::TokioFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_fs::TokioFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn
+pub async fn nika_fs::TokioFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_fs::TokioFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_fs::TokioFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
+pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
