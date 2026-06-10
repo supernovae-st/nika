@@ -62,6 +62,7 @@ wrappers = [
   "nika-exec-runner",      # L1 exec effect: tokio::process is THE subprocess spawner (kill_on_drop · concurrent drain · timeout · registry cancel-by-pid) · announce floor exec · s7
   "nika-input",            # L1 write-side effect (M2.4): tokio `rt` for spawn_blocking — the sync `enigo` OS-event synthesis runs off the async runtime (worker-local · CANCEL SAFETY contract · same pattern as nika-a11y) · B.3 wires enigo
   "nika-browser",          # L1 web effect (M2.5): tokio `rt` for the per-session CDP Handler task — chromiumoxide is async-native (NO spawn_blocking) · B.3 wires chromiumoxide
+  "nika-providers",        # L1.5 provider layer (s8.5): tokio dev-dep for #[tokio::test] async wire-adapter tests (transport itself rides the injected kernel http effect · zero runtime tokio dep)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
   "tower", "tokio-util", "tokio-rustls",

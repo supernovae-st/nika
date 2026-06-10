@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 //! Cross-provider parity matrix — the house rule made executable:
 //! **the same assertions run against every canonical profile** (a failure
 //! on one provider is an engine bug, not a provider quirk).

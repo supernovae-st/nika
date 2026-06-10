@@ -2430,7 +2430,6 @@ dependencies = [
  "nika-catalog",
  "nika-kernel",
  "proptest",
- "serde",
  "serde_json",
  "tokio",
 ]
