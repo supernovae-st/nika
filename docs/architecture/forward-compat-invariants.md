@@ -334,6 +334,36 @@ these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 10. **`#[must_use]` on every Result-returning API**. <!-- FCI-023 --> Silently dropped
     errors are forward-compat tax when tightening error reporting.
 
+### Kernel I/O error-typing convention (two deliberate patterns) <!-- FCI-023bis -->
+
+The L0.5 `nika-kernel-core/src/io/*` effect-traits split into **two** intentional
+error-return patterns. A new io trait MUST pick one explicitly:
+
+- **Pattern A · typed-at-kernel** (`blob` · `http` · `process` · `fs`). The trait
+  returns `Result<T, XError>` where `XError` is a `#[non_exhaustive]` thiserror
+  enum living IN the io module, with its `NikaErrorCode` impl + reserved NIKA
+  range in `nika-kernel-core/src/errors.rs`. The typed taxonomy survives the
+  contract boundary — a caller (L2/L3) can match the NIKA code. **This is the
+  preferred pattern** for any effect with a meaningful error vocabulary.
+  (`fs` joined this set 2026-06-10 — it was the last laggard; before that it
+  leaked `std::io::Result`, freezing the un-typed surface for any admitted impl.)
+
+- **Pattern B · `std::io::Result`-at-kernel + L1-typed** (`screen` · `ocr` · `a11y`
+  · `input` · `browser` — the ADR-083 computer-use family). The trait returns
+  `std::io::Result<T>`; the typed `#[non_exhaustive]` error (`ScreenError` etc.)
+  lives in the L1 impl crate with `impl From<XError> for std::io::Error`. Chosen
+  when the trait is generic over a type-state (consent) or the OS-FFI boundary
+  already speaks `io::Error`.
+
+**Open architecture decision** (tee'd up for the next architecture review): Pattern
+B discards the NIKA code at the kernel boundary (`io::Error` can't carry it), a mild
+FCI-019 tension. Migrating the computer-use family to Pattern A is additive ONLY
+while a crate is un-admitted — `screen`/`ocr`/`a11y` are admitted, so retyping them
+is a v0.95 breaking change; `input`/`browser` are not yet admitted and could adopt
+Pattern A now (`input`'s spec currently follows B per the ADR-083 sibling). Decide
+the family-wide convention before `nika-input` (M2.4) admits, so it doesn't freeze
+the choice.
+
 ## 10 anti-patterns to avoid <!-- FCI-024..033 -->
 
 1. Returning `Vec<T>` from public APIs. <!-- FCI-024 -->
