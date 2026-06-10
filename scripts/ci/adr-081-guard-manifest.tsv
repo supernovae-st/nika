@@ -1,0 +1,25 @@
+# ADR-081 guard impl-binding manifest.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The ADR-081 matrix (docs/adr/adr-081-l1-effect-crate-guard-contract.md) is
+# the CONTRACT: which Guard is owned by which crate, at which admission Mode.
+# THIS file is the IMPL-BINDING: where the guard lives in the crate src + the
+# test that proves it. The gate scripts/hygiene/check-adr-081-guards.sh
+# cross-checks BOTH: every MANDATORY matrix row whose owner-crate is in the
+# workspace MUST have a binding row here, and the binding's impl/test regexes
+# MUST match in that crate's src.
+#
+# When a new guard-owner crate is admitted (e.g. nika-input M2.4 Guards 1+2),
+# the gate goes RED until a binding row is added here AND the guard is
+# implemented + tested — the structural forcing function per ADR-081
+# "MANDATORY-at-admission". Do NOT pre-fill rows for crates not yet in the
+# workspace; the gate auto-discovers the requirement from owed ∩ present.
+#
+# Columns (TAB-separated): guard_id <TAB> crate <TAB> impl_regex <TAB> test_regex
+# - impl_regex : ERE that MUST match in crates/<crate>/src/**.rs (the guard symbol).
+# - test_regex : ERE that MUST match a test fn in crates/<crate>/src/**.rs.
+#
+# guard_id	crate	impl_regex	test_regex
+3	nika-a11y	fn redact_secure_fields	fn redact_strips_secure_value
+6	nika-screen	struct LedIndicator	fn led_engage_scope_lights
+7	nika-screen	struct ConsentGate	fn consent_gate_grant_allows

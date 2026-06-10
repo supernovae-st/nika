@@ -69,7 +69,9 @@ run_check() {
   fi
 }
 
-# --- All 30 vectors (vectors 7 + 17 + 18 removed; counts 33 deployed minus 3 = 30 live) ---
+# --- All 33 live vectors (vectors 7 + 17 + 18 removed; 36 deployed minus 3 = 33 live).
+# 34-36 added 2026-06-10 (security/supply-chain arc): cargo-deny policy,
+# ADR-081 computer-use guard-presence admission gate, cargo-machete unused-deps. ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"
@@ -111,6 +113,9 @@ run_check "30 cancel-safety-docs  " "check-cancel-safety.sh"
 run_check "31 owned-strings-cat   " "check-owned-strings.sh"
 run_check "32 unsafe-count-ratchet" "check-unsafe-count.sh"
 run_check "33 layer-deps-bans     " "check-layer-deps.sh"
+run_check "34 cargo-deny-policy   " "check-cargo-deny.sh"
+run_check "35 adr-081-guards      " "check-adr-081-guards.sh"
+run_check "36 unused-deps-machete " "check-unused-deps.sh"
 
 # --- Output ---
 g=0
