@@ -39,6 +39,9 @@ g1=$([ -f "$spec" ] && echo pass || echo fail)
 g2=$([ -d "$tests" ] || grep -q '#\[cfg(test)\]' "$src"/*.rs 2>/dev/null && echo pass || echo warn)
 g3=$(cargo check -p "$crate" --quiet 2>/dev/null && echo pass || echo fail)
 g4=$(cargo clippy -p "$crate" --all-targets --quiet -- -D warnings 2>/dev/null && echo pass || echo fail)
+# g5: cheap presence heuristic. The REAL executable Gate 5 (mutation ≥90%
+# kill-floor) is scripts/ci/check-mutation-floor.sh <crate>, run at admission
+# / in CI (cargo-mutants is minutes-slow — not for this fast JSON emitter).
 g5=$([ -f "$spec" ] && grep -q 'Mutation' "$spec" 2>/dev/null && echo warn || echo skip)
 g6=$(grep -rqE '\bproptest\!|use proptest' "$src" 2>/dev/null && echo pass || echo skip)
 g7=$([ -d "$benches" ] && echo pass || echo skip)
