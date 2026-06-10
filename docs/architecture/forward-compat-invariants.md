@@ -273,8 +273,8 @@ pub trait Provider {
 - `trait_variant` generates sync + Send + !Send variants
 - `ProviderError` is `#[non_exhaustive]` + `#[from]` chains
 
-**Rationale**: 9 providers in v0.90, 20+ in v0.100. Trait shape locks all
-downstream.
+**Rationale**: the provider set grows release over release; the trait
+shape locks all downstream.
 
 ### Decision 5 — `CatalogEntry` shape with Cortex-ready fields <!-- FCI-013 -->
 
