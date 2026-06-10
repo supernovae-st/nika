@@ -7,7 +7,8 @@
 //! Phase 2 M1 PR 4 (sprint plan `2026-05-14-nika-phase-2-m1-kernel-modules-
 //! sprint-plan.md` §4 · ~200 LOC · ⚠️ **HIGHEST REVIEW SCRUTINY** ·
 //! type-state `ConsentProof` is load-bearing). Reserved error codes
-//! NIKA-1080..1099 per `docs/architecture/forward-compat-invariants.md`
+//! NIKA-1300..1399 (`Category::Input` · per ADR-081) per
+//! `docs/architecture/forward-compat-invariants.md`
 //! Gate 12.
 //!
 //! ADR-006 monolithic-kernel-spirit (single trait + DTOs · no proc macro ·
@@ -36,8 +37,7 @@
 //! (state transitioned to `Authorized`) before any synthetic input event
 //! is dispatched. Anti-`unwrap` discipline applies to the L1 impl ·
 //! consent expiry (`ttl_ns`) is checked at the call site · returns
-//! `std::io::Error::PermissionDenied` (mapped to NIKA-1080 at L1
-//! `nika-input`) on stale proof.
+//! `InputError::ConsentExpired` (NIKA-1302) on stale proof.
 //!
 //! Cross-PR dep · `Point` is defined inline (M1.4 standalone per sprint
 //! plan §5) · the screen-capture `Rect` already defines `x: i32, y: i32`
@@ -124,8 +124,7 @@ impl ConsentState for Authorized {
 /// `ttl_ns` · time-to-live in nanoseconds · `0` means « infinite · until
 /// system revocation » · non-zero means « expire after N ns since
 /// `granted_at_ns` ». L1 impls MUST re-check `ttl_ns` at every dispatch
-/// site · stale proof returns `std::io::ErrorKind::PermissionDenied`
-/// (mapped to NIKA-1080 at `nika-input` L1).
+/// site · stale proof returns `InputError::ConsentExpired` (NIKA-1302).
 ///
 /// `#[non_exhaustive]` preserves forward-compat for future fields (e.g.
 /// `scope: ConsentScope` · `entitlements: u8` bitfield) on MINOR per
@@ -420,6 +419,41 @@ pub enum KeyCode {
     RCmd,
 }
 
+/// Synthetic-input errors — the typed boundary of the `InputDevice` trait
+/// (Pattern A · FCI-023bis). `#[non_exhaustive]`; `NikaErrorCode` impl + reserved
+/// range (`Category::Input` · NIKA-1301..1305) live in `crate::errors`. The error
+/// type is orthogonal to the `ConsentState` type-state — a type-state-generic
+/// trait is no exception to the typed-error convention (Pattern A · FCI-023bis).
+///
+/// SECURITY (ADR-081 Guard 1): an `InputError` MUST NEVER carry the raw typed
+/// text — a synthetic-input error that logged what it typed would leak passwords.
+/// Variants carry only structural detail (reason strings · never key content).
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum InputError {
+    /// Synthetic input attempted without an OS consent grant.
+    #[error("NIKA-1301 · synthetic input consent denied (grant Accessibility / Input Monitoring)")]
+    ConsentDenied,
+    /// The `ConsentProof` TTL expired before this dispatch (re-acquire consent).
+    #[error("NIKA-1302 · synthetic input consent expired (proof TTL elapsed)")]
+    ConsentExpired,
+    /// Posting the synthetic OS event failed.
+    #[error("NIKA-1303 · synthetic event post failed: {reason}")]
+    EventPostFailed {
+        /// Backend-reported reason (NEVER the typed content · Guard 1).
+        reason: String,
+    },
+    /// No synthetic-input backend is compiled for this platform.
+    #[error("NIKA-1304 · no synthetic-input backend on this platform")]
+    BackendUnavailable,
+    /// A `spawn_blocking` input-dispatch task panicked or was cancelled.
+    #[error("NIKA-1305 · synthetic input task join failed: {reason}")]
+    TaskJoinFailed {
+        /// Join failure detail.
+        reason: String,
+    },
+}
+
 /// Synthetic input device · async trait gated by type-state consent.
 ///
 /// CANCEL SAFETY · async methods are BEST-EFFORT cancel-safe with one
@@ -469,8 +503,8 @@ pub trait InputDevice<S: ConsentState>: Send + Sync {
     ///
     /// `proof` MUST be a non-expired `ConsentProof` (per `Authorized`
     /// state) · L1 impls re-check `ttl_ns` at call site · returns
-    /// `std::io::ErrorKind::PermissionDenied` (NIKA-1080) on stale proof.
-    async fn move_cursor(&self, to: Point, proof: &S::Granted) -> std::io::Result<()>
+    /// `InputError::ConsentExpired` (NIKA-1302) on stale proof.
+    async fn move_cursor(&self, to: Point, proof: &S::Granted) -> Result<(), InputError>
     where
         S: ConsentState<Granted = ConsentProof>;
 
@@ -482,7 +516,7 @@ pub trait InputDevice<S: ConsentState>: Send + Sync {
     ///
     /// `proof` MUST be a non-expired `ConsentProof` · same contract as
     /// `move_cursor`.
-    async fn click(&self, button: MouseButton, proof: &S::Granted) -> std::io::Result<()>
+    async fn click(&self, button: MouseButton, proof: &S::Granted) -> Result<(), InputError>
     where
         S: ConsentState<Granted = ConsentProof>;
 
@@ -498,7 +532,7 @@ pub trait InputDevice<S: ConsentState>: Send + Sync {
     ///
     /// `proof` MUST be a non-expired `ConsentProof` · same contract as
     /// `move_cursor`.
-    async fn type_text(&self, text: &str, proof: &S::Granted) -> std::io::Result<()>
+    async fn type_text(&self, text: &str, proof: &S::Granted) -> Result<(), InputError>
     where
         S: ConsentState<Granted = ConsentProof>;
 
@@ -517,7 +551,7 @@ pub trait InputDevice<S: ConsentState>: Send + Sync {
         key: KeyCode,
         modifiers: KeyMods,
         proof: &S::Granted,
-    ) -> std::io::Result<()>
+    ) -> Result<(), InputError>
     where
         S: ConsentState<Granted = ConsentProof>;
 }

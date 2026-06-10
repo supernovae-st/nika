@@ -169,6 +169,47 @@ impl DomNode {
     }
 }
 
+/// Browser-automation errors — the typed boundary of the `BrowserAutomation`
+/// trait (Pattern A · FCI-023bis). `#[non_exhaustive]`; `NikaErrorCode` impl +
+/// reserved range (`Category::Browser` · NIKA-1401..1406) live in `crate::errors`.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum BrowserError {
+    /// Launching the browser session (process spawn / CDP handshake) failed.
+    #[error("NIKA-1401 · browser launch failed: {reason}")]
+    LaunchFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// Navigating to a URL failed (malformed URL, load error, timeout).
+    #[error("NIKA-1402 · browser navigation failed: {reason}")]
+    NavigationFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// The referenced browser session was not found / already closed.
+    #[error("NIKA-1403 · browser session not found: {session}")]
+    SessionNotFound {
+        /// The session id that did not resolve.
+        session: String,
+    },
+    /// A DOM selector did not resolve, or the interaction failed.
+    #[error("NIKA-1404 · browser selector failed: {reason}")]
+    SelectorFailed {
+        /// Backend-reported reason (e.g. "selector matched no element").
+        reason: String,
+    },
+    /// No browser-automation backend is compiled for this platform.
+    #[error("NIKA-1405 · no browser-automation backend on this platform")]
+    BackendUnavailable,
+    /// A `spawn_blocking` / driver task panicked or was cancelled.
+    #[error("NIKA-1406 · browser task join failed: {reason}")]
+    TaskJoinFailed {
+        /// Join failure detail.
+        reason: String,
+    },
+}
+
 /// Browser automation capability · async trait over a CDP-shaped surface.
 ///
 /// CANCEL SAFETY: evaluated per-method · CDP commands differ in
@@ -200,7 +241,7 @@ pub trait BrowserAutomation: Send + Sync {
     /// process spawn in `tokio::process::Command::kill_on_drop(true)` per
     /// Invariant #11 · partial-launch state (process up · CDP handshake
     /// not yet complete) MUST be reaped on drop.
-    async fn launch(&self, profile: &BrowserProfile) -> std::io::Result<BrowserSession>;
+    async fn launch(&self, profile: &BrowserProfile) -> Result<BrowserSession, BrowserError>;
 
     /// Navigate session to URL.
     ///
@@ -210,7 +251,7 @@ pub trait BrowserAutomation: Send + Sync {
     /// snapshot` will observe whichever state landed first). `url` is
     /// an RFC 3986 absolute URI string · L1 impls validate format and
     /// return `std::io::ErrorKind::InvalidInput` on malformed input.
-    async fn navigate(&self, session: &BrowserSession, url: &str) -> std::io::Result<()>;
+    async fn navigate(&self, session: &BrowserSession, url: &str) -> Result<(), BrowserError>;
 
     /// Capture a snapshot of the current DOM tree.
     ///
@@ -218,7 +259,7 @@ pub trait BrowserAutomation: Send + Sync {
     /// + recursive traversal) · partial tree data MUST NOT leak to a
     /// caller on cancel (L1 impl invariant · enforced by integration
     /// tests at Phase 3 M3).
-    async fn dom_snapshot(&self, session: &BrowserSession) -> std::io::Result<DomNode>;
+    async fn dom_snapshot(&self, session: &BrowserSession) -> Result<DomNode, BrowserError>;
 
     /// Click element by CSS selector.
     ///
@@ -226,7 +267,8 @@ pub trait BrowserAutomation: Send + Sync {
     /// have already fired by the time the future is dropped · L1 impls
     /// document the race window. Returns `std::io::ErrorKind::NotFound`
     /// when the selector matches no element.
-    async fn click_selector(&self, session: &BrowserSession, sel: &str) -> std::io::Result<()>;
+    async fn click_selector(&self, session: &BrowserSession, sel: &str)
+    -> Result<(), BrowserError>;
 
     /// Capture a screenshot of the current page.
     ///
@@ -234,7 +276,7 @@ pub trait BrowserAutomation: Send + Sync {
     /// shot` · returns the canonical `Frame` DTO from `io::screen`
     /// (cross-PR dep · M1.1) · zero-copy RGBA8 payload. Partial frame
     /// data MUST NOT leak on cancel.
-    async fn screenshot(&self, session: &BrowserSession) -> std::io::Result<Frame>;
+    async fn screenshot(&self, session: &BrowserSession) -> Result<Frame, BrowserError>;
 }
 
 #[cfg(test)]

@@ -14,8 +14,10 @@ use nika_error::prelude::*;
 
 use crate::io::a11y::A11yError;
 use crate::io::blob::BlobError;
+use crate::io::browser::BrowserError;
 use crate::io::fs::FsError;
 use crate::io::http::HttpError;
+use crate::io::input::InputError;
 use crate::io::ocr::OcrError;
 use crate::io::process::ShellError;
 use crate::io::screen::ScreenError;
@@ -277,6 +279,52 @@ impl NikaErrorCode for A11yError {
             self,
             Self::AttributeError { .. } | Self::TreeWalkFailed { .. } | Self::TaskJoinFailed { .. }
         )
+    }
+}
+
+// Synthetic input: 1300–1399 (Category::Input · codes in nika_error::codes ·
+// enum in `crate::io::input`).
+impl NikaErrorCode for InputError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::ConsentDenied => codes::NIKA_1301,
+            Self::ConsentExpired => codes::NIKA_1302,
+            Self::EventPostFailed { .. } => codes::NIKA_1303,
+            Self::BackendUnavailable => codes::NIKA_1304,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1305,
+        }
+    }
+
+    /// Event-post + task-join failures may be transient (device contention);
+    /// consent + backend absence are structural.
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::EventPostFailed { .. } | Self::TaskJoinFailed { .. }
+        )
+    }
+}
+
+// Browser automation: 1400–1499 (Category::Browser · codes in nika_error::codes
+// · enum in `crate::io::browser`).
+impl NikaErrorCode for BrowserError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::LaunchFailed { .. } => codes::NIKA_1401,
+            Self::NavigationFailed { .. } => codes::NIKA_1402,
+            Self::SessionNotFound { .. } => codes::NIKA_1403,
+            Self::SelectorFailed { .. } => codes::NIKA_1404,
+            Self::BackendUnavailable => codes::NIKA_1405,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1406,
+        }
+    }
+
+    /// Launch/navigation/selector/task failures may be transient (network ·
+    /// timing); backend absence is structural.
+    fn is_transient(&self) -> bool {
+        !matches!(self, Self::BackendUnavailable)
     }
 }
 

@@ -709,6 +709,48 @@ pub fn nika_kernel_core::io::blob::BlobStoreDyn::get(&self, hash: &str) -> impl 
 pub fn nika_kernel_core::io::blob::BlobStoreDyn::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>> + core::marker::Send
 pub fn nika_kernel_core::io::blob::BlobStoreDyn::stat(&self, hash: &str) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>> + core::marker::Send
 pub mod nika_kernel_core::io::browser
+#[non_exhaustive] pub enum nika_kernel_core::io::browser::BrowserError
+pub nika_kernel_core::io::browser::BrowserError::BackendUnavailable
+pub nika_kernel_core::io::browser::BrowserError::LaunchFailed
+pub nika_kernel_core::io::browser::BrowserError::LaunchFailed::reason: alloc::string::String
+pub nika_kernel_core::io::browser::BrowserError::NavigationFailed
+pub nika_kernel_core::io::browser::BrowserError::NavigationFailed::reason: alloc::string::String
+pub nika_kernel_core::io::browser::BrowserError::SelectorFailed
+pub nika_kernel_core::io::browser::BrowserError::SelectorFailed::reason: alloc::string::String
+pub nika_kernel_core::io::browser::BrowserError::SessionNotFound
+pub nika_kernel_core::io::browser::BrowserError::SessionNotFound::session: alloc::string::String
+pub nika_kernel_core::io::browser::BrowserError::TaskJoinFailed
+pub nika_kernel_core::io::browser::BrowserError::TaskJoinFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::io::browser::BrowserError
+impl core::fmt::Debug for nika_kernel_core::io::browser::BrowserError
+pub fn nika_kernel_core::io::browser::BrowserError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::browser::BrowserError
+pub fn nika_kernel_core::io::browser::BrowserError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::browser::BrowserError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::browser::BrowserError
+pub fn nika_kernel_core::io::browser::BrowserError::is_transient(&self) -> bool
+pub fn nika_kernel_core::io::browser::BrowserError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::browser::BrowserError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::browser::BrowserError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::browser::BrowserError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::browser::BrowserError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::browser::BrowserError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::browser::BrowserError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::browser::BrowserError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::browser::BrowserError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::browser::BrowserError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::browser::BrowserError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::browser::BrowserError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::browser::BrowserError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::browser::BrowserError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::browser::BrowserError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::browser::BrowserError
+pub fn nika_kernel_core::io::browser::BrowserError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::browser::BrowserError where T: 'static
+pub fn nika_kernel_core::io::browser::BrowserError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::browser::BrowserProfile
 pub nika_kernel_core::io::browser::BrowserProfile::headless: bool
 pub nika_kernel_core::io::browser::BrowserProfile::user_data_dir: core::option::Option<std::path::PathBuf>
@@ -846,23 +888,23 @@ impl<T> nika_error::traits::AsAny for nika_kernel_core::io::browser::DomNode whe
 pub fn nika_kernel_core::io::browser::DomNode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::browser::DomNode where T: for<'de> serde_core::de::Deserialize<'de>
 pub trait nika_kernel_core::io::browser::BrowserAutomation: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::browser::BrowserAutomation::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> std::io::error::Result<()>
-pub async fn nika_kernel_core::io::browser::BrowserAutomation::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::browser::DomNode>
-pub async fn nika_kernel_core::io::browser::BrowserAutomation::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> std::io::error::Result<nika_kernel_core::io::browser::BrowserSession>
-pub async fn nika_kernel_core::io::browser::BrowserAutomation::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> std::io::error::Result<()>
-pub async fn nika_kernel_core::io::browser::BrowserAutomation::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn nika_kernel_core::io::browser::BrowserAutomation::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::browser::BrowserAutomationDyn> nika_kernel_core::io::browser::BrowserAutomation for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> std::io::error::Result<()>
-pub async fn TraitVariantBlanketType::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::browser::DomNode>
-pub async fn TraitVariantBlanketType::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> std::io::error::Result<nika_kernel_core::io::browser::BrowserSession>
-pub async fn TraitVariantBlanketType::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> std::io::error::Result<()>
-pub async fn TraitVariantBlanketType::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> std::io::error::Result<nika_kernel_core::io::screen::Frame>
+pub async fn TraitVariantBlanketType::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn TraitVariantBlanketType::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>
+pub async fn TraitVariantBlanketType::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>
+pub async fn TraitVariantBlanketType::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> core::result::Result<(), nika_kernel_core::io::browser::BrowserError>
+pub async fn TraitVariantBlanketType::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>
 pub trait nika_kernel_core::io::browser::BrowserAutomationDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
-pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::browser::DomNode>> + core::marker::Send
-pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::browser::BrowserSession>> + core::marker::Send
-pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send
-pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::screen::Frame>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::click_selector(&self, session: &nika_kernel_core::io::browser::BrowserSession, sel: &str) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::browser::BrowserError>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::dom_snapshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::browser::DomNode, nika_kernel_core::io::browser::BrowserError>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::launch(&self, profile: &nika_kernel_core::io::browser::BrowserProfile) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::browser::BrowserSession, nika_kernel_core::io::browser::BrowserError>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::navigate(&self, session: &nika_kernel_core::io::browser::BrowserSession, url: &str) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::browser::BrowserError>> + core::marker::Send
+pub fn nika_kernel_core::io::browser::BrowserAutomationDyn::screenshot(&self, session: &nika_kernel_core::io::browser::BrowserSession) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::screen::Frame, nika_kernel_core::io::browser::BrowserError>> + core::marker::Send
 pub mod nika_kernel_core::io::clock
 pub trait nika_kernel_core::io::clock::Clock: core::marker::Send + core::marker::Sync
 pub fn nika_kernel_core::io::clock::Clock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
@@ -1220,6 +1262,44 @@ pub trait nika_kernel_core::io::http::HttpPostDyn: core::marker::Send + core::ma
 pub fn nika_kernel_core::io::http::HttpPostDyn::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
 pub fn nika_kernel_core::io::http::HttpPostDyn::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
 pub mod nika_kernel_core::io::input
+#[non_exhaustive] pub enum nika_kernel_core::io::input::InputError
+pub nika_kernel_core::io::input::InputError::BackendUnavailable
+pub nika_kernel_core::io::input::InputError::ConsentDenied
+pub nika_kernel_core::io::input::InputError::ConsentExpired
+pub nika_kernel_core::io::input::InputError::EventPostFailed
+pub nika_kernel_core::io::input::InputError::EventPostFailed::reason: alloc::string::String
+pub nika_kernel_core::io::input::InputError::TaskJoinFailed
+pub nika_kernel_core::io::input::InputError::TaskJoinFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::io::input::InputError
+impl core::fmt::Debug for nika_kernel_core::io::input::InputError
+pub fn nika_kernel_core::io::input::InputError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::input::InputError
+pub fn nika_kernel_core::io::input::InputError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::input::InputError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::input::InputError
+pub fn nika_kernel_core::io::input::InputError::is_transient(&self) -> bool
+pub fn nika_kernel_core::io::input::InputError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::input::InputError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::input::InputError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::input::InputError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::input::InputError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::input::InputError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::input::InputError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::input::InputError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::input::InputError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::input::InputError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::input::InputError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::InputError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::input::InputError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::input::InputError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::input::InputError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::InputError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::input::InputError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::input::InputError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::input::InputError
+pub fn nika_kernel_core::io::input::InputError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::input::InputError where T: 'static
+pub fn nika_kernel_core::io::input::InputError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_kernel_core::io::input::KeyCode
 pub nika_kernel_core::io::input::KeyCode::A
 pub nika_kernel_core::io::input::KeyCode::ArrowDown
@@ -1610,20 +1690,20 @@ pub type nika_kernel_core::io::input::Authorized::Granted = nika_kernel_core::io
 impl nika_kernel_core::io::input::ConsentState for nika_kernel_core::io::input::Unconfirmed
 pub type nika_kernel_core::io::input::Unconfirmed::Granted = core::convert::Infallible
 pub trait nika_kernel_core::io::input::InputDevice<S: nika_kernel_core::io::input::ConsentState>: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::input::InputDevice::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub async fn nika_kernel_core::io::input::InputDevice::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub async fn nika_kernel_core::io::input::InputDevice::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub async fn nika_kernel_core::io::input::InputDevice::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn nika_kernel_core::io::input::InputDevice::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
 impl<S: nika_kernel_core::io::input::ConsentState, TraitVariantBlanketType: nika_kernel_core::io::input::InputDeviceDyn<S>> nika_kernel_core::io::input::InputDevice<S> for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub async fn TraitVariantBlanketType::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub async fn TraitVariantBlanketType::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub async fn TraitVariantBlanketType::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> std::io::error::Result<()> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub async fn TraitVariantBlanketType::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> core::result::Result<(), nika_kernel_core::io::input::InputError> where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
 pub trait nika_kernel_core::io::input::InputDeviceDyn<S: nika_kernel_core::io::input::ConsentState>: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::input::InputDeviceDyn::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub fn nika_kernel_core::io::input::InputDeviceDyn::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub fn nika_kernel_core::io::input::InputDeviceDyn::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
-pub fn nika_kernel_core::io::input::InputDeviceDyn::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::click(&self, button: nika_kernel_core::io::input::MouseButton, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::input::InputError>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::key_press(&self, key: nika_kernel_core::io::input::KeyCode, modifiers: nika_kernel_core::io::input::KeyMods, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::input::InputError>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::input::InputError>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
+pub fn nika_kernel_core::io::input::InputDeviceDyn::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::input::InputError>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
 pub mod nika_kernel_core::io::ocr
 #[non_exhaustive] pub enum nika_kernel_core::io::ocr::OcrError
 pub nika_kernel_core::io::ocr::OcrError::DetectionFailed

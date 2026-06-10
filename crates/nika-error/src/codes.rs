@@ -94,6 +94,10 @@ pub enum Category {
     Ocr,
     /// Accessibility-tree query (1200-1299 · M2.3 nika-a11y · ADR-081).
     A11y,
+    /// Synthetic input dispatch (1300-1399 · M2.4 nika-input · ADR-081).
+    Input,
+    /// Browser automation (1400-1499 · nika-browser · ADR-081).
+    Browser,
 }
 
 /// Severity level for an error code.
@@ -504,6 +508,91 @@ pub const NIKA_1206: NikaCode = NikaCode {
     slug: "a11y-task-join-failed",
 };
 
+// ─── Synthetic input · 1300-1399 (M2.4 nika-input · ADR-081) ───────────────
+// NIKA-1300 reserved (skeleton placeholder slot · retired at admission).
+
+/// NIKA-1301: Synthetic input attempted without OS consent grant.
+pub const NIKA_1301: NikaCode = NikaCode {
+    num: 1301,
+    category: Category::Input,
+    severity: Severity::Error,
+    slug: "input-consent-denied",
+};
+/// NIKA-1302: The `ConsentProof` TTL expired before dispatch.
+pub const NIKA_1302: NikaCode = NikaCode {
+    num: 1302,
+    category: Category::Input,
+    severity: Severity::Error,
+    slug: "input-consent-expired",
+};
+/// NIKA-1303: Posting the synthetic OS event failed.
+pub const NIKA_1303: NikaCode = NikaCode {
+    num: 1303,
+    category: Category::Input,
+    severity: Severity::Error,
+    slug: "input-event-post-failed",
+};
+/// NIKA-1304: No synthetic-input backend on this platform.
+pub const NIKA_1304: NikaCode = NikaCode {
+    num: 1304,
+    category: Category::Input,
+    severity: Severity::Error,
+    slug: "input-backend-unavailable",
+};
+/// NIKA-1305: `spawn_blocking` input-dispatch task failed to join.
+pub const NIKA_1305: NikaCode = NikaCode {
+    num: 1305,
+    category: Category::Input,
+    severity: Severity::Error,
+    slug: "input-task-join-failed",
+};
+
+// ─── Browser automation · 1400-1499 (nika-browser · ADR-081) ───────────────
+// NIKA-1400 reserved (skeleton placeholder slot · retired at admission).
+
+/// NIKA-1401: Launching the browser session failed.
+pub const NIKA_1401: NikaCode = NikaCode {
+    num: 1401,
+    category: Category::Browser,
+    severity: Severity::Error,
+    slug: "browser-launch-failed",
+};
+/// NIKA-1402: Navigating to a URL failed.
+pub const NIKA_1402: NikaCode = NikaCode {
+    num: 1402,
+    category: Category::Browser,
+    severity: Severity::Error,
+    slug: "browser-navigation-failed",
+};
+/// NIKA-1403: The referenced browser session was not found / already closed.
+pub const NIKA_1403: NikaCode = NikaCode {
+    num: 1403,
+    category: Category::Browser,
+    severity: Severity::Error,
+    slug: "browser-session-not-found",
+};
+/// NIKA-1404: A DOM selector did not resolve / interaction failed.
+pub const NIKA_1404: NikaCode = NikaCode {
+    num: 1404,
+    category: Category::Browser,
+    severity: Severity::Error,
+    slug: "browser-selector-failed",
+};
+/// NIKA-1405: No browser-automation backend on this platform.
+pub const NIKA_1405: NikaCode = NikaCode {
+    num: 1405,
+    category: Category::Browser,
+    severity: Severity::Error,
+    slug: "browser-backend-unavailable",
+};
+/// NIKA-1406: `spawn_blocking` browser task failed to join.
+pub const NIKA_1406: NikaCode = NikaCode {
+    num: 1406,
+    category: Category::Browser,
+    severity: Severity::Error,
+    slug: "browser-task-join-failed",
+};
+
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
 /// in their L1 crates, the CONSTANTS are registry-owned here so
@@ -523,7 +612,8 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007,
     NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106,
     NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205,
-    NIKA_1206,
+    NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402,
+    NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -592,6 +682,12 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         1200..=1299 => {
             "Accessibility-tree query failed. Check the OS accessibility permission and that a focused application exists."
+        }
+        1300..=1399 => {
+            "Synthetic input failed. Check input/accessibility consent (ConsentProof TTL) and the OS input-monitoring permission."
+        }
+        1400..=1499 => {
+            "Browser automation failed. Check the browser session, the target URL/selector, and the automation backend."
         }
         700..=749 => {
             "WASM plugin host reported an error. Check plugin manifest and capability grants."
