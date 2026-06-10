@@ -24,12 +24,15 @@ The regenerated block is quoted verbatim in `ROADMAP.md` and `.claude/CLAUDE.md`
 
 ## What to read first
 
+0. `llms.txt` — the agent on-ramp (curated index of every doc below, in order).
 1. `README.md` — user-facing overview + current state.
 2. `DIAMOND.md` — the Diamond rewrite philosophy.
 3. `docs/architecture/forward-compat-invariants.md` — 8 patterns, 10 rules, non-negotiable.
 4. `docs/architecture/crate-layer-registry.md` — L0 to L4 layer discipline.
 5. `ROADMAP.md` — forever-v0.x plan, v0.81 seams, v0.90 milestones.
 6. `.claude/CLAUDE.md` + `.claude/rules/` — project-specific enforcement.
+7. `docs/architecture/VISION_2040_intelligence-layer.md` — the long-horizon
+   direction (LSP, workflow generator, agent-comprehension, Connectome, Nika-OS).
 
 ## Hard rules (non-negotiable)
 

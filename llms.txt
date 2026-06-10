@@ -1,0 +1,36 @@
+# Nika
+
+> Nika is the sovereign workflow engine for AI — 4 verbs (`infer · exec · invoke · agent`), AGPL-3.0-or-later, local-first, multi-provider. Workflows are `.nika.yaml` files carrying the `nika: v1` schema envelope forever. This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. This file is the agent on-ramp — read these in order, then dive into the specific layer you need.
+
+## Start here
+
+- [AGENTS.md](AGENTS.md): The cross-tool agent operating manual (Claude Code, Cursor, Aider, Codex). Hard rules, the 12-gate admission, tooling to run. Read this first.
+- [README.md](README.md): User-facing overview and current state.
+- [DIAMOND.md](DIAMOND.md): The Diamond rewrite philosophy — why an orphan-branch rebuild, CRAFT-not-extraction.
+- [ROADMAP.md](ROADMAP.md): The forever-v0.x plan, the crate sequence (dep-ordered), the tag scheme. Run `bash scripts/refresh-status.sh` for the live canonical state (no volatile counts are hardcoded in docs).
+
+## Architecture (the non-negotiables)
+
+- [docs/architecture/forward-compat-invariants.md](docs/architecture/forward-compat-invariants.md): 8 patterns + 10 rules. Gate 12. Public API is protected; only strictly-additive changes pass.
+- [docs/architecture/crate-layer-registry.md](docs/architecture/crate-layer-registry.md): L0→L4 layer discipline, allowed I/O axes, strict downward dependencies.
+- [docs/architecture/BLUEPRINT_2036.md](docs/architecture/BLUEPRINT_2036.md): The 42-crate ladder (cap 100), the collapse-vs-publish principle, the 10-year horizon, SOTA angles.
+- [docs/architecture/VISION_2040_intelligence-layer.md](docs/architecture/VISION_2040_intelligence-layer.md): The intelligence layer — LSP, the workflow generator, agent-comprehension, the Connectome memory organism, Nika-OS.
+
+## How to work in this repo
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute, the admission flow.
+- [.claude/rules/diamond-discipline.md](.claude/rules/diamond-discipline.md): The hard rules — read-only `brouillon`, 0 unwrap/expect in `src/`, ≤1500 LOC/file, `#[non_exhaustive]` error enums, every I/O behind a kernel trait.
+- [.claude/rules/commit-granularity.md](.claude/rules/commit-granularity.md): Atomic commits, the mandatory admission commit-body format, `Co-Authored-By: Nika 🦋` (never "Claude").
+- [docs/adr/adr-003-12-gate-admission.md](docs/adr/adr-003-12-gate-admission.md): The 12-gate crate admission protocol.
+- [docs/adr/adr-090-structural-doctrine-enforcement.md](docs/adr/adr-090-structural-doctrine-enforcement.md): The enforcement discipline — gates project a single source of truth.
+
+## Gates (mechanical enforcement)
+
+- [scripts/hygiene/README.md](scripts/hygiene/README.md): The hygiene vector catalog (`bash scripts/hygiene/check-all.sh`). Supply-chain (cargo-deny), ADR-081 computer-use guards, error one-voice, public-API coverage, and more.
+- [scripts/ci/check-mutation-floor.sh](scripts/ci/check-mutation-floor.sh): The real Gate 5 — `cargo-mutants` kill-floor enforcement (admission/CI tier).
+
+## Optional (depth on demand)
+
+- [docs/crate-specs/](docs/crate-specs/): One spec per crate (purpose, public API, layer, gate status). The Gate-1 artifact.
+- [docs/adr/](docs/adr/): The Architecture Decision Records — every locked decision, with bidirectional reference graph (validated by `scripts/adr/validate.sh`).
+- [docs/architecture/](docs/architecture/): The full architecture corpus.
