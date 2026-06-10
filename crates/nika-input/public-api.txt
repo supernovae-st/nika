@@ -1,0 +1,45 @@
+pub mod nika_input
+pub use nika_input::Error
+#[non_exhaustive] pub struct nika_input::EnigoInputDevice<S: nika_kernel_core::io::input::ConsentState>
+impl nika_input::EnigoInputDevice<nika_kernel_core::io::input::Unconfirmed>
+pub fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Unconfirmed>::new() -> core::result::Result<Self, nika_kernel_core::io::input::InputError>
+pub fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Unconfirmed>::request_consent(self, ttl_ns: u64) -> core::result::Result<(nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>, nika_kernel_core::io::input::ConsentProof), nika_kernel_core::io::input::InputError>
+impl nika_kernel_core::io::input::InputDevice<nika_kernel_core::io::input::Authorized> for nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::click(&self, _button: nika_kernel_core::io::input::MouseButton, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::key_press(&self, _key: nika_kernel_core::io::input::KeyCode, _modifiers: nika_kernel_core::io::input::KeyMods, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::move_cursor(&self, _to: nika_kernel_core::io::input::Point, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+pub async fn nika_input::EnigoInputDevice<nika_kernel_core::io::input::Authorized>::type_text(&self, _text: &str, proof: &nika_kernel_core::io::input::ConsentProof) -> core::result::Result<(), nika_kernel_core::io::input::InputError>
+impl<S: core::clone::Clone + nika_kernel_core::io::input::ConsentState> core::clone::Clone for nika_input::EnigoInputDevice<S>
+pub fn nika_input::EnigoInputDevice<S>::clone(&self) -> nika_input::EnigoInputDevice<S>
+impl<S: core::default::Default + nika_kernel_core::io::input::ConsentState> core::default::Default for nika_input::EnigoInputDevice<S>
+pub fn nika_input::EnigoInputDevice<S>::default() -> nika_input::EnigoInputDevice<S>
+impl<S: core::fmt::Debug + nika_kernel_core::io::input::ConsentState> core::fmt::Debug for nika_input::EnigoInputDevice<S>
+pub fn nika_input::EnigoInputDevice<S>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<S: core::marker::Copy + nika_kernel_core::io::input::ConsentState> core::marker::Copy for nika_input::EnigoInputDevice<S>
+impl<D> owo_colors::OwoColorize for nika_input::EnigoInputDevice<S>
+impl<T, U> core::convert::Into<U> for nika_input::EnigoInputDevice<S> where U: core::convert::From<T>
+pub fn nika_input::EnigoInputDevice<S>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_input::EnigoInputDevice<S> where U: core::convert::Into<T>
+pub type nika_input::EnigoInputDevice<S>::Error = core::convert::Infallible
+pub fn nika_input::EnigoInputDevice<S>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_input::EnigoInputDevice<S> where U: core::convert::TryFrom<T>
+pub type nika_input::EnigoInputDevice<S>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_input::EnigoInputDevice<S>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_input::EnigoInputDevice<S> where T: core::clone::Clone
+pub type nika_input::EnigoInputDevice<S>::Owned = T
+pub fn nika_input::EnigoInputDevice<S>::clone_into(&self, target: &mut T)
+pub fn nika_input::EnigoInputDevice<S>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_input::EnigoInputDevice<S> where T: 'static + ?core::marker::Sized
+pub fn nika_input::EnigoInputDevice<S>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_input::EnigoInputDevice<S> where T: ?core::marker::Sized
+pub fn nika_input::EnigoInputDevice<S>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_input::EnigoInputDevice<S> where T: ?core::marker::Sized
+pub fn nika_input::EnigoInputDevice<S>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_input::EnigoInputDevice<S> where T: core::clone::Clone
+pub unsafe fn nika_input::EnigoInputDevice<S>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_input::EnigoInputDevice<S>
+pub fn nika_input::EnigoInputDevice<S>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_input::EnigoInputDevice<S> where T: 'static
+pub fn nika_input::EnigoInputDevice<S>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_input::consent_valid(proof: &nika_kernel_core::io::input::ConsentProof, now_ns: u64) -> bool
+pub fn nika_input::redact_typed_text(text: &str) -> alloc::string::String

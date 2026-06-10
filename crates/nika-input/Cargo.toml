@@ -1,0 +1,37 @@
+[package]
+name          = "nika-input"
+description   = "Synthetic pointer + keyboard L1 effect crate (write-side) — implements the nika-kernel InputDevice<S: ConsentState> trait (move_cursor + click + type_text + key_press) via the cross-platform `enigo` backend (macOS/Linux/Windows · ADR-083). Fourth computer-use L1 · M2.4 · the FIRST write-side crate. Owns TWO MANDATORY ADR-081 guards: Guard 1 (password-typing redaction · pure) + Guard 2 (ConsentProof-TTL type-state enforcement · compile-time + runtime)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+# Gate 2 (ADR linked) · ADR-081 = 7 L1 security guards forever; nika-input OWNS
+# Guard 1 (password-typing redaction · MANDATORY · pure emission-boundary) +
+# Guard 2 (ConsentProof-TTL type-state enforcement · MANDATORY · compile-time + runtime).
+[package.metadata.adr]
+adr = ["ADR-003", "ADR-081", "ADR-083"]
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+# InputError + its derives live in nika-kernel-core (Pattern A · FCI-023bis) —
+# nika-input re-exports it; no thiserror/miette dep here.
+# tokio `rt` for spawn_blocking (the synchronous `enigo` calls run off the async
+# runtime · worker-local · kernel CANCEL SAFETY contract · same as nika-a11y).
+tokio       = { workspace = true, features = ["rt"] }
+# B.3: enigo = cross-platform synthetic input (macOS/Linux/Windows · MIT ·
+# encapsulates the per-OS unsafe FFI → nika-input stays `unsafe_code = forbid`).
+# Added when the enigo backend is wired (B.3) — B.2 ships the pure security core.
+
+[dev-dependencies]
+# #[tokio::test] for the async InputDevice methods · proptest pins the pure
+# guards (Guard 1 redact_typed_text no-content-leak · Guard 2 consent_valid ttl).
+tokio    = { workspace = true, features = ["macros", "rt"] }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

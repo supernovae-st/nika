@@ -2184,6 +2184,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-input"
+version = "0.80.0"
+dependencies = [
+ "nika-kernel",
+ "proptest",
+ "tokio",
+]
+
+[[package]]
 name = "nika-kernel"
 version = "0.80.0"
 dependencies = [
