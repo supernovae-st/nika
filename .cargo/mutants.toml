@@ -1,0 +1,21 @@
+# cargo-mutants workspace config.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Cross-platform mutation calibration (ADR-090 follow-up). The L1 computer-use
+# crates carry OS-specific backends behind #[cfg(target_os = ...)]. On a macOS
+# dev/CI host, `cargo mutants -- --lib` reports survivors in the Linux-only
+# backend code — those are NOT macOS test gaps; the Linux backend is exercised
+# by the ubuntu-latest CI matrix (.github/workflows/diamond-ci.yml). Excluding
+# them here makes the macOS mutation run reproduce the macOS-reachable
+# measurement that each crate-spec's Gate-5 exemption documents, so the
+# scripts/ci/check-mutation-floor.sh BUDGET marker becomes reproducible.
+#
+# `examine_re` / `exclude_re` match the mutant's textual description (which
+# includes the mutated function path), per cargo-mutants config semantics.
+exclude_re = [
+  # nika-a11y · the AT-SPI (Linux) accessibility backend — role mapping + node
+  # builder. cfg(target_os = "linux"), tested by the ubuntu CI matrix.
+  "atspi_role_to_ax",
+  "build_node_atspi",
+  "build_raw_tree_atspi",
+]

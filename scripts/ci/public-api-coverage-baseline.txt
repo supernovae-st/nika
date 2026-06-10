@@ -1,0 +1,19 @@
+# public-api coverage baseline (the ratchet floor).
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Each admitted crate with a lib target SHOULD have a crates/<crate>/public-api.txt
+# baseline (the locked public-API surface, diffed by .github/workflows/public-api.yml
+# + classified breaking-vs-additive by semver-checks.yml). Today only a subset is
+# covered. This file is the MONOTONIC floor: every crate listed here MUST keep its
+# public-api.txt (a regression → RED). Uncovered lib crates are a YELLOW ratchet
+# target (generate the baseline, add the crate here, the floor rises). Never remove
+# a line by hand.
+#
+# Generate a baseline:  cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt
+#
+# Enforced by scripts/hygiene/check-public-api-coverage.sh (vector 38).
+nika-types
+nika-error
+nika-catalog
+nika-kernel
+nika-kernel-mock

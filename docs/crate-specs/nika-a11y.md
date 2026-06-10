@@ -221,13 +221,17 @@ pure transform is the all-OS mandatory gate.
 
 ### 7.1 Gate 5 mutation exemption (ADR-003 Rule 2 · macOS AXUIElement walk)
 
-<!-- check-mutation-floor.sh note: the "7 AXUIElement-walk exempt" below is the
-     macOS-reachable measurement. A naive `cargo mutants -p nika-a11y -- --lib`
-     on macOS reports ~31 survivors because it ALSO mutates the cfg'd-out Linux
-     atspi role-mapping arms (platform-inactive, not real test gaps). BUDGET
-     mode therefore needs a per-crate mutants.toml exclude_re for the cfg'd-out
-     code before the budget marker is reproducible on the CI platform — a
-     deferred-with-trigger follow-up (calibrate when a mutants.toml lands). -->
+<!-- GATE5-EXEMPT: 9 -->
+<!-- ^ SSOT for scripts/ci/check-mutation-floor.sh BUDGET mode (reproducible).
+     CALIBRATED 2026-06-10: .cargo/mutants.toml excludes the cfg(linux) atspi
+     backend (tested by the ubuntu CI matrix, not a macOS gap), so
+     `cargo mutants -p nika-a11y -- --lib` on macOS now yields exactly 9
+     survivors = the macOS AXUIElement-walk residue (build_node arithmetic ×5 +
+     build_raw_tree ×2 + walk_focused_tree_async + find), reachable only with a
+     real Accessibility grant + focused window (the #[ignore] smoke test, not
+     headless CI). The gate requires survivors ≤ 9; a regression adding a 10th
+     → RED. NB: the prose below enumerates 7 — it predates the calibration and
+     undercounts build_raw_tree's 2 mutants; the run-derived 9 is authoritative. -->
 
 `nika-a11y` is a thin adapter over the synchronous `accessibility` walk. 7
 mutants are **exempt** — they live on the `AXUIElement` traversal control-flow,
