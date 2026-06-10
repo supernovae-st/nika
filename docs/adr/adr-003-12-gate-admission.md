@@ -75,7 +75,7 @@ Admission commit body format is mandatory (see `.claude/rules/commit-granularity
 - `.claude/CLAUDE.md` — 12-gates summary
 - `.claude/rules/commit-granularity.md` — mandatory commit body format
 - `CHANGELOG.md` lines 196–216 — `nika-kernel` admission with all 12 gates confirmed, commit `ef8804371`
-- `scripts/ci/` — 10 check scripts (one per Gate approximately): `check-clippy.sh`, `check-crate-size.sh`, `check-dead-code.sh`, `check-expect.sh`, `check-fn-length.sh`, `check-loc-limits.sh`, `check-no-default-features.sh`, `check-tests.sh`, `check-unwrap.sh`, `check-adr-coverage.sh` (see ADR-009)
+- `scripts/ci/` — check scripts (≈one per Gate): `check-clippy.sh`, `check-crate-size.sh`, `check-dead-code.sh`, `check-expect.sh`, `check-fn-length.sh`, `check-loc-limits.sh`, `check-no-default-features.sh`, `check-tests.sh`, `check-unwrap.sh`, `check-adr-coverage.sh` (see ADR-009), `check-mutation-floor.sh` (the REAL Gate 5 executor, 2026-06-10)
 - `.github/workflows/diamond-ci.yml` — CI matrix running the gates
 - memory: `crate-admit` skill + `gate-check` skill — automation entrypoints
 
@@ -101,3 +101,29 @@ Rejected because CI failure on a PR that has already touched 6 crates is expensi
 ## Notes
 
 If a future gate proves redundant (e.g., Gate 10 golden parity becomes meaningless post-v0.95), revisit and supersede. Gate count is not sacred — enforcement floor is.
+
+## Amendment — 2026-06-10 · social → structural enforcement
+
+The Context section's thesis ("enforcement must be **mechanical**, not social")
+and the Negative note ("an under-pressure solo dev might rationalize skipping a
+gate · socially enforced via memory + reminders") had two residual honor-system
+gaps. Both are now structurally closed (no decision change · additive per
+`cross-source-validation.md` §2.7):
+
+- **Gate 5 (mutation ≥90%)** was checked only by *presence* (the crate-spec
+  mentioning "Mutation"). Now `scripts/ci/check-mutation-floor.sh <crate>
+  [floor]` actually runs `cargo-mutants`, parses the kill ratio (caught /
+  viable, excluding unviable), and fails below the floor. Admission/CI-tier
+  (minutes-slow — not pre-commit).
+- **Gate 2 / ADR-081 guards** for L1 computer-use crates (`nika-screen`,
+  `nika-a11y`, `nika-input`, `nika-browser`, `nika-vision-local`) were
+  "MANDATORY-at-admission" in prose only. Now hygiene vector 35
+  `scripts/hygiene/check-adr-081-guards.sh` reads the ADR-081 ownership matrix
+  and FAILS if a workspace guard-owner lacks its guard impl+test (binding in
+  `scripts/ci/adr-081-guard-manifest.tsv`). Declarative/evolutive: a future
+  guard-owner (e.g. `nika-input` M2.4 Guards 1+2) goes RED at admission until
+  the guard ships.
+
+Companion supply-chain hardening (same arc): hygiene vectors 34
+(`check-cargo-deny.sh` — bans/licenses/sources, superset of vector 15 advisories)
+and 36 (`check-unused-deps.sh` — cargo-machete).
