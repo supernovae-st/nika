@@ -13,12 +13,11 @@
 //! L0 (sub-tier 0) — pure transformation, build-time only, zero
 //! `nika-*` dependencies. Never compiled into a runtime binary.
 //!
-//! ⚠️ **Extraction status (2026-06-10 architecture review)** · NOT yet
-//! consumed — `nika-catalog/build.rs` (+ `build/capabilities.rs`) still
-//! implements the TOML→Rust generation in-tree, parallel to this crate.
-//! The intended shape is `nika-catalog [build-dependencies] → this crate`.
-//! Wire-or-NUKE decision pending (per `no-legacy-no-back-compat.md` ·
-//! a crate with zero consumers is drift · flagged for D-lock).
+//! **Wired (D-2026-06-10-N3 · nika 10/10 B3)** · `nika-catalog`
+//! consumes this crate from its `build.rs` thin adapter
+//! (`[build-dependencies]`). The in-tree twin (~2.5k LOC build.rs +
+//! build/) was deleted after the swap was proven **byte-identical** on
+//! the live catalog data (5/5 emitted files · pre/post `OUT_DIR` diff).
 //!
 //! ## Public API surface
 //!
@@ -63,7 +62,7 @@
 //!     for p in &emitted.rerun_paths {
 //!         println!("cargo:rerun-if-changed={}", p.display());
 //!     }
-//!     println!("cargo:rerun-if-changed=build.golden");
+//!     println!("cargo:rerun-if-changed=build.rs");
 //!     Ok(())
 //! }
 //! ```
@@ -283,7 +282,7 @@ pub fn generate(
     if features.providers {
         let raw = read_file(&providers_path)?;
         let rust_src = codegen_providers(&raw)?;
-        let out_path = out_dir.join("providers.golden");
+        let out_path = out_dir.join("providers.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -292,7 +291,7 @@ pub fn generate(
         let path = data_dir.join("mcp-servers.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_mcp_servers(&raw)?;
-        let out_path = out_dir.join("mcp_servers.golden");
+        let out_path = out_dir.join("mcp_servers.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -301,7 +300,7 @@ pub fn generate(
         let path = data_dir.join("embeddings.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_embeddings(&raw, &providers)?;
-        let out_path = out_dir.join("embeddings.golden");
+        let out_path = out_dir.join("embeddings.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -310,7 +309,7 @@ pub fn generate(
         let path = data_dir.join("model-capabilities.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_capabilities(&raw, &providers)?;
-        let out_path = out_dir.join("model_capabilities.golden");
+        let out_path = out_dir.join("model_capabilities.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
@@ -319,7 +318,7 @@ pub fn generate(
         let path = data_dir.join("model-pricing.toml");
         let raw = read_file(&path)?;
         let rust_src = codegen_pricing(&raw)?;
-        let out_path = out_dir.join("model_pricing.golden");
+        let out_path = out_dir.join("model_pricing.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }

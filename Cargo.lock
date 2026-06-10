@@ -1992,17 +1992,15 @@ dependencies = [
  "criterion",
  "insta",
  "miette",
+ "nika-catalog-codegen",
  "nika-error",
  "phf",
- "phf_codegen",
- "phf_shared",
  "proptest",
  "rstest",
  "serde",
  "serde_json",
  "strsim",
  "thiserror 2.0.18",
- "toml",
  "unicase",
 ]
 
