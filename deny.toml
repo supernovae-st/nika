@@ -57,6 +57,7 @@ wrappers = [
   "nika-a11y",             # L1 effect crate (M2.3): tokio dev-dep for #[tokio::test] async AccessibilityTree tests · B.3 wires spawn_blocking AXUIElement walk (sync !Send handle worker-local · CANCEL SAFETY contract)
   "nika-clock",            # L1 time effect: tokio::time::sleep is the production async impl of nika-kernel Clock::sleep · 12-gate admitted 74a8ff483
   "nika-fs",               # L1 filesystem effect: tokio::fs is the production impl of the kernel fs *Dyn family (atomic temp+rename write) · announce-ladder s4 · 12-gate admitted (D-2026-06-10-N6)
+  "nika-http",             # L1 http effect: tokio::net::lookup_host powers the SSRF DNS-resolve check (reqwest rides the same runtime) · announce-ladder s5
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",
   "tower", "tokio-util", "tokio-rustls",
@@ -66,6 +67,7 @@ wrappers = [
 name     = "reqwest"
 wrappers = [
   "nika-catalog-verify",   # L4 binary: HTTP probes for catalog drift detection
+  "nika-http",             # L1 http effect: THE production HttpGet/HttpPost impl (SSRF static + DNS-resolve + per-hop redirect re-check · response size cap) · announce-ladder s5
 ]
 
 # hyper is not explicitly banned — it's always transitive via reqwest,

@@ -38,7 +38,7 @@ ADR-081 guard contract · error one-voice via `NikaErrorCode` +
 `docs/architecture/kernel-split-census-2026-06-10.md`). Next: M2.4
 `nika-input` (synthetic input · ADR-081 Guards 1+2 password-redaction +
 ConsentProof-TTL · MANDATORY). Announce-ladder slice runs in parallel
-(D-2026-06-10-N6) · s4 nika-fs ADMITTED 2026-06-10 · next s5 nika-http. NO live counts in this paragraph — crate ·
+(D-2026-06-10-N6) · s4 nika-fs + s5 nika-http ADMITTED 2026-06-10 · next s6 (verb-infer path). NO live counts in this paragraph — crate ·
 test · provider · capability-rule numbers live ONLY in the auto-generated
 block below (`scripts/refresh-status.sh` · vector 23 parity-enforced ·
 hand-typed counts here are the drift class that said 14 crates while the
@@ -127,25 +127,25 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `main`                                      |
-| HEAD             | `a6c87bf81` (`a6c87bf8129ba276ae518803f950b2a689706de6`)             |
+| HEAD             | `4fd7cd3cc` (`4fd7cd3cc60e97242408e4213346c2561e4d2c70`)             |
 | workspace        | v0.80.0                                  |
-| crates (workspace)| 19                                              |
-| crates (admitted)| 18 / 42                                   |
+| crates (workspace)| 20                                              |
+| crates (admitted)| 19 / 42                                   |
 | crates (WIP)     | 1 — nika-schema                                  |
 | L0               | 6                                              |
 | L0.5             | 6                                              |
-| L1               | 6                                              |
+| L1               | 7                                              |
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1271 passed, 0 failed                              |
+| lib tests        | 1298 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 
 - L0 admitted: nika-types, nika-error, nika-catalog. WIP: nika-schema (parser scaffolding).
 - L0.5 admitted: nika-kernel (facade + range-registry hub post 4-way split 2026-06-10), nika-kernel-core, nika-kernel-ai, nika-kernel-runtime, nika-kernel-plugin, nika-kernel-mock.
-- L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-fs (atomic temp+rename write · globset glob · announce-ladder s4).
+- L1 admitted: nika-clock, nika-bm25, nika-screen, nika-ocr, nika-a11y, nika-fs (atomic temp+rename write · announce-ladder s4), nika-http (reqwest+rustls · 3-layer SSRF + cross-origin credential strip · announce-ladder s5).
 - L4 admitted: nika-catalog-verify.
 - 0 unwraps in `src/`, Gate 8 GREEN, Invariant #19 FULL.
 - 32 providers, 49 capability rules, 7-axis ModelPricing, scope.providers canonical.

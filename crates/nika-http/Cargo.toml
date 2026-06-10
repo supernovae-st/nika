@@ -1,0 +1,36 @@
+[package]
+name          = "nika-http"
+description   = "HTTP L1 effect crate — implements the nika-kernel HttpGet/HttpPost traits via reqwest (rustls), with SSRF defense (static + DNS-resolve + per-hop redirect re-check) and response size caps."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+[dependencies]
+nika-kernel  = { path = "../nika-kernel", version = "0.80.0" }
+bytes        = { workspace = true }   # kernel body payloads
+futures-core = { workspace = true }   # HttpStreamResponse body stream
+reqwest      = { workspace = true, features = ["stream"] }   # the HTTP backend (rustls · no default features) · `stream` powers send_streaming
+url          = { workspace = true }   # SSRF parse + redirect Location join
+# tokio::net::lookup_host powers the SSRF DNS-resolve check; reqwest rides
+# the same runtime. `net` on top of the workspace base set (rt · macros · time).
+tokio        = { workspace = true, features = ["net"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tokio    = { workspace = true, features = ["rt", "macros", "net", "io-util"] }
+
+[package.metadata.lore]
+daemon        = "sentinelle"
+archetype     = "kodama-sentinelle"
+spirit_role   = "garde la passerelle vers l'extérieur · rien d'interne ne fuit · chaque escale re-vérifiée"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true
