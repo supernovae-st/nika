@@ -10,7 +10,7 @@ affects_crates: ["nika-screen", "nika-ocr", "nika-a11y", "nika-input", "nika-bro
 affects_layers: ["L1"]
 supersedes: []
 superseded_by: []
-related: ["ADR-003", "ADR-005", "ADR-014", "ADR-016", "ADR-017", "ADR-083"]
+related: ["ADR-003", "ADR-005", "ADR-014", "ADR-016", "ADR-017", "ADR-083", "ADR-090"]
 requires: ["ADR-003"]
 enables: []
 amends: []
