@@ -770,7 +770,7 @@ custom providers).
   5 reference workflows of increasing complexity. Target: <1ms for a
   10-task workflow.
 
-- **Gate 9 (Canary E2E)**: Exempt. No runtime exists yet in nika-diamond.
+- **Gate 9 (Canary E2E)**: Exempt. No runtime exists yet in the Diamond workspace.
   Canary test lands when `nika-runtime` is admitted (Phase 4). Exemption
   documented: nika-schema is exercised indirectly via parser+analyzer
   golden tests which serve as functional E2E.

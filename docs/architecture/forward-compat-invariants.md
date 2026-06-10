@@ -1,6 +1,6 @@
 # Forward-Compatibility Invariants
 
-**Status**: LOCKED at v0.80.0. Every crate admitted to nika-diamond must
+**Status**: LOCKED at v0.80.0. Every crate admitted to the Diamond workspace (`main` · ex `nika-diamond` renamed 2026-05) must
 comply with these invariants before passing Gate 12.
 
 ## Why this document exists
@@ -428,7 +428,7 @@ a single atomic commit and is covered by `cargo public-api` +
 
 ## Enforcement
 
-Every crate admitted to nika-diamond workspace passes Gate 12 verification:
+Every crate admitted to the Diamond workspace passes Gate 12 verification:
 
 - [ ] All public types `#[non_exhaustive]`
 - [ ] All public errors `thiserror` + `#[from]` chains

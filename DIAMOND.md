@@ -6,8 +6,8 @@ the authoritative architectural decision, see
 [ADR-001 — Diamond orphan branch](docs/adr/adr-001-diamond-orphan-branch.md).
 
 - **Branch** — `main` (default · production). Orphan branch, no shared
-  history with `brouillon` (renamed 2026-05-06 from the previous side-name
-  `nika-diamond` per ADR-001 amendment).
+  history with `brouillon` (renamed 2026-05-06 from the previous
+  side-name `nika-diamond` · renamed per ADR-001 amendment).
 - **Brouillon** — reference only, read-only, where legacy Nika v0.79.3
   lives. Accessed via `git show brouillon:path/to/file.rs` when guidance
   is needed. Never copy-pasted — every crate is rewritten clean.
