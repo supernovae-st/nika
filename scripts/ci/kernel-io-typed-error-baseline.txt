@@ -1,0 +1,25 @@
+# Kernel I/O typed-error migration baseline (the ratchet floor).
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# THE CONVENTION (canonical · forward-compat-invariants.md FCI-023bis):
+# every kernel effect-trait in nika-kernel-core/src/io/*.rs returns a TYPED
+# #[non_exhaustive] error (Pattern A) — never `std::io::Result`. A typed error
+# carries the NIKA taxonomy across the contract boundary; `io::Result` erases it
+# (the "stringly-typed of errors"). blob/fs/http/process already comply.
+#
+# This file lists the io modules STILL returning `std::io::Result` — the
+# computer-use family (ADR-083), a tracked migration. Each line is a known
+# laggard (YELLOW, not RED). A NEW io trait returning `std::io::Result` that is
+# NOT listed here → RED (the forcing function: type it like its siblings).
+# As a laggard migrates to a typed error, DELETE its line; when this file holds
+# only comments, vector 40 goes fully green and the convention is uniform.
+#
+# Migration order (most-methods first, the proven template = the FsError move):
+#   screen → ocr → a11y → input → browser
+#
+# Enforced by scripts/hygiene/check-kernel-io-typed-errors.sh (vector 40).
+screen
+ocr
+a11y
+input
+browser

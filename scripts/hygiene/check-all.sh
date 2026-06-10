@@ -78,7 +78,7 @@ run_check() {
   fi
 }
 
-# --- All 36 live vectors (vectors 7 + 17 + 18 removed; 39 deployed minus 3 = 36 live).
+# --- All 37 live vectors (vectors 7 + 17 + 18 removed; 40 deployed minus 3 = 37 live).
 # 34-37 added 2026-06-10 (security/supply-chain + doctrine-enforcement arc):
 # cargo-deny policy, ADR-081 computer-use guard-presence admission gate,
 # cargo-machete unused-deps, error one-voice (NikaErrorCode trait completeness). ---
@@ -129,6 +129,7 @@ run_check "36 unused-deps-machete " "check-unused-deps.sh"
 run_check "37 error-one-voice     " "check-error-one-voice.sh"
 run_check "38 public-api-coverage " "check-public-api-coverage.sh"
 run_check "39 gate5-attestation   " "check-gate5-attestation.sh"
+run_check "40 kernel-io-typed-err  " "check-kernel-io-typed-errors.sh"
 
 # --- Output ---
 g=0
