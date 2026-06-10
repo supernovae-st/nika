@@ -134,8 +134,13 @@ fn words_bbox_union(
         right = right.max(l.saturating_add(w));
         bottom = bottom.max(t.saturating_add(h));
     }
-    let width = u32::try_from(right - left).unwrap_or(0);
-    let height = u32::try_from(bottom - top).unwrap_or(0);
+    // Saturating: `right` is built with `saturating_add` (can reach i32::MAX) while
+    // `left` is a raw `min` (can be i32::MIN), so a plain `right - left` could
+    // overflow i32 and panic in debug on adversarial bbox geometry from the model.
+    // saturating_sub keeps the whole union non-panicking; try_from clamps the
+    // (always-non-negative here) result into u32.
+    let width = u32::try_from(right.saturating_sub(left)).unwrap_or(0);
+    let height = u32::try_from(bottom.saturating_sub(top)).unwrap_or(0);
     Some((left, top, width, height))
 }
 
@@ -382,6 +387,22 @@ mod tests {
         // union: left=5 top=20 right=40 bottom=90 → (5,20,35,70)
         let got = words_bbox_union([(10, 20, 30, 30), (5, 30, 20, 60)]);
         assert_eq!(got, Some((5, 20, 35, 70)));
+    }
+
+    #[test]
+    fn words_bbox_union_extreme_geometry_does_not_panic() {
+        // Adversarial model output: one word pinned at i32::MIN, another whose
+        // left+width saturates to i32::MAX. A plain `right - left` would overflow
+        // i32 and panic in debug; saturating_sub keeps it bounded (no panic).
+        let got = words_bbox_union([(i32::MIN, 0, i32::MAX, 10), (i32::MAX, 0, 10, 10)]);
+        // left=i32::MIN, right saturates to i32::MAX → width = saturating span.
+        assert!(got.is_some());
+        let (left, _top, width, _height) = got.expect("non-empty union");
+        assert_eq!(left, i32::MIN);
+        assert_eq!(
+            width,
+            u32::try_from(i32::MAX.saturating_sub(i32::MIN)).unwrap_or(0)
+        );
     }
 
     // --- validate_frame (pure · mutation-killing) ---
