@@ -59,7 +59,8 @@ impl<'de> serde::Deserialize<'de> for NikaCode {
 /// Auth 190-229, Mcp 230-279, Schema 280-329, Binding 330-379,
 /// Provider 380-429, Verb 430-479, Runtime 480-529,
 /// Memory 600-649, `WasmPlugin` 700-749, Sandbox 750-799,
-/// Observability 800-819.
+/// Observability 800-819, Screen 1000-1099, Ocr 1100-1199,
+/// A11y 1200-1299 (M2 computer-use L1 ranges per ADR-081).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
@@ -84,6 +85,12 @@ pub enum Category {
     Sandbox,
     /// Observability/telemetry sinks (800-819).
     Observability,
+    /// Screen capture (1000-1099 · M2.1 nika-screen · ADR-081).
+    Screen,
+    /// OCR text extraction (1100-1199 · M2.2 nika-ocr · ADR-081).
+    Ocr,
+    /// Accessibility-tree query (1200-1299 · M2.3 nika-a11y · ADR-081).
+    A11y,
 }
 
 /// Severity level for an error code.
@@ -291,12 +298,218 @@ pub const NIKA_999: NikaCode = NikaCode {
     slug: "internal",
 };
 
-/// All registered codes within nika-error's own ranges.
+// ─── M2 computer-use L1 codes (ADR-081 ranges · consumed by the
+// nika-screen / nika-ocr / nika-a11y NikaErrorCode impls) ──────────────
+
+/// NIKA-1000: Screen-capture backend not wired (skeleton placeholder).
+pub const NIKA_1000: NikaCode = NikaCode {
+    num: 1000,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-backend-not-wired",
+};
+
+/// NIKA-1001: Requested display id not found.
+pub const NIKA_1001: NikaCode = NikaCode {
+    num: 1001,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-display-not-found",
+};
+
+/// NIKA-1002: No displays connected / enumerable.
+pub const NIKA_1002: NikaCode = NikaCode {
+    num: 1002,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-no-displays",
+};
+
+/// NIKA-1003: OS capture call failed.
+pub const NIKA_1003: NikaCode = NikaCode {
+    num: 1003,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-capture-failed",
+};
+
+/// NIKA-1004: Requested sub-region outside display bounds.
+pub const NIKA_1004: NikaCode = NikaCode {
+    num: 1004,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-region-out-of-bounds",
+};
+
+/// NIKA-1005: Captured frame had unexpected pixel format / size.
+pub const NIKA_1005: NikaCode = NikaCode {
+    num: 1005,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-invalid-frame-format",
+};
+
+/// NIKA-1006: Capture attempted without user consent (guard 7).
+pub const NIKA_1006: NikaCode = NikaCode {
+    num: 1006,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-consent-denied",
+};
+
+/// NIKA-1007: Consent revoked mid-capture — stream torn down.
+pub const NIKA_1007: NikaCode = NikaCode {
+    num: 1007,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-consent-revoked",
+};
+
+/// NIKA-1008: Capture-LED indicator could not be engaged (guard 6).
+pub const NIKA_1008: NikaCode = NikaCode {
+    num: 1008,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-indicator-unavailable",
+};
+
+/// NIKA-1009: Capture backend failed to initialize.
+pub const NIKA_1009: NikaCode = NikaCode {
+    num: 1009,
+    category: Category::Screen,
+    severity: Severity::Error,
+    slug: "screen-backend-init",
+};
+
+/// NIKA-1101: OCR model file not found.
+pub const NIKA_1101: NikaCode = NikaCode {
+    num: 1101,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-model-not-found",
+};
+
+/// NIKA-1102: OCR model failed to load / parse.
+pub const NIKA_1102: NikaCode = NikaCode {
+    num: 1102,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-model-load-failed",
+};
+
+/// NIKA-1103: OCR engine failed to initialize.
+pub const NIKA_1103: NikaCode = NikaCode {
+    num: 1103,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-engine-init",
+};
+
+/// NIKA-1104: OCR region outside frame bounds.
+pub const NIKA_1104: NikaCode = NikaCode {
+    num: 1104,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-region-out-of-bounds",
+};
+
+/// NIKA-1105: Frame rejected by the OCR input stage.
+pub const NIKA_1105: NikaCode = NikaCode {
+    num: 1105,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-invalid-frame-format",
+};
+
+/// NIKA-1106: Frame-to-tensor preparation failed.
+pub const NIKA_1106: NikaCode = NikaCode {
+    num: 1106,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-prepare-input-failed",
+};
+
+/// NIKA-1107: Text detection pass failed.
+pub const NIKA_1107: NikaCode = NikaCode {
+    num: 1107,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-detection-failed",
+};
+
+/// NIKA-1108: Text recognition pass failed.
+pub const NIKA_1108: NikaCode = NikaCode {
+    num: 1108,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-recognition-failed",
+};
+
+/// NIKA-1109: `spawn_blocking` OCR task failed to join.
+pub const NIKA_1109: NikaCode = NikaCode {
+    num: 1109,
+    category: Category::Ocr,
+    severity: Severity::Error,
+    slug: "ocr-task-join-failed",
+};
+
+/// NIKA-1201: OS accessibility permission denied.
+pub const NIKA_1201: NikaCode = NikaCode {
+    num: 1201,
+    category: Category::A11y,
+    severity: Severity::Error,
+    slug: "a11y-permission-denied",
+};
+
+/// NIKA-1202: No focused application to query.
+pub const NIKA_1202: NikaCode = NikaCode {
+    num: 1202,
+    category: Category::A11y,
+    severity: Severity::Error,
+    slug: "a11y-no-focused-application",
+};
+
+/// NIKA-1203: Accessibility attribute read failed.
+pub const NIKA_1203: NikaCode = NikaCode {
+    num: 1203,
+    category: Category::A11y,
+    severity: Severity::Error,
+    slug: "a11y-attribute-error",
+};
+
+/// NIKA-1204: Accessibility tree walk failed.
+pub const NIKA_1204: NikaCode = NikaCode {
+    num: 1204,
+    category: Category::A11y,
+    severity: Severity::Error,
+    slug: "a11y-tree-walk-failed",
+};
+
+/// NIKA-1205: Accessibility backend unavailable on this OS.
+pub const NIKA_1205: NikaCode = NikaCode {
+    num: 1205,
+    category: Category::A11y,
+    severity: Severity::Error,
+    slug: "a11y-backend-unavailable",
+};
+
+/// NIKA-1206: `spawn_blocking` accessibility task failed to join.
+pub const NIKA_1206: NikaCode = NikaCode {
+    num: 1206,
+    category: Category::A11y,
+    severity: Severity::Error,
+    slug: "a11y-task-join-failed",
+};
+
+/// All registered codes within nika-error's own ranges + the M2
+/// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
+/// in their L1 crates, the CONSTANTS are registry-owned here so
+/// `lookup()` + `code_help()` resolve them).
 ///
-/// **Scope**: this array contains only codes OWNED by nika-error. Codes
-/// owned by downstream crates (nika-kernel, nika-runtime, nika-verb-*,
-/// etc.) are NOT enumerated here. `lookup()` therefore returns None for
-/// codes outside nika-error's range — see Audit-1 P0-1 (2026-04-16).
+/// **Scope**: other downstream-owned codes (nika-kernel siblings,
+/// nika-runtime, nika-verb-*, etc.) are NOT enumerated here. `lookup()`
+/// therefore returns None for codes outside this registry — see
+/// Audit-1 P0-1 (2026-04-16).
 ///
 /// A workspace-level registry crate would unify all codes, but landing
 /// it requires settling the cross-crate registry pattern (Phase D
@@ -304,6 +517,10 @@ pub const NIKA_999: NikaCode = NikaCode {
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
     NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
+    NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007,
+    NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106,
+    NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205,
+    NIKA_1206,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -358,6 +575,15 @@ pub fn code_help(code: NikaCode) -> &'static str {
         600 | 605..=649 => {
             "Memory subsystem reported an error. Check store availability, embedding provider, and tenant quotas."
         }
+        1000..=1099 => {
+            "Screen capture failed. Check display connectivity, capture consent (ConsentState · guard 7), and the OS screen-recording permission."
+        }
+        1100..=1199 => {
+            "OCR failed. Check the model files (with_models path), frame format, and region bounds."
+        }
+        1200..=1299 => {
+            "Accessibility-tree query failed. Check the OS accessibility permission and that a focused application exists."
+        }
         700..=749 => {
             "WASM plugin host reported an error. Check plugin manifest and capability grants."
         }
@@ -381,6 +607,45 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn computer_use_codes_have_their_categories() {
+        // M2 computer-use L1 ranges (ADR-081) · Screen 1000-1099 ·
+        // Ocr 1100-1199 · A11y 1200-1299.
+        for c in [
+            NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007,
+            NIKA_1008, NIKA_1009,
+        ] {
+            assert_eq!(c.category, Category::Screen, "{c}");
+            assert!((1000..=1099).contains(&c.num), "{c}");
+        }
+        for c in [
+            NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108,
+            NIKA_1109,
+        ] {
+            assert_eq!(c.category, Category::Ocr, "{c}");
+            assert!((1100..=1199).contains(&c.num), "{c}");
+        }
+        for c in [
+            NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206,
+        ] {
+            assert_eq!(c.category, Category::A11y, "{c}");
+            assert!((1200..=1299).contains(&c.num), "{c}");
+        }
+    }
+
+    #[test]
+    fn computer_use_codes_lookup_and_help() {
+        let c = lookup("NIKA-1003").expect("screen capture-failed registered");
+        assert_eq!(c.slug, "screen-capture-failed");
+        assert!(!code_help(c).is_empty());
+        assert!(lookup("NIKA-1101").is_some(), "ocr registered");
+        assert!(lookup("NIKA-1206").is_some(), "a11y registered");
+        assert!(
+            lookup("NIKA-1200").is_none(),
+            "1200 reserved (closed skeleton slot)"
+        );
+    }
 
     #[test]
     fn display_format_three_digit_padding() {
