@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika-clock` — the production [`Clock`] implementation for the Nika diamond.
+//! `nika-clock` — the production [`nika_kernel::Clock`] implementation for the Nika diamond.
 //!
 //! This crate sits at **L1** (effect crate): it implements the L0.5
 //! [`nika_kernel::Clock`] trait using real system time. Every crate that

@@ -37,7 +37,10 @@ impl FileMetadata {
 /// Read-only filesystem operations.
 ///
 /// CANCEL SAFETY: every read method is cancel-safe. Read ops have no
-/// side effects, so dropping the future simply abandons the syscall.
+/// side effects, so dropping the future abandons the RESULT — note
+/// that `tokio::fs`-style impls detach (not abort) the underlying
+/// blocking syscall, which runs to completion in the background; for
+/// read-only ops that is unobservable.
 #[trait_variant::make(FsReadDyn: Send)]
 pub trait FsRead: Send + Sync {
     /// Read a file's entire contents as bytes.
@@ -66,8 +69,10 @@ pub trait FsRead: Send + Sync {
 /// CANCEL SAFETY: NOT cancel-safe at the raw-syscall level. Impls
 /// targeting atomic semantics MUST use temp-file + rename (POSIX
 /// guarantees rename atomicity within the same filesystem). A
-/// dropped future may leave partial writes OR a stale temp file.
-/// Callers on non-atomic impls MUST retry cautiously.
+/// dropped future may leave partial writes OR a stale temp file —
+/// and `tokio::fs`-style impls detach (not abort) on drop, so a
+/// cancelled write may still fully PUBLISH the destination in the
+/// background. Callers on non-atomic impls MUST retry cautiously.
 #[trait_variant::make(FsWriteDyn: Send)]
 pub trait FsWrite: Send + Sync {
     /// Write contents to a file (creates or overwrites).
