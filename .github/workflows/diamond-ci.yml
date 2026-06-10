@@ -119,9 +119,9 @@ jobs:
   semver:
     name: cargo-semver-checks (api breakage)
     runs-on: ubuntu-latest
-    # Compares current public API against baseline `origin/nika-diamond`.
+    # Compares current public API against baseline `origin/main`.
     # Fails PRs that introduce breaking changes without documented intent.
-    # Non-blocking on push to nika-diamond (only rejects PRs).
+    # Non-blocking on push to main (only rejects PRs).
     continue-on-error: ${{ github.event_name == 'push' }}
     steps:
       - uses: actions/checkout@v4
