@@ -117,6 +117,10 @@ mod tests {
         let mut b = Baggage::new();
         assert!(b.insert("tenant", "acme-corp"));
         assert_eq!(b.len(), 1);
+        assert!(
+            !b.is_empty(),
+            "non-empty baggage must report is_empty() == false"
+        );
         let entry = b.get("tenant").unwrap();
         assert_eq!(entry.value, "acme-corp");
     }
@@ -140,6 +144,26 @@ mod tests {
     }
 
     #[test]
+    fn insert_accepts_exactly_max_size_then_rejects_over() {
+        // Boundary: total_size == MAX_SIZE_BYTES is ACCEPTED (`>`, not `>=`).
+        // key "k" (1) + value (MAX_SIZE_BYTES - 1) = exactly MAX_SIZE_BYTES.
+        let mut b = Baggage::new();
+        let exact = "x".repeat(MAX_SIZE_BYTES - 1);
+        assert!(
+            b.insert("k", exact),
+            "total_size == MAX_SIZE_BYTES must be accepted (boundary)"
+        );
+        assert_eq!(b.len(), 1);
+        // One byte over the cap is rejected.
+        let mut b2 = Baggage::new();
+        let over = "x".repeat(MAX_SIZE_BYTES); // key "k" pushes it 1 over
+        assert!(
+            !b2.insert("k", over),
+            "one over MAX_SIZE_BYTES must be rejected"
+        );
+    }
+
+    #[test]
     fn get_missing_returns_none() {
         let b = Baggage::new();
         assert!(b.get("missing").is_none());
@@ -149,6 +173,16 @@ mod tests {
     fn baggage_entry_size() {
         let e = BaggageEntry::new("key", "value");
         assert_eq!(e.size(), 8); // "key" + "value"
+    }
+
+    #[test]
+    fn baggage_entry_size_includes_metadata() {
+        // Distinct lengths (2 + 3 + 4) so every `+` in `size()` must genuinely
+        // ADD — a `+ → -` mutation on the metadata term (or the key/value term)
+        // yields a wrong value or a usize underflow panic, killing the mutant.
+        let mut e = BaggageEntry::new("ab", "cde"); // 2 + 3
+        e.metadata = Some(String::from("fghi")); // + 4
+        assert_eq!(e.size(), 9);
     }
 
     #[test]
