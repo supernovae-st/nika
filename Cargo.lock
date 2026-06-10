@@ -1963,6 +1963,7 @@ dependencies = [
  "accessibility",
  "atspi",
  "core-foundation",
+ "miette",
  "nika-kernel",
  "proptest",
  "thiserror 2.0.18",
@@ -2165,6 +2166,7 @@ name = "nika-ocr"
 version = "0.80.0"
 dependencies = [
  "bytes",
+ "miette",
  "nika-kernel",
  "ocrs",
  "proptest",
