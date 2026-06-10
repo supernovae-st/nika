@@ -125,6 +125,7 @@ reserved even if unused, preventing collision when future subsystems ship.
 |---|---|---|
 | NIKA-000..099 | Core engine | active |
 | NIKA-100..199 | MCP / catalog | active (100, 101, 107) |
+| NIKA-1600..1699 | audio L1 (stt · tts · vad · `ai::audio` seam R6) | reserved (2026-06-10 · impls stdlib v0.x) |
 | NIKA-200..299 | pck / validation | reserved v0.80, active v0.90 |
 | NIKA-300..399 | Providers + Shield | active (380-389 shield) |
 | NIKA-400..499 | Cortex / memory queries | reserved v0.80, active v0.95 |

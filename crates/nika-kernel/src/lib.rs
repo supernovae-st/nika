@@ -67,7 +67,7 @@ pub mod checkpoint;
 pub mod errors;
 
 // ─── Backward-compat re-exports (preserve crate::module_name paths) ─
-pub use ai::{context, genai, memory, provider};
+pub use ai::{audio, context, genai, memory, provider};
 pub use infra::{audit, billing, event_sink, id_gen, metrics, secret, trace};
 pub use io::{blob, clock, fs, http, process};
 pub use plugin::sandbox;

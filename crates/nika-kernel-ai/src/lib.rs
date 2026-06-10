@@ -4,7 +4,8 @@
 //! `nika-kernel-ai` — the AI sibling of the split kernel (L0.5).
 //!
 //! Provider inference, memory (the Connectome contract surface),
-//! vision, context compression, `GenAI` `OTel` attributes — 14 traits
+//! vision, audio (R6 seam · stt·tts·vad), context compression,
+//! `GenAI` `OTel` attributes — 17 traits
 //! (`docs/architecture/kernel-split-census-2026-06-10.md`).
 //!
 //! **Zero implementations live here.** Contracts only.
@@ -25,6 +26,7 @@
     )
 )]
 
+pub mod audio;
 pub mod context;
 pub mod errors;
 pub mod genai;
