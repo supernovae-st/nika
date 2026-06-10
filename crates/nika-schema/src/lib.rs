@@ -40,6 +40,7 @@ pub mod analyzer;
 pub mod codegen;
 pub mod error;
 pub mod expression;
+pub mod lints;
 pub mod parser;
 pub mod raw;
 pub mod source;
