@@ -13,7 +13,7 @@ use std::time::Duration;
 use marked_yaml::types::MarkedMappingNode;
 
 use crate::error::SchemaError;
-use crate::raw::{RawFinallyTask, RawTask};
+use crate::raw::{ForEachValue, RawFinallyTask, RawTask};
 use crate::source::Spanned;
 use crate::types::{BackoffStrategy, OnError, RetryConfig, is_valid_error_code, parse_go_duration};
 
@@ -111,7 +111,7 @@ fn parse_task(cx: &Cx<'_>, mapping: &MarkedMappingNode) -> Result<RawTask, Schem
 
     task.depends_on = parse_string_list(cx, mapping, "depends_on")?;
     task.when = cx.opt_scalar(mapping, "when")?;
-    task.for_each = cx.opt_scalar(mapping, "for_each")?;
+    task.for_each = parse_for_each(cx, mapping)?;
     task.max_parallel = parse_max_parallel(cx, mapping)?;
     task.fail_fast = parse_bool_field(cx, mapping, "fail_fast")?;
     task.retry = parse_retry(cx, mapping)?;
@@ -153,6 +153,35 @@ pub(super) fn parse_string_list(
         ));
     }
     Ok(out)
+}
+
+/// `for_each:` — an expression string OR a literal YAML list (spec
+/// `03-dag.md` §`for_each` · « The collection is either a literal list
+/// or a reference to an upstream task's array output »).
+fn parse_for_each(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<Option<Spanned<ForEachValue>>, SchemaError> {
+    let Some(node) = mapping.get_node("for_each") else {
+        return Ok(None);
+    };
+    let span = cx.span_or_zero(node.span());
+    if let Some(scalar) = node.as_scalar() {
+        return Ok(Some(Spanned::new(
+            ForEachValue::Expression(scalar.as_str().to_owned()),
+            span,
+        )));
+    }
+    if node.as_sequence().is_some() {
+        return Ok(Some(Spanned::new(
+            ForEachValue::List(node_to_json(node)),
+            span,
+        )));
+    }
+    Err(SchemaError::Validation {
+        message: "`for_each` must be a `${{ … }}` expression or a literal list".to_owned(),
+        span: cx.span(node.span()),
+    })
 }
 
 /// `max_parallel:` — positive integer ≥ 1 (spec 03 §`max_parallel` ·
@@ -659,7 +688,7 @@ tasks:
         );
         assert_eq!(
             b.for_each.as_ref().expect("for_each").value,
-            "${{ vars.items }}"
+            crate::raw::ForEachValue::Expression("${{ vars.items }}".into())
         );
     }
 

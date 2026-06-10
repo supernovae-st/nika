@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::SchemaError;
 use crate::expression::{ExprError, NamespaceRef, expr_refs, is_boolean_shaped, scan_templates};
-use crate::raw::{RawAction, RawTask, RawWorkflow};
+use crate::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use crate::source::{Span, Spanned};
 
 /// The reserved result-record fields (spec `04-variables.md` §result
@@ -122,10 +122,20 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         check_single_island(when, "when", id, true, errors);
         scan_string(when, &body_ctx, index, errors);
     }
-    // `for_each:` — single island (no boolean requirement).
+    // `for_each:` — expression form is a single island (no boolean
+    // requirement) · literal-list form scans element strings.
     if let Some(for_each) = &task.for_each {
-        check_single_island(for_each, "for_each", id, false, errors);
-        scan_string(for_each, &body_ctx, index, errors);
+        match &for_each.value {
+            ForEachValue::Expression(expr) => {
+                let spanned = Spanned::new(expr.clone(), for_each.span);
+                check_single_island(&spanned, "for_each", id, false, errors);
+                scan_string(&spanned, &body_ctx, index, errors);
+            }
+            ForEachValue::List(list) => {
+                let spanned = Spanned::new(list.clone(), for_each.span);
+                scan_json(&spanned, &body_ctx, index, errors);
+            }
+        }
     }
     // `with:` values.
     for (_, value) in &task.with {

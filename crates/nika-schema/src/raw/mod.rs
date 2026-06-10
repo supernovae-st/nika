@@ -15,5 +15,5 @@ pub use action::{
     RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction, Thinking,
     VisionInput,
 };
-pub use task::{RawFinallyTask, RawTask};
+pub use task::{ForEachValue, RawFinallyTask, RawTask};
 pub use workflow::RawWorkflow;

@@ -29,8 +29,10 @@ pub struct RawTask {
     pub depends_on: Vec<Spanned<String>>,
     /// `when:` — conditional execution · a single boolean CEL island.
     pub when: Option<Spanned<String>>,
-    /// `for_each:` — map this task over a collection · a single island.
-    pub for_each: Option<Spanned<String>>,
+    /// `for_each:` — map this task over a collection (spec `03-dag.md`
+    /// · « The collection is either a literal list or a reference to
+    /// an upstream task's array output »).
+    pub for_each: Option<Spanned<ForEachValue>>,
     /// `max_parallel:` — cap concurrent `for_each` iterations (≥ 1).
     pub max_parallel: Option<Spanned<u32>>,
     /// `fail_fast:` — abort-on-error policy for `for_each` (default true).
@@ -71,6 +73,16 @@ impl RawTask {
             action,
         }
     }
+}
+
+/// The `for_each:` collection source.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum ForEachValue {
+    /// `for_each: ${{ … }}` — an expression string (a single island).
+    Expression(String),
+    /// `for_each: [a, b, c]` — a literal YAML list.
+    List(serde_json::Value),
 }
 
 /// One `on_finally:` cleanup mini-task.
