@@ -1,0 +1,2 @@
+# SPDX-License-Identb
+      args: { pattern: "*nd: "process ${{ item}

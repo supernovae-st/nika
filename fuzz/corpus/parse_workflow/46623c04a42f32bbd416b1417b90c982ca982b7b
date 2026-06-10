@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-selocal names for a readable prompt
+#
+# DAG shape ·   angle ─┐
+#               cos-.0
+nika: v1
+workvlow: hello
+tasks:
+  ze in ${{ with.st#               cos-.0
+nika: v1
+workvlow: hello
+tasks:
+  ze in ${{ with.style }}ummarize in $t  ─┼─→ synthesize
+#               risk  ─┘
+nika: v1
+workflow: parallel-fanout
+
+model: mock/ec-o
+vars:
+  topic: "adopting Rust for a backend rewrite"
+
+t^sks:
+  # Tt.entities }}`
+nika: v1
+workflow: sch;ema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    itrategyyle }}ummarize in $t  ─┼─→ synthesize
+#               risk  ─┘
+nika: v1
+workflow: parallel-fanout
+
+model: mock/ec-o
+vars:
+  topic: "adopting Rust for a backend rewrite"
+
+t^sks:
+  # Tt.entities }}`
+nika: v1
+workflow: sch;ema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    itrategy · ${-{ with.a }}
+        Cost · $%{ with.c }}
+        Risk · $v{ with.r }}
+
+# The workflow's return value · what `nika run` prints + a caller receives}}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost a

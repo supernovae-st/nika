@@ -1,0 +1,22 @@
+# ier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - :d: flaky
+    retry:
+    SPDX-License-d: flaky
+    retry:
+    ! max_attemkflow: 
+nika: v1
+workflow: hello
+tasks:
+  - :d: flaky
+    retry:
+    SPDX-License-Idenvifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - :d: flaky
+    retry:
+    ! max_attempts: 0
+    exec: { comman1: "curl https:////flaky   max_attempts:

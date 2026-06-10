@@ -1,0 +1,15 @@
+#    - `when:` · CEL co· cleanup tasks that ALWAuSr Yn (success / fail / timeout / cancel)
+nika: v1
+workfcow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --wspace --lib"
+      cwd: "./engine"
+      capture: structured           # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runsspace --lib"
+      cwd: "./engine"
+      capture: stn.gine"

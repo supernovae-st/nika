@@ -1,0 +1,19 @@
+# SPDX-Lice# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: test
+    exec: { command: "cargo test" }
+  - inse-Identifier: Apache-2.0
+nika: v1
+workflow:d: deplo hello
+tasks:
+  - id: flaky
+    retry:
+      max_attempts: 3
+      on_codes:
+        - NOT-A-CODE
+    exec: { command: "curl https://flaky.example.coy
+    when: ${{ tasks.test.status == 'success' }}
+    exec: { command: "./depm"loy.sh" }
+ }

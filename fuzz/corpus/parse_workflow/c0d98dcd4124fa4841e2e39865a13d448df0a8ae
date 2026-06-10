@@ -1,0 +1,7 @@
+# SPDX
+  - id: a
+    exec: { command: "./pre.sh" }
+  - id: b
+    depends_on: [a]
+    infer: { prompt: "Analyze branch B" }
+  {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{[{{{{{{{{{{{{{{{{{{{{{{{{{{   infer: { prompt: "Merge" }

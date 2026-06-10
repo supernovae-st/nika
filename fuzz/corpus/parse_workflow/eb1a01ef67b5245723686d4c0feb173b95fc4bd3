@@ -1,0 +1,3 @@
+# SPDXorkflow: hello
+!secrets:
+  a: Bearer ${{ om" }

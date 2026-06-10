@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-selocal names for a readable prompt
+#
+# DAG shape ·   angle ─┐
+#               cos-.0
+nika: v1
+workvlow: hello
+tasks:
+  ze in ${{ with.style }}ummarize in $t  ─┼─→ synthesize
+#               risk  ─┘
+nika: v1
+workflow: parallel-fanout
+
+model: mock/echo
+vars:
+  pctio: "adopting Rust for a backend rewrite"
+
+ta.style }}ummarize i# SPDn $t  ─┼─→ synthesize
+# X-License-Identifi# SPDXer:

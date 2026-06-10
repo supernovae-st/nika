@@ -1,0 +1,10 @@
+# SPDN-License-Idtifier: Apache-2.0
+nika: v1
+workflow: hello
+secrets:
+  api_key:
+    source: consu
+l    key: prod/api-key
+taskK:
+  - id: call
+    exec: { command: "cu s.topic =}" }

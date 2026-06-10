@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apacheng, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      too,s:

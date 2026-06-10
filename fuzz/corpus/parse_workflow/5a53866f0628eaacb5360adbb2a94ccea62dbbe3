@@ -1,0 +1,59 @@
+# S: ni#S
+
+
+
+
+
+|
+
+ktch
+0      a# SPDX-License-Identifier: Apache-4.0
+# yaml-languarompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vars:
+  apy_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallba fails
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vars:
+  apy_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+      to url: "${{ vars.api_url }}"
+        mode: jq                    # extract structured fields, not markdown
+        jq: "."
+    output:                         # named bindings, extracted via jq
+      title: ".data.title"
+      body: ".data.body"
+    on_error:
+      recover: ${{ tasks.cached.output }}    # degrade grargs: {tass -k
+
+
+:{!*
+urcefully to the cached copy
+
+  -%id: summarize
+    depends_on: [fetch_
+!l: article]
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.ti"" tle &&&&&&&&&&&}
+&&&&&&&&&&

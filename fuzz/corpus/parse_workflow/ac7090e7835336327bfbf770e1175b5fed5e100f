@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hela
+    with:
+      style: "concise"
+ize in ${{ wSummarize in ${{ with.style }} style · ${{ wi;th.missing }}" }

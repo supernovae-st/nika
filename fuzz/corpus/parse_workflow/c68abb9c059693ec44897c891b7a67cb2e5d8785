@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-1.0
+nika: v1
+workflow: hello
+tasks:
+  - i000003074457345618258601n: [bj]
+ |
+  nfer: { prompt: "a" }
+  - id:  "b" }

@@ -1,0 +1,3 @@
+# SPDX-License-Iderkflow: hhi" }
+outputs:
+ : ${{ tasks.ghost.output }}

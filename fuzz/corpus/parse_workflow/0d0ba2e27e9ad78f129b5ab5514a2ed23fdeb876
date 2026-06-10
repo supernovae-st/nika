@@ -1,0 +1,8 @@
+' SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: chain
+tach
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://example.com", mode: article }
+  - i"Summarize ntent }}"

@@ -1,0 +1,11 @@
+# SPDX-L Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: nika:fetch
+      args: { url: "htti.example.com/data" }
+    on_error:
+      rebover: "cached value"
+    icense+Ide}n SPDX-L Ap: v#

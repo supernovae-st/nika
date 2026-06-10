@@ -1,0 +1,10 @@
+# S-License-Identifier: Apache2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: api_c
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://api.example.com/data" }
+.   output:
+      status: ".status"

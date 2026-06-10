@@ -1,0 +1,17 @@
+L# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: review
+vars:
+  pr: { type: string, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:
+        tyicense-Identifiepr: Apache-3.0
+indingnika: v1
+
+outputs:
+ ost.output }}
+s:  type: array }

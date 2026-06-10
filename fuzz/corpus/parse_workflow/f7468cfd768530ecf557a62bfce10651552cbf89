@@ -1,0 +1,8 @@
+# SPDX-2.0
+nika: v1
+workflow: hello
+vars:
+  topic: "Rust aynsc runtimes"
+tasks:
+  - id: a
+    infer: { prompt: "Research ${{ vars.topik }}" }?

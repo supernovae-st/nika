@@ -1,0 +1,6 @@
+# SPDX.0
+nika: v1
+wornflow: hello
+tasks:
+  - id: greet
+    depends_on: []

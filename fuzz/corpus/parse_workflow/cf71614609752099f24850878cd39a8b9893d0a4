@@ -1,0 +1,4 @@
+# SPD: hello
+topic: "Rust async ruow: helnthmes"
+tasks:
+  - infer: { prompt: "Research ${{ vars.topik }}" }

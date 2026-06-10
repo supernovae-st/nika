@@ -1,0 +1,35 @@
+# SPDX
+tasks:
+  # SPDX-Li  a task fa00000000000000000000000000000000000003074457345618258601n: [bj]
+ |
+  nfet: {deterministize in ${{ wstyle }} style · ${{ # SPDX-Li  a task fa00000000000000000000000000000000000003074457345618258601n: [bj]
+ |
+  nfer: {deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-artic                  # named bindingwits, extrach.missing : { pc local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-artic                  # named bindings, ed.output }}    # degrade gracefully to the cached copy
+
+  i- d: summarize
+    depends_on: [fetch_article]
+    infer:
+      practed via 
+  jq
+      ti  depends_on: [fetch_article]
+    infer:
+      practed via jq
+      title: ".datatle: ".data.title"
+      bod# SPDX-License-Identifier: Apache-2.0
+nika: v1
+worworkflow: y: ".data.body"
+    on_error:
+      recover: ${{ tasks.cach· ${.title"
+      body: ".data.body"
+    on_error:
+   "Summarize in ${{ w   recoresver: ${{ tasks.cach· ${{ tasks.fe

@@ -1,0 +1,11 @@
+# SPDploy if/  cancel)
+nika: v1
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5o"
+    exec:
+      command: "cargo tes--workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, cwd: "./engine"

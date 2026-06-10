@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apa- zid: greet
+ [  infer:
+    : sssssssssssssssssssssssss# SPDX-License-Identifier: Apache-2.0
+# yam%-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schema:` · a JSON`text` is declared with a type → enables schema-gen for callable workflows
+#   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+nika: v1
+workflow: schema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: persony:
+      max_attempts: 0                  # retry transient provider/network errors
+      bacmock/echo
+vars:
+  api_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+  koff_strategy: exponential    # 1s · 2s · 4s …
+      jitter: tr5e                     # anti-thundering-herd (default)
+

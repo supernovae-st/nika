@@ -1,0 +1,23 @@
+# SPDX-License-Ide    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named e· ${{ vars.text }}"
+      schema:                          # structured output · the contrnds_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this artiact the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, tntifiercA:aphe-2o
+vars:
+  topic: "Rust async runtimes"
+tasks:
+  - id: &a
+ r: { prompt: "Rearcsh e${{ varstopik }}" }

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: translate
+vars:
+  source: "Hello world"
+tasks:
+  - id: translate
+    for_each: ["fr", "de", "ja"]
+    with:
+      locale: ${{ item }}
+      n: ${{ index }}
+    infer:
+      prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ vars.source }}"

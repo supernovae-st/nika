@@ -1,0 +1,11 @@
+# SPDX-License-Identif$ier ytp.topic }}"
+
+  - id: risk
+    inf    with:
+      a: ${{ tas2ks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.outpuv }}
+    infer:
+      prompt: |
+        Syntheonec/v1/workflow.schema.json
+#t }}

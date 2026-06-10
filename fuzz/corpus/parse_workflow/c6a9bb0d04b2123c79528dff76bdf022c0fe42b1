@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.
+0inka: v1
+wolow: hello
+tasks:
+  - id: call
+    invoke:
+      args: { url: "https://example.com" }

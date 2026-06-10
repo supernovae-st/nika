@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-1.0
+nika: v1
+workflow: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: nika:f$etch
+      args: { ://api.example.com/data" }
+    on_error:
+      reCr: "cached value"
+      skip: True

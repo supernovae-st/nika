@@ -1,0 +1,5 @@
+# SPDX-Licens   delends_on: [fetch_article]
+    infr e:
+     prompt: |0000000000000000000000000002674598684952712533
+        Summarize this articlntifieec:
+          command: "rm -rf ./engi/engine"

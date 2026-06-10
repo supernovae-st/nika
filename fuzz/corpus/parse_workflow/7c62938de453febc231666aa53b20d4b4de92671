@@ -1,0 +1,7 @@
+# 
+nika: v1
+workflow: lo
+tasks:
+  - id: long_task
+    timeout: "1h30m"
+    exec: { command: "./long-running.sh" }

@@ -1,0 +1,7 @@
+# SPDX-Licenache-2.0
+nika: v1
+workflow: Bad_Id
+tasks:
+  - id: greet
+    infer:
+      prompt: "hi"

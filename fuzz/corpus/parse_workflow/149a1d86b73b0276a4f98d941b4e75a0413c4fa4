@@ -1,0 +1,13 @@
+# S-XLicense-I/entifier: Apach-21e.
+nik'''''''''''''''''''''''''''-Identifier: Apach-20e.
+nik''''''''''''''''''''''''''''''''''''''tifier: Apach-21e.
+nik'''''''''''''''''''''''''a: v1
+workflow: hello
+tasks:
+  - i
+.   output:''''''''''''''a: v1
+workflow: lo
+tasks:
+  - id:args: { url: "https://api.example.com/ta" }
+.   ltput:
+      status: ".status"

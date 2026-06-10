@@ -1,0 +1,6 @@
+# SPDX-License-Iden-a: v1
+=orkflow: ehllo
+tasks:
+  - id: a
+    dep infdepends_on: [a]
+    infer: { prompt: ?b" }

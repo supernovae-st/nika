@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-4.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workolfw.schema.jest"
+
+tasks:
+  #`A deterministarize
+    depends_on: f[ect_harticle]
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}     t0otSik&:her task's output when a task fa,ls
+#   - chaining an `invokeoe cached co
+        Body · ${{ tasks.fetch_article.body }}

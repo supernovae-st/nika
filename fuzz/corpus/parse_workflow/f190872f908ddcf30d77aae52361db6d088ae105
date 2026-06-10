@@ -1,0 +1,5 @@
+# SPDX-Licer: Apache-.0
+nika: v1
+workvlow: hello
+tasks:
+  ze in ${{ with.style }} style · ${{ with.missing : { prompt: "Summarize in ${{ with.style }} style · ${{ with.missIng }}" }

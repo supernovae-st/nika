@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-4.0
+
+model: mock/echo
+vars:
+  api_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic lcase the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "${{ vars.api_url }}"
+        mode: jq                    # extract structured fields, not markdown
+        jq: "."
+    output:                         # named bindings, extracted via jq
+      title: ".data.title"
+      body: ".data.body"
+    on_error:
+      recover: ${{ tasks.cached.output }}    # degrade gracefully to the cached copy
+
+  - id: summarize
+    depends_on: [fetch_article]
+    infer:
+      prompt: |
+   y"
+    on_error:
+      recover: ${{ tasks.cached.output }}    # degrade gracefully to the cached co
+        Body · ${{ tasks.fetch_article.body }}

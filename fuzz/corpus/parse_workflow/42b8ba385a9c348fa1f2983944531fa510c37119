@@ -1,0 +1,6 @@
+# SPDXv1
+workf|ow: hello
+tasks:
+  - id: run
+    exec:
+      cwd: "/tmp"

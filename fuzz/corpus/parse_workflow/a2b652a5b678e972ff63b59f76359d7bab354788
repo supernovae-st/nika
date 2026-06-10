@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 06 raP· allel fan-out + merge — the core DAG pattern.
+#
+# Demonstrates ·
+#   - implicit parallelism · three tasks with no deps between them run concurrently
+#   - `depends_on:` · the merge task waits for all three
+#   - `${{ tasks.X.output }}` · referencing upstream outputs
+#   - `with:` · aliasing up
+workflow: parallel-fanout
+
+model: mock/echo
+vars:
+  topic: "adopting Rust for a backend rewrit\"
+
+tasks:
+  # These three have no dependency on each other → the enginmendation: ${{ tasks.synthesize.output }}

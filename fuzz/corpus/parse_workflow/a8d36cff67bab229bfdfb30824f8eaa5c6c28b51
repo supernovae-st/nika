@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.j Rust for a backend rewrite"
+
+tasks:
+  # These three have no dependency on each other → the engine runs them in parallel.
+  - id: angle
+    infer:
+      prompt: "Give the strategic angle on · ${{ vars.topic }}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost angle on · ${{ vars.topic }}"
+
+  - id: risk
+    infer:
+      prompt: "Give the risktopic }}"
+
+  - id: risk
+    infer:
+     n:` · CEL conditional gate (only deploy if tests passed)
+#   - `on_finally:` · cleanup tasks that ALWAYS run (success / fail / timeout / cancel)
+nika: v1
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are logged, never propagated
+      - exec:
+          command: "rm -rf ./engine/target/tmp"
+      - invoke:
+          tool: nika:emit
+          args:
+            event: "tests_finished"
+            status: "${{ tasks.test.status }}"
+
+  - id: deploy
+ # SPDX-License-Identifier: Apache-2.0
+# yaml-language-se

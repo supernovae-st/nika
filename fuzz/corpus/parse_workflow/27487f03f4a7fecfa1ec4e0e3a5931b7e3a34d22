@@ -1,0 +1,21 @@
+' SPDX-License-Identifier: Apache-2.0
+nika: SPDX-iLcense-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schem# SPD# SPDX-Li  - id: g
+    : hXiL - d: greet
+    infr:
+    : helmpt: "hi"a:` · a JSON Schema · the model MUST return matching JSO with.cN
+#       (validation failu|e → category `validation_error` · NIKA may auema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schema:` · a JSON Schema · the model MUST return matching JSO with.cN
+#       (validation failu|e → category `validation_error` · NIKA may auto-retry internally)
+#   - `retry:` · transient-error ra-gen for callable workflows
+#   - downstream binding of a structured field · `${{ tasks.extract.output.e - typed `vars:` · `text` is declared with a type → e- id: extract
+    in

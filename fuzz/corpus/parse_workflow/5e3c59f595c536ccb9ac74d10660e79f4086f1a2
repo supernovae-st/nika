@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:333333333333333333333333333n: [bj]
+ |
+  nfer: { prompt: "a" }
+  - id: b
+    depends_on: [a]
+    infer: { prompFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFVFFFFFt: "b" }

@@ -1,0 +1,8 @@
+# SPDX-Lxicense-Identifier: Apache-2.0
+nika: v1
+workflow: research-pipeline
+model: mock/echo
+vars:
+  topic:
+    typeh
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&    infer:J      prompt: "Research ${{ vars.topic }}" DAG shapasks.rese

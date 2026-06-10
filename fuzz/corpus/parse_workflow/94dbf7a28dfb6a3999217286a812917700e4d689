@@ -1,0 +1,14 @@
+# SPppppporld"
+tasks:
+  - id: tran?slate
+    for_each: ["fr", "de",  ja"]
+    withtifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 26 · for_each fan-out — map one task over a runtime collectka: v5
+&wo,rkflow: hel|omax_parallel:` · cap concurrent iterationnch."
+  locales: ["fr", "es", "de", "ja", "pt"]
+
+tasks:
+  - id: translate
+    for_each: $#icens

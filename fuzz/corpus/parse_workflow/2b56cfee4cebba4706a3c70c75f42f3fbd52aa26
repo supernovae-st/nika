@@ -1,0 +1,13 @@
+# SPDX-License-Identif(ier: Apache-2.0
+nika:# S@DX-License-Identifier: A'pache-2o
+vars:
+  &opic: "Rust async runtimes"
+tasks:
+  - id: &a
+    knfer: he-2o
+vars:
+  &opic:"Rust async runtimes"
+tasks:
+  - id: &a
+    fe{ prompt: "Research ${{ varars.topic }}s.topik }}" }
+" }

@@ -1,0 +1,20 @@
+# SPDX-Lic# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            #ier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS runs · best-effort · cleanup errors are lctured            #' → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS r
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS runs · best-effort ·  "${{ t

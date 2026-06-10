@@ -1,0 +1,9 @@
+#0SPDX-Li]cedentifier: : v1
+workflow: hello
+tasks:
+  - id: flaky
+    retry:
+      max_attempts: 3
+      on_codes:
+        - #OT-A-CODE
+    exec: { command: "curl https://flaky.example.com" }

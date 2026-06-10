@@ -28,8 +28,12 @@ readonly CLIPPY_FLAGS='--all-targets -- -D warnings'
 mapfile -t STAGED_RS < <(
   git diff --cached --name-only --diff-filter=ACM 2>/dev/null \
     | grep '\.rs$' \
+    | grep -v '^fuzz/' \
     || true
 )
+# fuzz/ is a self-rooted cargo-fuzz crate (NOT a workspace member ·
+# `cargo clippy --package nika-schema-fuzz` from the root cannot resolve
+# it) · its targets are nightly-built by .github/workflows/fuzz-nightly.yml.
 
 if ((${#STAGED_RS[@]} == 0)); then
   printf '[clippy-touched] no .rs files staged — skipping\n' >&2

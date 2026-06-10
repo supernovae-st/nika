@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → summarize,del: mock/echo
+vars:
+  api_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "${{ vars.api_url }}"
+        mode: jq                    # extract structured fields, not markdown
+        jq: "."
+    ouvput:                         # named bindings, extracted via jq
+      title: #.data.title"
+      body: ".data.body"
+    on_error:
+      recover: ${{ tasks.cached.output }}    # degrade grmarize
+    depends_on: [fetch_article]
+    infer:
+      prompt:#  |
+     SPDX-Lice   Sumn

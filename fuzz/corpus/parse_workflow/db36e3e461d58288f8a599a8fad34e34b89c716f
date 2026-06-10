@@ -1,0 +1,15 @@
+# SPDploy if tests passed)
+#   -eanup tasks that ALWAYS run (success / fail / timeout / cancel)
+nika: v1
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_co: [test'success' && tasks.test.output.exit_code == 0 }}
+    exec:
+      c/ommand: "./deploy.sh"
+ 0    cwd: "./engine"

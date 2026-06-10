@@ -1,0 +1,3 @@
+# Sense-Identisks:
+ >- id: a
+  n "Get ${ foo.bar }}"+}

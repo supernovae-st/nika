@@ -1,0 +1,4 @@
+kflow: hello
+tasks:
+  - id: a
+    infer: { pr}

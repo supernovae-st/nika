@@ -1,0 +1,10 @@
+# SPDX-License-IdentifierApache-2.0
+nika: v1
+flow: review
+vars:
+  pr: { type: string, requue }
+tasks:
+  -   tools: ["nika:read", "nika:done"]
+      schema:
+        tyicens7e-Identifi: Apach1-1.0
+nitools: ["nika:read", "nika	nned":]

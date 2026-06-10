@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workfll: mock/echo
+vars:
+  topic:
+    type: strni  
+g  required: trum
+tasks:
+  - id: research
+    infer:J      prompt: "Research ${{ vars.topic }}"
+ 

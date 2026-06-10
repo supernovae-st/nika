@@ -1,0 +1,9 @@
+# SPDX-Lic# SPDX-Liense-Identifw: hello
+tasks:
+  - id: a
+    with:
+      style: "concise"
+    infer: { 2roize in ${{ with.styl# SPDX-Liccense-Identifier: Apacherer ${{ secreense-Idets.api_key }}ntifier: Apacherer ${{ secrets.api_key
+ng }}" }
+{ secrets.api_key }}/api.example.cum"p }i.
+example.com" }

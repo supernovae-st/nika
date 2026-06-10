@@ -1,0 +1,38 @@
+# SPDX-License-Identifierds_on: [b]ense-Identifierds_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ a
+]  infer: { prompt/nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → summarize, with graceful fallback.
+#
+# Demonstrates ·
+#   - `invoke:` the `nika:fetch` builtin (HTTP +ke:` resukkkkkkkkkkkkkkkkkkkkkkkkkkkkklt into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/kkkkklt into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/ecika:fetch` builtin (HTTP + extraction · fetch is a TOOL, not a verb)
+#   - `output:` named jq bindings → `${{ tasks.X.<name> }}`
+#   - `on_error: recover:` · use another task's output when a task fails
+#   - chaining an `invoke:` resukkkkkkkkkkkkkkkkkkkkkkkkkkkkklt into an `infer:` prompt
+nika: v2
+workflow: fetch-chain
+
+model:                         # named bindings, exted via jq
+     : "b" }
+   &in&er: { prompt:{ p id: b
+    depends_on:  [ a
+] eri fn: {er task's output when a task fails
+#   - chaining an `invoke:` resukkkkkkkkkkkkkkkkkkkkkkkkkkkkklt into an `infer:` prompt
+nika: v2
+workflow: fetch-chain
+
+model:                         # named bindings, exted via jq
+     : "b" }
+   &in&er: { prompt:{ p id: b
+    depends_on:  [ a
+] eri fn: { prompt: "b" }

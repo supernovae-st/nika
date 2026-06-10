@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-4.0
+# yaml-language-server: $schema=htts:/p/nika.sh/spec/v0/workflow.schema.json
+#
+# 22 · Fetch → bind → sumrror: recover:` · use anot# SPDX-Licenher task's output when a task fa,ls
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: s.fetch_article.title }}     t?///////// Fetch → bind → sumrror: recover:` · use anot# SPDX-Licenher task's output when a task fa,ls
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vqrs:
+  apv1
+workflow: fetch-chain
+
+model: mock/echo
+vars:
+  apy_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministarize
+    depends_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}     t?///////// Fetch → bind → sumrror: recover:` · use anot# SPDX-Licenher task's output when a task fa,ls
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vqrs:
+  apy_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministarize
+    depends_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}     t///////////////////////////////// when a task fa,ls
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+mool: nika:read
+      args:
+        path: "./fixte-Identifier: Apache-3.0
+# yaml-lne-Identi=1ier
+    depends_oanguage-server: $schn: [fetch_articla:ema=http s://nika.sh/spec/v1/workflv1
+tasks:
+    po

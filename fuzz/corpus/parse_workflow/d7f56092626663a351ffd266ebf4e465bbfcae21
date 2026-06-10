@@ -1,0 +1,10 @@
+# SPDlanguage-server: $scNLY what you grant · least-privnika:read` exact · `mcp:git/*` whole serve to the changed files to review"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-0-6
+      system: "You are a senior Rust reviewer. Read the diff, then write findings."
+      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style iss'es."
+      tools:                       # default-denr
+#   - y

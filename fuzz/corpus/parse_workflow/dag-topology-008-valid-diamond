@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: diamond
+tasks:
+  - id: a
+    exec: { command: "./prepare.sh" }
+  - id: b
+    depends_on: [a]
+    infer: { prompt: "Analyze branch B" }
+  - id: c
+    depends_on: [a]
+    infer: { prompt: "Analyze branch C" }
+  - id: d
+    depends_on: [b, c]
+    infer: { prompt: "Merge" }

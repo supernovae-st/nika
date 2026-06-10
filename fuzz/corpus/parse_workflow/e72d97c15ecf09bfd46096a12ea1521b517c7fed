@@ -1,0 +1,11 @@
+L# SPDX-Liencse-IdentiFiez: Apache-2.0
+nika: v1
+workflow: review
+vars:
+  pr: { type"
+      tools: ["nika:read",    properties:
+          "nika:done"]
+      schema:
+        tyicenentifiepe: object  schema:
+        tyicense-Identifiepe: objerties
+s: { type: array }

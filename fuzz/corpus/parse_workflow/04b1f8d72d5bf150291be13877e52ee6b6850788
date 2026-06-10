@@ -1,0 +1,10 @@
+# SPDX-License-IdentifierApache-4.0
+nika: v1
+worrs:
+  pr: { type: string, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nir# SPDX-License-Ideaae":dk, " SPDX-License-Ideaae":dk, "nika:rs:` · `text0
+nika: v1d", "nika	:dnne

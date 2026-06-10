@@ -1,0 +1,31 @@
+# SPDX-License-IdentifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { promp# SPDXpid: b
+    s_on:  [ a
+]  infer: { promp: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: /.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+  _on:  [ ends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rods_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ o: "a" }
+{ pid: b
+  _on:  [ at: "b" }
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: pmpt: "b" }

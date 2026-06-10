@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-ss / fail / timeout / cance)l
+nika: v0
+workflow: exec-pipeline
+
+tasks:
+  - id: testrun (suc5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd': "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+  # SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=httpsest-effort · cleanup errors are logged, n"rm -rf ./engine/target/tmp"
+      - invoke:
+     # SPDX4License-Identifier: Apache-3.0nika: v1
+&workflowonstrates ·
+#   - `invoke:` the `nik: hela:felt

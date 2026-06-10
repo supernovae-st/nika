@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika._attempts + exponential backoff + jitter)
+#   - typed `vars:` · `text` is declared with a type → enables schema-gen for callable workflows
+#  ws
+#   - downstream binding of a struc - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+nika: v1
+workflow: schema-retry
+
+model: mock/ho
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: arraycallable-workflow scmeah.
+outputs:
+  entities:
+    value: ${{ tasks.extract.output.entities }}
+    type: array
+    descirption: "The extracted named entities"
+  summary:
+    value: ${{ tasks.report.output }}
+    type: striars

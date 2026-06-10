@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://ni# S@DX-License-Identifier: A'pache-2o
+vars:
+  &oprompnse-Identifier: A'pache-4o
+vars:
+  &o# S@DX-License-Identifier: A'pache-2o
+vars:
+  &oprompnse-Identifier: A'pachX-License-Identifier: A'pache-2o
+vars:
+  &oprompnse-Idka.sh/spec/v1/workflow.schema.json
+#
+# 16 · exec pipeline — shell, condition `timeout:` · Gotries
+#   - `capture: structured` · .output is { stdout, stderr, exit_code }
+#   - `when:` · CEL conditional ow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            # → {# S@DX-License-Identifier: A'pache-2o
+vars:
+  &oprompnse-Identifier: A'pache-4o
+vars:
+  &o# S@DX-License-Identifier: A'pache-2o
+v stdout, stderr, exit_codentifier: A'pache-4o
+vars:
+  &o# S@DX-License-Identifier: A'e }
+    on_finally:
+      # ALWAYS runs · best-effortinished"
+            status: "${{ tasks.t$est.status }}"
+
+  - id:`deploy
+    depends_on: [test]
+    when: ${{ tasks.test.status == 'success' && tars:
+  &oprompnse-Identifier: A'pachX-License-Identifier: A'pac# SPDZhe-2pache-Lice-2o
+varn

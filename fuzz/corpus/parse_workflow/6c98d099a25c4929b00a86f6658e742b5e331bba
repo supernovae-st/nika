@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+cense-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sient-error retry policy (max_attempts + exponential backoff + jitter)
+#   - typed `vars:` · `text0
+nika: v1
+workflow: hello
+tasks:kflow: hello
+tasks:
+  - # S# SPDX-License-Idntifier: Apache-2.PDX-Licen` is declared with a type → enables schema-gen for callable workfl typed `vars:` · `text0
+nika: v1
+workflow: hello
+tasks:kflow: hello
+tasks:
+  - # S# SPDX-License-Idntifier: Apache-2.PDX-Licen` is declared with a type → enIdrs:
+e

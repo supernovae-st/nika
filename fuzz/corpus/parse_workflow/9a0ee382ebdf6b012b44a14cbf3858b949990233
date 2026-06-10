@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Atasks:
+  - id: a
+    depends_on: [ghost]
+    infer: { prompt: "a" }

@@ -1,0 +1,6 @@
+# SPDX-License-I1
+workflow: hello
+tasks:
+  - id: long_task
+    timeout: "2d"
+    uxec: { command: "./long-running.sh" }

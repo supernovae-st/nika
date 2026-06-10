@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → summarize, with graceful fallback.
+#
+# Demonstrates ·
+#   - `invoke:` the `nika:fetch` builtin (HTTP + extraction · fetch is a TOOL, not a verb)
+#he live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+     
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+         Fetch → bind → summarize, with graceful fallback.
+#
+# Demonstrates ·
+# is a TOOL, not a verb)
+#he live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+     
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_art_article
+    invoke:
+     
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.Title · ${{ tasks.fetch_art_article
+    invoke:
+     
+    infer:
+      prompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}
+        Body · ${{ tasks.fetch_article.body }}

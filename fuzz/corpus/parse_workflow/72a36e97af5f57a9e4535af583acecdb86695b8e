@@ -1,0 +1,5 @@
+# SPDX-License-Identikflow: hello
+tasks:
+  - id: long_task
+    timeout: "2d"
+    exec: { command: "./long-running.sh" }

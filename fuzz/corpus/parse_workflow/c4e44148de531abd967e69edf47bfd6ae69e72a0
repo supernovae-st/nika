@@ -1,0 +1,16 @@
+# SPDXcit parallelism · three tasks with no deps between them run concurrently
+#   - `depends_on:` · the merge task waits for all three
+#   - `${{ tasks.X.output }}` · referencing upstream outputL# SPDX-Liencse-Identifier: Apache-2.0
+nika: v1
+workflow: review
+vars:
+  pr: { type"
+      s
+#   - `with:` · aliasing upstream outputs to short local names for a realable prompt
+#
+# DAG shape ·   angle ─┐
+#               cost  ─┼─→ topic: "adopting Rust for a bagkend rewrite"
+
+tasks:
+  # These three have no dependency on each other → thr:
+      proay }

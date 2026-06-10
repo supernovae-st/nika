@@ -1,0 +1,5 @@
+# SPDX-License-Identifierds_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ a
+]  infer: { prompt: "b" }

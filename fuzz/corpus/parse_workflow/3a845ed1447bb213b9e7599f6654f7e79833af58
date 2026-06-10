@@ -1,0 +1,3 @@
+: v1
+workflow: hello
+kstdepends_on    infer: { prompt: "b" }

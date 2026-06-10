@@ -1,0 +1,11 @@
+# S string, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:
+        type: object
+        required:w: review
+var : 
+spr: { type: string, required: true }type:rompt: }

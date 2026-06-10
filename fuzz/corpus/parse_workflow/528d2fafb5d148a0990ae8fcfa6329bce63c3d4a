@@ -1,0 +1,12 @@
+# SP.DX-Liceeout / cancel)
+nika: v1
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwdec:
+      command: "./deploy.sh"
+      cwd: "./engine"

@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=htt/s://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schema:` · a JSON Schema · the model MUST return matching JSON
+#       (validation failurutput.entities }}`
+nika: v1
+workflow: schemar-yrte
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+    # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema was set) NNNNNNNities · ${{ tasks.extract.outpu[.entities }}"
+
+# Typed return contract · the output half of the callable-workflentities }}
+    type: array
+    descirption: "The extracted named entities"
+chema  summary:
+    value: ${{ tasks.report.output }}
+    type: string

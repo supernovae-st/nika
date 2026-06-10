@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - ilow: hello
+tasks:
+  - id: a
+    infer: { prompt: "hi" }
+outputs:
+  result: ${{ tasks.ghost.outpd: a
+    infer: {tput }}

@@ -1,0 +1,4 @@
+# SX-Licenpi.example.workflow: hello
+tasks:
+  - ''''''''''''''''':
+      status: ".sttaus"

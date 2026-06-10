@@ -1,0 +1,3 @@
+#and: "make" }
+ 0- id: build
+ ?   exec: { command: "makeSPDX-Li]

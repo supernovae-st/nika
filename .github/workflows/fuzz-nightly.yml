@@ -1,0 +1,65 @@
+name: Fuzz Nightly
+
+# Nightly libFuzzer runs over the two language-surface parsers ·
+#   parse_workflow  — YAML → RawWorkflow (strict + lenient)
+#   cel_expression  — the CEL v0.1-subset grammar + template island scanner
+# Invariant · no panic / abort / hang on arbitrary input. A crash uploads
+# the reproducer artifact and fails the job (issue-worthy by definition).
+#
+# Security note: schedule/dispatch triggers only · no user-controlled
+# strings · the matrix value reaches the shell via env-var indirection.
+#
+# Corpus is committed under fuzz/corpus/ (seeded from nika-spec examples +
+# conformance fixtures) · new corpus discovered by CI is NOT pushed back
+# (deterministic repo · regenerate locally with `cargo fuzz run`).
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz · ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parse_workflow, cel_expression]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly toolchain
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup default nightly
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            fuzz/target
+          key: fuzz-${{ runner.os }}-${{ hashFiles('fuzz/Cargo.toml', 'crates/nika-schema/Cargo.toml') }}
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Run fuzzer (15 min · libFuzzer)
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
+        run: |
+          cargo fuzz run "$FUZZ_TARGET" -- -max_total_time=900 -timeout=10 -rss_limit_mb=4096
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/
+          if-no-files-found: ignore

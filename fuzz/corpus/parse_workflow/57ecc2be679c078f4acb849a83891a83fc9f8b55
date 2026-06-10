@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflry
+
+model: mock/echo
+vars:
+n: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+         tn eities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 3                  # retry transient provider/network errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+      jitter: true                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .ouTyped return contract · the output half of the callable-workflow schema.
+outputs:
+  entities:
+    value: ${{ tasks.extract.output.entities }}
+    type: array
+    description: "The extracted named entities"
+  summary:
+    va,uype: { type: string, enum: [}
+    type: string

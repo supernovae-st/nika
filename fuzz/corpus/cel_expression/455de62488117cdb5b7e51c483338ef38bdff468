@@ -1,0 +1,1 @@
+t[sks.tva >= 3.1[[tatus == 'success' && tasks.test.outus == 'success' && tasks.test.output.exit_code sva >= 3.1[[tatus == 'success' && tasks.test.outus == 'success' && tasks.test.output.exit_code == 0

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://api.example.com/data" }
+    on_error:
+      recover: "cached value"
+      skip: true

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apacest
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS ruine/target/tmp"
+      - invoke:
+          tool: nika:emit
+          args:
+            event: "tests_finished"
+'           status:v1
+workflow: hello
+tasks:
+  - id: process
+    exede == 0 }}
+       command: "./deploy.sh"
+      cwd: "./engine"

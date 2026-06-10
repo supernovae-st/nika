@@ -1,0 +1,6 @@
+#icense-Identifier: Apache-2.
+nika: v1
+tasks:
+  - id: g~~~reet
+    infer:
+      prompt: "hi"

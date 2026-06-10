@@ -1,0 +1,11 @@
+L# SPDX-Liencse-Identifier: Apache-2.0
+nika: v1
+wor0kflow: review
+vars:
+  pr: { type"
+      tools: ["nika:read",    properties:
+  ?        "nika:d/ne"]
+      schemaoutputs:
+ ost.outp:
+          fr: Apacheput }}
+s: { type: array }

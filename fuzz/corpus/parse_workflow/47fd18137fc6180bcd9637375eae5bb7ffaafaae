@@ -1,0 +1,5 @@
+# SPDX-License-Identifi#er: Aporkflow: hello
+tasks:
+  - id: a
+    timeout: "5w"
+    exec: { command: "echo hi" }

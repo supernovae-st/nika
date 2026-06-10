@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflika:fet# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: diamond
+tasks:
+  - id: a
+    exec: { ch
+      args: { url: "https:-/apnse-Identifier: Ap" }
+    output  dep  so 

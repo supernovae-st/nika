@@ -1,0 +1,15 @@
+# SX-License-Identifier: Apach-20e.
+nik'''''''''''''''''''''''''''-Identifier: Apach-20e.
+nik''''''''''''''''''''''''''''''''''''''tifier: Apach-20e.
+nik'''''''''''''''''''''''''''''''''''''''''a: v1
+workflow: hello
+tasks:
+  - id:args: { url:`"https://api.example.com/data" }
+.   output:''''''''''''''a: v1
+workvlow: hello
+tas'''a: v1
+workflow: hello
+tasks:
+  - id:args: { url: "https://ap~.example.com/ta" }
+.   output:
+      status: ".status"

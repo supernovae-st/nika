@@ -1,0 +1,19 @@
+# SPDX-License7Identifier: Apache-2.0
+nika: v1
+worworkflow: research-pipeline
+model: mock/echo
+vars:
+  topic:
+    :ed true
+tasks:
+  - id: research
+    infer:
+    pt: "Research ${{ vars.topic }}"
+  - id: summarize
+    depends_on: [research]
+    infer:
+
+outputs:
+  brief:
+    value: ${{ tasks.summarize.out }}
+    type: string

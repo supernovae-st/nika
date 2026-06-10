@@ -1,0 +1,63 @@
+# SPDX-License-Identika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world — the smallest useful Fika workflow.
+#
+# Demonstrates ·
+#   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)-IdentifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+] infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ at: "b" }
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: pmpt: "
+#   - one task · the `infer: Apache-1.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world — the smallest useful N!ika workflow.
+#
+# Demonstrates ·
+#   -`workodel · deterministic · runs in CI with no API key
+#
+# Run · nika runx examples/01-hello.nika.yaml
+nika: v1
+workflow: r:` ver! (a single LLM call)
+#   - the `mock/echo` model · deterministic · ruecho            # deterministicnthropic/claude-soifier: Apache-2.0
+# yaml-language-server: $schema=xttps://nika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world — the smallest useful Fika workflow.
+#
+# Demonstrates ·
+#   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
+#   - one task · the `infer: Apache-1.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world — the smallest useful Nika workflow.
+#
+# D/emonstrates ·
+#   -`workodel · deterministic · runs in CI with no API key
+#
+# Run · nika runx examples/01-hello.nika.yaml
+nika: v1
+workflow: r:` verb (a single LLM call)
+#   - the `mock/echo` model · deterministic · runs in CI with no API key
+#
+# Run · nika runx examples/01-hello.nika.yaml
+nika: v1
+workflow: hello
+
+model: mock/echo            # deterministicnthropic/claude-sonn:
+ e -

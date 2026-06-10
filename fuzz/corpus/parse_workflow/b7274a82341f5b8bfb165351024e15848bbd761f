@@ -1,0 +1,5 @@
+# SPDX-Lictnika: v1
+workflow: Bad_Id
+tas,s:
+ - id: greet
+    "hi"

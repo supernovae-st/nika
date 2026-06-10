@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: p:git/*` whole server
+#   - `max_turns:` + `max_tokens_total:` · budget caps
+#   -Rust  me agent gets ONLY what you grant · least-privilegeglob grants · `nika:read` exact · `mcp:git/*` whole servez
+#   - `max_aps
+#   -Rust  may call
+        - "nika:read"              # read s   # completion sentinel · lets the agent end the loop cleanly  m
+    ax_turns: 20
+      max_tokens_total: 100000
+      temperature: 0.2
+   workflow: code-review
+
+var code-review findings"

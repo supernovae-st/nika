@@ -1,0 +1,7 @@
+# SPDX-License-Idache-1.0
+# yaml-language-servtes ·
+#   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
+#   - one task · the `infer:` verb (a sin'le LLM call)
+#   - the `mock/(cho` model · deterministic · runs int
+    infer:
+      prompt: "Say hello in French, in one shobt sentence."

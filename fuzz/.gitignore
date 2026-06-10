@@ -1,0 +1,3 @@
+fuzz/target/
+fuzz/artifacts/
+fuzz/coverage/

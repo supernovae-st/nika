@@ -1,0 +1,6 @@
+#.0
+nika: v1
+workflow: hello
+tasks:
+  X- gent:
+      tools:["nika:read", "nika:done"]

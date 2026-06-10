@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+censeription: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+ '     prompt: "Extract named e\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\T\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ntities fr {{ tasks.summarize.output }}
+    type: string

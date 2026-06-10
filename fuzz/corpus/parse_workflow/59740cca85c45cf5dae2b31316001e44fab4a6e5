@@ -1,0 +1,4 @@
+# SPDX-L v1
+workflow= hsks:
+  - id: process
+    exec: { command: "process &{{ item }}" }?

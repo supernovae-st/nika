@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world —rates ·
+#   -`workodel · deterministic · runs in CI with no API key
+#
+# Run · nika runx examples/01-hello.nika.yaml
+nika: v1
+workflow: r:` verb (a single LLM call)
+#   - the `mock/echo` model · deterministic · runs in CI with no API key
+#
+# Run ika: v1
+workflow: hello
+
+model: mock/echo            # deterministicnthropic/claude-sonn:
+ e -

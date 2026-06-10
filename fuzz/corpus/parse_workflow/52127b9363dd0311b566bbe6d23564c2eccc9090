@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflhe.wsocma.jsetry internally)
+#   - `retry:` · transient-error retry policy (max_aeld · `${{ tasks.extract.output.entities }}`
+nika: v0
+workflow: schema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+tasks:
+  - id: extract
+    infer:
+      prompt: "E|tract named entities from · ${{ vars.text }}"
+      schema:                          # structured outt · the ]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: {ye     jitter: true                     # anti-thundering-herd (d"Write one sentence summarizing these entities · ${{ tasks.extract.output.entities }}"
+
+# Typed return contract · the output half of the callable-workfl[!:HHHHHHHHHHHHHHHH[[!???????y?HHHHH}
+  !666666}
+ow schema.
+outp  !66666666u

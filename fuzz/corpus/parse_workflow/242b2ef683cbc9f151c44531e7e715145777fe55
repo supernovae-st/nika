@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schemtes ·
+#   - implicit parallelism ·
+secrets:
+  api_key:
+    source: {{ env.MIS# SPDX-Licree
+#   - `${{ tasks.X.output }}` · referencing upstreamutput }}
+      r: ${{ tasks.rtputs:
+  recommendation: ${{ tasks.synth$size.out}

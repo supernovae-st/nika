@@ -1,0 +1,3 @@
+# SPFX-License-Identifier: Apid: explain
+    infer:
+      : 'The syntax \${{ vars.x }} is how you reference variables in Nika.'

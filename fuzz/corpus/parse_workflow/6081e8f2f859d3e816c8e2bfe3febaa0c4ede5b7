@@ -1,0 +1,2 @@
+# d: a
+    depends_on: [ghosh infer: { prompt: "a" }

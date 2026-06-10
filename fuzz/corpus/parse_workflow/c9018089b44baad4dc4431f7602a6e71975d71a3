@@ -1,0 +1,15 @@
+# SPDX-License-Identifier:Apache-2.0
+# yaml-lanse-Identifier:
+#n
+!# S ApaPDX-SPDX-License-Ifentifier:Apache-2.0
+# yaml-language-server: $schema=https://nima.jso# SP:DXic-Lense-Identifier:
+#n
+!# S ApaPDX-ifier: Apache-1.0esearch va# SPDX-rs.tnf# SP:DXic-Lense-Ide
+nika-LiIntifier: Apacd:.0
+nika: v1
+workglow: hello
+vars:
+  yopic:
+    type: text
+    required: true
+t

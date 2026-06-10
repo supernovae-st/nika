@@ -1,0 +1,21 @@
+#language-server: $schema=https://nika.sh/spec/v1/wow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effor#S
+
+
+
+
+
+|
+
+
+
+*

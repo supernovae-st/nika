@@ -1,0 +1,11 @@
+# SPDX-License-Inup errors are lctured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effe:
+          tool: nika:emit
+          args:
+            event: "tests_finished"
+            status: "${{ tasks.test.status }}"
+
+  - id: deploy
+    depends_on/tasks:
+  # A determinist+engine"

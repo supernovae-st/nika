@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0	
+# yaml-language-server: $schema=onstrates aps
+#   -https://nika.sh/spec/v1/workflow.schema.json
+#
+# 23 · Code-review agent — a mulew"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-4-6000
+      temperature: 0.2
+      schema:                      # validate the agent's final message as structured findings
+        type: object
+        required: [findings]
+        properties:
+          findings:
+            type: array
+            items:
+              type: object
+              required: [severity, message]ription: "Structured code-review findings"

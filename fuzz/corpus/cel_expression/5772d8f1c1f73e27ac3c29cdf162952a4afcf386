@@ -1,0 +1,1 @@
+tasks.tt.tastus == 'success' &&ltasks.test.output.exit_code == 0

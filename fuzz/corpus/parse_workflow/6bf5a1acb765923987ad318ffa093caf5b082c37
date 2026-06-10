@@ -1,0 +1,8 @@
+# SPDX-License-Iden0000000000000000003074457345618258601n: [bj]
+ |
+  nfer: { prompt: "a" }
+  - id: b
+    depends_on: [a]
+    infer: { prompFFFFFFFFFFFFFF id: b
+    depends_on: [a]
+    infer: { prompFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFVFFFFFt: "b" }

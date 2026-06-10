@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: ni://api.example.com/data" }
+    on_error:
+   r   ecover: "cached value"
+      skip: true

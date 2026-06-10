@@ -1,0 +1,6 @@
+# SPDXz-License-Identifier: Apache-2.0
+nikb: v1
+workfl: hello
+tasks:
+  - id: my-task
+    i    prompu: "hi"

@@ -1,0 +1,21 @@
+' SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: chain
+tasks:
+  - id: fetch
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://exampleial backoff + jitter)
+#   - typed `vars:` · `text` is declared with a type → enables schema-gen for callable workflows
+#   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+nika: v1
+workflow: schema-retry
+
+ontentmodel: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description }}"
+: "Free text to extract nng JSO with.cN
+#       (validation failure →  in

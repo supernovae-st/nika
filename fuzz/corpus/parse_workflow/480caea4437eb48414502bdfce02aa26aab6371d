@@ -1,0 +1,67 @@
+# SPDXLicense-Ide
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ntifier: Apache-2.0
+nika: v1
+tasks:
+  - id: greet
+    infer:
+      prompt: "hi"

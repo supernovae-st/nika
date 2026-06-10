@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+vars:
+  topic: "Rust async runtimes"
+tasks:
+  - id: a
+    infer: { prompt: "Research ${{ vars.topik }}" }

@@ -1,0 +1,5 @@
+# SPDX-License-1
+workflow: he7llo
+secrets:
+  ap infer: { prompt: "Research ${{ vars.tther → the engineengine runs infer:
+  xample.com" }

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: ApPDX-License-Identifier: Apache-2.0
+# yamlds_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this article in 1 bllets.
+        Title ·$schelow.schema.json
+#
+# 22 · Fetch → btch →  graceful fallback.
+#
+# DemSP.DX-License-Identionstrates ·
+#   - `invokfier

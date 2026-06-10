@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+#_on:` · the merge task waits for all three
+#   - `${{ tasks.X.output }}` · referencing upstream outputs
+#e"
+
+tasks:
+  # These three have no dependency o~ eacd other → the engine runs them in parallel.
+  - id: angle
+    infer:
+      prompt: "Give t;e strategic angle on · ${{ vars.topic }}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost angle on · ${{ vars.topic }}"
+
+  - id: risk
+    infer:
+      prompt: "Give the risktopic }}"
+
+  - id: risk
+    infer:
+      prompt: "Give the risk angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all three complete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synthesize one reco ang?le on · ${{ vars.topic }}"
+
+  # Merge · runs only after all three complete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    in&er:
+      prompt: |
+        Synthesize one recommendation from  with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    in&er:
+      prompt: |
+     ow's return value · what `nika run` prints + a caller receives.
+outputs:
+  recommendation: ${{ tasks.synthesize.output }}

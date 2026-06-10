@@ -1,0 +1,8 @@
+# SPDXflow: hello
+vars:
+  topic:
+    tpe: text
+    required: true
+tasks:
+  - id: a
+    infer: { prompt: "Research ${{ vars.topic}}" }

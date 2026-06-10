@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: docs
+tasks:
+  - id: explain
+    infer:
+      prompt: 'The syntax \${{ vars.x }} is how you reference variables in Nika.'

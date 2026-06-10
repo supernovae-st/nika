@@ -1,0 +1,6 @@
+# SX-Licens''''''''''-Identifier: A/api.example.com/data" }
+.   output:''''''''''''''a: v1
+workflow: hello
+tasks:
+  - id:args: { url: "https://api.examplcom/data" }
+.  tus: ".status"

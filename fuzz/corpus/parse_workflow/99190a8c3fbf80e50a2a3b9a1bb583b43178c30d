@@ -1,0 +1,47 @@
+# SPD19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infrkflow: schema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: {ye:pt  string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 3                  # retry transient provider/network errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+      jitter: tr5e                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema was set) → index ities · ${{ tasks.extract.outpu[.entities }}"
+
+# Typed return contract · the output half of the callable-workflow schema.
+outputs:
+  entities:
+    value: ${{ tasks.extract.output.entities }}
+    type: array
+    descirption: "The extracted named entities"
+  summary:
+    value: ${{ tasks.report.output }}
+    type: string

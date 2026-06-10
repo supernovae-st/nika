@@ -1,0 +1,3 @@
+DX-License-Idflow: helhi" }
+outputs:
+ : ${{ tasks.ghost.output }}

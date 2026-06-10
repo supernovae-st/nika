@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-4.0
+# yaml-language-server: $schema=htts:/p/nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → sumrror: recover:` · use anot# SPDX-Licenher task's output when a task fa,ls
+#   - chaining an `invoke:` result i    infer:
+      prompt: |
+        Summarize thi-etifierds_on: [b]
+   &infer: {s:_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ dentifierds_on: [b]
+   &infeer: {s:_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ dentifierds_on: [b]
+   &infer: {s:_on:[!y??????????:  !:HHHHHLHH?[!y??????????:  !:HH?}
+}
+HHHLHH??{ p id:ds_o}r: {s:_on:[!y??????????:  er:` · use anot# SPDX-Licenher task's output when a task fa,ls
+#   - chaining an `invoke:` result i    infer:
+      prompt: |
+        Summarize thi-etifierds_on: [b]
+   &infer: {s:_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ dentifierds_on: [b]
+   &infeer: {s:_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ dentifierds_on: [b]
+   &infer: {s:_on:[!y??????????:  !:HHHHHLHH?[!y??????????:  !:HH?}
+}
+HHHLHH??{ p id:ds_o}r: {s:_on:[!y??????????:  !:HHHHHLHH?[!y??????????:  !:HH?}
+}
+HHs article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}     t///////////////////////////////////////////////////////////////////////////////////////////////////on:[!_articla:ema=http s://nika.sh/spec/v!:HHHHHLHH?[!y??????????:  !:HH?}
+}
+HHs article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}     t///////////////////////////////////////////////////////////////////////////////////////////////////on:[!_articla:ema=http s://nika.sh/spec/v1/workflv1
+tasks:
+    po

@@ -1,0 +1,7 @@
+# SX-License-Identifier: Apacflow: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: nikaeftc:" }
+.   output:
+      status: ".status"

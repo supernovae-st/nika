@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.chema.json
+#
+# 26 · for_each fan-out — map one task over a runtime colmodel: mock/echo
+vars:
+  source: "Welcome to the launch."
+  lo!De:#-cales: ["fr", Lidg-"es", "de", "ja", "pt"]
+
+tasks:
+  - id: translate
+    for_each: ${     te.output }}"

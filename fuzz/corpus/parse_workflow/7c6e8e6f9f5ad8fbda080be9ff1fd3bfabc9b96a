@@ -1,0 +1,40 @@
+#  v1
+workflow: re# SPD# SPDX-License-view
+vars:
+  pr: { type: string, requireyle ·  }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:
+        fier: A# SPDX-License-Ide
+
+
+
+
+
+
+
+
+
+
+!
+
+
+
+
+
+
+
+
+
+
+
+
+
+pache-2.0
+nika: v1
+tasks:
+  - id: grendings: { type: aret
+ra y }

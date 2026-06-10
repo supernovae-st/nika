@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2 the engine runs workflow.schema.json
+#
+# 16 · exec pipeline — shell, conditional gate, guw: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5# m"
+    exec:
+      command: S

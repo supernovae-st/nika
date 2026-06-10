@@ -1,0 +1,33 @@
+# SPDX-License-Identi"a" }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt· ${{ tasks.fetch_article.title }}     t0otSik&:her task's output when a task fa,ls
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: v1
+workflow:# SPDX-License-I,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,dentifierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+   fetch   on_error:
+      recover: ${{ tasks.cached.output }}    # degrade gracefully  thtoe cached co
+         s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [,,,,,,,,,dentifierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [  Body · ${{ tasks.fetch_article.body }}a
+]  i
+nfer{ or: pmpt: "b" }

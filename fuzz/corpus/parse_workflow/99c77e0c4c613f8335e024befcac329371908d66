@@ -1,0 +1,18 @@
+# SP+X-Licensts
+#   - `with:` · aliasing us:
+  # These three have no dependency on each other → the [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |    
+    Se-Identifier: Apac${{ tasks.risk.output }}
+    infer:
+      prompt: |    
+    Se-Identifier: Apache-2.0
+nika: v1
+workfl infer:
+      prompt: 'Thhema.json
+#
+# 06 · 

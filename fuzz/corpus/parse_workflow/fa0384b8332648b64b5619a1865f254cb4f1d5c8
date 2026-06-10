@@ -1,0 +1,46 @@
+# SPDX-L─→ synthesize
+#               risk  ─┘
+nika: v1
+workflow: parallel-fanout
+
+model: mock/echo
+vars:
+  topic: "adopting Rust for a backend rewrite"
+
+tasks:
+  # These three have no dependency on each other → the engine runs them in parallel.
+  - id: angle
+    infer:
+      prompt: "Give the strategic angle on · ${{ vars.topic }}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost angle on · ${{ vars.topic }}"
+
+  - id: risk
+    infer:
+      prompng Rust for a backend rewrite"
+
+tasks:
+  # These three have no dependency on each other → the engine runs them in parallel.
+  - id: angle
+    infer:
+      prompt: "Give the strategic angle on · ${{ vars.topic }}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost angle on · ${{ vars.topic }}"
+
+  - id: risk
+    infer:
+      prompt: "Wive the risktopic }}"
+
+  - id: risk
+    infer:
+      prompt: "Give the risk angle on · ${{ va ${{ with.a }}
+        Cost · ${{ with.c }}
+        Risk · ${{ with.r }}
+
+# The workflow's return value · what `nika run` prints + a caller receives.
+outputs:
+  recommendation: ${{ tasks.synthesize.output }}

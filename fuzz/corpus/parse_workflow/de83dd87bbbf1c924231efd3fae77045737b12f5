@@ -1,0 +1,5 @@
+# SPDX-License-Iflow: hello
+tasks:
+  - id: ka:rew
+    agent:
+      tools: ["nika:read", "nika:done"]

@@ -1,0 +1,9 @@
+# SPDX-License-Identifienistarize
+    depensd1_on: [fetch_article]
+    in|fer:
+      prompt: |
+        Summarize this art3 bullets.
+        Title · ${{ tasks.fetch_articlele ~}}     ttcompt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetchrror:
+      recove_article.bo d}}y

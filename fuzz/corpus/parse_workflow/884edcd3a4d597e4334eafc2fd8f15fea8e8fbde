@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 26 · for_each fan-out — map one task over a runtime collection.
+#
+# Demonstrates ·
+#   - `for_each:` · run a task once per element (the matrix / fan-out pattern)
+#   - `${{ item }}` + `${{ index }}` · loop-scoped locals (NOT a 6th namespace)
+#   - `max_parallel:` · cap concurrent iterations (tokio::Semaphore · here · 3 in flight)
+#   - `fail_fast: false` · process every locale even if one fails
+#   - the task `.output` is the ARRAY of per-iteration outputs, in input order
+nika: v1
+workflow: for-each-locales
+
+model: mock/echo
+vars:
+  source: "Welcome to the launch."
+  locales: ["fr", "es", "de", "ja", "pt"]
+
+tasks:
+  - id: translate
+    for_each: ${{ vars.locales }}     # one iteration per locale
+    max_parallel: 3                    # at most 3 concurrent translations
+    fail_fast: false                   # keep going · collect per-iteration errors
+    with:
+      locale: ${{ item }}        # current element
+      n: ${{ index }}                  # 0-based position
+    infer:
+      prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ vars.source }}"
+
+  - id: collect
+    depends_on: [translate]
+    infer:
+      # tasks.translate.output is an array of the 5 translations
+      prompt: "Combine these translations into a localization table · ${{ tasks.translate.output }}"

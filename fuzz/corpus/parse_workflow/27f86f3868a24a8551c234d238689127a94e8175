@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# yamA-langu7777777777777777777777777777777777777777777777777777777777777777777777777777m"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named en~tities from · ${{ vars.text }}"
+      schema:                  # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 6                  # retry transient provider/network errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+ter: true                     # anti-thundering-rs:
+  api_url: "https://api.eherd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema was set) → index into it directly
+   body:. "adta.body"
+    on   prompt: |
+        Summarize this article in .body }}

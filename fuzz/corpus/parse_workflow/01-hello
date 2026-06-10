@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world — the smallest useful Nika workflow.
+#
+# Demonstrates ·
+#   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
+#   - one task · the `infer:` verb (a single LLM call)
+#   - the `mock/echo` model · deterministic · runs in CI with no API key
+#
+# Run · nika run examples/01-hello.nika.yaml
+nika: v1
+workflow: hello
+
+model: mock/echo            # deterministic test fixture · swap for anthropic/claude-sonnet-4-6
+
+tasks:
+  - id: greet
+    infer:
+      prompt: "Say hello in French, in one short sentence."

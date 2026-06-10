@@ -1,0 +1,8 @@
+# SPDX-LemIdentifier: Apache-2.0low: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: nika:fetch
+      ar*s: { url: "https://api.exam/data" }
+    output:
+    s  tatus: ".status"

@@ -1,0 +1,16 @@
+# SPDX-License-IdentifierApache-2.0
+n# SPDX-License-Identifier: Apache-2.0
+nika: v1
+woflow: hello
+0000000000000003074457345618258601n: [bj]
+ |
+  nfer: { prompt: "a" }
+  - id: b
+    depends_on: [a]
+    inferika: v1
+workflow: review
+vars:
+  pr: { typ# SPDX-License-Identifier: Apache-2.0
+# yaml-language-serrue }
+tasks:
+  - id: revie:

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world —the smallest useful Nika workflow.
+#
+# Demonstrates ·
+#   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)
+#   - one task · the `infer:` verb (a single LLM call)
+#   - the `mock/(cho` modelin French, in one short sentence."

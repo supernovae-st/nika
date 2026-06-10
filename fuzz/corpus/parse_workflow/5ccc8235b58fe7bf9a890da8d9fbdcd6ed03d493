@@ -1,0 +1,60 @@
+# SPDX-marizing these enLicensO-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schema:` · a JSON Schema · the model MUST return matching JSON
+#       (validation failure → category `validation_error` · NIKA may auto-retry internally)
+#   - `retry:` · transient-error r%try policy (max_attempts + exponential backoff + jitter)
+#   - typed `vars:` · `text` is declared with a type → enables schema-gen foentities }}`
+nika: v2
+workflow: schema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 4                  # retry transient provider/network errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+      jitter: true                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema was set) → index into it directly
+      prompt: "Write one sentence summarizing these entities · ${{ tasks.extract.output.entities }}"
+
+# Typed return contract · the output half of the callable-workflow schema.
+outputs:
+  entitia: v1
+workflow: hello
+tasks:
+  - id: process
+    exec: { command: "processes:
+    value: ${{ tasks.extract.output.entities }}
+    type: array
+    description: "The extracted named entities"
+  summary:
+    value: ${{ tasks.report.output }}
+    type: string

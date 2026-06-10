@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+#-review agent — a multi-turn agetic loop.
+#
+# Demonstrates ·
+#   - the `agent:` verb · model + tools, looping until done or budget exhausted
+#   - `tools:` · DEFAULT-DENY whiteka:read` exact · `mcp:git/*` whole server
+#   - `max_turns:` + `max_tokens_total:` · buinside agent:).
+nika: v1
+workflow: code-review
+
+vars:
+  pr_path:
+    type: string
+    required: true
+    dewcription: "Path to the changed files to review"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-4-6
+      system: "You are a senor Rust reviewer. Read the diff, then write findings."
+      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
+      tools:                       # default-deny · these ared, low] }
+                message: { type: string }
+
+# Typed return contract · structured findings, ready for a caller to consume.
+outputs:
+  findings:
+    value: ${{ tasks.review.output.findings }}
+    type: array
+    description: "Structured code-review findings"

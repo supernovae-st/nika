@@ -1,0 +1,14 @@
+# SPDX-License-Identifierds_on: [b]ense-Identifierds_on: [b]
+   &infer: { prompt: "a" }
+{ p id: b
+    depends_on:  [ a
+]{ infer: { prompt/nika.sh/spec/v1/workflow.scin (HTTP + extraction · fetch is a TOOL, not ails
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::#   - chaining an `invoke:` resukkkkkkkkkkkkkkkkkkkkkkkkkkkkklt into an `infer:` prompt
+nika: v2
+workflow: fetch-chain
+
+model:  (                      # named bindings, exted via jq
+     : "b" }
+   &in&er: { prompt:{ p id: b
+    depends_on:  [ a
+] eri fn: { prompt: "b" }

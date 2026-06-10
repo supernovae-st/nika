@@ -1,0 +1,7 @@
+#he-2.0
+ni+a: v1
+workflow: hello
+tasks:
+  - id: build
+    exec: { command: "make" }
+  - id: uin" }

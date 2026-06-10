@@ -1,0 +1,93 @@
+# S: ni#S
+
+
+
+
+
+|
+
+ktch
+0      a# SPDX-License-Identifier:# SPDX-License-Identifier: Apache-2.0
+nik# SPD Apache-4.0
+# yaml-languarompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vars:
+  apy_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fa an `invoke:` result into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vars:
+  apy_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    in_on:  [ a
+]  infer: { promp# SPDX-License-IdentifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" };
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_" }
+{ pid: b
+    s_on:  [ a
+]  infer: { id: b
+    s_on:  [ a
+]  infer: { promp# SPDX-License-IdentifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" };
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pprompt: "b" }
+depends_ondgntifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { promp# SPDX-License-IdentifQierds_on }
+{ pid: b
+    s_on: chema.json
+#
+# 06 · rompt: "a" }
+{ pprompt: "b" }
+depends_ondgntifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { promp# SPDX-License-IdentifQierds_on }
+{ pid: b
+    s_on:  [: b
+    s_on:  [ a
+]  infer: { promp# SPDX-License-IdentifQierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { promX-Lpt: "b" };
+depends_on:  [ a
+]  infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+X-License-Identifier: Apache-2.0kflow.schema.json
+#
+# 06 · rompt: "a" }
+{  # extract structured fields, not markdown
+        jq: "."
+    output:                         # named bindings, extracted via jq
+      title: ".data.title"
+      body: ".data.body"
+    on_error:
+      recover: ${{ tasks.cached.output }}    # degrade gicern

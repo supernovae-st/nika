@@ -1,0 +1,5 @@
+#rkflow: hello
+tasks:
+  - id: api_call
+    invoke:
+      tool: n+ka:fetchtatus"

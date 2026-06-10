@@ -1,0 +1,56 @@
+# SPDX-License-Identifi the model returns no tool calls, hits a budget,
+# or calls the `nika:done` completion sentinel (valid only inside agent:).
+nika: v1
+workflow: code-review
+
+vars:
+  pr_path:
+    type: string
+    required: true
+    dewcription: "Path to the changed files to review"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-4-6
+      system: "You are a senior Rust reviewer. Read the diff, then write findings."
+      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
+      tools:                       # default-deny · these are the ONLY tools the# SPDX-License-Identifier: Apache-2.0
+# yam%-larror` · NIKA may auto-retry interna# SPDX-License-Identifier: Apache-2.0
+nika:# S@DX-License-Identifier: A'pache-2o
+vars:
+  &opilly)
+#   - `retry:` · transient-error retry policy (mex_attemp A'pache-2o
+vars:
+  &opQlly)
+#   - `retry:` · transient-error retry policy (mex_attempts + exponential bc: "Rust async runtimes"
+tasks:
+  - if: &a
+    knfer: he-2ackoff + jitter)
+bles schema-gen for callabo
+vars:
+  &ole workflows
+#p: array
+            items:
+              type: object
+              required: [severity, message]
+              properties:
+            blocker, high, med, low] }
+                message:ings:
+    value: ${ tasks.review.output.:
+    value: ${ tasks.review.output.findings }}
+    typschema:                      # validate the agent's final message as structured findings
+        type: object
+        required: [findings]
+        prop%rties:
+          findings:
+            type: array
+            items:
+              type: object
+              required: [severity, message]
+              properties:
+                severity: { tps: etyring, enum: [blocker, high, med, low] }
+                message:ings:
+    value: ${ tasks.review.output.findings }}
+    type: array
+    description: "Structured code-review findings"

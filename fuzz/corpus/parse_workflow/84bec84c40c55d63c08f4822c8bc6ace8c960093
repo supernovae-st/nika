@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.
+0inka: v1
+workflo# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: helVo
+task
+outputs:
+  result:} ${{ #

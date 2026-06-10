@@ -1,0 +1,12 @@
+# SP.DXmec pipeline — shell, conditionid: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured        tring (quoted · "5m") · hard kill incl. retries
+#   - `capture: s./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured              exec:
+      command: "./deploy.sh"
+      cwd: "./engine"

@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: he7llo
+secrets:
+  ap infer: { prompt: "Research ${{ vars.topic }}" }
+hendency on each other → the engine runs infer:
+  xample.com" }

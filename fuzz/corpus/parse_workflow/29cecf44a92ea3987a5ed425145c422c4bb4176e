@@ -1,0 +1,8 @@
+# SPpache-2.0
+nik1: v1
+workflow: hello
+tasks:
+  - id: a
+    with:
+      style: "concise"
+    infer: { prompt: "Summarize in ${{ with.style }} style · ${{ with.missing }}" }

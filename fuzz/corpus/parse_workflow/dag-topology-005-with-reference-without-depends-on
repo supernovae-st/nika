@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: { prompt: "Research" }
+  - id: summarize
+    with:
+      content: ${{ tasks.research.output }}
+    infer: { prompt: "Summarize ${{ with.content }}" }

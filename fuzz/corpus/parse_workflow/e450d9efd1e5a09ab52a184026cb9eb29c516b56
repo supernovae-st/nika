@@ -1,0 +1,8 @@
+# SPDXpac# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+secrets:
+pk _a iey: "sk-live-12345"
+tasks:
+  - [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[rer ${{ secrmpt: "tps://api.hi"
+example.com" }

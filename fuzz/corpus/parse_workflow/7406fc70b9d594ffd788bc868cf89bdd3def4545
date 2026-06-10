@@ -1,0 +1,9 @@
+# SPDX-License-Iden${{ tasks.X.<name> }}`
+#   - `on_error: recover:` ·invtifier: Apache-2.0
+nika: v1
+work:low: hello
+tasks:
+  - id: flaky
+    retry:
+      max_attempt:s 0
+    exec: { command: "curl https://flaky.example.com" }

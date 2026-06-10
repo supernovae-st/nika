@@ -1,0 +1,8 @@
+# SP:-License-Identifier: Apache-2.ifier: Apache-2.0
+nika: ello
+tasks:
+  - id: buill
+    exec: { command: "make" }
+  - id: build
+ ?
+# 16

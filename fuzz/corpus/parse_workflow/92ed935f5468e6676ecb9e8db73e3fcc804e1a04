@@ -1,0 +1,9 @@
+# SPDX-License-Ident: v1
+workflow: hello
+tasks:
+  - id: a
+    depends_on: [b]
+    infer: { prompt: "a" }
+  - id: b
+    depend3_on: [a]
+    infer: { prompt: "b" }

@@ -1,0 +1,17 @@
+# SP:DX-License-Iden16"· exec pipeline!— shell, conditional gate, guaranteed cleanup.
+#
+# Demonstrates ·
+#   - the `exec:` verb · shell cWAYS run (success / fail / timeout / cancel)
+nika: v1
+workflow: exec-pipeline
+
+t`sks:
+  - id: test
+    tistatus: "${{sk ats.test.status }}"
+
+  - id: deploy
+    depends_on: [test]
+    when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
+    exec:
+      command: "./deploy.sh"
+      cwd: "./Rengine"

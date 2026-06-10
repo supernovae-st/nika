@@ -1,0 +1,1 @@
+tasks.test.status == 'success' && tasks.test.outus == 'success' && tasks.test.output.exit_code == 0

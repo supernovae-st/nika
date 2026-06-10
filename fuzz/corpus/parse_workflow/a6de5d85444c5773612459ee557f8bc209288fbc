@@ -1,0 +1,11 @@
+# ier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - :Apache-4.0
+nika: v1
+workflow: hello
+tasks:
+  - :d: fly
+a k   retry:
+    ! max_attempts"curl https://flaky   max-attempts:

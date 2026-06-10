@@ -1,0 +1,5 @@
+# SPDX-Licenslow: hello
+tasks:
+  - id: long_task
+    timeout: "1930m"
+    exec: { command: "./xlong-running.sh" }

@@ -1,0 +1,11 @@
+# SPDX-License-Ilow: diamond
+tasks:
+  - id: a
+    exec: { command: "./prepare.sh" }
+  - id: b
+    depends_on: [a]
+    infer: { prompt: "Analyze branch B" }
+  - id: c
+    depends_on: [a]
+    infer: { prompt: "Analyze branch C" }
+  - id:

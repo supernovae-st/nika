@@ -1,0 +1,8 @@
+# SPDX-License-Ider:se-Identifier:ka: v1
+worSPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:kflow: hello
+tasks:
+  - id: a
+    infe { prompt: "Get ${{ foo.bar }}" }

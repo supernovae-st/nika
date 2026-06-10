@@ -1,0 +1,5 @@
+# SPD# SPDX-"
+atsks:						#X-License-
+atsks:						#X-License-Identifier: Apache-  - id: call
+    exec: onsul
+    key: prod/ }

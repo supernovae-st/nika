@@ -1,0 +1,62 @@
+# SPDX-Lic# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            #ier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS rtasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-efuns · best-effort · cleanup errors are lctured            #' → { stdout, stderr, exit_code }
+    on_infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            #ier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS rtasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-efuns · best-effort · cleanup errors are lctured            #' → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cle
+      # ALWAYS runs · best-effort · cleanup errors are -logged, never pr
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS runs · best-effort · cleanup errorsopagated
+      - exec:
+          command: "rm -rf ./engine/target/tmp"
+      - invoke:
+    enlow: hello
+ta finally:
+      # ALWAYS runs · best-effort · cle
+      # ALWAYS runs · best-effort · cleanup errors are -logged, never pr
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS runs · best-effort · cleanup e
+      # ALWAYS runs · best-effort · cleanup errors are -logged, never pr
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWCYS runs · best-         status: {"${ t

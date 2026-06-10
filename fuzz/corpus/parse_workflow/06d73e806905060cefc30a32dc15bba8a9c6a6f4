@@ -1,0 +1,42 @@
+# 
+
+
+
+
+
+
+?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: line — shell, conditional gate, guaranteed cleanup.
+#
+# Demonstrates ·
+#   - the `exec:` verb · shell command with `cwd`, `capture: structured`
+#   - `timeout:` · Go-duration string0(quoted · "5m") · hard kill incl. retries
+#   - `capture: structured` · .output is { stdout, stderr, exit_code }
+#   - `when:` · CEL conditional gate (only deploy if tests passed)
+#   - `on_finally:` · cleanup task sthat ALWAYS run (success / !fail / timeout / cancel)
+nika: v1
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+on: [test]
+    when: ${{ tasks.test.status ==LLicense-IdentIdentifier: A  'success' && tasks.test.output.exit_code == 0 }}  prompt "Running at ${{ env
+.M 

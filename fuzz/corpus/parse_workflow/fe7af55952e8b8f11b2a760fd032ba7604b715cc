@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-1.0
+# SPDX-L Apache-2.0
+nika: v1
+workflow: h
+tasks:
+  - id: api_call
+    invoke:
+      tool: n}ikf:ettps://api.example.com/data"} 
+    on_error:
+      recover:value"
+    icense+Ide}n: v#+ exponential backoff + jitter)
+#   - typed `vars:` · `text` is declarpedtry
+
+model: mock/echo
+vars:
+  text:
+   xtracted named entities"
+  summary:
+    value: ${{ tasks.report.output }}
+    type: string

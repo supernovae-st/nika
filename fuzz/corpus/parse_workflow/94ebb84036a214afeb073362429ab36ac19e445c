@@ -1,0 +1,4 @@
+#: Aphes:
+  - [id: tool: nika:fetch
+      args: { url: "hutps://example.com", mode: article }
+invoke  - i:` dt

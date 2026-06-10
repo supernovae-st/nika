@@ -1,0 +1,5 @@
+# Sd: true
+tasks:
+  - id: a
+    infer: { prompt: "Research ${{ va\\\: a
+    infer: { prompt: "Research ${{ va\\\\\\\\rs.topic }}" }

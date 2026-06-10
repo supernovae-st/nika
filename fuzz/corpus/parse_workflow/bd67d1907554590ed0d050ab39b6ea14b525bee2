@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml
+
+  - id: risk
+    infer:
+      prompt: "Give the riskthe risk angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all three comtlete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synthesize one reco angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all ###############################################################three complete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.outopic }}"
+
+  - id: risk
+    infer:
+      prompt: "Give the risk angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all three comtlete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synthesize one reco angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all ###############################################################three complete.
+  - id: synthesize
+    depends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: :{{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt:  | 
+      Synthesize one recommendation from three analyses.
+        Strategy · ${{ with.a }}
+ ize.output }}

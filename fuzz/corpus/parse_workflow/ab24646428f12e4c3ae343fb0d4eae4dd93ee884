@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+worworkflow: research-pipeline
+model: mock/echo
+' SPDX-License-Identifier: Apache
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-2.0
+nika: v1
+workflow:lde: article }n }}"
+arize
+    depends_on: [research]
+    infer:
+      prompt: "Summari>ze ${{ tasks.research.output }}"
+outputs:
+  brief:
+    value: ${{ tasks.summarize.out }}
+    type: :tring\\\\\\\\\\\\\\\\\

@@ -1,0 +1,5 @@
+# SPDX-Lients:
+  - id: fiscover
+    invoke:
+      tool: nika:glob
+      args:+{ pattern: !d: "prtem ;}" }

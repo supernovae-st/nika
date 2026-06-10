@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaax_attempts + try
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: {ye:pt  string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 3                  # provider/network errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+      jitte	r: tr5e                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema was set) → index into it d summarizing these entities · ${{ tasks.extract.outpu[.entities }}"
+
+# T# SPDX-Licenseyped r-Idenet

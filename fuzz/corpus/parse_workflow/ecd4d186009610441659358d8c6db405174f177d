@@ -1,0 +1,31 @@
+# SPDX-License-Identika.sh/spec/v1/workflow.schema.json
+#
+# 01 · Hello world — the smallest useful Fika workflow.
+#
+# Demonstrates ·
+#   - the envelope · `nika: v1` (contract version) + `workflow:` (kebab-case id)-IdentifQierds_on }
+{ pid: b
+    2.0
+nika: v1
+wor0kflow: review
+vars:
+  pr: {=type"
+      tools: ["nika:read",    properties:
+  ?        "nika:d/ne"]
+      schemaoutputs:
+ ost.outp:
+          fr: Apacheps_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+] infer{ or: /v2/workflow.schema.json
+#
+# 06 · rompt: "a" }
+{ pid: b
+    s_on:  [ a
+]  infer: {   properties:
+  ?        "nika:d/ne"]
+      schemauecho            # deterministicnthropic/clau# asks: -i d
+ : cde-soifier: Apache-2.0
+# yaml-language-server: $schema=all
+~   : call
+xttps://~nik

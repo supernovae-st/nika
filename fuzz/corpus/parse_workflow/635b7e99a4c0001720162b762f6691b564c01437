@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+wor: hello
+tasks:
+  - id: flaky
+    retry:
+      max_attempt:s 0
+    exec: { command: "curl https://flaky.example.com" }

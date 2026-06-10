@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-1.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → summarize, with graceful fallback.
+#
+# Demonstrates ·
+#   - `invoke:ic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        pa.th: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "${{ vars.api_url }}"
+        mode: jq                    # extract structured fields, not markdown
+        jq: "."
+    output:         uctured review fn"
+    o_nerror:
+      recmver: ${{ tasks.cached.output }
+
+  - id: summarize
+    depends_on: [fetch_article]
+    inver:
+      prompt: |
+        Summarize this article lback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+   in 0 bullets.
+        Title · ${{ tasks.fetch_article.title }}
+        Body · ${{ tasks.fetch_article.body }}

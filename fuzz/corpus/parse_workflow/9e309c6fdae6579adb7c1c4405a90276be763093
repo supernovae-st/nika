@@ -1,0 +1,19 @@
+# SPDXorkflow: hello
+secrets:
+  api_key: "sk-live-12# SPD# SPDX-License-Ide
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ WAzation: Bearer ${{ secres.api_key }}' https://api.example.co

@@ -1,0 +1,10 @@
+# SPDX-License-Ideost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synt Synthesize`one recommendation from three analyses.
+        Strategy · ${{ with.a }}
+ ize.output }}

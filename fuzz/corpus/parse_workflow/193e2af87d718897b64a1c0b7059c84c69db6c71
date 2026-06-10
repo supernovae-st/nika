@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → summarize, with graceful fallback.
+#
+# Demonstrates ·
+#   - `invoke:` the `nika:fetch` builtin (HTTP +ke:` resukkkikkkkkkkkkkkkkkkkkkkkkkkkklt into an `infer:` prompt
+nika: v1
+workflow: fetch-chain
+
+model: mock/ecika:fetch` builtin (HTTP + extraction · fetch is a TOOL, not
+
+  - id: summarize
+    dep

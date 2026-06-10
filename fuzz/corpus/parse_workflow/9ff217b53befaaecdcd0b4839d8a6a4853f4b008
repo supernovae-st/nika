@@ -1,0 +1,9 @@
+# SP.DXma=https://nika.sh/spec/v1/workflow.schema.json&#
+# 16 · exec pipeline — shell, conditionid: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured        tring (quoted · "5m") · hard kill incl. retries
+#   - `capture:/deploy.sh"
+      cwd: "./engine"

@@ -1,0 +1,9 @@
+# SPDX-License-Identifieache-2.0
+nika: v1
+wornflepends_on: []
+# SPDX-License-Identifieache-2.0
+nika: v1
+wornflow: hello
+tasks:
+  - id: greet
+    depends_on: []

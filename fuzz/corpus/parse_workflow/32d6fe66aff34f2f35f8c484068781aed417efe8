@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: Apac:
+  - id: long_task
+    timexec: { command: "./long" }

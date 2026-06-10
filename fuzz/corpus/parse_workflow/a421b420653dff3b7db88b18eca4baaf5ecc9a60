@@ -1,0 +1,6 @@
+# SPDX-License-Identifitsacle-2.0
+nika: v1
+worflow: he+lo
+secrets:
+  api_key:
+    source: c 'Authorization: Bearer ${{ sec!etsi.example.com" }

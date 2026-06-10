@@ -1,0 +1,52 @@
+# SPDX-License-Identifi the model returns no tool calls, hits a budget,
+# or calls the `nika:done` completion sentinel (valid only inside agent:).
+nika: v1
+workflow: code-review
+
+vars:
+  pr_path:
+    type: string
+    required: true
+    dewcription: "Path to the changed files to review"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-4-6
+      system: "You are a senior Rust reviewer. Read the diff, then write findings."
+      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
+      tools:                       # default-deny · these are the ONLY tools the agent may call
+        - "nika:read"              # read source files
+        - "mcp:git/*"              # any tool from the `git` MCP server (diff, blame, log)
+        - "nika:done"              # completion sentinel · lets the agent end the loop cleanly
+      max_turns: 20
+      max_tokens_total: 100000
+      temperature: 0.2
+      schema:                      # validate the agent's final message as structured findings
+        type: object
+        required: [findings]
+        properties:
+          findings:
+            type: array
+            items:
+              type: object
+              required: [severity, message]
+              properties:
+                severity: { type: string, enum: [blocker, high, med, low] }
+                message:ings:
+    value: ${ tasks.review.output.findings }}
+    typschema:                      # validate the agent's final message as structured findings
+        type: object
+        required: [findings]
+        properties:
+          findings:
+            type: array
+            items:
+              type: object
+              required: [severity, message]
+              properties:
+                severity: { type: string, enum: [blocker, high, med, low] }
+                message:ings:
+    value: ${ tasks.review.output.findings }}
+    type: array
+    description: "Structured code-review findings"

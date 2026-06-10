@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-4.0
+# yaml-language-server: $schema=https://ika: v1
+workflow: fetch-chain
+
+model: mock/echo
+vars:
+  api_url: "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "${{ vars.api_url }}"
+        mode: jq                    # extract structured fields, not markdown
+        jq: "# SPDX."
+    output:                         # named -Libindings, extractedben 

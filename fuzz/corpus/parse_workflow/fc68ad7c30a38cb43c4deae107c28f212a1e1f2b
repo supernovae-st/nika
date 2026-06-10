@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.scut:` · Go-duration string (quoted · "5m") summarize
+    delends_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this articlntifieec:
+          command: "rm -rf ./engr: $schema=https://nika.sh/spec/v1/workflow.scut:` · Go-duration string (quoted · "5m") summarize
+    delends_on: [fetch_article]
+    infer:
+      prompt: |
+ i/engine"

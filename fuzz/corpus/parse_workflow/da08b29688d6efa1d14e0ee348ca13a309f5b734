@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language- to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:                          # structured output · the contract the model # SPDX-License-Ider
+    invoke:
+properties:
+          entities:
+            type: array
+            t

@@ -1,0 +1,5 @@
+# SPworkflow: hello
+tasks:
+  - id: my-task
+    infer:
+     : "hi"

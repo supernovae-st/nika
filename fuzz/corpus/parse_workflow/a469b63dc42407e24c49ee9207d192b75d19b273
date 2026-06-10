@@ -1,0 +1,13 @@
+L# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: review
+vars:
+  pr: { type: string, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:
+        tyicense-Identifiepe: object
+        req&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&# SPDX-License-Identifie&&&r: ense-Identifier: Ap&&

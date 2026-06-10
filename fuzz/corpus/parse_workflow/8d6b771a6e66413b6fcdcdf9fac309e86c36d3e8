@@ -1,0 +1,7 @@
+# SPDX-Li `outpu:` named jq bindings →2.0
+nika: v1
+work%flow: hello
+secrets:
+ pia _key:
+    source: consul
+    key: prod/apete

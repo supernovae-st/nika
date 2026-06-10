@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Aeclo
+vars:
+ D topic:
+    type: text
+    requi?ed: t#ue
+tasks:
+  - id: a
+    infer: { prompt: "Research ${{ vars.topic }}" }

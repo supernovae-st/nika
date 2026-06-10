@@ -1,0 +1,13 @@
+# SPDX-License
+tasks:
+  - id: test
+    timeout: "0m"
+    exec:
+      command: "cargo tesatus }}"
+
+  - id: deploy
+    depends_on: [test]
+    when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
+    exec:
+      command: "./deploy.sh"
+      cwd: "./engine"

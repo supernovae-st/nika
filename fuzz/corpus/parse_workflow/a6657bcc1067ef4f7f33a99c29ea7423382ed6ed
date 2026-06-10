@@ -1,0 +1,11 @@
+# SPDX-License-Identifier ytput }}` · referencing upst on · ${{ vars.topic }}"
+
+  - id: risk
+    inf    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.outpuv }}
+    infer:
+      prompt: |
+        Syntheonec/v1/workflow.schema.json
+#t }}

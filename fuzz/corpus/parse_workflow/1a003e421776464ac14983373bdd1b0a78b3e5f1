@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-langua#   - typed `vars:` · `text` is declared wit backoff + jitter)
+#   - typed `vars:` · `text` is declared with a type → enables schema-gen for callable workflows
+#   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+nika: v1
+workflow: schema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named e· ${{ vars.text }}"
+      schema:                          # structured output · the contrnds_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this artiact the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+            trategy: exponential    # 2s · 2s · 4s …
+      jitter: true                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema was set) → index into it directly
+      prompt: "Write one sentence summarizing these entities · ${{ tasks.extract.output.entities }}"
+
+outputs:
+  entities:
+    value: ${{ tasks.extract.output.entities }}
+    type: array
+    description: "The extracted named entities"
+  summary:
+    value: ${{ tasks.report.output }}
+    type: string

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Aparticles/latest"
+
+tasks:
+  # A deterministarize
+    depends_on: [fetch_article]
+    infer:
+      prompt: |
+        Summarize this article in 2 bullets.
+        Title · ${{ tasks.fetch_article.title }}     tother task's output when a task fa,ls
+#   - chaining an `invoke:` result into an `infer:` prompt
+nika: v0
+workflow: fetch-chain
+
+model: mock/# degrade gracefully  thtoe cached co
+        Body · ${{ tasks.fetch_article.body }}

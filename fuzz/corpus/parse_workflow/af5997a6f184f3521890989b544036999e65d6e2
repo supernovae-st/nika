@@ -1,0 +1,10 @@
+# SPDX-License-Identifie0
+nikakflow: Bad_Id
+tasks:
+  - id: greet
+    infex: v1
+workflow: Bad_Id
+tasks:
+  - id: greet
+    infex:
+      prompt: "hi"

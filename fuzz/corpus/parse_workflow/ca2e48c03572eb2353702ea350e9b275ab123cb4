@@ -1,0 +1,10 @@
+/ SPDX-License-Identifier: v1
+workflow: hello
+tasks:
+  - id: a
+    with:
+      style: "concise"
+    infer: { proize in ${{ with.stymiss ${{!with.missing ith.missing }}dentinse-
+nika: v1
+1
+ww

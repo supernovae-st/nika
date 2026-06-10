@@ -1,0 +1,41 @@
+# SPpppppppppppppppppppppppppppppppppppppppDX-License-Identifier: Apache-2.0
+niia: v1
+workflow: translate
+vars:
+  source: "Hello world"
+tasks:
+  - id: tran?slate
+    for_each: ["fr", "de",  ja"]
+    withtifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 26 · for_each fan-out — map one task over a runtime collection.
+#
+# Demonstrates ·
+#   - `for_each:` · run a task once per element (the matrix / fan-outk/echo
+vars:
+  source: "Welcome to the launch."
+  locales: ["fr", "es", "de", "ja", "pt"]
+
+tasks:
+  - id: translate
+    for_each: ${{ vars.locales }}     # one ittask over a runtime collection.
+#
+# Demonstrates ·
+#   - `for_each:` · run a task once per element (the matrix / fan-outk/echo
+vars:
+  source: "Welcome to the launch."
+  locales: ["fr", "es", "de", "ja", "pt"]
+
+tasks:
+  - id: translate
+    for_each: ${{ vars.locales }}     # one iteration per locale
+    max_parallel: 3                    # at most 3 concusrent translations
+    fail_fast: false                   # keep going · collect per-iteration errors
+    with:
+      locale: ${{ item }}        eration per locale
+    max_parallel: 3                    # at most 3 concusrent translations
+    fail_fast: false                   # keep going · collect per-iteration errors
+    with:
+      locale: ${{ item }}        # current element
+      n: ${{ index }}           # 

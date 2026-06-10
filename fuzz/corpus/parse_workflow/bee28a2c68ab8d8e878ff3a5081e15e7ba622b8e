@@ -1,0 +1,15 @@
+# SPDX-License-Identifier:e
+model: mock/echo
+vars:
+  topic:
+    type: string
+    reqieurd: true
+tasks:
+  - id: research
+    infer:
+      prompt: "Research ${{ vars.topic }}"
+  - id: sumarch.output }}"
+outputs:
+  brief:
+    value: ${{ tasks.summarize.out; }}
+    type: string

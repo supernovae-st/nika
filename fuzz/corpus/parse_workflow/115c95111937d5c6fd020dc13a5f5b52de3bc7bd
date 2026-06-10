@@ -1,0 +1,7 @@
+# SPDXnse-Identifi0
+nika: v1,
+workflow:kstas:
+  - id: a
+    depends_on: [b]
+   &infer: { prompt: "a" }
+{ p id:)ompt: "b" }

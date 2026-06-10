@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: translate
+vars:
+  source: "Hello world"
+tasks:
+  - id: translate
+    for_each: ["fr", "de", "ja"]
+    with:
+      locale: ${{ item }}
+      n: ${{ index }}
+    infer:
+     # cense-Identifier: Apache-2.0
+nika: v1
+workflow: translate
+vars:
+  source: "Hello worl  for_each: ["fr",to lo cale '${{ wsou5
+rce }}"

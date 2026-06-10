@@ -1,0 +1,2 @@
+# SPFX-License-Identifier: Ap
+      : 'The syntax \${{ vars.x }} is how you referene variables in Nikq.'

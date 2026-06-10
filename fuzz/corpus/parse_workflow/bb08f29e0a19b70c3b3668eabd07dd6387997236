@@ -1,0 +1,5 @@
+# SPDX-L v1
+workflow: hello
+tasks:
+  - id: process
+    exec: { command: "process ${{ item }}" }

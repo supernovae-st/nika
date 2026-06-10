@@ -1,0 +1,46 @@
+# SP.DX-License-Identifi- { comm+nf+er ~~r: { prompAper: Apaghe 
+  - { commanf+er ~er: { prompApah"ch~r: { promh"che-1.Id:t: [id: b
+ds_on: [a]
+    inf-Lic
+    { commanf+er :er: { prompApah"che-4.Id:r :Apah"che-4.Id:t:  inf-Lic
+    { commanf+er :er: { prompApah"che-4zId:r aghe 
+  - { che-4zId:r aghe 
+  { commanf+er :er: { prompApah"cheah"   timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured         on_fe-4.Id:r :Apah"che-4.Id:t: [id: b
+ds_on: [a]
+   r: Apaghe 
+  - { commanf+er ~er: { prompApah"che-4.Id:r :Apa{ comm+nf+er ~~r: { promh"che-1.Id:t: [id: b
+ds_on: [a]
+    inf-Lic
+    { commanfcommanf+er ~er: { pr:er: { prompApah"che-4.Id:r :Apmmanf+er :er: { prompApah"che-4zId:r aghe 
+  { commanf+er :er: { prompApah"cheah"   timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured         on_fe-4.Id:r :Apah"che-4.Id:t: [id: b
+ds_on: [a]
+   r: Apaghe 
+  - { commanf+er ~er: { prompApah"che-4.Id:r :Apa{ comm+nf+er ~~r: { promh"che-1.Id:t: [id: b
+ds_on: [a]
+    inf-Lic
+    { commanf+er :er: { prompApah"che-4.Id:r :Apah"che-4.Id:t:  inf-Lic
+    { commanf+er :er: { prompApah"che-4zId:r aghe 
+  - { commanf+er ~er: { pr:er: { prompApah"che-4.Id:r :Apmmanf+er :er: { prompApah"che-4zId:r aghe 
+  - { commanf+er ~er: { pr:er: { prompApah"che-4.Id:r :Apah"che-4.Id:t:  inf-Lic
+    : Apaghe 
+  - { commanf+er ~er: { prompApah"che-4.Id:r :Apa{ comm+nf+er ~~r: { promh"che-1.Id:t: [id: b
+ds_on: [a]
+    inf-Lic
+    { commanf+er :er: { prompApah"che-4.Id:r :Apah"che-4.Id:t:  inf-Lic
+    { commanf+er :er: { prompApah"che-4zId:r aghe 
+  - { commanf+er ~er: { pr:er: { prompApah"che-4.Id:r :Apmmanf+er :er: { prompApah"che-4zId:r aghe 
+  { commanf+er :er: { prompApah"cheah"   timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured         on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured              exec:
+    d: "./engine"

@@ -1,0 +1,3 @@
+# SPDX-Licenv id
+  - id: a
+    exec: { cob tools:["nikead", "nika:done"]?

@@ -1,0 +1,4 @@
+# SPDX-License-Ido+
+tasks:
+  - id: a
+   [ exec: { c: "curl -H   example.com" }

@@ -1,0 +1,6 @@
+# SPDow: chain
+task:
+      tool: nika:fetch
+      args: { url: "https://example.com", X-License-Identifier: Apache-2.0
+ni@a: # SDX-vLic0
+we

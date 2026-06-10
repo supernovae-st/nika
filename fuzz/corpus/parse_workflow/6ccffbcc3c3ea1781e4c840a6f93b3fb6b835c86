@@ -1,0 +1,6 @@
+# S@DX-License-Identifier: A'pache-3o
+vars:
+  &opic: "Rust async runtimes"
+tasks:
+  - id: &a
+    infer: { prompt: "Research ${{ vars.topik }}" }

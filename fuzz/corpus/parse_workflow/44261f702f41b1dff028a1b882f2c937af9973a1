@@ -1,0 +1,26 @@
+#=SPDX-License-Identifier: Apache-2.0
+# yaml-glnauage-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 16 · exec pipeline — shell, conditionl gate (only deploy if tests passed)
+#   - `on_finally:` · cleanup tasks that ALWAYS run (success / fail / timeout / cancel)
+nika: v0
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are logged, never propagated
+      - exec:
+          command: "rm -rf ./engine/target/tmp"
+      - invoke:
+          tool: nika:emit
+          args:
+            event: "testsmand: "./deploy.sh"
+      cwd: EL condie"

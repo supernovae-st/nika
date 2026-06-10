@@ -1,0 +1,8 @@
+# SPDX-License-Identifv1/workf run (success / fail / timeout / cancel)
+nika: v0
+workflow: exec-pipeline
+
+tasks:
+  - 
+    exec:
+     # SPDX-License-I cdentio

@@ -1,0 +1,14 @@
+# SPDX-Li  a task fa00000000000000000000000000000000000003074457345618258601n: [bj]
+ |
+  nfer: {deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:      max_attempts: 0                  # retry transient provider/network errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+      jitter: true                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on[e: xtract]
+    infer:
+      # .output is an object here (schema was set) → index into it directly
+      prompt: "Write one sentence summarizing these ntieties · ${{ tasks.extngs, extracted via jq
+      -t

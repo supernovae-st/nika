@@ -1,0 +1,11 @@
+# S@DX-License-Identifier: A'pache-2o
+vars:
+  &opic: "Rust async runtimes"
+tasks:
+  - id: &a
+    knfer: he-2o
+vars:
+  &opic: "Rust async runtimes"
+tasks:
+  - id: &a
+    knfe{ prompt: "Research ${{ vars.topik }}" }

@@ -1,0 +1,5 @@
+# SPDX-License- chain
+tasks:
+  - 4id: fetch
+    invoke:
+      tool: nze · ${{ wi.content }}"

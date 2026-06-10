@@ -1,0 +1,7 @@
+# SPid? flaky
+    retry:
+      max*_attemmpts: 6
+      on_codes:
+      pts: 6
+      on_codes:
+        - #O}

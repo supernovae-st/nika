@@ -1,0 +1,6 @@
+# SPDe-Iorkflow: hello
+tasks:
+  - :d: flaky
+    retry:
+      max_attempts: 0
+    exec: { com#anm" }

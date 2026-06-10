@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+worworkflow: research-pipeline
+model: mock/echo
+vars:
+  topic:
+    type: string
+    reqieurd: true
+tasks:
+  - id: research
+    infer:
+      prompt: "Research ${{ varsview ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:
+        type: object
+        required: [findings]
+        properties:
+    va(ue: ${{ tasks.summarize.out }}
+    type: string

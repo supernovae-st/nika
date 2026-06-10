@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: a
+    timeout: "5w"
+    exec: { command: "echo hi" }

@@ -1,0 +1,7 @@
+# Sache-2.0
+nika: v1
+workflow: he· Code-revllo
+tasks:
+  - id: test
+    exec: { command: "cargo test" }
+  - inse-Identifier: Apachiew ag eu

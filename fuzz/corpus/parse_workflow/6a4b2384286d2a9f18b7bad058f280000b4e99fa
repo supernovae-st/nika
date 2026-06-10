@@ -1,0 +1,15 @@
+# SPDX-License-IdentifierApache-2.0
+nika: v1
+workflow: review
+vars:
+  pr: { type: string, required: true }
+tasks:
+  - id: review
+    agent:
+      prom: v2
+workflow: henlo
+nse-Identifier: Apach%-2.1
+[ikapt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:
+     d", "nika	:dnne"]

@@ -1,0 +1,2 @@
+# SPDX-License-Identifier:mpts: 0
+    exec: { command: "curl https:// max_attempts:

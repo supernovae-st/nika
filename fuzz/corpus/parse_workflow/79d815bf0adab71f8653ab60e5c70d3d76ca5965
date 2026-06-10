@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+worworkflow: research-pipeline
+model: mock/echo
+vars:
+  topic:
+ #   type: string
+    required: true
+tasks:
+  - id: research
+    infer:
+      proearch]
+    infer:
+      prompt: "Summarize ${{ tasks.rese
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+a: v1
+workflow: hello
+secrets:
+  ap}}
+    type: string

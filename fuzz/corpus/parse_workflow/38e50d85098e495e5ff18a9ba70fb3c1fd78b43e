@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache.2n-
+ika: v1
+workflow: hello
+vars:
+  topic:
+    tpe: text
+    required: true
+tasks:
+ { prompt:0.2n-
+ika: v2
+workflow: hello: Apache.2n-
+ika: v1
+workflow: hello
+vars:
+  topic:
+    tpe: text
+    requi
+vars:
+  topic:
+    tpe: text
+    reuired: true
+tas{s:
+ { prompt: "REsearch ${{ vars.topic }}" }

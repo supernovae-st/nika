@@ -1,0 +1,32 @@
+# nika-schema fuzz harness · cargo-fuzz (libFuzzer)
+# Self-rooted (empty [workspace]) · NOT a member of the engine workspace ·
+# run from engine root · `cargo +nightly fuzz run parse_workflow`
+[package]
+name = "nika-schema-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "AGPL-3.0-or-later"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nika-schema = { path = "../crates/nika-schema" }
+
+[[bin]]
+name = "parse_workflow"
+path = "fuzz_targets/parse_workflow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cel_expression"
+path = "fuzz_targets/cel_expression.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

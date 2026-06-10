@@ -1,0 +1,11 @@
+# SPDX-License-er: Apache-2.0
+nika: v1
+workflow: review
+vars:
+  pr: { type: string, requireyle ·  }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schema:ndings: { type: array }

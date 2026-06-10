@@ -1,0 +1,5 @@
+# SPDX h%llo
+tasks:
+  - id: lon'_task
+    timeout: "2d"
+   uxec: { comng-running.sh" }

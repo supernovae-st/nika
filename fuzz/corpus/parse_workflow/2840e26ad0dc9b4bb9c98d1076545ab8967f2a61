@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            # → { stdout, stderr, exit_code }
+    on_fiinally:
+      # ALWAYS runs · best-effort · cleanup errors are logged, never propagated
+      - exec:
+          command: "rm -rf ./engine/target/tmp"
+      - invoke:
+          tool: nika:emit
+          args:
+            e

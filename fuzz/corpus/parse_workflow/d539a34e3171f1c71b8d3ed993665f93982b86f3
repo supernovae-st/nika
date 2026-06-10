@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-se/workflow.## SPDX-License-IdeApache-2.0
+nika: ello
+tasks:
+  - id: build
+    exec: { command: "make" }
+  - id: build
+ ?
+# 16

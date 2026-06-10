@@ -1,0 +1,36 @@
+# SPDX-License-Identil-fanout
+
+model: mock/echo
+vars:
+  topic: "adopting Rust for a backend rewrite"
+
+tasks:
+  # These three have no dependency on each other → the engine runs them in parallel.
+  - id: angle
+    infer:
+      prompt: "Give the strategic angle on · ${{ vars.topic }}"
+
+  - id: cost
+    infer:
+      prompt: "Give the cost angle on · ${{ vars.topic }}"
+
+  - id: risk
+    infer:
+      promsk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+ rver: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 06 · Parallel fan-out + merge —       Se-Identifier: Apache-2.0
+nika: v1
+workf vars.x }} is how you reference variables in Nika.ynthesize one recommendation from three analyses.
+        Strategy · ${{ with.a }}
+        Cost · ${{ with }}
+
+# The workflow's return value · what `nika run` prints + a caller receives.
+outputs:
+  recommendation: ${{ tasks.synthesize.output }}

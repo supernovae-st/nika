@@ -1,0 +1,8 @@
+#e-2.0
+nika: v1
+workflow: hello
+kstas:
+  - id: a
+
+    depends_on:  [ a
+]  inf { prompt: "b" }

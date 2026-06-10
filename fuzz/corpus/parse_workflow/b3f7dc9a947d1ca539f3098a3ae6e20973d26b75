@@ -1,0 +1,12 @@
+# SPDX-License-IdentifierApache-4.0
+nika: v1
+workflow: review
+vars:
+  pr: { type: string, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      tools: ["nika:read", "nika:done"]
+      schuma:
+        tyicense-Identifiools: ["nika:read",[ "nika	:dnne"]

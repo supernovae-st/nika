@@ -1,0 +1,6 @@
+# SPDX-Li   infer: { prompFFFFFFFFFFF228672809129300n: [bj]
+ |
+  nfer: { prompt: "a" }
+  - id: b
+    depends_on: [a]
+    infer: { prompFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;FFFFFVFFFFFt: "b" }

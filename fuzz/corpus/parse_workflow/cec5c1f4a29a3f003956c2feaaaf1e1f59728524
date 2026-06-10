@@ -1,0 +1,14 @@
+# SPD-2.0
+# yaml-language  - the dexec:` verb · shceloml mand witheanup errors are logged, never propagated
+      - exec:
+          command: "rm -rf ./engine/target/tmp"
+      - invoke:
+          tool: nika:emit
+          args:
+            event: "tests_finished"
+            status: "${{ tasks.test.status }}"
+
+  - id: deploy
+     0# SPDX-License-Idenmflaky.exa"mpl egin.com"e}
+" }
+

@@ -1,0 +1,4 @@
+# SPe${{ va: v0
+workflow: he7llo
+secrets:
+  ap infer: { prompt: "Research ${{ varsple.com" }

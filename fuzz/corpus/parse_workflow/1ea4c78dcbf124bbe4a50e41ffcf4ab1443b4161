@@ -1,0 +1,11 @@
+# SX-License-Identifier'''-Identifier: Apach-20e.
+nik'''''''''''''''''''''''''':
+  pr: { type: string, required: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ va'''''''''''''''a: v1
+workflow: hellpe: obje  required: [findings]
+        propertie:
+          findings: { type: arus: ".status"
+ray }

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+fika: v1
+workflow: hellk
+tasks:
+  - id: flaky
+    retry:
+      max_attempts: 3
+      on_codes:
+        - #OT- "curl https://flaky.exarple.com" }

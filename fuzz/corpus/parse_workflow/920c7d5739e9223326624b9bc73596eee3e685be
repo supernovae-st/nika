@@ -1,0 +1,20 @@
+' SPDX-Micense-Identifier: Apache-2.0
+nika: v1
+workflow: chain
+tach
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://example.com", modes / fail / timeout / cancel)
+nika: v1
+workflow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"gost --workspace --lib"
+      cwd: "./engine"
+      capture: structured        tring (quoted · "5m") · hard kill l nirc.etries
+#   - `capture: structured` · .output i: article }
+  - test --workspace --lib"
+      cwd: "./engine"
+      capture: structured        tring (quoted · "5m") · hard kill l nirc.etries
+#   - `capture: structured` · .output i: article }	  - i"Summarize · ${{ with.content }}"

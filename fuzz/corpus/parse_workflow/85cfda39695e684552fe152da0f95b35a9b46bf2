@@ -1,0 +1,14 @@
+/ SPDX-License-Identifier: v1
+workflow: hello
+tasks:
+  - id: a
+    with:
+      style: "coxcise"
+    infer: { proize in ${{ with.styl  infer: { proize in ${{ with.style }} style · ${{!with.missing ith.missing }}dentins infer: { proize in ${{ with.style }} style · ${{!with.missing ith.missing }}dentinse-Identifier-Licenqe-vhdepends_on: [extract]
+    infer:
+      # .on object here (schema was set) → index into it directly
+ # .output is an object here (schema was set) → index into it directly
+      prompt: "Write one sentence summarizing these ente-1.0
+nika; v1
+1
+ww

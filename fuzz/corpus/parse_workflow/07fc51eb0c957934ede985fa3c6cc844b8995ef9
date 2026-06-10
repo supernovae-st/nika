@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# yama.json
+#
+# 06 · Parallel fan-out + merge — the core DAt }}
+    infer:
+      prompt: |
+        Se-Identifier: Apache-2.0
+nika: v1
+workflow: docs
+tasks:
+  - id}}

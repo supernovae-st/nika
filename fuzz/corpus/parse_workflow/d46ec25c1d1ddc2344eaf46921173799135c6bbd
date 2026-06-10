@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+worworkflow: research-pipeline
+model: mecho
+vars:
+  topic:
+ #   type: string
+    requireh: true
+tasks:
+  - id: research
+    infer:
+      prompt: "Research ${{ vars.topic e ${{ tasks.research.output }}"
+outpupacle-2.0
+nika  ap}

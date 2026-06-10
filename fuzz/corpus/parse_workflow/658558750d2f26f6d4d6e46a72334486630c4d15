@@ -1,0 +1,14 @@
+# SPDicense-Identifier: Apache.2n-
+ika: v1
+workflow: hello
+vars:
+  topic:
+    tpe: text
+    required: true
+tasks:
+ { prompt:0.2n-
+ika: v1
+workflow: hello
+vars:
+  topic:
+ uired "REseh ac{$r{ va "REsc{$r{ vars.topic }}" }

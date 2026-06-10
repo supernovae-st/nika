@@ -1,0 +1,23 @@
+# SPpppppppppppppppppppppppppppppppppppppppDX-License-Identifier: Apache-2.0
+niia: v1
+workflow: translate
+vars:
+  source: "Hello world"
+tasks:
+  - id: tran?slate
+    for_each: ["fr", "de",  ja"]
+    withtifier: Apache-2.0
+# yamlne fails
+#   - the task `.output` is the ARRAY of per-iteration outputs, in input order
+nika: v1
+workflow: for-each-locales
+
+model: mock/echo
+vars:
+  source: "Welcome to the launch."
+  locales: ["fr", "es", "de", "ja", "pt"]
+
+tasks:
+  - id: tran
+    infer:
+      prompt: "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Translate to locale '${{ with~~~~~.locale }}' (#${{ 

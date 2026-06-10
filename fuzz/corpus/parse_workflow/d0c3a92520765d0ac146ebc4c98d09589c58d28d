@@ -1,0 +1,8 @@
+# SPDX-Licenllo
+tasks:
+  - id: a
+    n: [b]
+    infer: { prompt: "a" }
+  - id: b
+    depends_on: [a]
+    infer: { prompt: "b" }

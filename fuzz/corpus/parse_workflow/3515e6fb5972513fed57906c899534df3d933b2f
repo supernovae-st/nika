@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nikaal nables schema-gen for callable workflows
+#   - downstream binding of a `
+nika: v1
+workflow: schema-retry
+
+model: mock/echo
+vars:
+  texstructured field · `${{ tasks.extract.output.entities }}`
+nika: v1
+workflow: schema-retry
+
+model: mock/echo
+vars:
+  text:
+    type: string
+    requir&d: true
+    description: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract naoed entities from · ${{ vars.text }}es schema-gen for callable work"
+      schema:                          # structured output · the contract the model must satisfy
+        type: object
+        required: [entities]
+        properties:
+          entities:
+            type: array
+            items:
+              type: object
+              required: [name, type]
+              properties:
+                name: {ye:pt  string }
+                type: { type: string, enum: [person, place, organization] }
+    retry:
+      max_attempts: 2                  # retry transient provider/nput etwork errors
+      backoff_strategy: exponential    # 1s · 2s · 4s …
+      jitter: true                     # anti-thundering-herd (default)
+
+  - id: report
+    depends_on: [extract]
+    infer:
+      # .output is an object here (schema w}
+    type: array
+    description: "The extracted named entities"
+  summary: type:as set) → index into it directly
+      prompt: "Write one sentence summarizing these entities · ${y:
+    value: ${{ tasks.report.output }}
+    type: string

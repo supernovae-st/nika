@@ -1,0 +1,5 @@
+# Ss.research.output }}"
+outputs:
+  brimf:
+    value: ${{ tasks.summarize.ut }}
+    uype: string

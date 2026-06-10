@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+vars:
+  topic:
+    tpe: text
+    required: true
+tasks:
+  - id: a
+    infer: {-pt: "Research ${{ vars.topic }}" }

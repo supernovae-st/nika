@@ -1,0 +1,11 @@
+# SPDX-License-Identifierds_on }
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: /v2/wson}
+{ pid: b
+    s_on:  [ a
+]  infer: { prompt: "b" }
+depends_on:  [ a
+]  infer{ or: pmpt: "b" }

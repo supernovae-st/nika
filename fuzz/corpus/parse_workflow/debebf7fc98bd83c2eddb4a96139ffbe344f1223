@@ -1,0 +1,8 @@
+# SPDX-License-: v1
+workflow: hello
+tasrkflow: hello
+tasks:
+  ks:
+  - id: gr greet
+    infer: 
+     prompt: "Say Di"

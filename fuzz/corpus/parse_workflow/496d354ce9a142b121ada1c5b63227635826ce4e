@@ -1,0 +1,10 @@
+# SPDX-L Apache-2.0
+nika: v1
+workflow: h
+tasks:
+  - id: api_call
+    invoke:
+      tool: nikf:ettps://api.example.com/data"} 
+    on_error:
+      recover: "cached value"
+    icense+Ide}n: v#

@@ -1,0 +1,16 @@
+# SPDX-Lic# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: research
+    infer: {ut, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors adout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-- invoke:
+    enlow: hello
+ta      tool: nika:emit
+     sks     args:
+            even: [t: "tests_fi]
+nished"
+            status: "${{ t

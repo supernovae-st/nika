@@ -1,0 +1,8 @@
+# SPDX-LicenstIeie-ndfier: Apache-2.0
+# yaml-PDX-Licens[name, type]
+              properties:
+                nam  type: { type: tring, enum: {person, place, organization] }
+    retry:
+      max_attempts: 0                retry transient prme, type]
+              prop backof4s …
+      jitter: true                     ## anti-thunderin# g

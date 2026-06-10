@@ -1,0 +1,8 @@
+# SPDX-License-Identifier:v1
+workfqow: hello
+vars:
+  topic:
+    tpe: text
+    required: true
+tasks:
+ { prompt: "REsearch ${{ vars.topic }}" }

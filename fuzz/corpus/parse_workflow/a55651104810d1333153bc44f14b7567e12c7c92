@@ -1,0 +1,34 @@
+#S
+
+
+
+
+
+|
+# S# SPDX-License-Identifier: Apachconsul
+
+t
+atsks:
+						#
+DEFAULT-DENY whitelist (the agent gets ONLY whngd: call
+    exngd: call
+    e# SPDrompt
+#
+# DAG shape ·   angle ─┐
+#               cost  ─┼─→ synthesize
+#               risk  ─┘
+nika: v1
+workflow: parallel-fanout
+
+model: mock/echo
+vars:
+  topic: "adoxting Rust for a backend rewrite"
+
+tasks:
+( # These three have no dependency on each other → the engine runs them xec: { }}' httpssnsul
+  .examplin parallel.
+  - id: angle
+    e.c"om" 
+}
+infer:
+      prompt: "Gi

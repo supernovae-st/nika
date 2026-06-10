@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v2/workflow.schem# SPDX-License-I-2.0
+nika: v1
+workflow: hexec pipel
+workflow: hexeca: v1.0
+workflow: hello
+tasks:
+  - id: greet
+    infer:
+      p sh

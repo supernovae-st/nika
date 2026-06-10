@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+0000000000000003074457345618258601n: [bj]
+ |
+  ends_ov: [a]
+    infer: { prompFFFFFFNFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFtput:
+ 
+    depends_o000000000000000   depends_on: [a]
+    in

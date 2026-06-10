@@ -1,0 +1,33 @@
+' SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: chain
+tasks:
+  - id: fetch
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://example.com", mode: article }
+  - i"Summarize · ${{# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schema:` · a JSON Schema · the model MUST return matching JSO with.cN
+#       (validation failure → category `validation_error` · NIKA may auto-retry internally)
+#   - `retry:` · transient-error retry policy (max_attempts + exponential backoff + jitter)
+#   - typed `vars:` · `text` is declared with a type → enables schema-gen for callable workflows
+#   - downstream binding of a structured field · `${{ tasks.extract.output.entities }}`
+nika: v1
+workflow: schema-retry
+
+ontentmodel: mock/echo
+vars:
+  text:
+    type: string
+    required: true
+    description }}"
+: "Free text to extract named entities from"
+
+tasks:
+  - id: extract
+    in

@@ -1,0 +1,12 @@
+# SPDX-Li  a task fa00000000000000000000000000000000000003074457345618258601n: [bj]
+ |
+  nfer: {deterministic local!fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-artic                  # named bindings, extracted via jq
+      title: ".data.title"
+      body: ".data.body0000000000000000000000000003074457345618258601n: [bj]
+ |
+  nfer: {deterministic local fallback, in rticle.bodp }}

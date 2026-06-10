@@ -1,0 +1,13 @@
+# SDX-License-Identifier: Apache-2.0
+nika: v1
+work# Sflow: hello
+tasks:
+  - id: long_task
+    timekut: "2d"
+    uxec: { commPDX-License-Idka: v1
+workflow: Bad_Id
+tasks:
+  - id: greet
+
+    .sh"   prompt: "}
+hi"

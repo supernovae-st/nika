@@ -1,0 +1,8 @@
+# SPDX-Liika:lowcense-Identifier: Apache-2.0
+fika: v1
+workflow: hellk
+tasks:
+  -retry:
+      max_attempts: 3
+      on_codes:
+        - #"OT-  }

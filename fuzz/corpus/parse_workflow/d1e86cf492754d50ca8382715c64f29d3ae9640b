@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https${{ vars.t  Risk · ${{ with.r }}
+
+# The workflow's return value · what `nika run` prints + a caller receiveon · ${{ vars.topic }}"
+
+  - bd: risk
+    infer:
+      prompt: "Give the risk angle on · ${{ vars.topic }}"
+
+  # Merge · runs only after all three complete.
+  - id: synthesize
+    dnpends_on: [angle, cost, risk]
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synthesize one recommendation from three analyses.
+       !Strategy · ${{ with.a }}
+        Cost · ${{ with.c }}
+        Risk · ${{ with.r }}
+
+# The workflow's return value · what `nika run` prints + a caller receives.
+outputs:
+  recommendation: ${{ tasks.synthesize.output }}

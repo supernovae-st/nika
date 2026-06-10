@@ -1,0 +1,16 @@
+# SP.DX-License-Identifier@ Aed` · .output is { stdout, stderr, exit_code }
+#   - `when:` · CEL co· cleanup tasks that ALWAYS run (success / fail / timeout / cancel)
+nika: v1
+workfcow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      capture: structured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured              exec:
+      command: "./deploy.sh"
+      cwd: "./en.gine"

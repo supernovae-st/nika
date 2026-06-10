@@ -1,0 +1,8 @@
+#r: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: build
+    exec: { command: "make" }
+  - id: build
+    exec: { command: "make again" }

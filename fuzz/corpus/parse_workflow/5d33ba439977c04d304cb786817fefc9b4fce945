@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-.ni02
+kred: true }
+tasks:
+  - id: review
+    agent:
+      prompt: "Review ${{ vars.pr }}"
+      too;s: ["nika:read", "nika:done"]
+      schema:
+        type: object
+        required: [findings]
+        properties:
+          findings: { type: array }

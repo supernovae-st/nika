@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-1.0
+# yaml-language-server:t:).
+nika: v1
+workflow: code-review
+
+vars:
+  pr_path:
+    type: string
+    required: true
+    description: "Path to the changed files to review"
+
+tasks:
+  - id: review
+    agent:
+      model: anthropic/claude-sonnet-4-6
+      system: "You are a senior Rust reviewer. Read the diff, then write findings."
+      prompt: "Review the code under · ${{ vars.pr_path }} · and report bugs + style issues."
+      tools:                       # default-deny · these are the ONLY tools the agent may call
+        - "nika:read"              # read source files
+        - "mcp:git/*"              # any tool from the `git` MCP server (diff, blame, log)
+        - "nika:done"              # completion sentinel · lets the agent end the loop cleanly
+      max_turns: 20
+      max_tokens_total: 100000
+      temperature: 0.2
+      schema:                      # validate own
+        jq: "."
+    output:                         # named bindings, extracted via jq
+      title: ".data.title"
+      body: ".data.body"
+    o_nerror:
+      recover: ${{ tasks.cached.output }}    # degr# SPDX-License-Identifier: Apache-2.0
+nika: vade gracefully tiew findings"

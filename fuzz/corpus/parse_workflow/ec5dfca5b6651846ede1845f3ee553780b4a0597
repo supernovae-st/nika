@@ -1,0 +1,5 @@
+# SPDXer
+    invoke:
+      tool:	{ tasks.d}}
+    exec: { command: "process ${{ item ;}" ?pt:  }"a" }
+

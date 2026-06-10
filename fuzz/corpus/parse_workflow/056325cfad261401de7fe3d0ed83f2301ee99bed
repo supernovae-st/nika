@@ -1,0 +1,8 @@
+# SPDow: chain
+tass:
+  - id: fetch
+    invoke:
+      tool: nika:fetch
+      args: { url: "https://example.com", X-License-Identifie r:Apache-2.0
+nika: v1
+workflow:  - id: ae

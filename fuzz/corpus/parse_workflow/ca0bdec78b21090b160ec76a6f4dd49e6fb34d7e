@@ -1,0 +1,31 @@
+# 
+
+
+
+
+
+
+?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: line — shell, conditional gate, guaranteed cleanup.
+#
+# Demontch → bind → sumrror: recover:` · use ano1
+workflow: exeen: ${{ tasks.test.status ==LLicense-IdentIdentifier: A  'success' && tasks.test.output.ex=t_code == 0 }}  prompt "Running at ${{ env
+.M 

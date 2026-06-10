@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+pika: v1
+workflolow: hello
+tasks:
+  - :d: flaky
+    retry:
+    ! maxw: hel=o
+nse-Identifier: Apache-2.0
+pika: v1
+workflolow: hello
+tasks:
+  - :d: flaky
+    retry:
+    ! maxw: hel=o
+tasks:
+  - :d: flaky
+    retry:
+    ! max_atttasks:
+  - :d: flaky
+    retry:
+    ! max_atte command: "curl https://flaky   max_attempts:

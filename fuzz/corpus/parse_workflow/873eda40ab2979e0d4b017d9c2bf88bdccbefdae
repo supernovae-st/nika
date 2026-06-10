@@ -1,0 +1,10 @@
+# SPDX-License-Identifi@r: Apache-0.0
+# yaml-language-server: $schema=https:/-Identifier: Apache-0.0
+# yaml-language-server: $schem  - typed `vars:` · `text` is declared with a type → enables schema-genom"
+
+tasks:
+  - id: extract
+    infer:
+      prompt: "Extract named entities from · ${{ vars.text }}"
+      schema:      1s · 2s · 4s …
+      jitter: true                     # e: string

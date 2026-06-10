@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2c:
+    type: text
+    required: true
+tasks:
+  - id: a
+    infer: { prompt: "Research ${{ vars.topic }}" }

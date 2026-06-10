@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apacheired: true
+tasks:
+  - id: research
+    infer:
+      prompt: "Research ${ring\\\\\\\\\\\\\\\\\

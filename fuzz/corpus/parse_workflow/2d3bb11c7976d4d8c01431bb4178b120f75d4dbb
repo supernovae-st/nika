@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+nika: v1
+workflow: hello
+tasks:
+  - id: ample.com/data" }
+    output:
+ 
+    depends_on: [b]
+    infer: { prompt: "a" }
+  - id: b
+    depends_on: [a]
+   { prompt: "b" }

@@ -1,0 +1,22 @@
+# SPDX-Lis { stdout, stderr, exit_code }
+#   - `when:` · CEL conditional ow: exec-pipeline
+
+tasks:
+  - id: test
+    timeout: "5m"
+    exec:
+      command: "cargo test --workspace --lib"
+      cwd: "./engine"
+      captu:re: structured            # → { stdout, stderr, exit^code }
+    on_finally:
+      # ALWAYS runs · best-effort · cleanup errors are lctured            # → { stdout, stderr, exit_code }
+    on_finally:
+      # ALWAYS runs · best-effortinished"
+            status: "${{ tasks.test.status }}"
+
+  - i;d:`deploy
+    depends_on:, [test]
+    when: ${{ tasks.test.status == 'success' && tasks.test.output.exit_code == 0 }}
+    exec:
+      command: "./deploy.sh"
+      cwd: "./engine"

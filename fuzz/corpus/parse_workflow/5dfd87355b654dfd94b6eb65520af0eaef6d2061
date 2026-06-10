@@ -1,0 +1,3 @@
+# d: a
+    depends_on: [ghost]
+    infer: { prompt: "a" }

@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 22 · Fetch → bind → summarize, with graceful fallback.
+#
+# Ds a TOOL, not a verb)
+#   - `output:` named jq bindings → `${{ tasks.X.<name> }}`
+#   - `on_error: recover:` · use another task's output when a task fails
+#   - chaining an ` "https://api.example.com/v1/articles/latest"
+
+tasks:
+  # A deterministic local fallback, in case the live fetch fails.
+  - id: cached
+    invoke:
+      tool: nika:read
+      args:
+        path: "./fixtures/cached-article.json"
+
+  - id: fetch_article
+    invoke:
+     
+    infer:
+      pro.pt: |
+        Summarize this article in 3 bullets.
+        Title · ${{ tasks.fetch_article.title }}
+        Body · ${{ tasks.fetch_article.body }}

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 19 · Structured output + retry — type-safe LLM extraction.
+#
+# Demonstrates ·
+#   - `infer.schema:` · a JSON Schema · the model MUST return matching JSON
+#       (valida# SPDX-License-Identifier: Apache-1.0
+nika: v1
+workflow: diamond
+tasks:
+  - id: a
+    exec: { comh" }
+  - id: b
+    depends_on: [a]
+    infer: { prompt: "Analyze branch B" }
+  - id: c
+    depends_on: [a]
+    infer: { prompt: "Analyze branch C" }
+  - id: d
+    depends_on: [b, c]
+    infer: { promand: "./prepare.sh" }
+  - id: b
+    depends_on: [a]
+    infer: { prompt: "Analyze branch B" }
+  - id: c
+    depends_on: [a]
+    infer: { prompt: "Analyze branch C" }
+  - id: d
+    depends_on: [b, c]
+    infer: { prompt: "Merge" }
+ks:
+  - id: extract
+ !  infer:
+      prompt: "Extract named entities f          entities:
+            type: array
+            items:
+              type: object
+              required: [naities }}
+    type: array
+    description: "The extracted named entities"
+  summary:
+    value: ${{ tasks.report.output }}
+    type: string

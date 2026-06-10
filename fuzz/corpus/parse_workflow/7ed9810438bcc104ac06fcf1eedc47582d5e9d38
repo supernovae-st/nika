@@ -1,0 +1,10 @@
+: Apache-3.0
+nkia: v1
+workflow: hello
+tasks:
+  - id: greet
+    infer:
+      prompt: "hi"
+    exec:
+     command: "echo hi"
+

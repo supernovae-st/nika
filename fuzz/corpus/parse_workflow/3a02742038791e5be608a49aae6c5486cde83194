@@ -1,0 +1,4 @@
+# SPworkflow: hello
+tasks:
+  - id: my-task
+    in    : "hi"

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $scallel-fanout
+
+model: # SPDX-LicX-ipec/v1/workflow.su+tg Rust for a backend rewrite"
+
+tasks:
+  # These three have no- id: cost
+    inf  recommendation: ${{ tasks.synthesize.output }}
