@@ -5,8 +5,12 @@
 //!
 //! Engine-internal codes · `NikaErrorCode::nika_code()` — the gate-12
 //! mechanism · `Category::Schema` range NIKA-280..329. The spec-facing
-//! `NIKA-<NAMESPACE>-<NNN>` surface (`nika-spec/spec/05-errors.md`) lands
-//! with the analyzer (`spec_code` module).
+//! `NIKA-<NAMESPACE>-<NNN>` surface (`nika-spec/spec/05-errors.md`) lives
+//! in [`spec_code`] · `SchemaError::spec_code()`.
+
+pub mod spec_code;
+
+pub use spec_code::{SpecCategory, SpecCode};
 
 use nika_error::codes::{Category, NikaCode, Severity};
 use nika_error::traits::NikaErrorCode;
