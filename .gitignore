@@ -29,7 +29,7 @@ Cargo.lock.bak
 # Only crates/nika-error/ is admitted. Everything else is excluded.
 /dx
 /editors/
-/crates/nika-blob/
+# /crates/nika-blob/         -- ADMITTED slice s6 (D-2026-06-10-N6)
 /crates/nika-builtin/
 /crates/nika-cli/
 /crates/nika-core/
