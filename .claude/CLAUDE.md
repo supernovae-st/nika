@@ -126,8 +126,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `main`                                      |
-| HEAD             | `7c258d83f` (`7c258d83f7cdc44c4bed5c740074246538948d61`)             |
+| branch           | `feat/s4-nika-fs`                                      |
+| HEAD             | `2d5a3301b` (`2d5a3301b8ea7de524bc2c76c9c4ab32285410e5`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 23                                              |
 | crates (admitted)| 21 / 42                                   |
@@ -138,7 +138,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1375 passed, 0 failed                              |
+| lib tests        | 1380 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
