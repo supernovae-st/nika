@@ -46,7 +46,7 @@ unwraps could panic in production. Each of those files is unreadable. The
 total cost of fixing them in-place, while keeping main shippable, is higher
 than starting fresh.
 
-We chose fresh. Orphan branch `nika-diamond` from commit zero. No
+We chose fresh. Orphan branch `nika-diamond` (since renamed `main`) from commit zero. No
 inheritance. Legacy main is a read-only reference: `git show brouillon:<path>`
 to look something up, then rewrite it clean. Never copy-paste.
 

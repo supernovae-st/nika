@@ -43,8 +43,13 @@ impl nika_kernel::Clock for SystemClock {
 }
 ```
 
-Satisfies both `Clock` and the `trait_variant`-generated `ClockDyn`
-(object-safe `Send` variant) via the blanket impl.
+Implements the `trait_variant`-generated `ClockDyn` companion (the
+`Send`-future form); the base `Clock` arrives via the blanket impl.
+`ClockDyn` is a generic bound, NOT a dyn-dispatch surface (RPITIT is
+not object-safe — fan out via `Arc<SystemClock>`, not `Arc<dyn _>`).
+*Corrected 2026-06-10: the original claim («object-safe · `&dyn ClockDyn`
+fan-out works») was false on both counts — caught by the nika-fs
+admission swarm.*
 
 ---
 

@@ -14,7 +14,7 @@ status: Admitted
 | LOC budget | ≤3,500 src (target ~2,800, alarm at 3,200) |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
-| Source on `nika-diamond` (reference) | `crates/nika-catalog/build.rs` (1,386 LOC) + `crates/nika-catalog/build/capabilities.rs` (978 LOC) + `crates/nika-catalog/build/pricing.rs` (200 LOC) = **2,564 LOC** to migrate |
+| Source on `main` (ex `nika-diamond` · renamed) (reference) | `crates/nika-catalog/build.rs` (1,386 LOC) + `crates/nika-catalog/build/capabilities.rs` (978 LOC) + `crates/nika-catalog/build/pricing.rs` (200 LOC) = **2,564 LOC** to migrate |
 | Crate version | tracks workspace (`0.80.0`, forever-v0.x) |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |

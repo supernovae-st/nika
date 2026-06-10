@@ -1,0 +1,35 @@
+[package]
+name          = "nika-fs"
+description   = "Filesystem L1 effect crate — implements the nika-kernel Fs traits (FsRead/FsWrite/FsMeta/FsList) via tokio::fs + globset, with atomic temp+rename writes."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+bytes       = { workspace = true }  # FsRead::read zero-copy payload (kernel trait surface)
+globset     = { workspace = true }  # FsList::glob matcher · literal_separator(true) semantics
+# tokio::fs is the production I/O backend; `fs` rides on top of the
+# workspace base feature set (rt · macros · time).
+tokio       = { workspace = true, features = ["fs"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+tokio    = { workspace = true, features = ["rt", "macros", "fs"] }
+
+[package.metadata.lore]
+daemon        = "scribe"
+archetype     = "kodama-scribe"
+spirit_role   = "tient les archives du bateau · chaque page écrite d'un seul geste"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true

@@ -39,7 +39,7 @@ Inspect with: `git show --stat <SHA>` — note the single-purpose diff
 
 These live in the **private** parent monorepo, not this repo, but the
 shape is worth knowing: a `chore(submodules): bump <path>` commit only
-ever changes a single gitlink line and lists every nika-diamond commit
+ever changes a single gitlink line and lists every Diamond commit (branch renamed `main` 2026-05)
 it pulls in. See `c14654ef` and `509a52ba` in the parent for the
 canonical shape.
 

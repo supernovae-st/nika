@@ -1,14 +1,14 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-clock", "crates/nika-ocr", "crates/nika-a11y"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
 exclude = [
-  "crates/nika-blob", "crates/nika-builtin", "crates/nika-cli",
+  "crates/nika-builtin", "crates/nika-cli",
   "crates/nika-core", "crates/nika-daemon", "crates/nika-display", "crates/nika-engine",
-  "crates/nika-exec-runner", "crates/nika-extract", "crates/nika-fs",
-  "crates/nika-http", "crates/nika-init",
+  "crates/nika-exec-runner", "crates/nika-extract",
+  "crates/nika-init",
   "crates/nika-lsp", "crates/nika-lsp-core", "crates/nika-macros", "crates/nika-mcp",
   "crates/nika-media", "crates/nika-policy", "crates/nika-sdk", "crates/nika-security",
   "crates/nika-serve", "crates/nika-storage", "crates/nika-vault",
@@ -36,6 +36,18 @@ layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"
 layers.nika-clock = "L1"
+# nika-fs · Phase-B slice step 4 (announce ladder · D-2026-06-10-N6 cascade) ·
+# implements kernel io::fs {FsRead,FsWrite,FsMeta,FsList} · tokio::fs + globset ·
+# atomic write (temp+rename per kernel CANCEL SAFETY contract) · no error enum (io::Result).
+layers.nika-fs = "L1"
+# nika-blob · Phase-B slice step 6 (announce ladder · D-2026-06-10-N6 cascade) ·
+# implements kernel io::blob BlobStore via blake3 CAS · sharded fs layout ·
+# atomic temp+rename (unique temp) · sidecar .mime (put/stat round-trip) · size cap.
+layers.nika-blob = "L1"
+# nika-http · Phase-B slice step 5 (announce ladder · D-2026-06-10-N6 cascade) ·
+# implements kernel io::http {HttpGet,HttpPost} via reqwest · SSRF defense
+# (static + DNS-resolve + per-hop redirect re-check) · response size cap.
+layers.nika-http = "L1"
 layers.nika-catalog = "L0"
 layers.nika-catalog-codegen = "L0"
 layers.nika-catalog-verify = "L4"
@@ -141,9 +153,13 @@ unicase    = "2.9"
 
 trait-variant = "0.1"
 bytes         = { version = "1", features = ["serde"] }
+blake3        = "1"     # nika-blob L1 — content-addressed hashing (CC0-1.0 OR Apache-2.0 · allowlisted)
 futures-core  = "0.3"
 parking_lot   = "0.12"
 tokio         = { version = "1", features = ["rt", "macros", "time"] }
+globset       = "0.4"   # nika-fs L1 — FsList::glob matcher (literal_separator · MIT OR Unlicense)
+reqwest       = { version = "0.12", default-features = false, features = ["rustls-tls"] }   # nika-http L1 + nika-catalog-verify L4 — pin once (RUST_ENFORCEMENT §2) · rustls (no openssl)
+url           = "2"     # nika-http L1 — SSRF URL parsing (also transitive via reqwest · pinned aligned)
 
 # Forward-pinned shared deps (used by Phase 1+ crates).
 # Pinning here keeps versions aligned when downstream crates opt in via

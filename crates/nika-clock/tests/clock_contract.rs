@@ -15,6 +15,17 @@ use std::time::{Duration, SystemTime};
 use nika_clock::SystemClock;
 use nika_kernel::Clock;
 
+// ─── trait-variant companion (Send futures) ──────────────────────────
+
+#[test]
+fn systemclock_satisfies_send_future_dyn_variant() {
+    // ClockDyn is a generic bound (Send futures), not a dyn-dispatch
+    // surface — RPITIT is not object-safe. SystemClock implements the
+    // companion directly; the base Clock arrives via the blanket impl.
+    fn accepts<T: nika_kernel::clock::ClockDyn>(_: &T) {}
+    accepts(&SystemClock);
+}
+
 // ─── now() · monotonic ───────────────────────────────────────────────
 
 #[test]

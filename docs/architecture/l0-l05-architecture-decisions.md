@@ -1,7 +1,7 @@
 # L0 + L0.5 Architecture Decisions
 
 **Date:** 2026-04-16 (rev. 2 — Q8 reverted + Q9-Q10 added by swarm audit)
-**Branch:** `nika-diamond` @ `edda1b0e9`
+**Branch:** `main` (created as `nika-diamond` · renamed 2026-05) @ `edda1b0e9`
 **Status:** LOCKED (10 questions resolved)
 **Research:** 3-4 Rust council agents per question + Phase C research (17 agents, TOPIC_1-5) + post-decision swarm audit (architect + rust-pro + explorer)
 **Authority:** POST_AUDIT_REVISIONS.md > this document > crate-layer-registry.md

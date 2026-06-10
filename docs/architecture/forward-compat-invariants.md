@@ -1,6 +1,6 @@
 # Forward-Compatibility Invariants
 
-**Status**: LOCKED at v0.80.0. Every crate admitted to nika-diamond must
+**Status**: LOCKED at v0.80.0. Every crate admitted to the Diamond workspace (`main` · ex `nika-diamond` renamed 2026-05) must
 comply with these invariants before passing Gate 12.
 
 ## Why this document exists
@@ -109,7 +109,7 @@ error codes, builtin names) uses explicit namespaces. Core Nika reserves
 **Locked namespaces**:
 - **pck types**: `workflow` / `skill` / `agent` / `provider` / `mcp` /
   `eval` / `recipe` / `shield` / `lints` (9 core) + `x-*` community
-- **builtins**: `nika:tool` core + `server::tool` MCP-namespaced
+- **builtins**: `nika:tool` core + `mcp:server/tool` MCP-namespaced
 - **EventKind**: core variants + `Extension { ns, name, payload }` escape hatch
 - **Skill targets**: `claude-code`, `cursor`, `windsurf`, `zed` (4 IDEs) +
   future additions
@@ -273,8 +273,8 @@ pub trait Provider {
 - `trait_variant` generates sync + Send + !Send variants
 - `ProviderError` is `#[non_exhaustive]` + `#[from]` chains
 
-**Rationale**: 9 providers in v0.90, 20+ in v0.100. Trait shape locks all
-downstream.
+**Rationale**: the provider set grows release over release; the trait
+shape locks all downstream.
 
 ### Decision 5 — `CatalogEntry` shape with Cortex-ready fields <!-- FCI-013 -->
 
@@ -475,7 +475,7 @@ a single atomic commit and is covered by `cargo public-api` +
 
 ## Enforcement
 
-Every crate admitted to nika-diamond workspace passes Gate 12 verification:
+Every crate admitted to the Diamond workspace passes Gate 12 verification:
 
 - [ ] All public types `#[non_exhaustive]`
 - [ ] All public errors `thiserror` + `#[from]` chains

@@ -1,0 +1,35 @@
+[package]
+name          = "nika-blob"
+description   = "Content-addressed blob store L1 effect crate — implements the nika-kernel BlobStore trait with blake3 hashing, sharded filesystem layout, atomic temp+rename writes, and a sidecar mime record."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+bytes       = { workspace = true }   # kernel put/get payloads
+blake3      = { workspace = true }   # content-addressed hashing (the CAS key)
+# tokio::fs is the production storage backend; rides the workspace base
+# feature set (rt · macros · time) plus `fs`.
+tokio       = { workspace = true, features = ["fs"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+tokio    = { workspace = true, features = ["rt", "macros", "fs"] }
+
+[package.metadata.lore]
+daemon        = "gardien"
+archetype     = "kodama-gardien"
+spirit_role   = "garde la cale · chaque objet rangé sous son empreinte · jamais deux fois le même"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true
