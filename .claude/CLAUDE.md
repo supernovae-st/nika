@@ -30,7 +30,7 @@ orphan branch. Each crate passes 12 gates before admission to workspace.
 Count finalized by POST_AUDIT_REVISIONS 2026-04-14 — includes pck + natives.
 
 Timeline honnête : 11-12 mois total. No deadline pressure — quality > speed.
-Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption) + **M2.3 nika-a11y ADMITTED** (accessibility-tree query · macOS-first via safe `accessibility`/`AXUIElement` · ADR-003 12 gates · mandatory ADR-081 Guard 3 AX-secure-field redaction · mutation 82.9 % + Rule-2 AXUIElement-walk exemption). 14 crates in workspace (13 admitted + 1 WIP · nika-schema), **1170 lib tests**, 32 providers, 49 capability rules. Next: M2.4 `nika-input` (synthetic input · ADR-081 Guards 1+2 password-redaction + ConsentProof-TTL · MANDATORY). See `scripts/refresh-status.sh` for the canonical block.
+Current: Phase 2 M2 (L1 computer-use effect crates) in progress — **M2.1 nika-screen ADMITTED** (capture · ADR-081 guards 6+7) + **M2.2 nika-ocr ADMITTED** (text extraction via pure-Rust `ocrs` · ADR-003 12 gates · mutation 93.1 % + Rule-2 model-inference exemption) + **M2.3 nika-a11y ADMITTED** (accessibility-tree query · macOS-first via safe `accessibility`/`AXUIElement` · ADR-003 12 gates · mandatory ADR-081 Guard 3 AX-secure-field redaction · mutation 82.9 % + Rule-2 AXUIElement-walk exemption). 18 crates in workspace (17 admitted + 1 WIP · nika-schema), **1267 lib tests**, 32 providers, 49 capability rules. Next: M2.4 `nika-input` (synthetic input · ADR-081 Guards 1+2 password-redaction + ConsentProof-TTL · MANDATORY). See `scripts/refresh-status.sh` for the canonical block.
 
 ## 🚫 Interdits stricts
 
@@ -114,8 +114,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `main`                                      |
-| HEAD             | `27bf36d78` (`27bf36d788ab0b77fff52af579b565363a124ca9`)             |
+| branch           | `feat/s4-nika-fs`                                      |
+| HEAD             | `b5a528e84` (`b5a528e84c8fa92c709a45fa8056b66b69b7e0d8`)             |
 | workspace        | v0.80.0                                  |
 | crates (workspace)| 18                                              |
 | crates (admitted)| 17 / 42                                   |
@@ -126,7 +126,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 0                                              |
 | L3               | 0                                              |
 | L4               | 1                                              |
-| lib tests        | 1263 passed, 0 failed                              |
+| lib tests        | 1267 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
