@@ -2077,23 +2077,12 @@ dependencies = [
 name = "nika-kernel"
 version = "0.80.0"
 dependencies = [
- "bytes",
- "futures-core",
- "insta",
- "miette",
  "nika-error",
  "nika-kernel-ai",
  "nika-kernel-core",
  "nika-kernel-plugin",
  "nika-kernel-runtime",
- "proptest",
- "rstest",
- "serde",
  "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "trait-variant",
- "uuid",
 ]
 
 [[package]]
