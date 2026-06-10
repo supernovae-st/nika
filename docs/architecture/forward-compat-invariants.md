@@ -450,11 +450,13 @@ Every crate admitted to nika-diamond workspace passes Gate 12 verification:
 - [ ] All public types `#[non_exhaustive]`
 - [ ] All public errors `thiserror` + `#[from]` chains
 - [ ] Error enums implement `NikaErrorCode` (`nika_code() -> NikaCode` ·
-      the ONE canonical helper · typed num+category+slug). Inherent
-      string `code() -> &'static str` helpers (screen · ocr · a11y
-      pre-date this gate) are TRANSITIONAL — unify at next touch by
-      adding their reserved ranges to `nika-error::codes` and
-      implementing the trait (recorded 2026-06-10 architecture review).
+      the ONE canonical helper · typed num+category+slug). UNIFIED
+      2026-06-10: the transitional inherent string `code() -> &'static str`
+      helpers on screen · ocr · a11y are removed; all three now implement the
+      trait with their ranges (NIKA-1000..1299) registered in
+      `nika-error::codes` and pinned by per-crate `nika_code()` tests. The
+      4 documented exemptions live in `scripts/ci/error-one-voice-allowlist.tsv`
+      (enforced by hygiene vector 37 `check-error-one-voice`).
 - [ ] All public traits sealed OR open-with-defaults
 - [ ] No `Vec<T>` returns in public APIs (Iterator/IntoIterator instead)
 - [ ] No third-party types in public API
