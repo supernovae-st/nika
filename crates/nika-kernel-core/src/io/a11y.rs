@@ -178,6 +178,45 @@ impl AxQuery {
     }
 }
 
+/// Accessibility backend errors — the typed boundary of the `AccessibilityTree`
+/// trait (Pattern A · FCI-023bis). `#[non_exhaustive]`; `NikaErrorCode` impl +
+/// reserved range (`Category::A11y` · NIKA-1201..1206) live in `crate::errors`.
+/// Moved here from `nika-a11y` 2026-06-10 so the typed NIKA taxonomy survives the
+/// trait boundary instead of being erased by `io::Error`.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum A11yError {
+    /// The process lacks the OS accessibility grant (macOS Accessibility
+    /// trust · `AXIsProcessTrusted` false) — the operator must grant it.
+    #[error("NIKA-1201 · accessibility permission denied (grant Accessibility access)")]
+    PermissionDenied,
+    /// No focused/active application to snapshot.
+    #[error("NIKA-1202 · no focused application")]
+    NoFocusedApplication,
+    /// Reading an `AXUIElement` attribute failed.
+    #[error("NIKA-1203 · accessibility attribute error: {reason}")]
+    AttributeError {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// Walking the accessibility tree failed mid-traversal.
+    #[error("NIKA-1204 · accessibility tree walk failed: {reason}")]
+    TreeWalkFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// No accessibility backend is compiled for this platform (non-macOS
+    /// until Linux AT-SPI / Windows UIA backends land · §4 macOS-first).
+    #[error("NIKA-1205 · no accessibility backend on this platform")]
+    BackendUnavailable,
+    /// A `spawn_blocking` walk task panicked or was cancelled.
+    #[error("NIKA-1206 · accessibility task join failed: {reason}")]
+    TaskJoinFailed {
+        /// Join failure detail.
+        reason: String,
+    },
+}
+
 /// Accessibility-tree capability · async trait over the active window.
 ///
 /// CANCEL SAFETY: every method is cancel-safe at the syscall boundary ·
@@ -203,7 +242,7 @@ pub trait AccessibilityTree: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only platform query · no side
     /// effects · L1 impls wrap sync AX APIs in `spawn_blocking`).
-    async fn snapshot(&self) -> std::io::Result<AxNode>;
+    async fn snapshot(&self) -> Result<AxNode, A11yError>;
 
     /// Query the tree by selector · returns flat list of matching nodes.
     ///
@@ -211,7 +250,7 @@ pub trait AccessibilityTree: Send + Sync {
     /// `query.max_depth = None` means unbounded recursion · caller
     /// responsibility to bound for large trees (browser tabs · IDE
     /// workspaces).
-    async fn find(&self, query: &AxQuery) -> std::io::Result<Vec<AxNode>>;
+    async fn find(&self, query: &AxQuery) -> Result<Vec<AxNode>, A11yError>;
 
     /// Resolve a stable `@e<N>` ref back to its node.
     ///
@@ -220,7 +259,7 @@ pub trait AccessibilityTree: Send + Sync {
     /// a per-session ref → node cache.
     ///
     /// CANCEL SAFETY: cancel-safe · single-lookup operation.
-    async fn resolve_ref(&self, ref_id: &str) -> std::io::Result<Option<AxNode>>;
+    async fn resolve_ref(&self, ref_id: &str) -> Result<Option<AxNode>, A11yError>;
 }
 
 #[cfg(test)]

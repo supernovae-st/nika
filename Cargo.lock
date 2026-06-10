@@ -2027,10 +2027,8 @@ dependencies = [
  "accessibility",
  "atspi",
  "core-foundation",
- "miette",
  "nika-kernel",
  "proptest",
- "thiserror 2.0.18",
  "tokio",
 ]
 

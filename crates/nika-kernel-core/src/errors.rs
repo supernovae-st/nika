@@ -12,6 +12,7 @@
 
 use nika_error::prelude::*;
 
+use crate::io::a11y::A11yError;
 use crate::io::blob::BlobError;
 use crate::io::fs::FsError;
 use crate::io::http::HttpError;
@@ -250,6 +251,31 @@ impl NikaErrorCode for OcrError {
             Self::DetectionFailed { .. }
                 | Self::RecognitionFailed { .. }
                 | Self::TaskJoinFailed { .. }
+        )
+    }
+}
+
+// Accessibility: 1200–1299 (Category::A11y · codes in nika_error::codes · enum
+// in `crate::io::a11y`).
+impl NikaErrorCode for A11yError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::PermissionDenied => codes::NIKA_1201,
+            Self::NoFocusedApplication => codes::NIKA_1202,
+            Self::AttributeError { .. } => codes::NIKA_1203,
+            Self::TreeWalkFailed { .. } => codes::NIKA_1204,
+            Self::BackendUnavailable => codes::NIKA_1205,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1206,
+        }
+    }
+
+    /// Attribute/walk/join failures may be transient (focus churn · app
+    /// teardown mid-walk) · permission + backend absence are structural.
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::AttributeError { .. } | Self::TreeWalkFailed { .. } | Self::TaskJoinFailed { .. }
         )
     }
 }

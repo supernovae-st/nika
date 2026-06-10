@@ -57,7 +57,7 @@ impl AxBackend {
     /// `spawn_blocking` · Linux · async AT-SPI2 D-Bus) but the redaction +
     /// cache are backend-agnostic — Guard 3 runs on every result regardless of
     /// OS, so no secure value ever leaves the crate on any platform.
-    async fn redacted_snapshot(&self) -> std::io::Result<AxNode> {
+    async fn redacted_snapshot(&self) -> Result<AxNode, A11yError> {
         let raw = build_raw_tree().await?;
         let tree = redact_secure_fields(raw);
         if let Ok(mut cache) = self.last_snapshot.lock() {
@@ -227,7 +227,7 @@ fn build_node(elem: &accessibility::AXUIElement, counter: &mut u32, depth: u16) 
 /// Guard 3 redaction is applied by the caller ([`AxBackend::redacted_snapshot`])
 /// on the result, so it is backend-agnostic.
 #[cfg(target_os = "macos")]
-async fn build_raw_tree() -> std::io::Result<AxNode> {
+async fn build_raw_tree() -> Result<AxNode, A11yError> {
     let raw = tokio::task::spawn_blocking(walk_focused_tree)
         .await
         .map_err(|e| A11yError::TaskJoinFailed {
@@ -237,14 +237,14 @@ async fn build_raw_tree() -> std::io::Result<AxNode> {
 }
 
 #[cfg(target_os = "linux")]
-async fn build_raw_tree() -> std::io::Result<AxNode> {
+async fn build_raw_tree() -> Result<AxNode, A11yError> {
     let raw = walk_focused_tree_async().await?;
     Ok(raw)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-async fn build_raw_tree() -> std::io::Result<AxNode> {
-    Err(A11yError::BackendUnavailable.into())
+async fn build_raw_tree() -> Result<AxNode, A11yError> {
+    Err(A11yError::BackendUnavailable)
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -482,13 +482,13 @@ fn collect_matches(node: &AxNode, query: &AxQuery, depth: u16, out: &mut Vec<AxN
 }
 
 impl AccessibilityTree for AxBackend {
-    async fn snapshot(&self) -> std::io::Result<AxNode> {
+    async fn snapshot(&self) -> Result<AxNode, A11yError> {
         // Guard 3 redaction is applied inside redacted_snapshot · no secure
         // value ever leaves the crate.
         self.redacted_snapshot().await
     }
 
-    async fn find(&self, query: &AxQuery) -> std::io::Result<Vec<AxNode>> {
+    async fn find(&self, query: &AxQuery) -> Result<Vec<AxNode>, A11yError> {
         // Redacted snapshot → depth-bounded filter. The redact step runs
         // BEFORE the filter so secure values never surface.
         let tree = self.redacted_snapshot().await?;
@@ -497,7 +497,7 @@ impl AccessibilityTree for AxBackend {
         Ok(out)
     }
 
-    async fn resolve_ref(&self, ref_id: &str) -> std::io::Result<Option<AxNode>> {
+    async fn resolve_ref(&self, ref_id: &str) -> Result<Option<AxNode>, A11yError> {
         // Resolve against the last cached (already-redacted) snapshot · `None`
         // when the ref is stale or no snapshot has run yet.
         let cache = self

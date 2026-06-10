@@ -18,6 +18,5 @@
 #   screen → ocr → a11y → input → browser
 #
 # Enforced by scripts/hygiene/check-kernel-io-typed-errors.sh (vector 40).
-a11y
 input
 browser

@@ -411,6 +411,46 @@ pub fn nika_kernel_core::infra::trace::TracerProvider::start_child_span(&self, t
 pub fn nika_kernel_core::infra::trace::TracerProvider::start_span(&self, trace_id: nika_types::id::TraceId, name: &str) -> nika_kernel_core::infra::trace::SpanGuard
 pub mod nika_kernel_core::io
 pub mod nika_kernel_core::io::a11y
+#[non_exhaustive] pub enum nika_kernel_core::io::a11y::A11yError
+pub nika_kernel_core::io::a11y::A11yError::AttributeError
+pub nika_kernel_core::io::a11y::A11yError::AttributeError::reason: alloc::string::String
+pub nika_kernel_core::io::a11y::A11yError::BackendUnavailable
+pub nika_kernel_core::io::a11y::A11yError::NoFocusedApplication
+pub nika_kernel_core::io::a11y::A11yError::PermissionDenied
+pub nika_kernel_core::io::a11y::A11yError::TaskJoinFailed
+pub nika_kernel_core::io::a11y::A11yError::TaskJoinFailed::reason: alloc::string::String
+pub nika_kernel_core::io::a11y::A11yError::TreeWalkFailed
+pub nika_kernel_core::io::a11y::A11yError::TreeWalkFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::io::a11y::A11yError
+impl core::fmt::Debug for nika_kernel_core::io::a11y::A11yError
+pub fn nika_kernel_core::io::a11y::A11yError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::a11y::A11yError
+pub fn nika_kernel_core::io::a11y::A11yError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::a11y::A11yError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::a11y::A11yError
+pub fn nika_kernel_core::io::a11y::A11yError::is_transient(&self) -> bool
+pub fn nika_kernel_core::io::a11y::A11yError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::a11y::A11yError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::a11y::A11yError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::a11y::A11yError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::a11y::A11yError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::a11y::A11yError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::a11y::A11yError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::a11y::A11yError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::a11y::A11yError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::a11y::A11yError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::a11y::A11yError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::A11yError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::a11y::A11yError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::A11yError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::a11y::A11yError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::A11yError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::a11y::A11yError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::a11y::A11yError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::a11y::A11yError
+pub fn nika_kernel_core::io::a11y::A11yError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::a11y::A11yError where T: 'static
+pub fn nika_kernel_core::io::a11y::A11yError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_kernel_core::io::a11y::AxRole
 pub nika_kernel_core::io::a11y::AxRole::Button
 pub nika_kernel_core::io::a11y::AxRole::Form
@@ -562,17 +602,17 @@ impl<T> nika_error::traits::AsAny for nika_kernel_core::io::a11y::AxQuery where 
 pub fn nika_kernel_core::io::a11y::AxQuery::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::a11y::AxQuery where T: for<'de> serde_core::de::Deserialize<'de>
 pub trait nika_kernel_core::io::a11y::AccessibilityTree: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::a11y::AccessibilityTree::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>>
-pub async fn nika_kernel_core::io::a11y::AccessibilityTree::resolve_ref(&self, ref_id: &str) -> std::io::error::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>>
-pub async fn nika_kernel_core::io::a11y::AccessibilityTree::snapshot(&self) -> std::io::error::Result<nika_kernel_core::io::a11y::AxNode>
+pub async fn nika_kernel_core::io::a11y::AccessibilityTree::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
+pub async fn nika_kernel_core::io::a11y::AccessibilityTree::resolve_ref(&self, ref_id: &str) -> core::result::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
+pub async fn nika_kernel_core::io::a11y::AccessibilityTree::snapshot(&self) -> core::result::Result<nika_kernel_core::io::a11y::AxNode, nika_kernel_core::io::a11y::A11yError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::a11y::AccessibilityTreeDyn> nika_kernel_core::io::a11y::AccessibilityTree for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>>
-pub async fn TraitVariantBlanketType::resolve_ref(&self, ref_id: &str) -> std::io::error::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>>
-pub async fn TraitVariantBlanketType::snapshot(&self) -> std::io::error::Result<nika_kernel_core::io::a11y::AxNode>
+pub async fn TraitVariantBlanketType::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
+pub async fn TraitVariantBlanketType::resolve_ref(&self, ref_id: &str) -> core::result::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>
+pub async fn TraitVariantBlanketType::snapshot(&self) -> core::result::Result<nika_kernel_core::io::a11y::AxNode, nika_kernel_core::io::a11y::A11yError>
 pub trait nika_kernel_core::io::a11y::AccessibilityTreeDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>>> + core::marker::Send
-pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::resolve_ref(&self, ref_id: &str) -> impl core::future::future::Future<Output = std::io::error::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>>> + core::marker::Send
-pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::snapshot(&self) -> impl core::future::future::Future<Output = std::io::error::Result<nika_kernel_core::io::a11y::AxNode>> + core::marker::Send
+pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::find(&self, query: &nika_kernel_core::io::a11y::AxQuery) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>> + core::marker::Send
+pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::resolve_ref(&self, ref_id: &str) -> impl core::future::future::Future<Output = core::result::Result<core::option::Option<nika_kernel_core::io::a11y::AxNode>, nika_kernel_core::io::a11y::A11yError>> + core::marker::Send
+pub fn nika_kernel_core::io::a11y::AccessibilityTreeDyn::snapshot(&self) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::a11y::AxNode, nika_kernel_core::io::a11y::A11yError>> + core::marker::Send
 pub mod nika_kernel_core::io::blob
 #[non_exhaustive] pub enum nika_kernel_core::io::blob::BlobError
 pub nika_kernel_core::io::blob::BlobError::Io
