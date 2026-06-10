@@ -129,6 +129,12 @@ pub enum OcrError { /* ModelNotFound(1101) .. TaskJoinFailed(1109) */ }
 
 ### 6.1 Gate 5 mutation exemption (ADR-003 Rule 2 · model-dependent FFI)
 
+<!-- check-mutation-floor.sh note: the "6 model-dependent exempt" below is the
+     real-weights-reachable measurement. BUDGET mode needs a per-crate
+     mutants.toml exclude_re for the inference-FFI code before the budget is
+     reproducible headless — a deferred-with-trigger follow-up (calibrate when
+     a mutants.toml lands). FLOOR mode applies to the headless-reachable core. -->
+
 `nika-ocr` is a thin adapter over the synchronous `ocrs` engine. 6 mutants are
 **exempt** — they live on the model-inference paths reachable only with real
 `.rten` detection + recognition weights (which headless CI does not have ·

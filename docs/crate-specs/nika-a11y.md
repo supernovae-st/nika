@@ -221,6 +221,14 @@ pure transform is the all-OS mandatory gate.
 
 ### 7.1 Gate 5 mutation exemption (ADR-003 Rule 2 · macOS AXUIElement walk)
 
+<!-- check-mutation-floor.sh note: the "7 AXUIElement-walk exempt" below is the
+     macOS-reachable measurement. A naive `cargo mutants -p nika-a11y -- --lib`
+     on macOS reports ~31 survivors because it ALSO mutates the cfg'd-out Linux
+     atspi role-mapping arms (platform-inactive, not real test gaps). BUDGET
+     mode therefore needs a per-crate mutants.toml exclude_re for the cfg'd-out
+     code before the budget marker is reproducible on the CI platform — a
+     deferred-with-trigger follow-up (calibrate when a mutants.toml lands). -->
+
 `nika-a11y` is a thin adapter over the synchronous `accessibility` walk. 7
 mutants are **exempt** — they live on the `AXUIElement` traversal control-flow,
 reachable only with a real macOS Accessibility grant + focused window (exercised
