@@ -1,0 +1,34 @@
+[package]
+name          = "nika-providers"
+description   = "LLM provider layer (L1.5 service) — the 14 canonical providers over shared wire adapters (anthropic · openai-compat · gemini s8.6), riding the kernel http seam. Profiles seeded from nika-catalog; consumed by verb-infer and verb-agent (D-2026-05-22-N17)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1.5 service crate.
+
+[dependencies]
+nika-kernel  = { path = "../nika-kernel", version = "0.80.0" }
+nika-catalog = { path = "../nika-catalog", version = "0.80.0", features = ["providers"] }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+bytes            = { workspace = true }
+futures-core     = { workspace = true }
+
+[dev-dependencies]
+tokio    = { workspace = true }
+proptest = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "messager"
+archetype     = "kodama-messager"
+spirit_role   = "porte la parole aux quatorze oracles · une seule grammaire par famille de voix · jamais une clé dans la lumière"
+voice_pattern = "silent"
+layer         = "L1.5"
+err_prefix    = "none"
+
+[lints]
+workspace = true

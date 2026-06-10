@@ -1,0 +1,234 @@
+pub mod nika_providers
+pub mod nika_providers::profile
+#[non_exhaustive] pub enum nika_providers::profile::WireFormat
+pub nika_providers::profile::WireFormat::Anthropic
+pub nika_providers::profile::WireFormat::Gemini
+pub nika_providers::profile::WireFormat::Mock
+pub nika_providers::profile::WireFormat::OpenAiCompat
+impl core::clone::Clone for nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::clone(&self) -> nika_providers::profile::WireFormat
+impl core::cmp::Eq for nika_providers::profile::WireFormat
+impl core::cmp::PartialEq for nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::eq(&self, other: &nika_providers::profile::WireFormat) -> bool
+impl core::fmt::Debug for nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::profile::WireFormat
+impl core::marker::StructuralPartialEq for nika_providers::profile::WireFormat
+impl core::marker::Freeze for nika_providers::profile::WireFormat
+impl core::marker::Send for nika_providers::profile::WireFormat
+impl core::marker::Sync for nika_providers::profile::WireFormat
+impl core::marker::Unpin for nika_providers::profile::WireFormat
+impl core::marker::UnsafeUnpin for nika_providers::profile::WireFormat
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::profile::WireFormat
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::profile::WireFormat
+#[non_exhaustive] pub struct nika_providers::profile::Profile
+pub nika_providers::profile::Profile::base_url: &'static str
+pub nika_providers::profile::Profile::catalog: core::option::Option<&'static nika_catalog::types::provider::Provider>
+pub nika_providers::profile::Profile::id: &'static str
+pub nika_providers::profile::Profile::requires_key: bool
+pub nika_providers::profile::Profile::wire: nika_providers::profile::WireFormat
+impl nika_providers::profile::Profile
+pub fn nika_providers::profile::Profile::env_candidates(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_providers::profile::Profile::resolve_model<'m>(&self, name: &'m str) -> &'m str
+impl core::clone::Clone for nika_providers::profile::Profile
+pub fn nika_providers::profile::Profile::clone(&self) -> nika_providers::profile::Profile
+impl core::fmt::Debug for nika_providers::profile::Profile
+pub fn nika_providers::profile::Profile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for nika_providers::profile::Profile
+impl core::marker::Send for nika_providers::profile::Profile
+impl core::marker::Sync for nika_providers::profile::Profile
+impl core::marker::Unpin for nika_providers::profile::Profile
+impl core::marker::UnsafeUnpin for nika_providers::profile::Profile
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::profile::Profile
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::profile::Profile
+pub const nika_providers::profile::CANONICAL_IDS: [&str; 14]
+pub fn nika_providers::profile::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
+pub mod nika_providers::registry
+pub struct nika_providers::registry::NoHttp
+impl core::clone::Clone for nika_providers::registry::NoHttp
+pub fn nika_providers::registry::NoHttp::clone(&self) -> nika_providers::registry::NoHttp
+impl core::default::Default for nika_providers::registry::NoHttp
+pub fn nika_providers::registry::NoHttp::default() -> nika_providers::registry::NoHttp
+impl core::fmt::Debug for nika_providers::registry::NoHttp
+pub fn nika_providers::registry::NoHttp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::registry::NoHttp
+impl nika_kernel_core::io::http::HttpPostDyn for nika_providers::registry::NoHttp
+pub async fn nika_providers::registry::NoHttp::post(&self, _request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_providers::registry::NoHttp::send_streaming(&self, _request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+impl core::marker::Freeze for nika_providers::registry::NoHttp
+impl core::marker::Send for nika_providers::registry::NoHttp
+impl core::marker::Sync for nika_providers::registry::NoHttp
+impl core::marker::Unpin for nika_providers::registry::NoHttp
+impl core::marker::UnsafeUnpin for nika_providers::registry::NoHttp
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::NoHttp
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::registry::NoHttp
+pub struct nika_providers::registry::ProviderRegistry<H>
+impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
+pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
+impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
+pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
+pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
+impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
+pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<H> core::marker::Freeze for nika_providers::registry::ProviderRegistry<H>
+impl<H> core::marker::Send for nika_providers::registry::ProviderRegistry<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Sync for nika_providers::registry::ProviderRegistry<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Unpin for nika_providers::registry::ProviderRegistry<H>
+impl<H> core::marker::UnsafeUnpin for nika_providers::registry::ProviderRegistry<H>
+impl<H> core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::ProviderRegistry<H> where H: core::panic::unwind_safe::RefUnwindSafe
+impl<H> core::panic::unwind_safe::UnwindSafe for nika_providers::registry::ProviderRegistry<H> where H: core::panic::unwind_safe::RefUnwindSafe
+#[non_exhaustive] pub struct nika_providers::registry::ProvidersConfig
+impl nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::new() -> Self
+pub fn nika_providers::registry::ProvidersConfig::with_base_url(self, provider: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers::registry::ProvidersConfig::with_key(self, provider: impl core::convert::Into<alloc::string::String>, key: nika_kernel_core::infra::secret::Secret) -> Self
+impl core::clone::Clone for nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::clone(&self) -> nika_providers::registry::ProvidersConfig
+impl core::default::Default for nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::default() -> nika_providers::registry::ProvidersConfig
+impl core::fmt::Debug for nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for nika_providers::registry::ProvidersConfig
+impl core::marker::Send for nika_providers::registry::ProvidersConfig
+impl core::marker::Sync for nika_providers::registry::ProvidersConfig
+impl core::marker::Unpin for nika_providers::registry::ProvidersConfig
+impl core::marker::UnsafeUnpin for nika_providers::registry::ProvidersConfig
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::ProvidersConfig
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::registry::ProvidersConfig
+pub struct nika_providers::registry::ResolvedProvider<H>
+impl<H> nika_providers::registry::ResolvedProvider<H>
+pub fn nika_providers::registry::ResolvedProvider<H>::wire_model(&self) -> &str
+impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ResolvedProvider<H>
+pub fn nika_providers::registry::ResolvedProvider<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<H> nika_kernel_ai::provider::ProviderInferDyn for nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<H> nika_kernel_ai::provider::ProviderMeta for nika_providers::registry::ResolvedProvider<H> where H: core::marker::Send + core::marker::Sync
+pub fn nika_providers::registry::ResolvedProvider<H>::name(&self) -> &str
+pub fn nika_providers::registry::ResolvedProvider<H>::supports_response_format(&self) -> bool
+impl<H> nika_kernel_ai::provider::ProviderStreamDyn for nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
+impl<H> nika_kernel_core::sealed::Sealed for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::marker::Freeze for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::marker::Send for nika_providers::registry::ResolvedProvider<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Sync for nika_providers::registry::ResolvedProvider<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Unpin for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::marker::UnsafeUnpin for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::ResolvedProvider<H> where H: core::panic::unwind_safe::RefUnwindSafe
+impl<H> core::panic::unwind_safe::UnwindSafe for nika_providers::registry::ResolvedProvider<H> where H: core::panic::unwind_safe::RefUnwindSafe
+pub mod nika_providers::wire
+#[non_exhaustive] pub enum nika_providers::WireFormat
+pub nika_providers::WireFormat::Anthropic
+pub nika_providers::WireFormat::Gemini
+pub nika_providers::WireFormat::Mock
+pub nika_providers::WireFormat::OpenAiCompat
+impl core::clone::Clone for nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::clone(&self) -> nika_providers::profile::WireFormat
+impl core::cmp::Eq for nika_providers::profile::WireFormat
+impl core::cmp::PartialEq for nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::eq(&self, other: &nika_providers::profile::WireFormat) -> bool
+impl core::fmt::Debug for nika_providers::profile::WireFormat
+pub fn nika_providers::profile::WireFormat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::profile::WireFormat
+impl core::marker::StructuralPartialEq for nika_providers::profile::WireFormat
+impl core::marker::Freeze for nika_providers::profile::WireFormat
+impl core::marker::Send for nika_providers::profile::WireFormat
+impl core::marker::Sync for nika_providers::profile::WireFormat
+impl core::marker::Unpin for nika_providers::profile::WireFormat
+impl core::marker::UnsafeUnpin for nika_providers::profile::WireFormat
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::profile::WireFormat
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::profile::WireFormat
+pub struct nika_providers::NoHttp
+impl core::clone::Clone for nika_providers::registry::NoHttp
+pub fn nika_providers::registry::NoHttp::clone(&self) -> nika_providers::registry::NoHttp
+impl core::default::Default for nika_providers::registry::NoHttp
+pub fn nika_providers::registry::NoHttp::default() -> nika_providers::registry::NoHttp
+impl core::fmt::Debug for nika_providers::registry::NoHttp
+pub fn nika_providers::registry::NoHttp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::registry::NoHttp
+impl nika_kernel_core::io::http::HttpPostDyn for nika_providers::registry::NoHttp
+pub async fn nika_providers::registry::NoHttp::post(&self, _request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_providers::registry::NoHttp::send_streaming(&self, _request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+impl core::marker::Freeze for nika_providers::registry::NoHttp
+impl core::marker::Send for nika_providers::registry::NoHttp
+impl core::marker::Sync for nika_providers::registry::NoHttp
+impl core::marker::Unpin for nika_providers::registry::NoHttp
+impl core::marker::UnsafeUnpin for nika_providers::registry::NoHttp
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::NoHttp
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::registry::NoHttp
+#[non_exhaustive] pub struct nika_providers::Profile
+pub nika_providers::Profile::base_url: &'static str
+pub nika_providers::Profile::catalog: core::option::Option<&'static nika_catalog::types::provider::Provider>
+pub nika_providers::Profile::id: &'static str
+pub nika_providers::Profile::requires_key: bool
+pub nika_providers::Profile::wire: nika_providers::profile::WireFormat
+impl nika_providers::profile::Profile
+pub fn nika_providers::profile::Profile::env_candidates(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_providers::profile::Profile::resolve_model<'m>(&self, name: &'m str) -> &'m str
+impl core::clone::Clone for nika_providers::profile::Profile
+pub fn nika_providers::profile::Profile::clone(&self) -> nika_providers::profile::Profile
+impl core::fmt::Debug for nika_providers::profile::Profile
+pub fn nika_providers::profile::Profile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for nika_providers::profile::Profile
+impl core::marker::Send for nika_providers::profile::Profile
+impl core::marker::Sync for nika_providers::profile::Profile
+impl core::marker::Unpin for nika_providers::profile::Profile
+impl core::marker::UnsafeUnpin for nika_providers::profile::Profile
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::profile::Profile
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::profile::Profile
+pub struct nika_providers::ProviderRegistry<H>
+impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
+pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
+impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
+pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
+pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
+impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
+pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<H> core::marker::Freeze for nika_providers::registry::ProviderRegistry<H>
+impl<H> core::marker::Send for nika_providers::registry::ProviderRegistry<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Sync for nika_providers::registry::ProviderRegistry<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Unpin for nika_providers::registry::ProviderRegistry<H>
+impl<H> core::marker::UnsafeUnpin for nika_providers::registry::ProviderRegistry<H>
+impl<H> core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::ProviderRegistry<H> where H: core::panic::unwind_safe::RefUnwindSafe
+impl<H> core::panic::unwind_safe::UnwindSafe for nika_providers::registry::ProviderRegistry<H> where H: core::panic::unwind_safe::RefUnwindSafe
+#[non_exhaustive] pub struct nika_providers::ProvidersConfig
+impl nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::new() -> Self
+pub fn nika_providers::registry::ProvidersConfig::with_base_url(self, provider: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers::registry::ProvidersConfig::with_key(self, provider: impl core::convert::Into<alloc::string::String>, key: nika_kernel_core::infra::secret::Secret) -> Self
+impl core::clone::Clone for nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::clone(&self) -> nika_providers::registry::ProvidersConfig
+impl core::default::Default for nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::default() -> nika_providers::registry::ProvidersConfig
+impl core::fmt::Debug for nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for nika_providers::registry::ProvidersConfig
+impl core::marker::Send for nika_providers::registry::ProvidersConfig
+impl core::marker::Sync for nika_providers::registry::ProvidersConfig
+impl core::marker::Unpin for nika_providers::registry::ProvidersConfig
+impl core::marker::UnsafeUnpin for nika_providers::registry::ProvidersConfig
+impl core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::ProvidersConfig
+impl core::panic::unwind_safe::UnwindSafe for nika_providers::registry::ProvidersConfig
+pub struct nika_providers::ResolvedProvider<H>
+impl<H> nika_providers::registry::ResolvedProvider<H>
+pub fn nika_providers::registry::ResolvedProvider<H>::wire_model(&self) -> &str
+impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ResolvedProvider<H>
+pub fn nika_providers::registry::ResolvedProvider<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<H> nika_kernel_ai::provider::ProviderInferDyn for nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<H> nika_kernel_ai::provider::ProviderMeta for nika_providers::registry::ResolvedProvider<H> where H: core::marker::Send + core::marker::Sync
+pub fn nika_providers::registry::ResolvedProvider<H>::name(&self) -> &str
+pub fn nika_providers::registry::ResolvedProvider<H>::supports_response_format(&self) -> bool
+impl<H> nika_kernel_ai::provider::ProviderStreamDyn for nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferEventStream, nika_kernel_ai::provider::ProviderError>
+impl<H> nika_kernel_core::sealed::Sealed for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::marker::Freeze for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::marker::Send for nika_providers::registry::ResolvedProvider<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Sync for nika_providers::registry::ResolvedProvider<H> where H: core::marker::Sync + core::marker::Send
+impl<H> core::marker::Unpin for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::marker::UnsafeUnpin for nika_providers::registry::ResolvedProvider<H>
+impl<H> core::panic::unwind_safe::RefUnwindSafe for nika_providers::registry::ResolvedProvider<H> where H: core::panic::unwind_safe::RefUnwindSafe
+impl<H> core::panic::unwind_safe::UnwindSafe for nika_providers::registry::ResolvedProvider<H> where H: core::panic::unwind_safe::RefUnwindSafe
+pub const nika_providers::CANONICAL_IDS: [&str; 14]
+pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
