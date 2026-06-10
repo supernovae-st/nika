@@ -69,6 +69,9 @@ workspace = true
 
 # phf is used by build.rs-generated code (src/data/generated.rs references
 # `phf::Map<...>`). cargo-machete cannot trace through build-codegen, so
-# explicit ignore prevents a false positive.
+# explicit ignore prevents a false positive. nika-catalog-codegen is the
+# build.rs generator (a [build-dependencies] entry machete cannot see) ·
+# phf_codegen/toml/criterion/proptest dropped from ignore (no longer deps
+# OR machete now traces them · it warns on stale ignores).
 [package.metadata.cargo-machete]
-ignored = ["phf", "phf_codegen", "phf_shared", "toml", "proptest", "rstest", "criterion"]
+ignored = ["phf", "phf_shared", "rstest", "nika-catalog-codegen"]
