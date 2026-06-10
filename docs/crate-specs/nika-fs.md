@@ -5,7 +5,7 @@
 | Status | **L1 admission target** (Phase-B slice step 4 · announce ladder per D-2026-06-10-N6 cascade) |
 | Layer | L1 — effect crate · the only production site touching `tokio::fs` |
 | Design | `TokioFs` ZST impl of the L0.5 `nika_kernel::fs` family via the `*Dyn` (`Send`) companions |
-| LOC budget | ≤400 src (actual ~342 · doc-comment heavy: per-method CANCEL SAFETY + replace-semantics contracts) |
+| LOC budget | ≤400 src (actual ~338 · doc-comment heavy: per-method CANCEL SAFETY + replace-semantics contracts) |
 | Function cap | ≤100 lines each (largest: `write` ~40) |
 | Crate version | tracks workspace (`0.80.0`) |
 | License | `AGPL-3.0-or-later` |
@@ -54,7 +54,7 @@ per the kernel doc, L1 impls fan out via `Arc<T>`, not `Arc<dyn _>`.)
 ### Diamond upgrades vs brouillon (CRAFT · ADR-001)
 
 1. **Atomic write** — brouillon used bare `tokio::fs::write` (partial
-   writes observable). Diamond writes to `.{name}.{pid}.{counter}.nika-tmp`
+   writes observable). Diamond writes to `.nika-tmp.{pid}.{counter}`
    beside the destination then `rename`s (POSIX atomicity) · parents
    auto-created (parity) · error path cleans the temp best-effort ·
    no `fsync` at this layer (documented · durability is a policy/engine
@@ -80,7 +80,7 @@ followed (`file_type` is lstat-like) — cycles terminate. Results sorted.
 |---|---|---|
 | 1 SPEC | ✅ | this file |
 | 2 TDD | ✅ | `tests/fs_contract.rs` authored first · RED captured (E0277 bounds probe → `todo!()` skeleton panics across 30+ tests) → GREEN · final suite 42 tests (37 contract + 4 unit + 1 doctest · +1 linux-gated) |
-| 3 IMPL | ✅ | ~342 LOC src · zero unwrap/expect in src (grep-verified 0) |
+| 3 IMPL | ✅ | ~338 LOC src · zero unwrap/expect in src (grep-verified 0) |
 | 4 CLIPPY 0 | ✅ | `cargo clippy --workspace --all-targets -- -D warnings` GREEN |
 | 5 MUTATION ≥90% | ✅ | `cargo mutants -p nika-fs --timeout 60` · 21 mutants · **19 caught / 19 viable = 100%** (2 unviable). The pre-review survivor (`write`'s empty-parent match guard) was killed by extracting `tmp_sibling()` as a pure unit-tested helper (rust-pro review fix). |
 | 6 PROPERTY | ✅ | 2 proptest invariants · arbitrary-bytes write→read roundtrip · glob returns exactly the created suffix set (32 cases each) |
