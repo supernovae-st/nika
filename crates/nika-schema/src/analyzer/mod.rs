@@ -20,6 +20,7 @@
 
 mod dag;
 mod scan;
+mod schema_paths;
 
 use std::collections::BTreeMap;
 

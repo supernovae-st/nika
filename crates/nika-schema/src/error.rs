@@ -358,6 +358,22 @@ pub enum SchemaError {
         /// Source span.
         span: Option<Span>,
     },
+
+    /// A `tasks.<id>.output.<path>` reference the producing task's
+    /// declared `schema:` PROVABLY forbids (`NIKA-VAR-003` · spec
+    /// `04-variables.md` §Static binding validation · sound · only
+    /// provable violations are rejected).
+    #[error("invalid output path `tasks.{task}.output{path}` — {reason}")]
+    OutputPathProvablyInvalid {
+        /// The producing task (the one declaring the schema).
+        task: String,
+        /// The offending path suffix (rendered `.key` / `[0]` steps).
+        path: String,
+        /// Which static rule the path violates.
+        reason: String,
+        /// Source span.
+        span: Option<Span>,
+    },
 }
 
 impl SchemaError {
@@ -420,6 +436,7 @@ schema_code!(SCHEMA_303, 303, "missing-depends-on-edge");
 schema_code!(SCHEMA_304, 304, "unresolved-namespace-ref");
 schema_code!(SCHEMA_305, 305, "loop-local-outside-for-each");
 schema_code!(SCHEMA_306, 306, "unknown-task-field");
+schema_code!(SCHEMA_307, 307, "output-path-provably-invalid");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -451,6 +468,7 @@ impl NikaErrorCode for SchemaError {
             Self::UnresolvedNamespaceRef { .. } => SCHEMA_304,
             Self::LoopLocalOutsideForEach { .. } => SCHEMA_305,
             Self::UnknownTaskField { .. } => SCHEMA_306,
+            Self::OutputPathProvablyInvalid { .. } => SCHEMA_307,
         }
     }
 
@@ -593,6 +611,12 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::UnknownTaskField {
             task: String::new(),
             field: String::new(),
+            span: None,
+        },
+        SchemaError::OutputPathProvablyInvalid {
+            task: String::new(),
+            path: String::new(),
+            reason: String::new(),
             span: None,
         },
     ]

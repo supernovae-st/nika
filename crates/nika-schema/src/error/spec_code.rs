@@ -196,6 +196,10 @@ impl SchemaError {
             // NIKA-VAR + validation_error (« the YAML itself parses
             // fine ») — NOT NIKA-PARSE.
             Self::TemplateSyntax { .. } => var(2, ValidationError),
+            // NIKA-VAR-003 · static binding validation (04 §Static
+            // binding validation · fixture variables/012) · the
+            // category table's « invalid path » class.
+            Self::OutputPathProvablyInvalid { .. } => var(3, VariableError),
         }
     }
 }
@@ -298,7 +302,8 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 27 variants · 3 share VAR-001 → 25 distinct codes.
-        assert_eq!(seen.len(), 25, "{seen:?}");
+        // 28 variants · 3 share VAR-001 → 26 distinct codes
+        // (VAR-003 static binding validation joined 2026-06-10).
+        assert_eq!(seen.len(), 26, "{seen:?}");
     }
 }

@@ -42,6 +42,9 @@ pub(super) struct WorkflowIndex<'a> {
     task_ids: BTreeSet<&'a str>,
     /// task id → declared `output:` binding names.
     bindings: BTreeMap<&'a str, BTreeSet<&'a str>>,
+    /// task id → declared structured-output `schema:` (infer/agent ·
+    /// spec 04 §Static binding validation).
+    schemas: BTreeMap<&'a str, &'a serde_json::Value>,
 }
 
 impl<'a> WorkflowIndex<'a> {
@@ -58,13 +61,30 @@ impl<'a> WorkflowIndex<'a> {
                     .collect(),
             );
         }
+        let mut schemas: BTreeMap<&str, &serde_json::Value> = BTreeMap::new();
+        for task in &wf.tasks {
+            let declared = match &task.value.action {
+                RawAction::Infer(f) => f.schema.as_ref().map(|sp| &sp.value),
+                RawAction::Agent(g) => g.schema.as_ref().map(|sp| &sp.value),
+                RawAction::Exec(_) | RawAction::Invoke(_) => None,
+            };
+            if let Some(schema) = declared {
+                schemas.insert(task.value.id.value.as_str(), schema);
+            }
+        }
         Self {
             vars: wf.vars.iter().map(|(k, _)| k.value.as_str()).collect(),
             env: wf.env.iter().map(|(k, _)| k.value.as_str()).collect(),
             secrets: wf.secrets.iter().map(|(k, _)| k.value.as_str()).collect(),
             task_ids: wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect(),
             bindings,
+            schemas,
         }
+    }
+
+    /// The declared structured-output schema of a task · if any.
+    pub(super) fn schema_of(&self, task_id: &str) -> Option<&serde_json::Value> {
+        self.schemas.get(task_id).copied()
     }
 }
 
@@ -300,6 +320,9 @@ fn scan_string(
                 for r in expr_refs(&island.expr) {
                     check_ref(&r, value.span, ctx, index, errors);
                 }
+                // Static binding validation vs declared schema:
+                // (spec 04 §Static binding validation · NIKA-VAR-003).
+                super::schema_paths::check_expr(&island.expr, value.span, index, errors);
             }
         }
         Err(e) => errors.push(template_error(&e, value.span)),
