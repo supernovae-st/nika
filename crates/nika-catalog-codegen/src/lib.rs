@@ -610,4 +610,76 @@ mod tests {
         std::fs::create_dir_all(&p).unwrap();
         p
     }
+
+    // ─── Mutation-kill arc 2026-06-11 (vector 39 · 47-survivor sweep) ────────
+
+    /// Materialize the canonical fixtures into a scratch data dir + run
+    /// `generate` end-to-end. Kills the `read_file → Ok(vec![…])` mutants
+    /// (garbage bytes fail TOML parse) and `write_file → Ok(())` (the
+    /// emitted file must EXIST with the golden content).
+    fn scratch_dirs(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let base =
+            std::env::temp_dir().join(format!("nika-codegen-mut-{}-{label}", std::process::id()));
+        let data = base.join("data");
+        let out = base.join("out");
+        fs::create_dir_all(&data).expect("mkdir data");
+        fs::create_dir_all(&out).expect("mkdir out");
+        fs::write(data.join("llm-providers.toml"), FIXTURE_PROVIDERS).expect("w");
+        fs::write(data.join("mcp-servers.toml"), FIXTURE_MCP).expect("w");
+        fs::write(data.join("embeddings.toml"), FIXTURE_EMBEDDINGS).expect("w");
+        fs::write(data.join("model-capabilities.toml"), FIXTURE_CAPABILITIES).expect("w");
+        fs::write(data.join("model-pricing.toml"), FIXTURE_PRICING).expect("w");
+        (base, out)
+    }
+
+    #[test]
+    fn generate_round_trip_writes_real_golden_files() {
+        let (base, out) = scratch_dirs("all");
+        let emitted =
+            generate(&base.join("data"), &out, FeatureSet::all()).expect("generate all features");
+        assert_eq!(emitted.files.len(), 5, "all 5 catalogs emitted");
+        let providers =
+            fs::read_to_string(out.join("providers.rs")).expect("providers.rs written to disk");
+        assert_eq!(
+            providers, GOLDEN_PROVIDERS,
+            "write_file must persist the emission"
+        );
+        let mcp = fs::read_to_string(out.join("mcp_servers.rs")).expect("mcp written");
+        assert_eq!(mcp, GOLDEN_MCP);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn generate_embeddings_only_still_parses_providers_for_fk() {
+        // Kills the first `|| → &&` in the providers-parse gate: with ONLY
+        // embeddings on, the canonical provider list MUST still be parsed —
+        // otherwise FK validation sees zero providers and every embedding
+        // entry fails its provider reference.
+        let (base, out) = scratch_dirs("emb");
+        let features = FeatureSet {
+            embeddings: true,
+            ..FeatureSet::default()
+        };
+        let emitted = generate(&base.join("data"), &out, features)
+            .expect("embeddings-only generate must FK-validate against parsed providers");
+        assert_eq!(emitted.files.len(), 1);
+        assert!(out.join("embeddings.rs").exists());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn generate_capabilities_only_still_parses_providers_for_fk() {
+        // Kills the second `|| → &&`: capabilities-only must also parse the
+        // provider list (rule scope.providers FKs).
+        let (base, out) = scratch_dirs("caps");
+        let features = FeatureSet {
+            capabilities: true,
+            ..FeatureSet::default()
+        };
+        let emitted = generate(&base.join("data"), &out, features)
+            .expect("capabilities-only generate must FK-validate against parsed providers");
+        assert_eq!(emitted.files.len(), 1);
+        assert!(out.join("model_capabilities.rs").exists());
+        let _ = fs::remove_dir_all(&base);
+    }
 }

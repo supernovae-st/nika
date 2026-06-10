@@ -1219,4 +1219,191 @@ caps = { reasoning = true }
         let b = generate_capabilities_rs(&parsed_b);
         assert_eq!(a, b);
     }
+
+    // ─── Mutation-kill arc 2026-06-11 (vector 39 · 47-survivor sweep) ────────
+
+    #[test]
+    fn validate_one_rule_accepts_declared_dialect_scope() {
+        // Kills `delete !` on the declared_dialects containment check: a rule
+        // scoped to a dialect that a provider DECLARES must validate Ok.
+        let rule = RuleEntry {
+            name: "dialect-scoped".to_string(),
+            scope: ScopeEntry {
+                providers: vec![],
+                api_dialect: Some("openai-chat".to_string()),
+                region: None,
+            },
+            match_: MatchEntry::Exact {
+                model: "m".to_string(),
+            },
+            caps: CapsPatchEntry {
+                reasoning: Some(true),
+                ..Default::default()
+            },
+            routing_complete: false,
+        };
+        let known = HashSet::new();
+        let declared: HashSet<String> = ["openai-chat".to_string()].into();
+        let mut seen = HashSet::new();
+        validate_one_rule(&rule, "<test>", &known, &declared, &mut seen)
+            .expect("declared dialect scope must be accepted");
+        // Undeclared (but valid) dialect is rejected — the inverse pin.
+        let rule2 = RuleEntry {
+            name: "dialect-undeclared".to_string(),
+            scope: ScopeEntry {
+                providers: vec![],
+                api_dialect: Some("gemini".to_string()),
+                region: None,
+            },
+            match_: MatchEntry::Exact {
+                model: "m".to_string(),
+            },
+            caps: CapsPatchEntry {
+                reasoning: Some(true),
+                ..Default::default()
+            },
+            routing_complete: false,
+        };
+        let err = validate_one_rule(&rule2, "<test>", &known, &declared, &mut seen)
+            .expect_err("undeclared dialect must be rejected");
+        assert!(err.to_string().contains("no provider"), "{err}");
+    }
+
+    #[test]
+    fn validate_one_rule_rejects_nonempty_region_scope_until_resolver_wired() {
+        // Kills `delete !` on the regions.is_empty() gate: a NON-empty region
+        // scope errors (resolver not wired · Phase E2) while Some([]) passes.
+        let mk = |name: &str, region: Option<Vec<String>>| RuleEntry {
+            name: name.to_string(),
+            scope: ScopeEntry {
+                providers: vec![],
+                api_dialect: None,
+                region,
+            },
+            match_: MatchEntry::Exact {
+                model: "m".to_string(),
+            },
+            caps: CapsPatchEntry {
+                reasoning: Some(true),
+                ..Default::default()
+            },
+            routing_complete: false,
+        };
+        let known = HashSet::new();
+        let declared = HashSet::new();
+        let mut seen = HashSet::new();
+        let err = validate_one_rule(
+            &mk("region-set", Some(vec!["us".to_string()])),
+            "<test>",
+            &known,
+            &declared,
+            &mut seen,
+        )
+        .expect_err("non-empty region scope must be rejected until the resolver lands");
+        assert!(err.to_string().contains("does not"), "{err}");
+        validate_one_rule(
+            &mk("region-empty", Some(vec![])),
+            "<test>",
+            &known,
+            &declared,
+            &mut seen,
+        )
+        .expect("empty region list is the no-op boundary and must pass");
+    }
+
+    #[test]
+    fn validate_caps_patch_max_out_equal_ctx_is_valid() {
+        // Kills `> → >=` on the max_out/ctx comparison: EQUALITY is legal (a
+        // model may emit its entire context window).
+        let patch = CapsPatchEntry {
+            context_window_tokens: Some(8_192),
+            max_output_tokens: Some(8_192),
+            reasoning: Some(true),
+            ..Default::default()
+        };
+        validate_caps_patch(&patch, "rule \"eq\"", false)
+            .expect("max_output_tokens == context_window_tokens must be valid");
+    }
+
+    #[test]
+    fn token_limit_variant_exhaustive() {
+        assert_eq!(token_limit_variant("max-tokens"), "MaxTokens");
+        assert_eq!(
+            token_limit_variant("max-completion-tokens"),
+            "MaxCompletionTokens"
+        );
+        assert_eq!(token_limit_variant("max-output-tokens"), "MaxOutputTokens");
+    }
+
+    #[test]
+    fn modality_sort_order_pins_declaration_order() {
+        // Every arm pinned — a deleted arm falls to the 255 sentinel.
+        let order = [
+            ("text", 0u8),
+            ("image", 1),
+            ("audio", 2),
+            ("video", 3),
+            ("pdf", 4),
+            ("embedding", 5),
+            ("speech", 6),
+            ("image-gen", 7),
+        ];
+        for (s, want) in order {
+            assert_eq!(modality_sort_order(s), want, "{s}");
+        }
+        assert_eq!(modality_sort_order("unknown"), 255);
+    }
+
+    #[test]
+    fn param_flag_sort_order_pins_declaration_order() {
+        let order = [
+            ("parallel-tool-calls", 0u8),
+            ("reasoning-effort", 1),
+            ("thinking-budget", 2),
+            ("prompt-caching", 3),
+            ("file-search", 4),
+            ("web-search", 5),
+            ("streaming-thinking", 6),
+            ("batch-api", 7),
+            ("context-caching", 8),
+            ("predicted-outputs", 9),
+            ("computer-use", 10),
+            ("citations", 11),
+            ("include-reasoning", 12),
+        ];
+        for (s, want) in order {
+            assert_eq!(param_flag_sort_order(s), want, "{s}");
+        }
+        assert_eq!(param_flag_sort_order("unknown"), 255);
+    }
+
+    #[test]
+    fn modality_variant_exhaustive() {
+        let map = [
+            ("text", "Text"),
+            ("image", "Image"),
+            ("audio", "Audio"),
+            ("video", "Video"),
+            ("pdf", "Pdf"),
+            ("embedding", "Embedding"),
+            ("speech", "Speech"),
+            ("image-gen", "ImageGen"),
+        ];
+        for (s, want) in map {
+            assert_eq!(modality_variant(s), want, "{s}");
+        }
+    }
+
+    #[test]
+    fn region_variant_exhaustive() {
+        let map = [
+            ("us", "Us"),
+            ("eu", "Eu"),
+            ("apac", "Apac"),
+            ("china", "China"),
+        ];
+        for (s, want) in map {
+            assert_eq!(region_variant(s), want, "{s}");
+        }
+    }
 }

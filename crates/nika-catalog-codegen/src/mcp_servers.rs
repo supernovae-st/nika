@@ -753,4 +753,111 @@ mod tests {
         let servers = parse_mcp_servers_bytes(toml, Path::new("/x")).unwrap();
         assert!(servers.is_empty());
     }
+
+    // ─── Mutation-kill arc 2026-06-11 (vector 39 · 47-survivor sweep) ────────
+
+    #[test]
+    fn serde_defaults_transport_stdio_and_auth_none() {
+        // Kills the default_transport_stdio / default_auth_none replacements:
+        // omitted fields must deserialize to the canonical defaults.
+        let toml_src = r#"
+            schema = "mcp-servers/v1"
+            [[servers]]
+            id = "demo"
+            description = "d"
+            category = "ai"
+            pricing = "free"
+            last_verified = "2026-01-01"
+            [[servers.packages]]
+            registry_type = "npm"
+            identifier = "pkg"
+            [[servers.remotes]]
+            transport = "streamable-http"
+            url = "https://example.org/mcp"
+        "#;
+        let parsed: McpServersFile = toml::from_str(toml_src).expect("parses");
+        assert_eq!(parsed.servers[0].packages[0].transport, "stdio");
+        assert_eq!(parsed.servers[0].remotes[0].auth, "none");
+    }
+
+    #[test]
+    fn validate_servers_accepts_unique_alias_rejects_collision() {
+        // Kills `delete !` on seen_keys.insert(alias): a VALID config with a
+        // unique alias must pass (the mutant errors on every first insert).
+        let ok = fixture_one_server();
+        validate_servers(std::slice::from_ref(&ok), Path::new("<test>"))
+            .expect("unique alias must validate");
+        // Alias colliding with an existing id (case-insensitive) must fail.
+        let mut imposter = fixture_one_server();
+        imposter.id = "other".to_string();
+        imposter.aliases = vec!["DEMO".to_string()];
+        let err = validate_servers(&[ok, imposter], Path::new("<test>"))
+            .expect_err("alias colliding with an id must be rejected");
+        assert!(err.to_string().contains("collides"), "{err}");
+    }
+
+    #[test]
+    fn write_aliases_separator_placement_exact() {
+        // Kills the `i > 0` comparator mutants (< / == / >=): the separator
+        // goes BETWEEN items only — never before the first.
+        let mut out = String::new();
+        write_aliases(&mut out, &["a".to_string(), "b".to_string()]);
+        assert!(out.contains(r#"&["a", "b"]"#), "got: {out}");
+        let mut empty = String::new();
+        write_aliases(&mut empty, &[]);
+        assert!(empty.contains("&[],"), "got: {empty}");
+    }
+
+    #[test]
+    fn category_variant_exhaustive() {
+        let map = [
+            ("anthropic", "Anthropic"),
+            ("databases", "Databases"),
+            ("search", "Search"),
+            ("developer", "Developer"),
+            ("productivity", "Productivity"),
+            ("ai", "Ai"),
+            ("image", "Image"),
+            ("audio", "Audio"),
+            ("communication", "Communication"),
+            ("vectordb", "Vectordb"),
+            ("analytics", "Analytics"),
+            ("ecommerce", "Ecommerce"),
+            ("cms", "Cms"),
+            ("devops", "Devops"),
+            ("social", "Social"),
+            ("lifestyle", "Lifestyle"),
+            ("marketing", "Marketing"),
+            ("maps", "Maps"),
+        ];
+        for (s, want) in map {
+            assert_eq!(category_variant(s), want, "{s}");
+        }
+    }
+
+    #[test]
+    fn registry_transport_auth_runner_variants_exhaustive() {
+        for (s, want) in [
+            ("npm", "Npm"),
+            ("pypi", "Pypi"),
+            ("oci", "Oci"),
+            ("cargo", "Cargo"),
+            ("mcpb", "Mcpb"),
+        ] {
+            assert_eq!(registry_variant(s), want, "{s}");
+        }
+        for (s, want) in [
+            ("stdio", "Stdio"),
+            ("streamable-http", "StreamableHttp"),
+            ("sse", "Sse"),
+        ] {
+            assert_eq!(transport_variant(s), want, "{s}");
+        }
+        for (s, want) in [("none", "None"), ("bearer", "Bearer"), ("oauth", "OAuth")] {
+            assert_eq!(auth_variant(s), want, "{s}");
+        }
+        for (s, want) in [("uvx", "Uvx"), ("pipx", "Pipx")] {
+            assert_eq!(py_runner_variant(s), want, "{s}");
+        }
+    }
 }

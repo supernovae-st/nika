@@ -363,4 +363,20 @@ mod tests {
         let b = generate_embeddings_rs(&[e]);
         assert_eq!(a, b);
     }
+
+    // ─── Mutation-kill arc 2026-06-11 (vector 39 · 47-survivor sweep) ────────
+
+    #[test]
+    fn similarity_variant_exhaustive() {
+        assert_eq!(similarity_variant("cosine"), "Cosine");
+        assert_eq!(similarity_variant("dot-product"), "DotProduct");
+        assert_eq!(similarity_variant("l2"), "L2");
+    }
+
+    #[test]
+    fn assert_ascii_key_rejects_non_ascii_and_empty() {
+        assert!(assert_ascii_key("id", "ok-id").is_ok());
+        assert!(assert_ascii_key("id", "café").is_err());
+        assert!(assert_ascii_key("id", "").is_err());
+    }
 }

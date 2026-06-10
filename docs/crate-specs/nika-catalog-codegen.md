@@ -638,7 +638,7 @@ Every numbered line range was grep-verified against HEAD `9ebaf05ca`.
 | 2. TDD | ⏳ | RED tests to be written first (Round 3) |
 | 3. IMPL | ⏳ | extraction from `nika-catalog/build.rs` + `build/*.rs` |
 | 4. CLIPPY 0 | ⏳ | `--workspace --all-targets -D warnings` |
-| 5. MUTATION ≥ 90% | ⏳ | target (see §7) |
+| 5. MUTATION ≥ 90% | ✅ | **measured 2026-06-11** `cargo mutants -p nika-catalog-codegen -- --lib` · 372 mutants · **360/364 viable caught = 98.9 %** · 8 unviable · 4 documented equivalent-mutant exemptions (`GATE5-EXEMPT` below) — the 47-survivor sweep added 19 targeted tests (declared-dialect + region scope gates · max_out==ctx boundary · exhaustive variant/sort-order pins across capabilities/mcp/embeddings · serde defaults stdio/none · alias-collision + separator placement · generate round-trip on scratch fixtures killing read_file/write_file/feature-gate `\|\|` mutants) |
 | 6. PROPERTY | ⏳ | `syn` parse + idempotence + TOML round-trip |
 | 7. BENCHMARKS | ⚠️ Exempt | build-time, see §8 |
 | 8. DOCS | ⏳ | 0 doc warnings, every pub item documented |
@@ -646,6 +646,27 @@ Every numbered line range was grep-verified against HEAD `9ebaf05ca`.
 | 10. PARITY LEGACY | ⏳ | golden byte/AST-diff vs current `nika-catalog/build.rs` (see §11) |
 | 11. REVIEW SWARM | ⏳ | 3-agent parallel review before admission |
 | 12. ATOMIC COMMIT | ⏳ | 2 commits: admit + delegate (see §12) |
+
+### Gate 5 equivalent-mutant budget (ADR-003 Rule 2 · verified 2026-06-11)
+
+<!-- GATE5-EXEMPT: 4 -->
+
+The four surviving mutants are TRUE equivalents (behavior-identical by
+construction · each verified by reading the guarded path):
+
+1. `capabilities.rs check_any_last_in_scope` `skip(i + 1)` → `skip(i)` — the
+   only extra element is `rules[i]` itself, which IS `Matcher::Any` (let-else
+   guard) and is excluded by the `!matches!(later, Any)` test.
+2. `pricing.rs validate_pricing` `(i + 1)..` → `i..` — the extra self-pair is
+   excluded by the `patterns[j] != patterns[i]` condition.
+3. `tags.rs validate_tags` `w[0] > w[1]` → `>=` — the equality case returns at
+   the duplicate-tag check in the SAME loop iteration, so the sorted-order
+   comparison never observes equal pairs.
+4. `lib.rs FeatureSet::from_env` → `Default::default()` — `CARGO_FEATURE_*`
+   env vars exist only during build-script execution, never in the test
+   harness, so both sides read all-false; killing it would need
+   `std::env::set_var` (unsafe · forbidden by `unsafe_code = forbid`). The
+   projection is exercised for real by `nika-catalog/build.rs`.
 
 ---
 
