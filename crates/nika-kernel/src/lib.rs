@@ -12,16 +12,19 @@
 //!
 //! # Architecture
 //!
-//! Modules are organized into 5 groups matching the planned kernel split:
+//! Since the 4-way kernel split
+//! (`docs/architecture/kernel-split-census-2026-06-10.md`) this crate
+//! is the **facade + errors hub** — the trait groups live in sibling
+//! crates and are re-exported here so every historical path keeps
+//! working (`nika_kernel::provider::*` · `nika_kernel::io::…`):
 //!
-//! - **io** — filesystem, HTTP, shell process, blob storage, clock
+//! - **io** + **infra** + root primitives — `nika-kernel-core`
 //! - **ai** — provider inference, memory, context compression
 //! - **runtime** — agent loop, tool execution
-//! - **plugin** — WASM host, sandboxing, observability
-//! - **infra** — billing, events, metrics, tracing, IDs, secrets
+//! - **plugin** — WASM host, sandboxing
 //!
-//! All group modules are re-exported at the crate root for backward
-//! compatibility — `nika_kernel::provider::*` continues to work.
+//! The cross-domain `NikaErrorCode` aggregate ([`errors`]) stays HERE —
+//! it is the one surface spanning every sibling.
 //!
 //! # Trait Hierarchy
 //!
@@ -52,19 +55,17 @@
     )
 )]
 
-// ─── Group modules (organized by future sub-crate boundary) ─────────
+// ─── Sibling facade (kernel 4-way split · census 2026-06-10) ────────
+pub use nika_kernel_core::{cancel, infra, io, sealed, types};
+
+// ─── Group modules (not yet split out) ──────────────────────────────
 pub mod ai;
-pub mod infra;
-pub mod io;
 pub mod plugin;
 pub mod runtime;
 
-// ─── Shared root modules ────────────────────────────────────────────
-pub mod cancel;
+// ─── Hub-resident root modules ──────────────────────────────────────
 pub mod checkpoint;
 pub mod errors;
-pub mod sealed;
-pub mod types;
 
 // ─── Backward-compat re-exports (preserve crate::module_name paths) ─
 pub use ai::{context, genai, memory, provider};

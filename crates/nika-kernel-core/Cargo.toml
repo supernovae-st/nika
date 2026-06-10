@@ -1,5 +1,5 @@
 [package]
-name         = "nika-kernel"
+name         = "nika-kernel-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,17 +8,16 @@ rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
 publish      = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
-description  = "Trait contracts for every side effect in the Nika diamond — L0.5"
+description  = "Base sibling of the split kernel — io/infra trait contracts + cancel/sealed/types primitives — L0.5"
 
 [package.metadata.cargo-machete]
-ignored = ["insta", "proptest", "rstest"]  # dev-deps used in #[cfg(test)] blocks
+ignored = ["insta"]  # dev-dep used in #[cfg(test)] blocks
 
 [lints]
 workspace = true
 
 [dependencies]
-nika-error       = { path = "../nika-error", version = "0.80.0" }
-nika-kernel-core = { path = "../nika-kernel-core", version = "0.80.0" }
+nika-error    = { path = "../nika-error", version = "0.80.0" }
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }
@@ -26,10 +25,8 @@ serde         = { workspace = true }
 serde_json    = { workspace = true }
 bytes         = { workspace = true }
 futures-core  = { workspace = true }
-uuid          = { workspace = true }
+zeroize       = { workspace = true }
 
 [dev-dependencies]
-insta    = { workspace = true }
-proptest = { workspace = true }
-rstest   = { workspace = true }
-tokio    = { workspace = true }
+insta = { workspace = true }
+tokio = { workspace = true }

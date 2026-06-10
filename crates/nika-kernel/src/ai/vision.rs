@@ -137,12 +137,10 @@ impl From<&BoundingBox> for crate::io::screen::Rect {
         } else {
             0
         };
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
+        // `Rect` is `#[non_exhaustive]` and lives in `nika-kernel-core`
+        // post-split — cross-crate struct literals are forbidden; the
+        // Invariant #19 constructor is the canonical path.
+        Self::new(x, y, width, height)
     }
 }
 
@@ -316,7 +314,7 @@ mod tests {
             1080,
             1.0,
             Bytes::from(vec![0u8; 16]),
-            DisplayId(0),
+            DisplayId::new(0),
             1_700_000_000_000,
         )
     }

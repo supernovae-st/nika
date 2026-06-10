@@ -36,12 +36,17 @@ The registry sketch was written at 40 traits. The frozen census extends it ·
   « Compressor » entry (the sketch's runtime « Context » refers to the
   agent checkpoint/context type surfaces · which follow `checkpoint` →
   **runtime**).
-- `errors.rs` → **hub** · it is the ONE file with cross-bucket imports
-  (it implements `NikaErrorCode` for error types from every bucket ·
-  the NIKA-NNN range registry). The hub depends on all 4 siblings —
-  the aggregate's natural home. Inverted-dependency proof · grep
-  2026-06-10 · `errors.rs` is the sole kernel file importing from
-  `ai`+`runtime`+`plugin`+`io` simultaneously.
+- `errors.rs` → **hub as the RANGE REGISTRY · impls DISTRIBUTED**
+  (corrected at split-execution time · the original « aggregate stays
+  whole in the hub » call was falsified by the **orphan rule** ·
+  `NikaErrorCode` is a foreign trait from `nika-error`, so its impl
+  for a type defined in a sibling MUST live in that sibling). Canon
+  courant · each sibling owns the `NikaErrorCode` impls + NIKA-NNN
+  constants for ITS types (core took shell 050-099 + blob 100-139 +
+  http 140-189 at step 2) · the hub `errors.rs` keeps the cross-domain
+  range-registry module doc + re-exports sibling constants
+  (`pub use nika_kernel_core::errors::*;`) so
+  `nika_kernel::errors::NIKA_050` stays a valid path.
 - `Sealed` (soft seal per ADR-014 · `pub trait` · re-exported) →
   **core** · siblings bound their sealed traits via
   `nika_kernel_core::sealed::Sealed` · the soft-seal contract is
