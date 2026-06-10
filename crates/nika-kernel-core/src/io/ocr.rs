@@ -65,6 +65,79 @@ impl TextRegion {
     }
 }
 
+/// OCR backend errors — the typed boundary of the `OcrEngine` trait (Pattern A ·
+/// FCI-023bis). `#[non_exhaustive]`; `NikaErrorCode` impl + reserved range
+/// (`Category::Ocr` · NIKA-1101..1109) live in `crate::errors`. Moved here from
+/// `nika-ocr` 2026-06-10 so the typed NIKA taxonomy survives the trait boundary.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum OcrError {
+    /// A `.rten` model file was not found at the configured path.
+    #[error("NIKA-1101 · OCR model file not found: {path}")]
+    ModelNotFound {
+        /// Missing model path.
+        path: String,
+    },
+    /// A `.rten` model failed to load / parse.
+    #[error("NIKA-1102 · OCR model load failed: {reason}")]
+    ModelLoadFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// The `ocrs` engine failed to initialize from the loaded models.
+    #[error("NIKA-1103 · OCR engine init failed: {reason}")]
+    EngineInit {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// A requested sub-region lies outside the source frame bounds.
+    #[error("NIKA-1104 · region {width}x{height}+{x}+{y} out of frame bounds {frame_w}x{frame_h}")]
+    RegionOutOfBounds {
+        /// Region x offset (physical px · top-left origin).
+        x: i32,
+        /// Region y offset.
+        y: i32,
+        /// Region width.
+        width: u32,
+        /// Region height.
+        height: u32,
+        /// Frame width.
+        frame_w: u32,
+        /// Frame height.
+        frame_h: u32,
+    },
+    /// The frame's RGBA8 buffer length does not match `width * height * 4`.
+    #[error("NIKA-1105 · invalid frame format: {reason}")]
+    InvalidFrameFormat {
+        /// What was malformed.
+        reason: String,
+    },
+    /// `ocrs::OcrEngine::prepare_input` failed (image decode / shape).
+    #[error("NIKA-1106 · OCR input preparation failed: {reason}")]
+    PrepareInputFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// Text detection (`detect_words`) failed.
+    #[error("NIKA-1107 · OCR detection failed: {reason}")]
+    DetectionFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// Text recognition (`recognize_text`) failed.
+    #[error("NIKA-1108 · OCR recognition failed: {reason}")]
+    RecognitionFailed {
+        /// Backend-reported reason.
+        reason: String,
+    },
+    /// A `spawn_blocking` inference task panicked or was cancelled.
+    #[error("NIKA-1109 · OCR task join failed: {reason}")]
+    TaskJoinFailed {
+        /// Join failure detail.
+        reason: String,
+    },
+}
+
 /// OCR engine trait · async text extraction from RGBA8 frames.
 ///
 /// CANCEL SAFETY: every method is cancel-safe · OCR ops are read-only
@@ -89,7 +162,7 @@ pub trait OcrEngine: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only inference · no side
     /// effects · L1 impls wrap sync engines in `spawn_blocking`).
-    async fn read(&self, frame: &Frame) -> std::io::Result<Vec<TextRegion>>;
+    async fn read(&self, frame: &Frame) -> Result<Vec<TextRegion>, OcrError>;
 
     /// Extract text regions from a specific sub-region of a frame.
     ///
@@ -97,7 +170,7 @@ pub trait OcrEngine: Send + Sync {
     /// MUST NOT surface partial regions. `region` coordinates are
     /// physical-pixel relative to the frame origin (top-left · cohérent
     /// `io::screen::Rect`).
-    async fn read_region(&self, frame: &Frame, region: Rect) -> std::io::Result<Vec<TextRegion>>;
+    async fn read_region(&self, frame: &Frame, region: Rect) -> Result<Vec<TextRegion>, OcrError>;
 }
 
 #[cfg(test)]

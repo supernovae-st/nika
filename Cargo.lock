@@ -2267,13 +2267,11 @@ name = "nika-ocr"
 version = "0.80.0"
 dependencies = [
  "bytes",
- "miette",
  "nika-kernel",
  "ocrs",
  "proptest",
  "rten",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
 ]
 

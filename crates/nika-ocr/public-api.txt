@@ -1,143 +1,17 @@
 pub mod nika_ocr
+pub use nika_ocr::OcrError
 pub mod nika_ocr::error
-#[non_exhaustive] pub enum nika_ocr::error::OcrError
-pub nika_ocr::error::OcrError::DetectionFailed
-pub nika_ocr::error::OcrError::DetectionFailed::reason: alloc::string::String
-pub nika_ocr::error::OcrError::EngineInit
-pub nika_ocr::error::OcrError::EngineInit::reason: alloc::string::String
-pub nika_ocr::error::OcrError::InvalidFrameFormat
-pub nika_ocr::error::OcrError::InvalidFrameFormat::reason: alloc::string::String
-pub nika_ocr::error::OcrError::ModelLoadFailed
-pub nika_ocr::error::OcrError::ModelLoadFailed::reason: alloc::string::String
-pub nika_ocr::error::OcrError::ModelNotFound
-pub nika_ocr::error::OcrError::ModelNotFound::path: alloc::string::String
-pub nika_ocr::error::OcrError::PrepareInputFailed
-pub nika_ocr::error::OcrError::PrepareInputFailed::reason: alloc::string::String
-pub nika_ocr::error::OcrError::RecognitionFailed
-pub nika_ocr::error::OcrError::RecognitionFailed::reason: alloc::string::String
-pub nika_ocr::error::OcrError::RegionOutOfBounds
-pub nika_ocr::error::OcrError::RegionOutOfBounds::frame_h: u32
-pub nika_ocr::error::OcrError::RegionOutOfBounds::frame_w: u32
-pub nika_ocr::error::OcrError::RegionOutOfBounds::height: u32
-pub nika_ocr::error::OcrError::RegionOutOfBounds::width: u32
-pub nika_ocr::error::OcrError::RegionOutOfBounds::x: i32
-pub nika_ocr::error::OcrError::RegionOutOfBounds::y: i32
-pub nika_ocr::error::OcrError::TaskJoinFailed
-pub nika_ocr::error::OcrError::TaskJoinFailed::reason: alloc::string::String
-impl core::convert::From<nika_ocr::error::OcrError> for std::io::error::Error
-pub fn std::io::error::Error::from(err: nika_ocr::error::OcrError) -> Self
-impl core::error::Error for nika_ocr::error::OcrError
-impl core::fmt::Debug for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl miette::protocol::Diagnostic for nika_ocr::error::OcrError
-impl nika_error::traits::NikaErrorCode for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::is_transient(&self) -> bool
-pub fn nika_ocr::error::OcrError::nika_code(&self) -> nika_error::codes::NikaCode
-impl<D> owo_colors::OwoColorize for nika_ocr::error::OcrError
-impl<T, U> core::convert::Into<U> for nika_ocr::error::OcrError where U: core::convert::From<T>
-pub fn nika_ocr::error::OcrError::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_ocr::error::OcrError where U: core::convert::Into<T>
-pub type nika_ocr::error::OcrError::Error = core::convert::Infallible
-pub fn nika_ocr::error::OcrError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_ocr::error::OcrError where U: core::convert::TryFrom<T>
-pub type nika_ocr::error::OcrError::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_ocr::error::OcrError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::string::ToString for nika_ocr::error::OcrError where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_ocr::error::OcrError where T: 'static + ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_ocr::error::OcrError where T: ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_ocr::error::OcrError where T: ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_ocr::error::OcrError
-pub type nika_ocr::error::OcrError::Init = T
-pub const nika_ocr::error::OcrError::ALIGN: usize
-pub unsafe fn nika_ocr::error::OcrError::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_ocr::error::OcrError::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_ocr::error::OcrError::drop(ptr: usize)
-pub unsafe fn nika_ocr::error::OcrError::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_ocr::error::OcrError
-impl<T> nika_error::traits::AsAny for nika_ocr::error::OcrError where T: 'static
-pub fn nika_ocr::error::OcrError::as_any(&self) -> &(dyn core::any::Any + 'static)
-#[non_exhaustive] pub enum nika_ocr::OcrError
-pub nika_ocr::OcrError::DetectionFailed
-pub nika_ocr::OcrError::DetectionFailed::reason: alloc::string::String
-pub nika_ocr::OcrError::EngineInit
-pub nika_ocr::OcrError::EngineInit::reason: alloc::string::String
-pub nika_ocr::OcrError::InvalidFrameFormat
-pub nika_ocr::OcrError::InvalidFrameFormat::reason: alloc::string::String
-pub nika_ocr::OcrError::ModelLoadFailed
-pub nika_ocr::OcrError::ModelLoadFailed::reason: alloc::string::String
-pub nika_ocr::OcrError::ModelNotFound
-pub nika_ocr::OcrError::ModelNotFound::path: alloc::string::String
-pub nika_ocr::OcrError::PrepareInputFailed
-pub nika_ocr::OcrError::PrepareInputFailed::reason: alloc::string::String
-pub nika_ocr::OcrError::RecognitionFailed
-pub nika_ocr::OcrError::RecognitionFailed::reason: alloc::string::String
-pub nika_ocr::OcrError::RegionOutOfBounds
-pub nika_ocr::OcrError::RegionOutOfBounds::frame_h: u32
-pub nika_ocr::OcrError::RegionOutOfBounds::frame_w: u32
-pub nika_ocr::OcrError::RegionOutOfBounds::height: u32
-pub nika_ocr::OcrError::RegionOutOfBounds::width: u32
-pub nika_ocr::OcrError::RegionOutOfBounds::x: i32
-pub nika_ocr::OcrError::RegionOutOfBounds::y: i32
-pub nika_ocr::OcrError::TaskJoinFailed
-pub nika_ocr::OcrError::TaskJoinFailed::reason: alloc::string::String
-impl core::convert::From<nika_ocr::error::OcrError> for std::io::error::Error
-pub fn std::io::error::Error::from(err: nika_ocr::error::OcrError) -> Self
-impl core::error::Error for nika_ocr::error::OcrError
-impl core::fmt::Debug for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl miette::protocol::Diagnostic for nika_ocr::error::OcrError
-impl nika_error::traits::NikaErrorCode for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::is_transient(&self) -> bool
-pub fn nika_ocr::error::OcrError::nika_code(&self) -> nika_error::codes::NikaCode
-impl<D> owo_colors::OwoColorize for nika_ocr::error::OcrError
-impl<T, U> core::convert::Into<U> for nika_ocr::error::OcrError where U: core::convert::From<T>
-pub fn nika_ocr::error::OcrError::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_ocr::error::OcrError where U: core::convert::Into<T>
-pub type nika_ocr::error::OcrError::Error = core::convert::Infallible
-pub fn nika_ocr::error::OcrError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_ocr::error::OcrError where U: core::convert::TryFrom<T>
-pub type nika_ocr::error::OcrError::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_ocr::error::OcrError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::string::ToString for nika_ocr::error::OcrError where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_ocr::error::OcrError where T: 'static + ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_ocr::error::OcrError where T: ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_ocr::error::OcrError where T: ?core::marker::Sized
-pub fn nika_ocr::error::OcrError::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_ocr::error::OcrError
-pub fn nika_ocr::error::OcrError::from(t: T) -> T
-impl<T> crossbeam_epoch::atomic::Pointable for nika_ocr::error::OcrError
-pub type nika_ocr::error::OcrError::Init = T
-pub const nika_ocr::error::OcrError::ALIGN: usize
-pub unsafe fn nika_ocr::error::OcrError::deref<'a>(ptr: usize) -> &'a T
-pub unsafe fn nika_ocr::error::OcrError::deref_mut<'a>(ptr: usize) -> &'a mut T
-pub unsafe fn nika_ocr::error::OcrError::drop(ptr: usize)
-pub unsafe fn nika_ocr::error::OcrError::init(init: <T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
-impl<T> either::into_either::IntoEither for nika_ocr::error::OcrError
-impl<T> nika_error::traits::AsAny for nika_ocr::error::OcrError where T: 'static
-pub fn nika_ocr::error::OcrError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub use nika_ocr::error::OcrError
 #[non_exhaustive] pub struct nika_ocr::OcrBackend
 impl nika_ocr::OcrBackend
-pub fn nika_ocr::OcrBackend::with_models(detection: &std::path::Path, recognition: &std::path::Path) -> core::result::Result<Self, nika_ocr::error::OcrError>
+pub fn nika_ocr::OcrBackend::with_models(detection: &std::path::Path, recognition: &std::path::Path) -> core::result::Result<Self, nika_kernel_core::io::ocr::OcrError>
 impl core::clone::Clone for nika_ocr::OcrBackend
 pub fn nika_ocr::OcrBackend::clone(&self) -> nika_ocr::OcrBackend
 impl core::fmt::Debug for nika_ocr::OcrBackend
 pub fn nika_ocr::OcrBackend::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_kernel_core::io::ocr::OcrEngine for nika_ocr::OcrBackend
-pub async fn nika_ocr::OcrBackend::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
-pub async fn nika_ocr::OcrBackend::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+pub async fn nika_ocr::OcrBackend::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
+pub async fn nika_ocr::OcrBackend::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
 impl<D> owo_colors::OwoColorize for nika_ocr::OcrBackend
 impl<T, U> core::convert::Into<U> for nika_ocr::OcrBackend where U: core::convert::From<T>
 pub fn nika_ocr::OcrBackend::into(self) -> U

@@ -1585,6 +1585,60 @@ pub fn nika_kernel_core::io::input::InputDeviceDyn::key_press(&self, key: nika_k
 pub fn nika_kernel_core::io::input::InputDeviceDyn::move_cursor(&self, to: nika_kernel_core::io::input::Point, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
 pub fn nika_kernel_core::io::input::InputDeviceDyn::type_text(&self, text: &str, proof: &<S as nika_kernel_core::io::input::ConsentState>::Granted) -> impl core::future::future::Future<Output = std::io::error::Result<()>> + core::marker::Send where S: nika_kernel_core::io::input::ConsentState<Granted = nika_kernel_core::io::input::ConsentProof>
 pub mod nika_kernel_core::io::ocr
+#[non_exhaustive] pub enum nika_kernel_core::io::ocr::OcrError
+pub nika_kernel_core::io::ocr::OcrError::DetectionFailed
+pub nika_kernel_core::io::ocr::OcrError::DetectionFailed::reason: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::EngineInit
+pub nika_kernel_core::io::ocr::OcrError::EngineInit::reason: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::InvalidFrameFormat
+pub nika_kernel_core::io::ocr::OcrError::InvalidFrameFormat::reason: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::ModelLoadFailed
+pub nika_kernel_core::io::ocr::OcrError::ModelLoadFailed::reason: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::ModelNotFound
+pub nika_kernel_core::io::ocr::OcrError::ModelNotFound::path: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::PrepareInputFailed
+pub nika_kernel_core::io::ocr::OcrError::PrepareInputFailed::reason: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::RecognitionFailed
+pub nika_kernel_core::io::ocr::OcrError::RecognitionFailed::reason: alloc::string::String
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds::frame_h: u32
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds::frame_w: u32
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds::height: u32
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds::width: u32
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds::x: i32
+pub nika_kernel_core::io::ocr::OcrError::RegionOutOfBounds::y: i32
+pub nika_kernel_core::io::ocr::OcrError::TaskJoinFailed
+pub nika_kernel_core::io::ocr::OcrError::TaskJoinFailed::reason: alloc::string::String
+impl core::error::Error for nika_kernel_core::io::ocr::OcrError
+impl core::fmt::Debug for nika_kernel_core::io::ocr::OcrError
+pub fn nika_kernel_core::io::ocr::OcrError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_core::io::ocr::OcrError
+pub fn nika_kernel_core::io::ocr::OcrError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_core::io::ocr::OcrError
+impl nika_error::traits::NikaErrorCode for nika_kernel_core::io::ocr::OcrError
+pub fn nika_kernel_core::io::ocr::OcrError::is_transient(&self) -> bool
+pub fn nika_kernel_core::io::ocr::OcrError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::ocr::OcrError
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::ocr::OcrError where U: core::convert::From<T>
+pub fn nika_kernel_core::io::ocr::OcrError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::ocr::OcrError where U: core::convert::Into<T>
+pub type nika_kernel_core::io::ocr::OcrError::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::ocr::OcrError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::ocr::OcrError where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::ocr::OcrError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::ocr::OcrError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_core::io::ocr::OcrError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::OcrError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_core::io::ocr::OcrError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::OcrError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::ocr::OcrError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::OcrError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::ocr::OcrError where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::ocr::OcrError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_core::io::ocr::OcrError
+pub fn nika_kernel_core::io::ocr::OcrError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::ocr::OcrError where T: 'static
+pub fn nika_kernel_core::io::ocr::OcrError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::ocr::TextRegion
 pub nika_kernel_core::io::ocr::TextRegion::bbox: nika_kernel_core::io::screen::Rect
 pub nika_kernel_core::io::ocr::TextRegion::confidence: f32
@@ -1630,14 +1684,14 @@ impl<T> nika_error::traits::AsAny for nika_kernel_core::io::ocr::TextRegion wher
 pub fn nika_kernel_core::io::ocr::TextRegion::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_core::io::ocr::TextRegion where T: for<'de> serde_core::de::Deserialize<'de>
 pub trait nika_kernel_core::io::ocr::OcrEngine: core::marker::Send + core::marker::Sync
-pub async fn nika_kernel_core::io::ocr::OcrEngine::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
-pub async fn nika_kernel_core::io::ocr::OcrEngine::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+pub async fn nika_kernel_core::io::ocr::OcrEngine::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
+pub async fn nika_kernel_core::io::ocr::OcrEngine::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::ocr::OcrEngineDyn> nika_kernel_core::io::ocr::OcrEngine for TraitVariantBlanketType
-pub async fn TraitVariantBlanketType::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
-pub async fn TraitVariantBlanketType::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>
+pub async fn TraitVariantBlanketType::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
+pub async fn TraitVariantBlanketType::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>
 pub trait nika_kernel_core::io::ocr::OcrEngineDyn: core::marker::Send + core::marker::Sync + core::marker::Send
-pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>> + core::marker::Send
-pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = std::io::error::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>>> + core::marker::Send
+pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read(&self, frame: &nika_kernel_core::io::screen::Frame) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>> + core::marker::Send
+pub fn nika_kernel_core::io::ocr::OcrEngineDyn::read_region(&self, frame: &nika_kernel_core::io::screen::Frame, region: nika_kernel_core::io::screen::Rect) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_core::io::ocr::TextRegion>, nika_kernel_core::io::ocr::OcrError>> + core::marker::Send
 pub mod nika_kernel_core::io::process
 #[non_exhaustive] pub enum nika_kernel_core::io::process::ShellError
 pub nika_kernel_core::io::process::ShellError::Blocked

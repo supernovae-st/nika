@@ -17,8 +17,8 @@ adr = ["ADR-003", "ADR-081"]
 
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
-miette      = { workspace = true }
-thiserror   = { workspace = true }
+# thiserror + miette removed 2026-06-10: OcrError + its derives moved to
+# nika-kernel-core (Pattern A migration · FCI-023bis) — nika-ocr re-exports it.
 # ocrs = pure-Rust OCR engine (detect → find lines → recognize) · rten = the
 # tensor runtime, used directly for Model::load_file(.rten). tokio `rt` for
 # spawn_blocking (the ocrs engine is synchronous + CPU-bound · run it off the

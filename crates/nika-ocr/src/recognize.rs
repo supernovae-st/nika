@@ -252,7 +252,7 @@ fn validate_region(region: Rect, frame_w: u32, frame_h: u32) -> Result<(u32, u32
 }
 
 impl OcrEngine for OcrBackend {
-    async fn read(&self, frame: &Frame) -> std::io::Result<Vec<TextRegion>> {
+    async fn read(&self, frame: &Frame) -> Result<Vec<TextRegion>, OcrError> {
         validate_frame(frame)?; // pure · NIKA-1105 before any inference
         let rgb = rgba_to_rgb(frame.pixels.as_ref());
         let (w, h) = (frame.width, frame.height);
@@ -265,7 +265,7 @@ impl OcrEngine for OcrBackend {
         Ok(regions)
     }
 
-    async fn read_region(&self, frame: &Frame, region: Rect) -> std::io::Result<Vec<TextRegion>> {
+    async fn read_region(&self, frame: &Frame, region: Rect) -> Result<Vec<TextRegion>, OcrError> {
         validate_frame(frame)?;
         let (rx, ry) = validate_region(region, frame.width, frame.height)?; // NIKA-1104
         let cropped = crop_rgba(

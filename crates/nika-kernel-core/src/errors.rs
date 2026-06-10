@@ -15,6 +15,7 @@ use nika_error::prelude::*;
 use crate::io::blob::BlobError;
 use crate::io::fs::FsError;
 use crate::io::http::HttpError;
+use crate::io::ocr::OcrError;
 use crate::io::process::ShellError;
 use crate::io::screen::ScreenError;
 
@@ -220,6 +221,36 @@ impl NikaErrorCode for ScreenError {
     /// consent + region + format errors are structural.
     fn is_transient(&self) -> bool {
         matches!(self, Self::CaptureFailed { .. } | Self::BackendInit { .. })
+    }
+}
+
+// OCR: 1100–1199 (Category::Ocr · codes in nika_error::codes · enum in
+// `crate::io::ocr`).
+impl NikaErrorCode for OcrError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::ModelNotFound { .. } => codes::NIKA_1101,
+            Self::ModelLoadFailed { .. } => codes::NIKA_1102,
+            Self::EngineInit { .. } => codes::NIKA_1103,
+            Self::RegionOutOfBounds { .. } => codes::NIKA_1104,
+            Self::InvalidFrameFormat { .. } => codes::NIKA_1105,
+            Self::PrepareInputFailed { .. } => codes::NIKA_1106,
+            Self::DetectionFailed { .. } => codes::NIKA_1107,
+            Self::RecognitionFailed { .. } => codes::NIKA_1108,
+            Self::TaskJoinFailed { .. } => codes::NIKA_1109,
+        }
+    }
+
+    /// True for retryable failures (transient inference / task) · false for
+    /// structural ones (model missing · bad frame · bad region).
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::DetectionFailed { .. }
+                | Self::RecognitionFailed { .. }
+                | Self::TaskJoinFailed { .. }
+        )
     }
 }
 
