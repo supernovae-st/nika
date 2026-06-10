@@ -296,6 +296,26 @@ mod tests {
     fn timestamp_unix_us_truncates_sub_micro() {
         let ts = Timestamp::from_unix_ns(1234); // 1.234µs
         assert_eq!(ts.unix_us(), 1);
+        // A value != 1 so a `-> 1` const-replacement can't survive: 5_678_000ns
+        // is exactly 5678µs.
+        assert_eq!(Timestamp::from_unix_ns(5_678_000).unix_us(), 5678);
+    }
+
+    #[test]
+    fn timestamp_from_unix_ms_saturates_at_max() {
+        // The saturation cap: ms values above `i64::MAX / NS_PER_MS` must clamp,
+        // never overflow the `capped as i64 * NS_PER_MS` multiply. u64::MAX is the
+        // extreme — it must saturate to exactly max_ms·NS_PER_MS (the > boundary;
+        // an `==`-mutated comparison would skip the clamp here and overflow).
+        let max_ms_i64 = i64::MAX / NS_PER_MS;
+        let max_ms = u64::try_from(max_ms_i64).expect("cap is positive");
+        // u64::MAX saturates to max_ms (a `==`-mutated comparison would instead
+        // keep u64::MAX and overflow the `as i64 * NS_PER_MS` multiply → panic).
+        assert_eq!(Timestamp::from_unix_ms(u64::MAX).unix_ms(), max_ms_i64);
+        // Exactly at the cap: preserved (not over-clamped).
+        assert_eq!(Timestamp::from_unix_ms(max_ms).unix_ms(), max_ms_i64);
+        // Just below the cap: strictly less (proves the clamp isn't always-on).
+        assert!(Timestamp::from_unix_ms(max_ms - 1).unix_ms() < max_ms_i64);
     }
 
     #[test]
