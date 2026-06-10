@@ -261,6 +261,13 @@ mod tests {
     #[test]
     fn suggest_in_namespace_filters_correctly() {
         let hits = suggest_in("anthropic", Namespace::Provider);
+        // Non-empty: a real query MUST return results (a `-> vec![]` mutant would
+        // vacuously satisfy the `.all(...)` filter check below, so assert it
+        // actually found something first).
+        assert!(
+            !hits.is_empty(),
+            "suggest_in must return matches for a real query"
+        );
         assert!(hits.iter().all(|s| s.namespace == Namespace::Provider));
     }
 

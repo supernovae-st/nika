@@ -548,6 +548,52 @@ impl CapRule {
 mod tests {
     use super::*;
 
+    #[test]
+    fn builder_sets_every_field() {
+        // Chain every setter with a distinct, non-default value and assert each
+        // lands on the built CapPatch. Each setter mutated to `Default::default()`
+        // (a fresh all-None builder) would leave its field None — and `build()`
+        // mutated likewise would return an all-None CapPatch — so this kills all
+        // 12 setter mutants + the build mutant. (The struct's doctest exercises
+        // setters too but `cargo mutants -- --lib` skips doctests.)
+        let patch = CapPatchBuilder::default()
+            .token_limit_param(TokenLimitParam::MaxCompletionTokens)
+            .supports_temperature(false)
+            .supports_stop_sequences(false)
+            .reasoning(true)
+            .input_modalities(&[Modality::Text, Modality::Image])
+            .output_modalities(&[Modality::Text])
+            .tokenizer(TokenizerFamily::O200k)
+            .supported_parameters(&[ParamFlag::ParallelToolCalls])
+            .supports_system_messages(false)
+            .context_window_tokens(128_000)
+            .max_output_tokens(8_192)
+            .json_mode(JsonMode::Object)
+            .build();
+
+        assert_eq!(
+            patch.token_limit_param,
+            Some(TokenLimitParam::MaxCompletionTokens)
+        );
+        assert_eq!(patch.supports_temperature, Some(false));
+        assert_eq!(patch.supports_stop_sequences, Some(false));
+        assert_eq!(patch.reasoning, Some(true));
+        assert_eq!(
+            patch.input_modalities,
+            Some(&[Modality::Text, Modality::Image][..])
+        );
+        assert_eq!(patch.output_modalities, Some(&[Modality::Text][..]));
+        assert_eq!(patch.tokenizer, Some(TokenizerFamily::O200k));
+        assert_eq!(
+            patch.supported_parameters,
+            Some(&[ParamFlag::ParallelToolCalls][..])
+        );
+        assert_eq!(patch.supports_system_messages, Some(false));
+        assert_eq!(patch.context_window_tokens, Some(128_000));
+        assert_eq!(patch.max_output_tokens, Some(8_192));
+        assert_eq!(patch.json_mode, Some(JsonMode::Object));
+    }
+
     fn toml_like_defaults() -> CapPatch {
         // Mirrors data/model-capabilities.toml [defaults] — used by unit
         // tests in this module to exercise materialize() independently of
