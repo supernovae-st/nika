@@ -205,11 +205,24 @@ The rename + extraction is a single atomic Phase D commit — no interim state.
 | Total LOC (src) | 2,862 |
 | Files | 16 |
 | Tests | ~200 (inline) |
-| Mutation score | (pending — runs in Phase B alongside other L0 crates) |
+| Mutation score | **measured 2026-06-10** · 213/219 viable caught · 6 equivalent-mutant exemptions (see below) |
 | Clippy warnings | 0 |
 | Doc warnings | 0 |
 | Unwraps in src | 0 (test-only) |
 | Forward-compat ratchet | `#[non_exhaustive]` on most enums; partial on structs (P0 fix in B.8) |
+
+<!-- GATE5-EXEMPT: 6 -->
+<!-- ^ SSOT for scripts/ci/check-mutation-floor.sh BUDGET mode (reproducible).
+     MEASURED 2026-06-10 · `cargo mutants -p nika-types -- --lib` → 24 real
+     survivors killed (timestamp/cost/id/memory/trust targeted tests). The 6
+     remaining are EQUIVALENT mutants, not test gaps:
+       - timestamp.rs `> → >=` in the 4 saturating clamps (from_unix_ms,
+         WallDuration::from_micros/millis/secs): identical at the boundary —
+         when `v == max`, both `>` and `>=` yield `max`.
+       - timestamp.rs civil_from_days `z<0` negative-branch (2 mutants on
+         `z - 146_096`): unreachable for the Timestamp type's ±292-year range
+         (z = days + 719_468 stays positive for all realistic instants). -->
+
 
 ---
 
