@@ -39,11 +39,20 @@ record() {
 
 # Portable timeout wrapper — uses `timeout` on Linux, `gtimeout` on macOS (brew coreutils),
 # or falls back to running without timeout if neither is available.
+#
+# The timeout is a HANG guard, NOT a perf gate: every vector is a correctness
+# check (schema validity, layer discipline, …) whose only failure mode should be
+# a real violation. A vector timing out under load (e.g. a concurrent sibling
+# `cargo` build pinning the CPU) is a FALSE red that blocks a correct push — the
+# very "social noise" ADR-090 exists to kill. So the ceiling is generous (60s,
+# ~5x the slowest vector's ~12s baseline) and env-overridable for extreme load.
+# Still bounded so a genuinely-hung vector can't wedge the suite.
+VECTOR_TIMEOUT_SECS="${HYGIENE_VECTOR_TIMEOUT_SECS:-60}"
 TIMEOUT_CMD=""
 if command -v timeout >/dev/null 2>&1; then
-  TIMEOUT_CMD="timeout 30"
+  TIMEOUT_CMD="timeout $VECTOR_TIMEOUT_SECS"
 elif command -v gtimeout >/dev/null 2>&1; then
-  TIMEOUT_CMD="gtimeout 30"
+  TIMEOUT_CMD="gtimeout $VECTOR_TIMEOUT_SECS"
 fi
 
 run_check() {
@@ -60,7 +69,7 @@ run_check() {
       0) record "$name" "green" "${output:-OK}" ;;
       1) record "$name" "yellow" "${output:-warn}" ;;
       2) record "$name" "red" "${output:-fail}" ;;
-      124) record "$name" "red" "timeout after 30s" ;;
+      124) record "$name" "red" "timeout after ${VECTOR_TIMEOUT_SECS}s (raise HYGIENE_VECTOR_TIMEOUT_SECS if under load)" ;;
       127) record "$name" "red" "command not found" ;;
       *) record "$name" "red" "exit $status: ${output:-unknown}" ;;
     esac
