@@ -855,9 +855,14 @@ effects, and quote-bearing paths.
 2. **`nika-cli check` subcommand** — the polished CLI surface (colour, exit
    codes, `--providers` parity flag, `--infer-permits`) over this module,
    at step 19.
-3. **Ladder #4 — dataflow schema typing** — type-check
-   `${{ tasks.A.output.field }}` against A's declared `schema:` (ADR-092
-   roadmap · « next »). Then #5-#9 per the ADR sequence.
+3. **Ladder #5-#9** — symbolic cost intervals · SMT reachability ·
+   termination certificate · incremental IR · differential conformance,
+   per the ADR-092 sequence (#4 dataflow schema typing SHIPPED — deep
+   `tasks.X.output.<path>` references resolve against X's `schema:`
+   [properties/items/anyOf descent · explicit `additionalProperties:
+   true` = opaque] or `output:` binding names, across prompts · commands
+   · args · `when:` · `with:` · `for_each` · envelope `outputs:` ·
+   `on_finally` — a typo'd field is a finding BEFORE any token is spent).
 
 ## 12. Audit trail
 
@@ -867,4 +872,5 @@ effects, and quote-bearing paths.
 | 2026-06-11 | nika check arc | `permits:` parser + `check` module (plan/cost/secrets/permits) + CEL cel-subset/0.1 (ternary·has·string tests) + runnable example. 3-angle review hardened (net/fs literal escapes · secret island-scoping · provider-scoped + for_each cost). §11bis added. |
 | 2026-06-11 | ADR-092 ladder #1-#3 | `flow.rs` IFC taint engine (Denning lattice · topological least fixpoint · `FlowFacts` IR · full taint traces) replaces the heuristic secret scan — `with:`-aliased false negative FIXED + `outputs:` egress sink added. `infer_permits.rs` capability inference (`--infer-permits` · sound-by-honesty notes · round-trip-clean property). `static_program` shared extractor (dynamic-argv[0] false positive fixed both sides). §11bis rewritten. |
 | 2026-06-11 | inference review swarm | 3-lens swarm (11 findings · 5 PROVEN by probe): `on_finally` cleanup verbs now walked by ALL THREE walkers (flow sinks · escapes · inference — were invisible, breaking every run of a pasted block). Shared `BuiltinEffect` table extends coverage to `edit`/`grep`/webhook-`notify` (glob excluded · undecidable). IPv6 bracket hosts. YAML escaping (`yaml_quote`). Empty block renders `permits: {}`. Strict example flags (typo → exit 2). Round-trip property tested across exec variants + agent globs + on_finally + quoted paths. |
+| 2026-06-11 | ADR-092 ladder #4 | `schema_typing.rs` dataflow schema typing — deep `tasks.X.output.<path>` refs resolved against X's `schema:` (JSON Schema descent: properties · transparent array `items` · anyOf/oneOf/allOf any-branch-admits · `$ref` opaque · explicit `additionalProperties: true` opaque) or `output:` jq binding names (rebind precedence). Surface = prompts/system · command fragments/env/stdin · invoke args · `when:` · `with:` · `for_each` · envelope `outputs:` · `on_finally`. `expression::refs` refactored to ONE `walk_chains` core feeding `expr_refs` + new `task_output_paths` (no extractor drift). `CheckReport.schema_findings` + example TYPES section. |
 

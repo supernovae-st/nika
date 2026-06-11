@@ -82,7 +82,7 @@ The ranked roadmap (the rest of the ladder · sequenced, not vapor):
 | 1 | **IFC taint-trace** (non-interference) | Denning 1976 · Jif · FlowCaml · LIO | ⭐⭐⭐ | ✅ shipped (`check/flow.rs`) |
 | 2 | **Capability inference** (`--infer-permits`) | E-lang object-capabilities · Koka effects | ⭐⭐⭐ | ✅ shipped (`check/infer_permits.rs`) |
 | 3 | **Unified FlowFacts IR** | rust-analyzer HIR · single annotated pass | ⭐⭐ (enabler) | ✅ shipped (taint slice) |
-| 4 | **Dataflow schema typing** — `${{ tasks.A.output.field }}` type-checked transitively vs A's schema | bidirectional type inference | ⭐⭐⭐ | next |
+| 4 | **Dataflow schema typing** — `${{ tasks.A.output.field }}` type-checked transitively vs A's schema | bidirectional type inference | ⭐⭐⭐ | ✅ shipped (`check/schema_typing.rs`) |
 | 5 | **Symbolic cost intervals** — `[min,max]` over retry/agent-turns/`when:` branches; input-token bounds | RAML (Hoffmann) · WCET | ⭐⭐ | roadmap |
 | 6 | **SMT reachability** — dead-task / mutual-exclusion / empty-`for_each` via Z3 over `when:` | symbolic execution · Z3/CVC5 | ⭐⭐ | roadmap |
 | 7 | **Termination + resource certificate** — machine-checkable proof | formal methods · WCET envelopes | ⭐⭐ | roadmap |
@@ -131,8 +131,16 @@ design, not a leak; the model response is not a verbatim echo).
 - `crates/nika-schema/src/check/infer_permits.rs` -- capability inference (ladder #2 ·
   `infer_permits()` + `InferredPermits::to_yaml()` · sound-by-honesty notes ·
   round-trip property: the inferred block re-checks clean)
-- `crates/nika-schema/src/check/permits_fit.rs` -- `static_program` (shared exec-program
-  extraction · fixed the dynamic-argv[0] false positive both sides)
+- `crates/nika-schema/src/check/permits_fit.rs` -- `static_program` + `builtin_effect`
+  (the shared extraction/classification surfaces · fixed the dynamic-argv[0] false
+  positive both sides · read/write/edit/grep/fetch/webhook-notify covered, glob
+  excluded as statically undecidable)
+- `crates/nika-schema/src/check/schema_typing.rs` -- dataflow schema typing (ladder #4 ·
+  deep `tasks.X.output.<path>` references resolved against X's `schema:` JSON Schema or
+  `output:` binding names · properties/items/anyOf descent · explicit
+  `additionalProperties: true` honored as opaque · typo'd fields caught with zero tokens)
+- `crates/nika-schema/src/expression/refs.rs` -- `walk_chains` shared chain-flattening
+  core (`expr_refs` + `task_output_paths` consume one walker — no drift)
 - `crates/nika-schema/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
 - `crates/nika-schema/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
 - `crates/nika-schema/examples/check.rs` -- `--infer-permits` runnable surface

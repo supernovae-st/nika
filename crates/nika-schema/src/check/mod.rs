@@ -31,6 +31,7 @@ mod cost;
 mod flow;
 mod infer_permits;
 mod permits_fit;
+mod schema_typing;
 mod secrets;
 
 use crate::analyzer::{self, AnalyzedWorkflow};
@@ -41,6 +42,7 @@ pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
 pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
+pub use schema_typing::SchemaTypeFinding;
 pub use secrets::{SecretEgress, SecretLeak};
 
 /// The static pre-flight report — everything `nika check` learns without
@@ -63,16 +65,22 @@ pub struct CheckReport {
     /// Every statically-detectable effect outside the declared `permits:`
     /// boundary (empty when no `permits:` block is present).
     pub capability_escapes: Vec<CapabilityEscape>,
+    /// Every deep `tasks.X.output.<path>` reference the declared shape
+    /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
+    /// names caught before a single token is spent (ADR-092 #4).
+    pub schema_findings: Vec<SchemaTypeFinding>,
 }
 
 impl CheckReport {
     /// Whether the workflow is clean — no leaks, no egresses, no capability
-    /// escapes. (Cost-ceiling unknowns are informational, not failures.)
+    /// escapes, no schema-type findings. (Cost-ceiling unknowns are
+    /// informational, not failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.secret_leaks.is_empty()
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
+            && self.schema_findings.is_empty()
     }
 }
 
@@ -95,6 +103,7 @@ pub fn check(wf: &RawWorkflow) -> Result<CheckReport, Vec<SchemaError>> {
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes: permits_fit::scan_escapes(wf),
+        schema_findings: schema_typing::scan_types(wf),
         waves: topo_waves,
     })
 }

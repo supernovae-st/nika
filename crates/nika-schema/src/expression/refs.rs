@@ -21,7 +21,28 @@ use super::ast::{Expr, Literal, NamespaceRef};
 #[must_use]
 pub fn expr_refs(expr: &Expr) -> Vec<NamespaceRef> {
     let mut out = Vec::new();
-    walk(expr, &mut out);
+    walk_chains(expr, &mut |root, path| out.push(classify_root(root, path)));
+    out
+}
+
+/// Every `tasks.<id>.output.<path…>` access chain with its FULL path
+/// after `output` — the dataflow schema-typing surface (ADR-092 #4).
+/// A bare `tasks.x.output` (no deeper path) yields an empty path; a
+/// `status`/`error` field access yields nothing (not the output).
+/// Numeric/dynamic index hops (`output[0]`) are not path segments —
+/// the schema resolver descends `items` for them.
+#[must_use]
+pub fn task_output_paths(expr: &Expr) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    walk_chains(expr, &mut |root, path| {
+        if root == "tasks"
+            && path.len() >= 2
+            && path[1] == "output"
+            && let Some(id) = path.first()
+        {
+            out.push((id.clone(), path[2..].to_vec()));
+        }
+    });
     out
 }
 
@@ -46,48 +67,51 @@ pub fn is_boolean_shaped(expr: &Expr) -> bool {
     )
 }
 
-/// Recursive walk · descend into every sub-expression · classify
-/// member/index chains rooted at an identifier.
-fn walk(expr: &Expr, out: &mut Vec<NamespaceRef>) {
+/// Recursive walk · invoke `on_chain(root, path)` for every member/index
+/// chain rooted at an identifier — the ONE chain-flattening core every
+/// extractor ([`expr_refs`] · [`task_output_paths`]) shares, so they
+/// cannot drift on the subtle rules (string-literal indices are path
+/// segments per CEL · dynamic indices recurse as independent expressions).
+fn walk_chains(expr: &Expr, on_chain: &mut dyn FnMut(&str, &[String])) {
     match expr {
         Expr::Or(lhs, rhs) | Expr::And(lhs, rhs) | Expr::Relation { lhs, rhs, .. } => {
-            walk(lhs, out);
-            walk(rhs, out);
+            walk_chains(lhs, on_chain);
+            walk_chains(rhs, on_chain);
         }
         Expr::Not(inner)
         | Expr::SizeCall(inner)
         | Expr::SizeMethod(inner)
         | Expr::HasCall(inner) => {
-            walk(inner, out);
+            walk_chains(inner, on_chain);
         }
         Expr::Ternary { cond, then, else_ } => {
-            walk(cond, out);
-            walk(then, out);
-            walk(else_, out);
+            walk_chains(cond, on_chain);
+            walk_chains(then, on_chain);
+            walk_chains(else_, on_chain);
         }
         Expr::StringMethod { base, arg, .. } => {
-            walk(base, out);
-            walk(arg, out);
+            walk_chains(base, on_chain);
+            walk_chains(arg, on_chain);
         }
         Expr::Member { .. } | Expr::Index { .. } | Expr::Ident(_) => {
-            classify_chain(expr, out);
+            flatten_chain(expr, on_chain);
         }
         Expr::List(items) => {
             for item in items {
-                walk(item, out);
+                walk_chains(item, on_chain);
             }
         }
         Expr::Lit(_) => {}
     }
 }
 
-/// Classify a member/index access chain rooted at an identifier.
+/// Flatten a member/index access chain rooted at an identifier.
 ///
-/// Flattens `tasks.build.status` → root `tasks` + path `[build,
-/// status]`. Index segments with a STRING literal count as path
-/// segments (`tasks['build'].status` ≡ `tasks.build.status` per CEL);
-/// dynamic indices recurse as independent expressions.
-fn classify_chain(expr: &Expr, out: &mut Vec<NamespaceRef>) {
+/// `tasks.build.status` → root `tasks` + path `[build, status]`. Index
+/// segments with a STRING literal count as path segments
+/// (`tasks['build'].status` ≡ `tasks.build.status` per CEL); dynamic
+/// indices recurse as independent expressions.
+fn flatten_chain(expr: &Expr, on_chain: &mut dyn FnMut(&str, &[String])) {
     let mut path: Vec<String> = Vec::new();
     let mut current = expr;
     loop {
@@ -102,20 +126,20 @@ fn classify_chain(expr: &Expr, out: &mut Vec<NamespaceRef>) {
                 } else {
                     // Dynamic / numeric index · not a path segment ·
                     // its own roots still count.
-                    walk(index, out);
+                    walk_chains(index, on_chain);
                 }
                 current = base;
             }
             Expr::Ident(root) => {
                 path.reverse();
-                out.push(classify_root(root, &path));
+                on_chain(root, &path);
                 return;
             }
             // A chain rooted at a non-identifier (a list · a size()
             // call · a parenthesized relation) — no root to classify ·
             // recurse for inner roots.
             other => {
-                walk(other, out);
+                walk_chains(other, on_chain);
                 return;
             }
         }

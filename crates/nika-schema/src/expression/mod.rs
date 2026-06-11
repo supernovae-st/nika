@@ -16,6 +16,8 @@
 //!   string (honors the `\${{` literal escape).
 //! - [`expr_refs`] — classify root references against the 5 namespaces
 //!   + 2 `for_each` loop-locals (feeds `NIKA-VAR-001` / `NIKA-DAG-003`).
+//! - [`task_output_paths`] — every `tasks.<id>.output.<path…>` chain
+//!   with its FULL path (the dataflow schema-typing surface · ADR-092 #4).
 //! - [`is_boolean_shaped`] — the static `when:` shape gate
 //!   (`NIKA-PARSE-WHEN-001`).
 //!
@@ -32,5 +34,5 @@ mod template;
 pub use ast::{Expr, Literal, NamespaceRef, RelOp};
 pub use error::ExprError;
 pub use parser::parse_expression;
-pub use refs::{expr_refs, is_boolean_shaped};
+pub use refs::{expr_refs, is_boolean_shaped, task_output_paths};
 pub use template::{TemplateIsland, scan_templates};

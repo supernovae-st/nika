@@ -162,6 +162,18 @@ fn main() -> ExitCode {
         }
     }
 
+    // ── dataflow schema typing (ADR-092 #4) ─────────────────────────
+    if report.schema_findings.is_empty() {
+        println!("TYPES    every deep output reference fits its declared shape");
+    } else {
+        for f in &report.schema_findings {
+            println!(
+                "TYPES    ✗ {} (at `{}`) — {}",
+                f.reference, f.site, f.detail
+            );
+        }
+    }
+
     // ── permits ─────────────────────────────────────────────────────
     if wf.permits.is_none() {
         println!("PERMITS  no boundary declared (engine floor only)");
