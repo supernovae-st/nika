@@ -418,5 +418,36 @@ mod tests {
         // NaN / negative dimensions must read INVISIBLE (0), never huge.
         let nan = bbox_to_rect(f64::NAN, 0.0, f64::NAN, -5.0);
         assert_eq!((nan.x, nan.width, nan.height), (0, 0, 0));
+        // Pin the `is_finite() && v > 0.0` guard exactly (kills `&&`→`||` and
+        // `>`→`>=`): a finite ZERO dimension is invisible (0), and infinity
+        // (finite=false) is invisible too — only a finite POSITIVE value maps.
+        assert_eq!(
+            bbox_to_rect(0.0, 0.0, 0.0, 50.0).width,
+            0,
+            "zero width = invisible"
+        );
+        assert_eq!(
+            bbox_to_rect(0.0, 0.0, 50.0, 0.0).height,
+            0,
+            "zero height = invisible"
+        );
+        assert_eq!(
+            bbox_to_rect(0.0, 0.0, f64::INFINITY, 10.0).width,
+            0,
+            "infinite (non-finite) width clamps to 0, not a cast artifact"
+        );
+        assert_eq!(bbox_to_rect(0.0, 0.0, 1.0, 1.0), Rect::new(0, 0, 1, 1));
+    }
+
+    #[test]
+    fn backend_ref_widens_positive_ids_and_rejects_zero_negative() {
+        // The Guard-5 identity anchor: positive ids widen, 0 and negative
+        // (protocol anomaly) map to None — "no identity claimed", never a
+        // bogus pin. Kills None/Some(0)/Some(1) replacements + `!=`→`==`.
+        assert_eq!(backend_ref(42), Some(42));
+        assert_eq!(backend_ref(1), Some(1));
+        assert_eq!(backend_ref(i64::MAX), Some(i64::MAX as u64));
+        assert_eq!(backend_ref(0), None, "zero = no identity");
+        assert_eq!(backend_ref(-7), None, "negative = no identity");
     }
 }
