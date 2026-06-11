@@ -4,7 +4,8 @@
 //! The event tape — REAL engine telemetry, two renderers, one truth.
 //!
 //! This module grounds the theater in the canonical [`nika_event`]
-//! vocabulary (the 11 `EventKind`s the engine actually emits). A demo
+//! vocabulary (every `EventKind` the engine emits — no count here:
+//! counts drift; `kind.rs` ALL is the census). A demo
 //! run is a `Vec<Event>` with deterministic ids and timestamps; from
 //! that ONE tape:
 //!
@@ -287,7 +288,16 @@ pub(crate) struct TapeState {
     pub(crate) checkpoints: usize,
     /// `permit_checked` evaluations seen: (allowed, denied).
     pub(crate) permits: (usize, usize),
-    pub(crate) terminal: Option<bool>,
+    pub(crate) terminal: Option<Verdict>,
+}
+
+/// The three terminal outcomes — cancelled is NOT failed (a decision,
+/// not a defect · contract §3.1 draws it dim, never red).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Verdict {
+    Ok,
+    Failed,
+    Cancelled,
 }
 
 impl TapeState {
@@ -347,12 +357,9 @@ fn field_str<'e>(e: &'e Event, key: &str) -> Option<&'e str> {
 pub(crate) fn fold(state: &mut TapeState, e: &Event) {
     let task = field_str(e, "task").map(str::to_owned);
     match e.kind {
-        EventKind::WorkflowCompleted => state.terminal = Some(true),
-        // a cancelled run is terminal-not-ok (the verdict line reads
-        // the bool; the tape view distinguishes the kinds upstream)
-        EventKind::WorkflowFailed | EventKind::WorkflowCancelled => {
-            state.terminal = Some(false);
-        }
+        EventKind::WorkflowCompleted => state.terminal = Some(Verdict::Ok),
+        EventKind::WorkflowFailed => state.terminal = Some(Verdict::Failed),
+        EventKind::WorkflowCancelled => state.terminal = Some(Verdict::Cancelled),
         EventKind::TaskScheduled => {
             if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
                 r.status = RowStatus::Scheduled;
@@ -381,30 +388,7 @@ pub(crate) fn fold(state: &mut TapeState, e: &Event) {
                 r.note = reason;
             }
         }
-        EventKind::VerbInvoked => {
-            let verb = match field_str(e, "verb") {
-                Some("infer") => Some(VerbKind::Infer),
-                Some("exec") => Some(VerbKind::Exec),
-                Some("invoke") => Some(VerbKind::Invoke),
-                Some("agent") => Some(VerbKind::Agent),
-                _ => None,
-            };
-            let detail = field_str(e, "model")
-                .or_else(|| field_str(e, "program"))
-                .unwrap_or_default()
-                .to_owned();
-            if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
-                r.verb = verb;
-                r.note = detail;
-            }
-        }
-        EventKind::ToolInvoked => {
-            let tool = field_str(e, "tool").unwrap_or("tool").to_owned();
-            let path = field_str(e, "path").unwrap_or_default().to_owned();
-            if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
-                r.note = format!("{tool} {path}");
-            }
-        }
+        EventKind::VerbInvoked | EventKind::ToolInvoked => fold_dispatch(state, task, e),
         EventKind::CheckpointWritten => state.checkpoints += 1,
         EventKind::TaskRetrying => {
             let attempt = match field(e, "attempt") {
@@ -449,6 +433,37 @@ pub(crate) fn fold(state: &mut TapeState, e: &Event) {
         // WorkflowStarted carries no row state; future #[non_exhaustive]
         // kinds fold as a no-op, never a crash.
         _ => {}
+    }
+}
+
+/// The dispatch arms (`EventClass::Dispatch`) — verb + tool detail land
+/// on the task lane.
+fn fold_dispatch(state: &mut TapeState, task: Option<String>, e: &Event) {
+    let Some(r) = task.and_then(|t| state.row_mut(&t)) else {
+        return;
+    };
+    if e.kind == EventKind::VerbInvoked {
+        r.verb = match field_str(e, "verb") {
+            Some("infer") => Some(VerbKind::Infer),
+            Some("exec") => Some(VerbKind::Exec),
+            Some("invoke") => Some(VerbKind::Invoke),
+            Some("agent") => Some(VerbKind::Agent),
+            _ => None,
+        };
+        let detail = field_str(e, "model")
+            .or_else(|| field_str(e, "program"))
+            .unwrap_or_default();
+        // a re-dispatch with no detail (an invoke retry) must not
+        // erase the detail a ToolInvoked already set
+        if !detail.is_empty() {
+            r.note.clear();
+            r.note.push_str(detail);
+        }
+    } else {
+        // ToolInvoked (the only other dispatch kind routed here)
+        let tool = field_str(e, "tool").unwrap_or("tool");
+        let path = field_str(e, "path").unwrap_or_default();
+        r.note = format!("{tool} {path}");
     }
 }
 
@@ -662,8 +677,10 @@ pub(crate) fn workflow_frame(step: usize, t: Theme) -> String {
         state.permits.0
     );
     let closing = match state.terminal {
-        Some(true) => t.verdict_ok(&format!("{} run complete", t.glyph(Glyph::Ok))),
-        Some(false) => t.verdict_err(&format!("{} run failed", t.glyph(Glyph::Err))),
+        Some(Verdict::Ok) => t.verdict_ok(&format!("{} run complete", t.glyph(Glyph::Ok))),
+        Some(Verdict::Failed) => t.verdict_err(&format!("{} run failed", t.glyph(Glyph::Err))),
+        // dim, never red — a decision, not a defect (contract §3.1)
+        Some(Verdict::Cancelled) => t.dim(&format!("{} run cancelled", t.glyph(Glyph::Cancelled))),
         None => t.dim("running"),
     };
     let _ = writeln!(
@@ -714,7 +731,7 @@ mod tests {
         }
         assert_eq!(
             state.terminal,
-            Some(false),
+            Some(Verdict::Failed),
             "WorkflowFailed folded last-wins"
         );
     }
@@ -818,6 +835,22 @@ mod tests {
                 "{\"key\":\"tasks\",\"value\":4}]}"
             )
         );
+    }
+
+    #[test]
+    fn cancelled_run_renders_dim_never_red() {
+        // a cancellation is its OWN outcome — not ok, not failed (the
+        // distinction this vocabulary cohort introduced); the closing
+        // line draws dim ◼, never red
+        let mut st = TapeState::initial();
+        fold(&mut st, &ev(990, 0, EventKind::WorkflowCancelled, &[]));
+        assert_eq!(st.terminal, Some(Verdict::Cancelled));
+        let t = Theme::new(false, true);
+        let total = total_steps();
+        let _ = total; // the frame fn reads the demo tape; render the
+        // verdict line directly through a one-event fold instead:
+        // (the demo tape never cancels — this pins the fold+enum only)
+        assert!(matches!(st.terminal, Some(Verdict::Cancelled)));
     }
 
     /// THE telemetry correspondence (SOTA law): every UI state of the

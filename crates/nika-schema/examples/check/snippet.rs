@@ -15,8 +15,12 @@
 //!
 //! Deterministic + themed (the frame glyphs follow the unicode/ASCII
 //! theme; the caret line is painted in the finding's severity role).
-//! Tab-free assumption: YAML indentation forbids tabs (the parser
-//! rejects them), so column = char count is visually exact.
+//! Alignment honesty: YAML forbids tabs in INDENTATION (parser-enforced)
+//! and any tab inside a quoted scalar is normalized to one space in the
+//! DISPLAY line, so column = char count holds for tabs; wide glyphs
+//! (CJK · emoji) in pre-span content can still drift the caret left —
+//! accepted for this surface (rustc-grade needs unicode-width; the real
+//! CLI can take that dep).
 
 use std::fmt::Write as _;
 
@@ -36,7 +40,10 @@ pub(crate) fn render_snippet(
 ) {
     let start = span.start as usize;
     let end = (span.end as usize).max(start);
-    if start > source.len() {
+    // the never-panic contract: bail on out-of-bounds AND on a span that
+    // lands mid-UTF-8 (a lying span must not crash the renderer — string
+    // slicing panics off char boundaries)
+    if start > source.len() || !source.is_char_boundary(start) {
         return;
     }
 
@@ -51,13 +58,22 @@ pub(crate) fn render_snippet(
     // from the DISPLAY (offsets/carets are unaffected: a span never
     // points at the EOL terminator).
     let line = line.strip_suffix('\r').unwrap_or(line);
+    // tabs inside quoted scalars: 1 tab = 1 char in our col math but N
+    // columns in a terminal — normalize to one space in the display so
+    // the caret stays char-exact
+    let line = line.replace('\t', " ");
+    let line = line.as_str();
 
     let line_no = source[..start].matches('\n').count() + 1;
     let col = source[line_start..start].chars().count() + 1;
 
     // caret run: span width clipped to the line, ≥1 caret (a zero-width
-    // or end-of-file span still points somewhere)
-    let span_end_in_line = end.clamp(start, line_end);
+    // or end-of-file span still points somewhere) — end snaps BACK to a
+    // boundary so a lying end can't panic the slice either
+    let mut span_end_in_line = end.clamp(start, line_end);
+    while span_end_in_line > start && !source.is_char_boundary(span_end_in_line) {
+        span_end_in_line -= 1;
+    }
     let caret_pad = " ".repeat(col - 1);
     let carets = "^".repeat(source[start..span_end_in_line].chars().count().max(1));
 
@@ -142,6 +158,28 @@ mod tests {
         );
         assert!(!out.contains('\r'), "CR leaked into the display: {out:?}");
         assert!(out.contains("tasks: [x]\n"), "{out:?}");
+    }
+
+    #[test]
+    fn lying_mid_utf8_span_is_a_noop_never_a_panic() {
+        let src = "nika: v1\nworkflow: w\u{e9}\u{e9}\ntasks: []\n";
+        let inside = src.find('\u{e9}').expect("é") + 1; // mid-é byte
+        let s = snip_src(src, ByteSpan::new(inside as u32, (inside + 1) as u32));
+        assert!(s.is_empty(), "mid-boundary span must bail: {s:?}");
+    }
+
+    #[test]
+    fn tab_in_scalar_normalizes_so_the_caret_stays_aligned() {
+        let src = "nika: v1\nworkflow: \"a\tb\"\ntasks: [ghost]\n";
+        let ghost = src.find("ghost").expect("ghost");
+        let s = snip_src(src, ByteSpan::new(ghost as u32, (ghost + 5) as u32));
+        assert!(!s.contains('\t'), "tab leaked into display: {s:?}");
+    }
+
+    fn snip_src(src: &str, span: ByteSpan) -> String {
+        let mut out = String::new();
+        render_snippet(&mut out, src, "w.nika.yaml", span, Theme::new(false, true));
+        out
     }
 
     #[test]

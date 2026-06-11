@@ -385,7 +385,9 @@ mod tests {
             assert!(uni.contains('✔'), "{verb:?} unicode final: {uni}");
             let asc = frame(verb, last, Theme::new(false, false));
             assert!(asc.is_ascii(), "{verb:?} ascii final leaked: {asc:?}");
-            assert!(asc.contains('+'), "{verb:?} ascii final: {asc}");
+            // the contract ascii ok-glyph is the WORD `ok` (space-bounded
+            // so `invoke` can't satisfy it)
+            assert!(asc.contains(" ok "), "{verb:?} ascii final: {asc}");
         }
     }
 

@@ -507,11 +507,11 @@ mod tests {
             "   w0 . first  exec  \n",
             "   w1 . second exec     <- first\n",
             " COST     no inference tasks - $0.00\n",
-            " + SECRETS  no information-flow escapes\n",
-            " + TYPES    every deep output reference fits its declared shape\n",
-            " + PERMITS  body fits the declared boundary\n",
+            " ok SECRETS  no information-flow escapes\n",
+            " ok TYPES    every deep output reference fits its declared shape\n",
+            " ok PERMITS  body fits the declared boundary\n",
             "----------------------------------------------\n",
-            " + clean -- audited before a single token was spent\n",
+            " ok clean -- audited before a single token was spent\n",
         );
         let s = rendered(Theme::new(false, false));
         assert_eq!(s, expected);

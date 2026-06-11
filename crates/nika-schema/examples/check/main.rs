@@ -126,6 +126,12 @@ fn main() -> ExitCode {
         path,
     } = args;
     if matches!(mode, Mode::Legend) {
+        if json_mode {
+            // the machine promise: --json never emits non-JSON bytes —
+            // an impossible combo is an explicit rejection, not silence
+            eprintln!("--json does not compose with --legend (the card is a human surface)");
+            return ExitCode::from(EXIT_USAGE);
+        }
         let t = Theme::from_env(color, ascii);
         print!("{}", theme::legend(t));
         return ExitCode::SUCCESS;

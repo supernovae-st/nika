@@ -73,11 +73,15 @@ impl Glyph {
         }
     }
 
-    /// The ASCII rendering (the first-class fallback theme).
+    /// The ASCII rendering — the LOCKED contract §3.1 column for the
+    /// state glyphs (`ok` · `X` · `x` · `.` · `r` · `-`); the non-state
+    /// glyphs (warn · hint · dep · fix · banner) are this surface's own.
+    /// Note err `X` vs cancelled `x` are DISTINCT contract cases.
     const fn ascii(self) -> &'static str {
         match self {
-            Self::Ok => "+",
-
+            Self::Ok => "ok",
+            Self::Err => "X",
+            Self::Cancelled => "x",
             Self::Warn => "!",
             Self::Gated => "-",
             Self::Pending => ".",
@@ -86,11 +90,6 @@ impl Glyph {
             Self::Fix => "->",
             Self::Banner => "#",
             Self::Retry => "r",
-            // contract §3.1: ascii err AND cancelled are both `x` — the
-            // colour/dimness differentiates when colour is on; in pure
-            // ascii the position + context carry it (the contract's own
-            // table says so).
-            Self::Err | Self::Cancelled => "x",
         }
     }
 }
@@ -505,8 +504,9 @@ mod tests {
         assert_eq!(uni.glyph(Glyph::Gated), "⊘");
         assert_eq!(uni.glyph(Glyph::Retry), "↻");
         // ASCII first-class fallback — pinned, every glyph distinct enough
-        assert_eq!(asc.glyph(Glyph::Ok), "+");
-        assert_eq!(asc.glyph(Glyph::Err), "x");
+        assert_eq!(asc.glyph(Glyph::Ok), "ok");
+        assert_eq!(asc.glyph(Glyph::Err), "X");
+        assert_eq!(asc.glyph(Glyph::Pending), ".");
         assert_eq!(asc.glyph(Glyph::Gated), "-");
         assert_eq!(asc.glyph(Glyph::Retry), "r");
         assert_eq!(asc.glyph(Glyph::Dep), "<-");
