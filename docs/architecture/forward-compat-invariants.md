@@ -6,7 +6,7 @@ comply with these invariants before passing Gate 12.
 ## Why this document exists
 
 Nika is forever-v0.x. Features ship incrementally over many years. The
-architecture shipped in v0.90 must accommodate v0.95 (Cortex + agent-v2),
+architecture shipped in v0.90 must accommodate v0.95 (the Connectome + agent-v2),
 v0.100 (WASM plugins + observability), and features we haven't imagined yet
 **without breaking changes to the public API**.
 
@@ -40,12 +40,13 @@ pub trait MemoryStore: Send + Sync + 'static {
 **Decision A1**: `trait_variant` (not `async_trait`). Zero boxing on static dispatch;
 `MemoryStoreDyn` companion gives object-safety for dynamic dispatch when needed.
 
-**Impact**: v0.95 ships Cortex by adding `nika-memory-oxigraph` crate that
-implements `MemoryStore`. Zero v0.90 code modification.
+**Impact**: v0.95 ships the Connectome by adding `nika-connectome` (the L2
+orchestrator composing the 10 L1 satellites) which implements
+`MemoryStore`. Zero v0.90 code modification.
 
 **Locked traits (v0.90)**:
-- `MemoryStore` — Cortex impl v0.95
-- `EmbeddingProvider` — Cortex impl v0.95
+- `MemoryStore` — Connectome impl v0.95 (`nika-connectome`)
+- `EmbeddingProvider` — Connectome impl v0.95 (`nika-embed`)
 - `ToolExecutor` — real impl v0.90 (used by natives)
 - `WasmPluginHost` — impl v0.100+
 - `MetricsExporter` + `TracerProvider` — impl v0.100+ (`nika-observability-otel`)
@@ -131,9 +132,9 @@ reserved even if unused, preventing collision when future subsystems ship.
 | NIKA-1600..1699 | audio L1 (stt · tts · vad · `ai::audio` seam R6) | reserved (2026-06-10 · impls stdlib v0.x) |
 | NIKA-200..299 | pck / validation | reserved v0.80, active v0.90 |
 | NIKA-300..399 | Providers + Shield | active (380-389 shield) |
-| NIKA-400..499 | Cortex / memory queries | reserved v0.80, active v0.95 |
+| NIKA-400..499 | Verbs (430..433 infer · 440..442 exec · 450..452 invoke · agent next) | active (`nika-error/src/codes.rs` = registry of record) |
 | NIKA-500..599 | agent-v2 | reserved v0.80, active v0.95 |
-| NIKA-600..649 | Memory subsystem | reserved v0.80 (Category::Memory) |
+| NIKA-600..649 | Memory — the Connectome (601..604 active · per-satellite sub-ranges 610+) | active (Category::Memory) |
 | NIKA-650..699 | (unallocated) | reserved |
 | NIKA-700..749 | WASM plugin host | reserved v0.80 (Category::WasmPlugin) |
 | NIKA-750..799 | Sandbox / capabilities | reserved v0.80 (Category::Sandbox) |
@@ -178,8 +179,8 @@ flags. Default features are stable. CI runs both matrices.
 ```toml
 [features]
 default = ["std"]
-unstable-cortex     = ["dep:nika-memory-oxigraph"]
-unstable-agent-v2   = ["dep:nika-agent-v2", "unstable-cortex"]
+unstable-connectome = ["dep:nika-connectome"]
+unstable-agent-v2   = ["dep:nika-agent-v2", "unstable-connectome"]
 unstable-wasm       = ["dep:nika-wasm-host"]
 unstable-observ     = ["dep:nika-observability"]
 unstable-sandbox    = ["dep:nika-sandbox"]
@@ -213,7 +214,7 @@ pub enum EventKind {
     // Core (v0.80+)
     Started, Completed, Failed,
     TaskStarted, TaskCompleted, TaskFailed,
-    // Reserved v0.95 Cortex
+    // Reserved v0.95 the Connectome
     MemoryHit, MemoryWrite, MemoryForget,
     // Reserved v0.95 agent-v2
     AgentPlanned, AgentReflected, AgentResumed,
@@ -280,21 +281,21 @@ pub trait Provider {
 **Rationale**: the provider set grows release over release; the trait
 shape locks all downstream.
 
-### Decision 5 — `CatalogEntry` shape with Cortex-ready fields <!-- FCI-013 -->
+### Decision 5 — `CatalogEntry` shape with Connectome-ready fields <!-- FCI-013 -->
 
 ```rust
 #[non_exhaustive]
 pub struct CatalogEntry {
     pub id: EntryId,
     pub kind: EntryKind,
-    pub embedding: Option<Vec<f32>>,   // v0.95 Cortex semantic search
+    pub embedding: Option<Vec<f32>>,   // v0.95 Connectome semantic search
     pub cost: Option<CostEstimate>,    // v0.100 budget enforcement
     pub perms: Vec<Permission>,        // v0.100 capability model
     pub last_verified: Option<&'static str>,  // xtask verifier
 }
 ```
 
-**Rationale**: Catalog is queried by Cortex (semantic search), agent-v2
+**Rationale**: Catalog is queried by the Connectome (semantic search), agent-v2
 (tool selection), CLI (autocomplete), observability (cost tracking). If
 these fields aren't reserved, every consumer rewrites in v0.95/v0.100.
 
@@ -390,7 +391,7 @@ only comments; a NEW effect trait returning `std::io::Result` goes RED.
 | Natives | 4 verbs sealed · 22 spec-curated builtins | `ExternalVerb` registry for community | LOW | Sealed `Verb` + open `ExternalVerb` |
 | Providers | 14 canonical (spec stdlib) via wire dialects + mock | New providers as crates, `ProviderId` as newtype with `Custom(String)` | HIGH | Crate split already locked |
 | MCP | Catalog + aliases | New transports, MCP versions | MED | rmcp behind facade trait |
-| Cortex | Trait stubs only | Real impl v0.95 | LOW | All hooks in kernel v0.90 |
+| The Connectome | Trait stubs only | Real impl v0.95 | LOW | All hooks in kernel v0.90 |
 | agent-v2 | Reserved EventKinds, error codes | New crate v0.95 | LOW | InferRequest fields + default methods |
 | Shield | Permission enum stub | Landlock/seccomp impl v0.100 | MED | Define `Permission` enum now |
 | Lints | nika-lints crate | New lints additive | LOW | Per-lint allow attribute namespace |
@@ -404,7 +405,7 @@ is the explicit mechanism that makes v0.95 and v0.100 additive-only releases.
 **Policy**:
 
 1. **Trait stubs land in kernel v0.81.** Every subsystem that v0.95 or v0.100
-   will ship (Cortex, WASM plugins, observability, sandbox) has its trait
+   will ship (the Connectome, WASM plugins, observability, sandbox) has its trait
    signature, companion `*Dyn: Send` object-safe twin, and DTO types locked
    in `nika-kernel` at v0.81. Impls arrive later in their own crates.
 2. **All DTOs are `#[non_exhaustive]`.** New fields become additive in later
@@ -444,24 +445,24 @@ is the explicit mechanism that makes v0.95 and v0.100 additive-only releases.
 `cargo semver-checks check-release` on every PR. Any change to a reserved
 trait or DTO that is not strictly additive fails the gate.
 
-**Rationale**: once v0.95 Cortex and v0.100 WASM plugins start landing,
+**Rationale**: once the v0.95 Connectome and v0.100 WASM plugins start landing,
 shipping the trait surface is a mechanical crate addition rather than a
 breaking-change negotiation across every consumer of v0.8x.
 
 ### Wave 4A / 4B reservations (Batch I.b, 2026-04-17) <!-- FCI-035 -->
 
-Seven additive reservations shipped during Batch I.b lock v0.95 Cortex and
+Seven additive reservations shipped during Batch I.b lock the v0.95 Connectome and
 v0.100 observability shapes without breaking v0.8x consumers. Each landed as
 a single atomic commit and is covered by `cargo public-api` +
 `cargo semver-checks` at Gate 12.
 
 | # | Surface | Crate / path | Target release | Commit |
 |---|---|---|---|---|
-| R1 | `EmbeddingSpec` value type (dim + provider + model + dtype + schema) | `nika-types/src/embedding.rs` | v0.95 Cortex | `001ae0b6f` |
-| R2 | `MemoryFrameRef.trust: TrustLevel` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 Cortex | `41e8a1467` |
+| R1 | `EmbeddingSpec` value type (dim + provider + model + dtype + schema) | `nika-types/src/embedding.rs` | v0.95 Connectome | `001ae0b6f` |
+| R2 | `MemoryFrameRef.trust: TrustLevel` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 Connectome | `41e8a1467` |
 | R3 | `RecallQuery.tenant: Option<TenantId>` reserved field | `nika-kernel` memory re-export (`nika-types`) | v0.95 multi-tenant | `41e8a1467` |
 | R4 | `WasmPluginError::{OutOfFuel, Trap{kind}}` variants + `PluginCallContext{cancel, caller_trust, plugin_trust}` | `nika-kernel/src/plugin/wasm.rs` | v0.100 WASM plugins | `368820e42` |
-| R5 | `MemoryLifecycle` trait (`consolidate`, `prune` with `Unsupported` defaults) | `nika-kernel/src/ai/memory.rs` | v0.95 Cortex | `ac46b9ca5` |
+| R5 | `MemoryLifecycle` trait (`consolidate`, `prune` with `Unsupported` defaults) | `nika-kernel/src/ai/memory.rs` | v0.95 Connectome | `ac46b9ca5` |
 | T1 | `SpanGuard.parent_span_id: Option<SpanId>` + `SpanRef{trace_id, span_id}` | `nika-kernel/src/infra/trace.rs` | v0.100 observability | `861f09bc9` |
 | T2 | `Timestamp` + `WallDuration` value types (`_ms: u64` replacement) | `nika-types/src/timestamp.rs` | v0.95+ retrofit across 6 sites | `c5d292b6e` |
 

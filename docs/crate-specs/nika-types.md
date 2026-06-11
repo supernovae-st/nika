@@ -108,7 +108,7 @@ pub struct CheckpointMessage { /* role + content + tool_calls */ }
 pub struct ToolCallRecord { /* id + name + args + result */ }
 
 // ── Memory (memory.rs) ─────────────────────────────────────────
-pub struct MemoryFrameRef { /* anchor for v0.95 Cortex */ }
+pub struct MemoryFrameRef { /* anchor for the v0.95 Connectome */ }
 ```
 
 ---
@@ -128,7 +128,7 @@ crates/nika-types/
     cost.rs          Cost per request (tokens, dollars, walltime, trust)
     hash.rs          Blake3Hash, ContentDigest, BlobRef
     id.rs            All ID newtypes (RunId, EventId, …)
-    memory.rs        MemoryFrameRef (Cortex seam, v0.95 reservation)
+    memory.rs        MemoryFrameRef (the Connectome seam, v0.95 reservation)
     resource.rs      Resource caps
     retry.rs         Retry policy
     role.rs          Role enum (System/User/Assistant/Tool)
@@ -192,7 +192,7 @@ Phase D refactor (Foundation v0.81 lock) will:
    - Make inner field of `TaskId` and `ToolCallId` private (force constructor)
    - Fix `Spanned<T>` `PartialEq` to ignore span (or document why it doesn't)
 3. **Extract** schema-related types (`Span`, `Spanned`, `LineCol`, `Templatable`) to a new sibling crate `nika-schema-ast` per ADR-022
-4. **Reserve** memory-frame fields for v0.95 Cortex (already done partially)
+4. **Reserve** memory-frame fields for the v0.95 Connectome (already done partially)
 
 The rename + extraction is a single atomic Phase D commit — no interim state.
 

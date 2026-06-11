@@ -47,8 +47,7 @@ L1 upward.
 - NOT a mocking framework (no `mockall`, no `mockito`). Hand-written
   mocks provide clarity, debuggability, and compile-time safety.
 - NOT a provider simulator. The in-crate mock provider inside
-  `nika-providers` (L1.5 · shipped 2026-06-11 · supersedes the planned
-  `nika-provider-mock` crate) provides a higher-fidelity deterministic
+  `nika-providers` (L1.5) provides a higher-fidelity deterministic
   LLM for integration tests.
   `MockProvider` here is a low-level trait double for unit tests.
 
@@ -65,7 +64,7 @@ provides the behavioral reference. Diamond rewrite eliminates:
 - `record.rs` `MockRecordStore` (moves to L2 scope)
 
 Diamond adds:
-- `NullMemoryStore` + `NullEmbeddingProvider` (Cortex hooks, Phase 0 decision)
+- `NullMemoryStore` + `NullEmbeddingProvider` (the Connectome hooks, Phase 0 decision)
 - `NullToolExecutor` + `MockToolExecutor` (agent-v2 hooks)
 - `NullContextCompressor` (agent-v2 context compression hook)
 
@@ -215,7 +214,7 @@ impl MockProvider {
 // - supports_response_format() → configurable bool
 ```
 
-### 2.7 NullMemoryStore — no-op memory (Cortex stub)
+### 2.7 NullMemoryStore — no-op memory (the Connectome stub)
 
 Implements: `nika_kernel::MemoryStore`
 
@@ -430,7 +429,7 @@ The legacy crate on main has 12 source files. Diamond coverage:
 | `policy.rs` (94 LOC) | DROPPED | Policy is a module in `nika-runtime` |
 | `media.rs` (274 LOC) | DROPPED (moves to L2 scope) | `nika-media-cas` owns its mock |
 | `record.rs` (192 LOC) | DROPPED (moves to L2 scope) | L2 crate owns its mock |
-| NEW | `memory.rs` (~60 LOC) | Cortex hooks: NullMemoryStore + NullEmbeddingProvider |
+| NEW | `memory.rs` (~60 LOC) | the Connectome hooks: NullMemoryStore + NullEmbeddingProvider |
 | NEW | `compressor.rs` (~40 LOC) | Agent-v2 hook: NullContextCompressor |
 
 **Net**: 12 files (legacy) to 10 files (diamond). ~2,267 LOC to ~1,040 LOC (-54%).

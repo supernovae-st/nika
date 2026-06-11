@@ -4,7 +4,7 @@
 |---|---|
 | Status | **ADMITTED 2026-04-13** (`ef8804371`) · facade + range-registry hub post 4-way split 2026-06-10 |
 | Layer | L0.5 (TRAITS ONLY, zero I/O, zero impl, minimal deps) |
-| Design | **ISP-layered** — ~20 atomic traits + ~6 super-traits + Cortex/agent-v2 hooks |
+| Design | **ISP-layered** — ~20 atomic traits + ~6 super-traits + the Connectome/agent-v2 hooks |
 | LOC budget | ≤3,500 src (target ~3,000, alarm at 3,500) |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
@@ -19,7 +19,7 @@
 
 `nika-kernel` defines the **trait contracts for every side effect** in the
 Nika diamond. It sits at L0.5 — above L0 pure types (nika-error, nika-catalog)
-and below L1 effect implementations (nika-fs, nika-http, nika-process, etc.).
+and below L1 effect implementations (nika-fs, nika-http, nika-exec-runner, etc.).
 
 **Zero implementations live here.** This crate defines contracts only.
 Implementations live in their respective crates; test mocks live in
@@ -32,7 +32,7 @@ on the minimum trait surface they need (e.g., a context loader depends on
 `trait_variant` (decision A1) for zero-overhead object-safe companions
 via `#[trait_variant::make(XxxDyn: Send)]`.
 
-This crate also carries the **Cortex + agent-v2 kernel hooks** (decision D3
+This crate also carries the **Connectome + agent-v2 kernel hooks** (decision D3
 from POST_AUDIT_REVISIONS): memory traits, tool executor, agent config types,
 and checkpoint types. These hooks land in Phase 1 to avoid breaking-change
 cascades on `#[non_exhaustive]` structs with `::new()` constructors
@@ -41,7 +41,7 @@ cascades on `#[non_exhaustive]` structs with `::new()` constructors
 Decision D4 (ISP = Interface Segregation Principle) splits each effect into
 narrow sub-traits (e.g. FsRead + FsWrite + FsMeta + FsList → Fs) so consumers
 only depend on the capability they actually use. Memory + agent-v2 hooks
-reserved on kernel traits for v0.95 Cortex work.
+reserved on kernel traits for the v0.95 Connectome work.
 
 ---
 
@@ -243,7 +243,7 @@ pub struct InferRequest {
     pub stop_sequences: Vec<String>,
     pub thinking_budget: Option<u32>,
     pub extra: ProviderExtras,
-    pub memory: Option<MemoryDirective>,   // Cortex hook (Phase 1)
+    pub memory: Option<MemoryDirective>,   // the Connectome hook (Phase 1)
 }
 
 #[non_exhaustive]
@@ -256,7 +256,7 @@ pub struct InferResponse {
     pub request_id: Option<String>,
     pub cost_usd: Option<f64>,
     pub finish_reason_raw: Option<String>,
-    pub memory_frames: Vec<MemoryFrameRef>, // Cortex hook (Phase 1)
+    pub memory_frames: Vec<MemoryFrameRef>, // the Connectome hook (Phase 1)
 }
 
 pub struct TokenUsage { pub input_tokens: u64, pub output_tokens: u64, pub cache_read_tokens: Option<u64>, pub cache_write_tokens: Option<u64> }
@@ -279,7 +279,7 @@ pub type InferEventStream = Pin<Box<dyn Stream<Item = Result<InferEvent, Provide
 // impl NikaErrorCode for ProviderError (codes NIKA 380-429)
 ```
 
-### 2.3 Memory traits + types (Cortex hook)
+### 2.3 Memory traits + types (the Connectome hook)
 
 ```rust
 // ── memory.rs (~200 LOC) ─────────────────────────────────────
@@ -832,6 +832,6 @@ in `nika-error`'s `ALL` registry via the per-crate error pattern.
 
 | Date | Author | Change |
 |---|---|---|
-| 2026-04-13 | Phase 1 S3 | Initial spec — ISP-layered traits + Cortex/agent-v2 hooks. |
+| 2026-04-13 | Phase 1 S3 | Initial spec — ISP-layered traits + the Connectome/agent-v2 hooks. |
 
 🦋

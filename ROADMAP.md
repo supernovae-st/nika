@@ -199,10 +199,9 @@ structural climb"; `v0.93+` keeps shipping diamond-grade increments forever.
 Every `.nika.yaml` workflow carries `nika: v1` **forever** — a single
 version marker (the language name as key, the contract version as value).
 The envelope never bumps to v2 (forever-v0.x · a `v2` is effectively
-never). The earlier K8s-style `apiVersion: nika.sh/v1` form (ADR-021) is
-superseded by `nika-spec` spec/01-envelope.md, which rejects the two-field
-`apiVersion:`/`schema:` ceremony; `https://nika.sh/spec/v1` survives only
-as the internal RDF/conformance URI, never typed by authors.
+never). Canonical envelope: `nika-spec` spec/01-envelope.md.
+`https://nika.sh/spec/v1` is the internal RDF/conformance URI only,
+never typed by authors.
 
 Sub-field maturity is annotated inline via `x-nika-alpha` / `x-nika-beta` /
 `x-nika-deprecated` hints that parsers surface as warnings, never errors.
@@ -218,10 +217,9 @@ continue to parse — they just warn.
 Bottom-up build order. Every crate is crafted when its layer is reached.
 No defer, no feature-milestone ceremony. Strictly downward dependencies.
 
-> Live admission state per layer lives ONLY in the auto-generated
+> Live admission state per layer lives in the auto-generated
 > §Current state block above (`scripts/refresh-status.sh` · vector 23).
-> The lists below are the dep-ordered PLAN — hand-typed "Admitted:"
-> lists here were the drift class and are gone.
+> The lists below are the dep-ordered PLAN.
 
 ### L0 — foundation (~9 crates, pure types, sync)
 
@@ -240,37 +238,32 @@ scaffold, proposal B), `nika-binding-types`.
 
 Sub-phased per Q2 (topological × user-value):
 
-- **1a primitives**: `nika-fs` ✅, `nika-exec-runner` ✅ (shipped name of the
-  process/shell effect · supersedes the planned `nika-process`), `nika-http` ✅
-  (shipped name of `nika-http-client`), `nika-blob` ✅, `nika-keys-env`
+- **1a primitives**: `nika-fs` ✅ · `nika-exec-runner` ✅ (shell/process
+  effect) · `nika-http` ✅ · `nika-blob` ✅ · `nika-keys-env`
 - **1b deps-étage-1**: `nika-git` (gix), `nika-keys-keychain`, `nika-catalog-sync`
 - **1c providers** ✅ SHIPPED 2026-06-11 as **`nika-providers`** (ONE L1.5
   crate · 14/14 canonical providers over 3 wire formats: anthropic ·
   openai-compat ×12 · gemini · in-crate mock — rig NOT carried, Diamond
   talks wire directly through the kernel http seam per D-2026-05-22-N17).
   The native in-process backend ships separately as `nika-infer-local`
-  (candle sidecar · ADR-091 · supersedes the `nika-provider-native` name)
+  (candle sidecar · ADR-091)
 - **1d pck backend**: `nika-pck-registry`, `nika-pck-store`
-- **1e memory foundation** (Connectome climb · pro names per nika-invariants —
-  `nika-bm25` ✅ ADMITTED proves the canon): `nika-embed` (own quantized local
-  model, B2 locked), `nika-bm25` ✅ (ADR-038), `nika-hnsw`, `nika-rrf`,
-  `nika-autodesc-minimal` (ADR-042 split)
+- **1e memory foundation** (the Connectome climb): `nika-embed` (own
+  quantized local model), `nika-bm25` ✅ (ADR-038), `nika-hnsw`, `nika-rrf`,
+  `nika-autodesc-minimal`
 - **1f memory advanced**: `nika-temporal`, `nika-fsrs`, `nika-rdfs-reasoner`,
-  `nika-graph-algos`, `nika-rerank` (M13 · SOTA ratification 2026-06-11),
-  `nika-autodesc-full`
-- **1g frontier satellites** (graduated as pulled forward · Connectome
-  blueprint §7 dims 10-20): `nika-consolidator` (M14), `nika-sync` (CRDT),
-  `nika-stream`, `nika-trust`, `nika-causal`, `nika-datalog`,
-  `nika-multimodal`, `nika-coordinator`. The 2026-04 six-reserved
-  `nika-memory-*` list is absorbed: causal → `nika-causal`; episodic /
-  working / procedural / meta / spatial are `MemoryLevel` frame classes
-  handled inside the orchestrator, not crates.
+  `nika-graph-algos`, `nika-rerank` (local reranker), `nika-autodesc-full`
+- **1g frontier satellites** (graduated as pulled forward): `nika-consolidator`,
+  `nika-sync` (CRDT), `nika-stream`, `nika-trust`, `nika-causal`,
+  `nika-datalog`, `nika-multimodal`, `nika-coordinator`. Tulving-class
+  memory levels (episodic · working · procedural · …) are `MemoryLevel`
+  frame classes inside the orchestrator, not crates.
 
 ### L2 — domain (~15 crates)
 
 `nika-verb-{exec,invoke,infer,agent}` (fetch = `nika:fetch` builtin via invoke), `nika-pck` orchestrator,
-`nika-connectome` orchestrator (renamed from `nika-memory` per the Connectome
-lock 2026-05-22), `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
+`nika-connectome` orchestrator (the Connectome), `nika-builtin`,
+`nika-builtin-{github,cloud,workspace}`,
 `nika-mcp`, `nika-display`.
 
 ### L3 — orchestration (~6 crates)
@@ -287,13 +280,9 @@ lock 2026-05-22), `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
 
 `nika` (composition root, <500 LOC, zero logic).
 
-### Memory subsystem detail — the Connectome cluster, 1 + 10 (ADR-004 + SOTA ratification 2026-06-11)
+### Memory subsystem detail — the Connectome cluster (1 orchestrator + 10 satellites · ADR-004)
 
-> The 2026-04 « 14 satellites · `nika-memory-*` names · fjall default » plan
-> below was superseded by the Connectome lock (2026-05-22 · D-2026-05-22-N9)
-> + the stack ratification (2026-06-11). Canon: 1 L2 orchestrator
-> (`nika-connectome`) + **10 L1 satellites** with pro names (`nika-bm25`
-> ✅ ADMITTED proves the naming canon). Specs: `docs/crate-specs/nika-<sat>.md`.
+Specs: `docs/crate-specs/nika-<sat>.md`.
 
 **10 satellites** (admitted during L1 phases 1e-1f, composed by `nika-connectome` L2):
 
@@ -308,7 +297,7 @@ lock 2026-05-22), `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
 - `nika-autodesc-minimal` ★ — provenance-attached zero-LLM ingest (PROV-O · the moat)
 - `nika-autodesc-full` ★ — schema evolution + graph summarization (ADR-042 split)
 
-**Storage** (ratified · supersedes the B3 fjall-default matrix): Oxigraph
+**Storage**: Oxigraph
 in-memory + N-Quads snapshot at boot/shutdown (pure-Rust · single binary ·
 zero system dep). Vendored-RocksDB persistence is opt-in `feature = "rocksdb"`
 when scale demands. Embeddings ride as RDF literals (Scenario D); the HNSW
@@ -325,8 +314,7 @@ backends ship via `nika pck install` with Sigstore signature required.
 - Human-in-loop verdict — manual promote/demote logged to `EventLog`
 - Audit trail — every trust change is an immutable event
 
-**Tenant isolation** (B5 locked · shipped v0.81 as DTO field, not the
-associated-type sketch):
+**Tenant isolation** (B5 · compile-time keyspace partition):
 
 ```rust
 // nika-kernel-ai/src/memory.rs — shipped form
@@ -425,11 +413,9 @@ official MCP Registry schema (`packages[]` + `remotes[]`).
 the catalog carries 32 provider rows as metadata · the v0.1 stdlib contract
 wires the canonical 14 over 3 wire formats — anthropic · openai-compat ×12 ·
 gemini · in-crate mock · rig NOT carried). The native in-process backend is
-`nika-infer-local` (candle sidecar · ADR-091). The 3-crate
-`nika-provider-{rig,native,mock}` split below is the superseded April plan,
-kept for the Tier-1 catalog additions it scoped:
+`nika-infer-local` (candle sidecar · ADR-091).
 
-**Tier 1 additions** (high-priority providers):
+**Tier 1 catalog additions** (high-priority provider metadata):
 - `moonshot` — Kimi K2 (1M+ context, top-tier open-weight)
 - `qwen` — Alibaba DashScope (Qwen3-Max competitive with GPT-5/Claude 4.5)
 - `deepinfra` — OpenAI-compat, popular open-weight hosting
@@ -595,7 +581,7 @@ Per D-2026-05-22-N18.)
 ### Cargo features + distribution
 
 **Feature flags strategy** — minimal binary by default, opt-in for heavy deps:
-- `nika-provider-native` — `[feature] ggufs` (gates mistral.rs, ~50MB linked)
+- `nika-infer-local` — sidecar binary (candle · ADR-091 · never linked into `nika`)
 - `nika-media-pdf` — `[feature] pdf` (gates pdfium + pdf-extract)
 - `nika-media-document` — `[feature] html-md` (gates dom_smoothie, readability)
 - `nika-media-provenance` — `[feature] c2pa` (gates c2pa full stack)

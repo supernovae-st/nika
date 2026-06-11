@@ -130,6 +130,7 @@ run_check "37 error-one-voice     " "check-error-one-voice.sh"
 run_check "38 public-api-coverage " "check-public-api-coverage.sh"
 run_check "39 gate5-attestation   " "check-gate5-attestation.sh"
 run_check "40 kernel-io-typed-err  " "check-kernel-io-typed-errors.sh"
+run_check "41 canon-stale-terms    " "check-canon-stale-terms.sh"
 
 # --- Output ---
 g=0
