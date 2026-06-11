@@ -4,8 +4,9 @@
 > builds up a real workflow in 5 small steps — copy each block, run it,
 > watch it grow.
 >
-> **Status** · v0.1.0-draft · run with the reference engine (`cargo install
-> nika` → the `nika` binary) or any v0.1-compliant engine.
+> **Status** · v0.1.0-draft · authoring + static checking work TODAY (the
+> conformance oracle in this repo) · execution lands with the reference
+> engine's v0.81 milestone (`cargo install nika`) or any v0.1-compliant engine.
 
 ---
 
@@ -151,10 +152,19 @@ Exactly four · `fetch` is not among them (it's the `nika:fetch` tool via
 
 ---
 
-## 5 · Run it
+## 5 · Check it — run it at the engine milestone
+
+Validate the file TODAY against this repo's oracle (zero install beyond
+python3) ·
 
 ```bash
-nika run summarize-and-translate.nika.yaml
+python3 conformance/runner.py validate summarize-and-translate.nika.yaml
+```
+
+Execution lands with the reference engine's v0.81 milestone ·
+
+```bash
+nika run summarize-and-translate.nika.yaml   # the engine command · same file · any conformant engine
 ```
 
 The same file runs on **any** v0.1-compliant engine — the language is the
