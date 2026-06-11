@@ -12,6 +12,17 @@
 #
 # `examine_re` / `exclude_re` match the mutant's textual description (which
 # includes the mutated function path), per cargo-mutants config semantics.
+#
+# `--lib` is STRUCTURAL, not advisory: cargo-mutants copies the tree to a
+# sandbox where the `../spec` sibling checkout does not exist, so the
+# conformance integration suite hard-fails its baseline BY DESIGN there
+# (the gate must never silently skip) and every mutation run that forgets
+# `-- --lib` reports `Found 0 mutants` — silently. Baking the canonical
+# lib surface here (the same law as the repo-wide `cargo test --workspace
+# --lib`) makes `cargo mutants` correct whether or not the operator
+# remembers the flag.
+additional_cargo_test_args = ["--lib"]
+
 exclude_re = [
   # nika-a11y · the AT-SPI (Linux) accessibility backend — role mapping + node
   # builder. cfg(target_os = "linux"), tested by the ubuntu CI matrix.

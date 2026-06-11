@@ -365,24 +365,33 @@ tasks:
     fn broken_dag_still_yields_every_dag_independent_finding() {
         // ONE round-trip: the agent gets the conformance violation AND
         // the tool typo AND the schema defect AND the hints, together.
-        let r = check_yaml(
-            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    depends_on: [ghost]\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  - id: b\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n",
-        );
+        let src = "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    depends_on: [ghost]\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  - id: b\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
+        let r = check_yaml(src);
         assert!(
             r.conformance.iter().any(|c| c.code == "NIKA-DAG-002"),
             "{:?}",
             r.conformance
         );
         // the violation carries its source span (the snippet renderers
-        // + the LSP read it) — and the offsets point INSIDE the source
+        // + the LSP read it) — pinned to the EXACT token offsets so a
+        // span() arm regressing to Default::default() cannot survive
+        // (the mutation run proved the loose <1000 bound let it live)
         let dag = r
             .conformance
             .iter()
             .find(|c| c.code == "NIKA-DAG-002")
             .expect("dag violation");
         let span = dag.span.expect("span populated");
-        assert!(span.start <= span.end, "ordered offsets");
-        assert!((span.start as usize) < 1000, "within the tiny source");
+        let ghost = u32::try_from(src.find("ghost").expect("token")).expect("fits u32");
+        assert_eq!(span.start, ghost, "span starts AT the offending token");
+        // today's parser emits POINT spans for flow-list scalars
+        // (end == start) — the snippet renderer handles zero-width;
+        // upgrading scalars to full token ranges is the LSP-grade
+        // follow-up, and this pin will catch the day it lands
+        assert!(
+            span.end >= span.start && span.end <= ghost + 5,
+            "span anchored to the token: {span:?}"
+        );
         assert_eq!(r.unknown_tools.len(), 1, "tool typo still caught");
         assert_eq!(r.schema_lints.len(), 1, "schema defect still caught");
         assert!(
