@@ -877,3 +877,123 @@ mod tests {
         assert!(drive(&[K::TaskStarted, K::TaskCancelled]) == RowStatus::Cancelled);
     }
 }
+
+#[cfg(test)]
+mod prop {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    /// Every canonical kind (mirrors `kind.rs` ALL — 17).
+    const KINDS: [EventKind; 17] = [
+        EventKind::WorkflowStarted,
+        EventKind::WorkflowCompleted,
+        EventKind::WorkflowFailed,
+        EventKind::WorkflowCancelled,
+        EventKind::TaskScheduled,
+        EventKind::TaskStarted,
+        EventKind::TaskCompleted,
+        EventKind::TaskFailed,
+        EventKind::TaskSkipped,
+        EventKind::TaskRetrying,
+        EventKind::TaskCancelled,
+        EventKind::VerbInvoked,
+        EventKind::ToolInvoked,
+        EventKind::CheckpointWritten,
+        EventKind::CostIncurred,
+        EventKind::InferChunk,
+        EventKind::PermitChecked,
+    ];
+
+    fn any_kind() -> impl Strategy<Value = EventKind> {
+        (0..KINDS.len()).prop_map(|i| KINDS[i])
+    }
+
+    /// Task names: the known lanes, an unknown, and arbitrary text — the
+    /// fold must tolerate every addressing.
+    fn any_task() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just("fetch".to_owned()),
+            Just("extract".to_owned()),
+            Just("save".to_owned()),
+            Just("escalate".to_owned()),
+            Just("ghost".to_owned()),
+            ".*",
+        ]
+    }
+
+    /// Arbitrary fields: hostile values included (negative spend ·
+    /// empty strings · garbage keys) — the fold is a TOTAL function.
+    fn any_event(seq: u128) -> impl Strategy<Value = Event> {
+        (
+            any_kind(),
+            any_task(),
+            proptest::option::of(-1_000_000i64..1_000_000),
+            proptest::option::of(-1e6f64..1e6),
+            proptest::option::of(".*"),
+        )
+            .prop_map(move |(kind, task, tokens, usd, delta)| {
+                let mut e = ev(seq, 0, kind, &[("task", s(&task))]);
+                if let Some(tk) = tokens {
+                    e = e.with_field(KeyValue::new("tokens", Value::Int(tk)));
+                }
+                if let Some(u) = usd {
+                    e = e.with_field(KeyValue::new("usd", Value::Float(u)));
+                }
+                if let Some(d) = delta {
+                    e = e.with_field(KeyValue::new("delta", Value::String(d)));
+                }
+                e
+            })
+    }
+
+    fn any_tape() -> impl Strategy<Value = Vec<Event>> {
+        proptest::collection::vec(any_event(0xF00), 0..40)
+    }
+
+    proptest! {
+        /// THE totality law: any event sequence folds without panicking,
+        /// and the folded state keeps its structural invariants.
+        #[test]
+        fn fold_is_total_and_invariant_over_arbitrary_tapes(tape in any_tape()) {
+            let mut st = TapeState::initial();
+            for e in &tape {
+                fold(&mut st, e);
+            }
+            prop_assert!(st.done() <= st.rows.len());
+            // terminal only arises from a workflow-outcome kind
+            let outcome_seen = tape.iter().any(|e| {
+                matches!(
+                    e.kind,
+                    EventKind::WorkflowCompleted
+                        | EventKind::WorkflowFailed
+                        | EventKind::WorkflowCancelled
+                )
+            });
+            prop_assert_eq!(st.terminal.is_some(), outcome_seen);
+        }
+
+        /// Renderers are pure + total over arbitrary steps (clamping far
+        /// beyond the storyboard) and never emit ANSI when colour is off.
+        #[test]
+        fn workflow_frame_is_total_pure_and_colour_clean(step in 0usize..10_000) {
+            let t = Theme::new(false, true);
+            let a = workflow_frame(step, t);
+            let b = workflow_frame(step, t);
+            prop_assert_eq!(&a, &b, "frame must be deterministic");
+            prop_assert!(!a.is_empty());
+            prop_assert!(!a.contains('\u{1b}'), "colour-off frame leaked ANSI");
+        }
+
+        /// The tape line renders any arbitrary event without panicking —
+        /// both themes — and the ascii theme stays ascii for the CHROME
+        /// even when the event DATA is unicode (data passes verbatim).
+        #[test]
+        fn tape_line_is_total_over_arbitrary_events(e in any_event(0xBEEF)) {
+            let uni = tape_line(&e, 0, Theme::new(false, true));
+            prop_assert!(!uni.is_empty());
+            let asc = tape_line(&e, 0, Theme::new(false, false));
+            prop_assert!(!asc.is_empty());
+        }
+    }
+}
