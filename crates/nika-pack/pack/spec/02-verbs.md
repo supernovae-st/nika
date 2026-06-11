@@ -33,8 +33,9 @@ A task **must** specify exactly one of these. Multiple verbs on a single task is
 
 ### What `${{ tasks.<id>.output }}` holds · per verb
 
-Every task also exposes `.status` · `.error` · `.duration_ms`. The `.output`
-shape depends on the verb (know this before you bind downstream) ·
+Every task also exposes the full result record (`.status` · `.error` ·
+`.started_at` · `.ended_at` · `.duration_ms` · [04 §task output reference](./04-variables.md#-taskxoutput--task-output-reference)).
+The `.output` shape depends on the verb (know this before you bind downstream) ·
 
 | Verb | `.output` is | Structured when |
 |---|---|---|
@@ -100,7 +101,7 @@ A v0.1-compliant engine MUST ·
 
 - Call the configured provider with the given prompt + system + parameters
 - Return the model's response as the task output
-- Validate the response against `schema` if present · retry up to N times on validation failure (engine config)
+- Validate the response against `schema` if present · MAY auto-retry validation failures internally before surfacing `NIKA-INFER-002` (engine-configurable · the same rule as [05 §structured output](./05-errors.md#structured-output-validation))
 - Reject any unknown field with a clear error (forward-compat) · or accept + warn (engine choice)
 
 ---
@@ -165,7 +166,13 @@ The engine MUST ·
 - Run the command via the OS shell (`/bin/sh -c` on Unix · `cmd /c` on Windows, OR a sandboxed equivalent)
 - Capture stdout/stderr as configured
 - Return exit code in `structured` capture mode
-- Fail the task on non-zero exit (unless `on_error:` overrides · see [05-errors.md](./05-errors.md))
+- **Fail the task on non-zero exit** (`NIKA-EXEC-001` · `process_error`) in
+  `stdout` / `stderr` / `combined` capture modes (unless `on_error:` recovers ·
+  [05](./05-errors.md)) — **EXCEPT `capture: structured`**, where a non-zero
+  exit is **data, not failure** · the task succeeds and `exit_code` is the
+  workflow's to branch on (`when: ${{ tasks.test.output.exit_code != 0 }}`) ·
+  the one-obvious-way split · default modes for « must succeed » · structured
+  for « inspect the outcome »
 
 ---
 
@@ -183,7 +190,13 @@ nika:write                  builtin · flat name
 nika:connectome/recall      builtin · grouped path
 mcp:browser/navigate        MCP · server `browser` · tool `navigate`
 mcp:postgres/query          MCP · server `postgres` · tool `query`
+mcp:my-server/do_thing      MCP · server names admit kebab-case · tools admit snake_case
 ```
+
+The `mcp:` form **requires the slash** — `mcp:postgres` alone (no tool) is a
+parse error (`NIKA-PARSE` · `validation_error`) · server segment
+`[a-z][a-z0-9-]*` · tool segment `[A-Za-z0-9_-]+` (tool names are the MCP
+server's to define).
 
 One rule everywhere · the **colon** marks the namespace boundary (exactly once),
 the **slash** separates the path within it. No `::`, no mixed `.`/`:`. Globs are
@@ -295,7 +308,30 @@ The agent loops · model response → if tool calls present, execute tools → f
 3. `max_tokens_total` exhausted, OR
 4. A tool returns the canonical completion sentinel `nika:done` (the builtin tool · see [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md))
 
-`nika:done` is **valid only inside an `agent:` loop's tool whitelist** — it is the loop-completion sentinel. Calling `nika:done` from a standalone `invoke:` task (outside any agent loop) is an error (`NIKA-BUILTIN-NNN`). The sentinel has no meaning without a loop to terminate.
+`nika:done` is **valid only inside an `agent:` loop's tool whitelist** — it is
+the loop-completion sentinel. Calling `nika:done` from a standalone `invoke:`
+task (outside any agent loop) is an error (`NIKA-BUILTIN-DONE-001`). The
+sentinel has no meaning without a loop to terminate. `nika:done` accepts an
+optional **`result:`** arg (any JSON value) · when present the task's
+`.output` is that value (and `schema:` validates IT) · when absent `.output`
+is the final assistant message (string).
+
+**Termination outcomes (normative)** ·
+
+- Case 1 or 4 (natural completion · `nika:done`) → `status: success`.
+- Case 2 (`max_turns` reached) → **`status: failure`** · `NIKA-AGENT-001` ·
+  `budget_error` · the last assistant message is preserved at
+  `error.details.partial_output` (a budget that runs out did NOT produce the
+  asked-for result — failing loudly beats returning an unfinished answer ·
+  recover the partial explicitly via `on_error:` if it is acceptable).
+- Case 3 (`max_tokens_total` exhausted) → same shape · `NIKA-AGENT-002`.
+
+**Tool-call errors inside the loop are fed back, not fatal** · a failing tool
+call returns its typed error to the MODEL as the tool result (the standard
+agentic convention — the model sees the failure and adapts) · the loop
+continues against its budgets. The ONE exception · a `security_error`
+(whitelist violation `NIKA-SEC-002` · blocklist) **fails the task
+immediately** — security boundaries are not negotiation material for a model.
 
 ### Tool whitelist · glob semantics
 

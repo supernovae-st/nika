@@ -44,7 +44,7 @@ Every error is a typed structure ·
 
 ## Error code namespaces
 
-Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 uppercase letters and NNN is a 3-digit zero-padded number. A code MAY add an **optional sub-namespace** for self-documentation · `NIKA-<NAMESPACE>-<SUB>-<NNN>` (4-segment) — used per-builtin (`NIKA-BUILTIN-WAIT-001` · each builtin owns its own 001-099) or per-field (`NIKA-PARSE-WHEN-001` · the `when:` field of a parse error). The canonical regex is `^NIKA-[A-Z]{2,9}(-[A-Z]{2,9})?-[0-9]{3}$` (also the `retry.on_codes` validation pattern).
+Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 uppercase letters and NNN is a 3-digit zero-padded number. A code MAY add an **optional sub-namespace** for self-documentation · `NIKA-<NAMESPACE>-<SUB>-<NNN>` (4-segment) — used per-builtin (`NIKA-BUILTIN-WAIT-001` · each builtin owns its own 001-099) or per-field (`NIKA-PARSE-WHEN-001` · the `when:` field of a parse error). The canonical regex is `^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$` (also the `retry.on_codes` / `on_error.on_codes` validation pattern) — the sub-namespace segment admits underscores so underscore-named builtins encode cleanly (`NIKA-BUILTIN-JSON_MERGE_PATCH-001`).
 
 | Namespace | Scope | Reserved range |
 |---|---|---|
@@ -64,6 +64,44 @@ Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 up
 | `NIKA-IMPL` | Engine internal errors | 001-099 |
 
 A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
+
+### Concrete v0.1 codes · the normative floor
+
+The codes below are **allocated** — a conformant engine emits exactly these
+codes for these failures (it MAY add more within a namespace's range · never
+repurpose). This closes the « placeholder » gap: a second engine matches
+these from this file alone.
+
+| Code | Failure | Category | `transient` |
+|---|---|---|---|
+| `NIKA-DAG-001` | cycle in `depends_on` (incl. self-dependency) | `validation_error` | false |
+| `NIKA-DAG-002` | `depends_on` references an undeclared task | `validation_error` | false |
+| `NIKA-DAG-003` | a `${{ tasks.X }}` reference with no declared edge | `validation_error` | false |
+| `NIKA-DAG-004` | `on_error.recover` references a task downstream of the declaring task (await would deadlock) | `validation_error` | false |
+| `NIKA-VAR-001` | unresolved reference (unknown namespace entry · undeclared `env`/`vars` key) | `variable_error` | false |
+| `NIKA-VAR-002` | binding cardinality — a jq binding emitted zero or multiple values (evaluation-time · data-dependent) | `variable_error` | false |
+| `NIKA-VAR-003` | provably-invalid path into a declared `schema:` (static walk · [04](./04-variables.md)) | `validation_error` | false |
+| `NIKA-VAR-004` | jq runtime error while evaluating a binding | `variable_error` | false |
+| `NIKA-VAR-005` | static expression violation — outside the `cel-subset/0.1` grammar · chained relation · unknown function · statically-non-boolean `when:` root · jq compile error | `validation_error` | false |
+| `NIKA-VAR-006` | expression type error at evaluation — cross-type compare · non-boolean `when:` value · `for_each` over a non-array | `variable_error` | false |
+| `NIKA-VAR-007` | bytes value substituted into a string position | `variable_error` | false |
+| `NIKA-VAR-008` | unclosed `${{` opener | `validation_error` | false |
+| `NIKA-INFER-001` | provider call failed (HTTP error · provider refusal) | `provider_error` | engine-assessed |
+| `NIKA-INFER-002` | structured output failed `schema:` validation (after any engine-internal retries) | `validation_error` | false |
+| `NIKA-EXEC-001` | non-zero exit code (default capture modes · see [02 §exec](./02-verbs.md#exec--shell-command)) | `process_error` | false |
+| `NIKA-EXEC-002` | spawn failure (command not found · permission) | `process_error` | false |
+| `NIKA-INVOKE-001` | unknown tool (unresolvable `nika:`/`mcp:` id) | `validation_error` | false |
+| `NIKA-INVOKE-002` | tool args failed the tool's schema | `validation_error` | false |
+| `NIKA-AGENT-001` | `max_turns` exhausted before completion | `budget_error` | false |
+| `NIKA-AGENT-002` | `max_tokens_total` exhausted before completion | `budget_error` | false |
+| `NIKA-MCP-001` | MCP server not configured / not reachable at call time | `tool_error` | engine-assessed |
+| `NIKA-MCP-002` | MCP tool call failed (transport · tool-side error) | `tool_error` | engine-assessed |
+| `NIKA-SEC-001` | `exec:` blocklist hit | `security_error` | false |
+| `NIKA-SEC-002` | agent tool call outside the `tools:` whitelist | `security_error` | false |
+| `NIKA-SEC-003` | run-recursion bound — nested-run depth exceeded OR self-launching workflow | `security_error` | false |
+| `NIKA-TIMEOUT-001` | task (or for_each iteration) exceeded `timeout:` | `timeout_error` | false |
+| `NIKA-CANCEL-001` | task cancelled (workflow failure gate · user cancellation) | `cancelled` | false |
+| `NIKA-BUILTIN-DONE-001` | `nika:done` invoked outside an `agent:` loop | `validation_error` | false |
 
 ### Taxonomy ownership · the spec table is normative · engines derive
 
@@ -100,6 +138,8 @@ The `category` field is a closed enum at v1 ·
 | `provider_error` | LLM provider returned an error | true (engine assesses) |
 | `network_error` | Network failure (DNS · TCP · TLS · timeout) | true |
 | `tool_error` | Builtin or MCP tool returned an error | depends |
+| `process_error` | `exec:` subprocess failure (non-zero exit · spawn) | false |
+| `budget_error` | an `agent:` loop budget exhausted (`max_turns` · `max_tokens_total`) | false |
 | `security_error` | SSRF · blocklist · capability denied | false |
 | `timeout_error` | Task or step exceeded its timeout | false |
 | `cancelled` | Workflow or task cancelled | false |
@@ -185,16 +225,27 @@ A task MAY declare an `on_error:` block to recover from non-transient errors (or
     # fail_workflow: true                 # explicit · same as no on_error
 ```
 
-### Fields (mutually exclusive)
+### Fields · exactly ONE action + an optional code filter
 
 | Field | Effect | Downstream sees |
 |---|---|---|
 | `recover: <value>` | Use a recovery output — a `${{ }}` ref (e.g. another task's output) OR a literal | `status: success` · output = recover value |
-| `skip: true` | Skip this task on error | `status: skipped` |
+| `skip: true` | Skip this task on error · **the original error stays readable** at `tasks.X.error` (status is `skipped` · error populated — the one state where both coexist · enables downstream per-code routing) | `status: skipped` · `error` = the original typed error |
 | `fail_workflow: true` | Fail the whole workflow (default behavior) | n/a (workflow fails) |
+| `on_codes: [<NIKA-…>]` | **Optional filter** (combinable with exactly one action above) · the action applies ONLY when the final error's `code` is listed · an unlisted code falls through to the default (fail) — the catch-side mirror of `retry.on_codes` (same regex) | per the action |
 
 `recover:` merges the former `fallback:` (ref) + `value:` (literal) into one field
 (`${{ }}` resolves to values either way · 4 modes → 3 · one way).
+
+```yaml
+# Catch-side routing · recover ONLY on timeout · any other code still fails
+- id: slow_fetch
+  invoke: { tool: "nika:fetch", args: { url: "https://slow.example.com" } }
+  timeout: "30s"
+  on_error:
+    on_codes: [NIKA-TIMEOUT-001]
+    recover: { stale: true, items: [] }
+```
 
 ### `recover:` reference resolution (normative)
 
@@ -212,6 +263,13 @@ Resolution happens at **recovery time** ·
 4. If it terminated without a usable value (`failure` · `cancelled` ·
    `skipped`), the reference is unresolved → `NIKA-VAR-001` → the recovery
    itself fails → the task fails as if `on_error:` were absent.
+
+**Parse-time acyclicity rule (`NIKA-DAG-004` · `validation_error`)** · a
+`recover:` reference to a task that **transitively depends on the declaring
+task** is rejected at parse time. At recovery time such a task could never
+reach a terminal state (it is waiting on the failing task) — the step-3 await
+would deadlock. The [03 carve-out](./03-dag.md#referencing-a-task-requires-an-explicit-depends_on)
+exempts `recover:` from *edge creation*, not from *acyclicity*.
 
 Authors SHOULD keep recovery sources cheap and independent (the
 fetch-chain pattern · a local `nika:read` beside a live fetch).
@@ -250,7 +308,10 @@ fetch-chain pattern · a local `nika:read` beside a live fetch).
 
 The `infer:` and `agent:` verbs may declare a JSON Schema for structured output. If the model returns invalid JSON or fails schema validation, an error of category `validation_error` is raised.
 
-The engine MAY auto-retry validation failures internally (transparent to the workflow) before surfacing the error. This behavior is engine-configurable.
+The engine MAY auto-retry validation failures internally (transparent to the
+workflow) before surfacing the error (`NIKA-INFER-002`). This behavior is
+engine-configurable — the SAME rule as [02 §infer conformance](./02-verbs.md#conformance)
+(MAY · engine choice · the two sections state one contract).
 
 ```yaml
 - id: extract
@@ -276,7 +337,24 @@ The engine MAY auto-retry validation failures internally (transparent to the wor
 
 ## Workflow-level error semantics
 
-If a task fails with no `on_error:` recovery · the **whole workflow is marked failed** and remaining tasks are cancelled (status `cancelled`).
+If a task fails with no `on_error:` recovery · the **workflow's final state
+is `failure`**. What happens to the REST of the DAG is **gate-based · not a
+blanket kill** ·
+
+- **In-flight tasks drain** · an engine MUST NOT abort an unrelated running
+  task because a sibling failed (industry default · GitHub Actions
+  independent jobs · Argo running nodes).
+- A not-yet-started task whose gate is the **default** (no `when:`) and
+  whose deps can no longer all end `success`/`skipped` is `cancelled`.
+- A not-yet-started task with an **explicit `when:`** still gets its
+  evaluation once its deps are terminal (`failure` and `cancelled` ARE
+  terminal) · `true` → it RUNS (this is the **always-pattern** — a final
+  notify/cleanup task with `when: true` runs even in a failing workflow) ·
+  `false` → `skipped`.
+- The workflow's final state stays `failure` even when always-pattern tasks
+  ran afterward (any unrecovered task failure decides it).
+- **User cancellation** (Ctrl+C · API) IS a blanket kill · in-flight tasks
+  are cancelled (their `on_finally:` still runs · [03](./03-dag.md#on_finally--optional--cleanup-hook--always-runs)).
 
 A workflow's final state is one of ·
 
@@ -294,7 +372,7 @@ The engine MUST emit a typed completion event with this state.
 
 The error structure (fields · categories · namespaces · retry shape · on_error shape) is locked at v1. Additional categories MAY be added in minor bumps (additive only · existing categories never repurposed). Additional retry strategies MAY be added.
 
-Out of scope for v0.1 · structured retry conditions (e.g. `retry_when: ${{ error.details.status_code == 503 }}`) · global on_error handlers · workflow-level circuit breakers. See [08-out-of-scope.md](./08-out-of-scope.md).
+Out of scope for v0.1 · structured retry conditions (e.g. `retry_when: ${{ error.details.status_code == 503 }}` · value-conditioned polling · see [08 H19](./08-out-of-scope.md#horizon-postures--the--did-you-think-of-x--table-2026-06-10)) · global on_error handlers (the always-pattern covers notification · §workflow-level semantics) · workflow-level circuit breakers. See [08-out-of-scope.md](./08-out-of-scope.md).
 
 ---
 

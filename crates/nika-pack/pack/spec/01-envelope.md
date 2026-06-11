@@ -62,6 +62,26 @@ outputs:
 
 ---
 
+## YAML profile (normative)
+
+A workflow file is **YAML 1.2 · core schema**. Two consequences authors hit ·
+
+- **Anchors & aliases (`&x` / `*x`) are fully supported** — they are core
+  YAML · they resolve BEFORE validation (the schema sees the expanded
+  document) · legitimate for de-duplicating repeated blocks (a shared
+  `retry:` policy · a common `with:` shape).
+- **Merge keys (`<<:`) are NOT part of the contract** — YAML 1.2 dropped
+  them (they were a 1.1 extension) · parser support varies · a portable
+  workflow MUST NOT use them · the reference linter rejects them at check
+  time (`NIKA-PARSE` · `validation_error`).
+
+(YAML 1.2 core also kills the 1.1 traps — `no` is a string, not `false` ·
+`3:22` is a string, not sexagesimal. The quoted-duration rule of
+[03 §timeout](./03-dag.md#timeout--optional--task-level-timeout-go-duration-string)
+adds the belt to those suspenders.)
+
+---
+
 ## Field-by-field
 
 ### `nika` · **required · the contract version**
@@ -195,7 +215,14 @@ secrets:
   github_token:
     source: env                   # read from the OS env var below · still masked
     key: GITHUB_TOKEN
+  signing_pem:
+    source: file                  # read file contents at resolve time · masked
+    path: ~/.keys/signing.pem
 ```
+
+The shape is **discriminated by `source:`** (required) · `vault` and `env`
+require `key:` · `file` requires `path:` · an entry with neither (or an
+inline literal value) is rejected (`NIKA-PARSE` · `validation_error`).
 
 Sensitive values available via `${{ secrets.<name> }}`. A secret is always
 a **reference to a store** — never an inline literal. The engine **masks**
