@@ -79,7 +79,7 @@ pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
 }
 
 /// An `exec:` task under a `permits:` boundary. A `false`/omitted permit
-/// denies any exec; a program allowlist applies to the program — argv[0]
+/// denies any exec; a program allowlist applies to the program — `argv[0]`
 /// for the array form (unambiguous), the literal leading token for the
 /// shell-string form (dynamic/pipeline heads are a runtime concern).
 fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
