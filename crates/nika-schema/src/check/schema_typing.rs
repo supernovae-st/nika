@@ -68,8 +68,10 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> Vec<SchemaTypeFinding> {
         }
         for cleanup in &task.value.on_finally {
             let site = format!("{id} (on_finally)");
-            if let Some(when) = &cleanup.value.when {
-                check_text(&site, &when.value, &shapes, &mut findings);
+            if let Some(when) = &cleanup.value.when
+                && let Some(expr) = when.value.as_expr()
+            {
+                check_text(&site, expr, &shapes, &mut findings);
             }
             for text in action_texts(&cleanup.value.action) {
                 check_text(&site, text, &shapes, &mut findings);
@@ -112,8 +114,10 @@ fn declared_shapes(wf: &RawWorkflow) -> BTreeMap<&str, Shape<'_>> {
 /// fields). `output:` binding values are jq programs, not CEL — skipped.
 fn task_texts(task: &RawTask) -> Vec<&str> {
     let mut texts = action_texts(&task.action);
-    if let Some(when) = &task.when {
-        texts.push(&when.value);
+    if let Some(when) = &task.when
+        && let Some(expr) = when.value.as_expr()
+    {
+        texts.push(expr);
     }
     if let Some(f) = &task.for_each
         && let crate::raw::ForEachValue::Expression(src) = &f.value

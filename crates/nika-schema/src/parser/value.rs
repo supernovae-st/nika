@@ -17,20 +17,56 @@ use marked_yaml::Node;
 use marked_yaml::types::MarkedScalarNode;
 use serde_json::Value;
 
-/// Convert a YAML node to a JSON value.
+use super::Cx;
+use crate::error::SchemaError;
+
+/// Maximum nesting depth for free-form YAML values (`schema:` · `args:`
+/// · `with:` · `vars` defaults · `for_each` lists · `recover`). Real
+/// workflow values nest < 30; 128 is generous headroom. The cap is a
+/// STACK-SAFETY bound: every downstream walker (schema lint · dataflow
+/// typing · strictness · the runtime `compile_schema`) recurses over
+/// this value — bounding it HERE bounds them all (one seam, no
+/// per-walker guards), and recursive `Drop` of the built `Value` stays
+/// shallow too. Closes the pre-admission note in `parser/mod.rs`
+/// (« `node_to_json` recurses unbounded »).
+pub(super) const MAX_VALUE_DEPTH: usize = 128;
+
+/// Convert a free-form YAML node to a JSON value, depth-capped.
 ///
-/// Infallible · marked-yaml mapping keys are always scalars, so every
-/// YAML shape has a JSON image.
-pub(super) fn node_to_json(node: &Node) -> Value {
-    match node {
+/// # Errors
+///
+/// Rejects (loud, with span) any value nested deeper than
+/// [`MAX_VALUE_DEPTH`] — silently truncating would hand the runtime a
+/// DIFFERENT value than the author wrote.
+pub(super) fn json_value(cx: &Cx<'_>, node: &Node) -> Result<Value, SchemaError> {
+    to_json(node, 0).ok_or_else(|| SchemaError::Validation {
+        message: format!(
+            "value nesting exceeds {MAX_VALUE_DEPTH} levels — a workflow value \
+             this deep is rejected (stack-safety bound)"
+        ),
+        span: cx.span(node.span()),
+    })
+}
+
+/// The recursive core — `None` past the depth cap (≤ [`MAX_VALUE_DEPTH`]
+/// frames by construction).
+fn to_json(node: &Node, depth: usize) -> Option<Value> {
+    if depth >= MAX_VALUE_DEPTH {
+        return None;
+    }
+    Some(match node {
         Node::Scalar(s) => scalar_to_json(s),
-        Node::Sequence(seq) => Value::Array(seq.iter().map(node_to_json).collect()),
+        Node::Sequence(seq) => Value::Array(
+            seq.iter()
+                .map(|n| to_json(n, depth + 1))
+                .collect::<Option<_>>()?,
+        ),
         Node::Mapping(map) => Value::Object(
             map.iter()
-                .map(|(key, value)| (key.as_str().to_owned(), node_to_json(value)))
-                .collect(),
+                .map(|(key, value)| Some((key.as_str().to_owned(), to_json(value, depth + 1)?)))
+                .collect::<Option<_>>()?,
         ),
-    }
+    })
 }
 
 /// Convert a YAML scalar with YAML-1.2-core typing.
@@ -91,7 +127,7 @@ mod tests {
         let node = marked_yaml::parse_yaml_with_options(0, &yaml, options).expect("yaml");
         let mapping = node.as_mapping().expect("mapping");
         let v = mapping.get_node("v").expect("v");
-        node_to_json(v)
+        to_json(v, 0).expect("within depth cap")
     }
 
     #[test]
@@ -136,8 +172,31 @@ mod tests {
         let options = marked_yaml::LoaderOptions::default().prevent_coercion(true);
         let node = marked_yaml::parse_yaml_with_options(0, yaml, options).expect("yaml");
         let mapping = node.as_mapping().expect("mapping");
-        let v = node_to_json(mapping.get_node("v").expect("v"));
+        let v = to_json(mapping.get_node("v").expect("v"), 0).expect("within depth cap");
         assert_eq!(v, json!([1, { "name": "a", "ok": true }]));
+    }
+
+    #[test]
+    fn nesting_past_the_cap_is_rejected_not_built() {
+        // depth MAX+10 in flow style (small string · marked-yaml's own
+        // flow recursion limit is above this) → to_json returns None
+        // instead of building (and later Drop-recursing) a deep Value.
+        let depth = MAX_VALUE_DEPTH + 10;
+        let yaml = format!("v: {}1{}\n", "[".repeat(depth), "]".repeat(depth));
+        let options = marked_yaml::LoaderOptions::default().prevent_coercion(true);
+        let node = marked_yaml::parse_yaml_with_options(0, &yaml, options).expect("yaml");
+        let mapping = node.as_mapping().expect("mapping");
+        assert!(
+            to_json(mapping.get_node("v").expect("v"), 0).is_none(),
+            "past the cap → None, loud at the caller"
+        );
+        // exactly AT the boundary: depth MAX-1 still converts
+        let depth = MAX_VALUE_DEPTH - 1;
+        let yaml = format!("v: {}1{}\n", "[".repeat(depth), "]".repeat(depth));
+        let options = marked_yaml::LoaderOptions::default().prevent_coercion(true);
+        let node = marked_yaml::parse_yaml_with_options(0, &yaml, options).expect("yaml");
+        let mapping = node.as_mapping().expect("mapping");
+        assert!(to_json(mapping.get_node("v").expect("v"), 0).is_some());
     }
 
     #[test]

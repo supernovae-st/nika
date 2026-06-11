@@ -180,8 +180,10 @@ fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
     for task in &wf.tasks {
         let t = &task.value;
         visit_action(&t.action, visit);
-        if let Some(when) = &t.when {
-            visit(&when.value);
+        if let Some(when) = &t.when
+            && let Some(expr) = when.value.as_expr()
+        {
+            visit(expr);
         }
         if let Some(f) = &t.for_each
             && let crate::raw::ForEachValue::Expression(src) = &f.value
@@ -192,8 +194,10 @@ fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
             visit_json(&v.value, visit);
         }
         for cleanup in &t.on_finally {
-            if let Some(when) = &cleanup.value.when {
-                visit(&when.value);
+            if let Some(when) = &cleanup.value.when
+                && let Some(expr) = when.value.as_expr()
+            {
+                visit(expr);
             }
             visit_action(&cleanup.value.action, visit);
         }

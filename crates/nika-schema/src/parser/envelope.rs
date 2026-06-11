@@ -14,7 +14,7 @@ use crate::types::{
     VarType,
 };
 
-use super::{Cx, value::node_to_json};
+use super::{Cx, value::json_value};
 
 /// Keys of the typed `vars:` form (spec 01 §vars).
 const TYPED_VAR_KEYS: &[&str] = &["type", "required", "default", "description"];
@@ -56,7 +56,7 @@ pub(super) fn parse_vars(
         {
             parse_typed_var(cx, &name.value, typed)?
         } else {
-            VarDecl::Untyped(node_to_json(value))
+            VarDecl::Untyped(json_value(cx, value)?)
         };
         out.push((name, decl));
     }
@@ -101,7 +101,10 @@ fn parse_typed_var(
             })?,
     };
 
-    let default = mapping.get_node("default").map(node_to_json);
+    let default = mapping
+        .get_node("default")
+        .map(|n| json_value(cx, n))
+        .transpose()?;
 
     let description = cx
         .opt_scalar(mapping, "description")

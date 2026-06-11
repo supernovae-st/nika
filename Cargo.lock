@@ -3108,6 +3108,7 @@ version = "0.80.0"
 dependencies = [
  "candle-core",
  "candle-transformers",
+ "criterion",
  "proptest",
  "serde",
  "serde_json",

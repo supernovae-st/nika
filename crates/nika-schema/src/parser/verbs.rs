@@ -19,7 +19,7 @@ use crate::source::Spanned;
 use crate::types::CaptureMode;
 
 use super::envelope::parse_string_map;
-use super::value::node_to_json;
+use super::value::json_value;
 use super::{Cx, tasks::parse_string_list};
 
 /// The 4 canonical verb keys — CLOSED set (D-2026-05-22-N18 · « 4 verbs
@@ -195,7 +195,7 @@ fn parse_invoke_body(
             });
         }
         action.args = Some(Spanned::new(
-            node_to_json(node),
+            json_value(cx, node)?,
             cx.span_or_zero(node.span()),
         ));
     }
@@ -298,7 +298,7 @@ fn parse_schema(
         });
     }
     Ok(Some(Spanned::new(
-        node_to_json(node),
+        json_value(cx, node)?,
         cx.span_or_zero(node.span()),
     )))
 }
