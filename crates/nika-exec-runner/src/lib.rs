@@ -33,6 +33,9 @@
 //! - **`cancel(id)`** is registry-backed kill-by-pid (ADR-016 · the OS kills) —
 //!   `run()` registers each spawned child by its pid; `cancel(pid)` signals it;
 //!   unknown/dead pid is an idempotent `Ok`.
+//! - **Output cap** (`MAX_OUTPUT_BYTES` · NIKA-054) — each captured stream is
+//!   bounded so an unbounded writer cannot OOM the host; the timeout bounds
+//!   time, this bounds memory. See §3.5 of the crate spec.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
@@ -48,6 +51,29 @@ use nika_kernel::{ShellCommand, ShellError, ShellResult};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::sync::Notify;
+
+/// Per-stream capture cap (stdout AND stderr each). A runaway writer
+/// (`yes`, `cat /dev/zero`) would otherwise grow the capture buffer until
+/// the host OOMs — the `timeout` bounds wall-clock, NOT memory. Fail-closed
+/// at 64 MiB, mirroring the file-read cap precedent; the spawned child is
+/// killed via `kill_on_drop` the instant the cap is hit. Commands needing
+/// larger output redirect to a file in-command and read it back.
+const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
+/// Marker error a bounded [`drain`] returns when a stream exceeds the cap.
+/// Carried through `tokio::io::Error` so `try_join!` short-circuits (which
+/// drops the child future → SIGKILL), then mapped to
+/// [`ShellError::OutputTooLarge`] at the single exit site.
+#[derive(Debug)]
+struct OutputCapExceeded;
+
+impl std::fmt::Display for OutputCapExceeded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "captured output exceeded the per-stream cap")
+    }
+}
+
+impl std::error::Error for OutputCapExceeded {}
 
 /// pid → cancel signal, shared across `run()`/`cancel()` calls.
 type Registry = Arc<Mutex<BTreeMap<u32, Arc<Notify>>>>;
@@ -148,7 +174,11 @@ impl ShellRunDyn for TokioShell {
         let child_fut = async move {
             let out = child.stdout.take();
             let err = child.stderr.take();
-            tokio::try_join!(child.wait(), drain(out), drain(err))
+            tokio::try_join!(
+                child.wait(),
+                drain(out, MAX_OUTPUT_BYTES),
+                drain(err, MAX_OUTPUT_BYTES)
+            )
         };
 
         let timeout_fut = async {
@@ -187,9 +217,7 @@ impl ShellRunDyn for TokioShell {
                 id: pid.map_or_else(|| "?".to_string(), |p| p.to_string()),
             }),
             Outcome::TimedOut(ms) => Err(ShellError::Timeout { duration_ms: ms }),
-            Outcome::Done(Err(e)) => Err(ShellError::Other {
-                reason: e.to_string(),
-            }),
+            Outcome::Done(Err(e)) => Err(classify_drain_error(&e)),
             Outcome::Done(Ok((status, stdout, stderr))) => Ok(ShellResult::new(
                 status.code().unwrap_or(-1),
                 String::from_utf8_lossy(&stdout),
@@ -251,15 +279,42 @@ fn build_command(command: &ShellCommand) -> Command {
     cmd
 }
 
-/// Read an optional async handle to end (empty when absent).
-async fn drain<R: tokio::io::AsyncRead + Unpin>(handle: Option<R>) -> std::io::Result<Vec<u8>> {
-    match handle {
-        Some(mut h) => {
-            let mut buf = Vec::new();
-            h.read_to_end(&mut buf).await?;
-            Ok(buf)
-        }
-        None => Ok(Vec::new()),
+/// Read an optional async handle to end, bounded at `limit` bytes.
+///
+/// Reads at most `limit + 1` (the `+1` makes overflow DETECTABLE without
+/// ever buffering more than one byte past the cap), then returns an
+/// [`OutputCapExceeded`] marker error. `read_to_end` over the `Take`
+/// adapter stops at the cap on its own, so a child blocked writing past a
+/// full pipe never deadlocks `wait()` — `try_join!` short-circuits on the
+/// marker and the child future drops (SIGKILL · INV-011).
+async fn drain<R: tokio::io::AsyncRead + Unpin>(
+    handle: Option<R>,
+    limit: usize,
+) -> std::io::Result<Vec<u8>> {
+    let Some(h) = handle else {
+        return Ok(Vec::new());
+    };
+    let mut buf = Vec::new();
+    // `limit as u64 + 1` cannot overflow: limit is a small const (64 MiB).
+    h.take(limit as u64 + 1).read_to_end(&mut buf).await?;
+    if buf.len() > limit {
+        return Err(std::io::Error::other(OutputCapExceeded));
+    }
+    Ok(buf)
+}
+
+/// Map a drained-stream error to the public [`ShellError`]: the cap marker
+/// becomes [`ShellError::OutputTooLarge`], everything else is `Other`.
+fn classify_drain_error(e: &std::io::Error) -> ShellError {
+    if let Some(inner) = e.get_ref()
+        && inner.is::<OutputCapExceeded>()
+    {
+        return ShellError::OutputTooLarge {
+            limit_bytes: MAX_OUTPUT_BYTES,
+        };
+    }
+    ShellError::Other {
+        reason: e.to_string(),
     }
 }
 
@@ -292,6 +347,56 @@ mod tests {
         sh.shell = true;
         sh.args = vec!["a".into(), "b".into()];
         let _ = build_command(&sh);
+    }
+
+    // ── output cap (NIKA-054): unbounded capture is an OOM vector ──
+
+    #[tokio::test]
+    async fn drain_reads_all_under_limit() {
+        let data = b"hello world";
+        let out = drain(Some(&data[..]), 1024).await.expect("under limit ok");
+        assert_eq!(out, b"hello world");
+    }
+
+    #[tokio::test]
+    async fn drain_none_is_empty() {
+        let out = drain(None::<&[u8]>, 100).await.expect("none ok");
+        assert!(out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn drain_over_limit_errors_with_cap_marker() {
+        // 10_000 bytes against a 100-byte injected limit · the bounded read
+        // stops one past the cap (never buffers the full input → no OOM) and
+        // the marker maps to the public OutputTooLarge (reporting the
+        // PRODUCTION cap · drain is always wired to MAX_OUTPUT_BYTES). This
+        // unit exercises the exact code path run() takes at 64 MiB.
+        let data = vec![b'x'; 10_000];
+        let err = drain(Some(&data[..]), 100)
+            .await
+            .expect_err("over limit must error");
+        assert!(matches!(
+            classify_drain_error(&err),
+            ShellError::OutputTooLarge { limit_bytes } if limit_bytes == MAX_OUTPUT_BYTES
+        ));
+    }
+
+    #[test]
+    fn classify_passes_through_non_cap_errors() {
+        let e = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe gone");
+        assert!(matches!(classify_drain_error(&e), ShellError::Other { .. }));
+    }
+
+    #[tokio::test]
+    async fn run_still_captures_normal_output() {
+        // Regression: the cap must not break ordinary (sub-cap) capture.
+        let shell = TokioShell::new();
+        let res = shell
+            .run(ShellCommand::new("echo").arg("hello"))
+            .await
+            .expect("echo runs");
+        assert_eq!(res.stdout.trim(), "hello");
+        assert!(res.success());
     }
 
     #[tokio::test]

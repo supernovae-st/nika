@@ -113,6 +113,25 @@ Unknown/dead pid → `Ok(())` (idempotent · trait-compliant). Deregisters on
 exit. (`run()`'s future-drop remains the primary path; this is the explicit
 out-of-band kill the daemon/engine will use.)
 
+### 3.5 Output capping (resource safety · NIKA-054 · post-admission hardening)
+
+`timeout` bounds wall-clock, NOT memory: a runaway writer (`yes`,
+`cat /dev/zero`) at ~1 GB/s would grow the capture buffer to ~30 GB under a
+30 s timeout and OOM the host before the timeout fires. Each stream (stdout
+AND stderr) is therefore capped at **64 MiB** (`MAX_OUTPUT_BYTES`):
+
+- `drain` reads at most `limit + 1` bytes via `AsyncReadExt::take` — the `+1`
+  makes overflow detectable while never buffering more than one byte past the
+  cap (no OOM even on an infinite stream).
+- On overflow `drain` returns an `OutputCapExceeded` marker through
+  `tokio::io::Error`; `try_join!` short-circuits, the child future drops, and
+  `kill_on_drop` (INV-011) SIGKILLs the writer — so the bounded read does NOT
+  reintroduce the INV-012 pipe-fill deadlock.
+- The marker maps to `ShellError::OutputTooLarge { limit_bytes }` (`NIKA-054`)
+  at the single exit site. Fail-closed, aligned with the `nika:read` 50 MB
+  cap precedent. Commands needing larger output redirect to a file in-command
+  and read it back (or go through `pre_validated` policy with its own limits).
+
 ## 4. The 12 gates
 
 | Gate | Status | Evidence |

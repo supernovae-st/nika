@@ -136,6 +136,18 @@ pub enum ShellError {
         reason: String,
     },
 
+    /// Captured stdout or stderr exceeded the per-stream byte cap.
+    ///
+    /// Safe-by-default resource floor: an unbounded writer (`yes`,
+    /// `cat /dev/zero`) cannot OOM the host. Fail-closed and aligned with
+    /// the file-read cap precedent. Callers needing larger output redirect
+    /// to a file inside the command and read it back.
+    #[error("captured output exceeded {limit_bytes}-byte per-stream cap")]
+    OutputTooLarge {
+        /// The per-stream byte limit that was exceeded.
+        limit_bytes: usize,
+    },
+
     /// Other execution error.
     #[error("shell error: {reason}")]
     Other {

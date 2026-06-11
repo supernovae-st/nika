@@ -62,6 +62,13 @@ pub const NIKA_053: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "shell-blocked",
 };
+/// Captured output exceeded the per-stream byte cap.
+pub const NIKA_054: NikaCode = NikaCode {
+    num: 54,
+    category: Category::Shell,
+    severity: Severity::Error,
+    slug: "shell-output-too-large",
+};
 /// Shell other error.
 pub const NIKA_059: NikaCode = NikaCode {
     num: 59,
@@ -183,6 +190,7 @@ impl NikaErrorCode for ShellError {
             Self::Timeout { .. } => NIKA_051,
             Self::Cancelled { .. } => NIKA_052,
             Self::Blocked { .. } => NIKA_053,
+            Self::OutputTooLarge { .. } => NIKA_054,
             Self::Other { .. } => NIKA_059,
         }
     }
@@ -447,6 +455,7 @@ mod tests {
         let _ = ShellError::Timeout { duration_ms: 0 }.nika_code();
         let _ = ShellError::Cancelled { id: "".into() }.nika_code();
         let _ = ShellError::Blocked { reason: "".into() }.nika_code();
+        let _ = ShellError::OutputTooLarge { limit_bytes: 0 }.nika_code();
         let _ = ShellError::Other { reason: "".into() }.nika_code();
     }
 
