@@ -86,7 +86,7 @@ fm_array() {
 }
 
 VALID_STATUSES="draft proposed accepted rejected deprecated superseded"
-VALID_LAYERS="L0 L0.5 L1 L2 L3 L4 L5"
+VALID_LAYERS="L0 L0.5 L1 L1.5 L2 L3 L4 L5" # L1.5 = service layer (nika-providers s8.5 · first occupant 2026-06-11)
 
 # --- Pass 1: Collect all ADR IDs and validate individual fields ---
 declare -a ALL_IDS=()
