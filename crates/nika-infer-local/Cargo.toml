@@ -1,0 +1,36 @@
+[package]
+name          = "nika-infer-local"
+description   = "Sovereign local inference (L1.5) — the all-Rust sidecar that replaces the ollama dependency for the local-first default. Speaks OpenAI-compat so Nika's existing wire client reaches it unchanged; runs in a supervised child process (crash-isolated). v1 scaffold ships the protocol + the device-agnostic Backend seam + a deterministic MockBackend; the candle backend lands behind the `local-infer` feature (off by default · ADR-091)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1.5 service crate.
+
+[dependencies]
+serde      = { workspace = true }   # OpenAI-compat protocol types (the wire contract).
+serde_json = { workspace = true }   # request/response (de)serialization.
+thiserror  = { workspace = true }   # internal typed errors.
+
+# candle is DELIBERATELY absent from the default build (ADR-091 · feature-gated
+# off · keeps the lean core's dep tree + Cargo.lock untouched). The candle
+# backend + subprocess server land behind `local-infer` in a later commit:
+#   [features] local-infer = ["dep:candle-core", "dep:candle-transformers", "dep:tokenizers", "dep:tokio"]
+
+[dev-dependencies]
+tokio    = { workspace = true }
+serde_json = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "kodama-forgeron"
+spirit_role   = "forge l'inférence à la maison · le modèle tourne sous notre toit, jamais chez un daemon étranger · une voix souveraine en pur Rust"
+voice_pattern = "silent"
+layer         = "L1.5"
+err_prefix    = "none"
+
+[lints]
+workspace = true
