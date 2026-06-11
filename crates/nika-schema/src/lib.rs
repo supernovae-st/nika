@@ -37,6 +37,7 @@
 )]
 
 pub mod analyzer;
+pub mod check;
 pub mod codegen;
 pub mod error;
 pub mod expression;
@@ -49,6 +50,7 @@ pub mod types;
 
 // Re-exports for convenience.
 pub use analyzer::{AnalyzedWorkflow, analyze};
+pub use check::{CapabilityEscape, CheckReport, CostCeiling, SecretLeak, TaskCost, check};
 pub use codegen::nika_builtin_tool_enum_schema;
 pub use error::{SchemaError, SpecCategory, SpecCode};
 pub use parser::{ParseMode, parse};
