@@ -2,33 +2,36 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #
-# Vector 40: kernel I/O effect-traits return a TYPED error, never std::io::Result.
+# Vector 40: kernel effect-traits return a TYPED error, never std::io::Result.
 #
-# THE CONVENTION (FCI-023bis · canonical): every effect-trait in
-# nika-kernel-core/src/io/*.rs returns `Result<T, XError>` with a
-# #[non_exhaustive] thiserror enum + NikaErrorCode — NOT `std::io::Result`. A
-# typed error carries the NIKA taxonomy across the trait boundary; io::Result
-# erases it. This is the answer to "type it or not" — there is no other option.
+# THE CONVENTION (FCI-023bis · canonical): every effect-trait in the kernel —
+# both nika-kernel-core/src/io/*.rs AND nika-kernel-ai/src/*.rs — returns
+# `Result<T, XError>` with a #[non_exhaustive] thiserror enum + NikaErrorCode,
+# NOT `std::io::Result`. A typed error carries the NIKA taxonomy across the
+# trait boundary; io::Result erases it. This is the answer to "type it or not"
+# — there is no other option.
 #
-# This gate makes the convention STRUCTURAL (ADR-090): it scans each io module
-# for trait-method `std::io::Result` returns and:
+# This gate makes the convention STRUCTURAL (ADR-090): it scans each effect
+# module for trait-method `std::io::Result` returns and:
 #   - RED   if a module returns io::Result and is NOT a documented laggard
-#           (a NEW un-typed io trait — the forcing function);
-#   - YELLOW for the documented computer-use laggards still mid-migration
+#           (a NEW un-typed trait — the forcing function);
+#   - YELLOW for the documented laggards still mid-migration
 #           (scripts/ci/kernel-io-typed-error-baseline.txt) — a ratchet that
 #           tightens as each migrates;
-#   - GREEN  when every io module is typed (the baseline holds only comments).
+#   - GREEN  when every module is typed (the baseline holds only comments).
 #
-# clock + mod are infallible/types-only (no error surface) — never flagged.
+# clock + mod (io/) and lib/errors/context/genai (ai/) are infallible /
+# types-only / non-trait (no error surface) — never flagged.
 #
 # Exit: 0 green · 1 yellow (laggards remain · informational ratchet) · 2 red
-# (a NEW un-typed io trait — must be typed before it ships).
+# (a NEW un-typed trait — must be typed before it ships).
 set -uo pipefail
 
 ENGINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ENGINE_ROOT" || exit 2
 
 IO_DIR="crates/nika-kernel-core/src/io"
+AI_DIR="crates/nika-kernel-ai/src"
 BASELINE="scripts/ci/kernel-io-typed-error-baseline.txt"
 [ -d "$IO_DIR" ] || {
   echo "kernel io dir missing: $IO_DIR"
@@ -41,11 +44,17 @@ laggards=""
 
 is_laggard() { printf '%s\n' "$laggards" | grep -qx "$1"; }
 
-red=""    # io modules returning io::Result that are NOT documented laggards
+red=""    # modules returning io::Result that are NOT documented laggards
 yellow="" # documented laggards still returning io::Result (tracked)
 stale=""  # baseline lists a module that is ALREADY typed (remove the line)
 
-for f in "$IO_DIR"/*.rs; do
+# Scan both the io effect dir and the ai effect dir (the latter added 2026-06-11
+# after the audit found vision + audio were a Pattern-A blind spot — the gate
+# only watched io/ before). An array so the globs expand at use, not literally.
+scan_files=("$IO_DIR"/*.rs)
+[ -d "$AI_DIR" ] && scan_files+=("$AI_DIR"/*.rs)
+
+for f in "${scan_files[@]}"; do
   name="$(basename "$f" .rs)"
   # Trait-method io::Result returns (and the stream `Item = io::Result` form).
   n="$(grep -cE 'async fn .*-> std::io::Result|-> std::io::Result<|Item = std::io::Result' "$f")"
@@ -75,12 +84,12 @@ if [ -n "${stale# }" ]; then
   exit 2
 fi
 
-typed_n="$(grep -lE 'pub enum [A-Z][A-Za-z]*Error' "$IO_DIR"/*.rs 2>/dev/null | wc -l | tr -d ' ')"
+typed_n="$(grep -lE 'pub enum [A-Z][A-Za-z]*Error' "$IO_DIR"/*.rs "$AI_DIR"/*.rs 2>/dev/null | wc -l | tr -d ' ')"
 if [ -n "${yellow# }" ]; then
-  echo "RATCHET (${typed_n} io module(s) typed) · computer-use laggards still on std::io::Result (migrate to Pattern A · FsError template):"
+  echo "RATCHET (${typed_n} module(s) typed) · laggards still on std::io::Result (migrate to Pattern A · FsError template):"
   for m in $yellow; do echo "  · $m"; done
   exit 1
 fi
 
-echo "OK (every kernel io effect-trait returns a typed error · Pattern A uniform · ${typed_n} typed modules)"
+echo "OK (every kernel io+ai effect-trait returns a typed error · Pattern A uniform · ${typed_n} typed modules)"
 exit 0
