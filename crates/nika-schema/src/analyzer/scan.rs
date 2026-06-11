@@ -21,6 +21,7 @@ use crate::error::SchemaError;
 use crate::expression::{ExprError, NamespaceRef, expr_refs, is_boolean_shaped, scan_templates};
 use crate::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use crate::source::{Span, Spanned};
+use crate::types::WhenGate;
 
 /// The reserved result-record fields (spec `04-variables.md` §result
 /// record) — valid `tasks.<id>.<field>` accessors + forbidden
@@ -137,10 +138,15 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         allow_loop_locals: has_for_each,
     };
 
-    // `when:` — single boolean-shaped island (NIKA-PARSE-WHEN-001).
-    if let Some(when) = &task.when {
-        check_single_island(when, "when", id, true, errors);
-        scan_string(when, &body_ctx, index, errors);
+    // `when:` — the expression form is a single boolean-shaped island ·
+    // the YAML boolean literal (`when: true` · the always-pattern ·
+    // spec 03 §when shape rules) has nothing to scan.
+    if let Some(when) = &task.when
+        && let WhenGate::Expr(expr) = &when.value
+    {
+        let spanned = Spanned::new(expr.clone(), when.span);
+        check_single_island(&spanned, "when", id, true, errors);
+        scan_string(&spanned, &body_ctx, index, errors);
     }
     // `for_each:` — expression form is a single island (no boolean
     // requirement) · literal-list form scans element strings.
@@ -176,7 +182,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         allow_loop_locals: has_for_each,
     };
     if let Some(on_error) = &task.on_error
-        && let crate::types::OnError::Recover(value) = &on_error.value
+        && let crate::types::OnErrorAction::Recover(value) = &on_error.value.action
     {
         scan_json(value, &no_edge_ctx, index, errors);
     }
@@ -190,9 +196,12 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         allow_loop_locals: has_for_each,
     };
     for cleanup in &task.on_finally {
-        if let Some(when) = &cleanup.value.when {
-            check_single_island(when, "when", id, true, errors);
-            scan_string(when, &finally_ctx, index, errors);
+        if let Some(when) = &cleanup.value.when
+            && let WhenGate::Expr(expr) = &when.value
+        {
+            let spanned = Spanned::new(expr.clone(), when.span);
+            check_single_island(&spanned, "when", id, true, errors);
+            scan_string(&spanned, &finally_ctx, index, errors);
         }
         scan_action(&cleanup.value.action, &finally_ctx, index, errors);
     }

@@ -263,8 +263,11 @@ pub enum SchemaError {
     /// `when:` (or `for_each:`) is not a single CEL island of the
     /// required shape.
     ///
-    /// Spec `03-dag.md` · « The engine **rejects non-boolean `when:`
-    /// expressions at parse time** (`NIKA-PARSE-WHEN-001`). »
+    /// Spec `03-dag.md` §when shape rules · statically-non-boolean-shaped
+    /// roots are rejected at parse time (the spec's `NIKA-VAR-005` class ·
+    /// the retired `NIKA-PARSE-WHEN-001` name was folded there) — the
+    /// YAML boolean literal (`when: true` · the always-pattern) is the
+    /// OTHER legal form and never reaches this error.
     #[error("invalid `{field}:` in task `{task}` — {reason}")]
     WhenNotBoolean {
         /// The field (`when` or `for_each`).

@@ -15,7 +15,10 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::raw::{ForEachValue, RawFinallyTask, RawTask};
 use crate::source::Spanned;
-use crate::types::{BackoffStrategy, OnError, RetryConfig, is_valid_error_code, parse_go_duration};
+use crate::types::{
+    BackoffStrategy, OnError, OnErrorAction, RetryConfig, WhenGate, is_valid_error_code,
+    parse_go_duration,
+};
 
 use super::value::node_to_json;
 use super::verbs::{VERB_KEYS, parse_verb};
@@ -51,8 +54,12 @@ const RETRY_KEYS: &[&str] = &[
     "on_codes",
 ];
 
-/// Keys of an `on_error:` block (spec 05 §`on_error`).
-const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
+/// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
+/// ACTION + the optional `on_codes` filter).
+const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
+
+/// The `on_error:` ACTION keys (mutually exclusive · exactly one).
+const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
 
 /// Parse the top-level `tasks:` sequence into `Vec<Spanned<RawTask>>`.
 ///
@@ -110,7 +117,7 @@ fn parse_task(cx: &Cx<'_>, mapping: &MarkedMappingNode) -> Result<RawTask, Schem
     let mut task = RawTask::new(id, action);
 
     task.depends_on = parse_string_list(cx, mapping, "depends_on")?;
-    task.when = cx.opt_scalar(mapping, "when")?;
+    task.when = parse_when(cx, mapping)?;
     task.for_each = parse_for_each(cx, mapping)?;
     task.max_parallel = parse_max_parallel(cx, mapping)?;
     task.fail_fast = parse_bool_field(cx, mapping, "fail_fast")?;
@@ -122,6 +129,34 @@ fn parse_task(cx: &Cx<'_>, mapping: &MarkedMappingNode) -> Result<RawTask, Schem
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
 
     Ok(task)
+}
+
+/// `when:` — a `${{ … }}` CEL string OR the YAML boolean literal
+/// (spec 03 §when shape rules · `when: true` = the always-pattern).
+///
+/// marked-yaml coerces booleans for PLAIN-style scalars only, so a
+/// quoted `"true"` stays a string — exactly the spec's split (the
+/// literal form is the YAML boolean · a quoted "true" is a bare string
+/// the analyzer rejects).
+fn parse_when(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+) -> Result<Option<Spanned<WhenGate>>, SchemaError> {
+    let Some(node) = mapping.get_node("when") else {
+        return Ok(None);
+    };
+    if let Some(b) = node
+        .as_scalar()
+        .and_then(marked_yaml::types::MarkedScalarNode::as_bool)
+    {
+        return Ok(Some(Spanned::new(
+            WhenGate::Literal(b),
+            cx.span_or_zero(node.span()),
+        )));
+    }
+    Ok(cx
+        .opt_scalar(mapping, "when")?
+        .map(|s| Spanned::new(WhenGate::Expr(s.value), s.span)))
 }
 
 /// Extract an optional list of string scalars under `key`.
@@ -349,7 +384,7 @@ fn parse_retry(
     }
     for code in parse_string_list(cx, retry_map, "on_codes")? {
         // Spec 05 · on_codes lists canonical codes matching
-        // ^NIKA-[A-Z]{2,9}(-[A-Z]{2,9})?-[0-9]{3}$ — not HTTP statuses.
+        // ^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$ — not HTTP statuses.
         if !is_valid_error_code(&code.value) {
             return Err(SchemaError::BadRetry {
                 reason: format!(
@@ -365,8 +400,9 @@ fn parse_retry(
     Ok(Some(Spanned::new(config, cx.span_or_zero(node.span()))))
 }
 
-/// `on_error:` — exactly one of `recover` | `skip: true` |
-/// `fail_workflow: true` (spec 05 §`on_error` · mutually exclusive).
+/// `on_error:` — exactly one ACTION (`recover` | `skip: true` |
+/// `fail_workflow: true`) + the optional `on_codes:` filter (spec 05
+/// §`on_error` · the catch-side mirror of `retry.on_codes`).
 fn parse_on_error(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
@@ -382,7 +418,7 @@ fn parse_on_error(
     };
     cx.check_unknown_keys(on_error_map, ON_ERROR_KEYS, "`on_error:`")?;
 
-    let present: Vec<&str> = ON_ERROR_KEYS
+    let present: Vec<&str> = ON_ERROR_ACTION_KEYS
         .iter()
         .copied()
         .filter(|k| on_error_map.get_node(k).is_some())
@@ -391,20 +427,24 @@ fn parse_on_error(
         [one] => *one,
         [] => {
             return Err(SchemaError::BadOnError {
-                reason: "exactly one of `recover`, `skip`, `fail_workflow` required (none found)"
+                reason: "exactly one of `recover`, `skip`, `fail_workflow` required (none found \
+                         — `on_codes` alone is a filter with nothing to filter)"
                     .to_owned(),
                 span: cx.span(on_error_map.span()),
             });
         }
         many => {
             return Err(SchemaError::BadOnError {
-                reason: format!("fields are mutually exclusive — found {}", many.join(" + ")),
+                reason: format!(
+                    "actions are mutually exclusive — found {}",
+                    many.join(" + ")
+                ),
                 span: cx.span(on_error_map.span()),
             });
         }
     };
 
-    let on_error = match mode {
+    let action = match mode {
         "recover" => {
             let value_node =
                 on_error_map
@@ -413,21 +453,37 @@ fn parse_on_error(
                         reason: "`recover` value missing".to_owned(),
                         span: cx.span(on_error_map.span()),
                     })?;
-            OnError::Recover(Spanned::new(
+            OnErrorAction::Recover(Spanned::new(
                 node_to_json(value_node),
                 cx.span_or_zero(value_node.span()),
             ))
         }
         "skip" => {
             require_true_flag(cx, on_error_map, "skip")?;
-            OnError::Skip
+            OnErrorAction::Skip
         }
         _ => {
             require_true_flag(cx, on_error_map, "fail_workflow")?;
-            OnError::FailWorkflow
+            OnErrorAction::FailWorkflow
         }
     };
-    Ok(Some(Spanned::new(on_error, cx.span_or_zero(node.span()))))
+
+    let mut policy = OnError::new(action);
+    for code in parse_string_list(cx, on_error_map, "on_codes")? {
+        // Same canonical regex as retry.on_codes (spec 05) — exact
+        // codes route the catch · never HTTP statuses.
+        if !is_valid_error_code(&code.value) {
+            return Err(SchemaError::BadOnError {
+                reason: format!(
+                    "`on_codes` entry `{}` is not a canonical NIKA-<NS>-<NNN> code",
+                    code.value
+                ),
+                span: Some(code.span),
+            });
+        }
+        policy.on_codes.push(code);
+    }
+    Ok(Some(Spanned::new(policy, cx.span_or_zero(node.span()))))
 }
 
 /// `skip:` / `fail_workflow:` carry the literal `true` (spec 05 syntax ·
@@ -548,7 +604,7 @@ fn parse_on_finally(
 
         let action = parse_verb(cx, cleanup_map, &format!("{task_label}.on_finally"))?;
         let mut finally = RawFinallyTask::new(action);
-        finally.when = cx.opt_scalar(cleanup_map, "when")?;
+        finally.when = parse_when(cx, cleanup_map)?;
         finally.timeout = parse_timeout(cx, cleanup_map, "timeout")?;
         out.push(Spanned::new(finally, cx.span_or_zero(item.span())));
     }
@@ -563,7 +619,7 @@ mod tests {
     use crate::parser::{ParseMode, parse};
     use crate::raw::{RawAction, RawWorkflow};
     use crate::source::FileId;
-    use crate::types::{BackoffStrategy, OnError};
+    use crate::types::{BackoffStrategy, OnErrorAction, WhenGate};
 
     fn parse_strict(yaml: &str) -> Result<RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)
@@ -684,7 +740,7 @@ tasks:
         assert_eq!(b.depends_on[0].value, "a");
         assert_eq!(
             b.when.as_ref().expect("when").value,
-            "${{ tasks.a.status == 'success' }}"
+            WhenGate::Expr("${{ tasks.a.status == 'success' }}".into())
         );
         assert_eq!(
             b.for_each.as_ref().expect("for_each").value,
@@ -870,10 +926,12 @@ tasks:
       recover: ${{ tasks.cached.output }}
 ";
         let task = one_task(yaml);
-        let OnError::Recover(value) = task.on_error.expect("on_error").value else {
+        let policy = task.on_error.expect("on_error").value;
+        let OnErrorAction::Recover(value) = policy.action else {
             panic!("expected Recover");
         };
         assert_eq!(value.value, "${{ tasks.cached.output }}");
+        assert!(policy.on_codes.is_empty(), "no filter declared");
     }
 
     #[test]
@@ -886,7 +944,7 @@ tasks:
       recover: 0
 ";
         let task = one_task(yaml);
-        let OnError::Recover(value) = task.on_error.expect("on_error").value else {
+        let OnErrorAction::Recover(value) = task.on_error.expect("on_error").value.action else {
             panic!("expected Recover");
         };
         assert_eq!(value.value, 0);
@@ -905,12 +963,12 @@ tasks:
 ";
         let wf = parse_strict(yaml).expect("parse");
         assert!(matches!(
-            wf.tasks[0].value.on_error.as_ref().expect("a").value,
-            OnError::Skip
+            wf.tasks[0].value.on_error.as_ref().expect("a").value.action,
+            OnErrorAction::Skip
         ));
         assert!(matches!(
-            wf.tasks[1].value.on_error.as_ref().expect("b").value,
-            OnError::FailWorkflow
+            wf.tasks[1].value.on_error.as_ref().expect("b").value.action,
+            OnErrorAction::FailWorkflow
         ));
     }
 
@@ -927,6 +985,100 @@ tasks:
 ";
         let err = parse_strict(yaml).expect_err("two fields");
         assert!(matches!(err, SchemaError::BadOnError { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn on_error_on_codes_filter() {
+        // Spec 05 · on_codes = catch-side filter beside exactly one action.
+        let yaml = "\
+tasks:
+  - id: slow_fetch
+    invoke: { tool: \"nika:fetch\", args: { url: \"https://slow.example.com\" } }
+    on_error:
+      on_codes: [NIKA-TIMEOUT-001, NIKA-BUILTIN-JSON_MERGE_PATCH-001]
+      recover: { stale: true }
+";
+        let policy = one_task(yaml).on_error.expect("on_error").value;
+        assert!(matches!(policy.action, OnErrorAction::Recover(_)));
+        assert_eq!(policy.on_codes.len(), 2);
+        assert_eq!(
+            policy.on_codes[1].value,
+            "NIKA-BUILTIN-JSON_MERGE_PATCH-001"
+        );
+    }
+
+    #[test]
+    fn on_error_on_codes_alone_errors() {
+        // A filter with nothing to filter (spec 05 · one action required).
+        let yaml = "\
+tasks:
+  - id: t
+    exec: { command: echo }
+    on_error:
+      on_codes: [NIKA-TIMEOUT-001]
+";
+        let err = parse_strict(yaml).expect_err("filter alone");
+        assert!(matches!(err, SchemaError::BadOnError { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn when_boolean_literal_forms() {
+        // Spec 03 §when shape rules · the YAML boolean literal is legal
+        // (`when: true` = the always-pattern) · a QUOTED \"true\" stays a
+        // bare string (marked-yaml coerces plain style only).
+        let yaml = "\
+tasks:
+  - id: work
+    exec: { command: echo }
+  - id: record
+    depends_on: [work]
+    when: true
+    exec: { command: echo }
+  - id: never
+    depends_on: [work]
+    when: false
+    exec: { command: echo }
+  - id: quoted
+    depends_on: [work]
+    when: \"true\"
+    exec: { command: echo }
+";
+        let wf = parse_strict(yaml).expect("parse");
+        assert_eq!(
+            wf.tasks[1].value.when.as_ref().expect("record").value,
+            WhenGate::Literal(true)
+        );
+        assert_eq!(
+            wf.tasks[2].value.when.as_ref().expect("never").value,
+            WhenGate::Literal(false)
+        );
+        assert_eq!(
+            wf.tasks[3].value.when.as_ref().expect("quoted").value,
+            WhenGate::Expr("true".into()),
+            "a quoted \"true\" is a bare string · the analyzer rejects it"
+        );
+    }
+
+    #[test]
+    fn when_yaml11_bool_aliases_stay_strings() {
+        // marked-yaml's as_bool accepts true/True/TRUE + false forms ONLY —
+        // the YAML 1.1 aliases (`yes` · `on`) stay strings, exactly the
+        // spec's split (03 §when · the literal form is true/false).
+        let yaml = "\
+tasks:
+  - id: work
+    exec: { command: echo }
+  - id: legacy
+    depends_on: [work]
+    when: yes
+    exec: { command: echo }
+";
+        let wf = parse_strict(yaml).expect("parse");
+        assert_eq!(
+            wf.tasks[1].value.when.as_ref().expect("legacy").value,
+            WhenGate::Expr("yes".into()),
+            "`when: yes` is NOT a boolean literal · the analyzer rejects it as a bare string"
+        );
     }
 
     #[test]
