@@ -1,0 +1,50 @@
+[package]
+name          = "nika-builtin"
+description   = "The 22 canonical stdlib v0.1 builtins (core 6 · file 5 · data 8 · introspection 1 · network 2) behind ONE dispatcher implementing the three kernel tool seams — ToolExecuteDyn + ToolBatchDyn + ToolDefinitionProviderDyn. Spec: docs/crate-specs/nika-builtin.md (normative contracts: nika-spec stdlib/builtins-v0.1.md)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1.5 tool layer.
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }   # the 3 tool seams + fs/http/clock/event effect seams
+nika-error  = { path = "../nika-error", version = "0.80.0" }    # NikaError (EventSink signature)
+# data wave
+jaq-core      = { workspace = true }   # nika:jq — THE data language
+jaq-std       = { workspace = true }
+jaq-json      = { workspace = true }
+json-patch    = { workspace = true }   # nika:json_diff (RFC 6902) + nika:json_merge_patch (RFC 7396)
+jsonschema    = { workspace = true }   # nika:validate
+jiff          = { workspace = true }   # nika:date (IANA tzdb bundled · sovereign)
+serde_yaml_bw = { workspace = true }   # nika:convert yaml + nika:validate format:yaml
+toml_convert  = { workspace = true }   # nika:convert toml
+csv           = { workspace = true }   # nika:convert csv
+blake3        = { workspace = true }   # nika:hash default algo
+sha2          = { workspace = true }   # nika:hash sha256/sha512
+uuid          = { workspace = true }   # nika:uuid v7/v4
+# file wave
+regex         = { workspace = true }   # nika:grep (RE2-class · the portable subset)
+# plumbing
+serde_json    = { workspace = true }
+thiserror     = { workspace = true }
+miette        = { workspace = true }
+
+[dev-dependencies]
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }
+proptest         = { workspace = true }
+tokio            = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "kodama-forgeron"
+spirit_role   = "l'établi aux 22 outils · chaque lame fait UNE chose · le modèle demande, l'atelier exécute, la whitelist garde la porte"
+voice_pattern = "spoken"
+layer         = "L1.5"
+err_prefix    = "NIKA-BUILTIN-*"
+
+[lints]
+workspace = true

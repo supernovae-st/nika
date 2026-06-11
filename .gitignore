@@ -30,7 +30,7 @@ Cargo.lock.bak
 /dx
 /editors/
 # /crates/nika-blob/         -- ADMITTED slice s6 (D-2026-06-10-N6)
-/crates/nika-builtin/
+# /crates/nika-builtin/    -- SEEDED s16 2026-06-11 (L1.5 · the 22 stdlib builtins · D-2026-06-10-N6)
 # /crates/nika-cli/          -- SEEDED 2026-06-11 (L4 operator surface · WIP · D-2026-06-10-N6)
 /crates/nika-core/
 /crates/nika-daemon/
