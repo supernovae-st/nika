@@ -8,7 +8,7 @@
 //! → `!` → relational → `&&` → `||`. Relations are non-associative
 //! (« `a < b < c` is a parse error ») and `size` is the only callable.
 
-use super::ast::{Expr, Literal, RelOp};
+use super::ast::{Expr, Literal, RelOp, StringPredicate};
 use super::error::ExprError;
 use super::lexer::{Token, TokenKind, tokenize};
 
@@ -25,7 +25,7 @@ pub fn parse_expression(src: &str) -> Result<Expr, ExprError> {
     if parser.peek_kind() == &TokenKind::Eof {
         return Err(ExprError::EmptyExpression);
     }
-    let expr = parser.or_expr()?;
+    let expr = parser.ternary_expr()?;
     match parser.peek_kind() {
         TokenKind::Eof => Ok(expr),
         _ => Err(ExprError::TrailingInput {
@@ -74,6 +74,24 @@ impl Parser {
                 offset: self.peek_offset(),
             })
         }
+    }
+
+    /// `ternary = or [ "?" expr ":" ternary ]` — right-associative ·
+    /// loosest precedence (spec `cel-subset/0.1`). Value selection.
+    fn ternary_expr(&mut self) -> Result<Expr, ExprError> {
+        let cond = self.or_expr()?;
+        if self.peek_kind() != &TokenKind::Question {
+            return Ok(cond);
+        }
+        self.advance(); // ?
+        let then = self.ternary_expr()?;
+        self.expect_token(&TokenKind::Colon, "`:` — the ternary else-branch")?;
+        let else_ = self.ternary_expr()?;
+        Ok(Expr::Ternary {
+            cond: Box::new(cond),
+            then: Box::new(then),
+            else_: Box::new(else_),
+        })
     }
 
     /// `or = and { "||" and }` — left-associative.
@@ -150,19 +168,7 @@ impl Parser {
                         });
                     };
                     if self.peek_kind() == &TokenKind::LParen {
-                        // Method-call form · only `size()` exists.
-                        if name != "size" {
-                            return Err(ExprError::UnknownFunction {
-                                name,
-                                offset: name_token.offset,
-                            });
-                        }
-                        self.advance(); // (
-                        self.expect_token(
-                            &TokenKind::RParen,
-                            "`)` — `x.size()` takes no arguments",
-                        )?;
-                        base = Expr::SizeMethod(Box::new(base));
+                        base = self.parse_method_call(base, &name, name_token.offset)?;
                     } else {
                         base = Expr::Member {
                             base: Box::new(base),
@@ -172,7 +178,7 @@ impl Parser {
                 }
                 TokenKind::LBracket => {
                     self.advance();
-                    let index = self.or_expr()?;
+                    let index = self.ternary_expr()?;
                     self.expect_token(&TokenKind::RBracket, "`]`")?;
                     base = Expr::Index {
                         base: Box::new(base),
@@ -182,6 +188,44 @@ impl Parser {
                 _ => return Ok(base),
             }
         }
+    }
+
+    /// A method-call form after `base.<name>` · the closing 0-arg
+    /// `.size()` or a 1-arg string predicate (`contains`/`startsWith`/
+    /// `endsWith`). Any other name is [`ExprError::UnknownFunction`]
+    /// (`matches` stays reserved · `ReDoS`).
+    fn parse_method_call(
+        &mut self,
+        base: Expr,
+        name: &str,
+        offset: usize,
+    ) -> Result<Expr, ExprError> {
+        self.advance(); // (
+        if name == "size" {
+            self.expect_token(&TokenKind::RParen, "`)` — `x.size()` takes no arguments")?;
+            return Ok(Expr::SizeMethod(Box::new(base)));
+        }
+        let method = match name {
+            "contains" => StringPredicate::Contains,
+            "startsWith" => StringPredicate::StartsWith,
+            "endsWith" => StringPredicate::EndsWith,
+            _ => {
+                return Err(ExprError::UnknownFunction {
+                    name: name.to_owned(),
+                    offset,
+                });
+            }
+        };
+        let arg = self.ternary_expr()?;
+        self.expect_token(
+            &TokenKind::RParen,
+            "`)` — the string predicate takes exactly 1 argument",
+        )?;
+        Ok(Expr::StringMethod {
+            base: Box::new(base),
+            method,
+            arg: Box::new(arg),
+        })
     }
 
     /// `primary = literal | list | call | IDENT | "(" expr ")"`.
@@ -196,26 +240,30 @@ impl Parser {
             TokenKind::Str(s) => Ok(Expr::Lit(Literal::Str(s))),
             TokenKind::Ident(name) => {
                 if self.peek_kind() == &TokenKind::LParen {
-                    // Free-call form · `size(expr)` is the only callable.
-                    if name != "size" {
-                        return Err(ExprError::UnknownFunction {
-                            name,
-                            offset: token.offset,
-                        });
-                    }
+                    // Free-call form · `size(expr)` and `has(expr)`.
+                    let ctor: fn(Box<Expr>) -> Expr = match name.as_str() {
+                        "size" => Expr::SizeCall,
+                        "has" => Expr::HasCall,
+                        _ => {
+                            return Err(ExprError::UnknownFunction {
+                                name,
+                                offset: token.offset,
+                            });
+                        }
+                    };
                     self.advance(); // (
-                    let arg = self.or_expr()?;
+                    let arg = self.ternary_expr()?;
                     self.expect_token(
                         &TokenKind::RParen,
-                        "`)` — `size(x)` takes exactly 1 argument",
+                        "`)` — the free call takes exactly 1 argument",
                     )?;
-                    Ok(Expr::SizeCall(Box::new(arg)))
+                    Ok(ctor(Box::new(arg)))
                 } else {
                     Ok(Expr::Ident(name))
                 }
             }
             TokenKind::LParen => {
-                let inner = self.or_expr()?;
+                let inner = self.ternary_expr()?;
                 self.expect_token(&TokenKind::RParen, "`)`")?;
                 Ok(inner)
             }
@@ -417,14 +465,10 @@ mod tests {
     }
 
     #[test]
-    fn non_size_calls_are_errors() {
-        // Side constraint 1 · « The only callable is `size` ».
-        for src in [
-            "has(vars.x)",
-            "vars.items.all()",
-            "matches(s)",
-            "x.startsWith()",
-        ] {
+    fn reserved_calls_are_still_errors() {
+        // cel-subset/0.1 closed-call set · `all`/`exists`/`matches` stay
+        // reserved (ReDoS for matches) — still UnknownFunction.
+        for src in ["vars.items.all()", "matches(s)", "s.matches('x')", "foo(1)"] {
             let err = parse_expression(src).expect_err("must reject call");
             assert!(
                 matches!(err, ExprError::UnknownFunction { .. }),
@@ -503,5 +547,69 @@ mod tests {
         fn parse_never_panics_grammar_alphabet(src in "[a-z0-9_.\\[\\]()'\"!=<>&|, ]{0,48}") {
             let _ = parse_expression(&src);
         }
+    }
+}
+
+#[cfg(test)]
+mod cel_v01_additions {
+    use super::*;
+    use crate::expression::ast::{Expr, StringPredicate};
+
+    #[test]
+    fn ternary_parses_right_associative() {
+        let e = parse_expression("vars.env == 'prod' ? 'a' : 'b'").expect("ternary");
+        assert!(matches!(e, Expr::Ternary { .. }));
+        // chained else: a ? b : c ? d : e  ==  a ? b : (c ? d : e)
+        let e = parse_expression("a ? b : c ? d : e").expect("chained");
+        let Expr::Ternary { else_, .. } = e else {
+            panic!("expected ternary")
+        };
+        assert!(matches!(*else_, Expr::Ternary { .. }), "right-associative");
+    }
+
+    #[test]
+    fn ternary_is_loosest_precedence() {
+        // `x || y ? a : b` parses as `(x || y) ? a : b`
+        let e = parse_expression("x || y ? a : b").expect("prec");
+        let Expr::Ternary { cond, .. } = e else {
+            panic!("ternary at top")
+        };
+        assert!(matches!(*cond, Expr::Or(_, _)), "|| binds tighter than ?:");
+    }
+
+    #[test]
+    fn has_is_a_free_call() {
+        let e = parse_expression("has(vars.style)").expect("has");
+        assert!(matches!(e, Expr::HasCall(_)));
+    }
+
+    #[test]
+    fn string_predicates_parse() {
+        for (src, want) in [
+            ("s.contains('x')", StringPredicate::Contains),
+            ("s.startsWith('x')", StringPredicate::StartsWith),
+            ("s.endsWith('x')", StringPredicate::EndsWith),
+        ] {
+            let e = parse_expression(src).expect(src);
+            let Expr::StringMethod { method, .. } = e else {
+                panic!("{src} → not a string method")
+            };
+            assert_eq!(method, want, "{src}");
+        }
+    }
+
+    #[test]
+    fn string_predicate_needs_one_arg() {
+        assert!(parse_expression("s.contains()").is_err(), "0 args rejected");
+        assert!(
+            parse_expression("s.contains('a', 'b')").is_err(),
+            "2 args rejected"
+        );
+    }
+
+    #[test]
+    fn double_colon_is_not_chained() {
+        // a missing else-branch is a parse error, never silently accepted
+        assert!(parse_expression("a ? b").is_err(), "incomplete ternary");
     }
 }

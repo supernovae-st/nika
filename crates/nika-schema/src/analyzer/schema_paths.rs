@@ -81,7 +81,18 @@ fn collect_output_paths(e: &Expr, out: &mut Vec<(String, Vec<Step>)>) {
             collect_output_paths(a, out);
             collect_output_paths(b, out);
         }
-        Expr::Not(a) | Expr::SizeCall(a) | Expr::SizeMethod(a) => collect_output_paths(a, out),
+        Expr::Not(a) | Expr::SizeCall(a) | Expr::SizeMethod(a) | Expr::HasCall(a) => {
+            collect_output_paths(a, out);
+        }
+        Expr::Ternary { cond, then, else_ } => {
+            collect_output_paths(cond, out);
+            collect_output_paths(then, out);
+            collect_output_paths(else_, out);
+        }
+        Expr::StringMethod { base, arg, .. } => {
+            collect_output_paths(base, out);
+            collect_output_paths(arg, out);
+        }
         Expr::Relation { lhs, rhs, .. } => {
             collect_output_paths(lhs, out);
             collect_output_paths(rhs, out);

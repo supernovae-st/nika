@@ -37,6 +37,12 @@ pub fn is_boolean_shaped(expr: &Expr) -> bool {
             | Expr::Not(_)
             | Expr::Relation { .. }
             | Expr::Lit(Literal::Bool(_))
+            // a ternary selecting values is accepted as a when:-shape ·
+            // a non-boolean RESULT is a runtime error (NIKA-VAR-006)
+            | Expr::Ternary { .. }
+            // the presence macro + string predicates are boolean-valued
+            | Expr::HasCall(_)
+            | Expr::StringMethod { .. }
     )
 }
 
@@ -48,8 +54,20 @@ fn walk(expr: &Expr, out: &mut Vec<NamespaceRef>) {
             walk(lhs, out);
             walk(rhs, out);
         }
-        Expr::Not(inner) | Expr::SizeCall(inner) | Expr::SizeMethod(inner) => {
+        Expr::Not(inner)
+        | Expr::SizeCall(inner)
+        | Expr::SizeMethod(inner)
+        | Expr::HasCall(inner) => {
             walk(inner, out);
+        }
+        Expr::Ternary { cond, then, else_ } => {
+            walk(cond, out);
+            walk(then, out);
+            walk(else_, out);
+        }
+        Expr::StringMethod { base, arg, .. } => {
+            walk(base, out);
+            walk(arg, out);
         }
         Expr::Member { .. } | Expr::Index { .. } | Expr::Ident(_) => {
             classify_chain(expr, out);
