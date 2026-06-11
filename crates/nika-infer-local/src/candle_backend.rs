@@ -37,7 +37,7 @@ use candle_transformers::models::quantized_qwen3::ModelWeights as Qwen3;
 
 use crate::backend::BackendDyn;
 use crate::error::InferLocalError;
-use crate::logits::apply_repeat_penalty;
+use crate::logits::{apply_repeat_penalty, apply_top_n_sigma};
 use crate::protocol::{ChatRequest, ChatResponse, FinishReason, Usage};
 use crate::sampling::SamplingConfig;
 use crate::stop::StopController;
@@ -291,13 +291,20 @@ fn decode_loop(
             .and_then(|l| l.squeeze(0))
             .map_err(|e| backend_err("decode forward", e))?;
 
-        // Optional repeat penalty over the recent window (our native impl).
-        if cfg.repeat_penalty > 1.0 {
+        // Optional pre-softmax transforms (our native impls · logits.rs):
+        // repeat penalty over the recent window, then top-nσ truncation
+        // (arXiv:2411.07641 · temperature-invariant noise cut).
+        if cfg.repeat_penalty > 1.0 || cfg.top_n_sigma.is_some() {
             let mut raw = logits
                 .to_vec1::<f32>()
                 .map_err(|e| backend_err("logits to_vec1", e))?;
-            let start = generated.len().saturating_sub(cfg.repeat_last_n);
-            apply_repeat_penalty(&mut raw, cfg.repeat_penalty, &generated[start..]);
+            if cfg.repeat_penalty > 1.0 {
+                let start = generated.len().saturating_sub(cfg.repeat_last_n);
+                apply_repeat_penalty(&mut raw, cfg.repeat_penalty, &generated[start..]);
+            }
+            if let Some(n) = cfg.top_n_sigma {
+                apply_top_n_sigma(&mut raw, n);
+            }
             logits = Tensor::new(raw, &device).map_err(|e| backend_err("logits rebuild", e))?;
         }
 

@@ -60,7 +60,7 @@ pub use backend::{Backend, BackendDyn, GenerationChunk, MockBackend};
 #[cfg(feature = "local-infer")]
 pub use candle_backend::CandleBackend;
 pub use error::InferLocalError;
-pub use logits::{apply_min_p, apply_repeat_penalty, apply_token_mask};
+pub use logits::{apply_min_p, apply_repeat_penalty, apply_token_mask, apply_top_n_sigma};
 pub use sampling::{DEFAULT_REPEAT_LAST_N, DEFAULT_SEED, SamplingConfig};
 pub use stop::StopController;
 pub use template::ChatFamily;

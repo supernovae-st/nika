@@ -95,6 +95,72 @@ pub fn apply_repeat_penalty(logits: &mut [f32], penalty: f32, recent: &[u32]) {
     }
 }
 
+/// Top-nσ sampling (arXiv:2411.07641 · "Not All Logits Are You Need"):
+/// keep only tokens whose logit is within `n` standard deviations of the
+/// maximum; the rest go to `-∞`. PRE-softmax, on raw logits (the llama.cpp
+/// reference implementation's insertion point — PR #11223, verified).
+///
+/// The insight: logits split into a Gaussian noise floor and a distinct
+/// informative region; `max − n·σ` separates them statistically. The killer
+/// property vs top-p/min-p: the survivor SET is **temperature-invariant**
+/// (dividing logits by T scales `max − x` and `σ` identically), so high-T
+/// sampling never re-admits noise tokens — proven by the property test.
+///
+/// `n <= 0` is a no-op (disabled · llama.cpp convention). The max token
+/// always survives (`max ≥ max − n·σ`). A degenerate distribution (all
+/// equal · σ = 0) keeps everything. NaN logits are sent to `-∞` first
+/// (fail-closed — and they would otherwise poison mean/σ). Typical n: 1–5
+/// (paper); returns the survivor count.
+pub fn apply_top_n_sigma(logits: &mut [f32], n: f32) -> usize {
+    if logits.is_empty() {
+        return 0;
+    }
+    // Fail-closed NaN scrub BEFORE the statistics (a single NaN poisons
+    // mean/σ and would void the threshold entirely).
+    for l in logits.iter_mut() {
+        if l.is_nan() {
+            *l = f32::NEG_INFINITY;
+        }
+    }
+    if n <= 0.0 {
+        return logits.iter().filter(|l| l.is_finite()).count();
+    }
+    // Statistics over the FINITE entries only — earlier-masked (-∞) tokens
+    // are out of the distribution, not data points.
+    let mut max = f32::NEG_INFINITY;
+    let mut sum = 0f64;
+    let mut count = 0usize;
+    for &l in logits.iter().filter(|l| l.is_finite()) {
+        max = max.max(l);
+        sum += f64::from(l);
+        count += 1;
+    }
+    if count == 0 {
+        return 0;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let mean = sum / count as f64;
+    let mut acc = 0f64;
+    for &l in logits.iter().filter(|l| l.is_finite()) {
+        let d = f64::from(l) - mean;
+        acc += d * d;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let std = (acc / count as f64).sqrt();
+    #[allow(clippy::cast_possible_truncation)]
+    let threshold = max - n * std as f32;
+
+    let mut survivors = 0usize;
+    for l in logits.iter_mut() {
+        if *l >= threshold {
+            survivors += 1;
+        } else {
+            *l = f32::NEG_INFINITY;
+        }
+    }
+    survivors
+}
+
 /// Apply a token mask: zero the probability of every token whose mask bit
 /// is `false` (disallowed). This is the constrained-decoding primitive —
 /// an `llguidance`/`outlines`-computed grammar mask makes the next token
@@ -199,6 +265,45 @@ mod tests {
         assert_eq!(l, [2.0, 1.0]);
     }
 
+    // ── top-nσ (arXiv:2411.07641) ───────────────────────────────────────
+
+    #[test]
+    fn top_n_sigma_keeps_the_informative_region() {
+        // max=10, far-noise at 0; with n=1 the noise floor drops out.
+        let mut l = [10.0, 9.5, 0.0, 0.1, 0.2];
+        let n = apply_top_n_sigma(&mut l, 1.0);
+        assert!(
+            l[0].is_finite() && l[1].is_finite(),
+            "informative region survives"
+        );
+        assert!(l[2] == f32::NEG_INFINITY, "noise floor masked");
+        assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn top_n_sigma_disabled_is_noop() {
+        let mut l = [3.0, 2.0, 1.0];
+        let n = apply_top_n_sigma(&mut l, 0.0);
+        assert_eq!(n, 3);
+        assert_eq!(l, [3.0, 2.0, 1.0]);
+    }
+
+    #[test]
+    fn top_n_sigma_degenerate_uniform_keeps_all() {
+        // All equal → σ=0 → threshold = max → everything (== max) survives.
+        let mut l = [1.5, 1.5, 1.5];
+        assert_eq!(apply_top_n_sigma(&mut l, 1.0), 3);
+    }
+
+    #[test]
+    fn top_n_sigma_scrubs_nan_fail_closed() {
+        let mut l = [f32::NAN, 5.0, 4.9];
+        let n = apply_top_n_sigma(&mut l, 2.0);
+        assert_eq!(l[0], f32::NEG_INFINITY, "NaN → -inf before stats");
+        assert!(l[1].is_finite() && l[2].is_finite());
+        assert_eq!(n, 2);
+    }
+
     // ── token mask (constrained decoding) ──────────────────────────────
 
     #[test]
@@ -282,6 +387,47 @@ mod tests {
                 }
             }
             proptest::prop_assert_eq!(survivors, expected);
+        }
+
+        /// THE top-nσ paper claim, proven: the survivor SET is temperature-
+        /// invariant. Dividing every logit by T scales (max − x) and σ by
+        /// the same factor, so `x ≥ max − n·σ` holds before iff after —
+        /// unlike top-p/min-p, high temperature can never re-admit noise.
+        #[test]
+        fn prop_top_n_sigma_is_temperature_invariant(
+            raw in proptest::collection::vec(-15.0f32..15.0, 2..48),
+            n in 0.5f32..4.0,
+            temp in 0.25f32..4.0,
+        ) {
+            let mut base = raw.clone();
+            let k_base = apply_top_n_sigma(&mut base, n);
+
+            let mut scaled: Vec<f32> = raw.iter().map(|l| l / temp).collect();
+            let k_scaled = apply_top_n_sigma(&mut scaled, n);
+
+            proptest::prop_assert_eq!(k_base, k_scaled, "survivor count must not depend on T");
+            for i in 0..raw.len() {
+                proptest::prop_assert_eq!(
+                    base[i].is_finite(), scaled[i].is_finite(),
+                    "survivor SET must be identical at T={} (index {})", temp, i
+                );
+            }
+        }
+
+        /// The max logit always survives top-nσ, and every survivor is within
+        /// n·σ of the max (the threshold semantic, over the input space).
+        #[test]
+        fn prop_top_n_sigma_keeps_max_and_respects_threshold(
+            raw in proptest::collection::vec(-20.0f32..20.0, 1..64),
+            n in 0.1f32..5.0,
+        ) {
+            let max_before = raw.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            let mut l = raw.clone();
+            let survivors = apply_top_n_sigma(&mut l, n);
+            proptest::prop_assert!(survivors >= 1, "the max token must always survive");
+            let max_after = l.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            proptest::prop_assert_eq!(max_before.to_bits(), max_after.to_bits(),
+                "the max logit must be untouched");
         }
 
         /// Repeat penalty is monotone-down on seen tokens (never raises a

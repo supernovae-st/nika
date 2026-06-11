@@ -33,6 +33,9 @@ pub struct SamplingConfig {
     pub top_k: Option<usize>,
     /// min-p floor (`prob >= min_p * max_prob`); applied in `sample_f`. Off = None.
     pub min_p: Option<f32>,
+    /// Top-nσ truncation (arXiv:2411.07641): keep logits within `n·σ` of the
+    /// max, PRE-softmax — temperature-invariant survivor set. Off = None.
+    pub top_n_sigma: Option<f32>,
     /// RNG seed — always concrete (determinism).
     pub seed: u64,
     /// Repeat penalty (1.0 = off; 1.1 typical).
@@ -48,6 +51,7 @@ impl Default for SamplingConfig {
             top_p: None,
             top_k: None,
             min_p: None,
+            top_n_sigma: None,
             seed: DEFAULT_SEED,
             repeat_penalty: 1.0, // off by default — least surprise
             repeat_last_n: DEFAULT_REPEAT_LAST_N,
