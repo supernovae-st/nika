@@ -49,6 +49,12 @@
 mod backend;
 mod error;
 pub mod protocol;
+mod sampling;
+mod stop;
+mod template;
 
 pub use backend::{Backend, GenerationChunk, MockBackend};
 pub use error::InferLocalError;
+pub use sampling::{DEFAULT_REPEAT_LAST_N, DEFAULT_SEED, SamplingConfig};
+pub use stop::StopController;
+pub use template::ChatFamily;
