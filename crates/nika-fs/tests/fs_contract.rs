@@ -212,6 +212,43 @@ async fn write_to_existing_dir_errs_and_cleans_temp() {
 }
 
 #[tokio::test]
+async fn concurrent_writes_to_one_destination_leave_one_file_no_residue() {
+    // The atomic-write contract under contention: N tasks writing the SAME
+    // path concurrently (interleaving at every `.await` — temp create, write,
+    // rename) must (a) never collide on a temp name — the TMP_COUNTER
+    // guarantee, exercised end-to-end here, not just the unit — (b) leave
+    // exactly ONE file (the destination, last rename wins), and (c) leave
+    // ZERO `.nika-tmp.*` residue. A temp-name collision would surface as a
+    // lost write or a leaked sibling; this catches both.
+    let dir = td();
+    let path = dir.path().join("contended.txt");
+    let fs = TokioFs;
+
+    let mut handles = Vec::new();
+    for i in 0..32u32 {
+        let p = path.clone();
+        handles.push(tokio::spawn(async move {
+            fs.write(&p, format!("writer-{i}").as_bytes()).await
+        }));
+    }
+    for h in handles {
+        h.await.expect("task joins").expect("each write succeeds");
+    }
+
+    let entries = fs.list_dir(dir.path()).await.unwrap();
+    assert_eq!(
+        entries,
+        vec![path.clone()],
+        "concurrent writes must converge to exactly the destination, no temp residue"
+    );
+    let content = fs.read_to_string(&path).await.unwrap();
+    assert!(
+        content.starts_with("writer-"),
+        "surviving content must be one intact write (no interleave), got {content:?}"
+    );
+}
+
+#[tokio::test]
 async fn write_path_without_file_name_errs() {
     let fs = TokioFs;
     let err = fs.write(Path::new("/"), b"x").await.unwrap_err();

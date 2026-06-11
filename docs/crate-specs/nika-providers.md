@@ -164,7 +164,7 @@ is honest at tag time.
 |---|---|---|
 | 1 SPEC | ✅ | this file (design 2026-06-10 · pre-dated the impl) |
 | 2 TDD | ✅ | tests-first per module (profile seeding · registry resolve · wire fixtures · SSE proptest) · RED observed on the Pin-projection + fixture iterations |
-| 3 IMPL | ✅ | 3245 LOC src incl. in-file tests · max file 711 (caps ≤15k/≤1500 GREEN · live · `scripts/crate-metrics.sh nika-providers`) · 65 lib tests |
+| 3 IMPL | ✅ | 4088 LOC src incl. in-file tests · max file 850 (caps ≤15k/≤1500 GREEN · live · `scripts/crate-metrics.sh nika-providers`) · 76 lib tests (gemini s8.6 wired 2026-06-11) |
 | 4 CLIPPY | ✅ | `--all-targets -D warnings` = 0 |
 | 5 MUTATION | ✅ | **100%** (139/139 viable caught · 0 missed · 1 timeout non-missed · 58 unviable) |
 | 6 PROPERTY | ✅ | SSE parser = sensitive parser → proptest chunking-invariance + linear-scan cursor test |

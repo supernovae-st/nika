@@ -155,17 +155,25 @@ impl FsWriteDyn for TokioFs {
                 .map_err(|e| FsError::from_io(&e, p))?;
         }
 
-        tokio::fs::write(&tmp, contents)
-            .await
-            .map_err(|e| FsError::from_io(&e, &tmp))?;
-        match tokio::fs::rename(&tmp, path).await {
-            Ok(()) => Ok(()),
-            Err(rename_err) => {
-                // Best-effort cleanup — the rename error is the root cause.
-                let _ = tokio::fs::remove_file(&tmp).await;
-                Err(FsError::from_io(&rename_err, path))
-            }
+        // Write the temp, then publish it with one rename. ANY failure
+        // after the temp path is chosen removes it best-effort at a SINGLE
+        // site — a partial `tokio::fs::write` (e.g. ENOSPC mid-stream) would
+        // otherwise leak a `.nika-tmp.*` file, and the crate docs promise the
+        // error path cleans up. On rename success the temp no longer exists,
+        // so the guard only fires on a real write-or-rename failure.
+        let publish = async {
+            tokio::fs::write(&tmp, contents)
+                .await
+                .map_err(|e| FsError::from_io(&e, &tmp))?;
+            tokio::fs::rename(&tmp, path)
+                .await
+                .map_err(|e| FsError::from_io(&e, path))
+        };
+        let result = publish.await;
+        if result.is_err() {
+            let _ = tokio::fs::remove_file(&tmp).await;
         }
+        result
     }
 
     /// Create a directory and all parent directories (idempotent).

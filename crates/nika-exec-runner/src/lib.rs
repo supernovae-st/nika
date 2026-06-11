@@ -146,17 +146,7 @@ impl ShellRunDyn for TokioShell {
         // INV-011: kill the child when its handle drops (cancel/timeout/panic).
         cmd.kill_on_drop(true);
 
-        let mut child = cmd.spawn().map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                ShellError::NotFound {
-                    program: command.program.clone(),
-                }
-            } else {
-                ShellError::Other {
-                    reason: e.to_string(),
-                }
-            }
-        })?;
+        let mut child = spawn_classified(&mut cmd, &command.program)?;
 
         if let Some(data) = &command.stdin
             && let Some(mut stdin) = child.stdin.take()
@@ -226,6 +216,25 @@ impl ShellRunDyn for TokioShell {
             )),
         }
     }
+}
+
+/// Spawn the child, classifying the io error (`NotFound` → typed
+/// `ShellError::NotFound` with the program name · anything else → `Other`).
+fn spawn_classified(
+    cmd: &mut tokio::process::Command,
+    program: &str,
+) -> Result<tokio::process::Child, ShellError> {
+    cmd.spawn().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            ShellError::NotFound {
+                program: program.to_owned(),
+            }
+        } else {
+            ShellError::Other {
+                reason: e.to_string(),
+            }
+        }
+    })
 }
 
 impl ShellCancelDyn for TokioShell {
