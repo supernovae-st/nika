@@ -7,7 +7,7 @@
 //! severity, slug and the fix-form help text. Never invents: an unknown
 //! code is a finding (`exit 2`), not a guess.
 
-use nika_error::codes::{Category, Severity, code_help, lookup};
+use nika_error::codes::{code_help, lookup};
 
 use crate::verbs::VerbOutput;
 
@@ -25,50 +25,15 @@ pub fn run(wire: &str) -> VerbOutput {
              (allocated ranges only); see docs.nika.sh/errors"
         ));
     };
+    // The category/severity labels are the OWNING crate's canonical
+    // kebab-case (`Category::as_str`), not a `Debug` derive an enum rename
+    // could silently change — one source of truth, compile-forced complete.
     let text = format!(
         "{code} · {category} · {severity} · {slug}\n\n  {help}\n",
-        category = category_label(code.category),
-        severity = severity_label(code.severity),
+        category = code.category.as_str(),
+        severity = code.severity.as_str(),
         slug = code.slug,
         help = code_help(code),
     );
     VerbOutput::ok(text)
-}
-
-/// Stable lowercase label — the OUTPUT contract must not ride a `Debug`
-/// derive (enum renames would silently change the surface).
-fn category_label(category: Category) -> &'static str {
-    match category {
-        Category::Core => "core",
-        Category::Shell => "shell",
-        Category::FileIo => "file-io",
-        Category::Http => "http",
-        Category::Auth => "auth",
-        Category::Mcp => "mcp",
-        Category::Schema => "schema",
-        Category::Binding => "binding",
-        Category::Provider => "provider",
-        Category::Verb => "verb",
-        Category::Runtime => "runtime",
-        Category::Memory => "memory",
-        Category::WasmPlugin => "wasm-plugin",
-        Category::Sandbox => "sandbox",
-        Category::Screen => "screen",
-        Category::Ocr => "ocr",
-        Category::A11y => "a11y",
-        Category::Input => "input",
-        Category::Browser => "browser",
-        Category::Vision => "vision",
-        Category::Audio => "audio",
-        _ => "other", // #[non_exhaustive] future categories
-    }
-}
-
-/// Stable lowercase severity label (same contract rule).
-fn severity_label(severity: Severity) -> &'static str {
-    match severity {
-        Severity::Error => "error",
-        Severity::Warning => "warning",
-        _ => "other", // #[non_exhaustive] future severities
-    }
 }

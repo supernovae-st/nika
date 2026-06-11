@@ -104,6 +104,42 @@ pub enum Category {
     Audio,
 }
 
+impl Category {
+    /// The canonical kebab-case label (matches the `serde(rename_all =
+    /// "kebab-case")` wire form). The match is EXHAUSTIVE on purpose:
+    /// `#[non_exhaustive]` only binds downstream crates, so adding a
+    /// variant here is a COMPILE error until this mapping learns it — the
+    /// label can never silently drift to a fallback (the bug a consumer's
+    /// hand-rolled copy invites).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Core => "core",
+            Self::Shell => "shell",
+            Self::FileIo => "file-io",
+            Self::Http => "http",
+            Self::Auth => "auth",
+            Self::Mcp => "mcp",
+            Self::Schema => "schema",
+            Self::Binding => "binding",
+            Self::Provider => "provider",
+            Self::Verb => "verb",
+            Self::Runtime => "runtime",
+            Self::Memory => "memory",
+            Self::WasmPlugin => "wasm-plugin",
+            Self::Sandbox => "sandbox",
+            Self::Observability => "observability",
+            Self::Screen => "screen",
+            Self::Ocr => "ocr",
+            Self::A11y => "a11y",
+            Self::Input => "input",
+            Self::Browser => "browser",
+            Self::Vision => "vision",
+            Self::Audio => "audio",
+        }
+    }
+}
+
 /// Severity level for an error code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -112,6 +148,18 @@ pub enum Category {
 pub enum Severity {
     Error,
     Warning,
+}
+
+impl Severity {
+    /// The canonical kebab-case label (exhaustive · compile-forced · same
+    /// rationale as [`Category::as_str`]).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+        }
+    }
 }
 
 // ─── Phase 1 codes (L0 only) ──────────────────────────────────────────────
@@ -1003,6 +1051,29 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn category_and_severity_as_str_match_the_serde_wire_form() {
+        // The two representations (the const `as_str` label + the serde
+        // `rename_all = "kebab-case"` wire form) MUST agree — pinning it
+        // here is the belt that lets both exist without drifting. Every
+        // ALL-listed code's category round-trips through serde to the same
+        // string `as_str` returns.
+        for code in ALL {
+            let wire = serde_json::to_string(&code.category).expect("serializes");
+            assert_eq!(wire.trim_matches('"'), code.category.as_str(), "{code}");
+            let sev_wire = serde_json::to_string(&code.severity).expect("serializes");
+            assert_eq!(sev_wire.trim_matches('"'), code.severity.as_str(), "{code}");
+        }
+        // A spot-check that the labels are the expected kebab forms (the
+        // Observability variant is the one explain's old hand-rolled copy
+        // SILENTLY dropped to a fallback — `as_str` can't, it's exhaustive).
+        assert_eq!(Category::Verb.as_str(), "verb");
+        assert_eq!(Category::FileIo.as_str(), "file-io");
+        assert_eq!(Category::WasmPlugin.as_str(), "wasm-plugin");
+        assert_eq!(Category::Observability.as_str(), "observability");
+        assert_eq!(Severity::Error.as_str(), "error");
+    }
 
     #[test]
     fn verb_codes_have_their_category_and_range() {

@@ -63,6 +63,10 @@ pub nika_error::codes::Category::Vision
 pub nika_error::codes::Category::Vision
 pub nika_error::codes::Category::WasmPlugin
 pub nika_error::codes::Category::WasmPlugin
+impl nika_error::codes::Category
+impl nika_error::codes::Category
+pub const fn nika_error::codes::Category::as_str(self) -> &'static str
+pub const fn nika_error::codes::Category::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Category
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
@@ -151,6 +155,10 @@ pub nika_error::codes::Severity::Error
 pub nika_error::codes::Severity::Error
 pub nika_error::codes::Severity::Warning
 pub nika_error::codes::Severity::Warning
+impl nika_error::codes::Severity
+impl nika_error::codes::Severity
+pub const fn nika_error::codes::Severity::as_str(self) -> &'static str
+pub const fn nika_error::codes::Severity::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Severity
 impl core::clone::Clone for nika_error::codes::Severity
 pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
@@ -619,6 +627,8 @@ pub nika_error::prelude::codes::Category::Shell
 pub nika_error::prelude::codes::Category::Verb
 pub nika_error::prelude::codes::Category::Vision
 pub nika_error::prelude::codes::Category::WasmPlugin
+impl nika_error::codes::Category
+pub const fn nika_error::codes::Category::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
 impl core::cmp::Eq for nika_error::codes::Category
@@ -663,6 +673,8 @@ impl<T> serde_core::de::DeserializeOwned for nika_error::codes::Category where T
 #[non_exhaustive] pub enum nika_error::prelude::codes::Severity
 pub nika_error::prelude::codes::Severity::Error
 pub nika_error::prelude::codes::Severity::Warning
+impl nika_error::codes::Severity
+pub const fn nika_error::codes::Severity::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Severity
 pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
 impl core::cmp::Eq for nika_error::codes::Severity
@@ -862,6 +874,8 @@ pub nika_error::prelude::Category::Shell
 pub nika_error::prelude::Category::Verb
 pub nika_error::prelude::Category::Vision
 pub nika_error::prelude::Category::WasmPlugin
+impl nika_error::codes::Category
+pub const fn nika_error::codes::Category::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
 impl core::cmp::Eq for nika_error::codes::Category
@@ -948,6 +962,8 @@ pub fn nika_error::core_error::CoreError::as_any(&self) -> &dyn core::any::Any
 #[non_exhaustive] pub enum nika_error::prelude::Severity
 pub nika_error::prelude::Severity::Error
 pub nika_error::prelude::Severity::Warning
+impl nika_error::codes::Severity
+pub const fn nika_error::codes::Severity::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Severity
 pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
 impl core::cmp::Eq for nika_error::codes::Severity
@@ -1129,6 +1145,8 @@ pub nika_error::Category::Shell
 pub nika_error::Category::Verb
 pub nika_error::Category::Vision
 pub nika_error::Category::WasmPlugin
+impl nika_error::codes::Category
+pub const fn nika_error::codes::Category::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Category
 pub fn nika_error::codes::Category::clone(&self) -> nika_error::codes::Category
 impl core::cmp::Eq for nika_error::codes::Category
@@ -1215,6 +1233,8 @@ pub fn nika_error::core_error::CoreError::as_any(&self) -> &dyn core::any::Any
 #[non_exhaustive] pub enum nika_error::Severity
 pub nika_error::Severity::Error
 pub nika_error::Severity::Warning
+impl nika_error::codes::Severity
+pub const fn nika_error::codes::Severity::as_str(self) -> &'static str
 impl core::clone::Clone for nika_error::codes::Severity
 pub fn nika_error::codes::Severity::clone(&self) -> nika_error::codes::Severity
 impl core::cmp::Eq for nika_error::codes::Severity
