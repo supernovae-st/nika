@@ -115,23 +115,59 @@
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "source"
+        ],
         "properties": {
           "source": {
-            "type": "string",
             "enum": [
               "vault",
               "env",
               "file"
             ],
-            "default": "vault"
+            "description": "Where the secret lives · never an inline value (spec/01-envelope.md §secrets)."
           },
           "key": {
-            "type": "string"
+            "type": "string",
+            "description": "Store key (vault) or OS env var name (env)."
           },
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "File path · file source only · contents read at resolve time · masked."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "file"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "path"
+              ],
+              "not": {
+                "required": [
+                  "key"
+                ]
+              }
+            },
+            "else": {
+              "required": [
+                "key"
+              ],
+              "not": {
+                "required": [
+                  "path"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "A secret is a reference to a store · discriminated by source · vault/env require key · file requires path (spec/01-envelope.md)."
       }
     },
     "tasks": {
@@ -227,9 +263,18 @@
           }
         },
         "when": {
-          "type": "string",
-          "format": "cel-expression",
-          "description": "CEL boolean · conditional execution · `${{ ... }}`."
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "YAML boolean literal · the always/never pattern (when: true runs regardless of upstream outcome · spec/03-dag.md §Task states)."
+            },
+            {
+              "type": "string",
+              "format": "cel-expression",
+              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
+            }
+          ],
+          "description": "Conditional execution gate · a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md §Task states)."
         },
         "for_each": {
           "description": "Map this task over a collection · `${{ ... }}` reference OR a literal array.",
@@ -444,8 +489,8 @@
             },
             {
               "type": "string",
-              "description": "`mcp:<server>/<tool>` external MCP tool · open (pattern · `/` separates path).",
-              "pattern": "^mcp:[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)*$"
+              "description": "`mcp:<server>/<tool>` external MCP tool · open (pattern · `/` separates path). · mcp: requires the slash (mcp:<server>/<tool> · server kebab-case · spec/02-verbs.md §tool reference grammar)",
+              "pattern": "^mcp:[a-z][a-z0-9-]*/[A-Za-z0-9_/-]+$"
             },
             {
               "type": "string",
@@ -538,7 +583,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z]{2,9})?-[0-9]{3}$"
+            "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
           }
         }
       }
@@ -546,9 +591,7 @@
     "onError": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Error recovery · exactly one of recover / skip / fail_workflow (mutually exclusive per spec/05-errors.md §Fields · maxProperties enforces it · the pre-merge fallback/value forms were REMOVED 2026-06-10 per the one-voice pass · spec/05-errors.md merged them into recover).",
-      "minProperties": 1,
-      "maxProperties": 1,
+      "description": "Error recovery · exactly ONE action (recover / skip / fail_workflow · the oneOf enforces it) + optional on_codes filter (spec/05-errors.md §Fields · catch-side mirror of retry.on_codes · skip preserves the original error at tasks.X.error).",
       "properties": {
         "recover": {
           "description": "Recovery output · a `${{ }}` ref OR a literal (merges the former fallback/value per spec/05-errors.md)."
@@ -558,16 +601,52 @@
         },
         "fail_workflow": {
           "type": "boolean"
+        },
+        "on_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
+          },
+          "description": "Optional catch-side filter (mirror of retry.on_codes · same regex) · the action applies ONLY when the final error code is listed · unlisted codes fall through to the default fail (spec/05-errors.md §Fields)."
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "recover"
+          ]
+        },
+        {
+          "required": [
+            "skip"
+          ]
+        },
+        {
+          "required": [
+            "fail_workflow"
+          ]
+        }
+      ]
     },
     "finallyStep": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "when": {
-          "type": "string",
-          "format": "cel-expression"
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "YAML boolean literal · the always/never pattern (when: true runs regardless of upstream outcome · spec/03-dag.md §Task states)."
+            },
+            {
+              "type": "string",
+              "format": "cel-expression",
+              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
+            }
+          ],
+          "description": "Conditional execution gate · a ${{ }} CEL boolean OR the YAML literal true/false. An explicit when: replaces the default success-gate (spec/03-dag.md §Task states)."
         },
         "timeout": {
           "type": "string"

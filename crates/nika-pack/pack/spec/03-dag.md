@@ -168,11 +168,12 @@ STRING   = /'([^'\\]|\\.)*'/ | /"([^"\\]|\\.)*"/ ;   (* escapes · \\ \' \" \n \
 4. **No implicit coercion** · the subset is strongly typed per CEL ·
    comparing values of different types (`42 == "42"`) is an evaluation error
    (`NIKA-VAR` · `variable_error`) · not `false`.
-5. **`when:` is boolean** · the expression MUST evaluate to a boolean ·
-   a non-boolean result is `NIKA-VAR` `variable_error` at evaluation; an
-   engine MAY additionally reject statically-non-boolean-shaped roots
-   (a bare string/number literal · a bare reference with no relation or
-   boolean operator) at parse time.
+5. **`when:` is boolean** · statically-non-boolean-SHAPED roots (a bare
+   string/number literal · a bare reference with no relation or boolean
+   operator) MUST be rejected at parse time (`NIKA-VAR-005` ·
+   `validation_error`); an expression that passes the static shape check
+   but evaluates non-boolean fails at evaluation (`NIKA-VAR-006` ·
+   `variable_error`). See §`when:` shape rules below.
 6. **Identifier roots resolve against the namespaces** · the 5 global
    namespaces (`vars` · `with` · `tasks` · `env` · `secrets`) plus the two
    `for_each` loop-locals (`item` · `index`) per
@@ -247,33 +248,33 @@ when: ${{ !(tasks.test.status == 'failure') }}
 ```
 
 
-### `when:` · *MUST be a CEL boolean expression*
+### `when:` shape rules · boolean-only · one rule, two enforcement times
 
 ```yaml
 - id: send_alert
+  depends_on: [check]
   when: ${{ tasks.check.alert_count > 0 }}     # CEL expression evaluating to bool
   invoke: { ... }
 ```
 
-The engine **rejects non-boolean `when:` expressions at parse time**
-(`NIKA-PARSE-WHEN-001`).
+`when:` accepts exactly two forms · a **`${{ }}` CEL expression** (the general
+case) or the **YAML boolean literal `true` / `false`** (the always/never
+pattern · `when: true` runs the task regardless of upstream outcome · see
+§Task states). Anything else is rejected.
 
-**Valid** · expressions that return a bool ·
+**Parse time (MUST · `NIKA-VAR-005` · `validation_error`)** — statically
+non-boolean-SHAPED roots are rejected before any execution ·
 ```yaml
-when: ${{ vars.env == "production" }}          # bool comparison
-when: ${{ tasks.upstream.status == "success" }}
-when: ${{ tasks.scan.alerts.size() > 0 }}
-when: ${{ vars.dry_run == false && tasks.check.passed }}
-when: ${{ tasks.X.output != null }}            # null check
+when: ${{ vars.threshold }}                    # ❌ bare reference · no relation/boolean operator
+when: ${{ tasks.X.output }}                    # ❌ bare reference
+when: ${{ 'production' }}                      # ❌ bare literal
+when: "literal string"                          # ❌ neither ${{ }} nor a YAML boolean
 ```
 
-**Invalid** · rejected at parse time ·
-```yaml
-when: ${{ vars.threshold }}                    # ❌ returns integer · not bool
-when: ${{ tasks.X.output }}                    # ❌ returns object · not bool
-when: ${{ vars.message }}                      # ❌ returns string · not bool
-when: "literal string"                          # ❌ not a ${{ }} expression
-```
+**Evaluation time (`NIKA-VAR-006` · `variable_error`)** — an expression whose
+*shape* is boolean but whose runtime value is not (a typed comparison across
+types · a reference that resolves non-boolean through an operator the static
+pass could not see) fails when evaluated.
 
 For non-boolean values · use explicit comparison ·
 ```yaml
@@ -343,9 +344,9 @@ fail_fast: false                # default true · false = process all even if so
 ```
 
 - **Default · `true`** · first iteration error aborts remaining iterations ·
-  parent task transitions to `failed` status immediately.
+  parent task transitions to `failure` status immediately.
 - **`fail_fast: false`** · iteration errors are collected · remaining
-  iterations keep running · parent task transitions to `failed` (with
+  iterations keep running · parent task transitions to `failure` (with
   per-iteration error details) ONLY after all iterations complete.
 - **Use cases** · « process N URLs · report which failed but don't abort »
   (false) vs « if any LLM call fails, the whole batch is invalid » (true).
@@ -355,14 +356,30 @@ fail_fast: false                # default true · false = process all even if so
 - The task's output is the **array of per-iteration outputs**, in input
   order · referenced downstream as `${{ tasks.scrape_all.output }}`
   (an array) · `${{ tasks.scrape_all.output[0] }}` for one element.
+- **`output:` bindings apply per iteration** — each binding's jq runs over
+  that iteration's raw response · downstream `tasks.X.<name>` is the
+  **array of that binding's per-iteration values**, input order (so
+  `tasks.X.output` = array of raw outputs · `tasks.X.title` = array of
+  titles · positions align).
+- **A failed iteration contributes `null`** at its index (in `.output`
+  AND in every named binding) — positional alignment survives partial
+  failure (the zip patterns stay sound). Per-iteration
+  `on_error: { recover: … }` substitutes its recovery value instead.
+- The collection MUST be an array (a literal list or an upstream array
+  output). A non-array collection (object · string · number · `null`)
+  is an evaluation error (`NIKA-VAR-006` · `variable_error`).
 - `for_each` is **bounded fan-out**, not recursion · a task cannot
   `for_each` over its own output. The DAG stays acyclic.
 - If the collection is empty · the task is `skipped` (status `skipped`).
 - `when:` is evaluated **once** before the fan-out · `retry:` /
-  `on_error:` / `timeout:` apply **per iteration**.
+  `on_error:` / **`timeout:`** apply **per iteration** — the timeout
+  clock covers one element's execution including its own retries (and
+  backoff sleeps · wall-clock). There is **no whole-fan-out timer** in
+  v0.1 (bound total work via `max_parallel:` + the per-iteration cap).
 - `max_parallel:` + `fail_fast:` apply uniformly across all iterations.
 - `on_finally:` (see below) runs **once** after all iterations complete
-  (success OR failure).
+  (success OR failure) — `item` / `index` are NOT in scope there (there
+  is no current element after the fan-out).
 
 This is the one construct that lets a v1 workflow process a
 runtime-computed number of items (N files · N search hits · N pages)
@@ -377,7 +394,12 @@ without statically enumerating tasks.
     command: "./long-running.sh"
 ```
 
-Hard timeout for the entire task (including any retries). If exceeded · task fails with a typed timeout error (`NIKA-TIMEOUT-001`).
+Hard timeout for the entire task (including any retries and their backoff
+sleeps · wall-clock). If exceeded · the task fails with a typed timeout error
+(`NIKA-TIMEOUT-001`). On a `for_each` task the clock applies **per iteration**
+(§for_each semantics). A timeout error is **catchable** by `on_error:`
+(recover/skip like any failure) but never retryable (`transient: false` · the
+timeout already covered the retries by definition).
 
 **Format · Go-duration / Kubernetes-style string** `[0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h)`.
 
@@ -475,7 +497,19 @@ A v0.1-compliant engine MUST ·
 | `skipped` | Task was skipped (`when` evaluated false) |
 | `cancelled` | Task was cancelled (workflow cancellation or upstream failure) |
 
-A downstream task sees an upstream's status via `${{ tasks.task_id.status }}`. The default `depends_on` behavior is to run only when all deps have `success` or `skipped` status. To run regardless · use `when: true`.
+A downstream task sees an upstream's status via `${{ tasks.task_id.status }}`.
+**Only the four terminal states are observable from expressions** (the closed
+enum of [04](./04-variables.md#-taskxoutput--task-output-reference)) —
+`pending` / `running` exist in run reports and events, never inside `${{ }}`
+(a dependent's expressions evaluate only once all its deps are terminal).
+
+**The gate.** The default `depends_on` behavior (no `when:`) is to run only
+when all deps are `success` or `skipped` — any dep ending `failure` or
+`cancelled` makes the default gate unsatisfiable and the task is `cancelled`.
+An **explicit `when:`** REPLACES the default gate · it is evaluated once all
+deps are terminal, whatever their status · `true` → run (the always-pattern ·
+`when: true` literally) · `false` → `skipped`. Workflow-failure interaction ·
+[05 §workflow-level semantics](./05-errors.md#workflow-level-error-semantics).
 
 > **`depends_on` IS the success-gate.** Do NOT write
 > `when: ${{ tasks.X.status == 'success' }}` as a plain gate — it is **redundant**
@@ -650,9 +684,9 @@ completes · REGARDLESS of outcome (success · failure · timeout · cancel).
 #### Use cases
 
 ```yaml
-# 1 · cleanup temp files
+# 1 · cleanup temp files (scratch_dir declared in envelope vars:)
 on_finally:
-  - exec: { command: "rm -rf /tmp/workflow-${{ workflow_run_id }}" }
+  - exec: { command: "rm -rf ${{ vars.scratch_dir }}" }
 
 # 2 · always-emit completion event
 on_finally:
@@ -662,7 +696,7 @@ on_finally:
 
 # 3 · on-error notification only
 on_finally:
-  - when: ${{ tasks.process.status == 'failed' }}
+  - when: ${{ tasks.process.status == 'failure' }}
     invoke:
       tool: nika:fetch
       args:
@@ -685,9 +719,9 @@ discouraged form ·
 | « run B only if A succeeded » | `depends_on: [a]` alone — success-gating is the **default edge semantic** (a failed dependency cancels dependents · §Task states) | `depends_on: [a]` + `when: ${{ tasks.a.status == 'success' }}` — redundant restatement of the default |
 | « run B even if A failed » | an explicit `when:` (it replaces the default gate · §Task states « to run regardless ») — `when: ${{ tasks.a.status in ['success','failure'] }}` reads the intent precisely | encoding it via `on_error: { skip: true }` on A — that changes A's contract for B's benefit |
 | « retry on transient failure » | `retry:` — the ONE retry shape (`max_attempts` · `backoff_*` · `on_codes`) | a `when:`-guarded duplicate task · a self-referencing recovery chain |
-| « provide a fallback value » | `on_error: { recover: … }` — the route stays *in the failing task* | a second task `when: ${{ tasks.a.status == 'failed' }}` for a mere value — use a task only when real *work* runs on failure |
+| « provide a fallback value » | `on_error: { recover: … }` — the route stays *in the failing task* | a second task `when: ${{ tasks.a.status == 'failure' }}` for a mere value — use a task only when real *work* runs on failure |
 | « cleanup that always runs » | `on_finally:` | a terminal task depending on everything with a permissive `when:` |
-| « time-bound an iteration » | `timeout:` on the `for_each` task (covers the whole task per 03 §timeout) | per-element timing tricks inside the body |
+| « time-bound an iteration » | `timeout:` on the `for_each` task — it applies **per iteration** (§for_each semantics) | per-element timing tricks inside the body · a whole-fan-out timer (none exists in v0.1) |
 | « cap fan-out concurrency » | `max_parallel:` | manual sharding into N sequential tasks |
 
 The dividing line, stated once · **`when:` reads state to decide *whether* a
