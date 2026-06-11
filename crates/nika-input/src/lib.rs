@@ -245,8 +245,18 @@ fn pointer_error(e: &enigo::InputError) -> InputError {
 
 /// Map a tokio join failure (worker panic / runtime shutdown) to NIKA-1305.
 fn join_error(e: &tokio::task::JoinError) -> InputError {
+    // Guard 1 (ADR-081) · NEVER `e.to_string()`: tokio's `JoinError` Display
+    // embeds the panic PAYLOAD ("task N panicked with message {msg}"). If the
+    // `spawn_blocking` backend panicked with the typed text in its message,
+    // `to_string()` would leak the secret into NIKA-1305 — the exact leak Guard
+    // 1 forbids. Distinguish the cause structurally; carry NO payload.
+    let reason = if e.is_cancelled() {
+        "input task cancelled"
+    } else {
+        "input task panicked (payload suppressed · Guard 1)"
+    };
     InputError::TaskJoinFailed {
-        reason: e.to_string(),
+        reason: reason.to_owned(),
     }
 }
 
@@ -623,6 +633,44 @@ mod tests {
         let pointer = pointer_error(&enigo::InputError::Simulate("event tap failed"));
         assert!(pointer.to_string().contains("event tap failed"));
         assert_eq!(pointer.nika_code(), codes::NIKA_1303);
+    }
+
+    #[tokio::test]
+    async fn join_error_never_leaks_a_panic_payload() {
+        // Guard 1 · the panic-payload path: tokio's JoinError Display embeds the
+        // panic message. A backend that panicked with the typed secret in its
+        // message must NOT leak it through NIKA-1305. Force a spawn_blocking task
+        // to panic WITH the secret in its payload, then map the JoinError.
+        let secret = "hunter2-PANIC-PAYLOAD";
+        let secret_owned = secret.to_owned();
+        let join_err = tokio::task::spawn_blocking(move || {
+            #[expect(
+                clippy::panic,
+                reason = "deliberate: forces the panic-payload leak path"
+            )]
+            {
+                panic!("backend exploded while typing {secret_owned}");
+            }
+        })
+        .await
+        .expect_err("the task panicked");
+        // Sanity: the raw JoinError Display DOES carry the secret (the trap).
+        assert!(
+            join_err.to_string().contains(secret),
+            "precondition: tokio Display embeds the payload"
+        );
+        // Our mapping must NOT.
+        let mapped = join_error(&join_err);
+        let shown = mapped.to_string();
+        assert!(
+            !shown.contains(secret),
+            "Guard 1 LEAK via panic payload: {shown}"
+        );
+        assert!(
+            !shown.contains("backend exploded"),
+            "payload leaked: {shown}"
+        );
+        assert_eq!(mapped.nika_code(), codes::NIKA_1305);
     }
 
     proptest::proptest! {

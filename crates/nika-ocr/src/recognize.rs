@@ -144,6 +144,19 @@ fn words_bbox_union(
     Some((left, top, width, height))
 }
 
+/// Map a `spawn_blocking` join failure to a payload-free reason. NEVER
+/// `e.to_string()`: tokio's `JoinError` Display embeds the panic PAYLOAD, which
+/// could carry recognized on-screen text (a password the OCR engine read) if a
+/// backend panicked with it. Distinguish the cause; carry no payload.
+fn join_panic_reason(e: &tokio::task::JoinError) -> String {
+    if e.is_cancelled() {
+        "ocr task cancelled"
+    } else {
+        "ocr task panicked (payload suppressed)"
+    }
+    .to_owned()
+}
+
 /// Run the full synchronous `ocrs` pipeline on a 3-channel RGB buffer.
 ///
 /// CPU-bound + blocking — call ONLY inside `spawn_blocking`. `x_off`/`y_off`
@@ -263,7 +276,7 @@ impl OcrEngineDyn for OcrBackend {
         let regions = tokio::task::spawn_blocking(move || run_ocr(&engine, &rgb, w, h, 0, 0))
             .await
             .map_err(|e| OcrError::TaskJoinFailed {
-                reason: e.to_string(),
+                reason: join_panic_reason(&e),
             })??;
         Ok(regions)
     }
@@ -287,7 +300,7 @@ impl OcrEngineDyn for OcrBackend {
             tokio::task::spawn_blocking(move || run_ocr(&engine, &rgb, w, h, x_off, y_off))
                 .await
                 .map_err(|e| OcrError::TaskJoinFailed {
-                    reason: e.to_string(),
+                    reason: join_panic_reason(&e),
                 })??;
         Ok(regions)
     }

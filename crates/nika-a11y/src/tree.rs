@@ -138,6 +138,19 @@ fn assemble_node(
     AxNode::new(id, role, label, value, None, children, attributes)
 }
 
+/// Map a `spawn_blocking` join failure to a payload-free reason. NEVER
+/// `e.to_string()`: tokio's `JoinError` Display embeds the panic PAYLOAD, which
+/// could carry a secure-field value the AX walk read (Guard 3) if a backend
+/// panicked with it. Distinguish the cause; carry no payload.
+fn join_panic_reason(e: &tokio::task::JoinError) -> String {
+    if e.is_cancelled() {
+        "a11y task cancelled"
+    } else {
+        "a11y task panicked (payload suppressed)"
+    }
+    .to_owned()
+}
+
 /// Walk the focused window's accessibility tree into an [`AxNode`] — **macOS**.
 ///
 /// `AXUIElement::system_wide().focused_window()` rooted recursive walk
@@ -231,7 +244,7 @@ async fn build_raw_tree() -> Result<AxNode, A11yError> {
     let raw = tokio::task::spawn_blocking(walk_focused_tree)
         .await
         .map_err(|e| A11yError::TaskJoinFailed {
-            reason: e.to_string(),
+            reason: join_panic_reason(&e),
         })??;
     Ok(raw)
 }

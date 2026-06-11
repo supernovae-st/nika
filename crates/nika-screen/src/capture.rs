@@ -143,8 +143,16 @@ impl ScreenCaptureDyn for ScreenBackend {
 /// Map a `spawn_blocking` join failure (panic / cancel) into a transient
 /// capture error.
 fn join_err(e: &tokio::task::JoinError) -> ScreenError {
+    // NEVER `format!("{e}")`: tokio's JoinError Display embeds the panic
+    // PAYLOAD, which could carry captured pixel data if a backend panicked with
+    // it. Distinguish the cause structurally; carry no payload.
     ScreenError::CaptureFailed {
-        reason: format!("capture task join failed: {e}"),
+        reason: if e.is_cancelled() {
+            "capture task cancelled"
+        } else {
+            "capture task panicked (payload suppressed)"
+        }
+        .to_owned(),
     }
 }
 
