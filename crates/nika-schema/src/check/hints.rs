@@ -10,7 +10,7 @@
 //! yields the same hints, because each one is derived from a structural
 //! property the analyzer already computed.
 //!
-//! The four v0.1 hints, ranked by unlocked value ·
+//! The five v0.1 hints, ranked by unlocked value ·
 //!
 //! 1. **unbounded cost** — an `infer:`/`agent:` task with no token
 //!    bound: add one and the cost report becomes a hard ceiling.
@@ -23,6 +23,9 @@
 //!    proving those references.
 //! 4. **no boundary** — effectful tasks and no `permits:` block:
 //!    `--infer-permits` writes the tightest one.
+//! 5. **open schema** (`strictness`) — an object schema admitting
+//!    undeclared keys: close it (`additionalProperties: false`) and the
+//!    structured-output shape is deterministic across providers.
 
 use std::collections::BTreeSet;
 
@@ -69,6 +72,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                         "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no `schema:` — declare one and `nika check` starts proving those field names"
                     )));
                 }
+                push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
             }
             RawAction::Agent(a) => {
                 if a.max_tokens_total.is_none() {
@@ -76,6 +80,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                         "declare `max_tokens_total` on `{id}` — the agent loop gets a hard budget instead of UNBOUNDED"
                     )));
                 }
+                push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
                 any_effect = true; // an agent dispatches tools
             }
             RawAction::Exec(_) | RawAction::Invoke(_) => any_effect = true,
@@ -90,6 +95,49 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         ));
     }
     hints
+}
+
+/// The structured-output determinism hint (class `strictness`): an
+/// object node declaring `properties` but NOT `additionalProperties:
+/// false` admits undeclared keys — the model can emit extra fields and
+/// the validated shape varies across providers/runs. Closing it pins
+/// the shape (the recipe provider-native strict modes require). One
+/// hint per task, however many open nodes.
+fn push_strictness_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_json::Value>) {
+    if schema.is_some_and(has_open_object) {
+        hints.push(hint("strictness", id, format!(
+            "`{id}`'s schema admits undeclared keys — add `additionalProperties: false` to its object nodes for a deterministic output shape across providers"
+        )));
+    }
+}
+
+/// Whether any object node in the schema declares `properties` without
+/// closing `additionalProperties`. Descends the same composite shapes
+/// the lint walks (`properties` · `items` · `anyOf`/`oneOf`/`allOf`);
+/// `$ref` is opaque (no claim).
+fn has_open_object(node: &serde_json::Value) -> bool {
+    let Some(obj) = node.as_object() else {
+        return false;
+    };
+    if obj.contains_key("$ref") {
+        return false;
+    }
+    if let Some(props) = obj.get("properties").and_then(serde_json::Value::as_object) {
+        if obj.get("additionalProperties") != Some(&serde_json::Value::Bool(false)) {
+            return true;
+        }
+        if props.values().any(has_open_object) {
+            return true;
+        }
+    }
+    if obj.get("items").is_some_and(has_open_object) {
+        return true;
+    }
+    ["anyOf", "oneOf", "allOf"].iter().any(|key| {
+        obj.get(*key)
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|branches| branches.iter().any(has_open_object))
+    })
 }
 
 /// Task ids whose output is referenced ANYWHERE (any `tasks.X.output…`
@@ -280,6 +328,38 @@ mod tests {
             "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(!h.iter().any(|x| x.kind == "permits"), "{h:?}");
+    }
+
+    #[test]
+    fn open_object_schema_gets_the_strictness_hint() {
+        // properties declared but additionalProperties unclosed → the
+        // model can emit undeclared keys → shape varies across providers.
+        let open = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          s: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(
+            open.iter().any(|h| h.kind == "strictness" && h.task == "a"),
+            "{open:?}"
+        );
+        // closed at every object node → no hint
+        let closed = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          s: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(!closed.iter().any(|h| h.kind == "strictness"), "{closed:?}");
+    }
+
+    #[test]
+    fn nested_open_object_is_found_one_hint_per_task() {
+        // the root is closed but a nested items-object is open — still
+        // hinted, and only ONCE for the task.
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: false\n        properties:\n          tags:\n            type: array\n            items:\n              type: object\n              properties:\n                name: { type: string }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert_eq!(
+            h.iter().filter(|x| x.kind == "strictness").count(),
+            1,
+            "{h:?}"
+        );
     }
 
     #[test]
