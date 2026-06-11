@@ -48,6 +48,11 @@ impl ProvidersConfig {
 
     /// Override a provider's endpoint (local servers · openrouter-style
     /// `base_url` escape hatch). Operator config only — never workflow YAML.
+    ///
+    /// Shape per wire: for the OpenAI-compat and Anthropic wires the value
+    /// is the COMPLETE endpoint URL; for `gemini` it is a STEM — the
+    /// adapter appends `/models/{model}:generateContent` itself (do NOT
+    /// include the model segment in the override).
     #[must_use]
     pub fn with_base_url(mut self, provider: impl Into<String>, url: impl Into<String>) -> Self {
         self.base_urls.insert(provider.into(), url.into());

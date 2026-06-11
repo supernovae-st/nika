@@ -389,6 +389,9 @@ fn map_finish(raw: Option<&str>, has_function_call: bool) -> StopReason {
 /// `streamGenerateContent?alt=sse` → `InferEvent` translator. Each SSE
 /// payload is a full `GenerateContentResponse` chunk; there is no terminal
 /// sentinel — EOF triggers `finish()`.
+/// Ids are synthesized per stream (`{name}-{n}`): unique within one
+/// exchange, NOT globally — gemini sends no server ids (the other wires
+/// do). The kernel contract requires per-exchange correlation only.
 #[derive(Default)]
 struct GeminiMapper {
     request_id: Option<String>,
@@ -426,12 +429,21 @@ impl EventMapper for GeminiMapper {
                 .map(ToOwned::to_owned);
         }
         if let Some(err) = v.pointer("/error") {
+            // Gemini can inject a top-level error object inside a 200 SSE
+            // stream (the other wires close with a non-2xx instead). Route
+            // it through the SAME status table as the http paths so a 429
+            // is RateLimited (not a bare Api) and 401/403 is AuthFailed —
+            // retry loops match on the typed variants. retry_after_ms is
+            // None: headers are not visible inside an SSE body.
             self.done_sent = true;
             let status = err.pointer("/code").and_then(Value::as_u64).unwrap_or(400);
-            out.push(Err(ProviderError::Api {
-                status: u16::try_from(status).unwrap_or(400),
-                message: str_at(err, "/message"),
-            }));
+            let body = err.to_string();
+            out.push(Err(super::status_error(
+                u16::try_from(status).unwrap_or(400),
+                body.as_bytes(),
+                None,
+                "gemini",
+            )));
             return out;
         }
         for part in v
@@ -821,14 +833,48 @@ mod tests {
             other => panic!("expected Done, got {other:?}"),
         }
 
-        // in-band error chunk → typed Err, no synthetic Done after.
+        // in-band error chunks go through the shared status table: a 429
+        // is RateLimited (parity with the http paths) · 401 AuthFailed ·
+        // others Api — and no synthetic Done after any of them.
         let mut m = GeminiMapper::default();
         let out = m.map(r#"{"error":{"code":429,"message":"quota"}}"#);
+        assert!(
+            matches!(out.first(), Some(Err(ProviderError::RateLimited { .. }))),
+            "in-band 429 → RateLimited: {out:?}"
+        );
+        assert!(m.finish().is_empty(), "no Done after wire error");
+
+        let mut m = GeminiMapper::default();
+        let out = m.map(r#"{"error":{"code":401,"message":"bad key"}}"#);
         assert!(matches!(
             out.first(),
-            Some(Err(ProviderError::Api { status: 429, .. }))
+            Some(Err(ProviderError::AuthFailed { .. }))
         ));
-        assert!(m.finish().is_empty(), "no Done after wire error");
+
+        let mut m = GeminiMapper::default();
+        let out = m.map(r#"{"error":{"code":500,"message":"boom"}}"#);
+        match out.first() {
+            Some(Err(e @ ProviderError::Api { status: 500, .. })) => {
+                assert!(e.is_transient(), "5xx transient");
+            }
+            other => panic!("expected Api 500, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn endpoint_builds_from_stem_and_normalizes_trailing_slash() {
+        assert_eq!(
+            endpoint(
+                "https://generativelanguage.googleapis.com/v1beta",
+                "m",
+                false
+            ),
+            "https://generativelanguage.googleapis.com/v1beta/models/m:generateContent"
+        );
+        assert_eq!(
+            endpoint("https://proxy.example.com/v1beta/", "m", true),
+            "https://proxy.example.com/v1beta/models/m:streamGenerateContent?alt=sse"
+        );
     }
 
     #[test]

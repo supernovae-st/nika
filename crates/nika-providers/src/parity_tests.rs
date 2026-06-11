@@ -200,6 +200,10 @@ async fn mock_passes_the_same_matrix_without_network() {
         resp.gen_ai.response_model.is_some(),
         "[mock] response_model populated"
     );
+    // The mock is the ONE profile whose gen_ai.system stays Unknown by
+    // design (no upstream system to attribute) — locked explicitly so the
+    // divergence from the 13 http profiles is intentional, not an omission.
+    assert_eq!(resp.gen_ai.system, GenAiSystem::Unknown, "[mock] by design");
 
     let events = collect(rp.infer_stream(request()).await.expect("mock streams")).await;
     let dones = events
