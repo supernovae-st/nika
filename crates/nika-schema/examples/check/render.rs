@@ -465,11 +465,35 @@ fn cert(out: &mut String, report: &CheckReport, t: Theme) {
         t.dim(t.middot()),
         bound_text(&c.llm_calls, "LLM calls", t),
         t.dim(&format!(
-            "{} {}",
+            "{} {}{}",
             t.middot(),
-            bound_text(&c.effect_calls, "effect calls", t)
+            bound_text(&c.effect_calls, "effect calls", t),
+            spend_text(c.usd_micros.as_ref(), t)
         ))
     );
+}
+
+/// The spend clause — parametric dollars (`≤ $0.0030 + $0.0060·|fan|`),
+/// exact `$0` for spend-free workflows, ABSENT when unpriceable (the
+/// COST section names why).
+fn spend_text(usd: Option<&nika_schema::Bound>, t: Theme) -> String {
+    let Some(b) = usd else { return String::new() };
+    let mid = t.middot();
+    if b.is_zero() {
+        return format!(" {mid} $0 spend");
+    }
+    let mul = if t.unicode_glyphs() { "·" } else { "*" };
+    // display-only cast: spend bounds are far below 2^52 micro-USD
+    #[allow(clippy::cast_precision_loss)]
+    let dollars = |micros: u64| format!("${:.4}", micros as f64 / 1_000_000.0);
+    let mut parts: Vec<String> = Vec::new();
+    if b.constant > 0 || b.terms.is_empty() {
+        parts.push(dollars(b.constant));
+    }
+    for term in &b.terms {
+        parts.push(format!("{}{mul}|{}|", dollars(term.coeff), term.task));
+    }
+    format!(" {mid} {} {} spend", t.leq(), parts.join(" + "))
 }
 
 /// Render one bound: `0 LLM calls` exact-zero · `≤ 5 + 2·|fan| …` else
@@ -580,7 +604,7 @@ mod tests {
             " ✔ TYPES    every deep output reference fits its declared shape\n",
             " ✔ PERMITS  body fits the declared boundary\n",
             " ✔ REACH    every when: gate is satisfiable\n",
-            " ✔ CERT     terminates · ≤ 2 task-attempts · 0 LLM calls · ≤ 2 effect calls\n",
+            " ✔ CERT     terminates · ≤ 2 task-attempts · 0 LLM calls · ≤ 2 effect calls · $0 spend\n",
             "──────────────────────────────────────────────\n",
             " ✔ clean — audited before a single token was spent\n",
         );
@@ -604,7 +628,7 @@ mod tests {
             " ok TYPES    every deep output reference fits its declared shape\n",
             " ok PERMITS  body fits the declared boundary\n",
             " ok REACH    every when: gate is satisfiable\n",
-            " ok CERT     terminates - <= 2 task-attempts - 0 LLM calls - <= 2 effect calls\n",
+            " ok CERT     terminates - <= 2 task-attempts - 0 LLM calls - <= 2 effect calls - $0 spend\n",
             "----------------------------------------------\n",
             " ok clean -- audited before a single token was spent\n",
         );

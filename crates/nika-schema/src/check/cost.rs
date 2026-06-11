@@ -175,7 +175,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
 /// warns about. With no `provider/` prefix we fall back to the unscoped
 /// lookup (a bare model id). Returns `None` for local/unknown models —
 /// sovereign zero-price models are « unpriced », never « free ».
-fn output_price_per_million(model: &str) -> Option<f64> {
+pub(super) fn output_price_per_million(model: &str) -> Option<f64> {
     let pricing = match model.split_once('/') {
         Some((provider, name)) => nika_catalog::find_pricing_scoped(provider, name),
         None => nika_catalog::find_pricing(model),

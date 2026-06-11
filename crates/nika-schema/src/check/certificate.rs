@@ -96,6 +96,13 @@ pub struct RunCertificate {
     pub llm_calls: Bound,
     /// Upper bound on effect calls (`exec` + `invoke` dispatches).
     pub effect_calls: Bound,
+    /// The PARAMETRIC spend bound, in micro-USD (integer keeps the
+    /// wire exact) — the deepening of the cost ceiling: a
+    /// `for_each`-expression fan-out that the COST section must call
+    /// « unknown iterations » is HERE a degree-1 term (`$0.012·|fan|`).
+    /// `None` when any spender is unpriceable (no token bound · no
+    /// catalog price — the COST report names which and why).
+    pub usd_micros: Option<Bound>,
 }
 
 /// A task's fan-out multiplier.
@@ -120,10 +127,48 @@ fn action_calls(action: &RawAction) -> (u64, u64) {
     }
 }
 
+/// ONE body run's worst-case spend in micro-USD — `Ok(0)` for
+/// non-spenders, `Err(())` when the spend exists but cannot be priced
+/// (no token bound · no catalog price · the COST report carries the
+/// reason; the certificate's spend axis just goes `None`).
+fn action_spend_micros(action: &RawAction, default_model: Option<&str>) -> Result<u64, ()> {
+    let (model, tokens) = match action {
+        RawAction::Infer(a) => (
+            a.model.as_ref().map(|m| m.value.as_str()),
+            a.max_tokens.as_ref().map(|t| u64::from(t.value)),
+        ),
+        // the agent budget is CUMULATIVE across turns — one body run
+        // spends at most max_tokens_total, never ×turns
+        RawAction::Agent(a) => (
+            a.model.as_ref().map(|m| m.value.as_str()),
+            a.max_tokens_total.as_ref().map(|t| t.value),
+        ),
+        RawAction::Exec(_) | RawAction::Invoke(_) => return Ok(0),
+    };
+    let Some(tokens) = tokens else { return Err(()) };
+    let Some(price) = model
+        .or(default_model)
+        .and_then(super::cost::output_price_per_million)
+    else {
+        return Err(());
+    };
+    // micro-USD: tokens × price-per-million-tokens = micro-USD exactly.
+    // Casts justified: token budgets are ≪ 2^52 (f64-exact) and the
+    // product is non-negative + rounded before the narrowing.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    Ok(((tokens as f64) * price).round() as u64)
+}
+
 /// Compute the certificate — one linear pass, conformance-independent
 /// (a pure sum over tasks, like the cost ceiling).
 pub(crate) fn certify(wf: &RawWorkflow) -> RunCertificate {
     let mut cert = RunCertificate::default();
+    let default_model = wf.model.as_ref().map(|m| m.value.as_str());
+    let mut spend = Some(Bound::default());
 
     for task in &wf.tasks {
         let t = &task.value;
@@ -152,13 +197,32 @@ pub(crate) fn certify(wf: &RawWorkflow) -> RunCertificate {
             effect.saturating_mul(attempts),
         );
 
+        // the spend axis: per body run × attempts (a retry re-spends)
+        match action_spend_micros(&t.action, default_model) {
+            Ok(micros) => {
+                if let Some(b) = spend.as_mut() {
+                    add(b, &mult, micros.saturating_mul(attempts));
+                }
+            }
+            Err(()) => spend = None,
+        }
+
         // on_finally: once per iteration (after the terminal attempt)
         for cleanup in &t.on_finally {
             let (llm, effect) = action_calls(&cleanup.value.action);
             add(&mut cert.llm_calls, &mult, llm);
             add(&mut cert.effect_calls, &mult, effect);
+            match action_spend_micros(&cleanup.value.action, default_model) {
+                Ok(micros) => {
+                    if let Some(b) = spend.as_mut() {
+                        add(b, &mult, micros);
+                    }
+                }
+                Err(()) => spend = None,
+            }
         }
     }
+    cert.usd_micros = spend;
     cert
 }
 
@@ -273,6 +337,39 @@ mod tests {
     }
 
     #[test]
+    fn spend_axis_is_parametric_where_cost_says_unknown_iterations() {
+        // the deepening: for_each-expression spend = a degree-1 term
+        let c = cert(&wf(
+            "  - id: src\n    exec: { command: \"ls\" }\n  - id: fan\n    depends_on: [src]\n    for_each: ${{ tasks.src.output.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
+        ));
+        let usd = c.usd_micros.expect("priced");
+        assert_eq!(usd.constant, 0);
+        // 200 tk × $15/M = 3000 µ$ per call · ×2 attempts = 6000·|fan|
+        assert_eq!(
+            usd.terms,
+            vec![CertTerm {
+                task: "fan".into(),
+                coeff: 6000
+            }]
+        );
+    }
+
+    #[test]
+    fn unpriceable_spender_makes_the_spend_axis_none_only() {
+        // no max_tokens → spend axis None; the COUNT axes stay exact
+        let c = cert(&wf("  - id: a\n    infer: { prompt: \"x\" }\n"));
+        assert!(c.usd_micros.is_none());
+        assert_eq!(c.llm_calls, konst(1));
+        // agent budget is CUMULATIVE — one body run ≤ max_tokens_total,
+        // never ×turns
+        let a = cert(&wf(
+            "  - id: a\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 4, max_tokens_total: 1000 }\n",
+        ));
+        let usd = a.usd_micros.expect("priced");
+        assert_eq!(usd.constant, 15_000, "1000 tk × $15/M · NOT ×4 turns");
+    }
+
+    #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
             "  - id: fan\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
@@ -284,6 +381,9 @@ mod tests {
                 "task_attempts": { "constant": 0, "terms": [{ "task": "fan", "coeff": 1 }] },
                 "llm_calls": { "constant": 0, "terms": [{ "task": "fan", "coeff": 1 }] },
                 "effect_calls": { "constant": 0, "terms": [] },
+                // 5 tokens × the catalog output price ($15/M) = 75 µ$ —
+                // the PARAMETRIC spend the cost ceiling cannot express
+                "usd_micros": { "constant": 0, "terms": [{ "task": "fan", "coeff": 75 }] },
             })
         );
     }
