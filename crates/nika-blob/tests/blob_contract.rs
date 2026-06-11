@@ -136,6 +136,60 @@ async fn put_leaves_no_temp_residue() {
     }
 }
 
+#[tokio::test]
+async fn concurrent_puts_of_identical_content_dedup_to_one_blob_no_residue() {
+    // The CAS contract under contention: N tasks putting the SAME bytes
+    // concurrently (interleaving at every `.await` — try_exists, temp
+    // write, rename) must (a) all return the SAME blake3 hash, (b) leave
+    // exactly ONE blob + ONE sidecar (dedup, last rename wins on identical
+    // content), and (c) leave ZERO `.nika-tmp.*` residue — the TMP_COUNTER
+    // guarantee exercised end-to-end, not just the unit. A temp collision
+    // or a non-idempotent dedup race would surface here.
+    let (dir, s) = store();
+    let payload = Bytes::from_static(b"contended-identical-content");
+
+    let mut handles = Vec::new();
+    for _ in 0..24 {
+        let store = s.clone();
+        let data = payload.clone();
+        handles.push(tokio::spawn(
+            async move { store.put(data, "text/plain").await },
+        ));
+    }
+    let mut hashes = Vec::new();
+    for h in handles {
+        hashes.push(h.await.expect("task joins").expect("put ok").hash);
+    }
+    assert!(
+        hashes.windows(2).all(|w| w[0] == w[1]),
+        "identical content must dedup to one hash, got {hashes:?}"
+    );
+
+    // Exactly one blob + one sidecar, zero temp residue.
+    let mut files = Vec::new();
+    let mut stack = vec![dir.path().to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let mut rd = tokio::fs::read_dir(&d).await.unwrap();
+        while let Some(e) = rd.next_entry().await.unwrap() {
+            let p = e.path();
+            assert!(
+                !p.to_string_lossy().contains("nika-tmp"),
+                "concurrent dedup must leave no temp residue: {p:?}"
+            );
+            if e.file_type().await.unwrap().is_dir() {
+                stack.push(p);
+            } else {
+                files.push(p);
+            }
+        }
+    }
+    assert_eq!(
+        files.len(),
+        2,
+        "dedup must leave exactly one blob + one sidecar, got {files:?}"
+    );
+}
+
 // ─── get ─────────────────────────────────────────────────────────────
 
 #[tokio::test]

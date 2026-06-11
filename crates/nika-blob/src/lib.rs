@@ -150,14 +150,20 @@ impl DiskBlobStore {
             TMP_COUNTER.fetch_add(1, Ordering::Relaxed),
         );
         let tmp = parent.join(file_disc);
-        tokio::fs::write(&tmp, contents).await?;
-        match tokio::fs::rename(&tmp, path).await {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                let _ = tokio::fs::remove_file(&tmp).await;
-                Err(e)
-            }
+        // Write the temp then publish by rename. ANY failure after the temp
+        // path is chosen removes it best-effort at ONE site — a partial
+        // `tokio::fs::write` (e.g. ENOSPC mid-stream) would otherwise leak a
+        // `.nika-tmp.*` in the shard dir. On rename success the temp no
+        // longer exists, so the guard only fires on a real failure.
+        let publish = async {
+            tokio::fs::write(&tmp, contents).await?;
+            tokio::fs::rename(&tmp, path).await
+        };
+        let result = publish.await;
+        if result.is_err() {
+            let _ = tokio::fs::remove_file(&tmp).await;
         }
+        result
     }
 }
 
