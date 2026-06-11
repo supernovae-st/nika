@@ -49,6 +49,16 @@ impl StopController {
         !self.stop_strings.is_empty()
     }
 
+    /// The longest configured stop string in bytes (0 when none) — the
+    /// window a generation loop must inspect at the text's tail. Decoding
+    /// only a token suffix covering this length (instead of the whole
+    /// buffer every step) turns the per-step stop check from O(n²) over a
+    /// long generation into O(window).
+    #[must_use]
+    pub fn max_stop_len(&self) -> usize {
+        self.stop_strings.iter().map(String::len).max().unwrap_or(0)
+    }
+
     /// True if the accumulated decoded text ends with any stop sequence.
     #[must_use]
     pub fn hit_stop_string(&self, text: &str) -> bool {
@@ -85,6 +95,27 @@ mod tests {
         assert!(s.is_eos(151_645), "<|im_end|> must halt");
         assert!(s.is_eos(151_643), "<|endoftext|> must halt too");
         assert!(!s.is_eos(42), "an ordinary token must not halt");
+    }
+
+    #[test]
+    fn max_stop_len_is_the_longest_in_bytes() {
+        // The tail-window contract: 0 when none; the LONGEST (in bytes —
+        // multi-byte stops like "…" count their UTF-8 length) otherwise.
+        assert_eq!(StopController::new([], &[]).max_stop_len(), 0);
+        let s = StopController::new([], &["ab".to_owned(), "wxyz".to_owned()]);
+        assert_eq!(s.max_stop_len(), 4);
+        let multi = StopController::new([], &["…".to_owned()]); // 3 UTF-8 bytes
+        assert_eq!(multi.max_stop_len(), 3);
+    }
+
+    #[test]
+    fn has_stop_strings_reflects_configuration() {
+        // Direct pin (mutant killer: →true / →false / delete-!): the loop
+        // uses this to skip per-step decoding, so both polarities matter.
+        assert!(!StopController::new([1], &[]).has_stop_strings());
+        assert!(StopController::new([], &["X".to_owned()]).has_stop_strings());
+        // All-empty strings are dropped at construction → still false.
+        assert!(!StopController::new([], &[String::new()]).has_stop_strings());
     }
 
     #[test]

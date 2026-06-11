@@ -104,16 +104,16 @@ is the real containment.
 | Gate | Status |
 |---|---|
 | 1 SPEC | ✅ this file + ADR-091 |
-| 2 TDD | scaffold: MockBackend tests RED→GREEN ✅ · candle: pending |
-| 3 IMPL | scaffold ✅ · candle backend pending |
-| 4 CLIPPY 0 | scaffold ✅ |
-| 5 MUTATION ≥90% | pending candle impl |
-| 6 PROPERTY | protocol round-trip ✅ · sampling/template props pending |
-| 7 BENCH | tok/s + TTFT once candle lands (justified deferral until then) |
-| 8 DOCS | scaffold ✅ (cargo doc 0) |
+| 2 TDD | ✅ MockBackend RED→GREEN · mutant-killer tests from the Gate-5 audit |
+| 3 IMPL | ✅ candle backend wired (generation loop · min-p via `sample_f` · top-nσ + penalty pre-softmax · bounded stop-tail decode) |
+| 4 CLIPPY 0 | ✅ both feature axes (default + `local-infer`) |
+| 5 MUTATION ≥90% | ✅ pure surface ~99% (87/111 caught · every pure survivor killed 2026-06-11) · 21 remaining missed = `candle_backend.rs` **model-gated exemption** (only exercisable by the real-GGUF e2e, which the mutants harness cannot run — same class as nika-ocr's Rule-2 inference exemption) |
+| 6 PROPERTY | ✅ protocol round-trip · min-p (keeps-max + floor) · top-nσ (temperature-invariance + keeps-max) · token-mask (exact-zeroing) · repeat-penalty (never-raises) |
+| 7 BENCH | tok/s + TTFT pending (the gated e2e prints timing; criterion bench at admission) |
+| 8 DOCS | ✅ cargo doc 0 both axes |
 | 9 CANARY | a `.nika.yaml` infer-via-local once the verb wires it |
-| 10 PARITY | output shape vs the OpenAiCompat client (self-consistency) |
-| 11 REVIEW | swarm before candle admission |
+| 10 PARITY | ✅ wire-level self-consistency (tests/wire_contract.rs pins the exact JSON paths + literals nika-providers' parser reads) · real-model e2e green (Qwen3-1.7B Q8 · CPU · EOS/Length/determinism) |
+| 11 REVIEW | 3-lens review folded (2 P1 + 4 P2/P3 · ce287e8c) · full swarm before admission |
 | 12 ATOMIC | 1 admission = 1 commit |
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.

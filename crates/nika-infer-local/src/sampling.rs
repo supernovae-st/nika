@@ -64,18 +64,21 @@ impl SamplingConfig {
     ///
     /// Penalty fields (`repeat_penalty` / `repeat_last_n`) are NOT in the
     /// `OpenAI` request subset — they always take the defaults here and are
-    /// configured per-family by the backend. If a request knob is ever added
-    /// for them, wire it EXPLICITLY (the `..default()` spread below would
-    /// silently mask it).
+    /// configured per-family by the backend. Every field is listed
+    /// EXPLICITLY (no `..default()` spread): adding a `SamplingConfig`
+    /// field forces this constructor to take a position on it, and a
+    /// deleted field is a compile error, not a silent default.
     #[must_use]
     pub fn from_request(req: &ChatRequest) -> Self {
         Self {
             temperature: req.temperature.map_or(0.0, f64::from),
             top_p: req.top_p.map(f64::from),
-            top_k: None, // not in the OpenAI subset we serve; backend default
-            min_p: None,
+            top_k: None,       // not in the OpenAI subset we serve
+            min_p: None,       // backend/per-family policy, not a wire knob
+            top_n_sigma: None, // backend/per-family policy, not a wire knob
             seed: req.seed.unwrap_or(DEFAULT_SEED),
-            ..Self::default()
+            repeat_penalty: 1.0, // off — no silent output shaping
+            repeat_last_n: DEFAULT_REPEAT_LAST_N,
         }
     }
 
