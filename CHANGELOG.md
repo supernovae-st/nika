@@ -18,6 +18,33 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### 🗣️ Announce ladder s9 · nika-verb-infer L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
+
+- **`nika-verb-infer` crate** · FIRST L2 verb crate — the `infer` verb executor
+  per `nika-spec spec/02-verbs.md §infer` (one of the 4 verbs locked forever ·
+  D-2026-05-22-N18). Resolves `model: provider/name` through the s8.5
+  `nika-providers` registry (D-N17: providers live BELOW the verbs · no
+  verb→verb sideways dep), shapes the kernel `InferRequest`, returns the full
+  `InferResponse` for the future L3 engine's event/cost seam.
+- **Structured-output floor in-crate** · `schema:` tasks get native
+  `ResponseFormat::JsonSchema` when the profile supports it (instruction
+  fallback otherwise), lenient JSON extraction (bare → fenced → first balanced
+  string-aware span), `jsonschema` 0.33 validation (compiled ONCE per run —
+  an uncompilable schema is NIKA-432 with zero paid round-trips), and a
+  bounded validation retry (default 2 · spec-sanctioned before NIKA-INFER-002).
+  Schema text re-injected into prompts is capped at 4096 chars.
+- **Error one-voice** · `VerbInferError` speaks `NikaErrorCode` via the new
+  registry-owned NIKA-430..433 (Verb range 430-479 opened · same pattern as
+  the M2 computer-use ranges) · transience inherited from `ProviderError`,
+  never overridden.
+- **Gate 11 swarm (3 lenses · 0 P0)** folded same-session: compile-once
+  validator · u8→u32 attempts counter (closes the u8::MAX budget saturation
+  loop) · schema render cap · both transience branches pinned.
+- 33 lib tests (3 proptests · Gate 10 parity vs brouillon shaping pinned) ·
+  mutation 95.8% overall + 8/8 on the cap helpers · clippy 0 · doc 0 ·
+  layering + deny bans green. New workspace dep `jsonschema` (default-features
+  off · no network resolver).
+
 ### ♿ Phase 2 M2.3 · nika-a11y L1 admission (ADMITTED · 12-gate closed · 2026-05-25)
 
 - **`nika-a11y` crate** · third computer-use L1 effect crate · implements the
