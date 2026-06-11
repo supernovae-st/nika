@@ -18,15 +18,17 @@ pub mod retry;
 pub mod schema_version;
 pub mod secret;
 pub mod var_decl;
+pub mod when_gate;
 
 // Re-exports for convenience.
 pub use capture::CaptureMode;
 pub use duration::{GoDurationError, parse_go_duration};
 pub use extract::{ExtractMode, ResponseMode};
-pub use on_error::OnError;
+pub use on_error::{OnError, OnErrorAction};
 pub use output_decl::OutputDecl;
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
 pub use retry::{BackoffStrategy, RetryConfig, is_valid_error_code};
 pub use schema_version::SchemaVersion;
 pub use secret::{SecretRef, SecretSource};
 pub use var_decl::{VarDecl, VarType};
+pub use when_gate::WhenGate;

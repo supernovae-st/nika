@@ -12,7 +12,7 @@
 use std::time::Duration;
 
 use crate::source::Spanned;
-use crate::types::{OnError, RetryConfig};
+use crate::types::{OnError, RetryConfig, WhenGate};
 
 use super::action::RawAction;
 
@@ -27,8 +27,10 @@ pub struct RawTask {
     pub id: Spanned<String>,
     /// `depends_on:` — task ids this task waits on (default `[]`).
     pub depends_on: Vec<Spanned<String>>,
-    /// `when:` — conditional execution · a single boolean CEL island.
-    pub when: Option<Spanned<String>>,
+    /// `when:` — conditional execution · a single boolean CEL island OR
+    /// the YAML boolean literal (`when: true` = the always-pattern ·
+    /// spec 03 §when shape rules).
+    pub when: Option<Spanned<WhenGate>>,
     /// `for_each:` — map this task over a collection (spec `03-dag.md`
     /// · « The collection is either a literal list or a reference to
     /// an upstream task's array output »).
@@ -93,8 +95,9 @@ pub enum ForEachValue {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RawFinallyTask {
-    /// `when:` — conditional cleanup (sees the parent's status/error).
-    pub when: Option<Spanned<String>>,
+    /// `when:` — conditional cleanup (sees the parent's status/error) ·
+    /// same two forms as the task-level gate.
+    pub when: Option<Spanned<WhenGate>>,
     /// `timeout:` — per-cleanup-task override (default 30s · engine).
     pub timeout: Option<Spanned<Duration>>,
     /// The cleanup verb.
