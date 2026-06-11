@@ -31,6 +31,7 @@
 //! so the canonical palette cannot drift under a refactor. Zero raw ANSI
 //! outside this file.
 
+use std::fmt::Write as _;
 use std::io::IsTerminal;
 
 /// The glyph grammar (nika-cli display contract §3.1) — a glyph is part
@@ -50,6 +51,8 @@ pub(crate) enum Glyph {
     Fix,
     Banner,
     Retry,
+    /// Cancelled — a decision, not a defect (contract §3.1 · drawn dim).
+    Cancelled,
 }
 
 impl Glyph {
@@ -66,6 +69,7 @@ impl Glyph {
             Self::Fix => "↳",
             Self::Banner => "◆",
             Self::Retry => "↻",
+            Self::Cancelled => "◼",
         }
     }
 
@@ -73,7 +77,7 @@ impl Glyph {
     const fn ascii(self) -> &'static str {
         match self {
             Self::Ok => "+",
-            Self::Err => "x",
+
             Self::Warn => "!",
             Self::Gated => "-",
             Self::Pending => ".",
@@ -82,6 +86,11 @@ impl Glyph {
             Self::Fix => "->",
             Self::Banner => "#",
             Self::Retry => "r",
+            // contract §3.1: ascii err AND cancelled are both `x` — the
+            // colour/dimness differentiates when colour is on; in pure
+            // ascii the position + context carry it (the contract's own
+            // table says so).
+            Self::Err | Self::Cancelled => "x",
         }
     }
 }
@@ -336,6 +345,101 @@ impl Theme {
     }
 }
 
+/// The theme reference card — the canonical grammar, self-documented
+/// from the source of truth (every [`Glyph`] in both renderings · every
+/// [`Role`] painted · the verb-gate families). exposed as `--legend` by every surface.
+pub(crate) fn legend(t: Theme) -> String {
+    use crate::theme::Role;
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        " {} {} {}",
+        t.accent(t.glyph(Glyph::Banner)),
+        t.bold("nika theme"),
+        t.dim(&format!("{} the canonical grammar", t.middot()))
+    );
+
+    let _ = writeln!(out, "   {}", t.bold("state glyphs"));
+    let glyphs: [(Glyph, &str); 11] = [
+        (Glyph::Pending, "pending / will-run"),
+        (Glyph::Ok, "ok"),
+        (Glyph::Err, "failed / finding"),
+        (Glyph::Warn, "warning"),
+        (Glyph::Retry, "retrying"),
+        (Glyph::Gated, "when:-gated / skipped"),
+        (Glyph::Cancelled, "cancelled (a decision, not a defect)"),
+        (Glyph::Hint, "hint"),
+        (Glyph::Fix, "machine-applicable fix"),
+        (Glyph::Dep, "upstream dependency"),
+        (Glyph::Banner, "banner"),
+    ];
+    for (g, what) in glyphs {
+        // each state glyph wears its semantic colour (the card teaches
+        // glyph AND role at once)
+        let painted = match g {
+            Glyph::Ok => t.ok(t.glyph(g)),
+            Glyph::Err => t.err(t.glyph(g)),
+            Glyph::Warn | Glyph::Retry => t.warn(t.glyph(g)),
+            Glyph::Hint | Glyph::Fix | Glyph::Banner => t.accent(t.glyph(g)),
+            _ => t.dim(t.glyph(g)),
+        };
+        let _ = writeln!(out, "     {painted:2} {}", t.dim(what));
+    }
+
+    let _ = writeln!(out, "   {}", t.bold("status roles"));
+    let roles: [(Role, &str, &str); 6] = [
+        (Role::Ok, "ok", "a section/verdict that holds"),
+        (Role::Err, "err", "a finding that fails the check"),
+        (Role::Warn, "warn", "caution (unbounded cost / retries)"),
+        (Role::Accent, "accent", "THE single accent (banner / fixes)"),
+        (Role::Muted, "muted", "secondary detail"),
+        (Role::Strong, "strong", "structural emphasis"),
+    ];
+    for (r, name, what) in roles {
+        let _ = writeln!(out, "     {:18} {}", t.paint(r, name), t.dim(what));
+    }
+    let _ = writeln!(
+        out,
+        "     {} / {} {}",
+        t.verdict_ok("verdict ok"),
+        t.verdict_err("verdict err"),
+        t.dim("the closing line")
+    );
+
+    let _ = writeln!(
+        out,
+        "   {} {}",
+        t.bold("verb gates"),
+        t.dim("(colour family = the governing gate)")
+    );
+    let _ = writeln!(
+        out,
+        "     {} {}  {}",
+        t.verb(VerbKind::Infer, "infer "),
+        t.verb(VerbKind::Agent, "agent "),
+        t.dim("magenta = COST-bearing (tokens)")
+    );
+    let _ = writeln!(
+        out,
+        "     {} {}  {}",
+        t.verb(VerbKind::Invoke, "invoke"),
+        t.verb(VerbKind::Exec, "exec  "),
+        t.dim("blue = PERMITS-bearing (the world)")
+    );
+
+    let _ = writeln!(out, "   {}", t.bold("chrome typography"));
+    let _ = writeln!(
+        out,
+        "     {} {} {} {}   {}",
+        t.dim(t.middot()),
+        t.dim(t.ndash()),
+        t.dim(t.mdash()),
+        t.dim(t.leq()),
+        t.dim("(list · range · clause · at-most)")
+    );
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,6 +510,8 @@ mod tests {
         assert_eq!(asc.glyph(Glyph::Gated), "-");
         assert_eq!(asc.glyph(Glyph::Retry), "r");
         assert_eq!(asc.glyph(Glyph::Dep), "<-");
+        assert_eq!(uni.glyph(Glyph::Cancelled), "◼");
+        assert_eq!(asc.glyph(Glyph::Cancelled), "x");
         // ASCII is pure ASCII (the whole point: dumb terminals)
         for g in [
             Glyph::Ok,

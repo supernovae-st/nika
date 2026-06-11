@@ -30,8 +30,18 @@ use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
 use theme::{ColorFlag, Theme};
 
 /// Parsed CLI arguments.
+/// What to run — mutually exclusive, so an enum (the type encodes it).
+enum Mode {
+    /// The static pre-flight over a workflow file.
+    Check,
+    /// Synthesize the tightest `permits:` block for the file.
+    InferPermits,
+    /// The canonical theme reference card (no file needed).
+    Legend,
+}
+
 struct Args {
-    infer_mode: bool,
+    mode: Mode,
     json_mode: bool,
     color: ColorFlag,
     ascii: bool,
@@ -42,15 +52,16 @@ struct Args {
 /// silently degrading to a plain check (exit 0) would let an operator
 /// ship a check report as their permits file.
 fn parse_args() -> Result<Args, ExitCode> {
-    const USAGE: &str = "usage: check [--json] [--infer-permits] [--color=auto|always|never] [--ascii] <workflow.nika.yaml>";
-    let mut infer_mode = false;
+    const USAGE: &str = "usage: check [--json] [--infer-permits] [--legend] [--color=auto|always|never] [--ascii] <workflow.nika.yaml>";
+    let mut mode = Mode::Check;
     let mut json_mode = false;
     let mut color = ColorFlag::Auto;
     let mut ascii = false;
     let mut path: Option<String> = None;
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
-            "--infer-permits" => infer_mode = true,
+            "--infer-permits" => mode = Mode::InferPermits,
+            "--legend" => mode = Mode::Legend,
             "--json" => json_mode = true,
             "--ascii" => ascii = true,
             "--color=auto" => color = ColorFlag::Auto,
@@ -69,12 +80,22 @@ fn parse_args() -> Result<Args, ExitCode> {
             _ => path = Some(arg),
         }
     }
+    if matches!(mode, Mode::Legend) {
+        // the reference card needs no workflow file
+        return Ok(Args {
+            mode,
+            json_mode,
+            color,
+            ascii,
+            path: String::new(),
+        });
+    }
     let Some(path) = path else {
         eprintln!("{USAGE}");
         return Err(ExitCode::from(2));
     };
     Ok(Args {
-        infer_mode,
+        mode,
         json_mode,
         color,
         ascii,
@@ -88,12 +109,17 @@ fn main() -> ExitCode {
         Err(code) => return code,
     };
     let Args {
-        infer_mode,
+        mode,
         json_mode,
         color,
         ascii,
         path,
     } = args;
+    if matches!(mode, Mode::Legend) {
+        let t = Theme::from_env(color, ascii);
+        print!("{}", theme::legend(t));
+        return ExitCode::SUCCESS;
+    }
     let yaml = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(e) => {
@@ -132,7 +158,7 @@ fn main() -> ExitCode {
     };
 
     // ── --infer-permits · write the boundary FOR the operator ───────
-    if infer_mode {
+    if matches!(mode, Mode::InferPermits) {
         return run_infer_mode(&wf, json_mode, color, ascii);
     }
 

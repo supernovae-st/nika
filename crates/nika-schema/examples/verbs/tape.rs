@@ -57,21 +57,47 @@ fn s(v: &str) -> Value {
 }
 
 /// The canonical demo tape — a 4-task pipeline (fetch → extract →
-/// {save · escalate}) exercising the verb spread + a `when:`-gated
-/// skip + a checkpoint. Deterministic: two calls are identical.
+/// {save · escalate}) exercising the FULL vocabulary: permit gates, a
+/// transient-failure retry arc, streaming chunks, incremental cost
+/// deltas, a `when:`-gated skip, a checkpoint. Deterministic.
+///
+/// Cost shape law: `cost_incurred` carries the SPEND (deltas the live
+/// meter folds); `task_completed` carries the OUTCOME (exit · bytes ·
+/// schema verdict — never re-added spend).
 pub(crate) fn demo_tape() -> Vec<Event> {
+    let mut tape = fetch_arc();
+    tape.extend(extract_arc());
+    tape.extend(save_arc());
+    tape
+}
+
+/// Acts 1: start · the permits gate · fetch with its retry arc.
+fn fetch_arc() -> Vec<Event> {
     use EventKind as K;
+    let i = Value::Int;
     vec![
         ev(
             1,
             0,
             K::WorkflowStarted,
-            &[("workflow", s("demo-pipeline")), ("tasks", Value::Int(4))],
+            &[("workflow", s("demo-pipeline")), ("tasks", i(4))],
         ),
-        ev(2, 2, K::TaskScheduled, &[("task", s("fetch"))]),
-        ev(3, 3, K::TaskStarted, &[("task", s("fetch"))]),
+        // the permits gate BEFORE dispatch — the declared boundary, observable
         ev(
-            4,
+            2,
+            1,
+            K::PermitChecked,
+            &[
+                ("task", s("fetch")),
+                ("gate", s("exec")),
+                ("subject", s("curl")),
+                ("decision", s("allow")),
+            ],
+        ),
+        ev(3, 2, K::TaskScheduled, &[("task", s("fetch"))]),
+        ev(4, 3, K::TaskStarted, &[("task", s("fetch"))]),
+        ev(
+            5,
             4,
             K::VerbInvoked,
             &[
@@ -80,16 +106,37 @@ pub(crate) fn demo_tape() -> Vec<Event> {
                 ("program", s("curl")),
             ],
         ),
+        // attempt 1 dies on a transient error → the retry arc (§3.1 ↻)
         ev(
-            5,
-            38,
-            K::TaskCompleted,
-            &[("task", s("fetch")), ("exit", Value::Int(0))],
+            6,
+            21,
+            K::TaskRetrying,
+            &[
+                ("task", s("fetch")),
+                ("attempt", i(1)),
+                ("max_attempts", i(2)),
+                ("reason", s("connection reset")),
+            ],
         ),
-        ev(6, 40, K::TaskScheduled, &[("task", s("extract"))]),
-        ev(7, 41, K::TaskStarted, &[("task", s("extract"))]),
+        ev(7, 24, K::TaskStarted, &[("task", s("fetch"))]),
         ev(
             8,
+            38,
+            K::TaskCompleted,
+            &[("task", s("fetch")), ("exit", i(0))],
+        ),
+    ]
+}
+
+/// Act 2: the streaming infer with live cost deltas.
+fn extract_arc() -> Vec<Event> {
+    use EventKind as K;
+    let i = Value::Int;
+    vec![
+        ev(9, 40, K::TaskScheduled, &[("task", s("extract"))]),
+        ev(10, 41, K::TaskStarted, &[("task", s("extract"))]),
+        ev(
+            11,
             42,
             K::VerbInvoked,
             &[
@@ -98,38 +145,87 @@ pub(crate) fn demo_tape() -> Vec<Event> {
                 ("model", s("anthropic/claude-sonnet-4-6")),
             ],
         ),
+        // the stream arrives as chunks; the live meter ticks on deltas
         ev(
-            9,
-            96,
-            K::CheckpointWritten,
-            &[("tasks_done", Value::Int(1))],
+            12,
+            58,
+            K::InferChunk,
+            &[("task", s("extract")), ("delta", s("\"The arti"))],
         ),
         ev(
-            10,
-            118,
-            K::TaskCompleted,
+            13,
+            74,
+            K::CostIncurred,
             &[
                 ("task", s("extract")),
-                ("tokens", Value::Int(412)),
-                ("usd", Value::Float(0.0019)),
+                ("tokens", i(180)),
+                ("usd", Value::Float(0.0008)),
             ],
         ),
         ev(
-            11,
+            14,
+            82,
+            K::InferChunk,
+            &[("task", s("extract")), ("delta", s("cle shows"))],
+        ),
+        ev(15, 96, K::CheckpointWritten, &[("tasks_done", i(1))]),
+        ev(
+            16,
+            104,
+            K::InferChunk,
+            &[("task", s("extract")), ("delta", s("...\""))],
+        ),
+        ev(
+            17,
+            112,
+            K::CostIncurred,
+            &[
+                ("task", s("extract")),
+                ("tokens", i(232)),
+                ("usd", Value::Float(0.0011)),
+            ],
+        ),
+        ev(
+            18,
+            118,
+            K::TaskCompleted,
+            &[("task", s("extract")), ("schema", s("valid"))],
+        ),
+    ]
+}
+
+/// Act 3: the gated skip · the tool write · the verdict.
+fn save_arc() -> Vec<Event> {
+    use EventKind as K;
+    let i = Value::Int;
+    vec![
+        ev(
+            19,
             120,
             K::TaskSkipped,
             &[("task", s("escalate")), ("reason", s("when: false"))],
         ),
-        ev(12, 121, K::TaskScheduled, &[("task", s("save"))]),
-        ev(13, 122, K::TaskStarted, &[("task", s("save"))]),
         ev(
-            14,
+            20,
+            121,
+            K::PermitChecked,
+            &[
+                ("task", s("save")),
+                ("gate", s("tools")),
+                ("subject", s("nika:write")),
+                ("decision", s("allow")),
+            ],
+        ),
+        ev(21, 121, K::TaskScheduled, &[("task", s("save"))]),
+        ev(22, 122, K::TaskStarted, &[("task", s("save"))]),
+        ev(
+            23,
             123,
             K::VerbInvoked,
             &[("task", s("save")), ("verb", s("invoke"))],
         ),
         ev(
-            15,
+            24,
             124,
             K::ToolInvoked,
             &[
@@ -139,16 +235,16 @@ pub(crate) fn demo_tape() -> Vec<Event> {
             ],
         ),
         ev(
-            16,
+            25,
             131,
             K::TaskCompleted,
-            &[("task", s("save")), ("bytes", Value::Int(4200))],
+            &[("task", s("save")), ("bytes", i(4200))],
         ),
         ev(
-            17,
+            26,
             133,
             K::WorkflowCompleted,
-            &[("tasks", Value::Int(3)), ("usd", Value::Float(0.0019))],
+            &[("tasks", i(3)), ("usd", Value::Float(0.0019))],
         ),
     ]
 }
@@ -160,9 +256,11 @@ pub(crate) enum RowStatus {
     Pending,
     Scheduled,
     Running,
+    Retrying,
     Done,
     Skipped,
     Failed,
+    Cancelled,
 }
 
 /// One task lane in the folded view.
@@ -172,8 +270,13 @@ pub(crate) struct Row {
     pub(crate) dep: Option<&'static str>,
     pub(crate) verb: Option<VerbKind>,
     pub(crate) status: RowStatus,
-    /// The live detail (program · streamed note · tool target).
+    /// The live detail (program · tool target · skip reason).
     pub(crate) note: String,
+    /// The accumulated streamed output (`infer_chunk` deltas).
+    pub(crate) stream: String,
+    /// The transient retry annotation — shown ONLY while retrying (the
+    /// verb detail in `note` survives the arc and returns on restart).
+    pub(crate) retry_note: String,
 }
 
 /// The folded run state every renderer reads.
@@ -182,6 +285,8 @@ pub(crate) struct TapeState {
     pub(crate) usd: f64,
     pub(crate) tokens: i64,
     pub(crate) checkpoints: usize,
+    /// `permit_checked` evaluations seen: (allowed, denied).
+    pub(crate) permits: (usize, usize),
     pub(crate) terminal: Option<bool>,
 }
 
@@ -196,6 +301,8 @@ impl TapeState {
             verb: None,
             status: RowStatus::Pending,
             note: String::new(),
+            stream: String::new(),
+            retry_note: String::new(),
         };
         Self {
             rows: vec![
@@ -207,6 +314,7 @@ impl TapeState {
             usd: 0.0,
             tokens: 0,
             checkpoints: 0,
+            permits: (0, 0),
             terminal: None,
         }
     }
@@ -240,7 +348,11 @@ pub(crate) fn fold(state: &mut TapeState, e: &Event) {
     let task = field_str(e, "task").map(str::to_owned);
     match e.kind {
         EventKind::WorkflowCompleted => state.terminal = Some(true),
-        EventKind::WorkflowFailed => state.terminal = Some(false),
+        // a cancelled run is terminal-not-ok (the verdict line reads
+        // the bool; the tape view distinguishes the kinds upstream)
+        EventKind::WorkflowFailed | EventKind::WorkflowCancelled => {
+            state.terminal = Some(false);
+        }
         EventKind::TaskScheduled => {
             if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
                 r.status = RowStatus::Scheduled;
@@ -252,12 +364,7 @@ pub(crate) fn fold(state: &mut TapeState, e: &Event) {
             }
         }
         EventKind::TaskCompleted => {
-            if let Some(Value::Int(tk)) = field(e, "tokens") {
-                state.tokens += tk;
-            }
-            if let Some(Value::Float(u)) = field(e, "usd") {
-                state.usd += u;
-            }
+            // outcome only — spend arrives via `cost_incurred` deltas
             if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
                 r.status = RowStatus::Done;
             }
@@ -299,6 +406,46 @@ pub(crate) fn fold(state: &mut TapeState, e: &Event) {
             }
         }
         EventKind::CheckpointWritten => state.checkpoints += 1,
+        EventKind::TaskRetrying => {
+            let attempt = match field(e, "attempt") {
+                Some(Value::Int(n)) => *n,
+                _ => 0,
+            };
+            let max = match field(e, "max_attempts") {
+                Some(Value::Int(n)) => *n,
+                _ => 0,
+            };
+            if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
+                r.status = RowStatus::Retrying;
+                r.retry_note = format!("attempt {attempt}/{max}");
+            }
+        }
+        EventKind::TaskCancelled => {
+            if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
+                r.status = RowStatus::Cancelled;
+            }
+        }
+        EventKind::CostIncurred => {
+            if let Some(Value::Int(tk)) = field(e, "tokens") {
+                state.tokens += tk;
+            }
+            if let Some(Value::Float(u)) = field(e, "usd") {
+                state.usd += u;
+            }
+        }
+        EventKind::InferChunk => {
+            let delta = field_str(e, "delta").unwrap_or_default().to_owned();
+            if let Some(r) = task.and_then(|t| state.row_mut(&t)) {
+                r.stream.push_str(&delta);
+            }
+        }
+        EventKind::PermitChecked => {
+            if field_str(e, "decision") == Some("deny") {
+                state.permits.1 += 1;
+            } else {
+                state.permits.0 += 1;
+            }
+        }
         // WorkflowStarted carries no row state; future #[non_exhaustive]
         // kinds fold as a no-op, never a crash.
         _ => {}
@@ -325,6 +472,19 @@ fn kind_mark(e: &Event, t: Theme) -> String {
         },
         EventKind::ToolInvoked => t.verb(VerbKind::Invoke, t.glyph(Glyph::Hint)),
         EventKind::CheckpointWritten => t.dim(t.glyph(Glyph::Fix)),
+        EventKind::TaskRetrying => t.warn(t.glyph(Glyph::Retry)),
+        EventKind::TaskCancelled | EventKind::WorkflowCancelled => t.dim(t.glyph(Glyph::Cancelled)),
+        // spend wears the COST family (magenta — the verb-gate logic)
+        EventKind::CostIncurred => t.verb(VerbKind::Infer, "$"),
+        EventKind::InferChunk => t.verb(VerbKind::Infer, t.glyph(Glyph::Hint)),
+        // the security gate: green allow · red deny — auditable at a glance
+        EventKind::PermitChecked => {
+            if field_str(e, "decision") == Some("deny") {
+                t.err(t.glyph(Glyph::Err))
+            } else {
+                t.ok(t.glyph(Glyph::Ok))
+            }
+        }
         // TaskScheduled + future kinds: the quiet pending mark.
         _ => t.dim(t.glyph(Glyph::Pending)),
     }
@@ -428,13 +588,15 @@ pub(crate) fn workflow_frame(step: usize, t: Theme) -> String {
             RowStatus::Pending => t.dim(t.glyph(Glyph::Pending)),
             RowStatus::Scheduled => t.accent(t.glyph(Glyph::Pending)),
             RowStatus::Running => scenes::spin(step, t),
+            RowStatus::Retrying => t.warn(t.glyph(Glyph::Retry)),
             RowStatus::Done => t.ok(t.glyph(Glyph::Ok)),
             RowStatus::Skipped => t.dim(t.glyph(Glyph::Gated)),
             RowStatus::Failed => t.err(t.glyph(Glyph::Err)),
+            RowStatus::Cancelled => t.dim(t.glyph(Glyph::Cancelled)),
         };
         let name = format!("{:8}", row.name);
         let name = match row.status {
-            RowStatus::Pending | RowStatus::Skipped => t.dim(&name),
+            RowStatus::Pending | RowStatus::Skipped | RowStatus::Cancelled => t.dim(&name),
             _ => name,
         };
         let verb = row.verb.map_or_else(
@@ -452,7 +614,14 @@ pub(crate) fn workflow_frame(step: usize, t: Theme) -> String {
             (Some(d), _) => t.dim(&format!("  {} {d}", t.glyph(Glyph::Dep))),
             (None, _) => String::new(),
         };
-        let note = if row.note.is_empty() {
+        // detail priority: the transient retry annotation while
+        // retrying · then the live stream (the run is TALKING) · then
+        // the static verb detail
+        let note = if row.status == RowStatus::Retrying {
+            format!("  {}", t.warn(&row.retry_note))
+        } else if !row.stream.is_empty() {
+            format!("  {}", t.dim(&row.stream))
+        } else if row.note.is_empty() {
             String::new()
         } else {
             format!("  {}", t.dim(&row.note))
@@ -469,13 +638,15 @@ pub(crate) fn workflow_frame(step: usize, t: Theme) -> String {
     let done = state.done();
     let total = state.rows.len();
     let counters = format!(
-        "{done}/{total} {} {} tk {} ${:.4} {} ckpt {}",
+        "{done}/{total} {} {} tk {} ${:.4} {} ckpt {} {} permits {}",
         t.middot(),
         state.tokens,
         t.middot(),
         state.usd,
         t.middot(),
-        state.checkpoints
+        state.checkpoints,
+        t.middot(),
+        state.permits.0
     );
     let closing = match state.terminal {
         Some(true) => t.verdict_ok(&format!("{} run complete", t.glyph(Glyph::Ok))),
@@ -507,15 +678,21 @@ mod tests {
         let kinds = [
             EventKind::WorkflowStarted,
             EventKind::WorkflowCompleted,
-            EventKind::WorkflowFailed,
+            EventKind::WorkflowCancelled,
             EventKind::TaskScheduled,
             EventKind::TaskStarted,
             EventKind::TaskCompleted,
             EventKind::TaskFailed,
             EventKind::TaskSkipped,
+            EventKind::TaskRetrying,
+            EventKind::TaskCancelled,
             EventKind::VerbInvoked,
             EventKind::ToolInvoked,
             EventKind::CheckpointWritten,
+            EventKind::CostIncurred,
+            EventKind::InferChunk,
+            EventKind::PermitChecked,
+            EventKind::WorkflowFailed,
         ];
         let mut state = TapeState::initial();
         for (i, kind) in kinds.into_iter().enumerate() {
@@ -530,13 +707,28 @@ mod tests {
     }
 
     #[test]
-    fn tape_line_is_pinned() {
+    fn tape_lines_are_pinned() {
         let t = Theme::new(false, true);
         let tape = demo_tape();
-        let line = tape_line(&tape[3], 0, t);
+        // the dispatch line (now at index 4 — the permit gate precedes it)
         assert_eq!(
-            line,
+            tape_line(&tape[4], 0, t),
             " +   4ms ➜ verb_invoked         task=fetch verb=exec program=curl"
+        );
+        // the security gate — green ✔, gate + subject + decision visible
+        assert_eq!(
+            tape_line(&tape[1], 0, t),
+            " +   1ms ✔ permit_checked       task=fetch gate=exec subject=curl decision=allow"
+        );
+        // the retry arc — yellow ↻ with the attempt counter
+        assert_eq!(
+            tape_line(&tape[5], 0, t),
+            " +  21ms ↻ task_retrying        task=fetch attempt=1 max_attempts=2 reason=connection reset"
+        );
+        // the spend delta — magenta $ (the COST verb-gate family)
+        assert_eq!(
+            tape_line(&tape[12], 0, t),
+            " +  74ms $ cost_incurred        task=extract tokens=180 usd=0.0008"
         );
     }
 
@@ -547,10 +739,10 @@ mod tests {
         let expected = concat!(
             " ◆ run demo-pipeline · live (folded from the event tape)\n",
             "   w0 ✔ fetch    exec    curl\n",
-            "   w1 ✔ extract  infer   ← fetch  anthropic/claude-sonnet-4-6\n",
+            "   w1 ✔ extract  infer   ← fetch  \"The article shows...\"\n",
             "   w2 ✔ save     invoke  ← extract  nika:write ./out.md\n",
             "   w2 ⊘ escalate         ← extract  when: false\n",
-            "   ▰▰▰▰▰▰▰▰▰▰ 4/4 · 412 tk · $0.0019 · ckpt 1 ✔ run complete\n",
+            "   ▰▰▰▰▰▰▰▰▰▰ 4/4 · 412 tk · $0.0019 · ckpt 1 · permits 2 ✔ run complete\n",
         );
         assert_eq!(f, expected);
     }
@@ -572,5 +764,40 @@ mod tests {
         assert!(late.contains("412 tk"), "{late}");
         assert!(early.contains("running"));
         assert!(late.contains("run complete"));
+        // the meter ticks MID-RUN (the first cost delta lands before the
+        // second): some frame shows the partial spend — the live ~$ law.
+        let mid = (0..total_steps())
+            .map(|n| workflow_frame(n, t))
+            .find(|f| f.contains("180 tk"));
+        assert!(mid.is_some(), "no frame showed the first cost delta");
+        // and the stream is visible WHILE extract runs (the run talks)
+        let talking = (0..total_steps())
+            .map(|n| workflow_frame(n, t))
+            .find(|f| f.contains("\"The arti") && f.contains("1/4"));
+        assert!(talking.is_some(), "no frame showed the live stream");
+    }
+
+    /// THE telemetry correspondence (SOTA law): every UI state of the
+    /// contract §3.1 state machine is REACHABLE from canonical events —
+    /// the vocabulary covers the display, pinned.
+    #[test]
+    fn every_row_status_is_event_reachable() {
+        use EventKind as K;
+        let drive = |kinds: &[K]| {
+            let mut st = TapeState::initial();
+            for (n, k) in kinds.iter().enumerate() {
+                let e = ev(900 + n as u128, n as u64, *k, &[("task", s("fetch"))]);
+                fold(&mut st, &e);
+            }
+            st.rows[0].status
+        };
+        assert!(drive(&[]) == RowStatus::Pending);
+        assert!(drive(&[K::TaskScheduled]) == RowStatus::Scheduled);
+        assert!(drive(&[K::TaskStarted]) == RowStatus::Running);
+        assert!(drive(&[K::TaskStarted, K::TaskRetrying]) == RowStatus::Retrying);
+        assert!(drive(&[K::TaskStarted, K::TaskCompleted]) == RowStatus::Done);
+        assert!(drive(&[K::TaskSkipped]) == RowStatus::Skipped);
+        assert!(drive(&[K::TaskStarted, K::TaskFailed]) == RowStatus::Failed);
+        assert!(drive(&[K::TaskStarted, K::TaskCancelled]) == RowStatus::Cancelled);
     }
 }

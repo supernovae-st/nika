@@ -140,7 +140,7 @@ fn main() -> ExitCode {
     let t = Theme::from_env(args.color, args.ascii);
 
     match args.mode {
-        Mode::Legend => print!("{}", scenes::legend(t)),
+        Mode::Legend => print!("{}", theme::legend(t)),
         // the tape view — every telemetry event, then the folded card
         Mode::Tape => print!("{}", tape::render_tape(t)),
         // the motion view — the SAME tape, folded live into DAG lanes
