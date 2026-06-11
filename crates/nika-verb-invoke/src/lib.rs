@@ -327,7 +327,13 @@ mod tests {
     async fn control_char_in_tool_id_is_rejected_before_dispatch() {
         let mock = Arc::new(MockTool::ok("x"));
         let verb = InvokeVerb::new(Arc::clone(&mock));
-        for bad in ["nika:read\n", "mcp:srv/tool\t", "nika:read ", " nika:read"] {
+        for bad in [
+            "nika:read\n",     // trailing whitespace
+            "mcp:srv/tool\t",  // trailing whitespace
+            " nika:read",      // leading whitespace
+            "nika:re\u{07}ad", // BEL in the MIDDLE — only the < 0x20 byte rule catches it
+            "nika:re\u{7f}ad", // DEL in the MIDDLE — only the == 0x7f byte rule catches it
+        ] {
             let err = verb
                 .run(InvokeInput::new(bad))
                 .await
@@ -408,6 +414,9 @@ mod tests {
         // `nika:a:b` — a second colon is the tool path's business (we claim
         // only the first colon for the namespace).
         assert!(validate_tool_ref("nika:a:b").is_ok());
+        // A space (0x20) in the MIDDLE is NOT a control char — accepted (only
+        // < 0x20 and DEL are rejected; pins the byte-rule boundary exactly).
+        assert!(validate_tool_ref("nika:re ad").is_ok());
         for bad in [
             "",
             "noprefix",
