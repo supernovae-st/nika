@@ -1,28 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #![allow(clippy::expect_used, clippy::panic)]
-// NIKA_SPEC_DIR is a TEST-HARNESS path override (CI checkout layout) ·
-// not a secret — the SecretStore rule targets runtime secret lookup.
 #![allow(clippy::disallowed_methods)]
 
 //! Every published spec example (`nika-spec/examples/*.nika.yaml`)
 //! parses + analyzes VALID in strict mode — the examples are normative
 //! showcase code; an engine that rejects them is non-conformant.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use nika_schema::{FileId, ParseMode, analyze, parse};
 
-/// Resolve the nika-spec checkout (env override · sibling default).
-fn spec_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("NIKA_SPEC_DIR") {
-        return PathBuf::from(dir);
-    }
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../spec")
-        .canonicalize()
-        .expect("nika-spec checkout missing — set NIKA_SPEC_DIR or clone ../spec")
-}
+mod common;
+use common::spec_dir;
 
 #[test]
 fn all_spec_examples_are_valid_strict() {

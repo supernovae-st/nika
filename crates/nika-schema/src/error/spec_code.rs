@@ -12,8 +12,8 @@
 //! Namespace allocation (per the Core conformance fixtures) ·
 //! - `PARSE` · structural/shape errors (YAML · envelope · task shape ·
 //!   verbs · the `workflow.schema.json`-checkable layer).
-//! - `PARSE-WHEN` · the `when:` static boolean-shape gate
-//!   (`NIKA-PARSE-WHEN-001` per spec `03-dag.md` §when).
+//! - (the former `PARSE-WHEN` sub-namespace is RETIRED — the spec
+//!   folded the static `when:` shape gate into `NIKA-VAR-005`).
 //! - `DAG` · topology (cycle · unresolved dep · missing edge).
 //! - `VAR` · the `${{ }}` substitution surface — both malformed
 //!   substitution syntax (fixture `variables/011` · « the YAML itself
@@ -134,16 +134,6 @@ const fn var(num: u16, category: SpecCategory) -> SpecCode {
     }
 }
 
-/// `NIKA-PARSE-WHEN-001` — the 4-segment sub-namespace (spec
-/// `03-dag.md` · « The engine rejects non-boolean `when:` expressions
-/// at parse time (`NIKA-PARSE-WHEN-001`) »).
-const PARSE_WHEN_001: SpecCode = SpecCode {
-    namespace: "PARSE-WHEN",
-    num: 1,
-    category: SpecCategory::ValidationError,
-    transient: false,
-};
-
 impl SchemaError {
     /// Map to the spec-facing code (spec `05-errors.md`).
     ///
@@ -172,18 +162,25 @@ impl SchemaError {
             Self::ReservedBindingName { .. } => parse(13, ValidationError),
             Self::BadSecretRef { .. } => parse(14, ValidationError),
             Self::BadTypedVar { .. } => parse(15, ValidationError),
-            Self::JqBindingContainsTemplate { .. } => parse(16, ValidationError),
+
             Self::DuplicateKey { .. } => parse(17, ValidationError),
             Self::MissingField { .. } => parse(18, ValidationError),
             Self::Validation { .. } => parse(19, ValidationError),
 
-            // ── NIKA-PARSE-WHEN · the when: boolean gate ────────────
-            Self::WhenNotBoolean { .. } => PARSE_WHEN_001,
+            // Spec 05 registry · NIKA-VAR-005 = « static expression
+            // violation » — the class spans the non-boolean `when:`
+            // shape gate (the retired NIKA-PARSE-WHEN-001 folded here)
+            // AND `${{ }}` inside an output binding (04 §binding
+            // rules · deep fixtures 003/007/008 expect NIKA-VAR).
+            Self::WhenNotBoolean { .. } | Self::JqBindingContainsTemplate { .. } => {
+                var(5, ValidationError)
+            }
 
             // ── NIKA-DAG · topology ─────────────────────────────────
             Self::Cycle { .. } => dag(1),
             Self::UnknownDependency { .. } => dag(2),
             Self::MissingDependsOnEdge { .. } => dag(3),
+            Self::RecoverAwaitDeadlock { .. } => dag(4),
 
             // ── NIKA-VAR · the ${{ }} surface ───────────────────────
             // NIKA-VAR-001 · reference resolution (fixtures 001-007 ·
@@ -192,10 +189,11 @@ impl SchemaError {
             Self::UnresolvedNamespaceRef { .. }
             | Self::LoopLocalOutsideForEach { .. }
             | Self::UnknownTaskField { .. } => var(1, VariableError),
-            // Fixture variables/011 · malformed substitution syntax is
-            // NIKA-VAR + validation_error (« the YAML itself parses
-            // fine ») — NOT NIKA-PARSE.
-            Self::TemplateSyntax { .. } => var(2, ValidationError),
+            // Spec 05 registry · NIKA-VAR-008 = unclosed/malformed
+            // `${{` opener (« the YAML itself parses fine » · fixture
+            // variables/011 matches on namespace) — VAR-002 is the
+            // RUNTIME binding-cardinality code · never static.
+            Self::TemplateSyntax { .. } => var(8, ValidationError),
             // NIKA-VAR-003 · static binding validation (04 §Static
             // binding validation · fixture variables/012) · the
             // category table's « invalid path » class.
@@ -216,7 +214,7 @@ mod tests {
             var(1, SpecCategory::VariableError).to_string(),
             "NIKA-VAR-001"
         );
-        assert_eq!(PARSE_WHEN_001.to_string(), "NIKA-PARSE-WHEN-001");
+        assert_eq!(dag(4).to_string(), "NIKA-DAG-004");
         assert_eq!(
             parse(17, SpecCategory::ValidationError).to_string(),
             "NIKA-PARSE-017"
@@ -302,8 +300,10 @@ mod tests {
             // variants (the spec defines ONE code for the class).
             seen.insert((code.namespace, code.num, code.category.as_str()));
         }
-        // 28 variants · 3 share VAR-001 → 26 distinct codes
-        // (VAR-003 static binding validation joined 2026-06-10).
+        // 29 variants · 3 share VAR-001 · 2 share VAR-005 → 26
+        // distinct codes (DAG-004 + the registry remaps of 2026-06-11 ·
+        // WhenNotBoolean/JqBindingContainsTemplate → VAR-005 ·
+        // TemplateSyntax → VAR-008).
         assert_eq!(seen.len(), 26, "{seen:?}");
     }
 }

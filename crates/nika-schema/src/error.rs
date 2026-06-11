@@ -260,6 +260,23 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// `on_error.recover` references a task that transitively depends
+    /// on the declaring task — the recovery-time await would deadlock
+    /// (spec `05-errors.md` §recover resolution · `NIKA-DAG-004`).
+    #[error(
+        "task `{task}` on_error.recover reads tasks.{target} — `{target}` depends \
+         (transitively) on `{task}` · the recovery await would deadlock · recover \
+         from an upstream or independent source"
+    )]
+    RecoverAwaitDeadlock {
+        /// The task declaring the `on_error.recover`.
+        task: String,
+        /// The recovery source that loops back.
+        target: String,
+        /// The recover value's span.
+        span: Option<Span>,
+    },
+
     /// `when:` (or `for_each:`) is not a single CEL island of the
     /// required shape.
     ///
@@ -440,6 +457,7 @@ schema_code!(SCHEMA_304, 304, "unresolved-namespace-ref");
 schema_code!(SCHEMA_305, 305, "loop-local-outside-for-each");
 schema_code!(SCHEMA_306, 306, "unknown-task-field");
 schema_code!(SCHEMA_307, 307, "output-path-provably-invalid");
+schema_code!(SCHEMA_308, 308, "recover-await-deadlock");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -465,6 +483,7 @@ impl NikaErrorCode for SchemaError {
             Self::MissingField { .. } => SCHEMA_298,
             Self::Validation { .. } => SCHEMA_299,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
+            Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,
             Self::Cycle { .. } => SCHEMA_301,
             Self::UnknownDependency { .. } => SCHEMA_302,
             Self::MissingDependsOnEdge { .. } => SCHEMA_303,
@@ -599,6 +618,11 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::MissingDependsOnEdge {
             task: String::new(),
             referenced: String::new(),
+            span: None,
+        },
+        SchemaError::RecoverAwaitDeadlock {
+            task: String::new(),
+            target: String::new(),
             span: None,
         },
         SchemaError::UnresolvedNamespaceRef {
