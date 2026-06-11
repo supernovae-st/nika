@@ -166,7 +166,7 @@ impl core::clone::Clone for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::clone(&self) -> nika_kernel_mock::clock::MockClock
 impl core::default::Default for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::default() -> Self
-impl nika_kernel_core::io::clock::Clock for nika_kernel_mock::clock::MockClock
+impl nika_kernel_core::io::clock::ClockDyn for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::now(&self) -> std::time::Instant
 pub async fn nika_kernel_mock::clock::MockClock::sleep(&self, _duration: core::time::Duration)
 pub fn nika_kernel_mock::clock::MockClock::system_now(&self) -> std::time::SystemTime
@@ -195,6 +195,11 @@ impl<T> core::convert::From<T> for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::clock::MockClock where T: 'static
 pub fn nika_kernel_mock::clock::MockClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_kernel_mock::clock::MockClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_kernel_mock::clock::MockClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_kernel_mock::clock::MockClock::now(&self) -> std::time::Instant
+pub async fn nika_kernel_mock::clock::MockClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_kernel_mock::clock::MockClock::system_now(&self) -> std::time::SystemTime
 pub mod nika_kernel_mock::compressor
 #[non_exhaustive] pub struct nika_kernel_mock::compressor::NullContextCompressor
 impl nika_kernel_mock::compressor::NullContextCompressor
@@ -283,17 +288,17 @@ impl core::clone::Clone for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::clone(&self) -> nika_kernel_mock::filesystem::MockFs
 impl core::default::Default for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::default() -> nika_kernel_mock::filesystem::MockFs
-impl nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsListDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
-impl nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsMetaDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
-impl nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsReadDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
-impl nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsWriteDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
@@ -323,6 +328,20 @@ pub fn nika_kernel_mock::filesystem::MockFs::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::filesystem::MockFs where T: 'static
 pub fn nika_kernel_mock::filesystem::MockFs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_core::io::fs::Fs for nika_kernel_mock::filesystem::MockFs where T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsListDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsMetaDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub mod nika_kernel_mock::http
 #[non_exhaustive] pub struct nika_kernel_mock::http::MockHttp
 impl nika_kernel_mock::http::MockHttp
@@ -335,9 +354,9 @@ impl core::clone::Clone for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::clone(&self) -> nika_kernel_mock::http::MockHttp
 impl core::default::Default for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::default() -> nika_kernel_mock::http::MockHttp
-impl nika_kernel_core::io::http::HttpGet for nika_kernel_mock::http::MockHttp
+impl nika_kernel_core::io::http::HttpGetDyn for nika_kernel_mock::http::MockHttp
 pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
-impl nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp
+impl nika_kernel_core::io::http::HttpPostDyn for nika_kernel_mock::http::MockHttp
 pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::http::MockHttp
@@ -366,6 +385,11 @@ pub fn nika_kernel_mock::http::MockHttp::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::http::MockHttp where T: 'static
 pub fn nika_kernel_mock::http::MockHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_core::io::http::HttpClient for nika_kernel_mock::http::MockHttp where T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpGet for nika_kernel_mock::http::MockHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpGetDyn
+pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
+pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 pub mod nika_kernel_mock::id_gen
 #[non_exhaustive] pub struct nika_kernel_mock::id_gen::SequentialIdGenerator
 impl nika_kernel_mock::id_gen::SequentialIdGenerator
@@ -1055,7 +1079,7 @@ impl core::clone::Clone for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::clone(&self) -> nika_kernel_mock::clock::MockClock
 impl core::default::Default for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::default() -> Self
-impl nika_kernel_core::io::clock::Clock for nika_kernel_mock::clock::MockClock
+impl nika_kernel_core::io::clock::ClockDyn for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::now(&self) -> std::time::Instant
 pub async fn nika_kernel_mock::clock::MockClock::sleep(&self, _duration: core::time::Duration)
 pub fn nika_kernel_mock::clock::MockClock::system_now(&self) -> std::time::SystemTime
@@ -1084,6 +1108,11 @@ impl<T> core::convert::From<T> for nika_kernel_mock::clock::MockClock
 pub fn nika_kernel_mock::clock::MockClock::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::clock::MockClock where T: 'static
 pub fn nika_kernel_mock::clock::MockClock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::clock::Clock for nika_kernel_mock::clock::MockClock where TraitVariantBlanketType: nika_kernel_core::io::clock::ClockDyn
+pub fn nika_kernel_mock::clock::MockClock::elapsed(&self, since: std::time::Instant) -> core::time::Duration
+pub fn nika_kernel_mock::clock::MockClock::now(&self) -> std::time::Instant
+pub async fn nika_kernel_mock::clock::MockClock::sleep(&self, duration: core::time::Duration)
+pub fn nika_kernel_mock::clock::MockClock::system_now(&self) -> std::time::SystemTime
 #[non_exhaustive] pub struct nika_kernel_mock::MockFs
 impl nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::file_paths(&self) -> alloc::vec::Vec<std::path::PathBuf>
@@ -1096,17 +1125,17 @@ impl core::clone::Clone for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::clone(&self) -> nika_kernel_mock::filesystem::MockFs
 impl core::default::Default for nika_kernel_mock::filesystem::MockFs
 pub fn nika_kernel_mock::filesystem::MockFs::default() -> nika_kernel_mock::filesystem::MockFs
-impl nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsListDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
-impl nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsMetaDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
-impl nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsReadDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
-impl nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs
+impl nika_kernel_core::io::fs::FsWriteDyn for nika_kernel_mock::filesystem::MockFs
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
@@ -1136,6 +1165,20 @@ pub fn nika_kernel_mock::filesystem::MockFs::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::filesystem::MockFs where T: 'static
 pub fn nika_kernel_mock::filesystem::MockFs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_core::io::fs::Fs for nika_kernel_mock::filesystem::MockFs where T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsList for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsListDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsMeta for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsMetaDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
+pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 #[non_exhaustive] pub struct nika_kernel_mock::MockHttp
 impl nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel_core::io::http::HttpError) -> Self
@@ -1147,9 +1190,9 @@ impl core::clone::Clone for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::clone(&self) -> nika_kernel_mock::http::MockHttp
 impl core::default::Default for nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::default() -> nika_kernel_mock::http::MockHttp
-impl nika_kernel_core::io::http::HttpGet for nika_kernel_mock::http::MockHttp
+impl nika_kernel_core::io::http::HttpGetDyn for nika_kernel_mock::http::MockHttp
 pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
-impl nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp
+impl nika_kernel_core::io::http::HttpPostDyn for nika_kernel_mock::http::MockHttp
 pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::http::MockHttp
@@ -1178,6 +1221,11 @@ pub fn nika_kernel_mock::http::MockHttp::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::http::MockHttp where T: 'static
 pub fn nika_kernel_mock::http::MockHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_core::io::http::HttpClient for nika_kernel_mock::http::MockHttp where T: nika_kernel_core::io::http::HttpGet + nika_kernel_core::io::http::HttpPost
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpGet for nika_kernel_mock::http::MockHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpGetDyn
+pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
+pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
 #[non_exhaustive] pub struct nika_kernel_mock::MockProvider
 impl nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::captured_requests(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::InferRequest>

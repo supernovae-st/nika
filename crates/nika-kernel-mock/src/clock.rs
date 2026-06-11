@@ -8,7 +8,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use parking_lot::Mutex;
 
-use nika_kernel::Clock;
+use nika_kernel::io::clock::ClockDyn;
 
 /// A controllable clock for deterministic test timing.
 ///
@@ -57,7 +57,7 @@ impl Default for MockClock {
     }
 }
 
-impl Clock for MockClock {
+impl ClockDyn for MockClock {
     fn now(&self) -> Instant {
         let inner = self.inner.lock();
         inner.base + inner.offset

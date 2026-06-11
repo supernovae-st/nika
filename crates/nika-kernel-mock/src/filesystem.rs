@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use parking_lot::RwLock;
 
-use nika_kernel::fs::{FileMetadata, FsError, FsList, FsMeta, FsRead, FsWrite};
+use nika_kernel::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 
 /// In-memory filesystem for tests.
 ///
@@ -61,7 +61,7 @@ impl MockFs {
     }
 }
 
-impl FsRead for MockFs {
+impl FsReadDyn for MockFs {
     async fn read(&self, path: &Path) -> Result<Bytes, FsError> {
         let guard = self.files.read();
         guard
@@ -100,7 +100,7 @@ impl FsRead for MockFs {
     }
 }
 
-impl FsWrite for MockFs {
+impl FsWriteDyn for MockFs {
     async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
         self.files
             .write()
@@ -124,7 +124,7 @@ impl FsWrite for MockFs {
     }
 }
 
-impl FsMeta for MockFs {
+impl FsMetaDyn for MockFs {
     async fn metadata(&self, path: &Path) -> Result<FileMetadata, FsError> {
         let guard = self.files.read();
         if let Some(data) = guard.get(path) {
@@ -189,7 +189,7 @@ fn segment_match(pat: &[u8], txt: &[u8]) -> bool {
     }
 }
 
-impl FsList for MockFs {
+impl FsListDyn for MockFs {
     async fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, FsError> {
         let guard = self.files.read();
         let prefix = format!("{}/", path.display());
@@ -416,7 +416,7 @@ mod tests {
     /// Verify blanket Fs trait is satisfied.
     #[test]
     fn mock_fs_satisfies_fs_trait() {
-        fn _accepts_fs<T: nika_kernel::Fs>(_: &T) {}
+        fn _accepts_fs<T: FsReadDyn + FsWriteDyn + FsMetaDyn + FsListDyn>(_: &T) {}
         let fs = MockFs::new();
         _accepts_fs(&fs);
     }

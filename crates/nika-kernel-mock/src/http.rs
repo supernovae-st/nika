@@ -10,7 +10,7 @@ use bytes::Bytes;
 use parking_lot::Mutex;
 
 use nika_kernel::http::{
-    HttpError, HttpGet, HttpPost, HttpRequest, HttpResponse, HttpStreamResponse,
+    HttpError, HttpGetDyn, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
 };
 
 /// Programmable HTTP client for tests.
@@ -68,13 +68,13 @@ impl MockHttp {
     }
 }
 
-impl HttpGet for MockHttp {
+impl HttpGetDyn for MockHttp {
     async fn get(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
         self.pop_response(request)
     }
 }
 
-impl HttpPost for MockHttp {
+impl HttpPostDyn for MockHttp {
     async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
         self.pop_response(request)
     }
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn mock_http_satisfies_http_client() {
-        fn _accepts<T: nika_kernel::HttpClient>(_: &T) {}
+        fn _accepts<T: nika_kernel::http::HttpGetDyn + nika_kernel::http::HttpPostDyn>(_: &T) {}
         let http = MockHttp::new();
         _accepts(&http);
     }
