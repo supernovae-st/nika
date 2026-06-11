@@ -1,19 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Cost ceiling — the worst-case spend, computed statically.
+//! Cost ceiling — the spend envelope, computed statically (ADR-092 #5).
 //!
 //! For each `infer:`/`agent:` task with a declared output bound
-//! (`max_tokens` · `max_tokens_total`), the ceiling is
+//! (`max_tokens` · `max_tokens_total`), the per-call ceiling is
 //! `tokens × output_price_per_million / 1e6`, priced from
 //! `nika-catalog`. A task with NO declared token bound is **unbounded** —
 //! the most likely « why did this cost $200 » surprise — and is reported
 //! as such (the foot-gun is named, not hidden).
+//!
+//! The envelope is a STRUCTURAL interval — two ceilings, not one ·
+//!
+//! - **worst path** — every `when:` gate opens · every `retry:` attempt
+//!   fires · full `for_each` fan-out → `tokens × n × attempts × price`.
+//! - **cheapest path** — every gate closes (`when:` tasks skip · $0) and
+//!   everything succeeds first-try → the UNAVOIDABLE budget exposure.
+//!
+//! Both ends are ceilings at the DECLARED per-call budget: a model may
+//! emit fewer tokens than `max_tokens`, so the cheapest-path figure is
+//! the floor of your *exposure*, not of the actual spend.
 
 use crate::raw::{ForEachValue, RawAction, RawWorkflow};
 
-/// Per-task worst-case cost.
-#[derive(Debug, Clone, PartialEq)]
+/// Per-task cost envelope.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[non_exhaustive]
 pub struct TaskCost {
     /// The task id.
@@ -27,16 +38,26 @@ pub struct TaskCost {
     /// cost). An expression-source `for_each` has an unknown count and
     /// makes the task unbounded ([`UnboundedReason::UnknownIterations`]).
     pub iterations: u64,
-    /// Worst-case USD for this task (already × `iterations`) · `None` =
-    /// unbounded tokens, unknown iterations, OR the model has no catalog
-    /// price (all reported, never silently zero).
+    /// `retry:` attempt multiplier — `max_attempts` (1 when no `retry:`).
+    /// Every attempt can spend the full per-call budget, so the worst
+    /// case multiplies (ignoring it silently UNDERCOUNTED the ceiling).
+    pub attempts: u64,
+    /// Whether a `when:` gate can skip this task entirely (the cheapest
+    /// structural path spends $0 on it).
+    pub gated: bool,
+    /// Cheapest-path USD — gates closed, first-try success, at the
+    /// declared budget (`None` exactly when [`TaskCost::usd`] is).
+    pub min_path_usd: Option<f64>,
+    /// Worst-case USD (× `iterations` × `attempts`) · `None` = unbounded
+    /// tokens, unknown iterations, OR the model has no catalog price
+    /// (all reported, never silently zero).
     pub usd: Option<f64>,
     /// Why `usd` is `None`, when it is.
     pub unbounded_reason: Option<UnboundedReason>,
 }
 
 /// Why a task's cost could not be bounded.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub enum UnboundedReason {
     /// No `max_tokens` / `max_tokens_total` — the token spend is unbounded.
@@ -48,25 +69,29 @@ pub enum UnboundedReason {
     UnknownIterations,
 }
 
-/// The whole-workflow cost ceiling.
-#[derive(Debug, Clone, PartialEq)]
+/// The whole-workflow cost envelope.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[non_exhaustive]
 pub struct CostCeiling {
     /// Per-task breakdown (only `infer:`/`agent:` tasks).
     pub tasks: Vec<TaskCost>,
-    /// Σ of the bounded task costs in USD.
+    /// Σ of the bounded WORST-path task costs in USD (the ceiling).
     pub bounded_total_usd: f64,
+    /// Σ of the bounded CHEAPEST-path task costs — gates closed,
+    /// first-try success (the unavoidable budget exposure).
+    pub min_path_total_usd: f64,
     /// `true` when at least one inference task is unbounded — the total is
     /// a FLOOR, not a ceiling, and the report says so.
     pub has_unbounded: bool,
 }
 
-/// Compute the cost ceiling for a workflow.
+/// Compute the cost envelope for a workflow.
 #[must_use]
 pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
     let default_model = wf.model.as_ref().map(|m| m.value.clone());
     let mut tasks = Vec::new();
     let mut bounded_total_usd = 0.0;
+    let mut min_path_total_usd = 0.0;
     let mut has_unbounded = false;
 
     for task in &wf.tasks {
@@ -91,18 +116,30 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
             Some(ForEachValue::List(arr)) => Some(arr.as_array().map_or(1, Vec::len) as u64),
             Some(ForEachValue::Expression(_)) => None,
         };
+        // every retry attempt can spend the full per-call budget
+        let attempts = task
+            .value
+            .retry
+            .as_ref()
+            .map_or(1, |r| u64::from(r.value.max_attempts.max(1)));
+        let gated = task.value.when.is_some();
 
-        let (usd, unbounded_reason) = match (max_tokens, iterations) {
-            (None, _) => (None, Some(UnboundedReason::NoTokenLimit)),
-            (Some(_), None) => (None, Some(UnboundedReason::UnknownIterations)),
+        let (usd, min_path_usd, unbounded_reason) = match (max_tokens, iterations) {
+            (None, _) => (None, None, Some(UnboundedReason::NoTokenLimit)),
+            (Some(_), None) => (None, None, Some(UnboundedReason::UnknownIterations)),
             (Some(tokens), Some(n)) => match model.as_deref().and_then(output_price_per_million) {
                 Some(price) => {
                     #[allow(clippy::cast_precision_loss)]
-                    let cost = (tokens as f64) * (n as f64) * price / 1_000_000.0;
-                    bounded_total_usd += cost;
-                    (Some(cost), None)
+                    let per_call = (tokens as f64) * price / 1_000_000.0;
+                    #[allow(clippy::cast_precision_loss)]
+                    let worst = per_call * (n as f64) * (attempts as f64);
+                    #[allow(clippy::cast_precision_loss)]
+                    let cheapest = if gated { 0.0 } else { per_call * (n as f64) };
+                    bounded_total_usd += worst;
+                    min_path_total_usd += cheapest;
+                    (Some(worst), Some(cheapest), None)
                 }
-                None => (None, Some(UnboundedReason::NoPrice)),
+                None => (None, None, Some(UnboundedReason::NoPrice)),
             },
         };
         if usd.is_none() {
@@ -113,6 +150,9 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
             model,
             max_tokens,
             iterations: iterations.unwrap_or(0),
+            attempts,
+            gated,
+            min_path_usd,
             usd,
             unbounded_reason,
         });
@@ -121,6 +161,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
     CostCeiling {
         tasks,
         bounded_total_usd,
+        min_path_total_usd,
         has_unbounded,
     }
 }
@@ -224,6 +265,54 @@ tasks:
         );
         assert!(c.tasks.is_empty(), "no inference tasks → no cost rows");
         assert_eq!(c.bounded_total_usd, 0.0);
+    }
+
+    #[test]
+    fn retry_multiplies_the_worst_path_not_the_cheapest() {
+        // Ignoring retry: silently UNDERCOUNTED the ceiling — 3 attempts
+        // can each spend the full budget; first-try success spends 1×.
+        let plain = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+        );
+        let retried = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+        );
+        assert_eq!(retried.tasks[0].attempts, 3);
+        let one = plain.bounded_total_usd;
+        assert!(
+            (retried.bounded_total_usd - one * 3.0).abs() < 1e-9,
+            "worst path is 3×: {} vs {}",
+            retried.bounded_total_usd,
+            one * 3.0
+        );
+        assert!(
+            (retried.min_path_total_usd - one).abs() < 1e-9,
+            "cheapest path is first-try 1×"
+        );
+    }
+
+    #[test]
+    fn when_gated_task_zeroes_the_cheapest_path() {
+        let c = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    exec: { command: \"true\" }\n  - id: t\n    depends_on: [a]\n    when: ${{ tasks.a.status == 'success' }}\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+        );
+        assert!(c.tasks[0].gated);
+        assert_eq!(c.tasks[0].min_path_usd, Some(0.0), "gate closed → $0");
+        assert!(
+            c.bounded_total_usd > 0.0 && c.min_path_total_usd == 0.0,
+            "interval is [0, worst]"
+        );
+    }
+
+    #[test]
+    fn ungated_unretried_task_has_a_degenerate_interval() {
+        let c = ceiling_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: t\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+        );
+        assert!(
+            (c.min_path_total_usd - c.bounded_total_usd).abs() < 1e-12,
+            "no structure to vary → min == max"
+        );
     }
 
     #[test]

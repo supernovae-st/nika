@@ -18,7 +18,7 @@
 //! - **Profiles** — the canonical 14 (8 cloud · 5 local · 1 mock per
 //!   `nika-spec/canon.yaml` · D-2026-06-10-N2) over **three wire formats**:
 //!   Anthropic Messages · OpenAI-compat Chat Completions (12 of the 14) ·
-//!   Gemini `generateContent` (profile now · adapter s8.6).
+//!   Gemini `generateContent`.
 //! - **Keys** — kernel [`Secret`](nika_kernel::secret::Secret)
 //!   (zeroize-on-drop · redacted `Debug`), resolved from the env ladder
 //!   `NIKA_<ID>_API_KEY` → conventional var, or injected explicitly.

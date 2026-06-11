@@ -166,6 +166,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mock_max_tokens_boundary_is_exclusive() {
+        // Boundary pin (mutant killers `<`→`<=` and guard→true): a cap EQUAL
+        // to the full completion length is NOT a truncation — the reply fits.
+        // "mock reply: a b" = 4 whitespace tokens; limit 4 → Stop, untouched.
+        let r = req(vec![Message::new(Role::User, "a b")], Some(4));
+        let resp = Backend::generate(&MockBackend, &r).await.unwrap();
+        assert_eq!(resp.choices[0].finish_reason, FinishReason::Stop);
+        assert_eq!(resp.choices[0].message.content, "mock reply: a b");
+    }
+
+    #[tokio::test]
     async fn mock_counts_usage() {
         let r = req(vec![Message::new(Role::User, "two words")], None);
         let resp = Backend::generate(&MockBackend, &r).await.unwrap();

@@ -23,7 +23,7 @@ use crate::raw::{RawAction, RawCommand, RawInvokeAction, RawWorkflow};
 use crate::types::{ExecPermit, Permits, permits::glob_matches};
 
 /// A statically-detectable effect outside the declared boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
 pub struct CapabilityEscape {
     /// The offending task.
@@ -32,10 +32,20 @@ pub struct CapabilityEscape {
     pub category: &'static str,
     /// Human detail (the specific tool/program that escaped).
     pub detail: String,
+    /// The machine-applicable repair, ALWAYS the one idiom
+    /// `add "<entry>" to permits.<category-path>` — where « add to »
+    /// means: ensure the list at that path exists (creating the block,
+    /// or replacing a denying `exec: false` scalar with a list) and
+    /// contains the entry. One idiom = the agent repair loop
+    /// pattern-matches once and converges (e2e-tested).
+    pub fix: Option<String>,
 }
 
 /// Scan a workflow for capability escapes. Empty when no `permits:` block
-/// is declared (absent = today's behavior, nothing to enforce).
+/// is declared (absent = today's behavior, nothing to enforce). Walks every
+/// task's main action AND its `on_finally:` cleanup actions — a cleanup
+/// runs under the same boundary (and ALWAYS runs, so a blind spot there
+/// breaks every run, not just the failure path).
 #[must_use]
 pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
     let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
@@ -44,38 +54,63 @@ pub(super) fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
     let mut escapes = Vec::new();
     for task in &wf.tasks {
         let id = &task.value.id.value;
-        match &task.value.action {
-            RawAction::Exec(a) => check_exec(id, &a.command, permits, &mut escapes),
-            RawAction::Invoke(a) => {
-                if permits.allows_tool(&a.tool.value) {
-                    // Tool is granted — but it may still reach a host/path
-                    // outside the fs/net boundary. Check the literal effect.
-                    // (A tool OUTSIDE permits.tools is already flagged below;
-                    // re-flagging its effect would double-count.)
-                    check_builtin_effect(id, a, permits, &mut escapes);
-                } else {
-                    escapes.push(CapabilityEscape {
-                        task: id.clone(),
-                        category: "tools",
-                        detail: format!("invoke tool `{}` is outside permits.tools", a.tool.value),
-                    });
-                }
-            }
-            RawAction::Agent(a) => {
-                for tool in &a.tools {
-                    if !permits.allows_tool(&tool.value) {
-                        escapes.push(CapabilityEscape {
-                            task: id.clone(),
-                            category: "tools",
-                            detail: format!("agent tool `{}` is outside permits.tools", tool.value),
-                        });
-                    }
-                }
-            }
-            RawAction::Infer(_) => {}
+        check_action(id, &task.value.action, permits, &mut escapes);
+        for cleanup in &task.value.on_finally {
+            check_action(
+                &format!("{id} (on_finally)"),
+                &cleanup.value.action,
+                permits,
+                &mut escapes,
+            );
         }
     }
     escapes
+}
+
+/// Check one action (a task's main verb OR an `on_finally` cleanup verb)
+/// against the boundary.
+fn check_action(id: &str, action: &RawAction, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
+    match action {
+        RawAction::Exec(a) => check_exec(id, &a.command, permits, out),
+        RawAction::Invoke(a) => {
+            if permits.allows_tool(&a.tool.value) {
+                // Tool is granted — but it may still reach a host/path
+                // outside the fs/net boundary. Check the literal effect.
+                // (A tool OUTSIDE permits.tools is already flagged below;
+                // re-flagging its effect would double-count.)
+                check_builtin_effect(id, a, permits, out);
+            } else {
+                escapes_tool(id, "invoke", &a.tool.value, out);
+            }
+        }
+        RawAction::Agent(a) => {
+            for tool in &a.tools {
+                if !permits.allows_tool(&tool.value) {
+                    escapes_tool(id, "agent", &tool.value, out);
+                }
+            }
+        }
+        RawAction::Infer(_) => {}
+    }
+}
+
+/// Record a tool-surface escape (`invoke`/`agent` tool outside the grant).
+///
+/// When the tool is a `nika:`-prefixed name that is NOT a canonical
+/// builtin, the grant fix is withheld — the rename (the `unknown_tools`
+/// finding's did-you-mean) owns the repair; recommending a grant for a
+/// tool that does not exist would steer the agent loop into a phantom
+/// permits entry.
+fn escapes_tool(id: &str, surface: &str, tool: &str, out: &mut Vec<CapabilityEscape>) {
+    let is_phantom_builtin = tool
+        .strip_prefix("nika:")
+        .is_some_and(|name| !nika_catalog::all_builtins().iter().any(|b| b.name == name));
+    out.push(CapabilityEscape {
+        task: id.to_owned(),
+        category: "tools",
+        detail: format!("{surface} tool `{tool}` is outside permits.tools"),
+        fix: (!is_phantom_builtin).then(|| format!("add \"{tool}\" to permits.tools")),
+    });
 }
 
 /// An `exec:` task under a `permits:` boundary. A `false`/omitted permit
@@ -88,13 +123,13 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
             task: id.to_owned(),
             category: "exec",
             detail: "exec task under a boundary that forbids shells".to_owned(),
+            // same `add … to …` idiom as every other fix — applied to a
+            // denying `exec: false`, « add » means replace it with the list
+            fix: static_program(command).map(|p| format!("add \"{p}\" to permits.exec")),
         });
         return;
     }
-    let program = match command {
-        RawCommand::Argv(_) => command.argv_program(),
-        RawCommand::Shell(s) => leading_program(&s.value),
-    };
+    let program = static_program(command);
     if let Some(ExecPermit::Programs(_)) = permits.exec.as_ref()
         && let Some(program) = program
         && !permits.allows_program(program)
@@ -103,16 +138,80 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
             task: id.to_owned(),
             category: "exec",
             detail: format!("program `{program}` is outside permits.exec allowlist"),
+            fix: Some(format!("add \"{program}\" to permits.exec")),
         });
     }
 }
 
-/// Check a builtin invoke's LITERAL fs/net effect against the boundary.
+/// The statically-checkable effect signature of a builtin tool — the ONE
+/// classification table both the escape checker and capability inference
+/// read, so verification and inference cannot drift. Ground truth: spec
+/// `stdlib/builtins-v0.1.md` (File builtins · Network builtins).
 ///
-/// Only the builtins whose effect is statically knowable from a literal
-/// arg are checked · `nika:fetch` (`url` → `net.http` host) ·
-/// `nika:read`/`nika:write` (`path` → `fs.read`/`fs.write`). A
-/// `${{ }}`-built arg is dynamic → the runtime `NIKA-SEC-004` check.
+/// `nika:glob` is deliberately ABSENT: its arg is itself a glob `pattern:`,
+/// and glob-pattern ⊆ permits-glob inclusion is not soundly decidable
+/// statically — the runtime `NIKA-SEC-004` owns it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BuiltinEffect {
+    /// An HTTP egress whose host comes from a literal URL-shaped arg.
+    Net {
+        /// The arg key carrying the URL (`url` for fetch · `target` for
+        /// webhook notify).
+        url_arg: &'static str,
+    },
+    /// A filesystem effect on a literal `path:` arg.
+    Fs {
+        /// The effect reads the path (read · grep · edit's find phase).
+        reads: bool,
+        /// The effect writes the path (write · edit's replace phase).
+        writes: bool,
+        /// The effect descends under the path (`nika:grep` is a recursive
+        /// reader) — inference grants `<path>/**`, not just the path.
+        recursive: bool,
+    },
+}
+
+/// Classify a builtin invoke's statically-checkable effect, `None` for
+/// pure-compute builtins (log · jq · hash · …) and for MCP tools (their
+/// effects are server-side — the `tools:` grant is the boundary).
+pub(super) fn builtin_effect(a: &RawInvokeAction) -> Option<BuiltinEffect> {
+    match a.tool.value.as_str() {
+        "nika:fetch" => Some(BuiltinEffect::Net { url_arg: "url" }),
+        // notify is a net egress ONLY on the webhook channel (a literal
+        // `target` URL); other channels ride engine-configured transports,
+        // not a workflow-declared host. A dynamic channel is unclassifiable
+        // statically (runtime concern).
+        "nika:notify" if literal_arg(a, "channel").as_deref() == Some("webhook") => {
+            Some(BuiltinEffect::Net { url_arg: "target" })
+        }
+        "nika:read" => Some(BuiltinEffect::Fs {
+            reads: true,
+            writes: false,
+            recursive: false,
+        }),
+        "nika:grep" => Some(BuiltinEffect::Fs {
+            reads: true,
+            writes: false,
+            recursive: true,
+        }),
+        "nika:write" => Some(BuiltinEffect::Fs {
+            reads: false,
+            writes: true,
+            recursive: false,
+        }),
+        // in-place find/replace reads the bytes, then rewrites the path
+        "nika:edit" => Some(BuiltinEffect::Fs {
+            reads: true,
+            writes: true,
+            recursive: false,
+        }),
+        _ => None,
+    }
+}
+
+/// Check a builtin invoke's LITERAL fs/net effect against the boundary,
+/// per the [`builtin_effect`] classification. A `${{ }}`-built arg is
+/// dynamic → the runtime `NIKA-SEC-004` check.
 fn check_builtin_effect(
     id: &str,
     a: &RawInvokeAction,
@@ -120,38 +219,42 @@ fn check_builtin_effect(
     out: &mut Vec<CapabilityEscape>,
 ) {
     let tool = a.tool.value.as_str();
-    match tool {
-        "nika:fetch" => {
-            if let Some(host) = literal_arg(a, "url").as_deref().and_then(url_host)
+    match builtin_effect(a) {
+        Some(BuiltinEffect::Net { url_arg }) => {
+            if let Some(host) = literal_arg(a, url_arg).as_deref().and_then(url_host)
                 && !host_allowed(permits, &host)
             {
                 out.push(CapabilityEscape {
                     task: id.to_owned(),
                     category: "net",
-                    detail: format!("`nika:fetch` host `{host}` is outside permits.net.http"),
+                    detail: format!("`{tool}` host `{host}` is outside permits.net.http"),
+                    fix: Some(format!("add \"{host}\" to permits.net.http")),
                 });
             }
         }
-        "nika:read" | "nika:write" => {
-            let writes = tool == "nika:write";
-            if let Some(path) = literal_arg(a, "path")
-                && !path_allowed(permits, &path, writes)
+        Some(BuiltinEffect::Fs { reads, writes, .. }) => {
+            let Some(path) = literal_arg(a, "path") else {
+                return;
+            };
+            for (active, dir_writes, cat) in [(reads, false, "fs.read"), (writes, true, "fs.write")]
             {
-                let cat = if writes { "fs.write" } else { "fs.read" };
-                out.push(CapabilityEscape {
-                    task: id.to_owned(),
-                    category: "fs",
-                    detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
-                });
+                if active && !path_allowed(permits, &path, dir_writes) {
+                    out.push(CapabilityEscape {
+                        task: id.to_owned(),
+                        category: "fs",
+                        detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
+                        fix: Some(format!("add \"{path}\" to permits.{cat}")),
+                    });
+                }
             }
         }
-        _ => {}
+        None => {}
     }
 }
 
 /// A literal string value of `args.<key>` — `None` when the arg is absent,
 /// non-string, or carries a `${{ }}` interpolation (dynamic → runtime).
-fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
+pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
     let s = a.args.as_ref()?.value.get(key)?.as_str()?;
     if s.contains("${{") {
         return None; // dynamic value · runtime concern
@@ -162,7 +265,7 @@ fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
 /// The host of a literal URL (`https://api.x.com/p` → `api.x.com`).
 /// `None` when there is no parseable host (a relative/garbage value is
 /// the engine's problem, not a static-permits one).
-fn url_host(url: &str) -> Option<String> {
+pub(super) fn url_host(url: &str) -> Option<String> {
     let after_scheme = url.split_once("://").map_or(url, |(_, r)| r);
     let authority = after_scheme
         .split(['/', '?', '#'])
@@ -170,7 +273,14 @@ fn url_host(url: &str) -> Option<String> {
         .unwrap_or(after_scheme);
     // strip userinfo + port
     let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
-    let host = host.split_once(':').map_or(host, |(h, _)| h);
+    // IPv6 bracket form `[::1]:8080` — the host is the bracketed literal
+    // (a bare first-`:` split would yield `[`); permits are written and
+    // matched bracket-free (`::1`), symmetric on both sides of this fn.
+    let host = if let Some(rest) = host.strip_prefix('[') {
+        rest.split_once(']').map_or(rest, |(h, _)| h)
+    } else {
+        host.split_once(':').map_or(host, |(h, _)| h)
+    };
     (!host.is_empty()).then(|| host.to_owned())
 }
 
@@ -211,6 +321,18 @@ fn path_glob_matches(glob: &str, path: &str) -> bool {
         return path == prefix || path.starts_with(&format!("{prefix}/"));
     }
     glob_matches(glob, path)
+}
+
+/// The statically-known program of a command, either form. `argv[0]` for
+/// the array form WHEN it is a literal (argv is execve-direct — no shell
+/// expansion — so only a `${{ }}` island makes it dynamic); the literal
+/// leading token for the shell form. `None` when the program is dynamic —
+/// a runtime concern, not a static one.
+pub(super) fn static_program(command: &RawCommand) -> Option<&str> {
+    match command {
+        RawCommand::Argv(_) => command.argv_program().filter(|p| !p.contains("${{")),
+        RawCommand::Shell(s) => leading_program(&s.value),
+    }
 }
 
 /// The leading program token of a command string, when it is a literal
@@ -284,6 +406,75 @@ mod tests {
         assert_eq!(e.len(), 1, "git allowed, rm escapes");
         assert_eq!(e[0].task, "bad");
         assert!(e[0].detail.contains("rm"));
+    }
+
+    #[test]
+    fn dynamic_argv_head_is_a_runtime_concern_not_a_static_escape() {
+        // `["${{ vars.bin }}", "x"]` — the program is template-built. The
+        // static check must NOT compare the raw `${{ }}` island against the
+        // allowlist (that was a false positive); runtime NIKA-SEC-004 owns it.
+        let y = "nika: v1\nworkflow: w\nvars: { bin: \"git\" }\npermits: { exec: [\"git\"] }\ntasks:\n  - id: t\n    exec: { command: [\"${{ vars.bin }}\", \"status\"] }\n";
+        assert!(
+            escapes_of(y).is_empty(),
+            "dynamic argv[0] is not statically checkable"
+        );
+    }
+
+    #[test]
+    fn escape_fixes_are_machine_applicable() {
+        // a REAL tool outside the grant → the fix is the grant line;
+        // a PHANTOM builtin (typo) → fix withheld (the rename owns it).
+        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:read\"], exec: false }\ntasks:\n  - id: real\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n  - id: typo\n    invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 2);
+        assert_eq!(
+            e[0].fix.as_deref(),
+            Some("add \"nika:write\" to permits.tools")
+        );
+        assert_eq!(e[1].fix, None, "phantom builtin → rename owns the repair");
+    }
+
+    #[test]
+    fn on_finally_cleanup_outside_boundary_escapes() {
+        // A cleanup verb runs under the same boundary — and ALWAYS runs.
+        let y = "nika: v1\nworkflow: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  - id: build\n    exec: { command: [\"cargo\", \"build\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"./log\", content: \"x\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 1, "the cleanup's tool grant is missing");
+        assert_eq!(e[0].task, "build (on_finally)");
+        assert_eq!(e[0].category, "tools");
+    }
+
+    #[test]
+    fn edit_requires_both_fs_directions() {
+        // in-place find/replace reads the bytes, then rewrites the path —
+        // a write-only grant leaves the read side escaping.
+        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:edit\"], fs: { write: [\"./README.md\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:edit\", args: { path: \"./README.md\", find: \"a\", replace: \"b\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 1);
+        assert!(e[0].detail.contains("fs.read"), "detail: {}", e[0].detail);
+    }
+
+    #[test]
+    fn ipv6_bracket_host_is_extracted_not_mangled() {
+        // `https://[::1]:8080/x` — the host is `::1`, not `[` (the first-`:`
+        // split bug). Bracket-free in permits, symmetric both sides.
+        let ok = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"::1\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
+        assert!(escapes_of(ok).is_empty(), "::1 is granted");
+        let bad = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.x.com\"] }, exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
+        let e = escapes_of(bad);
+        assert_eq!(e.len(), 1);
+        assert!(e[0].detail.contains("`::1`"), "detail: {}", e[0].detail);
+    }
+
+    #[test]
+    fn webhook_notify_target_is_checked_as_net() {
+        let y = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: \"webhook\", target: \"https://hooks.x.com/p\", message: \"hi\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 1, "webhook target host needs a net grant");
+        assert_eq!(e[0].category, "net");
+        // a non-webhook channel rides an engine transport — no host check
+        let email = "nika: v1\nworkflow: w\npermits: { tools: [\"nika:notify\"], exec: false }\ntasks:\n  - id: t\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"ops@x.com\", message: \"hi\" } }\n";
+        assert!(escapes_of(email).is_empty());
     }
 
     #[test]

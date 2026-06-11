@@ -14,6 +14,8 @@
 //!
 //! - [`apply_repeat_penalty`] — PRE-softmax, on raw logits (the
 //!   llama.cpp convention candle's `utils::apply_repeat_penalty` follows).
+//! - [`apply_top_n_sigma`] — PRE-softmax (arXiv:2411.07641; verified vs the
+//!   llama.cpp reference) — temperature-invariant noise truncation.
 //! - [`apply_min_p`] — POST-softmax, on probabilities (arXiv:2407.01082;
 //!   not in candle's `Sampling` enum — applied via `sample_f`).
 //! - [`apply_token_mask`] — POST-softmax; the constrained-decoding
@@ -235,6 +237,33 @@ mod tests {
         assert_eq!(apply_min_p(&mut p, 0.5), 0);
     }
 
+    #[test]
+    fn min_p_survivor_counts_are_strictly_positive() {
+        // Mutant killers: the `> 0.0` count predicates (both early paths) must
+        // not count ZERO entries as survivors (`>=`/`==`/`<` all die here),
+        // and the degenerate guard is `!finite OR max<=0` (the `||`→`&&`
+        // mutant proceeds to the threshold loop and would report 2).
+        let mut all_zero = [0.0f32, 0.0];
+        assert_eq!(apply_min_p(&mut all_zero, 0.5), 0, "all-zero → 0 survivors");
+
+        // A (defensive) negative entry still hits the degenerate path — and
+        // pins the count predicate DIRECTION (`>` vs `<`): only strictly
+        // positive entries are live, a negative one never is.
+        let mut with_negative = [-1.0f32, 0.0];
+        assert_eq!(
+            apply_min_p(&mut with_negative, 0.5),
+            0,
+            "negative is not a survivor"
+        );
+
+        let mut disabled = [0.0f32, 1.0];
+        assert_eq!(
+            apply_min_p(&mut disabled, 0.0),
+            1,
+            "p_base=0 counts only >0"
+        );
+    }
+
     // ── repeat penalty ─────────────────────────────────────────────────
 
     #[test]
@@ -296,6 +325,20 @@ mod tests {
     }
 
     #[test]
+    fn top_n_sigma_pins_the_variance_arithmetic() {
+        // Numeric pin for the mean/σ computation (kills the d=l−mean→l+mean
+        // and sum +=→*=/−= mutants, which all shift the threshold):
+        // [5,4,3,2] → mean 3.5 · σ = √1.25 ≈ 1.118 · n=1 → threshold ≈ 3.88
+        // → exactly {5, 4} survive; 3 and 2 are masked.
+        let mut l = [5.0, 4.0, 3.0, 2.0];
+        let n = apply_top_n_sigma(&mut l, 1.0);
+        assert_eq!(n, 2, "exactly the two informative logits survive");
+        assert!(l[0].is_finite() && l[1].is_finite());
+        assert_eq!(l[2], f32::NEG_INFINITY);
+        assert_eq!(l[3], f32::NEG_INFINITY);
+    }
+
+    #[test]
     fn top_n_sigma_scrubs_nan_fail_closed() {
         let mut l = [f32::NAN, 5.0, 4.9];
         let n = apply_top_n_sigma(&mut l, 2.0);
@@ -321,6 +364,16 @@ mod tests {
         let n = apply_token_mask(&mut p, &[true]); // only index 0 covered
         assert_eq!(n, 1);
         assert_eq!(p, [0.5, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn token_mask_allowed_zero_prob_is_not_a_survivor() {
+        // Mutant killer (`> 0.0` → `>= 0.0`): an ALLOWED token whose prob is
+        // already zero is not a live choice — counting it would let a caller
+        // believe the grammar admits something samplable when it does not.
+        let mut p = [0.0f32, 0.4];
+        let n = apply_token_mask(&mut p, &[true, true]);
+        assert_eq!(n, 1, "zero-prob allowed entry must not count");
     }
 
     #[test]

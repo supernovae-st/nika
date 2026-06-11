@@ -53,6 +53,8 @@ mod error;
 mod logits;
 pub mod protocol;
 mod sampling;
+#[cfg(feature = "server")]
+mod server;
 mod stop;
 mod template;
 
@@ -62,5 +64,7 @@ pub use candle_backend::CandleBackend;
 pub use error::InferLocalError;
 pub use logits::{apply_min_p, apply_repeat_penalty, apply_token_mask, apply_top_n_sigma};
 pub use sampling::{DEFAULT_REPEAT_LAST_N, DEFAULT_SEED, SamplingConfig};
+#[cfg(feature = "server")]
+pub use server::{ServerHandle, serve};
 pub use stop::StopController;
 pub use template::ChatFamily;

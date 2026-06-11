@@ -22,17 +22,30 @@ trait-variant = { workspace = true }   # BackendDyn: Send companion (workspace a
 # other workspace member uses them). `metal` adds the Apple-GPU kernels on top.
 candle-core         = { version = "0.10", optional = true }
 candle-transformers = { version = "0.10", optional = true }
-tokenizers          = { version = "0.21", optional = true, default-features = false, features = ["onig"] }
+# 0.22 converges on candle-core 0.10's own tokenizers — ONE copy in the tree
+# (0.23 exists upstream but would re-duplicate until candle bumps).
+tokenizers          = { version = "0.22", optional = true, default-features = false, features = ["onig"] }
 tokio               = { workspace = true, optional = true }
+
+# ── the v1 sidecar HTTP server (ADR-093) — OFF by default ────────────────────
+# Orthogonal to `local-infer` so CI exercises the full HTTP round-trip against
+# MockBackend without building the candle stack. The sidecar binary enables both.
+tiny_http = { version = "0.12", optional = true }
 
 [features]
 local-infer = ["dep:candle-core", "dep:candle-transformers", "dep:tokenizers", "dep:tokio"]
 metal       = ["local-infer", "candle-core/metal"]
+server      = ["dep:tiny_http", "dep:tokio"]
 
 [dev-dependencies]
 tokio    = { workspace = true }
 serde_json = { workspace = true }
 proptest = { workspace = true }   # property tests for the logits/sampling algorithms
+criterion = { workspace = true }  # gate-7 bench · decode-loop per-token overhead
+
+[[bench]]
+name = "logits_bench"
+harness = false
 
 [package.metadata.lore]
 daemon        = "forgeron"

@@ -74,6 +74,14 @@ const TOP_LEVEL_KEYS: &[&str] = &[
 /// Go-duration · exactly-one-verb · id formats), or — in
 /// [`ParseMode::Strict`] — carries an unknown field.
 pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow, SchemaError> {
+    // Pre-parse stack-safety guard: marked-yaml's BLOCK parser recurses
+    // per indentation level and empirically overflows an 8 MB stack
+    // near ~3000 levels — reject pathological nesting LOUD before the
+    // parser ever recurses. (Flow style is self-limited by marked-yaml
+    // at ~150; free-form VALUES are further capped at conversion by
+    // `value::MAX_VALUE_DEPTH`.)
+    check_indentation_depth(yaml)?;
+
     // YAML 1.2 forbids duplicate mapping keys from silently last-winning
     // — `error_on_duplicate_keys` turns them into loud errors (covers
     // vars/env/secrets/outputs/with/output duplicate-key detection).
@@ -147,6 +155,32 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
 /// A spanned key → spanned value entry list, preserving YAML order
 /// (`env:` · `secrets:` · `with:` · `output:` blocks).
 pub(super) type SpannedEntries<T> = Vec<(Spanned<String>, Spanned<T>)>;
+
+/// Maximum leading-space indentation accepted per line — ~512 block
+/// nesting levels at 2 spaces/level, a 4–6× margin under the empirical
+/// marked-yaml stack-overflow point (~3000 levels / 8 MB stack) and
+/// generous for real files (block-scalar CONTENT with >1 KB of leading
+/// spaces is not a workflow).
+const MAX_INDENT_BYTES: usize = 1024;
+
+/// The pre-parse stack-safety guard — one O(n) pass, leading spaces
+/// only (YAML forbids tabs in indentation; marked-yaml rejects them).
+fn check_indentation_depth(source: &str) -> Result<(), SchemaError> {
+    for (line_no, line) in source.lines().enumerate() {
+        let indent = line.bytes().take_while(|&b| b == b' ').count();
+        if indent > MAX_INDENT_BYTES {
+            return Err(SchemaError::YamlSyntax {
+                message: format!(
+                    "line {} is indented {indent} spaces (max {MAX_INDENT_BYTES}) — \
+                     nesting this deep is rejected (stack-safety bound)",
+                    line_no + 1
+                ),
+                span: None,
+            });
+        }
+    }
+    Ok(())
+}
 
 /// Per-parse context threaded through the submodules.
 pub(super) struct Cx<'a> {
@@ -261,10 +295,12 @@ impl CharToByte {
         // resource bounds): this u32::MAX limit is a SPAN-CORRECTNESS bound,
         // NOT a DoS bound. Before `nika serve` exposes the parser to untrusted
         // workflows, lower this to a workflow-realistic byte cap (marked-yaml
-        // allocates the whole node tree up-front) AND add a YAML-value
-        // nesting-depth cap (value::node_to_json recurses unbounded) + a
-        // task-count cap (parser::tasks). marked-yaml 0.8 does not expand
-        // anchors/aliases, so the billion-laughs vector is already closed.
+        // allocates the whole node tree up-front) + a task-count cap
+        // (parser::tasks). The YAML-value nesting-depth cap SHIPPED
+        // (value::MAX_VALUE_DEPTH · empirically: unbounded block nesting
+        // overflowed the stack at ~3000 levels). marked-yaml 0.8 does not
+        // expand anchors/aliases, so the billion-laughs vector is closed,
+        // and its flow parser self-limits recursion (~150).
         if source.len() > u32::MAX as usize {
             return Err(SchemaError::YamlSyntax {
                 message: format!(
@@ -426,6 +462,37 @@ tasks:
     infer:
       prompt: \"Say hi\"
 ";
+
+    #[test]
+    fn pathological_block_nesting_is_rejected_not_crashed() {
+        // The empirical stack-overflow class (marked-yaml block parse
+        // recursed past the 8 MB stack at ~3000 levels · CRASH before
+        // this guard): both layers reject LOUD now.
+        // Layer 1 · the indent guard (pre-parse · protects marked-yaml).
+        let mut deep_block = String::new();
+        for i in 0..600 {
+            deep_block.push_str(&" ".repeat(2 * i));
+            deep_block.push_str("k:\n");
+        }
+        let yaml = format!("nika: v1\nworkflow: w\nx:\n{deep_block}");
+        let err = parse_strict(&yaml).expect_err("rejected");
+        assert!(
+            err.to_string().contains("stack-safety bound"),
+            "loud: {err}"
+        );
+        // Layer 2 · the value-depth cap (conversion · protects every
+        // downstream Value walker) — flow style slips past layer 1.
+        let depth = 140; // > MAX_VALUE_DEPTH(128) · < marked-yaml flow limit
+        let inner = format!("{}1{}", "[".repeat(depth), "]".repeat(depth));
+        let yaml = format!(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: {{ tool: \"nika:log\", args: {{ v: {inner} }} }}\n"
+        );
+        let err = parse_strict(&yaml).expect_err("rejected");
+        assert!(
+            err.to_string().contains("nesting exceeds 128"),
+            "loud: {err}"
+        );
+    }
 
     #[test]
     fn parse_minimal_canonical_envelope() {

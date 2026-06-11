@@ -23,7 +23,7 @@ through 2036, 7-ADR queue (050-056) and per-crate detail, see
 **Memory subsystem note** · Diamond and the memory cluster are
 **orthogonal** (per `naming-memory-subsystem.md` v2.4 external rule).
 Diamond = construction METHOD (modular crates · 12-gate admission ·
-L0→L5). Memory cluster = 9 L1 satellite crates + 1 L2 orchestrator ·
+L0→L5). Memory cluster (the Connectome) = 10 L1 satellite crates + 1 L2 orchestrator (nika-rerank M13 added by the SOTA ratification 2026-06-11) ·
 publishable standalone on crates.io · implements `nika-kernel` traits.
 « unified Rust runtime contract » framing supersedes earlier
 4-axis-combo moat language.

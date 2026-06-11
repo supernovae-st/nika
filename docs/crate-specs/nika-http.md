@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **L1 admission target** (Phase-B slice step 5 · announce ladder per D-2026-06-10-N6 cascade) |
+| Status | **ADMITTED 2026-06-10** (`221c5d5a9`) · was **L1 admission target** (Phase-B slice step 5 · announce ladder per D-2026-06-10-N6 cascade) |
 | Layer | L1 — effect crate · the only production site touching `reqwest` + `tokio::net::lookup_host` |
 | Design | `ReqwestHttp` impl of the L0.5 `nika_kernel::http` traits via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (SSRF) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · doc + security-contract heavy · live count · `scripts/crate-metrics.sh nika-http` |

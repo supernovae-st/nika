@@ -13,7 +13,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-002","ADR-003","ADR-004"],
+      "related": ["ADR-002","ADR-003","ADR-004","ADR-037","ADR-038"],
       "requires": [],
       "enables": ["ADR-002","ADR-003","ADR-004"]
     }
@@ -29,7 +29,7 @@
       "affects_layers": [],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-007"],
+      "related": ["ADR-001","ADR-007","ADR-028","ADR-037"],
       "requires": ["ADR-001"],
       "enables": ["ADR-007"]
     }
@@ -45,7 +45,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011"],
+      "related": ["ADR-001","ADR-004","ADR-006","ADR-009","ADR-011","ADR-037","ADR-038","ADR-081","ADR-083","ADR-084","ADR-090","ADR-091","ADR-093","ADR-094"],
       "requires": ["ADR-001","ADR-004"],
       "enables": ["ADR-009","ADR-011"]
     }
@@ -61,7 +61,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-003","ADR-006","ADR-008","ADR-011"],
+      "related": ["ADR-001","ADR-003","ADR-006","ADR-008","ADR-011","ADR-037","ADR-040","ADR-042"],
       "requires": ["ADR-001"],
       "enables": ["ADR-003","ADR-006","ADR-008"]
     }
@@ -77,7 +77,7 @@
       "affects_layers": ["L0"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-007","ADR-010","ADR-015"],
+      "related": ["ADR-007","ADR-010","ADR-015","ADR-033","ADR-040","ADR-081","ADR-090"],
       "requires": [],
       "enables": ["ADR-010"]
     }
@@ -93,7 +93,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-003","ADR-004","ADR-007","ADR-012","ADR-013","ADR-014"],
+      "related": ["ADR-003","ADR-004","ADR-007","ADR-012","ADR-013","ADR-014","ADR-016","ADR-017","ADR-018","ADR-019","ADR-020","ADR-028","ADR-034","ADR-039","ADR-040","ADR-041","ADR-078","ADR-079","ADR-080"],
       "requires": ["ADR-004"],
       "enables": ["ADR-007","ADR-012","ADR-013","ADR-014"]
     }
@@ -109,7 +109,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-002","ADR-005","ADR-006","ADR-008","ADR-010","ADR-012","ADR-015"],
+      "related": ["ADR-002","ADR-005","ADR-006","ADR-008","ADR-010","ADR-012","ADR-015","ADR-016","ADR-019","ADR-020","ADR-028","ADR-033","ADR-034","ADR-039","ADR-040"],
       "requires": ["ADR-002","ADR-006"],
       "enables": ["ADR-015"]
     }
@@ -189,7 +189,7 @@
       "affects_layers": ["L0.5","L2"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-007","ADR-014"],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-041","ADR-079"],
       "requires": ["ADR-006"],
       "enables": []
     }
@@ -205,7 +205,7 @@
       "affects_layers": ["L0.5","L3"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006"],
+      "related": ["ADR-006","ADR-018"],
       "requires": ["ADR-006"],
       "enables": []
     }
@@ -221,7 +221,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-012"],
+      "related": ["ADR-006","ADR-012","ADR-016","ADR-020","ADR-028","ADR-034","ADR-039","ADR-040","ADR-041","ADR-078","ADR-079","ADR-080","ADR-081"],
       "requires": ["ADR-006"],
       "enables": []
     }
@@ -253,7 +253,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-007","ADR-014","ADR-017","ADR-018","ADR-020","ADR-034"],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-017","ADR-018","ADR-020","ADR-034","ADR-038","ADR-078","ADR-081","ADR-083"],
       "requires": ["ADR-007"],
       "enables": ["ADR-034"]
     }
@@ -269,7 +269,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-016","ADR-018"],
+      "related": ["ADR-006","ADR-016","ADR-018","ADR-081"],
       "requires": [],
       "enables": []
     }
@@ -285,7 +285,7 @@
       "affects_layers": ["L0.5","L1","L2","L3"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-013","ADR-016","ADR-017","ADR-019"],
+      "related": ["ADR-006","ADR-013","ADR-016","ADR-017","ADR-019","ADR-023"],
       "requires": [],
       "enables": []
     }
@@ -317,7 +317,7 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-034"],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-028","ADR-032","ADR-034","ADR-035","ADR-080"],
       "requires": ["ADR-007","ADR-014"],
       "enables": []
     }
@@ -325,15 +325,15 @@
     {
       "id": "ADR-021",
       "title": "YAML envelope convention: apiVersion + kind + metadata + spec, multi-doc, 9 doc kinds",
-      "status": "accepted",
+      "status": "superseded",
       "date": "2026-04-16",
       "filename": "adr-021-yaml-envelope-convention.md",
       "tags": ["schema","yaml","envelope","k8s","multi-doc","kind-discriminator"],
       "affects_crates": ["nika-envelope","nika-schema-ast","nika-schema","nika-binding","nika-catalog","nika-event"],
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
-      "superseded_by": [],
-      "related": ["ADR-022","ADR-023","ADR-024"],
+      "superseded_by": ["ADR-082"],
+      "related": ["ADR-022","ADR-023","ADR-024","ADR-082"],
       "requires": [],
       "enables": ["ADR-022"]
     }
@@ -349,7 +349,7 @@
       "affects_layers": ["L0","L0.5","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-021","ADR-023","ADR-027"],
+      "related": ["ADR-021","ADR-023","ADR-024","ADR-025","ADR-026","ADR-027","ADR-036"],
       "requires": ["ADR-021"],
       "enables": ["ADR-027"]
     }
@@ -365,7 +365,7 @@
       "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-018","ADR-022"],
+      "related": ["ADR-018","ADR-021","ADR-022","ADR-026","ADR-038"],
       "requires": [],
       "enables": []
     }
@@ -381,7 +381,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-022","ADR-027"],
+      "related": ["ADR-021","ADR-022","ADR-027","ADR-028"],
       "requires": ["ADR-022"],
       "enables": []
     }
@@ -397,7 +397,7 @@
       "affects_layers": ["L5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-022"],
+      "related": ["ADR-022","ADR-036"],
       "requires": ["ADR-022"],
       "enables": []
     }
@@ -429,23 +429,23 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-022","ADR-026"],
+      "related": ["ADR-022","ADR-024","ADR-026"],
       "requires": ["ADR-022","ADR-026"],
       "enables": []
     }
     ,
     {
       "id": "ADR-028",
-      "title": "Forward-compat reservation policy: seams now, crates later",
+      "title": "Forward-compat API-type reservation (amended — feature scheduling dropped)",
       "status": "accepted",
       "date": "2026-04-16",
       "filename": "adr-028-forward-compat-reservation-policy.md",
-      "tags": ["forward-compat","reservation","seams","yagni","scalability"],
+      "tags": ["forward-compat","reservation","seams","yagni","scalability","amended"],
       "affects_crates": ["nika-kernel","nika-types","nika-error","nika-event"],
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-002","ADR-006","ADR-007","ADR-014","ADR-020","ADR-024"],
+      "related": ["ADR-002","ADR-006","ADR-007","ADR-014","ADR-020","ADR-024","ADR-029","ADR-030","ADR-031","ADR-032","ADR-035","ADR-036","ADR-037"],
       "requires": ["ADR-007"],
       "enables": []
     }
@@ -477,7 +477,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-028","ADR-033","ADR-034"],
+      "related": ["ADR-028","ADR-033","ADR-034","ADR-080"],
       "requires": ["ADR-028","ADR-033"],
       "enables": []
     }
@@ -525,7 +525,7 @@
       "affects_layers": ["L0","L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-005","ADR-007","ADR-019","ADR-034"],
+      "related": ["ADR-005","ADR-007","ADR-019","ADR-029","ADR-030","ADR-031","ADR-032","ADR-034"],
       "requires": ["ADR-005","ADR-007"],
       "enables": ["ADR-034"]
     }
@@ -541,8 +541,8 @@
       "affects_layers": ["L0.5"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-020","ADR-033"],
-      "requires": ["ADR-006","ADR-014","ADR-033"],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-016","ADR-020","ADR-029","ADR-030","ADR-031","ADR-033","ADR-035"],
+      "requires": ["ADR-006","ADR-014","ADR-016","ADR-033"],
       "enables": []
     }
     ,
@@ -559,6 +559,390 @@
       "superseded_by": [],
       "related": ["ADR-020","ADR-028","ADR-034"],
       "requires": ["ADR-028","ADR-034"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-036",
+      "title": "MSRV policy: rust-toolchain.toml SSOT + N-2 stable cadence (stub)",
+      "status": "proposed",
+      "date": "2026-04-17",
+      "filename": "adr-036-msrv-policy-stub.md",
+      "tags": ["msrv","toolchain","forward-compat","ci","hygiene","reservation"],
+      "affects_crates": ["all"],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-025","ADR-028","ADR-022"],
+      "requires": ["ADR-028"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-037",
+      "title": "Bottom-up diamond progression (no feature-milestone defer)",
+      "status": "accepted",
+      "date": "2026-04-17",
+      "filename": "adr-037-bottom-up-diamond-progression.md",
+      "tags": ["philosophy","roadmap","admission","forever-v0x","diamond"],
+      "affects_crates": ["all"],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-002","ADR-003","ADR-004","ADR-028","ADR-038"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-038",
+      "title": "Admit nika-bm25 as the first L1 memory satellite (CRAFT-from-scratch BM25 scorer)",
+      "status": "accepted",
+      "date": "2026-05-12",
+      "filename": "adr-038-nika-bm25-admission.md",
+      "tags": ["memory","L1","bm25","ir","satellite","CRAFT","diamond"],
+      "affects_crates": ["nika-bm25","nika-kernel","nika-error"],
+      "affects_layers": ["L1"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-003","ADR-016","ADR-023","ADR-037","ADR-039","ADR-040","ADR-078"],
+      "requires": ["ADR-078"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-039",
+      "title": "Streaming MemoryRecall for lazy fusion · recall_stream()",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-039-streaming-memory-recall.md",
+      "tags": ["memory","trait-surface","streaming","zero-alloc","fusion"],
+      "affects_crates": ["nika-kernel","nika-memory","nika-rrf"],
+      "affects_layers": ["L0.5","L1","L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-007","ADR-014","ADR-038","ADR-040","ADR-078"],
+      "requires": ["ADR-006","ADR-014","ADR-078"],
+      "enables": ["ADR-040"]
+    }
+    ,
+    {
+      "id": "ADR-040",
+      "title": "Cargo feature matrix for nika-memory · zero-cost modularity",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-040-memory-cargo-feature-matrix.md",
+      "tags": ["memory","cargo-features","modularity","zero-cost","sovereignty"],
+      "affects_crates": ["nika-memory","nika-bm25","nika-rrf","nika-fsrs","nika-temporal","nika-hnsw","nika-rdfs-reasoner","nika-graph-algos","nika-autodesc"],
+      "affects_layers": ["L1","L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-004","ADR-005","ADR-006","ADR-007","ADR-014","ADR-038","ADR-039","ADR-041","ADR-042","ADR-078","ADR-079"],
+      "requires": ["ADR-004","ADR-039"],
+      "enables": ["ADR-041","ADR-042"]
+    }
+    ,
+    {
+      "id": "ADR-041",
+      "title": "Type-state lifecycle for nika-memory orchestrator",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-041-type-state-memory-orchestrator.md",
+      "tags": ["memory","type-state","orchestrator","compile-time","zero-cost"],
+      "affects_crates": ["nika-memory"],
+      "affects_layers": ["L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-012","ADR-014","ADR-040","ADR-078","ADR-079"],
+      "requires": ["ADR-040"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-042",
+      "title": "Autodesc MINIMAL/FULL split · forcing-function moat at W4",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-042-autodesc-minimal-full-split.md",
+      "tags": ["memory","autodesc","moat","split","lock-031-spirit"],
+      "affects_crates": ["nika-autodesc"],
+      "affects_layers": ["L1"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-004","ADR-040","ADR-078"],
+      "requires": ["ADR-004","ADR-040"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-078",
+      "title": "MemoryRecall &self satellite contract + &mut self orchestrator pool (Option D)",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-078-memoryrecall-self-shape.md",
+      "tags": ["kernel","memory","trait-shape","send-sync","interior-mutability","satellite","pool","restate-pattern"],
+      "affects_crates": ["nika-kernel","nika-bm25","nika-hnsw","nika-rrf","nika-fsrs","nika-graph-algos","nika-rdfs-reasoner","nika-temporal","nika-autodesc-minimal","nika-autodesc-full","nika-memory"],
+      "affects_layers": ["L0.5","L1","L2"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-014","ADR-016","ADR-038","ADR-039","ADR-040","ADR-041","ADR-042","ADR-079"],
+      "requires": ["ADR-006","ADR-014"],
+      "enables": ["ADR-038","ADR-039"]
+    }
+    ,
+    {
+      "id": "ADR-079",
+      "title": "Capabilities<E: EffectSet> phantom-type kernel · compile-time effect refusal (Option C hybrid)",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-079-capabilities-phantom-type.md",
+      "tags": ["kernel","capabilities","type-state","phantom-type","effect-system","sandbox","compile-time","zero-cost"],
+      "affects_crates": ["nika-kernel","nika-effects","nika-mcp-server","nika-binding","nika-wasm-host"],
+      "affects_layers": ["L0.5","L1","L2","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-012","ADR-014","ADR-040","ADR-041","ADR-078","ADR-080"],
+      "requires": ["ADR-006","ADR-014"],
+      "enables": ["ADR-080"]
+    }
+    ,
+    {
+      "id": "ADR-080",
+      "title": "MCP STDIO transport vulnerability-class sandbox canon · 5-layer mitigation (post phantom-CVE audit)",
+      "status": "proposed",
+      "date": "2026-05-12",
+      "filename": "adr-080-mcp-stdio-cve-sandbox.md",
+      "tags": ["security","mcp","stdio","sandbox","cve-cluster-2025-2026","supply-chain","allowlist","manifest","ed25519","blake3"],
+      "affects_crates": ["nika-protocols","nika-policy","nika-binding","nika-mcp-server","nika-sandbox-landlock","nika-sandbox-seatbelt"],
+      "affects_layers": ["L0.5","L2","L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-006","ADR-014","ADR-020","ADR-030","ADR-079"],
+      "requires": ["ADR-006","ADR-014","ADR-079"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-081",
+      "title": "L1 effect-crate guard contract · 7 security guards as forever crate-admission criteria",
+      "status": "proposed",
+      "date": "2026-05-14",
+      "filename": "adr-081-l1-effect-crate-guard-contract.md",
+      "tags": ["l1","security","computer-use","admission","guards","forever"],
+      "affects_crates": ["nika-screen","nika-ocr","nika-a11y","nika-input","nika-browser","nika-vision-local"],
+      "affects_layers": ["L1"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-005","ADR-014","ADR-016","ADR-017","ADR-083","ADR-090","ADR-091"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-082",
+      "title": "Workflow envelope: single version marker `nika: v1` (supersedes K8s apiVersion form)",
+      "status": "accepted",
+      "date": "2026-05-25",
+      "filename": "adr-082-envelope-nika-v1-single-version-marker.md",
+      "tags": ["schema","yaml","envelope","version-marker","spec-alignment"],
+      "affects_crates": ["nika-schema","nika-schema-ast","nika-binding","nika-catalog","nika-event"],
+      "affects_layers": ["L0","L0.5"],
+      "supersedes": ["ADR-021"],
+      "superseded_by": [],
+      "related": ["ADR-021","ADR-084","ADR-085","ADR-086","ADR-087","ADR-088"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-083",
+      "title": "L1 computer-use effect crates · cross-platform doctrine (macOS + Linux prio · Windows + all)",
+      "status": "accepted",
+      "date": "2026-05-26",
+      "filename": "adr-083-l1-computer-use-cross-platform-doctrine.md",
+      "tags": ["l1","computer-use","cross-platform","macos","linux","windows","backend","doctrine"],
+      "affects_crates": ["nika-screen","nika-ocr","nika-a11y","nika-input","nika-browser","nika-vision-local"],
+      "affects_layers": ["L1"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-016","ADR-081"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-084",
+      "title": "nika-catalog builtin set · reconciliation to spec 26 (42→26 stdlib collapse + json_merge cut)",
+      "status": "accepted",
+      "date": "2026-05-27",
+      "filename": "adr-084-nika-catalog-spec-26-reconciliation.md",
+      "tags": ["nika-catalog","nika-schema","builtins","stdlib","spec-canon","trust","refactor"],
+      "affects_crates": ["nika-catalog","nika-schema"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-082","ADR-085","ADR-086","ADR-087","ADR-088","ADR-089"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-085",
+      "title": "spec/workflow.schema.json invoke.tool oneOf · interim hand-derived bridge to engine schemars codegen",
+      "status": "accepted",
+      "date": "2026-05-27",
+      "filename": "adr-085-spec-schema-oneof-bridge-to-schemars-codegen.md",
+      "tags": ["nika-schema","nika-catalog","spec","json-schema","lsp","yaml-language-server","codegen","schemars-future"],
+      "affects_crates": ["nika-schema","nika-catalog"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-082","ADR-084","ADR-086","ADR-087","ADR-088","ADR-089"],
+      "requires": ["ADR-084"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-086",
+      "title": "builtin Rams sweep · nika:csv_to_json → nika:convert universal multi-format · less but better",
+      "status": "accepted",
+      "date": "2026-05-27",
+      "filename": "adr-086-builtin-rams-sweep-convert-universal-multi-format.md",
+      "tags": ["nika-catalog","nika-schema","stdlib","builtins","rams","less-but-better","consolidation"],
+      "affects_crates": ["nika-catalog","nika-schema"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-082","ADR-084","ADR-085","ADR-087","ADR-088","ADR-089"],
+      "requires": ["ADR-084"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-087",
+      "title": "nika:sleep + nika:wait_until → nika:wait · temporal-control Rams collapse",
+      "status": "accepted",
+      "date": "2026-05-27",
+      "filename": "adr-087-nika-wait-temporal-collapse.md",
+      "tags": ["nika-catalog","nika-schema","stdlib","builtins","rams","less-but-better","temporal-control"],
+      "affects_crates": ["nika-catalog","nika-schema"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-082","ADR-084","ADR-085","ADR-086","ADR-088","ADR-089"],
+      "requires": ["ADR-084","ADR-086"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-088",
+      "title": "nika:cost + records + dag_info + threads → nika:inspect · introspection Rams collapse",
+      "status": "accepted",
+      "date": "2026-05-27",
+      "filename": "adr-088-nika-inspect-introspection-collapse.md",
+      "tags": ["nika-catalog","nika-schema","stdlib","builtins","rams","less-but-better","introspection"],
+      "affects_crates": ["nika-catalog","nika-schema"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-082","ADR-084","ADR-085","ADR-086","ADR-087","ADR-089"],
+      "requires": ["ADR-084","ADR-086","ADR-087"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-089",
+      "title": "nika:json_diff jq-subsume feasibility · REJECTED · keep RFC-6902 Patch as canonical output format",
+      "status": "rejected",
+      "date": "2026-05-27",
+      "filename": "adr-089-json-diff-jq-subsume-rejected.md",
+      "tags": ["nika-catalog","stdlib","builtins","rams","less-but-better","json-diff","rfc-6902","jq"],
+      "affects_crates": [],
+      "affects_layers": [],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-084","ADR-085","ADR-086","ADR-087","ADR-088"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-090",
+      "title": "Structural doctrine enforcement — gates project the SSOT",
+      "status": "accepted",
+      "date": "2026-06-10",
+      "filename": "adr-090-structural-doctrine-enforcement.md",
+      "tags": ["process","quality","gates","security","supply-chain","antifragile"],
+      "affects_crates": [],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-005","ADR-081","ADR-091"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-091",
+      "title": "Sovereign local inference · nika-infer-local · pure-Rust candle sidecar, OpenAI-compat reuse, no rig / no mistral.rs",
+      "status": "proposed",
+      "date": "2026-06-11",
+      "filename": "adr-091-nika-infer-local-candle-sidecar.md",
+      "tags": ["inference","local","sovereign","candle","sidecar","providers","l1.5"],
+      "affects_crates": ["nika-infer-local","nika-providers","nika-verb-infer"],
+      "affects_layers": ["L1.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-081","ADR-090","ADR-093","ADR-094"],
+      "requires": ["ADR-003"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-092",
+      "title": "Make nika check a verifier, not a linter — the static-analysis ladder on a unified flow IR",
+      "status": "proposed",
+      "date": "2026-06-11",
+      "filename": "adr-092-nika-check-program-analysis-ladder.md",
+      "tags": ["nika-check","static-analysis","ifc","security","moat","sota-2040"],
+      "affects_crates": ["nika-schema"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-094"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-093",
+      "title": "nika-infer-local HTTP server · tiny_http for the v1 sidecar endpoint",
+      "status": "proposed",
+      "date": "2026-06-11",
+      "filename": "adr-093-infer-local-http-server-tiny-http.md",
+      "tags": ["inference","local","sidecar","http","server","tiny_http","l1.5"],
+      "affects_crates": ["nika-infer-local","nika-providers"],
+      "affects_layers": ["L1.5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-091","ADR-003"],
+      "requires": ["ADR-091"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-094",
+      "title": "nika-pck · content-addressed sharing — identity decentralized, discovery a forkable index, trust in the artifact",
+      "status": "proposed",
+      "date": "2026-06-11",
+      "filename": "adr-094-nika-pck-registry-architecture.md",
+      "tags": ["pck","registry","packages","cas","signing","conformance","supply-chain"],
+      "affects_crates": ["nika-pck","nika-pck-manifest","nika-pck-registry","nika-git","nika-blob","nika-cli"],
+      "affects_layers": ["L0","L1","L2","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-092","ADR-091","ADR-003"],
+      "requires": ["ADR-092"],
       "enables": []
     }
   ]

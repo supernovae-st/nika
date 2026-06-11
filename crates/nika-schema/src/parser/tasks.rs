@@ -20,7 +20,7 @@ use crate::types::{
     parse_go_duration,
 };
 
-use super::value::node_to_json;
+use super::value::json_value;
 use super::verbs::{VERB_KEYS, parse_verb};
 use super::{Cx, validate_task_id};
 
@@ -209,7 +209,7 @@ fn parse_for_each(
     }
     if node.as_sequence().is_some() {
         return Ok(Some(Spanned::new(
-            ForEachValue::List(node_to_json(node)),
+            ForEachValue::List(json_value(cx, node)?),
             span,
         )));
     }
@@ -454,7 +454,7 @@ fn parse_on_error(
                         span: cx.span(on_error_map.span()),
                     })?;
             OnErrorAction::Recover(Spanned::new(
-                node_to_json(value_node),
+                json_value(cx, value_node)?,
                 cx.span_or_zero(value_node.span()),
             ))
         }
@@ -531,7 +531,7 @@ fn parse_with(
     for (key, value) in with_map.iter() {
         out.push((
             Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span())),
-            Spanned::new(node_to_json(value), cx.span_or_zero(value.span())),
+            Spanned::new(json_value(cx, value)?, cx.span_or_zero(value.span())),
         ));
     }
     Ok(out)

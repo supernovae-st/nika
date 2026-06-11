@@ -3,12 +3,15 @@
 
 //! `nika check` — the static pre-flight, runnable today.
 //!
-//! Usage: `cargo run -p nika-schema --example check -- workflow.nika.yaml`
+//! Usage: `cargo run -p nika-schema --example check -- [--json] [--infer-permits] workflow.nika.yaml`
 //!
-//! Prints the plan (waves), the worst-case cost ceiling, secret leaks and
-//! capability escapes — with ZERO API calls and zero tokens spent. The
-//! polished surface ships with `nika-cli` (step 19); this example IS the
-//! seam, available now.
+//! Prints the plan (waves), the cost envelope, secret leaks, type/tool/
+//! schema findings and capability escapes — with ZERO API calls and zero
+//! tokens spent. `--json` emits the full machine-readable report (the
+//! agent surface: a generator loop reads findings + their deterministic
+//! suggestions, repairs, re-checks until clean). The polished surface
+//! ships with `nika-cli` (step 19); this example IS the seam, available
+//! now.
 
 // A console demo's whole job is printing — same exemption as the
 // nika-catalog-verify binary (the established precedent).
@@ -21,11 +24,36 @@
 
 use std::process::ExitCode;
 
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
 
 fn main() -> ExitCode {
-    let Some(path) = std::env::args().nth(1) else {
-        eprintln!("usage: check <workflow.nika.yaml>");
+    // `--infer-permits` synthesizes the tightest boundary instead of
+    // checking. Unknown flags are REJECTED — a typo'd mode flag silently
+    // degrading to a plain check (exit 0) would let an operator ship a
+    // check report as their permits file.
+    const USAGE: &str = "usage: check [--json] [--infer-permits] <workflow.nika.yaml>";
+    let mut infer_mode = false;
+    let mut json_mode = false;
+    let mut path: Option<String> = None;
+    for arg in std::env::args().skip(1) {
+        match arg.as_str() {
+            "--infer-permits" => infer_mode = true,
+            "--json" => json_mode = true,
+            flag if flag.starts_with("--") => {
+                eprintln!("unknown flag `{flag}`");
+                eprintln!("{USAGE}");
+                return ExitCode::from(2);
+            }
+            _ if path.is_some() => {
+                eprintln!("expected exactly one workflow path");
+                eprintln!("{USAGE}");
+                return ExitCode::from(2);
+            }
+            _ => path = Some(arg),
+        }
+    }
+    let Some(path) = path else {
+        eprintln!("{USAGE}");
         return ExitCode::from(2);
     };
     let yaml = match std::fs::read_to_string(&path) {
@@ -44,28 +72,74 @@ fn main() -> ExitCode {
         }
     };
 
-    let report = match check(&wf) {
-        Ok(r) => r,
-        Err(errors) => {
-            eprintln!("CHECK ✗  {} core-conformance violation(s):", errors.len());
-            for e in errors {
-                eprintln!("  · {e}");
-            }
-            return ExitCode::FAILURE;
+    // ── --infer-permits · write the boundary FOR the operator ───────
+    if infer_mode {
+        let inferred = infer_permits(&wf);
+        if json_mode {
+            // the agent shape: the paste-ready block + the honesty notes
+            let payload = serde_json::json!({
+                "permits_yaml": inferred.to_yaml(),
+                "notes": inferred.notes,
+            });
+            println!("{payload:#}");
+            return ExitCode::SUCCESS;
         }
-    };
-
-    // ── plan ────────────────────────────────────────────────────────
-    println!("PLAN     {} wave(s)", report.waves.len());
-    for (n, wave) in report.waves.iter().enumerate() {
-        let ids: Vec<&str> = wave
-            .iter()
-            .map(|&i| wf.tasks[i].value.id.value.as_str())
-            .collect();
-        println!("  wave {n} · {}", ids.join(" ∥ "));
+        print!("{}", inferred.to_yaml());
+        if !inferred.notes.is_empty() {
+            println!("\n# review — effects too dynamic to pin statically:");
+            for note in &inferred.notes {
+                println!("#   · {note}");
+            }
+        }
+        return ExitCode::SUCCESS;
     }
 
-    // ── cost ceiling ────────────────────────────────────────────────
+    // INFALLIBLE — conformance violations land in the report (rustc
+    // model: one run = maximal information).
+    let report = check(&wf);
+
+    // ── --json · the full machine-readable report (agent surface) ───
+    if json_mode {
+        let clean = report.is_clean();
+        match serde_json::to_value(&report) {
+            Ok(mut payload) => {
+                if let Some(obj) = payload.as_object_mut() {
+                    obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
+                }
+                println!("{payload:#}");
+            }
+            Err(e) => {
+                eprintln!("cannot serialize report: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return if clean {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
+
+    // ── conformance (in-band · the DAG-independent reports follow) ──
+    for c in &report.conformance {
+        println!("CONFORM  ✗ [{}] {}", c.code, c.message);
+    }
+
+    // ── plan ────────────────────────────────────────────────────────
+    if report.waves.is_empty() && !report.conformance.is_empty() {
+        println!("PLAN     (skipped — no valid DAG order while conformance fails)");
+    } else {
+        println!("PLAN     {} wave(s)", report.waves.len());
+        for (n, wave) in report.waves.iter().enumerate() {
+            let ids: Vec<&str> = wave
+                .iter()
+                .map(|&i| wf.tasks[i].value.id.value.as_str())
+                .collect();
+            println!("  wave {n} · {}", ids.join(" ∥ "));
+        }
+    }
+
+    // ── cost envelope (structural interval · ADR-092 #5) ────────────
     if report.cost.tasks.is_empty() {
         println!("COST     no inference tasks · $0.00");
     } else {
@@ -74,16 +148,31 @@ fn main() -> ExitCode {
         } else {
             "ceiling"
         };
-        println!(
-            "COST     ${:.4} worst-case {bound}",
-            report.cost.bounded_total_usd
-        );
+        let spread = report.cost.bounded_total_usd - report.cost.min_path_total_usd;
+        if spread > f64::EPSILON {
+            println!(
+                "COST     ${:.4} – ${:.4} {bound} (cheapest path: gates closed · first try)",
+                report.cost.min_path_total_usd, report.cost.bounded_total_usd
+            );
+        } else {
+            println!(
+                "COST     ${:.4} worst-case {bound}",
+                report.cost.bounded_total_usd
+            );
+        }
         for t in &report.cost.tasks {
-            let fanout = if t.iterations > 1 {
+            let iter = if t.iterations > 1 {
                 format!(" ×{}", t.iterations)
             } else {
                 String::new()
             };
+            let retries = if t.attempts > 1 {
+                format!(" ×{} retries", t.attempts)
+            } else {
+                String::new()
+            };
+            let gate = if t.gated { " (when:-gated)" } else { "" };
+            let fanout = format!("{iter}{retries}{gate}");
             match (t.usd, &t.unbounded_reason) {
                 (Some(usd), _) => println!(
                     "  {} · {} · ≤{} tokens{fanout} · ${usd:.4}",
@@ -109,16 +198,54 @@ fn main() -> ExitCode {
         }
     }
 
-    // ── secret leaks ────────────────────────────────────────────────
-    if report.secret_leaks.is_empty() {
-        println!("SECRETS  no masking-boundary escapes");
+    // ── secret leaks + egresses (IFC · ADR-092) ─────────────────────
+    if report.secret_leaks.is_empty() && report.secret_egresses.is_empty() {
+        println!("SECRETS  no information-flow escapes");
     } else {
         for l in &report.secret_leaks {
             println!(
-                "SECRETS  ⚠ `secrets.{}` flows into {} (task `{}`) — captured output can re-emit it",
-                l.secret, l.sink, l.task
+                "SECRETS  ⚠ leak into {} (task `{}`) — {}",
+                l.sink, l.task, l.trace
             );
         }
+        for e in &report.secret_egresses {
+            println!(
+                "SECRETS  ⚠ EGRESS via outputs.{} — {} (a secret leaves the run)",
+                e.output, e.trace
+            );
+        }
+    }
+
+    // ── dataflow schema typing (ADR-092 #4) ─────────────────────────
+    if report.schema_findings.is_empty() {
+        println!("TYPES    every deep output reference fits its declared shape");
+    } else {
+        for f in &report.schema_findings {
+            println!(
+                "TYPES    ✗ {} (at `{}`) — {}",
+                f.reference, f.site, f.detail
+            );
+        }
+    }
+
+    // ── unknown nika: builtins (closed catalog · did-you-mean) ──────
+    for t in &report.unknown_tools {
+        let fix = t
+            .suggestion
+            .as_deref()
+            .map_or_else(String::new, |s| format!(" — did you mean `{s}`?"));
+        println!(
+            "TOOLS    ✗ `{}` (task `{}`) is not a canonical builtin{fix}",
+            t.tool, t.task
+        );
+    }
+
+    // ── structured-output schema lint ───────────────────────────────
+    for l in &report.schema_lints {
+        println!(
+            "SCHEMA   ✗ task `{}` at `{}` — {}",
+            l.task, l.path, l.detail
+        );
     }
 
     // ── permits ─────────────────────────────────────────────────────
@@ -133,6 +260,11 @@ fn main() -> ExitCode {
                 e.category, e.task, e.detail
             );
         }
+    }
+
+    // ── improvement hints (advisory · never fail the check) ─────────
+    for h in &report.hints {
+        println!("HINT     [{}] {}", h.kind, h.advice);
     }
 
     if report.is_clean() {

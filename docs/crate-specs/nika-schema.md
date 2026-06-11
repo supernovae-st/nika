@@ -806,22 +806,46 @@ custom providers).
 
 The `check` module composes `analyze()` with the static reports that make
 « audit before it runs » concrete (spec `07-conformance.md` §nika check) ·
-the wave **plan** · the **cost ceiling** · the **secret-leak** scan · the
-**capability-escape** scan against a declared `permits:` block. Runnable
-today via `cargo run -p nika-schema --example check -- wf.yaml`; the polished
-CLI ships with `nika-cli` (step 19). A 3-angle adversarial review (2026-06-11)
-hardened it — net/fs literal escapes now enforced (the two escapes the spec
-names first), secrets scoped to real `${{ }}` islands via `expr_refs`, cost
-priced provider-scoped + for_each-fan-out-aware.
+the wave **plan** · the **cost ceiling** · the **secret-leak + egress** IFC
+scan · the **capability-escape** scan against a declared `permits:` block ·
+**capability inference** (`infer_permits()` — synthesize the tightest
+`permits:` block, ADR-092 #2). Runnable today via
+`cargo run -p nika-schema --example check -- [--infer-permits] wf.yaml`;
+the polished CLI ships with `nika-cli` (step 19).
+
+Three hardening passes (2026-06-11) · a 3-angle adversarial review (net/fs
+literal escapes · secret island-scoping via `expr_refs` · provider-scoped +
+for_each-fan-out cost), then the ADR-092 program-analysis ladder · the
+`flow.rs` IFC engine (Denning-lattice taint, one topological least-fixpoint
+pass over the DAG = the `FlowFacts` IR) replaced the heuristic secret scan —
+the `with:`-aliased false negative is FIXED (transitive taint with a full
+`secrets.x → with.t → tasks.a.output` trace), and secrets reaching
+`outputs:` are reported as **egress** — then a second 3-lens swarm on the
+inference work itself · **`on_finally` cleanup verbs are now first-class**
+across all three walkers (IFC sinks · escape checks · inference — a cleanup
+ALWAYS runs, so a blind spot there broke every run) · builtin effect
+classification is the shared `BuiltinEffect` table covering
+`read`/`write`/`edit` (read+write)/`grep` (recursive → `<path>/**`)/`fetch`/
+webhook-`notify` (`nika:glob` deliberately excluded — its arg is itself a
+glob, inclusion is undecidable statically) · IPv6 bracket hosts · YAML
+escaping in the rendered block · strict example flags (a typo'd `--flag`
+exits 2, never a silent plain check). `infer_permits` shares ALL extractors
+(`builtin_effect` · `static_program` · `literal_arg` · `url_host`) with the
+escape checker, so inference and verification cannot drift; the inferred
+block round-trips through the parser and re-checks with zero escapes —
+tested for `exec: false`/`true`/programs, agent tool globs, on_finally
+effects, and quote-bearing paths.
 
 ### Known limitations (honest · no silent gaps)
 
 | Gap | Why deferred | Where it's still caught |
 |---|---|---|
-| **`with:`-aliased secret** (`with: { t: ${{ secrets.X }} }` then `${{ with.t }}` into a sink) | needs a binding/taint graph across `with:` → sink; the v0.1 scan checks the sink field directly | runtime secret masking still applies to the value; not a leak of the value, only an un-flagged *flow* |
 | **fs/net escape via a shell `exec` string** (`curl https://evil` inside `command:`) | the shell command is the runner blocklist's domain, not a structured arg; fine-grained net/fs inside `/bin/sh -c` is inherently runtime | `exec` is gated by `permits.exec` + the s7 runner blocklist; the structured builtins (`nika:fetch`/`read`/`write`) ARE checked |
-| **agent tool-call args** | the model picks tool args at runtime — no static surface | runtime `NIKA-SEC-004` when the agent dispatches |
+| **agent tool-call args** | the model picks tool args at runtime — no static surface | runtime `NIKA-SEC-004` when the agent dispatches; agent `tools:` globs ARE checked vs `permits.tools` |
 | **cost input-token term** | input cost is prompt-dependent (interpolates task outputs) → statically unbounded | the figure is documented as an OUTPUT-token ceiling; `max_tokens` bounds output only |
+| **dynamic effects in inference** (`${{ }}`-built path/host/program) | not statically pinnable — sound-by-honesty: the category widens (e.g. `exec: true`) and a review note is emitted, never a silently under-permissive block | runtime `NIKA-SEC-004` enforces the declared boundary on resolved values |
+| **`infer`/`agent` outputs are NOT tainted** | trust-model carve-out (ADR-092): the provider is operator-chosen; a secret in a prompt is provider-bound by design, and a model response is not a verbatim echo | prompts are still masked in the engine's own logs/traces |
+| **`$ref` siblings are NOT linted** (a `required`/`type` defect beside a `$ref` in the same schema node) | draft 2020-12 evaluates `$ref` siblings, but the static linter has no `$ref` resolver — descending siblings without resolving the ref could emit FALSE claims, so the whole node goes opaque (sound-by-honesty) | the runtime validator (nika-verb-infer compiles the full schema) evaluates siblings per the draft and fails the task at dispatch |
 
 ### Next — completing the `nika check` story
 
@@ -830,9 +854,16 @@ priced provider-scoped + for_each-fan-out-aware.
    marks dynamic (a `${{ }}`-built host/path, an agent tool dispatch). This
    is the L3 runtime's job, sequenced with the engine crate.
 2. **`nika-cli check` subcommand** — the polished CLI surface (colour, exit
-   codes, `--providers` parity flag) over this module, at step 19.
-3. **(optional) `with:` taint trace** — promote the secret-leak scan to
-   follow `with:` aliases (a small binding graph) if real workflows hit it.
+   codes, `--providers` parity flag, `--infer-permits`) over this module,
+   at step 19.
+3. **Ladder #5-#9** — symbolic cost intervals · SMT reachability ·
+   termination certificate · incremental IR · differential conformance,
+   per the ADR-092 sequence (#4 dataflow schema typing SHIPPED — deep
+   `tasks.X.output.<path>` references resolve against X's `schema:`
+   [properties/items/anyOf descent · explicit `additionalProperties:
+   true` = opaque] or `output:` binding names, across prompts · commands
+   · args · `when:` · `with:` · `for_each` · envelope `outputs:` ·
+   `on_finally` — a typo'd field is a finding BEFORE any token is spent).
 
 ## 12. Audit trail
 
@@ -840,4 +871,13 @@ priced provider-scoped + for_each-fan-out-aware.
 |---|---|---|
 | 2026-04-13 | Phase 1 S4 | Initial spec. 1-crate design locked (no ast/analyze split). |
 | 2026-06-11 | nika check arc | `permits:` parser + `check` module (plan/cost/secrets/permits) + CEL cel-subset/0.1 (ternary·has·string tests) + runnable example. 3-angle review hardened (net/fs literal escapes · secret island-scoping · provider-scoped + for_each cost). §11bis added. |
+| 2026-06-11 | ADR-092 ladder #1-#3 | `flow.rs` IFC taint engine (Denning lattice · topological least fixpoint · `FlowFacts` IR · full taint traces) replaces the heuristic secret scan — `with:`-aliased false negative FIXED + `outputs:` egress sink added. `infer_permits.rs` capability inference (`--infer-permits` · sound-by-honesty notes · round-trip-clean property). `static_program` shared extractor (dynamic-argv[0] false positive fixed both sides). §11bis rewritten. |
+| 2026-06-11 | inference review swarm | 3-lens swarm (11 findings · 5 PROVEN by probe): `on_finally` cleanup verbs now walked by ALL THREE walkers (flow sinks · escapes · inference — were invisible, breaking every run of a pasted block). Shared `BuiltinEffect` table extends coverage to `edit`/`grep`/webhook-`notify` (glob excluded · undecidable). IPv6 bracket hosts. YAML escaping (`yaml_quote`). Empty block renders `permits: {}`. Strict example flags (typo → exit 2). Round-trip property tested across exec variants + agent globs + on_finally + quoted paths. |
+| 2026-06-11 | ADR-092 ladder #4 | `schema_typing.rs` dataflow schema typing — deep `tasks.X.output.<path>` refs resolved against X's `schema:` (JSON Schema descent: properties · transparent array `items` · anyOf/oneOf/allOf any-branch-admits · `$ref` opaque · explicit `additionalProperties: true` opaque) or `output:` jq binding names (rebind precedence). Surface = prompts/system · command fragments/env/stdin · invoke args · `when:` · `with:` · `for_each` · envelope `outputs:` · `on_finally`. `expression::refs` refactored to ONE `walk_chains` core feeding `expr_refs` + new `task_output_paths` (no extractor drift). `CheckReport.schema_findings` + example TYPES section. |
+| 2026-06-11 | ADR-092 ladder #5 | `cost.rs` structural cost interval — `retry.max_attempts` worst-path multiplier (ignoring it silently UNDERCOUNTED the ceiling), `when:`-gated tasks zero the cheapest path, `min_path_total_usd` alongside the worst-path Σ. The envelope is [cheapest structural path, worst structural path] at the DECLARED per-call budget — emission variance below `max_tokens` + the input-token side stay out per the documented output-ceiling convention. Example renders the range + ×N retries/(when:-gated) annotations. |
+| 2026-06-11 | agent intelligence layer | `suggest.rs` deterministic did-you-mean (Damerau-Levenshtein · rustc threshold `max(len/3,1)` · lexicographic tie-break · silence over wrong guesses). `tools.rs` — unknown `nika:` builtins caught statically against the SAME `all_builtins()` the codegen enum reads (`nika:raed` → `nika:read`). `schema_lint.rs` — authored `schema:` defects (required∉properties = every-output-unsatisfiable · bad `type` name · empty `enum` · composite descent · `$ref` opaque). Suggestions threaded into schema-typing + binding details; `CapabilityEscape.fix` carries the machine-applicable grant (withheld for phantom builtins — the rename owns the repair). Serialize on the whole report family + `--json` example mode = the agent repair-loop surface. E2E: 6-finding workflow converges to CLEAN in 2 rounds applying emitted fixes verbatim. |
+| 2026-06-11 | review fold + hints | 2-lens swarm findings folded: fix idiom UNIFIED (one `add "X" to permits.<path>` shape everywhere — the exec-denied prose directive broke the verbatim-apply contract), `repair_loop_converges_to_clean` automated test (the convergence claim is now CI-pinned), `$ref`-siblings gap documented in Known Limitations, OSA distance variant pinned ("ca"→"abc"=3). `hints.rs` — the deterministic « ameliorateur » (advisory · never fail `is_clean`): cost (no token bound → hard ceiling unlock) · dead-spend (unconsumed pure infer) · typing (deeply-referenced un-schema'd output → declare `schema:` unlock) · permits (effectful + no boundary → `--infer-permits` pointer). 412 lib tests. |
+| 2026-06-11 | socratic round: corrector + maximal report | `suggest` promoted to crate level; **analyzer did-you-mean** — `UnresolvedNamespaceRef` + `UnknownDependency` carry `suggestion` (each namespace suggests within ITS OWN declared set · `vars.topci → vars.topic` · typo'd ROOTS suggested too `vrs → vars` · the #1 agent error class now self-repairs). **`check()` is INFALLIBLE** (rustc model: maximal info per run) — conformance violations land IN the report (`conformance: Vec<ConformanceViolation>` with spec codes); every DAG-independent analysis (cost/tools/schema-lint/escapes/typing/hints) still runs; only `waves` + IFC need the topo order. ONE round-trip repairs conformance AND findings. `report_version: 1` JSON contract field; determinism CI-pinned (two runs → byte-identical JSON, catches stray HashMaps). 417 lib tests. |
+| 2026-06-11 | strictness hint (hint #5) | structured-output DETERMINISM: an object schema declaring `properties` without `additionalProperties: false` admits undeclared keys — the validated shape varies across providers/runs. New `strictness` hint class names the close-it fix (the recipe provider-native strict modes require); one hint per task, full composite descent (`items`/`anyOf`/…), `$ref` opaque. 419 lib tests. |
+| 2026-06-11 | DoS hardening (stack-safety) | PROVEN crash class closed: unbounded block nesting overflowed the stack (~3000 levels · marked-yaml block parse recursion · the exact gap the parser/mod.rs security note had pre-flagged). TWO loud deterministic layers: (1) pre-parse indent guard (`MAX_INDENT_BYTES` 1024 spaces ≈ 512 levels · O(n) early-exit scan · protects marked-yaml itself — a 450 MB / 15k-level probe now rejects instantly) · (2) `value::MAX_VALUE_DEPTH` 128 at the YAML→`serde_json::Value` conversion seam (`json_value(cx, node)` fallible, span-carrying — ONE seam bounds every downstream walker: schema lint · dataflow typing · strictness · runtime `compile_schema` · recursive `Drop`). Silently truncating was rejected — the runtime must never receive a DIFFERENT value than authored. 421 lib tests. |
 
