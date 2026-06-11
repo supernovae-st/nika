@@ -4,9 +4,18 @@
 
 - Total target : **42 crates diamond v0.90** (cap 100) + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` [renamed from `nika-memory` per the Connectome lock 2026-05-22] + **10 L1 satellite crates** · autodesc splits into `nika-autodesc-minimal` [W4] + `nika-autodesc-full` [Phase 2] per ADR-042 · `nika-rerank` M13 added by the SOTA ratification 2026-06-11) — separate count. Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · recall floor at v0.85 · cognition at v0.90+ · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
 
-## Collapse-vs-publish principle (LOCKED · post BLUEPRINT_2036 v1.0)
+## Collapse-vs-publish principle (decision RULE locked · cluster collapses = QUEUED proposals)
 
-- **Internal-only clusters → collapse to one crate** · `nika-effects` (was 5 effect crates · ADR-055 queued) · `nika-verbs` (was 4 verb crates · ADR-056 queued · 4-verb semantic lock preserved at module level · fetch is the `nika:fetch` builtin under invoke, not a verb crate) · `init+lints+catalog-verify` → `nika-cli` subcommands. Per ADR-006 monolithic-kernel-spirit applied across clusters.
+> ⚠️ Status precision (2026-06-11 coherence pass) · `BLUEPRINT_2036.md` is
+> `status: proposal` (v1.6) and ADR-055/ADR-056 were never authored — the
+> prior « LOCKED · post BLUEPRINT_2036 v1.0 » heading over-claimed. What IS
+> locked: the decision RULE below + the per-crate granularity of publishable
+> clusters. The v0.81 announce climb ships **per-verb crates**
+> (`nika-verb-{infer,exec,invoke,agent}`) per NIKA_ROADMAP S4 +
+> D-2026-06-10-N6 ledger + crate-admission-order steps 9-15. The collapse
+> may fire post-v0.81 IF ADR-055/056 get authored + accepted.
+
+- **Internal-only clusters → collapse to one crate (QUEUED · not yet decided)** · `nika-effects` (was 5 effect crates · ADR-055 queued) · `nika-verbs` (was 4 verb crates · ADR-056 queued · 4-verb semantic lock preserved at module level · fetch is the `nika:fetch` builtin under invoke, not a verb crate) · `init+lints+catalog-verify` → `nika-cli` subcommands. Per ADR-006 monolithic-kernel-spirit applied across clusters.
 - **Externally-publishable clusters → preserve per-crate granularity** · Connectome satellites (10 crates · ADR-004 publishable standalone on crates.io · external Rust RDF/ML ecosystem value) · provider variants (rig · native · mock · 3 crates · heavy-dep isolation). Per ADR-004 + ADR-042.
 - **Decision rule** · « is there genuine external value to per-crate granularity? » YES → split · NO → collapse. Default is collapse (12-gate ceremony × N crates costs more than module discipline within 1 crate).
 - Max LOC per crate : **15,000** (strict, enforced by xtask/CI)
