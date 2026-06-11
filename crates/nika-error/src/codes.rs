@@ -221,6 +221,20 @@ pub const NIKA_015: NikaCode = NikaCode {
 // level registry to be resolvable from nika-error. Tracked as future
 // work; not in scope for Wave 1.3.
 
+// ─── MCP/tools concrete codes (230-279 · ai-sibling owned) ──────────────
+//
+// 230-233 stay kernel-runtime-local (the Audit-1 P0-1 carve-out). 234 is
+// registry-owned per the ai-sibling convention (vision/audio/memory
+// precedent) so `lookup("NIKA-234")` resolves for `nika explain`.
+
+/// NIKA-234: Tool-definition source unavailable (catalog · MCP `tools/list`).
+pub const NIKA_234: NikaCode = NikaCode {
+    num: 234,
+    category: Category::Mcp,
+    severity: Severity::Error,
+    slug: "tool-defs-unavailable",
+};
+
 // ─── Reserved subsystem codes (600+) ─────────────────────────────────────
 
 /// NIKA-600: Memory subsystem error (range placeholder 600-649).
@@ -375,6 +389,55 @@ pub const NIKA_452: NikaCode = NikaCode {
     category: Category::Verb,
     severity: Severity::Error,
     slug: "invoke-dispatch-failure",
+};
+/// NIKA-460: The agent loop hit `max_turns` without completing.
+pub const NIKA_460: NikaCode = NikaCode {
+    num: 460,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-max-turns",
+};
+/// NIKA-461: The agent loop exhausted `max_tokens_total`.
+pub const NIKA_461: NikaCode = NikaCode {
+    num: 461,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-max-tokens",
+};
+/// NIKA-462: The model requested a tool outside the agent whitelist.
+pub const NIKA_462: NikaCode = NikaCode {
+    num: 462,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-whitelist-violation",
+};
+/// NIKA-463: The provider call failed mid-loop.
+pub const NIKA_463: NikaCode = NikaCode {
+    num: 463,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-inference",
+};
+/// NIKA-464: The agent's final message failed `schema:` validation.
+pub const NIKA_464: NikaCode = NikaCode {
+    num: 464,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-schema-validation",
+};
+/// NIKA-465: An `agent` parameter is invalid (empty prompt · temp range).
+pub const NIKA_465: NikaCode = NikaCode {
+    num: 465,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-invalid-param",
+};
+/// NIKA-466: The tool-definition source failed (catalog · MCP `tools/list`).
+pub const NIKA_466: NikaCode = NikaCode {
+    num: 466,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-tool-defs-unavailable",
 };
 
 /// NIKA-999: Internal error (catch-all).
@@ -765,21 +828,22 @@ pub const NIKA_1605: NikaCode = NikaCode {
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450, NIKA_451,
-    NIKA_452, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800,
-    NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006,
-    NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105,
-    NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204,
-    NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401,
-    NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503,
-    NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
+    NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450,
+    NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466,
+    NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
+    NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007,
+    NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106,
+    NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205,
+    NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402,
+    NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504,
+    NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605,
 ];
 
 /// Returns an actionable help message for a given code.
 ///
 /// Every registered code has a help string. This is used by miette's
 /// Help text for the Verb range (430-479 · infer 430-439 · exec 440-449 ·
-/// invoke 450-459). Split out of `code_help` to keep it under the 100-line
+/// invoke 450-459 · agent 460-469). Split out of `code_help` to keep it under the 100-line
 /// function cap as the verb crates land.
 fn verb_help(num: u16) -> &'static str {
     match num {
@@ -810,6 +874,27 @@ fn verb_help(num: u16) -> &'static str {
         }
         452 => {
             "Tool dispatch failed (timeout, execution error, or the tool system is unavailable). Check the MCP server or builtin availability."
+        }
+        460 => {
+            "The agent hit max_turns without completing. Raise max_turns, tighten the prompt toward the nika:done sentinel, or reduce tool round-trips."
+        }
+        461 => {
+            "The agent exhausted max_tokens_total. Raise the budget or reduce turn/context size; the last assistant message rides error.details.partial_output."
+        }
+        462 => {
+            "The model requested a tool outside the agent whitelist. Security boundaries are not model-negotiable: add the tool to `tools:` if intended."
+        }
+        463 => {
+            "A provider call failed mid-loop. Check the chained provider error (credentials, rate limits, connectivity)."
+        }
+        464 => {
+            "The agent's final message never satisfied the task `schema:`. Simplify the schema or instruct the model to answer via nika:done result."
+        }
+        465 => {
+            "An `agent` parameter is invalid. Prompt must be non-empty; temperature must be within 0-2."
+        }
+        466 => {
+            "The tool-definition source failed (builtin catalog or MCP tools/list). Check the MCP server availability for mcp:* whitelist entries."
         }
         _ => "Verb execution failed. Check the task definition against the spec for this verb.",
     }
@@ -842,6 +927,9 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         140..=189 => {
             "HTTP request failed. Check endpoint URL, network connectivity, and SSRF allowlist."
+        }
+        234 => {
+            "The tool-definition source could not enumerate (builtin catalog unloadable or MCP tools/list unreachable). Check the backing source."
         }
         230..=279 => {
             "MCP tool call failed. Check tool name, parameters, and MCP server availability."

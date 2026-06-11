@@ -1304,6 +1304,47 @@ pub fn nika_kernel_ai::provider::ProviderStreamDyn::infer_stream(&self, request:
 pub trait nika_kernel_ai::provider::ProviderVision: core::marker::Send + core::marker::Sync
 pub fn nika_kernel_ai::provider::ProviderVision::supports_vision(&self) -> bool
 pub type nika_kernel_ai::provider::InferEventStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>
+pub mod nika_kernel_ai::tool_defs
+#[non_exhaustive] pub enum nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_kernel_ai::tool_defs::ToolDefsError::Unavailable
+pub nika_kernel_ai::tool_defs::ToolDefsError::Unavailable::reason: alloc::string::String
+impl core::error::Error for nika_kernel_ai::tool_defs::ToolDefsError
+impl core::fmt::Debug for nika_kernel_ai::tool_defs::ToolDefsError
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_ai::tool_defs::ToolDefsError
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_kernel_ai::tool_defs::ToolDefsError
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_kernel_ai::tool_defs::ToolDefsError
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::tool_defs::ToolDefsError
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::tool_defs::ToolDefsError where U: core::convert::From<T>
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::tool_defs::ToolDefsError where U: core::convert::Into<T>
+pub type nika_kernel_ai::tool_defs::ToolDefsError::Error = core::convert::Infallible
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::tool_defs::ToolDefsError where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::tool_defs::ToolDefsError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_ai::tool_defs::ToolDefsError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_ai::tool_defs::ToolDefsError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::tool_defs::ToolDefsError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::tool_defs::ToolDefsError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_ai::tool_defs::ToolDefsError
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::tool_defs::ToolDefsError where T: 'static
+pub fn nika_kernel_ai::tool_defs::ToolDefsError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub trait nika_kernel_ai::tool_defs::ToolDefinitionProvider: core::marker::Send + core::marker::Sync
+pub async fn nika_kernel_ai::tool_defs::ToolDefinitionProvider::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<TraitVariantBlanketType: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn> nika_kernel_ai::tool_defs::ToolDefinitionProvider for TraitVariantBlanketType
+pub async fn TraitVariantBlanketType::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+pub trait nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn: core::marker::Send + core::marker::Sync + core::marker::Send
+pub fn nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn::tool_defs(&self) -> impl core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>> + core::marker::Send
 pub mod nika_kernel_ai::vision
 #[non_exhaustive] pub enum nika_kernel_ai::vision::VisionError
 pub nika_kernel_ai::vision::VisionError::BackendUnavailable

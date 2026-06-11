@@ -32,4 +32,5 @@ pub mod errors;
 pub mod genai;
 pub mod memory;
 pub mod provider;
+pub mod tool_defs;
 pub mod vision;

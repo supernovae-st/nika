@@ -22,6 +22,7 @@
 //! | [`NullEmbeddingProvider`] | `EmbeddingProvider` | Zero vectors |
 //! | [`NullToolExecutor`] | `ToolExecuteDyn`+`ToolBatchDyn` | Returns `NotAvailable` |
 //! | [`MockToolExecutor`] | `ToolExecuteDyn`+`ToolBatchDyn` | FIFO results + call recording |
+//! | [`MockToolDefinitionProvider`] | `ToolDefinitionProviderDyn` | Fixed tool universe or one error |
 //! | [`NullContextCompressor`] | `ContextCompressor` | Returns `None` |
 
 #![cfg_attr(
@@ -49,6 +50,7 @@ pub mod provider;
 pub mod sandbox;
 pub mod secret;
 pub mod shell;
+pub mod tool_defs;
 pub mod tool_executor;
 pub mod trace;
 
@@ -68,5 +70,6 @@ pub use provider::MockProvider;
 pub use sandbox::NullSandbox;
 pub use secret::NullSecretResolver;
 pub use shell::MockShell;
+pub use tool_defs::MockToolDefinitionProvider;
 pub use tool_executor::{MockToolExecutor, NullToolExecutor};
 pub use trace::NullTracerProvider;

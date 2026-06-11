@@ -15,7 +15,9 @@
 //! - 050–099: Shell/exec (`ShellError`) — `nika-kernel-core`
 //! - 100–139: File/IO — blob 100–109 (`BlobError`) · fs 110–119 (`FsError`) — `nika-kernel-core`
 //! - 140–189: Http/network (`HttpError`) — `nika-kernel-core`
-//! - 230–279: MCP/tools (`ToolExecError`) — `nika-kernel-runtime`
+//! - 230–279: MCP/tools (`ToolExecError` 230-233 — `nika-kernel-runtime` ·
+//!   `ToolDefsError` 234 — `nika-kernel-ai` `tool_defs.rs` · constant in
+//!   `nika_error::codes::NIKA_234` · the agent-loop tool-definition seam)
 //! - 330–379: Provider (`ProviderError`) — `nika-kernel-ai` (moved from
 //!   380-429 2026-05-11 to free the Shield-reserved 380-389 slot per
 //!   `dx/.claude/rules/security.md` §"Nika Shield" canonical mapping.

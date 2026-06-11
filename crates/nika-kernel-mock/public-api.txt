@@ -756,15 +756,16 @@ impl nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel_core::io::process::ShellError) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_fail(self, status: i32, stderr: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_ok(self, stdout: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_mock::shell::MockShell::enqueue_result(self, result: nika_kernel_core::io::process::ShellResult) -> Self
 pub fn nika_kernel_mock::shell::MockShell::executed_commands(&self) -> alloc::vec::Vec<nika_kernel_core::io::process::ShellCommand>
 pub fn nika_kernel_mock::shell::MockShell::new() -> Self
 impl core::clone::Clone for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::clone(&self) -> nika_kernel_mock::shell::MockShell
 impl core::default::Default for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::default() -> nika_kernel_mock::shell::MockShell
-impl nika_kernel_core::io::process::ShellCancel for nika_kernel_mock::shell::MockShell
+impl nika_kernel_core::io::process::ShellCancelDyn for nika_kernel_mock::shell::MockShell
 pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
-impl nika_kernel_core::io::process::ShellRun for nika_kernel_mock::shell::MockShell
+impl nika_kernel_core::io::process::ShellRunDyn for nika_kernel_mock::shell::MockShell
 pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::shell::MockShell
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::shell::MockShell where U: core::convert::From<T>
@@ -792,6 +793,49 @@ pub fn nika_kernel_mock::shell::MockShell::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::shell::MockShell where T: 'static
 pub fn nika_kernel_mock::shell::MockShell::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_core::io::process::ShellExecutor for nika_kernel_mock::shell::MockShell where T: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellCancel for nika_kernel_mock::shell::MockShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellCancelDyn
+pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_kernel_mock::shell::MockShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
+pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+pub mod nika_kernel_mock::tool_defs
+#[non_exhaustive] pub struct nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::new() -> Self
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::unavailable(reason: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::with_defs(defs: alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>) -> Self
+impl core::clone::Clone for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::clone(&self) -> nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl core::default::Default for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::default() -> nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub async fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where U: core::convert::From<T>
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where U: core::convert::Into<T>
+pub type nika_kernel_mock::tool_defs::MockToolDefinitionProvider::Error = core::convert::Infallible
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where U: core::convert::TryFrom<T>
+pub type nika_kernel_mock::tool_defs::MockToolDefinitionProvider::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: core::clone::Clone
+pub type nika_kernel_mock::tool_defs::MockToolDefinitionProvider::Owned = T
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::clone_into(&self, target: &mut T)
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: ?core::marker::Sized
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: ?core::marker::Sized
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: core::clone::Clone
+pub unsafe fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: 'static
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_ai::tool_defs::ToolDefinitionProvider for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where TraitVariantBlanketType: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn
+pub async fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
 pub mod nika_kernel_mock::tool_executor
 #[non_exhaustive] pub struct nika_kernel_mock::tool_executor::MockToolExecutor
 impl nika_kernel_mock::tool_executor::MockToolExecutor
@@ -803,9 +847,9 @@ impl core::clone::Clone for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::clone(&self) -> nika_kernel_mock::tool_executor::MockToolExecutor
 impl core::default::Default for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::default() -> nika_kernel_mock::tool_executor::MockToolExecutor
-impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolBatchDyn for nika_kernel_mock::tool_executor::MockToolExecutor
 pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
-impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolExecuteDyn for nika_kernel_mock::tool_executor::MockToolExecutor
 pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::MockToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::MockToolExecutor where U: core::convert::From<T>
@@ -833,6 +877,10 @@ pub fn nika_kernel_mock::tool_executor::MockToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::MockToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::MockToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 #[non_exhaustive] pub struct nika_kernel_mock::tool_executor::NullToolExecutor
 impl nika_kernel_mock::tool_executor::NullToolExecutor
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::new() -> Self
@@ -842,9 +890,9 @@ impl core::default::Default for nika_kernel_mock::tool_executor::NullToolExecuto
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::default() -> nika_kernel_mock::tool_executor::NullToolExecutor
 impl core::fmt::Debug for nika_kernel_mock::tool_executor::NullToolExecutor
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolBatchDyn for nika_kernel_mock::tool_executor::NullToolExecutor
 pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
-impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolExecuteDyn for nika_kernel_mock::tool_executor::NullToolExecutor
 pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::NullToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::NullToolExecutor where U: core::convert::From<T>
@@ -872,6 +920,10 @@ pub fn nika_kernel_mock::tool_executor::NullToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::NullToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::NullToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 pub mod nika_kernel_mock::trace
 #[non_exhaustive] pub struct nika_kernel_mock::trace::NullTracerProvider
 impl nika_kernel_mock::trace::NullTracerProvider
@@ -1173,15 +1225,16 @@ impl nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::enqueue_err(self, error: nika_kernel_core::io::process::ShellError) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_fail(self, status: i32, stderr: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_mock::shell::MockShell::enqueue_ok(self, stdout: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_mock::shell::MockShell::enqueue_result(self, result: nika_kernel_core::io::process::ShellResult) -> Self
 pub fn nika_kernel_mock::shell::MockShell::executed_commands(&self) -> alloc::vec::Vec<nika_kernel_core::io::process::ShellCommand>
 pub fn nika_kernel_mock::shell::MockShell::new() -> Self
 impl core::clone::Clone for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::clone(&self) -> nika_kernel_mock::shell::MockShell
 impl core::default::Default for nika_kernel_mock::shell::MockShell
 pub fn nika_kernel_mock::shell::MockShell::default() -> nika_kernel_mock::shell::MockShell
-impl nika_kernel_core::io::process::ShellCancel for nika_kernel_mock::shell::MockShell
+impl nika_kernel_core::io::process::ShellCancelDyn for nika_kernel_mock::shell::MockShell
 pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
-impl nika_kernel_core::io::process::ShellRun for nika_kernel_mock::shell::MockShell
+impl nika_kernel_core::io::process::ShellRunDyn for nika_kernel_mock::shell::MockShell
 pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::shell::MockShell
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::shell::MockShell where U: core::convert::From<T>
@@ -1209,6 +1262,48 @@ pub fn nika_kernel_mock::shell::MockShell::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::shell::MockShell where T: 'static
 pub fn nika_kernel_mock::shell::MockShell::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_core::io::process::ShellExecutor for nika_kernel_mock::shell::MockShell where T: nika_kernel_core::io::process::ShellRun + nika_kernel_core::io::process::ShellCancel
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellCancel for nika_kernel_mock::shell::MockShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellCancelDyn
+pub async fn nika_kernel_mock::shell::MockShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_kernel_mock::shell::MockShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
+pub async fn nika_kernel_mock::shell::MockShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+#[non_exhaustive] pub struct nika_kernel_mock::MockToolDefinitionProvider
+impl nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::new() -> Self
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::unavailable(reason: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::with_defs(defs: alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>) -> Self
+impl core::clone::Clone for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::clone(&self) -> nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl core::default::Default for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::default() -> nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub async fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
+impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where U: core::convert::From<T>
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where U: core::convert::Into<T>
+pub type nika_kernel_mock::tool_defs::MockToolDefinitionProvider::Error = core::convert::Infallible
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where U: core::convert::TryFrom<T>
+pub type nika_kernel_mock::tool_defs::MockToolDefinitionProvider::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: core::clone::Clone
+pub type nika_kernel_mock::tool_defs::MockToolDefinitionProvider::Owned = T
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::clone_into(&self, target: &mut T)
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: ?core::marker::Sized
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: ?core::marker::Sized
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: core::clone::Clone
+pub unsafe fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_mock::tool_defs::MockToolDefinitionProvider
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where T: 'static
+pub fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_ai::tool_defs::ToolDefinitionProvider for nika_kernel_mock::tool_defs::MockToolDefinitionProvider where TraitVariantBlanketType: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn
+pub async fn nika_kernel_mock::tool_defs::MockToolDefinitionProvider::tool_defs(&self) -> core::result::Result<alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>, nika_kernel_ai::tool_defs::ToolDefsError>
 #[non_exhaustive] pub struct nika_kernel_mock::MockToolExecutor
 impl nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::captured_calls(&self) -> alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>
@@ -1219,9 +1314,9 @@ impl core::clone::Clone for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::clone(&self) -> nika_kernel_mock::tool_executor::MockToolExecutor
 impl core::default::Default for nika_kernel_mock::tool_executor::MockToolExecutor
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::default() -> nika_kernel_mock::tool_executor::MockToolExecutor
-impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolBatchDyn for nika_kernel_mock::tool_executor::MockToolExecutor
 pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
-impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolExecuteDyn for nika_kernel_mock::tool_executor::MockToolExecutor
 pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::MockToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::MockToolExecutor where U: core::convert::From<T>
@@ -1249,6 +1344,10 @@ pub fn nika_kernel_mock::tool_executor::MockToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::MockToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::MockToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::MockToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::MockToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::MockToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_kernel_mock::tool_executor::MockToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 #[non_exhaustive] pub struct nika_kernel_mock::NullAuditSink
 impl nika_kernel_mock::audit::NullAuditSink
 pub const fn nika_kernel_mock::audit::NullAuditSink::new() -> Self
@@ -1631,9 +1730,9 @@ impl core::default::Default for nika_kernel_mock::tool_executor::NullToolExecuto
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::default() -> nika_kernel_mock::tool_executor::NullToolExecutor
 impl core::fmt::Debug for nika_kernel_mock::tool_executor::NullToolExecutor
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolBatchDyn for nika_kernel_mock::tool_executor::NullToolExecutor
 pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
-impl nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor
+impl nika_kernel_runtime::tool_executor::ToolExecuteDyn for nika_kernel_mock::tool_executor::NullToolExecutor
 pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::tool_executor::NullToolExecutor
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::tool_executor::NullToolExecutor where U: core::convert::From<T>
@@ -1661,6 +1760,10 @@ pub fn nika_kernel_mock::tool_executor::NullToolExecutor::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_mock::tool_executor::NullToolExecutor where T: 'static
 pub fn nika_kernel_mock::tool_executor::NullToolExecutor::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_runtime::tool_executor::ToolExecutor for nika_kernel_mock::tool_executor::NullToolExecutor where T: nika_kernel_runtime::tool_executor::ToolExecute + nika_kernel_runtime::tool_executor::ToolBatch
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolBatch for nika_kernel_mock::tool_executor::NullToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
+impl<TraitVariantBlanketType> nika_kernel_runtime::tool_executor::ToolExecute for nika_kernel_mock::tool_executor::NullToolExecutor where TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolExecuteDyn
+pub async fn nika_kernel_mock::tool_executor::NullToolExecutor::execute(&self, call: nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 #[non_exhaustive] pub struct nika_kernel_mock::NullTracerProvider
 impl nika_kernel_mock::trace::NullTracerProvider
 pub fn nika_kernel_mock::trace::NullTracerProvider::new() -> Self
