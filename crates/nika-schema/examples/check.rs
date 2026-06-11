@@ -268,6 +268,11 @@ fn main() -> ExitCode {
         }
     }
 
+    // ── improvement hints (advisory · never fail the check) ─────────
+    for h in &report.hints {
+        println!("HINT     [{}] {}", h.kind, h.advice);
+    }
+
     if report.is_clean() {
         println!("VERDICT  ✓ clean — audited before a single token was spent");
         ExitCode::SUCCESS

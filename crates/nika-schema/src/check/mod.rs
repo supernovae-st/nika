@@ -29,6 +29,7 @@
 
 mod cost;
 mod flow;
+mod hints;
 mod infer_permits;
 mod permits_fit;
 mod schema_lint;
@@ -43,6 +44,7 @@ use crate::raw::RawWorkflow;
 
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
+pub use hints::Hint;
 pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
 pub use schema_lint::SchemaLintFinding;
@@ -85,6 +87,11 @@ pub struct CheckReport {
     /// name · empty `enum`) — the static half of « structured output
     /// works in all cases ».
     pub schema_lints: Vec<SchemaLintFinding>,
+    /// Advisory improvement hints (the deterministic « ameliorateur ») —
+    /// each names the concrete change that unlocks a stronger static
+    /// guarantee. NEVER fail the check ([`CheckReport::is_clean`]
+    /// ignores them).
+    pub hints: Vec<Hint>,
 }
 
 impl CheckReport {
@@ -124,6 +131,7 @@ pub fn check(wf: &RawWorkflow) -> Result<CheckReport, Vec<SchemaError>> {
         schema_findings: schema_typing::scan_types(wf),
         unknown_tools: tools::scan_unknown_tools(wf),
         schema_lints: schema_lint::scan_schemas(wf),
+        hints: hints::scan_hints(wf),
         waves: topo_waves,
     })
 }

@@ -1,0 +1,292 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Improvement hints — the deterministic « ameliorateur ».
+//!
+//! Findings say « this is broken »; hints say « this could be BETTER »,
+//! each with the concrete change that unlocks a stronger static
+//! guarantee. They are advisory (never fail the check — `is_clean`
+//! ignores them) and fully deterministic: the same workflow always
+//! yields the same hints, because each one is derived from a structural
+//! property the analyzer already computed.
+//!
+//! The four v0.1 hints, ranked by unlocked value ·
+//!
+//! 1. **unbounded cost** — an `infer:`/`agent:` task with no token
+//!    bound: add one and the cost report becomes a hard ceiling.
+//! 2. **unconsumed output** — a pure `infer:` task whose output no one
+//!    reads (no task references it · not in `outputs:`): every token it
+//!    spends is dead spend.
+//! 3. **opaque consumed output** — a task whose output IS deeply
+//!    referenced (`tasks.X.output.field`) but declares no `schema:` /
+//!    `output:` bindings: declare a shape and the dataflow typer starts
+//!    proving those references.
+//! 4. **no boundary** — effectful tasks and no `permits:` block:
+//!    `--infer-permits` writes the tightest one.
+
+use std::collections::BTreeSet;
+
+use crate::expression::{scan_templates, task_output_paths};
+use crate::raw::{RawAction, RawWorkflow};
+
+/// One advisory improvement with its concrete unlock.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct Hint {
+    /// The hint class (`cost` · `dead-spend` · `typing` · `permits`).
+    pub kind: &'static str,
+    /// The task it concerns (`-` for workflow-level hints).
+    pub task: String,
+    /// What to change and what it unlocks.
+    pub advice: String,
+}
+
+/// Compute the improvement hints for a workflow.
+#[must_use]
+pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
+    let consumed = consumed_outputs(wf);
+    let deep_referenced = deeply_referenced(wf);
+    let mut hints = Vec::new();
+
+    let mut any_effect = false;
+    for task in &wf.tasks {
+        let t = &task.value;
+        let id = t.id.value.as_str();
+        match &t.action {
+            RawAction::Infer(a) => {
+                if a.max_tokens.is_none() {
+                    hints.push(hint("cost", id, format!(
+                        "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"
+                    )));
+                }
+                if !consumed.contains(id) {
+                    hints.push(hint("dead-spend", id, format!(
+                        "no task or output consumes `tasks.{id}.output` — every token this infer spends is unread; consume it or remove the task"
+                    )));
+                }
+                if deep_referenced.contains(id) && a.schema.is_none() && t.output.is_empty() {
+                    hints.push(hint("typing", id, format!(
+                        "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no `schema:` — declare one and `nika check` starts proving those field names"
+                    )));
+                }
+            }
+            RawAction::Agent(a) => {
+                if a.max_tokens_total.is_none() {
+                    hints.push(hint("cost", id, format!(
+                        "declare `max_tokens_total` on `{id}` — the agent loop gets a hard budget instead of UNBOUNDED"
+                    )));
+                }
+                any_effect = true; // an agent dispatches tools
+            }
+            RawAction::Exec(_) | RawAction::Invoke(_) => any_effect = true,
+        }
+    }
+
+    if any_effect && wf.permits.is_none() {
+        hints.push(hint(
+            "permits",
+            "-",
+            "no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)".to_owned(),
+        ));
+    }
+    hints
+}
+
+/// Task ids whose output is referenced ANYWHERE (any `tasks.X.output…`
+/// chain in any island, or an envelope `outputs:` entry).
+fn consumed_outputs(wf: &RawWorkflow) -> BTreeSet<String> {
+    let mut consumed = BTreeSet::new();
+    for_each_island_text(wf, &mut |text| {
+        if let Ok(islands) = scan_templates(text) {
+            for island in islands {
+                for (target, _) in task_output_paths(&island.expr) {
+                    consumed.insert(target);
+                }
+            }
+        }
+    });
+    consumed
+}
+
+/// Task ids referenced with a DEEP path (`tasks.X.output.field…`).
+fn deeply_referenced(wf: &RawWorkflow) -> BTreeSet<String> {
+    let mut deep = BTreeSet::new();
+    for_each_island_text(wf, &mut |text| {
+        if let Ok(islands) = scan_templates(text) {
+            for island in islands {
+                for (target, path) in task_output_paths(&island.expr) {
+                    if !path.is_empty() {
+                        deep.insert(target);
+                    }
+                }
+            }
+        }
+    });
+    deep
+}
+
+/// Visit every expression-bearing text in the workflow (the same surface
+/// the dataflow typer walks: verbs · `when:` · `with:` · `for_each` ·
+/// `on_finally` · envelope `outputs:`).
+fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
+    for task in &wf.tasks {
+        let t = &task.value;
+        visit_action(&t.action, visit);
+        if let Some(when) = &t.when {
+            visit(&when.value);
+        }
+        if let Some(f) = &t.for_each
+            && let crate::raw::ForEachValue::Expression(src) = &f.value
+        {
+            visit(src);
+        }
+        for (_, v) in &t.with {
+            visit_json(&v.value, visit);
+        }
+        for cleanup in &t.on_finally {
+            if let Some(when) = &cleanup.value.when {
+                visit(&when.value);
+            }
+            visit_action(&cleanup.value.action, visit);
+        }
+    }
+    for (_, decl) in &wf.outputs {
+        visit(&decl.value().value);
+    }
+}
+
+fn visit_action(action: &RawAction, visit: &mut dyn FnMut(&str)) {
+    match action {
+        RawAction::Exec(a) => {
+            for fragment in a.command.text_fragments() {
+                visit(fragment);
+            }
+            if let Some(stdin) = &a.stdin {
+                visit(&stdin.value);
+            }
+            for (_, v) in &a.env {
+                visit(&v.value);
+            }
+        }
+        RawAction::Invoke(a) => {
+            if let Some(args) = &a.args {
+                visit_json(&args.value, visit);
+            }
+        }
+        RawAction::Infer(a) => {
+            visit(&a.prompt.value);
+            if let Some(system) = &a.system {
+                visit(&system.value);
+            }
+        }
+        RawAction::Agent(a) => {
+            visit(&a.prompt.value);
+            if let Some(system) = &a.system {
+                visit(&system.value);
+            }
+        }
+    }
+}
+
+fn visit_json(value: &serde_json::Value, visit: &mut dyn FnMut(&str)) {
+    match value {
+        serde_json::Value::String(s) => visit(s),
+        serde_json::Value::Array(items) => {
+            for item in items {
+                visit_json(item, visit);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for item in map.values() {
+                visit_json(item, visit);
+            }
+        }
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
+    }
+}
+
+fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
+    Hint {
+        kind,
+        task: task.to_owned(),
+        advice,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+
+    fn hints_of(yaml: &str) -> Vec<Hint> {
+        scan_hints(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    #[test]
+    fn unbounded_infer_gets_a_cost_hint() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\" }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(h.iter().any(|x| x.kind == "cost" && x.task == "a"), "{h:?}");
+    }
+
+    #[test]
+    fn unconsumed_infer_is_dead_spend() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    exec: { command: \"echo done\" }\n",
+        );
+        assert!(h.iter().any(|x| x.kind == "dead-spend" && x.task == "a"));
+        // consumed via outputs: → no dead-spend hint
+        let h2 = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(!h2.iter().any(|x| x.kind == "dead-spend"), "{h2:?}");
+    }
+
+    #[test]
+    fn deeply_referenced_unschema_d_output_gets_a_typing_hint() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.field }}\" }\n",
+        );
+        assert!(
+            h.iter().any(|x| x.kind == "typing" && x.task == "a"),
+            "{h:?}"
+        );
+        // shallow consumption only → no typing hint
+        let h2 = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output }}\" }\n",
+        );
+        assert!(!h2.iter().any(|x| x.kind == "typing"), "{h2:?}");
+    }
+
+    #[test]
+    fn effectful_workflow_without_permits_gets_the_boundary_hint() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+        );
+        assert!(h.iter().any(|x| x.kind == "permits"), "{h:?}");
+        // boundary declared → no hint
+        let h2 = hints_of(
+            "nika: v1\nworkflow: w\npermits: { exec: true }\ntasks:\n  - id: t\n    exec: { command: \"echo hi\" }\n",
+        );
+        assert!(!h2.iter().any(|x| x.kind == "permits"), "{h2:?}");
+    }
+
+    #[test]
+    fn pure_compute_workflow_needs_no_boundary() {
+        // infer-only → no permits hint (nothing to bound).
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer: { prompt: \"x\", max_tokens: 10 }\noutputs:\n  r: ${{ tasks.a.output }}\n",
+        );
+        assert!(!h.iter().any(|x| x.kind == "permits"), "{h:?}");
+    }
+
+    #[test]
+    fn schema_d_task_gets_no_typing_hint() {
+        let h = hints_of(
+            "nika: v1\nworkflow: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  - id: a\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          field: { type: string }\n  - id: b\n    depends_on: [a]\n    exec: { command: \"echo ${{ tasks.a.output.field }}\" }\n",
+        );
+        assert!(!h.iter().any(|x| x.kind == "typing"), "{h:?}");
+    }
+}

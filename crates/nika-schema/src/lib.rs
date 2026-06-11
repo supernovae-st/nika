@@ -51,7 +51,7 @@ pub mod types;
 // Re-exports for convenience.
 pub use analyzer::{AnalyzedWorkflow, analyze};
 pub use check::{
-    CapabilityEscape, CheckReport, CostCeiling, InferredPermits, SchemaLintFinding,
+    CapabilityEscape, CheckReport, CostCeiling, Hint, InferredPermits, SchemaLintFinding,
     SchemaTypeFinding, SecretLeak, TaskCost, UnknownTool, check, infer_permits,
 };
 pub use codegen::nika_builtin_tool_enum_schema;
