@@ -18,7 +18,7 @@
 - **Internal-only clusters → collapse to one crate (QUEUED · not yet decided)** · `nika-effects` (was 5 effect crates · ADR-055 queued) · `nika-verbs` (was 4 verb crates · ADR-056 queued · 4-verb semantic lock preserved at module level · fetch is the `nika:fetch` builtin under invoke, not a verb crate) · `init+lints+catalog-verify` → `nika-cli` subcommands. Per ADR-006 monolithic-kernel-spirit applied across clusters.
 - **Externally-publishable clusters → preserve per-crate granularity** · Connectome satellites (10 crates · ADR-004 publishable standalone on crates.io · external Rust RDF/ML ecosystem value) · provider variants (rig · native · mock · 3 crates · heavy-dep isolation). Per ADR-004 + ADR-042.
 - **Decision rule** · « is there genuine external value to per-crate granularity? » YES → split · NO → collapse. Default is collapse (12-gate ceremony × N crates costs more than module discipline within 1 crate).
-- Max LOC per crate : **15,000** (strict, enforced by xtask/CI)
+- Max LOC per crate : **15,000 prod LOC** (strict · enforced by CI `check-crate-size.sh` · scope = `src/` minus in-file `#[cfg(test)]` regions, `tests/`+`benches/` excluded — the mutation ratchet (≥90% killed) grows test mass by design and must not fight the size budget · semantics locked 2026-06-11 after nika-schema hit 16.2k total / 10.1k prod)
 - Max LOC per file : **1,500** (strict, CI blocks)
 - Max lines per fn : **100** (warning, ≤100 preferred)
 
