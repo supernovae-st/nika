@@ -13,3 +13,9 @@ expression: slugs
 - verb_invoked
 - tool_invoked
 - checkpoint_written
+- task_retrying
+- task_cancelled
+- workflow_cancelled
+- cost_incurred
+- infer_chunk
+- permit_checked

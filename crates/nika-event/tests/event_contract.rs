@@ -222,6 +222,12 @@ fn kind_serializes_as_snake_case() {
 
 #[test]
 fn kind_taxonomy_snapshot() {
+    // SYNC LAW: this list mirrors `src/kind.rs` ALL (the defining-crate
+    // census, compile-forced exhaustive there). An integration test
+    // cannot be compile-forced (`#[non_exhaustive]` requires `_` outside
+    // the crate) — the insta snapshot is the ratchet instead: adding a
+    // kind without extending THIS list leaves the snapshot green but the
+    // count test below red.
     let all = [
         EventKind::WorkflowStarted,
         EventKind::WorkflowCompleted,
@@ -234,6 +240,12 @@ fn kind_taxonomy_snapshot() {
         EventKind::VerbInvoked,
         EventKind::ToolInvoked,
         EventKind::CheckpointWritten,
+        EventKind::TaskRetrying,
+        EventKind::TaskCancelled,
+        EventKind::WorkflowCancelled,
+        EventKind::CostIncurred,
+        EventKind::InferChunk,
+        EventKind::PermitChecked,
     ];
     let slugs: Vec<&str> = all.iter().map(|k| k.as_str()).collect();
     insta::assert_yaml_snapshot!(slugs);
@@ -246,6 +258,8 @@ mod prop {
     use proptest::prelude::*;
 
     fn any_kind() -> impl Strategy<Value = EventKind> {
+        // SYNC LAW: mirrors `src/kind.rs` ALL (17) — see the taxonomy
+        // snapshot note above.
         prop_oneof![
             Just(EventKind::WorkflowStarted),
             Just(EventKind::WorkflowCompleted),
@@ -258,6 +272,12 @@ mod prop {
             Just(EventKind::VerbInvoked),
             Just(EventKind::ToolInvoked),
             Just(EventKind::CheckpointWritten),
+            Just(EventKind::TaskRetrying),
+            Just(EventKind::TaskCancelled),
+            Just(EventKind::WorkflowCancelled),
+            Just(EventKind::CostIncurred),
+            Just(EventKind::InferChunk),
+            Just(EventKind::PermitChecked),
         ]
     }
 
@@ -269,11 +289,14 @@ mod prop {
 
         #[test]
         fn terminal_implies_not_a_task_kind(kind in any_kind()) {
-            // No task-* kind is terminal; only workflow completed/failed are.
+            // No task-* kind is terminal; the workflow outcomes
+            // (completed · failed · cancelled) are the terminal set.
             if kind.is_terminal() {
                 prop_assert!(matches!(
                     kind,
-                    EventKind::WorkflowCompleted | EventKind::WorkflowFailed
+                    EventKind::WorkflowCompleted
+                        | EventKind::WorkflowFailed
+                        | EventKind::WorkflowCancelled
                 ));
             }
         }

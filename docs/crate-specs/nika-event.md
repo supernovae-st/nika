@@ -44,11 +44,18 @@ have disjoint taxonomies. Do not conflate.
     WorkflowStarted, WorkflowCompleted, WorkflowFailed,
     TaskScheduled, TaskStarted, TaskCompleted, TaskFailed, TaskSkipped,
     VerbInvoked, ToolInvoked, CheckpointWritten,
+    // 2026-06-11 cohort (§4bis · additive)
+    TaskRetrying, TaskCancelled, WorkflowCancelled,
+    CostIncurred, InferChunk, PermitChecked,
+}
+#[non_exhaustive] pub enum EventClass {
+    Workflow, Task, Dispatch, Durability, Cost, Stream, Security,
 }
 impl EventKind {
     pub const fn as_str(&self) -> &'static str;   // snake_case wire slug
-    pub const fn is_terminal(&self) -> bool;       // workflow completed/failed
-    pub const fn is_failure(&self) -> bool;        // workflow/task failed
+    pub const fn is_terminal(&self) -> bool;       // completed | failed | cancelled
+    pub const fn is_failure(&self) -> bool;        // failed only — cancelled is NOT
+    pub const fn class(&self) -> EventClass;       // the 7-class coarse partition
 }
 
 // event.rs — consuming builder, all fields pub for downstream projection
