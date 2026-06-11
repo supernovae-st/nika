@@ -27,7 +27,7 @@ use crate::analyzer::{self, AnalyzedWorkflow};
 use crate::error::SchemaError;
 use crate::raw::RawWorkflow;
 
-pub use cost::{CostCeiling, TaskCost};
+pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use permits_fit::CapabilityEscape;
 pub use secrets::SecretLeak;
 
