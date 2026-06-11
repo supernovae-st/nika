@@ -6,8 +6,11 @@
 # Demonstrates ·
 #   - `invoke:` the `nika:fetch` builtin (HTTP + extraction · fetch is a TOOL, not a verb)
 #   - `output:` named jq bindings → `${{ tasks.X.<name> }}`
-#   - `on_error: recover:` · use another task's output when a task fails
+#   - `on_error: recover:` · use another task's output when a task fails ·
+#     the recovery value feeds the SAME output: bindings (shape contract)
 #   - chaining an `invoke:` result into an `infer:` prompt
+#
+# Run · nika run examples/22-fetch-chain.nika.yaml
 nika: v1
 workflow: fetch-chain
 

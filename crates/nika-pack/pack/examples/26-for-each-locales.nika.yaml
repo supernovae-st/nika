@@ -9,6 +9,8 @@
 #   - `max_parallel:` · cap concurrent iterations (tokio::Semaphore · here · 3 in flight)
 #   - `fail_fast: false` · process every locale even if one fails
 #   - the task `.output` is the ARRAY of per-iteration outputs, in input order
+#
+# Run · nika run examples/26-for-each-locales.nika.yaml
 nika: v1
 workflow: for-each-locales
 

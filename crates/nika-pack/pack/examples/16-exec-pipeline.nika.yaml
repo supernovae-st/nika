@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 16 · exec pipeline — shell, conditional gate, guaranteed cleanup.
+# 16 · exec pipeline — shell, conditional gate, cleanup on every outcome.
 #
 # Demonstrates ·
 #   - the `exec:` verb · shell command with `cwd`, `capture: structured`
 #   - `timeout:` · Go-duration string (quoted · "5m") · hard kill incl. retries
 #   - `capture: structured` · .output is { stdout, stderr, exit_code }
 #   - `when:` · CEL conditional gate (only deploy if tests passed)
-#   - `on_finally:` · cleanup tasks that ALWAYS run (success / fail / timeout / cancel)
+#   - `on_finally:` · cleanup on every outcome of a STARTED task (success /
+#     fail / timeout / cancel) — never for a task that never started
+#
+# Run · nika run examples/16-exec-pipeline.nika.yaml
 nika: v1
 workflow: exec-pipeline
 

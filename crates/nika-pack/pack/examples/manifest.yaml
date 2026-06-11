@@ -32,7 +32,7 @@ templates:
   - file: templates/gate-and-act.nika.yaml
     sha256_16: 1d51deb4424f24d6
   - file: templates/human-gated-ship.nika.yaml
-    sha256_16: c8e1bd7f0b0cd294
+    sha256_16: ac56070d9f39677f
 showcase:
   - file: examples/showcase/t1-meeting-actions.nika.yaml
     workflow: meeting-actions
@@ -129,7 +129,7 @@ showcase:
     tier: T3
     description: "glob CVs \u2192 local-model rubric per candidate \u2192 deterministic shortlist"
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: a7b1ae4c65b76389
+    sha256_16: 8028588c35ff1c68
   - file: examples/showcase/t4-ceo-monday-brief.nika.yaml
     workflow: ceo-monday-brief
     tier: T4

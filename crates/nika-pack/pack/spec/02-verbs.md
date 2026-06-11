@@ -136,7 +136,7 @@ Run a shell command. The result is the command's stdout (default) or a structure
 
 | Field | Required | Type | Notes |
 |---|---|---|---|
-| `command` | yes | string | Command to run · may use `${{ ... }}` substitution |
+| `command` | yes | string \| array | **String** → run via the OS shell (`/bin/sh -c`) · pipes/redirects work · the shell blocklist applies. **Array** (`["prog", "arg", …]`) → direct `execve`, **NO shell** · each element substituted independently · the one-obvious-way for any command carrying interpolated or untrusted values (see Security). May use `${{ ... }}`. |
 | `cwd` | no | string | Working directory · default = engine's cwd |
 | `env` | no | object | OS environment variables for **this subprocess** · key→value map |
 | `stdin` | no | string | Stdin data · may use `${{ ... }}` |
@@ -154,16 +154,29 @@ Run a shell command. The result is the command's stdout (default) or a structure
 
 A v0.1-compliant engine MUST ·
 
-- Implement a shell **blocklist** for dangerous commands (see reference impl `nika-policy` for canonical list · 100+ patterns including `rm -rf /` · `chmod 777` · `curl … | sh` · etc.)
+- **Honor the two `command` forms** · a **string** runs through `/bin/sh -c` (the shell-feature path · pipes · redirects); an **array** runs through `execve` with NO shell — `command[0]` is the program, the rest are argv passed verbatim, each element substituted independently.
+- Implement a shell **blocklist** for dangerous commands on the STRING form (see reference impl `nika-policy` for canonical list · 100+ patterns including `rm -rf /` · `chmod 777` · `curl … | sh` · etc.)
 - Reject blocklist matches with a clear error
 - Honor `timeout` with a hard kill (Go-duration string · see 03-dag)
 - Sandbox `cwd` if configured (engine-specific)
+
+> **The argv form is the STRUCTURAL fix for command injection — prefer it.**
+> A `${{ }}`-interpolated value in the STRING form is shell-parsed:
+> `command: "process ${{ item }}"` with `item == "; rm -rf /"` is a classic
+> injection, and the blocklist is a *detector* (best-effort), not a guarantee.
+> The ARRAY form removes the shell entirely — `command: ["process", "${{ item }}"]`
+> passes `item` as ONE argv element no matter what it contains; there is no
+> shell to parse it. **Rule of thumb · any command carrying a task output, a
+> `var`, or any value not authored inline → use the array form.** `nika check`
+> warns (`one-obvious-way`) when an interpolated value lands in a string
+> `command`. The string form stays first-class for genuine shell pipelines
+> (`"cat x | grep y > z"`) — that is what `/bin/sh -c` is for.
 
 ### Conformance
 
 The engine MUST ·
 
-- Run the command via the OS shell (`/bin/sh -c` on Unix · `cmd /c` on Windows, OR a sandboxed equivalent)
+- Run the STRING command via the OS shell (`/bin/sh -c` on Unix · `cmd /c` on Windows, OR a sandboxed equivalent) · run the ARRAY command via `execve` with no shell
 - Capture stdout/stderr as configured
 - Return exit code in `structured` capture mode
 - **Fail the task on non-zero exit** (`NIKA-EXEC-001` · `process_error`) in

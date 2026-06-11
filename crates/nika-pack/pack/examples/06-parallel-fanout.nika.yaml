@@ -12,6 +12,8 @@
 # DAG shape ·   angle ─┐
 #               cost  ─┼─→ synthesize
 #               risk  ─┘
+#
+# Run · nika run examples/06-parallel-fanout.nika.yaml
 nika: v1
 workflow: parallel-fanout
 
