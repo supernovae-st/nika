@@ -153,24 +153,52 @@ never click a guess.
 | 2 | TDD | ✅ | Guard-5 pure core headless-first (B.2) |
 | 3 | IMPL | ✅ | chromiumoxide 0.9.1 · API tarball-verified pre-write (B.3) |
 | 4 | CLIPPY | ✅ | **measured 2026-06-11** workspace `-D warnings` 0 |
-| 5 | MUTATION | ⏳ | re-measuring post-hardening (target ≥90 % + Rule-2 CDP exemption) |
+| 5 | MUTATION ≥ 90% | ✅ | **measured 2026-06-11** `cargo mutants -p nika-browser -- --lib` · 70 mutants · **55/59 viable caught = 93.2 %** · 11 unviable · 4 documented exemptions (`GATE5-EXEMPT` below) |
 | 6 | PROPERTY | ✅ | proptest `guard5_tag_swap_never_verifies` |
 | 7 | BENCHMARKS | ⚪ N/A | CDP round-trip is network/browser-bound (Rule 2) |
 | 8 | DOCS | ✅ | **measured 2026-06-11** cargo doc 0 warnings |
 | 9 | CANARY E2E | ⚪ N/A | L1 effect · `#[ignore]` smoke (real chromium) PASSES |
 | 10 | PARITY | ⚪ N/A | the brouillon `feat/p5-chromium-render` branch is paged out to the private legacy repo · no public parity target |
 | 11 | REVIEW SWARM | ✅ | 3-lens adversarial swarm (28 agents) · 3 P1 + P2s on Guard 5 ALL folded before B.4 (node-identity pin · no failure-downgrade · pure structural gates) |
-| 12 | ATOMIC COMMIT | ⏳ | the admission commit (B.4) |
+| 12 | ATOMIC COMMIT | ✅ | the admission commit (B.4) |
+
+### 7.1 Gate 5 exemption budget (ADR-003 Rule 2 · verified 2026-06-11)
+
+<!-- GATE5-EXEMPT: 4 -->
+
+The pure surface (mappers · URL gate · PNG decode · the 3 Guard-5 gates ·
+`backend_ref` · `bbox_to_rect` boundary · `epoch_now_ns` · `consume`) is
+fully mutation-killed. The four survivors are TRUE residue/equivalents:
+
+1. `<impl Drop>::drop with ()` — aborts the per-session Handler tasks; the
+   effect (no orphan task/child) is only observable with a LIVE session, so
+   the `#[ignore]` real-chromium smoke exercises it, not headless CI.
+2. `dom_snapshot delete - in depth(-1)` — flips the CDP `GetDocument` query
+   from full-tree to depth-1; only a live multi-level DOM distinguishes it
+   (smoke-only).
+3. `<impl Debug for SessionHandle>::fmt` — the cosmetic
+   `finish_non_exhaustive` Debug body; no behavior rides it.
+4. `bbox_to_rect: > with >=` (the `dim` closure's `v > 0.0`) — a TRUE
+   EQUIVALENT: at the only distinguishing input `v == 0.0`, the then-branch
+   computes `0.0.round() as u32 == 0`, identical to the else-branch's `0`,
+   so no test can separate `>` from `>=`.
+
+The first three are CDP-residue (live-browser-only · the planned Rule-2
+exemption); the fourth is a mathematical equivalent. None is a logic gap.
 
 ## 8. Security (ADR-081)
 
 Guard 5 is THE mandatory guard (§5b). Additional posture:
 - `BrowserProfile` never carries credentials — cookie/auth injection is out
   of scope for M2.5 (a future L2 concern with its own consent design).
-- DOM snapshots are UNTRUSTED INPUT: depth-capped (`MAX_DOM_DEPTH`), node
-  text length-capped — a hostile page cannot OOM the agent (the nika-a11y
-  `MAX_WALK_DEPTH` precedent).
-- The chromium child is always `kill_on_drop` — no orphan browsers (#11).
+- DOM snapshots are UNTRUSTED INPUT: bounded on BOTH axes — depth
+  (`MAX_DOM_DEPTH`) caps recursion + a total node budget (`MAX_DOM_NODES`)
+  caps memory, so a hostile tree shape cannot stack-overflow or OOM the
+  agent. (Per-attribute VALUE size is an unbounded residual · follow-up.)
+- The chromium child is always `kill_on_drop` — no orphan browsers (#11);
+  the per-session Handler task is aborted on launch failure + at drop.
+- Guard-5 visibility is GEOMETRIC only — `opacity:0`/`visibility:hidden`/
+  occluded elements pass; hit-test occlusion is a documented follow-up.
 - Headless follows the kernel `BrowserProfile` DTO (its `Default` is
   headful-VISIBLE — the transparency posture, consistent with the Guard-6
   LED-visibility spirit); agent callers opt INTO headless explicitly.
