@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use parking_lot::Mutex;
 
-use nika_kernel::process::{ShellCancel, ShellCommand, ShellError, ShellResult, ShellRun};
+use nika_kernel::process::{ShellCancelDyn, ShellCommand, ShellError, ShellResult, ShellRunDyn};
 
 /// Programmable shell executor for tests.
 ///
@@ -59,7 +59,9 @@ impl MockShell {
     }
 }
 
-impl ShellRun for MockShell {
+// Send-variant canon (uniform across effect impls · the trait_variant
+// blanket hands `ShellRun`/`ShellCancel` back to existing consumers).
+impl ShellRunDyn for MockShell {
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError> {
         self.commands.lock().push(command);
         self.results.lock().pop_front().unwrap_or_else(|| {
@@ -70,7 +72,7 @@ impl ShellRun for MockShell {
     }
 }
 
-impl ShellCancel for MockShell {
+impl ShellCancelDyn for MockShell {
     async fn cancel(&self, id: &str) -> Result<(), ShellError> {
         Err(ShellError::Cancelled { id: id.to_string() })
     }
