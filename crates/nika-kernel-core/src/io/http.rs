@@ -48,7 +48,12 @@ impl std::fmt::Display for HttpMethod {
 }
 
 /// An HTTP request.
-#[derive(Debug, Clone)]
+///
+/// `Debug` is hand-written: credential-bearing header VALUES are redacted
+/// (`authorization` · `x-api-key` · `x-goog-api-key` · `cookie` · …) so a
+/// `{:?}` log of a request can never leak an API key — the zeroize
+/// guarantee on `Secret` would otherwise end at the header map.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct HttpRequest {
     /// HTTP method.
@@ -94,7 +99,10 @@ impl HttpRequest {
 }
 
 /// An HTTP response.
-#[derive(Debug, Clone)]
+///
+/// `Debug` is hand-written: `set-cookie` (and sibling credential headers)
+/// values are redacted — session tokens are credentials too.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct HttpResponse {
     /// HTTP status code.
@@ -159,6 +167,60 @@ impl HttpStreamResponse {
             content_length,
             body,
         }
+    }
+}
+
+/// Header names whose VALUES are redacted in `Debug` output (compared
+/// case-insensitively). Names stay visible — presence is diagnostic signal,
+/// values are credentials.
+const SENSITIVE_HEADERS: [&str; 8] = [
+    "authorization",
+    "proxy-authorization",
+    "x-api-key",
+    "x-goog-api-key",
+    "api-key",
+    "x-auth-token",
+    "cookie",
+    "set-cookie",
+];
+
+fn redacted_headers(headers: &BTreeMap<String, String>) -> BTreeMap<&str, &str> {
+    headers
+        .iter()
+        .map(|(k, v)| {
+            if SENSITIVE_HEADERS.iter().any(|s| k.eq_ignore_ascii_case(s)) {
+                (k.as_str(), "***")
+            } else {
+                (k.as_str(), v.as_str())
+            }
+        })
+        .collect()
+}
+
+impl std::fmt::Debug for HttpRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpRequest")
+            .field("method", &self.method)
+            .field("url", &self.url)
+            .field("headers", &redacted_headers(&self.headers))
+            .field(
+                "body",
+                &self.body.as_ref().map(|b| format!("<{} bytes>", b.len())),
+            )
+            .field("timeout", &self.timeout)
+            .field("follow_redirects", &self.follow_redirects)
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for HttpResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpResponse")
+            .field("status", &self.status)
+            .field("headers", &redacted_headers(&self.headers))
+            .field("body", &format_args!("<{} bytes>", self.body.len()))
+            .field("final_url", &self.final_url)
+            .finish()
     }
 }
 
@@ -383,5 +445,50 @@ mod tests {
     fn http_types_send_sync() {
         _assert_send_sync::<HttpRequest>();
         _assert_send_sync::<HttpResponse>();
+    }
+
+    #[test]
+    fn request_debug_redacts_credential_headers() {
+        let mut req = HttpRequest::post("https://api.example.com/v1");
+        req.headers
+            .insert("authorization".to_owned(), "Bearer sk-LEAK".to_owned());
+        req.headers
+            .insert("X-Api-Key".to_owned(), "sk-ant-LEAK".to_owned());
+        req.headers
+            .insert("x-goog-api-key".to_owned(), "g-LEAK".to_owned());
+        req.headers
+            .insert("content-type".to_owned(), "application/json".to_owned());
+        req.body = Some(Bytes::from_static(b"{\"secret\":\"in-body\"}"));
+
+        let debug = format!("{req:?}");
+        assert!(!debug.contains("sk-LEAK"), "bearer redacted: {debug}");
+        assert!(
+            !debug.contains("sk-ant-LEAK"),
+            "x-api-key redacted (case-insensitive)"
+        );
+        assert!(!debug.contains("g-LEAK"), "goog key redacted");
+        assert!(!debug.contains("in-body"), "body never printed");
+        assert!(debug.contains("authorization"), "header NAMES stay visible");
+        assert!(debug.contains("***"), "redaction marker present");
+        assert!(
+            debug.contains("application/json"),
+            "non-sensitive values stay readable"
+        );
+        assert!(
+            debug.contains("<20 bytes>"),
+            "body shows size only: {debug}"
+        );
+    }
+
+    #[test]
+    fn response_debug_redacts_set_cookie() {
+        let mut headers = BTreeMap::new();
+        headers.insert("set-cookie".to_owned(), "session=TOKEN-LEAK".to_owned());
+        headers.insert("content-length".to_owned(), "2".to_owned());
+        let resp = HttpResponse::new(200, headers, Bytes::from_static(b"ok"), "https://e.com");
+        let debug = format!("{resp:?}");
+        assert!(!debug.contains("TOKEN-LEAK"), "{debug}");
+        assert!(debug.contains("set-cookie"));
+        assert!(debug.contains("content-length"));
     }
 }
