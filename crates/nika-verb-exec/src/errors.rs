@@ -1,0 +1,171 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! `VerbExecError` — the `exec` verb error surface (NIKA-440..442).
+//!
+//! Constants are registry-owned in `nika_error::codes`; the spec-level
+//! rows are `NIKA-EXEC-001/002` (`nika-spec spec/05-errors.md`) — 440
+//! maps to 001 (non-zero exit), 441 maps to 002 (spawn/shell failure).
+
+use nika_error::codes::{self, NikaCode};
+use nika_error::traits::NikaErrorCode;
+use nika_kernel::process::ShellError;
+
+/// How much trailing stderr the non-zero-exit error carries.
+const STDERR_TAIL_CAP: usize = 1024;
+
+/// Errors from the `exec` verb executor.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum VerbExecError {
+    /// The command exited non-zero in a default capture mode
+    /// (`capture: structured` returns the exit code as data instead).
+    #[error("command exited with status {status}: {stderr_tail}")]
+    #[diagnostic(code(nika::verb::exec_non_zero_exit))]
+    NonZeroExit {
+        /// Process exit code.
+        status: i32,
+        /// Tail of captured stderr (capped · diagnostic context).
+        stderr_tail: String,
+    },
+
+    /// Shell execution failed (spawn · blocklist · timeout · cancel).
+    #[error("shell execution failed: {source}")]
+    #[diagnostic(code(nika::verb::exec_shell_failure))]
+    Shell {
+        /// The underlying kernel shell error.
+        #[source]
+        source: ShellError,
+    },
+
+    /// An `exec` parameter is invalid (empty command).
+    #[error("invalid `exec` parameter `{param}`: {detail}")]
+    #[diagnostic(code(nika::verb::exec_invalid_param))]
+    InvalidParam {
+        /// Which parameter failed validation.
+        param: &'static str,
+        /// Why it failed.
+        detail: String,
+    },
+}
+
+impl VerbExecError {
+    /// Build the non-zero-exit error with the stderr tail capped.
+    pub(crate) fn non_zero(status: i32, stderr: &str) -> Self {
+        let tail = if stderr.len() > STDERR_TAIL_CAP {
+            let mut start = stderr.len() - STDERR_TAIL_CAP;
+            while !stderr.is_char_boundary(start) {
+                start += 1;
+            }
+            format!("…{}", &stderr[start..])
+        } else {
+            stderr.to_owned()
+        };
+        Self::NonZeroExit {
+            status,
+            stderr_tail: tail,
+        }
+    }
+}
+
+impl NikaErrorCode for VerbExecError {
+    fn nika_code(&self) -> NikaCode {
+        match self {
+            Self::NonZeroExit { .. } => codes::NIKA_440,
+            Self::Shell { .. } => codes::NIKA_441,
+            Self::InvalidParam { .. } => codes::NIKA_442,
+        }
+    }
+
+    fn is_transient(&self) -> bool {
+        match self {
+            // A non-zero exit is the command's verdict — rerunning the same
+            // command is workflow policy (`retry:`), not error transience.
+            Self::NonZeroExit { .. } | Self::InvalidParam { .. } => false,
+            // Inherit the runner's classification (timeout transient · spawn
+            // and blocklist terminal).
+            Self::Shell { source } => source.is_transient(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn codes_match_the_registry() {
+        let cases: Vec<(VerbExecError, NikaCode)> = vec![
+            (VerbExecError::non_zero(2, "boom"), codes::NIKA_440),
+            (
+                VerbExecError::Shell {
+                    source: ShellError::Other {
+                        reason: "x".to_owned(),
+                    },
+                },
+                codes::NIKA_441,
+            ),
+            (
+                VerbExecError::InvalidParam {
+                    param: "command",
+                    detail: "empty".to_owned(),
+                },
+                codes::NIKA_442,
+            ),
+        ];
+        for (err, expected) in cases {
+            assert_eq!(err.nika_code(), expected, "{err}");
+            assert_eq!(codes::lookup(&expected.to_string()), Some(expected));
+        }
+    }
+
+    #[test]
+    fn stderr_tail_is_capped_on_char_boundary() {
+        let long = format!("{}é-fin", "x".repeat(2000));
+        let err = VerbExecError::non_zero(1, &long);
+        match err {
+            VerbExecError::NonZeroExit { stderr_tail, .. } => {
+                assert!(stderr_tail.len() <= STDERR_TAIL_CAP + '…'.len_utf8());
+                assert!(stderr_tail.starts_with('…'));
+                assert!(stderr_tail.ends_with("é-fin"));
+            }
+            other => panic!("expected NonZeroExit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn short_stderr_passes_through_untouched() {
+        let err = VerbExecError::non_zero(1, "just this");
+        match err {
+            VerbExecError::NonZeroExit { stderr_tail, .. } => {
+                assert_eq!(stderr_tail, "just this");
+            }
+            other => panic!("expected NonZeroExit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn transience_classification() {
+        assert!(!VerbExecError::non_zero(1, "").is_transient());
+        assert!(
+            !VerbExecError::InvalidParam {
+                param: "command",
+                detail: String::new(),
+            }
+            .is_transient()
+        );
+        // Shell transience is inherited from the kernel error, both branches.
+        let timeout = || ShellError::Timeout { duration_ms: 5000 };
+        let other = || ShellError::Other {
+            reason: "spawn".to_owned(),
+        };
+        assert_eq!(
+            VerbExecError::Shell { source: timeout() }.is_transient(),
+            timeout().is_transient()
+        );
+        assert_eq!(
+            VerbExecError::Shell { source: other() }.is_transient(),
+            other().is_transient()
+        );
+    }
+}

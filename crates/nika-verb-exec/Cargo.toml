@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name          = "nika-verb-exec"
+description   = "The `exec` verb executor (L2) — shell command execution per nika-spec 02-verbs.md. Rides the kernel ShellRunDyn seam (effect injected · pre_validated never set · the runner blocklist stays the floor) and owns the capture one-obvious-way split: default modes fail on non-zero exit, structured returns the exit code as data."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L2 verb crate.
+
+[dependencies]
+nika-error  = { path = "../nika-error", version = "0.80.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+miette      = { workspace = true }
+thiserror   = { workspace = true }
+
+[dev-dependencies]
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.80.0" }
+proptest = { workspace = true }
+tokio    = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "kodama-forgeron"
+spirit_role   = "deuxième des quatre verbes · la commande passée au gardien des processus · l'issue rendue telle quelle ou jugée"
+voice_pattern = "silent"
+layer         = "L2"
+err_prefix    = "NIKA-44x"
+
+[lints]
+workspace = true

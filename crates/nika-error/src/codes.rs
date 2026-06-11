@@ -329,6 +329,27 @@ pub const NIKA_433: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "infer-model-resolution",
 };
+/// NIKA-440: Command exited non-zero in a default capture mode.
+pub const NIKA_440: NikaCode = NikaCode {
+    num: 440,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "exec-non-zero-exit",
+};
+/// NIKA-441: Shell execution failed (spawn · blocklist · timeout).
+pub const NIKA_441: NikaCode = NikaCode {
+    num: 441,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "exec-shell-failure",
+};
+/// NIKA-442: Invalid `exec` parameter (empty command).
+pub const NIKA_442: NikaCode = NikaCode {
+    num: 442,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "exec-invalid-param",
+};
 
 /// NIKA-999: Internal error (catch-all).
 pub const NIKA_999: NikaCode = NikaCode {
@@ -642,12 +663,13 @@ pub const NIKA_1406: NikaCode = NikaCode {
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604,
-    NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004,
-    NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103,
-    NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202,
-    NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304,
-    NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
+    NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_600, NIKA_601,
+    NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001,
+    NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009,
+    NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108,
+    NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301,
+    NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404,
+    NIKA_1405, NIKA_1406,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -705,6 +727,13 @@ pub fn code_help(code: NikaCode) -> &'static str {
         433 => {
             "The `model:` string did not resolve. Use `provider/model` with a provider from the canonical catalog and ensure its API key is configured."
         }
+        440 => {
+            "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
+        }
+        441 => {
+            "Shell execution failed before or during the run. Check the command exists, is not blocklisted, and completes within the timeout."
+        }
+        442 => "An `exec` parameter is invalid. Command must be a non-empty string.",
         434..=479 => {
             "Verb execution failed. Check the task definition against the spec for this verb."
         }
@@ -764,10 +793,12 @@ mod tests {
 
     #[test]
     fn verb_codes_have_their_category_and_range() {
-        // Verb 430-479 · s9 nika-verb-infer claims 430-439.
-        for c in [NIKA_430, NIKA_431, NIKA_432, NIKA_433] {
+        // Verb 430-479 · s9 infer claims 430-439 · s10 exec claims 440-449.
+        for c in [
+            NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442,
+        ] {
             assert_eq!(c.category, Category::Verb, "{c}");
-            assert!((430..=439).contains(&c.num), "{c}");
+            assert!((430..=449).contains(&c.num), "{c}");
             assert_eq!(lookup(&c.to_string()), Some(c), "{c} resolvable");
             assert!(!code_help(c).is_empty(), "{c} has help");
         }

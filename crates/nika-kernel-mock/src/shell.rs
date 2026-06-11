@@ -45,6 +45,13 @@ impl MockShell {
         self
     }
 
+    /// Enqueue a full result (both streams · any exit code).
+    #[must_use]
+    pub fn enqueue_result(self, result: ShellResult) -> Self {
+        self.results.lock().push_back(Ok(result));
+        self
+    }
+
     /// Enqueue an error.
     #[must_use]
     pub fn enqueue_err(self, error: ShellError) -> Self {

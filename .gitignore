@@ -54,8 +54,8 @@ Cargo.lock.bak
 /crates/nika-serve/
 /crates/nika-storage/
 /crates/nika-vault/
-# /crates/nika-verb-infer/  -- s9 L2 crate (WIP scaffold 2026-06-11)
-/crates/nika-verb-exec/
+# /crates/nika-verb-infer/  -- s9 L2 crate (ADMITTED 2026-06-11)
+# /crates/nika-verb-exec/   -- s10 L2 crate (WIP scaffold 2026-06-11)
 /crates/nika-verb-fetch/
 /crates/nika-verb-invoke/
 /crates/nika/
