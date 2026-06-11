@@ -297,6 +297,39 @@ pub const NIKA_800: NikaCode = NikaCode {
     slug: "observability",
 };
 
+// ─── Verb codes · 430-479 (s9 nika-verb-infer claims 430-439 · consumed
+// by the verb-crate NikaErrorCode impls · same registry-owned pattern as
+// the M2 computer-use ranges below) ─────────────────────────────────────
+
+/// NIKA-430: Provider call failed during `infer` verb execution.
+pub const NIKA_430: NikaCode = NikaCode {
+    num: 430,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "infer-provider-call",
+};
+/// NIKA-431: Structured output failed schema validation after retries.
+pub const NIKA_431: NikaCode = NikaCode {
+    num: 431,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "infer-schema-validation",
+};
+/// NIKA-432: Invalid `infer` parameter (empty prompt · temperature out of 0-2).
+pub const NIKA_432: NikaCode = NikaCode {
+    num: 432,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "infer-invalid-param",
+};
+/// NIKA-433: Model string failed to resolve to a provider profile.
+pub const NIKA_433: NikaCode = NikaCode {
+    num: 433,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "infer-model-resolution",
+};
+
 /// NIKA-999: Internal error (catch-all).
 pub const NIKA_999: NikaCode = NikaCode {
     num: 999,
@@ -599,21 +632,22 @@ pub const NIKA_1406: NikaCode = NikaCode {
 /// `lookup()` + `code_help()` resolve them).
 ///
 /// **Scope**: other downstream-owned codes (nika-kernel siblings,
-/// nika-runtime, nika-verb-*, etc.) are NOT enumerated here. `lookup()`
-/// therefore returns None for codes outside this registry — see
-/// Audit-1 P0-1 (2026-04-16).
+/// nika-runtime, etc.) are NOT enumerated here. `lookup()` therefore
+/// returns None for codes outside this registry — see Audit-1 P0-1
+/// (2026-04-16). Verb codes (430-479) joined the registry-owned set
+/// with s9 `nika-verb-infer` (same pattern as the M2 ranges).
 ///
 /// A workspace-level registry crate would unify all codes, but landing
 /// it requires settling the cross-crate registry pattern (Phase D
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999,
-    NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007,
-    NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106,
-    NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205,
-    NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402,
-    NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
+    NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604,
+    NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004,
+    NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103,
+    NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202,
+    NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304,
+    NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
 ];
 
 /// Returns an actionable help message for a given code.
@@ -658,6 +692,21 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         380..=429 => {
             "Shield security policy blocked the operation. Check trust levels, capability grants, and injection/canary guards."
+        }
+        430 => {
+            "The provider call failed during `infer`. Check the provider error chained below (credentials, rate limits, connectivity)."
+        }
+        431 => {
+            "The model output never satisfied the task `schema:` within the retry budget. Simplify the schema, raise max_tokens, or pick a schema-capable model."
+        }
+        432 => {
+            "An `infer` parameter is invalid. Prompt must be non-empty; temperature must be within 0-2."
+        }
+        433 => {
+            "The `model:` string did not resolve. Use `provider/model` with a provider from the canonical catalog and ensure its API key is configured."
+        }
+        434..=479 => {
+            "Verb execution failed. Check the task definition against the spec for this verb."
         }
         601 => {
             "Memory store unavailable. Verify the configured backend (Oxigraph / RocksDB / runtime) is initialised and reachable."
@@ -712,6 +761,17 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn verb_codes_have_their_category_and_range() {
+        // Verb 430-479 · s9 nika-verb-infer claims 430-439.
+        for c in [NIKA_430, NIKA_431, NIKA_432, NIKA_433] {
+            assert_eq!(c.category, Category::Verb, "{c}");
+            assert!((430..=439).contains(&c.num), "{c}");
+            assert_eq!(lookup(&c.to_string()), Some(c), "{c} resolvable");
+            assert!(!code_help(c).is_empty(), "{c} has help");
+        }
+    }
 
     #[test]
     fn computer_use_codes_have_their_categories() {
