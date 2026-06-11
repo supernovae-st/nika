@@ -21,11 +21,33 @@
 
 use std::process::ExitCode;
 
-use nika_schema::{FileId, ParseMode, check, parse};
+use nika_schema::{FileId, ParseMode, check, infer_permits, parse};
 
 fn main() -> ExitCode {
-    let Some(path) = std::env::args().nth(1) else {
-        eprintln!("usage: check <workflow.nika.yaml>");
+    // `--infer-permits` synthesizes the tightest boundary instead of
+    // checking. Unknown flags are REJECTED — a typo'd mode flag silently
+    // degrading to a plain check (exit 0) would let an operator ship a
+    // check report as their permits file.
+    let mut infer_mode = false;
+    let mut path: Option<String> = None;
+    for arg in std::env::args().skip(1) {
+        match arg.as_str() {
+            "--infer-permits" => infer_mode = true,
+            flag if flag.starts_with("--") => {
+                eprintln!("unknown flag `{flag}`");
+                eprintln!("usage: check [--infer-permits] <workflow.nika.yaml>");
+                return ExitCode::from(2);
+            }
+            _ if path.is_some() => {
+                eprintln!("expected exactly one workflow path");
+                eprintln!("usage: check [--infer-permits] <workflow.nika.yaml>");
+                return ExitCode::from(2);
+            }
+            _ => path = Some(arg),
+        }
+    }
+    let Some(path) = path else {
+        eprintln!("usage: check [--infer-permits] <workflow.nika.yaml>");
         return ExitCode::from(2);
     };
     let yaml = match std::fs::read_to_string(&path) {
@@ -43,6 +65,19 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    // ── --infer-permits · write the boundary FOR the operator ───────
+    if infer_mode {
+        let inferred = infer_permits(&wf);
+        print!("{}", inferred.to_yaml());
+        if !inferred.notes.is_empty() {
+            println!("\n# review — effects too dynamic to pin statically:");
+            for note in &inferred.notes {
+                println!("#   · {note}");
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
 
     let report = match check(&wf) {
         Ok(r) => r,

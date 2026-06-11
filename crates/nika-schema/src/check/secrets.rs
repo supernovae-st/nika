@@ -47,7 +47,9 @@ pub struct SecretEgress {
     pub trace: String,
 }
 
-/// Report every effect-leak from the precomputed flow facts.
+/// Report every effect-leak from the precomputed flow facts — main verbs
+/// AND `on_finally` cleanup verbs (the trace's `on_finally @ <task>` hop
+/// distinguishes the cleanup case).
 #[must_use]
 pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> {
     let mut leaks = Vec::new();
@@ -63,6 +65,14 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                     // provider-bound) — this arm is unreachable in practice.
                     RawAction::Infer(_) | RawAction::Agent(_) => "effect",
                 },
+                trace: trace.render(),
+            });
+        }
+        if let Some((trace, sink)) = flow.finally_effect_taint(idx) {
+            leaks.push(SecretLeak {
+                task: task.value.id.value.clone(),
+                secret: trace.secret.clone(),
+                sink,
                 trace: trace.render(),
             });
         }
@@ -166,6 +176,17 @@ secrets:
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
         assert!(l[0].trace.contains("with.tok"), "trace: {}", l[0].trace);
+    }
+
+    #[test]
+    fn secret_into_on_finally_cleanup_leaks() {
+        let yaml = format!(
+            "nika: v1\nworkflow: w\n{SECRETS}tasks:\n  - id: t\n    exec: {{ command: \"echo build\" }}\n    on_finally:\n      - invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
+        );
+        let l = leaks_of(&yaml);
+        assert_eq!(l.len(), 1, "the cleanup leak is reported");
+        assert_eq!(l[0].sink, "invoke");
+        assert!(l[0].trace.contains("on_finally"), "trace: {}", l[0].trace);
     }
 
     #[test]

@@ -29,6 +29,7 @@
 
 mod cost;
 mod flow;
+mod infer_permits;
 mod permits_fit;
 mod secrets;
 
@@ -38,6 +39,7 @@ use crate::raw::RawWorkflow;
 
 pub use cost::{CostCeiling, TaskCost, UnboundedReason};
 pub use flow::{FlowFacts, TaintTrace};
+pub use infer_permits::InferredPermits;
 pub use permits_fit::CapabilityEscape;
 pub use secrets::{SecretEgress, SecretLeak};
 
@@ -95,6 +97,20 @@ pub fn check(wf: &RawWorkflow) -> Result<CheckReport, Vec<SchemaError>> {
         capability_escapes: permits_fit::scan_escapes(wf),
         waves: topo_waves,
     })
+}
+
+/// Infer the TIGHTEST `permits:` block the workflow actually needs —
+/// capability inference (ADR-092 #2). Walks every task's literal effect
+/// signature and synthesizes the minimal capability set; dynamic effects
+/// (`${{ }}`-built paths/hosts/programs) widen their category and are
+/// reported as honesty notes rather than silently dropped.
+///
+/// Unlike [`check`], this is pure synthesis — it never fails (a workflow
+/// that does not analyze still has an inferable effect surface), so it
+/// takes the parsed [`RawWorkflow`] and always returns a result.
+#[must_use]
+pub fn infer_permits(wf: &RawWorkflow) -> InferredPermits {
+    infer_permits::infer(wf)
 }
 
 #[cfg(test)]

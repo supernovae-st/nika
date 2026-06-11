@@ -79,9 +79,9 @@ The ranked roadmap (the rest of the ladder · sequenced, not vapor):
 
 | # | Capability | Research basis | Moat | Status |
 |---|---|---|---|---|
-| 1 | **IFC taint-trace** (non-interference) | Denning 1976 · Jif · FlowCaml · LIO | ⭐⭐⭐ | shipping w/ this ADR |
-| 2 | **Capability inference** (`--infer-permits`) | E-lang object-capabilities · Koka effects | ⭐⭐⭐ | shipping w/ this ADR |
-| 3 | **Unified FlowFacts IR** | rust-analyzer HIR · single annotated pass | ⭐⭐ (enabler) | shipping w/ this ADR (taint slice) |
+| 1 | **IFC taint-trace** (non-interference) | Denning 1976 · Jif · FlowCaml · LIO | ⭐⭐⭐ | ✅ shipped (`check/flow.rs`) |
+| 2 | **Capability inference** (`--infer-permits`) | E-lang object-capabilities · Koka effects | ⭐⭐⭐ | ✅ shipped (`check/infer_permits.rs`) |
+| 3 | **Unified FlowFacts IR** | rust-analyzer HIR · single annotated pass | ⭐⭐ (enabler) | ✅ shipped (taint slice) |
 | 4 | **Dataflow schema typing** — `${{ tasks.A.output.field }}` type-checked transitively vs A's schema | bidirectional type inference | ⭐⭐⭐ | next |
 | 5 | **Symbolic cost intervals** — `[min,max]` over retry/agent-turns/`when:` branches; input-token bounds | RAML (Hoffmann) · WCET | ⭐⭐ | roadmap |
 | 6 | **SMT reachability** — dead-task / mutual-exclusion / empty-`for_each` via Z3 over `when:` | symbolic execution · Z3/CVC5 | ⭐⭐ | roadmap |
@@ -127,9 +127,15 @@ design, not a leak; the model response is not a verbatim echo).
 ## Evidence / Affected code
 
 - `crates/nika-schema/src/check/` -- the shipped `nika check` (mod/cost/secrets/permits_fit)
-- `crates/nika-schema/src/check/flow.rs` -- the IFC engine (this ADR)
+- `crates/nika-schema/src/check/flow.rs` -- the IFC engine (this ADR · ladder #1+#3)
+- `crates/nika-schema/src/check/infer_permits.rs` -- capability inference (ladder #2 ·
+  `infer_permits()` + `InferredPermits::to_yaml()` · sound-by-honesty notes ·
+  round-trip property: the inferred block re-checks clean)
+- `crates/nika-schema/src/check/permits_fit.rs` -- `static_program` (shared exec-program
+  extraction · fixed the dynamic-argv[0] false positive both sides)
 - `crates/nika-schema/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
 - `crates/nika-schema/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
+- `crates/nika-schema/examples/check.rs` -- `--infer-permits` runnable surface
 - Commit `9a0c20510` -- the review that exposed the one-hop + N-walks ceiling
 - `docs/crate-specs/nika-schema.md` §11bis -- the shipped surface + honest gaps
 
