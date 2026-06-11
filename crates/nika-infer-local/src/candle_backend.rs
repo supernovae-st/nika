@@ -48,6 +48,11 @@ use crate::template::ChatFamily;
 /// same spirit as the exec-runner output cap).
 const DEFAULT_MAX_TOKENS: u32 = 1024;
 
+/// The GGUF `general.architecture` this loader's `ModelWeights` can read.
+/// `load_qwen3` uses `quantized_qwen3`, which parses the `qwen3.*` metadata
+/// namespace — a different arch must go through its own family loader.
+const SUPPORTED_ARCH: &str = "qwen3";
+
 /// The candle-backed local backend (Qwen3 GGUF · v1 family scope).
 ///
 /// Owns the loaded model + tokenizer behind a `Mutex`: candle's quantized
@@ -58,6 +63,11 @@ pub struct CandleBackend {
     eos_ids: Vec<u32>,
     family: ChatFamily,
     model_id: String,
+    /// The device the model lives on — captured ONCE at load. Re-acquiring it
+    /// per request (Metal `Device::new_metal(0)`) is a real cost + a cross-
+    /// device-handle risk vs the model's tensors (review P2). `Device` is
+    /// cheap to clone (an `Arc` on GPU backends · a unit on CPU).
+    device: Device,
     /// The model's context window (tokens) read from the GGUF metadata —
     /// the cap a rendered prompt must not exceed (else `ContextOverflow`,
     /// instead of candle producing garbage / failing cryptically deep in
@@ -96,12 +106,36 @@ impl CandleBackend {
             gguf_file::Content::read(&mut file).map_err(|e| InferLocalError::Backend {
                 reason: format!("GGUF parse failed: {e}"),
             })?;
-        // Read the context window BEFORE `content` moves into from_gguf.
+        // The GGUF declares its own architecture (`general.architecture`); the
+        // per-arch metadata namespace (`<arch>.context_length`, etc.) and the
+        // model struct that can read it both derive from it. We VALIDATE it
+        // matches what this loader's `ModelWeights` understands — handing a
+        // llama/phi GGUF to the qwen3 loader otherwise fails cryptically deep
+        // in from_gguf (a missing `qwen3.*` key). One canonical source, no
+        // hardcoded prefix string.
+        let arch = content
+            .metadata
+            .get("general.architecture")
+            .and_then(|v| v.to_string().ok())
+            .map(String::as_str)
+            .ok_or_else(|| InferLocalError::Backend {
+                reason: "GGUF lacks general.architecture metadata".to_owned(),
+            })?
+            .to_owned();
+        if arch != SUPPORTED_ARCH {
+            return Err(InferLocalError::Backend {
+                reason: format!(
+                    "this loader handles `{SUPPORTED_ARCH}` GGUFs · got `{arch}` \
+                     (load via the matching family loader)"
+                ),
+            });
+        }
+        // Context window from the arch-derived key (BEFORE `content` moves).
         // Absent key → usize::MAX (degrade open · a missing hint must not
-        // block the load — the check simply never fires then).
+        // block the load — the overflow check simply never fires then).
         let context_window = content
             .metadata
-            .get("qwen3.context_length")
+            .get(&format!("{arch}.context_length"))
             .and_then(|v| v.to_u32().ok())
             .map_or(usize::MAX, |v| v as usize);
         let model = Qwen3::from_gguf(content, &mut file, &device).map_err(|e| {
@@ -135,6 +169,7 @@ impl CandleBackend {
             family: ChatFamily::Qwen,
             model_id: model_id.into(),
             context_window,
+            device,
         })
     }
 
@@ -221,6 +256,7 @@ impl CandleBackend {
 
         let (generated, finish) = decode_loop(
             &mut state,
+            &self.device,
             &mut logits_processor,
             &cfg,
             &stop,
@@ -239,6 +275,12 @@ impl CandleBackend {
             text.truncate(keep); // trim_stop returns a prefix — truncate in place
         }
 
+        // completion_tokens = tokens the model GENERATED this turn ("work
+        // done" semantics, the standard definition). When a stop string is
+        // matched its tokens are counted (the model did produce them) but
+        // trimmed from the text per the OpenAI contract — a deliberate, small
+        // text-vs-count asymmetry, not an over-count bug (review P2). EOS is
+        // popped (a control token, never "generated content").
         let completion = u32::try_from(generated.len()).unwrap_or(u32::MAX);
         let prompt_n = u32::try_from(prompt_tokens.len()).unwrap_or(u32::MAX);
         Ok(ChatResponse::single(
@@ -258,7 +300,14 @@ impl CandleBackend {
 fn backend_err(what: &str, e: impl std::fmt::Display) -> InferLocalError {
     let msg = e.to_string();
     let lower = msg.to_lowercase();
-    if lower.contains("out of memory") || lower.contains("allocation") || lower.contains("oom") {
+    // Phrase matches only — a bare "oom" substring false-positives on common
+    // words/identifiers (bloom · room · a layer name · review P1), and a bare
+    // "allocation" hits descriptive prose. Match the actual failure phrasings.
+    let is_oom = lower.contains("out of memory")
+        || lower.contains("cannot allocate")
+        || lower.contains("failed to allocate")
+        || lower.contains("allocation failed");
+    if is_oom {
         return InferLocalError::OutOfMemory {
             reason: format!("{what}: {msg}"),
         };
@@ -294,16 +343,15 @@ fn sample_next(
 /// model; the offset is the ENTIRE cache contract).
 fn decode_loop(
     state: &mut ModelState,
+    device: &Device,
     logits_processor: &mut LogitsProcessor,
     cfg: &SamplingConfig,
     stop: &StopController,
     prompt_tokens: &[u32],
     max_tokens: usize,
 ) -> Result<(Vec<u32>, FinishReason), InferLocalError> {
-    let device = CandleBackend::pick_device();
-
     // ── prefill: the whole prompt at offset 0 ──
-    let input = Tensor::new(prompt_tokens, &device)
+    let input = Tensor::new(prompt_tokens, device)
         .and_then(|t| t.unsqueeze(0))
         .map_err(|e| backend_err("prefill tensor", e))?;
     let logits = state
@@ -318,11 +366,15 @@ fn decode_loop(
     let has_stops = stop.has_stop_strings();
     // Per-step stop matching needs only the text TAIL as long as the longest
     // stop string — decode a bounded token suffix instead of the whole buffer
-    // (O(window) per step, not O(n²) over a long generation). ~4 tokens of
-    // slack absorb multi-byte/multi-token boundary effects; a stop string
-    // straddling beyond that window is caught by the final full-text check.
+    // (O(window) per step, not O(n²) over a long generation). CONSERVATIVE
+    // bound: a B-byte stop string spans AT MOST B tokens (every token decodes
+    // to ≥1 byte), so `max_stop_len` tokens always contains the full stop when
+    // it lands at the tail; +4 slack covers a token straddling the window edge.
+    // (The earlier `/2` assumed ~2 bytes/token and could miss a stop that
+    // tokenizes ~1 byte/token · review P1.) The final full-text check remains
+    // a backstop, but this window now catches the stop the step it completes.
     let stop_tail_tokens = if has_stops {
-        stop.max_stop_len().div_ceil(2) + 4
+        stop.max_stop_len() + 4
     } else {
         0
     };
@@ -332,13 +384,15 @@ fn decode_loop(
             return Ok((generated, FinishReason::Stop));
         }
         // Stop-string check on the decoded TAIL (string-level — safe across
-        // tokenizations; only when the request declared stops).
+        // tokenizations; only when the request declared stops). A tail-decode
+        // failure aborts cleanly (a tokenizer that can't decode what the model
+        // produced is a real error, not a silent skip · review P2).
         if has_stops {
             let from = generated.len().saturating_sub(stop_tail_tokens);
             let tail = state
                 .tokenizer
                 .decode(&generated[from..], /*skip_special_tokens=*/ true)
-                .unwrap_or_default();
+                .map_err(|e| backend_err("tail decode", e))?;
             if stop.hit_stop_string(&tail) {
                 return Ok((generated, FinishReason::Stop));
             }
@@ -347,7 +401,7 @@ fn decode_loop(
             break;
         }
 
-        let input = Tensor::new(&[next], &device)
+        let input = Tensor::new(&[next], device)
             .and_then(|t| t.unsqueeze(0))
             .map_err(|e| backend_err("decode tensor", e))?;
         let mut logits = state
@@ -370,7 +424,7 @@ fn decode_loop(
             if let Some(n) = cfg.top_n_sigma {
                 apply_top_n_sigma(&mut raw, n);
             }
-            logits = Tensor::new(raw, &device).map_err(|e| backend_err("logits rebuild", e))?;
+            logits = Tensor::new(raw, device).map_err(|e| backend_err("logits rebuild", e))?;
         }
 
         next = sample_next(logits_processor, &logits, cfg.min_p)?;

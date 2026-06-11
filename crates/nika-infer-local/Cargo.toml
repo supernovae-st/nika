@@ -35,6 +35,11 @@ metal       = ["local-infer", "candle-core/metal"]
 tokio    = { workspace = true }
 serde_json = { workspace = true }
 proptest = { workspace = true }   # property tests for the logits/sampling algorithms
+criterion = { workspace = true }  # gate-7 bench · decode-loop per-token overhead
+
+[[bench]]
+name = "logits_bench"
+harness = false
 
 [package.metadata.lore]
 daemon        = "forgeron"

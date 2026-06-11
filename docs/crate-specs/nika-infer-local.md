@@ -32,22 +32,34 @@ Behind `local-infer` (off by default → the lean core never links candle).
 Deps: `candle-core` · `candle-transformers` · `tokenizers` · `tokio`
 (+ `candle-core/metal` under a `metal` sub-feature · `cuda` flagged later).
 
-**The generation loop** (canonical candle quantized path):
+**The generation loop** (canonical candle quantized path · AS BUILT):
 
 ```text
-load   · gguf_file::Content::read(&mut file) → Qwen2::from_gguf(content, &mut file, &device)
-         tokenizer from tokenizer.json (HF `tokenizers` crate)
-prefill· model.forward(&prompt_tokens, /*index_pos*/ 0)  → logits for last pos
-         (KV-cache lives INSIDE the model · &mut self · index_pos threads position)
+load   · gguf_file::Content::read(&mut file)
+         → context_window from metadata "qwen3.context_length" (BEFORE the move ·
+           absent key degrades OPEN to usize::MAX)
+         → Qwen3::from_gguf(content, &mut file, &device)
+         tokenizer from tokenizer.json (HF `tokenizers`) · EOS = the SET
+         {<|im_end|>, <|endoftext|>} (dual-EOS guard)
+guard  · prompt_tokens.len() >= context_window → ContextOverflow (BEFORE prefill ·
+         `>=` keeps one slot for a generated token)
+prefill· clear_kv_cache() (MANDATORY between requests) →
+         model.forward(&prompt_tokens, /*offset*/ 0) → sample_next
 decode · loop:
-           logits = model.forward(&[next_token], index_pos)
-           logits = apply_repeat_penalty(logits, penalty, &recent[..repeat_last_n])?  // opt
-           next   = logits_processor.sample(&logits)?
-           index_pos += 1
-           halt on: next == eos_token  ·  decoded text ends with a stop sequence
-                    ·  generated >= max_tokens (→ FinishReason::Length)
-sample · LogitsProcessor::from_sampling(seed, Sampling::TopKThenTopP{k,p,temperature})
-         seed is REQUIRED (deterministic golden tests · ADR-091 SOTA invariant)
+           halt on: EOS-set hit (token popped) · stop-string on the decoded TAIL
+                    (bounded window = max_stop_len/2 + 4 tokens · O(window)/step)
+                    · generated >= max_tokens (→ FinishReason::Length)
+           logits = model.forward(&[next], prompt_len + index)
+           pre-softmax (one to_vec1 round-trip when active):
+             apply_repeat_penalty(…, penalty, recent[..repeat_last_n])   // opt
+             apply_top_n_sigma(…, n)            // opt · arXiv:2411.07641
+           next = sample_next(lp, logits, min_p)
+sample · sample_next = lp.sample_f(|prs| apply_min_p(prs, p)) when min_p set
+         (post-softmax hook · candle skips it on ArgMax — greedy needs no
+         truncation) · else lp.sample · LogitsProcessor::from_sampling(seed, …)
+         seed REQUIRED (deterministic golden tests · ADR-091 SOTA invariant)
+errors · OOM message-classified to OutOfMemory · Timeout reserved to the
+         SERVER layer (the sync loop has no preemption point)
 ```
 
 Device: `Device::Cpu` / `Device::new_metal(0)` — abstracted, so CUDA is a
@@ -109,11 +121,11 @@ is the real containment.
 | 4 CLIPPY 0 | ✅ both feature axes (default + `local-infer`) |
 | 5 MUTATION ≥90% | ✅ pure surface ~99% (87/111 caught · every pure survivor killed 2026-06-11) · 21 remaining missed = `candle_backend.rs` **model-gated exemption** (only exercisable by the real-GGUF e2e, which the mutants harness cannot run — same class as nika-ocr's Rule-2 inference exemption) |
 | 6 PROPERTY | ✅ protocol round-trip · min-p (keeps-max + floor) · top-nσ (temperature-invariance + keeps-max) · token-mask (exact-zeroing) · repeat-penalty (never-raises) |
-| 7 BENCH | tok/s + TTFT pending (the gated e2e prints timing; criterion bench at admission) |
+| 7 BENCH | ✅ decode-loop hot path (`benches/logits_bench.rs` · criterion · vocab 151,936): min-p **~126µs** · top-nσ **~438µs** · token-mask/repeat-penalty single-pass — all negligible vs a multi-ms CPU forward step (the per-token overhead budget). Model tok/s is e2e-gated (the real-GGUF test prints it) |
 | 8 DOCS | ✅ cargo doc 0 both axes |
 | 9 CANARY | a `.nika.yaml` infer-via-local once the verb wires it |
 | 10 PARITY | ✅ wire-level self-consistency (tests/wire_contract.rs pins the exact JSON paths + literals nika-providers' parser reads) · real-model e2e green (Qwen3-1.7B Q8 · CPU · EOS/Length/determinism) |
-| 11 REVIEW | 3-lens review folded (2 P1 + 4 P2/P3 · ce287e8c) · full swarm before admission |
+| 11 REVIEW | ✅ scaffold 3-lens (ce287e8c) + candle-backend adversarial review folded (2 P1 + 3 P2/P3: stop-tail window made conservative · OOM phrase-match not substring · tail-decode error propagated · device stored at load · bench black_box) · final swarm at admission |
 | 12 ATOMIC | 1 admission = 1 commit |
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
