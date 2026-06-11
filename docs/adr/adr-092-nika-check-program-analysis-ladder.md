@@ -151,7 +151,7 @@ design, not a leak; the model response is not a verbatim echo).
 - `crates/nika-schema/src/check/schema_lint.rs` -- authored `schema:` verification
   (the static half of structured-output reliability: required∉properties · type
   names · empty enum, with fixes)
-- `crates/nika-schema/examples/check.rs` -- `--infer-permits` + `--json` runnable
+- `crates/nika-schema/examples/check/` -- `--infer-permits` + `--json` runnable
   surface (the agent repair loop: check → apply emitted fixes → re-check → clean,
   e2e-proven convergent)
 - Commit `9a0c20510` -- the review that exposed the one-hop + N-walks ceiling
