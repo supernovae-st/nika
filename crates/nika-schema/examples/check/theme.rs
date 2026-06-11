@@ -250,6 +250,25 @@ impl Theme {
         self.unicode
     }
 
+    // ── chrome typography (themed like the glyphs — the ASCII theme is
+    //    pure-ASCII for EVERYTHING render owns, pinned by test) ────────
+    /// The list separator (`·` / `-`).
+    pub(crate) const fn middot(self) -> &'static str {
+        if self.unicode { "·" } else { "-" }
+    }
+    /// The range dash (`–` / `-`).
+    pub(crate) const fn ndash(self) -> &'static str {
+        if self.unicode { "–" } else { "-" }
+    }
+    /// The clause dash (`—` / `--`).
+    pub(crate) const fn mdash(self) -> &'static str {
+        if self.unicode { "—" } else { "--" }
+    }
+    /// The at-most sign (`≤` / `<=`).
+    pub(crate) const fn leq(self) -> &'static str {
+        if self.unicode { "≤" } else { "<=" }
+    }
+
     /// THE painting primitive — wrap `s` in `role`'s SGR + an auto-reset.
     /// Never nest a painted string inside another `paint` (the inner reset
     /// would cancel the outer role mid-string).

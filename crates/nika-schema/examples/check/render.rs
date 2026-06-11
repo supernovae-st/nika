@@ -47,7 +47,7 @@ fn banner(out: &mut String, path: &str, t: Theme) {
         "{} {} {}",
         t.accent(t.glyph(Glyph::Banner)),
         t.bold("nika check"),
-        t.dim(&format!("· {name}"))
+        t.dim(&format!("{} {name}", t.middot()))
     );
     out.push_str(&rule(t));
     out.push('\n');
@@ -75,7 +75,10 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
                 out,
                 " {}  {}",
                 t.bold("PLAN"),
-                t.dim("(skipped — no valid DAG order while conformance fails)")
+                t.dim(&format!(
+                    "(skipped {} no valid DAG order while conformance fails)",
+                    t.mdash()
+                ))
             );
         }
         return;
@@ -84,26 +87,29 @@ fn plan(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     let max_par = report.waves.iter().map(Vec::len).max().unwrap_or(1);
     let _ = writeln!(
         out,
-        " {}     {} wave(s) · {} task(s) · max parallelism {}",
+        " {}     {} wave(s) {mid} {} task(s) {mid} max parallelism {}",
         t.bold("PLAN"),
         report.waves.len(),
         task_count,
-        max_par
+        max_par,
+        mid = t.middot()
     );
     // self-documenting legend — the colour FAMILY names its governing
     // gate, so the DAG reads at a glance (and survives colour loss: the
     // words carry the meaning too).
     let _ = writeln!(
         out,
-        "          {}  {} {} {}  ·  {} {} {}",
+        "          {}  {} {} {}  {}  {} {} {}",
         t.dim(&format!(
-            "{} will-run · {} gated  ",
+            "{} will-run {} {} gated  ",
             t.glyph(Glyph::Pending),
+            t.middot(),
             t.glyph(Glyph::Gated)
         )),
         t.verb(VerbKind::Infer, "infer"),
         t.verb(VerbKind::Agent, "agent"),
         t.dim("= cost"),
+        t.dim(t.middot()),
         t.verb(VerbKind::Exec, "exec"),
         t.verb(VerbKind::Invoke, "invoke"),
         t.dim("= effect")
@@ -186,7 +192,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             out,
             " {}     {}",
             t.bold("COST"),
-            t.dim("no inference tasks · $0.00")
+            t.dim(&format!("no inference tasks {} $0.00", t.middot()))
         );
         return;
     }
@@ -202,10 +208,15 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             " {}     {} {bound}  {}",
             t.bold("COST"),
             t.bold(&format!(
-                "${:.4} – ${:.4}",
-                report.cost.min_path_total_usd, report.cost.bounded_total_usd
+                "${:.4} {} ${:.4}",
+                report.cost.min_path_total_usd,
+                t.ndash(),
+                report.cost.bounded_total_usd
             )),
-            t.dim("(cheapest path: gates closed · first try)")
+            t.dim(&format!(
+                "(cheapest path: gates closed {} first try)",
+                t.middot()
+            ))
         );
     } else {
         let _ = writeln!(
@@ -236,8 +247,9 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
             (Some(usd), _) => {
                 let _ = writeln!(
                     out,
-                    "   {}  {model}  ≤{} tk{notes}  {}",
+                    "   {}  {model}  {}{} tk{notes}  {}",
                     c.task,
+                    t.leq(),
                     c.max_tokens.unwrap_or(0),
                     t.bold(&format!("${usd:.4}"))
                 );
@@ -256,7 +268,7 @@ fn cost(out: &mut String, report: &CheckReport, t: Theme) {
                     "   {}  {model}  {} {}",
                     c.task,
                     t.warn(&format!("{} UNBOUNDED", t.glyph(Glyph::Warn))),
-                    t.dim(&format!("— {why}"))
+                    t.dim(&format!("{} {why}", t.mdash()))
                 );
             }
         }
@@ -276,7 +288,7 @@ fn secrets(out: &mut String, report: &CheckReport, t: Theme) {
             t.bold("SECRETS"),
             t.bold(l.sink),
             t.dim(&format!("(task `{}`)", l.task)),
-            t.dim(&format!("— {}", l.trace))
+            t.dim(&format!("{} {}", t.mdash(), l.trace))
         );
     }
     for e in &report.secret_egresses {
@@ -286,7 +298,7 @@ fn secrets(out: &mut String, report: &CheckReport, t: Theme) {
             t.err(t.glyph(Glyph::Err)),
             t.bold("SECRETS"),
             t.bold(&e.output),
-            t.dim(&format!("— {}", e.trace)),
+            t.dim(&format!("{} {}", t.mdash(), e.trace)),
             t.err("(a secret leaves the run)")
         );
     }
@@ -305,12 +317,13 @@ fn types(out: &mut String, report: &CheckReport, t: Theme) {
     for f in &report.schema_findings {
         let _ = writeln!(
             out,
-            " {} {}    {} {} — {}",
+            " {} {}    {} {} {mdash} {}",
             t.err(t.glyph(Glyph::Err)),
             t.bold("TYPES"),
             t.bold(&f.reference),
             t.dim(&format!("(at `{}`)", f.site)),
-            f.detail
+            f.detail,
+            mdash = t.mdash()
         );
     }
 }
@@ -335,12 +348,13 @@ fn schema(out: &mut String, report: &CheckReport, t: Theme) {
     for l in &report.schema_lints {
         let _ = writeln!(
             out,
-            " {} {}   task `{}` at {} — {}",
+            " {} {}   task `{}` at {} {mdash} {}",
             t.err(t.glyph(Glyph::Err)),
             t.bold("SCHEMA"),
             t.bold(&l.task),
             t.dim(&l.path),
-            l.detail
+            l.detail,
+            mdash = t.mdash()
         );
     }
 }
@@ -363,12 +377,13 @@ fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     for e in &report.capability_escapes {
         let _ = writeln!(
             out,
-            " {} {}  {} task `{}` · {}",
+            " {} {}  {} task `{}` {mid} {}",
             t.err(t.glyph(Glyph::Err)),
             t.bold("PERMITS"),
             t.dim(&format!("[{}]", e.category)),
             t.bold(&e.task),
-            e.detail
+            e.detail,
+            mid = t.middot()
         );
         if let Some(fix) = &e.fix {
             fix_line(out, fix, t);
@@ -397,8 +412,9 @@ fn verdict(out: &mut String, report: &CheckReport, t: Theme) {
             out,
             " {}",
             t.verdict_ok(&format!(
-                "{} clean — audited before a single token was spent",
-                t.glyph(Glyph::Ok)
+                "{} clean {} audited before a single token was spent",
+                t.glyph(Glyph::Ok),
+                t.mdash()
             ))
         );
     } else {
@@ -428,4 +444,76 @@ fn fix_line(out: &mut String, fix: &str, t: Theme) {
         t.accent(t.glyph(Glyph::Fix)),
         t.accent(&format!("fix: {fix}"))
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_schema::{FileId, ParseMode, check, parse};
+
+    /// A chrome-only workflow (no findings · no hints): every rendered
+    /// byte is OURS, so the snapshots pin the frame, not library text.
+    const CHROME_ONLY: &str = "nika: v1\nworkflow: pipeline\npermits: { exec: [\"true\"] }\ntasks:\n  - id: first\n    exec: { command: \"true\" }\n  - id: second\n    depends_on: [first]\n    exec: { command: \"true\" }\n";
+
+    fn rendered(t: Theme) -> String {
+        let wf = parse(CHROME_ONLY, FileId::new(0), ParseMode::Strict).expect("parse");
+        let report = check(&wf);
+        render(&report, &wf, "pipeline.nika.yaml", t)
+    }
+
+    #[test]
+    fn unicode_frame_is_pinned() {
+        // The contract: snapshot tests pin BOTH glyph themes. This is the
+        // unicode frame, byte-exact (colour off · pure glyph grammar).
+        let expected = concat!(
+            "◆ nika check · pipeline.nika.yaml\n",
+            "──────────────────────────────────────────────\n",
+            " PLAN     2 wave(s) · 2 task(s) · max parallelism 1\n",
+            "          ○ will-run · ⊘ gated    infer agent = cost  ·  exec invoke = effect\n",
+            "   w0 ○ first  exec  \n",
+            "   w1 ○ second exec     ← first\n",
+            " COST     no inference tasks · $0.00\n",
+            " ✔ SECRETS  no information-flow escapes\n",
+            " ✔ TYPES    every deep output reference fits its declared shape\n",
+            " ✔ PERMITS  body fits the declared boundary\n",
+            "──────────────────────────────────────────────\n",
+            " ✔ clean — audited before a single token was spent\n",
+        );
+        assert_eq!(rendered(Theme::new(false, true)), expected);
+    }
+
+    #[test]
+    fn ascii_frame_is_pinned_and_pure_ascii() {
+        // The ASCII first-class theme, byte-exact — AND provably pure
+        // ASCII (this test replaces a shell probe that turned out to be
+        // locale-broken: BSD grep under LC_ALL=C missed high bytes).
+        let expected = concat!(
+            "# nika check - pipeline.nika.yaml\n",
+            "----------------------------------------------\n",
+            " PLAN     2 wave(s) - 2 task(s) - max parallelism 1\n",
+            "          . will-run - - gated    infer agent = cost  -  exec invoke = effect\n",
+            "   w0 . first  exec  \n",
+            "   w1 . second exec     <- first\n",
+            " COST     no inference tasks - $0.00\n",
+            " + SECRETS  no information-flow escapes\n",
+            " + TYPES    every deep output reference fits its declared shape\n",
+            " + PERMITS  body fits the declared boundary\n",
+            "----------------------------------------------\n",
+            " + clean -- audited before a single token was spent\n",
+        );
+        let s = rendered(Theme::new(false, false));
+        assert_eq!(s, expected);
+        assert!(s.is_ascii(), "ascii theme leaked non-ascii: {s:?}");
+    }
+
+    #[test]
+    fn verb_gate_colours_appear_when_colour_is_on() {
+        // exec tasks paint bold-blue (the PERMITS family) in the lanes.
+        let s = rendered(Theme::new(true, true));
+        assert!(s.contains("\x1b[1;34mexec"), "exec is bold blue: {s:?}");
+        // and the legend carries all four verb roles.
+        for sgr in ["\x1b[35minfer", "\x1b[1;35magent", "\x1b[34minvoke"] {
+            assert!(s.contains(sgr), "legend misses {sgr:?}");
+        }
+    }
 }
