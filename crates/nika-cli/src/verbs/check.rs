@@ -178,12 +178,15 @@ fn hints_and_verdict(out: &mut String, report: &CheckReport, t: Theme) {
 
 /// A finding section: one OK line when empty, one row per finding else.
 fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
+    // Pad BEFORE painting — ANSI escapes break `{:<8}` width arithmetic
+    // (the format pads bytes, not display columns).
+    let padded = format!("{label:<8}");
     if rows.is_empty() {
         let _ = writeln!(
             out,
-            " {} {:<8} {}",
+            " {} {} {}",
             mark(t, true),
-            t.paint(Role::Strong, label),
+            t.paint(Role::Strong, &padded),
             t.paint(Role::Dim, ok_msg)
         );
         return;
@@ -191,9 +194,9 @@ fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec
     for row in rows {
         let _ = writeln!(
             out,
-            " {} {:<8} {row}",
+            " {} {} {row}",
             mark(t, false),
-            t.paint(Role::Strong, label)
+            t.paint(Role::Strong, &padded)
         );
     }
 }

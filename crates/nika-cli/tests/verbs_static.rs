@@ -205,8 +205,8 @@ fn inspect_draws_the_box_tree_with_static_facts() {
     assert!(
         out.text
             .trim_end()
-            .ends_with("DAG order proven by the check ladder)"),
-        "footer attests the ladder"
+            .ends_with("(no orphans · DAG check NIKA-DAG-001 clean)"),
+        "the spec §6 footer verbatim"
     );
 }
 
@@ -303,8 +303,13 @@ fn explain_teaches_a_registered_code_in_both_wire_forms() {
     for wire in ["NIKA-440", "440"] {
         let out = explain::run(wire);
         assert_eq!(out.code, exit::OK, "{wire}");
-        assert!(out.text.contains("NIKA-440"), "{}", out.text);
-        assert!(out.text.contains("Verb"), "category: {}", out.text);
+        // The stable output contract: code · category · severity · slug.
+        assert!(
+            out.text
+                .starts_with("NIKA-440 · verb · error · exec-non-zero-exit"),
+            "{}",
+            out.text
+        );
         assert!(!out.text.trim().is_empty());
     }
 }
@@ -451,4 +456,39 @@ outputs:
         "each task carries ITS OWN bound: small {small:?} vs large {large:?}"
     );
     assert!(small[0] <= small[1] && large[0] <= large[1], "min ≤ max");
+}
+
+#[test]
+fn graph_nodes_always_carry_the_permits_field() {
+    // Spec §6 envelope contract: `permits` is present on EVERY node (an
+    // array · empty until the per-task effects projector ships). A
+    // consumer reading node.permits must never get `undefined`.
+    let path = fixture_path("permits-field.nika.yaml", WORKFLOW);
+    let out = graph::run(&path, GraphFormat::Json);
+    assert_eq!(out.code, exit::OK);
+    let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
+    for node in doc["nodes"].as_array().expect("nodes") {
+        assert!(
+            node["permits"].is_array(),
+            "permits must serialize as an array on {}: {node}",
+            node["id"]
+        );
+    }
+}
+
+#[test]
+fn graph_dedups_duplicate_depends_on_edges() {
+    // `depends_on: [gather, gather]` must not lie about cardinality.
+    let dup = WORKFLOW.replace("depends_on: [gather]", "depends_on: [gather, gather]");
+    let path = fixture_path("dup-edges.nika.yaml", &dup);
+    let out = graph::run(&path, GraphFormat::Json);
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
+    let gather_fan = doc["edges"]
+        .as_array()
+        .expect("edges")
+        .iter()
+        .filter(|e| e["from"] == "gather" && e["to"] == "fan")
+        .count();
+    assert_eq!(gather_fan, 1, "duplicate depends_on collapses to one edge");
 }

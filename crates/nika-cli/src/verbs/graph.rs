@@ -47,6 +47,11 @@ pub struct Node {
     pub when: Option<String>,
     /// `for_each` fan-out, when present.
     pub fan_out: Option<FanOut>,
+    /// Per-task permit strings (spec §6 envelope field · always present).
+    /// Empty TODAY: the analyzer aggregates effects into the workflow
+    /// boundary (`infer_permits`) without exposing per-task attribution —
+    /// this fills when that projector ships, the field IS the contract.
+    pub permits: Vec<String>,
     /// Static cost interval `[min_path, worst_case]` USD — only for
     /// priced inference tasks (the cost lane's honesty: no price, no
     /// interval).
@@ -96,7 +101,7 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                 .tasks
                 .iter()
                 .find(|c| c.task == task.id.value)
-                .and_then(|c| Some([c.min_path_usd?, c.usd?]));
+                .and_then(|c| c.min_path_usd.zip(c.usd).map(|(min, max)| [min, max]));
             nodes.push(Node {
                 id: task.id.value.clone(),
                 verb,
@@ -108,6 +113,7 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                     // #[non_exhaustive] future gate forms name themselves.
                     other => format!("{other:?}"),
                 }),
+                permits: Vec::new(),
                 fan_out: task.for_each.as_ref().map(|f| match &f.value {
                     nika_schema::raw::ForEachValue::List(items) => FanOut {
                         kind: "list",
@@ -138,7 +144,9 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
         }
     }
     // Stable edge order: by (from, to) — independent of authoring order.
+    // Then dedup: `depends_on: [x, x]` must not lie about cardinality.
     edges.sort_by(|a, b| (&a.from, &a.to).cmp(&(&b.from, &b.to)));
+    edges.dedup_by(|a, b| a.from == b.from && a.to == b.to);
 
     GraphDoc {
         graph_format: 1,

@@ -48,7 +48,9 @@ pub fn run(path: &str) -> VerbOutput {
         report.waves.len(),
     );
     render_tree(&mut out, &doc);
-    out.push_str("└─ (no orphans · DAG order proven by the check ladder)\n");
+    // The spec §6 footer verbatim — NIKA-DAG-001 is the conformance code
+    // the ladder proved clean to get here.
+    out.push_str("└─ (no orphans · DAG check NIKA-DAG-001 clean)\n");
     VerbOutput::ok(out)
 }
 

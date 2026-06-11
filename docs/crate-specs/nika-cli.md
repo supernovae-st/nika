@@ -28,7 +28,7 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 | `nika inspect <file>` | static anatomy: tasks · verbs · DAG (ASCII §6) · permits · cost interval | 0 · 2 |
 | `nika graph <file> --mermaid\|dot\|json` | the ONE graph projector (§6) | 0 · 2 |
 | `nika doctor` | environment diagnosis (PATH · providers reachable · keys present-not-printed · config) | 0 · 3 |
-| `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 |
+| `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
 | `nika new --from <template>` | instantiate one of the 6 skeletons | 0 |
 | `nika spec` / `nika examples list\|show\|run` / `nika schema` | the embedded self-contained surface | 0 |
