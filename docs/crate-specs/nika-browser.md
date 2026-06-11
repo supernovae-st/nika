@@ -160,7 +160,7 @@ never click a guess.
 | 2 | TDD | ✅ | Guard-5 pure core headless-first (B.2) |
 | 3 | IMPL | ✅ | chromiumoxide 0.9.1 · API tarball-verified pre-write (B.3) |
 | 4 | CLIPPY | ✅ | **measured 2026-06-11** workspace `-D warnings` 0 |
-| 5 | MUTATION ≥ 90% | ✅ | **measured 2026-06-11** `cargo mutants -p nika-browser -- --lib` · 70 mutants · **55/59 viable caught = 93.2 %** · 11 unviable · 4 documented exemptions (`GATE5-EXEMPT` below) |
+| 5 | MUTATION ≥ 90% | ✅ | **re-measured 2026-06-11 post-occlusion** `cargo mutants -p nika-browser -- --lib` · 76 mutants · **60/65 viable caught = 92.3 %** · 11 unviable · 5 documented exemptions (`GATE5-EXEMPT` below) |
 | 6 | PROPERTY | ✅ | proptest `guard5_tag_swap_never_verifies` |
 | 7 | BENCHMARKS | ⚪ N/A | CDP round-trip is network/browser-bound (Rule 2) |
 | 8 | DOCS | ✅ | **measured 2026-06-11** cargo doc 0 warnings |
@@ -169,13 +169,16 @@ never click a guess.
 | 11 | REVIEW SWARM | ✅ | 3-lens adversarial swarm (28 agents) · 3 P1 + P2s on Guard 5 ALL folded before B.4 (node-identity pin · no failure-downgrade · pure structural gates) |
 | 12 | ATOMIC COMMIT | ✅ | the admission commit (B.4) |
 
-### 7.1 Gate 5 exemption budget (ADR-003 Rule 2 · verified 2026-06-11)
+### 7.1 Gate 5 exemption budget (ADR-003 Rule 2 · re-verified 2026-06-11 post-occlusion)
 
-<!-- GATE5-EXEMPT: 4 -->
+<!-- GATE5-EXEMPT: 5 -->
 
-The pure surface (mappers · URL gate · PNG decode · the 3 Guard-5 gates ·
+Re-measured after the occlusion hardening: 76 mutants · **60/65 viable
+caught = 92.3 %** · 11 unviable. The pure surface (mappers · URL gate ·
+PNG decode · the 3 Guard-5 gates · the 3 occlusion fns
+`verify_click_point_hits_target`/`collect_backend_ids`/`coord_to_i64` ·
 `backend_ref` · `bbox_to_rect` boundary · `epoch_now_ns` · `consume`) is
-fully mutation-killed. The four survivors are TRUE residue/equivalents:
+fully mutation-killed. The five survivors are TRUE residue/equivalents:
 
 1. `<impl Drop>::drop with ()` — aborts the per-session Handler tasks; the
    effect (no orphan task/child) is only observable with a LIVE session, so
@@ -183,15 +186,20 @@ fully mutation-killed. The four survivors are TRUE residue/equivalents:
 2. `dom_snapshot delete - in depth(-1)` — flips the CDP `GetDocument` query
    from full-tree to depth-1; only a live multi-level DOM distinguishes it
    (smoke-only).
-3. `<impl Debug for SessionHandle>::fmt` — the cosmetic
+3. `click_selector delete - in depth(-1)` — the SAME class for the occlusion
+   path's full-depth `DescribeNode` (the subtree query); a live deep DOM is
+   needed to observe the difference (the `#[ignore]` overlay smoke covers it).
+4. `<impl Debug for SessionHandle>::fmt` — the cosmetic
    `finish_non_exhaustive` Debug body; no behavior rides it.
-4. `bbox_to_rect: > with >=` (the `dim` closure's `v > 0.0`) — a TRUE
+5. `bbox_to_rect: > with >=` (the `dim` closure's `v > 0.0`) — a TRUE
    EQUIVALENT: at the only distinguishing input `v == 0.0`, the then-branch
    computes `0.0.round() as u32 == 0`, identical to the else-branch's `0`,
    so no test can separate `>` from `>=`.
 
-The first three are CDP-residue (live-browser-only · the planned Rule-2
-exemption); the fourth is a mathematical equivalent. None is a logic gap.
+Survivors 1-3 are CDP-residue (live-browser-only · the planned Rule-2
+exemption · the occlusion fns themselves are pure + killed, only their
+live-CDP wiring residue survives); 4 is cosmetic; 5 is a mathematical
+equivalent. None is a logic gap.
 
 ## 8. Security (ADR-081)
 
