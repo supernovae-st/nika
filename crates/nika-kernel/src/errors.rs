@@ -21,9 +21,10 @@
 //!   `dx/.claude/rules/security.md` §"Nika Shield" canonical mapping.
 //!   Historical `NIKA_380..389` names dropped per
 //!   `no-legacy-no-back-compat.md` · zero alias · git is archive.)
-//! - 430–479: Verb (`VerbInferError` 430-439 · s9 `nika-verb-infer`) —
-//!   impls live in the verb crates · constants in
-//!   `nika_error::codes::NIKA_430..433` (registry-owned · M2 pattern)
+//! - 430–479: Verb — impls live in the verb crates · constants in
+//!   `nika_error::codes` (registry-owned · M2 pattern) · `VerbInferError`
+//!   430-439 (s9 `nika-verb-infer` · `NIKA_430..433`) · `VerbExecError`
+//!   440-449 (s10 `nika-verb-exec` · `NIKA_440..442`)
 //! - 380–429: Shield (`ShieldError`) — RESERVED, per `nika/SECURITY.md`
 //!   6-layer defense stack. `NIKA-380` `CapabilityDenied` · `NIKA-381`
 //!   `TrustViolation` · `NIKA-382` `CanaryLeaked` · `NIKA-383`

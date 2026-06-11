@@ -18,6 +18,30 @@ tracks the Diamond rebuild from **v0.80.0-alpha** onward.
 
 ## [Unreleased]
 
+### ⚙️ Announce ladder s10 · nika-verb-exec L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
+
+- **`nika-verb-exec` crate** · the `exec` verb executor per
+  `nika-spec spec/02-verbs.md §exec` (second of the 4 verbs). Rides the
+  kernel `ShellRunDyn` seam with the effect injected (`TokioShell` in prod ·
+  `MockShell` in tests) — zero subprocess code of its own, zero Cargo dep on
+  `nika-exec-runner` (the L2→L1 inversion through the kernel trait).
+  `pre_validated` is NEVER set, so the s7 runner blocklist stays the floor
+  (structurally pinned by test).
+- **The capture one-obvious-way split** · default modes (`stdout` · `stderr`
+  · `combined`) fail the task on a non-zero exit (NIKA-440 / spec
+  NIKA-EXEC-001 · with a capped stderr tail); `capture: structured` returns
+  `{ stdout, stderr, exit_code }` as DATA — the workflow branches on it, the
+  task succeeds.
+- **Verb-boundary input guards (NIKA-442)** · a NUL byte in command/stdin
+  (silent shell truncation) and a malformed env key (`=` · NUL · empty ·
+  child-env corruption) are refused before the runner call — the security
+  swarm's two findings.
+- **Error one-voice** · NIKA-440..442 registered in the Verb range ·
+  `MockShell` aligned to the Send-variant traits + gained `enqueue_result`.
+- 19 lib tests (3 proptests · Gate 10 parity vs brouillon) · mutation all
+  viable killed bar one documented equivalent · clippy 0 · doc 0 · layering
+  + deny green · tag `v0.80.0-alpha.6`.
+
 ### 🗣️ Announce ladder s9 · nika-verb-infer L2 admission (ADMITTED · 12-gate closed · 2026-06-11)
 
 - **`nika-verb-infer` crate** · FIRST L2 verb crate — the `infer` verb executor
