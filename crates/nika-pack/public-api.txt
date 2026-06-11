@@ -1,0 +1,13 @@
+pub mod nika_pack
+pub fn nika_pack::canon() -> &'static str
+pub fn nika_pack::doc(path: &str) -> core::option::Option<&'static str>
+pub fn nika_pack::doc_paths() -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_pack::example(slug: &str) -> core::option::Option<&'static str>
+pub fn nika_pack::example_slugs() -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_pack::lean(yaml_text: &str) -> &str
+pub fn nika_pack::manifest() -> &'static str
+pub fn nika_pack::pack_version() -> &'static str
+pub fn nika_pack::quickstart() -> &'static str
+pub fn nika_pack::schema_json() -> &'static str
+pub fn nika_pack::template(name: &str) -> core::option::Option<&'static str>
+pub fn nika_pack::template_names() -> alloc::vec::Vec<alloc::string::String>
