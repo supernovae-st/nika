@@ -13,8 +13,8 @@
 > nika-spec · supersedes the K8s `apiVersion:` form of ADR-021). `x-nika-alpha/beta`
 > annotations gate sub-field maturity within v1. See nika-spec spec/01-envelope.md.
 >
-> Target crate count: **50-90** (cap 100). Driven by 14-crate memory subsystem
-> (8 core + 6 reserved), 4 storage backends, ~30 provider crates, own
+> Target crate count: **50-90** (cap 100). Driven by the 11-crate Connectome
+> cluster (1 L2 orchestrator + 10 L1 satellites · ratified 2026-06-11), own
 > `nika-embed`, WASM + sandbox. See §Crate sequence.
 
 **Philosophy: Forever v0.x.** Nika increments quality in v0.x releases
@@ -239,20 +239,26 @@ Sub-phased per Q2 (topological × user-value):
 - **1c providers**: `nika-provider-rig` (7 cloud + 7 OpenAI-compat),
   `nika-provider-native` (mistral.rs GGUF, feature-gated), `nika-provider-mock`
 - **1d pck backend**: `nika-pck-registry`, `nika-pck-store`
-- **1e memory foundation**: `nika-embed` (own quantized local model, B2 locked),
-  `nika-memory-store-fjall` (default backend, B3 locked), `nika-autodesc`,
-  `nika-memory-hnsw`, `nika-memory-bm25`, `nika-memory-rrf`
-- **1f memory advanced**: `nika-memory-temporal`, `nika-memory-fsrs`,
-  `nika-memory-rdfs-reasoner`, `nika-memory-graph-algos`
-- **1g reserved satellites** (graduated as pulled forward):
-  `nika-memory-causal-graph`, `nika-memory-episodic-narrative`,
-  `nika-memory-working`, `nika-memory-meta`, `nika-memory-procedural`,
-  `nika-memory-spatial`
+- **1e memory foundation** (Connectome climb · pro names per nika-invariants —
+  `nika-bm25` ✅ ADMITTED proves the canon): `nika-embed` (own quantized local
+  model, B2 locked), `nika-bm25` ✅ (ADR-038), `nika-hnsw`, `nika-rrf`,
+  `nika-autodesc-minimal` (ADR-042 split)
+- **1f memory advanced**: `nika-temporal`, `nika-fsrs`, `nika-rdfs-reasoner`,
+  `nika-graph-algos`, `nika-rerank` (M13 · SOTA ratification 2026-06-11),
+  `nika-autodesc-full`
+- **1g frontier satellites** (graduated as pulled forward · Connectome
+  blueprint §7 dims 10-20): `nika-consolidator` (M14), `nika-sync` (CRDT),
+  `nika-stream`, `nika-trust`, `nika-causal`, `nika-datalog`,
+  `nika-multimodal`, `nika-coordinator`. The 2026-04 six-reserved
+  `nika-memory-*` list is absorbed: causal → `nika-causal`; episodic /
+  working / procedural / meta / spatial are `MemoryLevel` frame classes
+  handled inside the orchestrator, not crates.
 
 ### L2 — domain (~15 crates)
 
 `nika-verb-{exec,invoke,infer,agent}` (fetch = `nika:fetch` builtin via invoke), `nika-pck` orchestrator,
-`nika-memory` orchestrator, `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
+`nika-connectome` orchestrator (renamed from `nika-memory` per the Connectome
+lock 2026-05-22), `nika-builtin`, `nika-builtin-{github,cloud,workspace}`,
 `nika-mcp`, `nika-display`.
 
 ### L3 — orchestration (~6 crates)
@@ -269,46 +275,35 @@ Sub-phased per Q2 (topological × user-value):
 
 `nika` (composition root, <500 LOC, zero logic).
 
-### Memory subsystem detail — 14 satellites (ADR-004 locked)
+### Memory subsystem detail — the Connectome cluster, 1 + 10 (ADR-004 + SOTA ratification 2026-06-11)
 
-Per session decision (handoff B1-B5 locked 2026-04-17 night):
+> The 2026-04 « 14 satellites · `nika-memory-*` names · fjall default » plan
+> below was superseded by the Connectome lock (2026-05-22 · D-2026-05-22-N9)
+> + the stack ratification (2026-06-11). Canon: 1 L2 orchestrator
+> (`nika-connectome`) + **10 L1 satellites** with pro names (`nika-bm25`
+> ✅ ADMITTED proves the naming canon). Specs: `docs/crate-specs/nika-<sat>.md`.
 
-**8 core** (admitted during L1 phase 1e-1f, exposed through `nika-memory` L2):
+**10 satellites** (admitted during L1 phases 1e-1f, composed by `nika-connectome` L2):
 
-- `nika-memory-hnsw` — ANN vector search (M=32 default, efConstruction=400)
-- `nika-memory-bm25` — sparse lexical retrieval (tantivy or sled-fts)
-- `nika-memory-rrf` — Reciprocal Rank Fusion hybrid ranking
-- `nika-memory-rdfs-reasoner` — RDF/OWL triple store + SPARQL (dropped
-  upstream "oxigraph" branding per Q-R — we own the abstraction)
-- `nika-memory-graph-algos` — petgraph algorithms surface (BFS/DFS/SCC/
-  PageRank/community detection) for ontology-graph queries
-- `nika-memory-temporal` — bi-temporal model (valid-time + transaction-time,
-  Graphiti-class)
-- `nika-memory-fsrs` — FSRS-6 spaced repetition (self-supervised forgetting)
-- `nika-autodesc` — self-describing memory (frame → auto-generated
-  structural summary + ontology fingerprint; prerequisite for pluggable
-  retrieval across semantic / episodic / procedural)
+- `nika-hnsw` — ANN vector recall (M adaptive per store size, efConstruction=400)
+- `nika-bm25` ✅ — lexical recall (ADMITTED · ADR-038)
+- `nika-rrf` — Reciprocal Rank Fusion hybrid ranking
+- `nika-rerank` — local reranker, M13 (late-interaction tier + optional 0.6B cross-encoder)
+- `nika-fsrs` — FSRS spaced-repetition forgetting (decay → demotion, never hard-delete)
+- `nika-rdfs-reasoner` — RDFS + OWL 2 RL inference
+- `nika-graph-algos` — petgraph surface (BFS/DFS/SCC/PageRank/Leiden communities)
+- `nika-temporal` — bitemporal model (valid-time + transaction-time, Graphiti-class)
+- `nika-autodesc-minimal` ★ — provenance-attached zero-LLM ingest (PROV-O · the moat)
+- `nika-autodesc-full` ★ — schema evolution + graph summarization (ADR-042 split)
 
-**6 reserved** (L1 phase 1g, graduated as pulled forward):
-
-- `nika-memory-causal-graph` — cause/effect directed edges
-- `nika-memory-episodic-narrative` — temporally-ordered episode chains
-- `nika-memory-working` — short-window attention window (LRU + decay)
-- `nika-memory-meta` — memory-about-memory (trust decay, confidence graph)
-- `nika-memory-procedural` — skill/tool invocation traces → policy extraction
-- `nika-memory-spatial` — R-tree / KD-tree geographic / embedding-space locality
-
-**Storage backends** (B3 locked, 4 shipped + plugin trait):
-
-| Backend            | Default? | Rationale                                    |
-|--------------------|----------|----------------------------------------------|
-| `fjall`            | ✅ yes    | Rust-native LSM, zero C dep, embedded-first  |
-| `sled`             | no       | Pure-Rust alternative, different tradeoffs   |
-| `redb`             | no       | Single-file ACID, good for `~/.nika/`        |
-| `postgres+pgvector`| no       | Cloud / multi-node deployments                |
-
-Plugin trait: `MemoryBackend` (L0.5 in `nika-kernel`). Community backends
-ship via `nika pck install` with Sigstore signature required.
+**Storage** (ratified · supersedes the B3 fjall-default matrix): Oxigraph
+in-memory + N-Quads snapshot at boot/shutdown (pure-Rust · single binary ·
+zero system dep). Vendored-RocksDB persistence is opt-in `feature = "rocksdb"`
+when scale demands. Embeddings ride as RDF literals (Scenario D); the HNSW
+cache is ephemeral, rebuilt at boot. The kernel sealed traits
+(`MemoryRemember`/`MemoryRecall`/`MemoryForget` + `MemoryLifecycle` +
+`EmbeddingProvider`, NIKA-601..649) remain the plugin seam; community
+backends ship via `nika pck install` with Sigstore signature required.
 
 **Trust model** (B4 locked, hybrid defense-in-depth):
 
@@ -318,17 +313,18 @@ ship via `nika pck install` with Sigstore signature required.
 - Human-in-loop verdict — manual promote/demote logged to `EventLog`
 - Audit trail — every trust change is an immutable event
 
-**Tenant isolation** (B5 locked, compile-time enforced):
+**Tenant isolation** (B5 locked · shipped v0.81 as DTO field, not the
+associated-type sketch):
 
 ```rust
-// nika-kernel/src/memory.rs
-pub trait Memory {
-    type Tenant: TenantId;  // associated type = keyspace partition
-    // ...
-}
+// nika-kernel-ai/src/memory.rs — shipped form
+pub struct MemoryFrame { /* … */ pub tenant: TenantId, /* … */ }
+pub struct RecallQuery { /* … */ pub tenant: TenantId, /* … */ }
 ```
 
-Every satellite partitions by `Tenant`. Cross-tenant access = compile error.
+Reserved at v0.81 for v0.95 multi-tenant. Every satellite partitions its
+keyspace by `tenant`; cross-tenant reads are structurally unexpressable
+through the sealed recall path.
 
 ## Layer-phase deliverables (reference, by phase not by version)
 
@@ -366,7 +362,7 @@ See `docs/architecture/forward-compat-invariants.md` §9.
 |---|---|---|---|
 | `WasmPluginHost` | `src/plugin.rs` | ✅ shipped | `nika-wasm-host` (L3) |
 | `Sandbox` | `src/sandbox.rs` | ✅ shipped | `nika-sandbox-{linux,macos,windows}` (L3) |
-| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | `nika-memory-rdfs-reasoner` + satellites (L1 phase 1e-1f) |
+| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | `nika-connectome` (L2 · composes the 10 satellites, L1 phase 1e-1f) |
 | `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | `nika-embed` (L1 phase 1e) |
 | `IdGenerator` | `src/id_gen.rs` | ✅ shipped (W2) | in-tree |
 | `SecretResolver` | `src/secret.rs` | ✅ shipped (W2, sealed) | in-tree |
@@ -808,7 +804,7 @@ outright or reclassified as a future layer-phase deliverable (no version tag).
 | `nika-tui` (terminal UI) | DELETED → rebuilt later if pull justifies | W1 removed |
 | `ProviderCategory` enum | DELETED | 11 ex-MCP providers migrated to `McpAlias` catalog |
 | Agent-v2 (multi-turn, 4 guardrails) | **Built during L2** | blocked on memory L1 phase 1e-1f |
-| Cortex / memory subsystem (14 satellites) | **Built during L1 phases 1e-1f-1g** | ontology-graph + auto-descriptive, see §Memory subsystem detail |
+| The Connectome (1 orchestrator + 10 satellites) | **Built during L1 phases 1e-1f-1g** | ontology-graph + auto-descriptive, see §Memory subsystem detail |
 | WASM host (wasmtime + extism) | **Built during L3** | Sandbox-3 triplet ships alongside |
 | Keys subsystem (Keychain/OAuth) | **Built during L1 phases 1a-1b** | `nika-keys-env` + `nika-keys-keychain` |
 | Hosted cloud runner | Polish forever (v0.93+) | Self-host is primary; SaaS optional |
