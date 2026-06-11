@@ -2683,6 +2683,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-verb-invoke"
+version = "0.80.0"
+dependencies = [
+ "miette",
+ "nika-error",
+ "nika-kernel",
+ "proptest",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "nix"
 version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

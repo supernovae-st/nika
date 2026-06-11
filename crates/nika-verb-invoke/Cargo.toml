@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name          = "nika-verb-invoke"
+description   = "The `invoke` verb executor (L2) — builtin (nika:) and MCP (mcp:) tool calls per nika-spec 02-verbs.md. Rides the kernel ToolExecuteDyn seam (the engine builtin+MCP dispatcher injected), validates the closed nika:/mcp: tool-ref grammar before dispatch, and maps the tool result."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L2 verb crate.
+
+[dependencies]
+nika-error  = { path = "../nika-error", version = "0.80.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.80.0" }
+miette      = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tokio    = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "messager"
+archetype     = "kodama-messager"
+spirit_role   = "troisième des quatre verbes · l'appel adressé à un outil nommé · une seule grammaire de noms · nika ou mcp, jamais un troisième"
+voice_pattern = "silent"
+layer         = "L2"
+err_prefix    = "NIKA-45x"
+
+[lints]
+workspace = true

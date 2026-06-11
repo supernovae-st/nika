@@ -350,6 +350,28 @@ pub const NIKA_442: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "exec-invalid-param",
 };
+/// NIKA-450: The `invoke` tool id did not resolve (bad namespace · `mcp:`
+/// missing the slash · unknown builtin/server).
+pub const NIKA_450: NikaCode = NikaCode {
+    num: 450,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "invoke-unresolvable-tool",
+};
+/// NIKA-451: The tool ran but reported an error (`is_error: true`).
+pub const NIKA_451: NikaCode = NikaCode {
+    num: 451,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "invoke-tool-reported-error",
+};
+/// NIKA-452: Tool dispatch failed (timeout · execution · unavailable).
+pub const NIKA_452: NikaCode = NikaCode {
+    num: 452,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "invoke-dispatch-failure",
+};
 
 /// NIKA-999: Internal error (catch-all).
 pub const NIKA_999: NikaCode = NikaCode {
@@ -663,18 +685,55 @@ pub const NIKA_1406: NikaCode = NikaCode {
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_600, NIKA_601,
-    NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001,
-    NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009,
-    NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108,
-    NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301,
-    NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404,
-    NIKA_1405, NIKA_1406,
+    NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450, NIKA_451,
+    NIKA_452, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_700, NIKA_750, NIKA_800,
+    NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006,
+    NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105,
+    NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204,
+    NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401,
+    NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
 ];
 
 /// Returns an actionable help message for a given code.
 ///
 /// Every registered code has a help string. This is used by miette's
+/// Help text for the Verb range (430-479 · infer 430-439 · exec 440-449 ·
+/// invoke 450-459). Split out of `code_help` to keep it under the 100-line
+/// function cap as the verb crates land.
+fn verb_help(num: u16) -> &'static str {
+    match num {
+        430 => {
+            "The provider call failed during `infer`. Check the provider error chained below (credentials, rate limits, connectivity)."
+        }
+        431 => {
+            "The model output never satisfied the task `schema:` within the retry budget. Simplify the schema, raise max_tokens, or pick a schema-capable model."
+        }
+        432 => {
+            "An `infer` parameter is invalid. Prompt must be non-empty; temperature must be within 0-2."
+        }
+        433 => {
+            "The `model:` string did not resolve. Use `provider/model` with a provider from the canonical catalog and ensure its API key is configured."
+        }
+        440 => {
+            "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
+        }
+        441 => {
+            "Shell execution failed before or during the run. Check the command exists, is not blocklisted, and completes within the timeout."
+        }
+        442 => "An `exec` parameter is invalid. Command must be a non-empty string.",
+        450 => {
+            "The `invoke` tool id did not resolve. Use `nika:<tool>` or `mcp:<server>/<tool>`; check the builtin name or MCP server registry."
+        }
+        451 => {
+            "The tool ran but reported an error. Inspect the tool's output content for the failure detail."
+        }
+        452 => {
+            "Tool dispatch failed (timeout, execution error, or the tool system is unavailable). Check the MCP server or builtin availability."
+        }
+        _ => "Verb execution failed. Check the task definition against the spec for this verb.",
+    }
+}
+
 /// `help()` diagnostic and by the display layer for user-facing output.
 #[must_use]
 pub fn code_help(code: NikaCode) -> &'static str {
@@ -715,28 +774,7 @@ pub fn code_help(code: NikaCode) -> &'static str {
         380..=429 => {
             "Shield security policy blocked the operation. Check trust levels, capability grants, and injection/canary guards."
         }
-        430 => {
-            "The provider call failed during `infer`. Check the provider error chained below (credentials, rate limits, connectivity)."
-        }
-        431 => {
-            "The model output never satisfied the task `schema:` within the retry budget. Simplify the schema, raise max_tokens, or pick a schema-capable model."
-        }
-        432 => {
-            "An `infer` parameter is invalid. Prompt must be non-empty; temperature must be within 0-2."
-        }
-        433 => {
-            "The `model:` string did not resolve. Use `provider/model` with a provider from the canonical catalog and ensure its API key is configured."
-        }
-        440 => {
-            "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
-        }
-        441 => {
-            "Shell execution failed before or during the run. Check the command exists, is not blocklisted, and completes within the timeout."
-        }
-        442 => "An `exec` parameter is invalid. Command must be a non-empty string.",
-        434..=479 => {
-            "Verb execution failed. Check the task definition against the spec for this verb."
-        }
+        430..=479 => verb_help(code.num),
         601 => {
             "Memory store unavailable. Verify the configured backend (Oxigraph / RocksDB / runtime) is initialised and reachable."
         }
@@ -793,12 +831,13 @@ mod tests {
 
     #[test]
     fn verb_codes_have_their_category_and_range() {
-        // Verb 430-479 · s9 infer claims 430-439 · s10 exec claims 440-449.
+        // Verb 430-479 · s9 infer 430-439 · s10 exec 440-449 · s11 invoke 450-459.
         for c in [
-            NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442,
+            NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_440, NIKA_441, NIKA_442, NIKA_450,
+            NIKA_451, NIKA_452,
         ] {
             assert_eq!(c.category, Category::Verb, "{c}");
-            assert!((430..=449).contains(&c.num), "{c}");
+            assert!((430..=459).contains(&c.num), "{c}");
             assert_eq!(lookup(&c.to_string()), Some(c), "{c} resolvable");
             assert!(!code_help(c).is_empty(), "{c} has help");
         }
