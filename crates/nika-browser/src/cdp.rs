@@ -33,8 +33,16 @@ const ELEMENT_NODE: i64 = 1;
 ///
 /// A descendant hit is legitimate: clicking a button's child `<span>`/text node
 /// dispatches to the button. `subtree` is the target's backend-node id PLUS
-/// every descendant's (built from the CDP describe-node tree); a hit inside it
-/// is the target, a hit outside it is an interceptor.
+/// every descendant's (built from a FULL-DEPTH describe-node tree); a hit inside
+/// it is the target, a hit outside it is an interceptor.
+///
+/// LIMITATION (documented · honest): the hit-test reports the topmost node at
+/// the click POINT (the element's center). It does NOT model partial overlap
+/// (an overlay covering only part of the element but not its center), nor does
+/// it second-guess `pointer-events:none` (an overlay with `pointer-events:none`
+/// is correctly transparent to both the real click and this hit-test — no false
+/// positive). A future hardening could sample multiple points across the box;
+/// the center-point check is the same primitive Playwright/Puppeteer use.
 ///
 /// # Errors
 /// [`BrowserError::SelectorFailed`] (NIKA-1404) when the click point is

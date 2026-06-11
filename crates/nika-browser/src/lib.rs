@@ -530,7 +530,9 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
         session: &BrowserSession,
         sel: &str,
     ) -> Result<(), BrowserError> {
-        use chromiumoxide::cdp::browser_protocol::dom::GetNodeForLocationParams;
+        use chromiumoxide::cdp::browser_protocol::dom::{
+            DescribeNodeParams, GetNodeForLocationParams,
+        };
         let page = self.page(&session.id)?;
         // Guard 5 · PEEK the expectation (clone, do not burn it): a
         // page-induced failure below must leave the pin in place so the
@@ -570,14 +572,36 @@ impl nika_kernel::io::browser::BrowserAutomationDyn for ChromiumBrowser {
         // steal the click. Hit-test the ACTUAL click point via the protocol
         // (DOM.getNodeForLocation — never page-side JS the hostile page could
         // poison) and require the topmost node there to be the target or one of
-        // its descendants. `clickable_point` itself fails closed when the
-        // element has no on-screen content quad.
+        // its descendants.
+        //
+        // SCROLL FIRST (closes a TOCTOU): `Element::click` scrolls the target
+        // into view before it computes its own click point. If we hit-tested a
+        // pre-scroll point, the click could land somewhere else. Scrolling here
+        // pins the element at its final on-screen position so the point we
+        // hit-test is the point the click uses. `clickable_point` then fails
+        // closed when the element has no on-screen content quad.
+        second
+            .scroll_into_view()
+            .await
+            .map_err(|e| selector_err(&e))?;
         let point = second
             .clickable_point()
             .await
             .map_err(|e| selector_err(&e))?;
+        // FULL-DEPTH subtree (closes a false-positive): describe the target with
+        // depth -1, not the depth-100 `desc` reused above — a legitimate click
+        // on a descendant deeper than 100 levels must NOT be wrongly rejected.
+        let full = page
+            .execute(
+                DescribeNodeParams::builder()
+                    .backend_node_id(second.backend_node_id)
+                    .depth(-1)
+                    .build(),
+            )
+            .await
+            .map_err(|e| selector_err(&e))?;
         let mut subtree = std::collections::BTreeSet::new();
-        cdp::collect_backend_ids(&desc, &mut subtree);
+        cdp::collect_backend_ids(&full.result.node, &mut subtree);
         let hit = page
             .execute(
                 GetNodeForLocationParams::builder()
