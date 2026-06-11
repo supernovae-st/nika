@@ -12,8 +12,8 @@ pub mod task;
 pub mod workflow;
 
 pub use action::{
-    RawAction, RawAgentAction, RawExecAction, RawInferAction, RawInvokeAction, Thinking,
-    VisionInput,
+    RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction, RawInvokeAction,
+    Thinking, VisionInput,
 };
 pub use task::{ForEachValue, RawFinallyTask, RawTask};
 pub use workflow::RawWorkflow;

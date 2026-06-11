@@ -802,9 +802,42 @@ custom providers).
 
 ---
 
+## 11bis. `nika check` — the static pre-flight (shipped 2026-06-11)
+
+The `check` module composes `analyze()` with the static reports that make
+« audit before it runs » concrete (spec `07-conformance.md` §nika check) ·
+the wave **plan** · the **cost ceiling** · the **secret-leak** scan · the
+**capability-escape** scan against a declared `permits:` block. Runnable
+today via `cargo run -p nika-schema --example check -- wf.yaml`; the polished
+CLI ships with `nika-cli` (step 19). A 3-angle adversarial review (2026-06-11)
+hardened it — net/fs literal escapes now enforced (the two escapes the spec
+names first), secrets scoped to real `${{ }}` islands via `expr_refs`, cost
+priced provider-scoped + for_each-fan-out-aware.
+
+### Known limitations (honest · no silent gaps)
+
+| Gap | Why deferred | Where it's still caught |
+|---|---|---|
+| **`with:`-aliased secret** (`with: { t: ${{ secrets.X }} }` then `${{ with.t }}` into a sink) | needs a binding/taint graph across `with:` → sink; the v0.1 scan checks the sink field directly | runtime secret masking still applies to the value; not a leak of the value, only an un-flagged *flow* |
+| **fs/net escape via a shell `exec` string** (`curl https://evil` inside `command:`) | the shell command is the runner blocklist's domain, not a structured arg; fine-grained net/fs inside `/bin/sh -c` is inherently runtime | `exec` is gated by `permits.exec` + the s7 runner blocklist; the structured builtins (`nika:fetch`/`read`/`write`) ARE checked |
+| **agent tool-call args** | the model picks tool args at runtime — no static surface | runtime `NIKA-SEC-004` when the agent dispatches |
+| **cost input-token term** | input cost is prompt-dependent (interpolates task outputs) → statically unbounded | the figure is documented as an OUTPUT-token ceiling; `max_tokens` bounds output only |
+
+### Next — completing the `nika check` story
+
+1. **Runtime `NIKA-SEC-004` enforcement** (the dynamic half) — the engine/
+   runner enforces `permits:` DURING execution for the cases the static scan
+   marks dynamic (a `${{ }}`-built host/path, an agent tool dispatch). This
+   is the L3 runtime's job, sequenced with the engine crate.
+2. **`nika-cli check` subcommand** — the polished CLI surface (colour, exit
+   codes, `--providers` parity flag) over this module, at step 19.
+3. **(optional) `with:` taint trace** — promote the secret-leak scan to
+   follow `with:` aliases (a small binding graph) if real workflows hit it.
+
 ## 12. Audit trail
 
 | Date | Author | Change |
 |---|---|---|
 | 2026-04-13 | Phase 1 S4 | Initial spec. 1-crate design locked (no ast/analyze split). |
+| 2026-06-11 | nika check arc | `permits:` parser + `check` module (plan/cost/secrets/permits) + CEL cel-subset/0.1 (ternary·has·string tests) + runnable example. 3-angle review hardened (net/fs literal escapes · secret island-scoping · provider-scoped + for_each cost). §11bis added. |
 

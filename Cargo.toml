@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-exec-runner", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -36,7 +36,7 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-schema"]
+wip = ["nika-schema", "nika-infer-local"]
 # nika-pack · the embedded language pack (spec snapshot + manifest hashes ·
 # proposal branch feat/nika-pack · pure data · include_dir · zero I/O).
 layers.nika-pack = "L0"
@@ -65,6 +65,11 @@ layers.nika-http = "L1"
 # implements kernel ai::provider {ProviderInferDyn,ProviderStreamDyn,ProviderMeta} ·
 # 14 canonical profiles over 3 wire formats · transport via kernel http (no reqwest here).
 layers.nika-providers = "L1.5"
+# nika-infer-local · sovereign local inference sidecar (ADR-091) · all-Rust
+# replacement for the ollama dependency · OpenAI-compat surface (reuses the
+# nika-providers wire) · subprocess-isolated · candle backend feature-gated
+# off (`local-infer`) · v1 scaffold = protocol + Backend seam + MockBackend.
+layers.nika-infer-local = "L1.5"
 # nika-verb-infer · Phase-B slice step 9 (announce ladder · D-2026-06-10-N6) ·
 # FIRST L2 verb crate · one-shot inference per spec 02-verbs.md §infer ·
 # resolves provider/model via nika-providers · structured-output floor

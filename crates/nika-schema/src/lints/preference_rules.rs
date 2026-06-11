@@ -253,7 +253,7 @@ fn action_fingerprint(a: &RawAction) -> Value {
     match a {
         RawAction::Exec(e) => json!({
             "verb": "exec",
-            "command": e.command.value,
+            "command": e.command.shell_str().unwrap_or("<argv>"),
             "cwd": e.cwd.as_ref().map(|s| s.value.clone()),
             "stdin": e.stdin.as_ref().map(|s| s.value.clone()),
             "capture": e.capture.as_ref().map(|c| format!("{:?}", c.value)),
@@ -459,10 +459,13 @@ fn is_value_producer(a: &RawAction) -> bool {
                     .contains("${{")
             })
         }
-        RawAction::Exec(e) => {
-            let c = e.command.value.trim_start();
-            c.starts_with("echo ") && !c.contains("${{")
-        }
+        RawAction::Exec(e) => match e.command.shell_str() {
+            Some(c) => {
+                let c = c.trim_start();
+                c.starts_with("echo ") && !c.contains("${{")
+            }
+            None => false, // argv form has no shell echo
+        },
         _ => false,
     }
 }
@@ -516,7 +519,10 @@ fn rule_006_per_element_timing(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
         let RawAction::Exec(e) = &task.action else {
             continue;
         };
-        let c = e.command.value.trim_start();
+        let Some(c) = e.command.shell_str() else {
+            continue; // argv form: no shell timeout wrapper
+        };
+        let c = c.trim_start();
         if !(c.starts_with("timeout ") || c.starts_with("gtimeout ")) {
             continue;
         }
@@ -604,7 +610,9 @@ fn is_shard_chain(tasks: &[&RawTask], chain: &[usize]) -> bool {
                 .iter()
                 .filter_map(|a| {
                     if let RawAction::Exec(e) = a {
-                        Some(e.command.value.split_whitespace().collect())
+                        e.command
+                            .shell_str()
+                            .map(|c| c.split_whitespace().collect())
                     } else {
                         None
                     }

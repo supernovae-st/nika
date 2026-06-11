@@ -220,7 +220,10 @@ fn scan_action(
             }
         }
         RawAction::Exec(exec) => {
-            strings.push(&exec.command);
+            match &exec.command {
+                crate::raw::RawCommand::Shell(c) => strings.push(c),
+                crate::raw::RawCommand::Argv(parts) => strings.extend(parts.iter()),
+            }
             strings.extend(exec.cwd.as_ref());
             strings.extend(exec.stdin.as_ref());
             for (_, value) in &exec.env {

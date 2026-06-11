@@ -23,8 +23,32 @@ pub enum Expr {
         /// Right operand.
         rhs: Box<Expr>,
     },
+    /// `cond ? a : b` — conditional value selection (right-associative ·
+    /// loosest precedence · `cond` MUST be boolean-shaped). Value
+    /// selection, not a relation — `then`/`else_` may be any value.
+    Ternary {
+        /// The boolean condition.
+        cond: Box<Expr>,
+        /// The value when `cond` is true.
+        then: Box<Expr>,
+        /// The value when `cond` is false.
+        else_: Box<Expr>,
+    },
     /// `size(x)` — free form · « the ONE v0.1 function ».
     SizeCall(Box<Expr>),
+    /// `has(x)` — the presence macro · `true` iff `x` resolves to a
+    /// defined, non-`null` value. Boolean-shaped.
+    HasCall(Box<Expr>),
+    /// `x.contains(s)` · `x.startsWith(s)` · `x.endsWith(s)` — the 1-arg
+    /// string-predicate methods (case-sensitive · boolean-shaped).
+    StringMethod {
+        /// The string receiver.
+        base: Box<Expr>,
+        /// Which predicate.
+        method: StringPredicate,
+        /// The argument string expression.
+        arg: Box<Expr>,
+    },
     /// `x.size()` — method form · exactly 0 arguments.
     SizeMethod(Box<Expr>),
     /// `base.field` — member access.
@@ -63,6 +87,30 @@ pub enum Literal {
     Str(String),
     /// `null`.
     Null,
+}
+
+/// The 1-arg string predicates (`cel-subset/0.1` · boolean-valued).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StringPredicate {
+    /// `x.contains(s)` — substring test.
+    Contains,
+    /// `x.startsWith(s)` — prefix test.
+    StartsWith,
+    /// `x.endsWith(s)` — suffix test.
+    EndsWith,
+}
+
+impl StringPredicate {
+    /// The method name in source.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Contains => "contains",
+            Self::StartsWith => "startsWith",
+            Self::EndsWith => "endsWith",
+        }
+    }
 }
 
 /// The relational operators (spec EBNF `relop`).

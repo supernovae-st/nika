@@ -43,6 +43,8 @@ pub(super) enum TokenKind {
     RBracket,
     Comma,
     Dot,
+    Question,
+    Colon,
     Eof,
 }
 
@@ -73,6 +75,8 @@ impl TokenKind {
             Self::RBracket => "`]`".to_owned(),
             Self::Comma => "`,`".to_owned(),
             Self::Dot => "`.`".to_owned(),
+            Self::Question => "`?`".to_owned(),
+            Self::Colon => "`:`".to_owned(),
             Self::Eof => "end of expression".to_owned(),
         }
     }
@@ -96,6 +100,8 @@ pub(super) fn tokenize(src: &str) -> Result<Vec<Token>, ExprError> {
             b']' => push_simple(&mut tokens, TokenKind::RBracket, start, &mut i),
             b',' => push_simple(&mut tokens, TokenKind::Comma, start, &mut i),
             b'.' => push_simple(&mut tokens, TokenKind::Dot, start, &mut i),
+            b'?' => push_simple(&mut tokens, TokenKind::Question, start, &mut i),
+            b':' => push_simple(&mut tokens, TokenKind::Colon, start, &mut i),
             b'|' | b'&' | b'=' | b'!' | b'<' | b'>' => {
                 let (kind, len) = lex_operator(bytes, i)?;
                 tokens.push(Token {

@@ -56,6 +56,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "vars",
     "env",
     "secrets",
+    "permits",
     "tasks",
     "outputs",
 ];
@@ -134,6 +135,7 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     workflow.vars = envelope::parse_vars(&cx, mapping)?;
     workflow.env = envelope::parse_env(&cx, mapping)?;
     workflow.secrets = envelope::parse_secrets(&cx, mapping)?;
+    workflow.permits = envelope::parse_permits(&cx, mapping)?;
     workflow.outputs = envelope::parse_outputs(&cx, mapping)?;
     workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
 
@@ -176,6 +178,29 @@ impl Cx<'_> {
         if self.mode == ParseMode::Lenient {
             return Ok(());
         }
+        for (key, _) in mapping.iter() {
+            if !known.contains(&key.as_str()) {
+                return Err(SchemaError::UnknownField {
+                    field: key.as_str().to_owned(),
+                    location: location.to_owned(),
+                    span: self.span(key.span()),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Reject any mapping key outside `known` in BOTH parse modes.
+    ///
+    /// Reserved for security-bearing blocks (`permits:`) where a typo'd
+    /// capability key silently changing the boundary would be a security
+    /// bug — lenient mode does not apply there.
+    pub(super) fn check_unknown_keys_always(
+        &self,
+        mapping: &marked_yaml::types::MarkedMappingNode,
+        known: &[&str],
+        location: &str,
+    ) -> Result<(), SchemaError> {
         for (key, _) in mapping.iter() {
             if !known.contains(&key.as_str()) {
                 return Err(SchemaError::UnknownField {
