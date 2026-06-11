@@ -100,6 +100,57 @@ GPU abort) kills only the child; the lean core detects the broken pipe and
 restarts/degrades. `catch_unwind` is the inner backstop, the process boundary
 is the real containment.
 
+## 5bis. Connection path — wiring the island into a `.nika.yaml` (build-ready)
+
+**Current state (verified 2026-06-11): `nika-infer-local` is a proven ISLAND.**
+`BackendDyn` generates correctly on a real model, but NO crate consumes it —
+`nika-verb-infer` reaches models only through `nika-providers` (the 14 HTTP
+providers). A `.nika.yaml` cannot yet run `model: local/qwen3`. This section
+specifies the connection so the build is mechanical (no new dispatch seam · the
+ADR-091 reuse-the-wire decision, made concrete).
+
+**The path (3 hops · each side already exists):**
+
+```
+.nika.yaml `model: local/qwen3`
+   │
+   ▼  nika-providers · a NEW "local" Profile (wire: OpenAiCompat · base_url:
+   │   http://127.0.0.1:<port> · requires_key: false) — ONE catalog row, the
+   │   same shape as the ollama/lmstudio/llamacpp local profiles already there
+   ▼  the existing OpenAiCompat wire adapter speaks to localhost
+   │
+   ▼  nika-infer-local SERVER (the one unbuilt piece): a minimal
+   │   POST /v1/chat/completions over BackendDyn — deserialize ChatRequest
+   │   (protocol.rs already IS the wire type) → generate → serialize
+   │   ChatResponse (wire-contract test already pins the exact shape)
+   ▼  CandleBackend (built · proven)
+```
+
+**Why this is mechanical, not speculative:**
+- `protocol.rs` types ARE the OpenAI-compat wire (the `wire_contract` test
+  already proves a `ChatResponse` parses through nika-providers' own parser).
+- `nika-providers` adding a `local` profile = one `CATALOG_WIRED` row (the
+  local-provider precedent — ollama/lmstudio — is right there).
+- The model alias (`local/qwen3` → which GGUF) resolves via the model-pull
+  CAS (§marketplace doc) — a forkable alias pack, not a hardcoded table.
+
+**The ONE real decision (ADR-level · operator/architecture):** the server's
+HTTP framework. Options, ranked by the lean-core/sovereign doctrine:
+1. **`tiny_http`** (minimal · ~1 dep · one blocking handler · fits "one
+   endpoint, one in-flight generation" v1) — *recommended for v1*.
+2. **`hyper`** (lower-level · more control · heavier) — if streaming SSE
+   becomes load-bearing.
+3. **`axum`** (the ecosystem default · heaviest) — overkill for one endpoint;
+   reconsider only if the sidecar grows many routes.
+All ride behind the `local-infer` feature (the default `nika` build links
+none). The choice is genuinely load-bearing (20-yr dep) → an ADR, not a
+quick-win, and it wants a quiet Cargo.lock window (not mid-hot-concurrent-
+session — the lean-core dep tree must not churn under another session's WIP).
+
+**Subprocess supervisor** (ADR-091 isolation): `nika` spawns the server child,
+health-checks `/health`, restarts on broken pipe. Lives in the runtime/daemon
+layer (L3), not here — this crate stays the backend + the (thin) server.
+
 ## 6. Verification plan (Test > Implement · Verify > Ship)
 
 - **Unit (CI · no model)** — Sampling config builder · chat-template rendering ·
