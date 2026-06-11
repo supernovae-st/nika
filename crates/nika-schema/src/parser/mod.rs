@@ -74,13 +74,11 @@ const TOP_LEVEL_KEYS: &[&str] = &[
 /// Go-duration · exactly-one-verb · id formats), or — in
 /// [`ParseMode::Strict`] — carries an unknown field.
 pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow, SchemaError> {
-    // Pre-parse stack-safety guard: marked-yaml's BLOCK parser recurses
-    // per indentation level and empirically overflows an 8 MB stack
-    // near ~3000 levels — reject pathological nesting LOUD before the
-    // parser ever recurses. (Flow style is self-limited by marked-yaml
-    // at ~150; free-form VALUES are further capped at conversion by
-    // `value::MAX_VALUE_DEPTH`.)
-    check_indentation_depth(yaml)?;
+    // Pre-parse resource guards (the untrusted-input bounds — see the
+    // security note on `CharToByte::new`). marked-yaml allocates the
+    // whole node tree up-front and its block parser recurses per
+    // indentation level, so BOTH bounds must precede it.
+    check_source_bounds(yaml)?;
 
     // YAML 1.2 forbids duplicate mapping keys from silently last-winning
     // — `error_on_duplicate_keys` turns them into loud errors (covers
@@ -156,6 +154,14 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
 /// (`env:` · `secrets:` · `with:` · `output:` blocks).
 pub(super) type SpannedEntries<T> = Vec<(Spanned<String>, Spanned<T>)>;
 
+/// Maximum workflow source size — 4 MiB. marked-yaml allocates the
+/// whole node tree up-front, so this bounds parse-time memory. A
+/// hand-written workflow (even with inline JSON Schemas and long
+/// prompts) is kilobytes; 4 MiB is a memory-safety bound, not a policy
+/// limit — far above any real file, loud below the `u32::MAX` span
+/// ceiling (which stays a separate span-correctness guard).
+const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
+
 /// Maximum leading-space indentation accepted per line — ~512 block
 /// nesting levels at 2 spaces/level, a 4–6× margin under the empirical
 /// marked-yaml stack-overflow point (~3000 levels / 8 MB stack) and
@@ -163,9 +169,20 @@ pub(super) type SpannedEntries<T> = Vec<(Spanned<String>, Spanned<T>)>;
 /// spaces is not a workflow).
 const MAX_INDENT_BYTES: usize = 1024;
 
-/// The pre-parse stack-safety guard — one O(n) pass, leading spaces
-/// only (YAML forbids tabs in indentation; marked-yaml rejects them).
-fn check_indentation_depth(source: &str) -> Result<(), SchemaError> {
+/// The pre-parse resource guards — byte size + indentation depth, both
+/// LOUD and both before marked-yaml allocates/recurses. One O(n) pass
+/// over lines (leading spaces only — YAML forbids tabs in indentation).
+fn check_source_bounds(source: &str) -> Result<(), SchemaError> {
+    if source.len() > MAX_SOURCE_BYTES {
+        return Err(SchemaError::YamlSyntax {
+            message: format!(
+                "workflow source is {} bytes (max {MAX_SOURCE_BYTES}) — \
+                 rejected (memory-safety bound)",
+                source.len()
+            ),
+            span: None,
+        });
+    }
     for (line_no, line) in source.lines().enumerate() {
         let indent = line.bytes().take_while(|&b| b == b' ').count();
         if indent > MAX_INDENT_BYTES {
@@ -291,16 +308,19 @@ impl CharToByte {
         // 4 GB of YAML is not a workflow, it's a denial-of-service
         // attempt — fail loud rather than silently clamp.
         //
-        // SECURITY NOTE (pre-admission · see crate-spec §11 untrusted-input
-        // resource bounds): this u32::MAX limit is a SPAN-CORRECTNESS bound,
-        // NOT a DoS bound. Before `nika serve` exposes the parser to untrusted
-        // workflows, lower this to a workflow-realistic byte cap (marked-yaml
-        // allocates the whole node tree up-front) + a task-count cap
-        // (parser::tasks). The YAML-value nesting-depth cap SHIPPED
-        // (value::MAX_VALUE_DEPTH · empirically: unbounded block nesting
-        // overflowed the stack at ~3000 levels). marked-yaml 0.8 does not
-        // expand anchors/aliases, so the billion-laughs vector is closed,
-        // and its flow parser self-limits recursion (~150).
+        // SECURITY NOTE (untrusted-input resource bounds · crate-spec §11):
+        // this u32::MAX limit is a SPAN-CORRECTNESS bound, distinct from the
+        // DoS bounds below. The untrusted-input guard SET is now complete —
+        // all checked BEFORE marked-yaml allocates/recurses:
+        //   • source byte cap        `MAX_SOURCE_BYTES` (4 MiB · memory)
+        //   • indentation depth cap  `MAX_INDENT_BYTES` (block stack-safety)
+        //   • YAML value nesting cap  `value::MAX_VALUE_DEPTH` (walker + Drop)
+        //   • task-count cap         `tasks::MAX_TASKS` (analyzer DAG passes)
+        // (empirical anchor: unbounded block nesting overflowed the stack at
+        // ~3000 levels.) marked-yaml 0.8 does not expand anchors/aliases, so
+        // the billion-laughs vector is closed and its flow parser self-limits
+        // recursion (~150). What REMAINS pre-`nika serve` is policy, not
+        // safety: per-tenant quotas + a wall-clock parse timeout.
         if source.len() > u32::MAX as usize {
             return Err(SchemaError::YamlSyntax {
                 message: format!(
@@ -462,6 +482,29 @@ tasks:
     infer:
       prompt: \"Say hi\"
 ";
+
+    #[test]
+    fn oversized_source_is_rejected_loud() {
+        // a 4 MiB+ document rejects BEFORE marked-yaml allocates the tree
+        let big = format!(
+            "nika: v1\nworkflow: w\ndescription: \"{}\"\ntasks: []\n",
+            "x".repeat(MAX_SOURCE_BYTES)
+        );
+        let err = parse_strict(&big).expect_err("rejected");
+        assert!(err.to_string().contains("memory-safety bound"), "{err}");
+    }
+
+    #[test]
+    fn too_many_tasks_is_rejected_loud() {
+        use std::fmt::Write as _;
+        let mut yaml = String::from("nika: v1\nworkflow: w\ntasks:\n");
+        for i in 0..=tasks::MAX_TASKS {
+            let _ = write!(yaml, "  - id: t{i}\n    exec: {{ command: \"true\" }}\n");
+        }
+        let err = parse_strict(&yaml).expect_err("rejected");
+        assert!(err.to_string().contains("resource bound"), "{err}");
+        assert!(err.to_string().contains("compose"), "actionable: {err}");
+    }
 
     #[test]
     fn pathological_block_nesting_is_rejected_not_crashed() {

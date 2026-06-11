@@ -83,6 +83,46 @@ pub(crate) fn damerau_levenshtein(a: &str, b: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        // Metric-space axioms — a distance that violates these would make
+        // did_you_mean rank suggestions nonsensically. Inputs bounded so
+        // the O(n·m) DP stays fast.
+        #[test]
+        fn distance_is_a_pseudometric(
+            a in "\\PC{0,40}",
+            b in "\\PC{0,40}",
+            c in "\\PC{0,40}",
+        ) {
+            // identity
+            prop_assert_eq!(damerau_levenshtein(&a, &a), 0);
+            // symmetry
+            prop_assert_eq!(damerau_levenshtein(&a, &b), damerau_levenshtein(&b, &a));
+            // triangle inequality
+            prop_assert!(
+                damerau_levenshtein(&a, &c)
+                    <= damerau_levenshtein(&a, &b) + damerau_levenshtein(&b, &c)
+            );
+            // bounded by the longer length (per-char edits)
+            let max_len = a.chars().count().max(b.chars().count());
+            prop_assert!(damerau_levenshtein(&a, &b) <= max_len);
+        }
+
+        // did_you_mean NEVER invents a candidate and NEVER returns the
+        // exact target — the two invariants the agent loop relies on.
+        #[test]
+        fn did_you_mean_only_ever_returns_a_real_non_exact_candidate(
+            target in "[a-z_]{1,16}",
+            candidates in prop::collection::vec("[a-z_]{1,16}", 0..8),
+        ) {
+            let refs: Vec<&str> = candidates.iter().map(String::as_str).collect();
+            if let Some(hit) = did_you_mean(&target, refs.iter().copied()) {
+                prop_assert!(candidates.iter().any(|c| c == hit), "invented `{hit}`");
+                prop_assert_ne!(hit, target.as_str(), "exact match is not a suggestion");
+            }
+        }
+    }
 
     #[test]
     fn distance_basics() {

@@ -24,6 +24,13 @@ use super::value::json_value;
 use super::verbs::{VERB_KEYS, parse_verb};
 use super::{Cx, validate_task_id};
 
+/// Maximum tasks per workflow (untrusted-input resource bound · see the
+/// security note on `parser::CharToByte::new`). The analyzer's DAG
+/// passes (cycle detection · `depends_on` resolution) are super-linear
+/// in places; >10k tasks is machine-generated and should compose
+/// sub-workflows. Generous — no hand-written workflow approaches it.
+pub(super) const MAX_TASKS: usize = 10_000;
+
 /// The canonical task-level keys (verbs handled separately).
 const TASK_KEYS: &[&str] = &[
     "id",
@@ -80,6 +87,19 @@ pub(super) fn parse_tasks(
             span: cx.span(node.span()),
         });
     };
+
+    // Task-count bound (untrusted-input guard · see parser::mod security
+    // note). Loud, not a silent truncate.
+    if seq.len() > MAX_TASKS {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "workflow declares {} tasks (max {MAX_TASKS}) — compose \
+                 sub-workflows instead (resource bound)",
+                seq.len()
+            ),
+            span: cx.span(node.span()),
+        });
+    }
 
     let mut tasks = Vec::with_capacity(seq.len());
     for item in seq.iter() {

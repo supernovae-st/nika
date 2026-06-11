@@ -261,9 +261,45 @@ mod tests {
     use super::*;
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
+    use proptest::prelude::*;
 
     fn infer_of(yaml: &str) -> InferredPermits {
         infer(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    proptest! {
+        // The security-critical property: ANY literal `nika:read` path —
+        // including quotes, backslashes, control chars marked-yaml admits
+        // in a double-quoted scalar — renders to a `permits:` block that
+        // PARSES and admits the workflow. A broken escape would either
+        // fail to parse (the operator can't paste it) or silently shift
+        // the boundary (the grant no longer matches the path).
+        #[test]
+        fn inferred_block_round_trips_for_arbitrary_literal_paths(
+            path in "[a-z0-9 ./\"\\\\\t]{1,40}",
+        ) {
+            // build a read on this literal path via a JSON-escaped scalar
+            let esc = path.replace('\\', "\\\\").replace('"', "\\\"").replace('\t', "\\t");
+            let yaml = format!(
+                "nika: v1\nworkflow: w\ntasks:\n  - id: t\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"{esc}\" }} }}\n"
+            );
+            // only proceed if the SOURCE parses (some byte seqs are not
+            // valid scalars — that's the parser's domain, not ours)
+            let Ok(src_wf) = parse(&yaml, FileId::new(0), ParseMode::Strict) else {
+                return Ok(());
+            };
+            let r = infer(&src_wf);
+            // the rendered block must itself parse + admit the workflow
+            let (head, tail) = yaml.split_once("tasks:").expect("has tasks");
+            let spliced = format!("{head}{}tasks:{tail}", r.to_yaml());
+            let wf = parse(&spliced, FileId::new(0), ParseMode::Strict)
+                .expect("inferred block must parse");
+            prop_assert!(wf.permits.is_some());
+            prop_assert!(
+                super::super::permits_fit::scan_escapes(&wf).is_empty(),
+                "boundary must admit the path it was inferred from"
+            );
+        }
     }
 
     /// Splice the inferred block into the workflow and assert the re-check
