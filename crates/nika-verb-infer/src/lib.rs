@@ -481,6 +481,26 @@ mod tests {
         let rendered = crate::structured::render_schema(&huge);
         assert!(rendered.len() < 5_000, "render capped: {}", rendered.len());
         assert!(rendered.ends_with("…(schema truncated)"));
+
+        // Boundary: a render of EXACTLY the cap stays untouched (> not >=).
+        let at_cap = json!("y".repeat(4096 - 2)); // 2 quotes in the render
+        let exact = crate::structured::render_schema(&at_cap);
+        assert_eq!(exact.len(), 4096);
+        assert!(!exact.contains("truncated"));
+
+        // A multibyte char straddling the cap: render = quote + 4094 z + é,
+        // so byte 4096 lands MID-é and the cut must walk BACK to 4095
+        // (never forward past the cap).
+        let multibyte = json!(format!("{}éé", "z".repeat(4094)));
+        let cut = crate::structured::render_schema(&multibyte);
+        assert!(cut.ends_with("…(schema truncated)"));
+        let body = cut.trim_end_matches("…(schema truncated)");
+        assert!(
+            body.len() <= 4096,
+            "cut never exceeds the cap: {}",
+            body.len()
+        );
+        assert!(body.is_char_boundary(body.len()));
     }
 
     #[test]
