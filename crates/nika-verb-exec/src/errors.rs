@@ -6,6 +6,8 @@
 //! Constants are registry-owned in `nika_error::codes`; the spec-level
 //! rows are `NIKA-EXEC-001/002` (`nika-spec spec/05-errors.md`) — 440
 //! maps to 001 (non-zero exit), 441 maps to 002 (spawn/shell failure).
+//! NIKA-442 (`InvalidParam`) has **no spec counterpart** — it is an
+//! engine-side guard refusing corrupting input BEFORE the shell call.
 
 use nika_error::codes::{self, NikaCode};
 use nika_error::traits::NikaErrorCode;
