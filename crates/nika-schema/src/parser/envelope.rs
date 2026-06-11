@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Envelope block parsing — `vars:` · `env:` · `secrets:` · `outputs:`
-//! (spec `01-envelope.md`).
+//! Envelope block parsing — `vars:` · `env:` · `secrets:` · `permits:` ·
+//! `outputs:` (spec `01-envelope.md`).
 
 use marked_yaml::Node;
 use marked_yaml::types::MarkedMappingNode;
 
 use crate::error::SchemaError;
 use crate::source::Spanned;
-use crate::types::{OutputDecl, SecretRef, SecretSource, VarDecl, VarType};
+use crate::types::{
+    ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, SecretRef, SecretSource, VarDecl,
+    VarType,
+};
 
 use super::{Cx, value::node_to_json};
 
@@ -21,6 +24,15 @@ const SECRET_KEYS: &[&str] = &["source", "key"];
 
 /// Keys of the typed `outputs:` form (spec 01 §outputs).
 const TYPED_OUTPUT_KEYS: &[&str] = &["value", "type", "description"];
+
+/// Keys of the `permits:` block (spec 01 §permits · closed).
+const PERMITS_KEYS: &[&str] = &["fs", "net", "exec", "tools"];
+
+/// Keys of `permits.fs` (closed).
+const PERMITS_FS_KEYS: &[&str] = &["read", "write"];
+
+/// Keys of `permits.net` (closed).
+const PERMITS_NET_KEYS: &[&str] = &["http"];
 
 /// Parse `vars:` — untyped (`name: value`) OR typed
 /// (`name: { type, required, default, description }`).
@@ -469,5 +481,191 @@ outputs:
 ";
         let err = parse_strict(yaml).expect_err("missing value");
         assert!(matches!(err, SchemaError::MissingField { .. }), "{err:?}");
+    }
+}
+
+/// Parse `permits:` — the declared capability boundary (spec 01 §permits).
+///
+/// `None` = the block is absent (today's behavior · engine floor only).
+/// `Some(Permits)` = default-deny: every category not listed is denied.
+/// The block and its sub-blocks use CLOSED key sets — an unknown key is
+/// always an error here (a typo'd capability silently widening or
+/// narrowing the boundary would be a security bug, so `permits:` is
+/// strict in BOTH parse modes).
+pub(super) fn parse_permits(
+    cx: &Cx<'_>,
+    workflow: &MarkedMappingNode,
+) -> Result<Option<Spanned<Permits>>, SchemaError> {
+    let Some(node) = workflow.get_node("permits") else {
+        return Ok(None);
+    };
+    let mapping = require_mapping(cx, node, "permits")?;
+    cx.check_unknown_keys_always(mapping, PERMITS_KEYS, "`permits:`")?;
+
+    let mut permits = Permits::new();
+
+    if let Some(fs_node) = mapping.get_node("fs") {
+        let fs_map = require_mapping(cx, fs_node, "permits.fs")?;
+        cx.check_unknown_keys_always(fs_map, PERMITS_FS_KEYS, "`permits.fs`")?;
+        permits.fs = Some(FsPermits {
+            read: string_list_values(cx, fs_map, "read")?,
+            write: string_list_values(cx, fs_map, "write")?,
+        });
+    }
+
+    if let Some(net_node) = mapping.get_node("net") {
+        let net_map = require_mapping(cx, net_node, "permits.net")?;
+        cx.check_unknown_keys_always(net_map, PERMITS_NET_KEYS, "`permits.net`")?;
+        permits.net = Some(NetPermits {
+            http: string_list_values(cx, net_map, "http")?,
+        });
+    }
+
+    if let Some(exec_node) = mapping.get_node("exec") {
+        permits.exec = Some(parse_exec_permit(cx, exec_node)?);
+    }
+
+    if mapping.get_node("tools").is_some() {
+        permits.tools = Some(string_list_values(cx, mapping, "tools")?);
+    }
+
+    Ok(Some(Spanned::new(permits, cx.span_or_zero(node.span()))))
+}
+
+/// `permits.exec` — the closed tri-state · `false` | `true` | `[programs…]`.
+fn parse_exec_permit(cx: &Cx<'_>, node: &Node) -> Result<ExecPermit, SchemaError> {
+    if let Some(scalar) = node.as_scalar() {
+        return match scalar.as_str() {
+            "false" => Ok(ExecPermit::No),
+            "true" => Ok(ExecPermit::Any),
+            other => Err(SchemaError::Validation {
+                message: format!(
+                    "`permits.exec` must be false, true, or a program list — got `{other}`"
+                ),
+                span: cx.span(scalar.span()),
+            }),
+        };
+    }
+    if let Some(seq) = node.as_sequence() {
+        let mut programs = Vec::with_capacity(seq.len());
+        for item in seq.iter() {
+            let Some(scalar) = item.as_scalar() else {
+                return Err(SchemaError::Validation {
+                    message: "each `permits.exec` entry must be a program name string".to_owned(),
+                    span: cx.span(item.span()),
+                });
+            };
+            programs.push(scalar.as_str().to_owned());
+        }
+        return Ok(ExecPermit::Programs(programs));
+    }
+    Err(SchemaError::Validation {
+        message: "`permits.exec` must be false, true, or a program list".to_owned(),
+        span: cx.span(node.span()),
+    })
+}
+
+/// A plain string list under `key` (values only · permits globs carry no
+/// per-element spans downstream).
+fn string_list_values(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    key: &str,
+) -> Result<Vec<String>, SchemaError> {
+    Ok(super::tasks::parse_string_list(cx, mapping, key)?
+        .into_iter()
+        .map(|s| s.value)
+        .collect())
+}
+
+#[cfg(test)]
+mod permits_tests {
+    use crate::parser::{ParseMode, parse};
+    use crate::source::FileId;
+    use crate::types::ExecPermit;
+
+    fn parse_mode(yaml: &str, mode: ParseMode) -> crate::raw::RawWorkflow {
+        parse(yaml, FileId::new(0), mode).expect("parse")
+    }
+
+    const BASE: &str = "\
+nika: v1
+workflow: demo
+tasks:
+  - id: t
+    exec: { command: \"true\" }
+";
+
+    #[test]
+    fn absent_permits_is_none() {
+        let wf = parse_mode(BASE, ParseMode::Strict);
+        assert!(wf.permits.is_none(), "absent block = today's behavior");
+    }
+
+    #[test]
+    fn empty_permits_is_pure_compute() {
+        let yaml = format!("{BASE}permits: {{}}\n");
+        let wf = parse_mode(&yaml, ParseMode::Strict);
+        let p = &wf.permits.expect("present").value;
+        assert!(!p.allows_exec());
+        assert!(!p.allows_tool("nika:read"));
+        assert!(p.fs.is_none() && p.net.is_none());
+    }
+
+    #[test]
+    fn full_permits_block_round_trips() {
+        let yaml = format!(
+            "{BASE}\
+permits:
+  fs:   {{ read: [\"./data/**\"], write: [\"./out/**\"] }}
+  net:  {{ http: [\"api.example.com\", \"*.github.com\"] }}
+  exec: [\"git\", \"cargo\"]
+  tools: [\"nika:read\", \"mcp:browser/*\"]
+"
+        );
+        let wf = parse_mode(&yaml, ParseMode::Strict);
+        let p = &wf.permits.expect("present").value;
+        assert_eq!(p.fs.as_ref().expect("fs").read, vec!["./data/**"]);
+        assert_eq!(p.fs.as_ref().expect("fs").write, vec!["./out/**"]);
+        assert_eq!(
+            p.net.as_ref().expect("net").http,
+            vec!["api.example.com", "*.github.com"]
+        );
+        assert!(p.allows_program("git") && p.allows_program("cargo"));
+        assert!(!p.allows_program("rm"));
+        assert!(p.allows_tool("mcp:browser/navigate"));
+        assert!(!p.allows_tool("mcp:postgres/query"));
+    }
+
+    #[test]
+    fn exec_bool_forms() {
+        for (lit, expect_any) in [("true", true), ("false", false)] {
+            let yaml = format!("{BASE}permits: {{ exec: {lit} }}\n");
+            let wf = parse_mode(&yaml, ParseMode::Strict);
+            let p = &wf.permits.expect("present").value;
+            assert_eq!(p.allows_exec(), expect_any, "exec: {lit}");
+            if expect_any {
+                assert_eq!(p.exec, Some(ExecPermit::Any));
+            } else {
+                assert_eq!(p.exec, Some(ExecPermit::No));
+            }
+        }
+    }
+
+    #[test]
+    fn unknown_permits_key_rejected_even_in_lenient_mode() {
+        // A typo'd capability key must NEVER silently alter the boundary —
+        // permits: is strict in BOTH modes.
+        let yaml = format!("{BASE}permits: {{ network: {{ http: [\"x\"] }} }}\n");
+        let err = parse(&yaml, FileId::new(0), ParseMode::Lenient).expect_err("rejected");
+        let msg = err.to_string();
+        assert!(msg.contains("network"), "names the bad key: {msg}");
+    }
+
+    #[test]
+    fn exec_bad_scalar_rejected() {
+        let yaml = format!("{BASE}permits: {{ exec: \"maybe\" }}\n");
+        let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
+        assert!(err.to_string().contains("permits.exec"));
     }
 }

@@ -18,7 +18,7 @@
 //! ```
 
 use crate::source::Spanned;
-use crate::types::{OutputDecl, SchemaVersion, SecretRef, VarDecl};
+use crate::types::{OutputDecl, Permits, SchemaVersion, SecretRef, VarDecl};
 
 use super::task::RawTask;
 
@@ -45,6 +45,9 @@ pub struct RawWorkflow {
     pub env: Vec<(Spanned<String>, Spanned<String>)>,
     /// `secrets:` — masked store references (`${{ secrets.X }}`).
     pub secrets: Vec<(Spanned<String>, Spanned<SecretRef>)>,
+    /// `permits:` — the declared capability boundary (spec 01 §permits ·
+    /// `None` = absent = today's behavior · `Some` = default-deny).
+    pub permits: Option<Spanned<Permits>>,
     /// `tasks:` — the DAG.
     pub tasks: Vec<Spanned<RawTask>>,
     /// `outputs:` — the workflow's return contract.
@@ -63,6 +66,7 @@ impl RawWorkflow {
             vars: Vec::new(),
             env: Vec::new(),
             secrets: Vec::new(),
+            permits: None,
             tasks: Vec::new(),
             outputs: Vec::new(),
         }
