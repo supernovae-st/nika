@@ -15,6 +15,11 @@ nika: v1
 workflow: human-gated-ship-template  # SLOT: kebab-case workflow id
 description: "verify in parallel · human GO · act · record"   # SLOT
 
+permits:                            # SLOT: the blast radius · default-deny once present
+  exec: ["echo"]                    # SLOT: ONLY the programs the gates + act run (argv form)
+  tools: ["nika:assert", "nika:prompt", "nika:notify"]
+  net: { http: ["hooks.slack.com"] }   # SLOT: the webhook host · nothing else may leave
+
 secrets:
   webhook:
     source: env
@@ -24,12 +29,12 @@ tasks:
   # ── the verification wave · all checks run in parallel ──
   - id: check_a
     exec:
-      command: "echo ok"            # SLOT: gate 1 (tests · lint · probe)
+      command: ["echo", "ok"]        # SLOT: gate 1 (argv form · injection-safe)
       capture: structured
 
   - id: check_b
     exec:
-      command: "echo ok"            # SLOT: gate 2
+      command: ["echo", "ok"]        # SLOT: gate 2
       capture: structured
 
   - id: gates
@@ -52,7 +57,7 @@ tasks:
     depends_on: [human]
     when: ${{ tasks.human.output == true }}
     exec:
-      command: "echo shipped"       # SLOT: the irreversible action
+      command: ["echo", "shipped"]   # SLOT: the irreversible action (argv · program must be in permits.exec)
       # default capture · a failing ship fails LOUDLY (NIKA-EXEC-001) —
       # never `capture: structured` on the irreversible step (exit codes
       # would become data and a red ship would read as success)

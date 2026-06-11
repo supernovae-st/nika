@@ -236,6 +236,18 @@ traces, and journal events (it renders as `••••••`). This `env` / `s
 split is the modern secure-workflow default: non-sensitive config in `env`,
 masked references in `secrets`.
 
+> **The masking boundary (normative).** Masking covers the engine's OWN
+> observability surface — logs · traces · journal · the `nika:inspect`
+> output. It does NOT follow a secret value that the AUTHOR routes into a
+> subprocess or tool that then re-emits it: a `secrets.X` put into
+> `exec.env` (or a `nika:fetch` header) which the command echoes to stdout
+> is captured verbatim into `tasks.X.output` and flows downstream like any
+> other data — the engine cannot know that captured string IS the secret.
+> **The contract:** the engine masks what IT prints; the author owns what
+> they pipe a secret INTO. The `nika check` pre-flight (lint) flags a
+> `secrets.X` reaching an `exec` capture or a tool whose output is bound,
+> so the leak is caught statically before the run, not after.
+
 ---
 
 ## Output binding · `output:`
@@ -421,7 +433,7 @@ Reasons ·
 
 ## Forward-compat
 
-The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->5<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ vars.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features (macros `has`/`all`/`exists` · reserved · additive). jq is the single extraction-and-transform language (`output:` + `nika:jq`).
+The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->5<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ vars.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features — the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`output:` + `nika:jq`).
 
 Out of scope for v0.1 (deferred · see [`08-out-of-scope.md`](./08-out-of-scope.md)) ·
 - Expression language (no arithmetic in templates)

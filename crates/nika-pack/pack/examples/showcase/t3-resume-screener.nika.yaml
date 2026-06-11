@@ -10,7 +10,8 @@
 #
 # Demonstrates ·
 #   - sovereignty by default · `ollama/…` because CVs are PII
-#   - `nika:glob` → `for_each` · the candidate pool is the filesystem
+#   - `nika:glob` → `for_each` + `recover: null` · an unreadable CV doesn't
+#     stop the batch · downstream gates by VALUE (`!= null`)
 #   - one rubric, schema-enforced · enums kill « kinda-strong » ratings
 #   - jq `sort_by` ranking · the ORDER is deterministic, not model mood
 #
@@ -20,6 +21,12 @@ workflow: resume-screener
 description: "glob CVs → local-model rubric per candidate → deterministic shortlist"
 
 model: ollama/llama3.1      # PII stays on the machine · the whole screen is offline
+
+permits:                    # the file IS the blast radius · no net category at all —
+  fs:                       # CVs cannot leave this machine even if a prompt is hijacked
+    read: ["./hiring/inbox/**"]
+    write: ["./hiring/out/**"]
+  tools: ["nika:glob", "nika:read", "nika:jq", "nika:write"]
 
 vars:
   role: "Senior Rust engineer"
@@ -32,19 +39,40 @@ tasks:
       tool: "nika:glob"
       args: { pattern: "${{ vars.cv_glob }}" }
 
-  - id: screened
+  - id: cvs
     depends_on: [pool]
     for_each: ${{ tasks.pool.output }}
-    max_parallel: 2                    # local model · don't thrash the GPU
+    max_parallel: 8
     fail_fast: false                   # one unreadable CV must not stop the batch
     on_error:
-      recover: null                    # it yields null at its index · filtered at the fan-in
+      recover: null                    # null keeps the zip aligned · filtered later
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ item }}" }
+
+  - id: pairs
+    depends_on: [pool, cvs]
+    invoke:                            # zip path + content · order survived the nulls
+      tool: "nika:jq"
+      args:
+        input: ["${{ tasks.pool.output }}", "${{ tasks.cvs.output }}"]
+        expression: "transpose | map(select(.[1] != null)) | map({path: .[0], text: .[1]})"
+
+  - id: screened
+    depends_on: [pairs]
+    for_each: ${{ tasks.pairs.output }}
+    max_parallel: 2                    # local model · don't thrash the GPU
+    fail_fast: false
+    on_error:
+      recover: null
     with:
-      cv_path: ${{ item }}
+      cv_path: ${{ item.path }}
     infer:
       prompt: |
         Role · ${{ vars.role }}
         Candidate file · ${{ with.cv_path }}
+        CV ·
+        ${{ item.text }}
         Score this candidate against the role. Quote evidence from the
         CV for every rating — no rating without a quote.
       schema:

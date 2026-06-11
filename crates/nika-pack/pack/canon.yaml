@@ -46,7 +46,7 @@ counts:
   extract_modes: 9
   error_namespaces: 14
   error_categories: 12
-  error_codes: 28
+  error_codes: 30
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -207,7 +207,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 28
+  count: 30
   reference: spec/05-errors.md
   items:
     - { code: NIKA-DAG-001, category: validation_error, transient: "false", failure: "cycle in depends_on (incl. self-dependency)" }
@@ -222,6 +222,7 @@ error_codes:
     - { code: NIKA-VAR-006, category: variable_error, transient: "false", failure: "expression type error at evaluation — cross-type compare · non-boolean when: value · for_each over a non-array" }
     - { code: NIKA-VAR-007, category: variable_error, transient: "false", failure: "bytes value substituted into a string position" }
     - { code: NIKA-VAR-008, category: validation_error, transient: "false", failure: "unclosed ${{ opener" }
+    - { code: NIKA-VAR-009, category: validation_error, transient: "false", failure: "typed outputs value did not match its declared type: at run end (the output half of the callable contract)" }
     - { code: NIKA-INFER-001, category: provider_error, transient: "engine-assessed", failure: "provider call failed (HTTP error · provider refusal)" }
     - { code: NIKA-INFER-002, category: validation_error, transient: "false", failure: "structured output failed schema validation (after any engine-internal retries)" }
     - { code: NIKA-EXEC-001, category: process_error, transient: "false", failure: "non-zero exit code (default capture modes)" }
@@ -235,6 +236,7 @@ error_codes:
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec: blocklist hit" }
     - { code: NIKA-SEC-002, category: security_error, transient: "false", failure: "agent tool call outside the tools: whitelist" }
     - { code: NIKA-SEC-003, category: security_error, transient: "false", failure: "run-recursion bound — nested-run depth exceeded OR self-launching workflow" }
+    - { code: NIKA-SEC-004, category: security_error, transient: "false", failure: "effect outside the declared permits: capability boundary (fs/net/exec/tool)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-BUILTIN-DONE-001, category: validation_error, transient: "false", failure: "nika:done invoked outside an agent: loop" }

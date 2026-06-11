@@ -12,6 +12,8 @@
 #
 # The loop ends when the model returns no tool calls, hits a budget,
 # or calls the `nika:done` completion sentinel (valid only inside agent:).
+#
+# Run · nika run examples/23-code-review.nika.yaml
 nika: v1
 workflow: code-review
 

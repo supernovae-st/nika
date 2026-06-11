@@ -170,6 +170,40 @@
         "description": "A secret is a reference to a store · discriminated by source · vault/env require key · file requires path (spec/01-envelope.md)."
       }
     },
+    "permits": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The declared capability boundary · once present every category is default-deny unless listed (spec/01-envelope.md §permits · NIKA-SEC-004).",
+      "properties": {
+        "fs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "read": { "type": "array", "items": { "type": "string" } },
+            "write": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "net": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "http": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "exec": {
+          "description": "false = no shells · true = any (blocklist-gated) · array = allowed program names.",
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed nika:/mcp: tool ids · globs ok."
+        }
+      }
+    },
     "tasks": {
       "type": "array",
       "minItems": 1,
@@ -424,7 +458,15 @@
       "additionalProperties": false,
       "properties": {
         "command": {
-          "type": "string"
+          "description": "String -> /bin/sh -c (shell). Array -> execve, no shell (the injection-safe form).",
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          ]
         },
         "cwd": {
           "type": "string"
